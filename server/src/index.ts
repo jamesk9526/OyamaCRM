@@ -31,6 +31,7 @@ import emailCampaignRoutes from "./routes/email-campaigns.js";
 import settingsRoutes from "./routes/settings.js";
 import automationRoutes from "./routes/automations.js";
 import eventRoutes from "./routes/events.js";
+import setupRoutes from "./routes/setup.js";
 import { prisma } from "./lib/prisma.js";
 
 const app = express();
@@ -110,6 +111,7 @@ app.use("/api/email-campaigns", emailCampaignRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/automations", automationRoutes);
 app.use("/api/events", eventRoutes);
+app.use("/api/setup", setupRoutes);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 
@@ -133,4 +135,3 @@ if (process.env.NODE_ENV !== "test") {
 }
 
 export default app;
-

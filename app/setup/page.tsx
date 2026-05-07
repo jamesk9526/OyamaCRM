@@ -1,9 +1,19 @@
-/** Setup page provides the first-run onboarding wizard foundation. */
+/** Setup page provides first-run onboarding and posts setup completion to the API. */
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 type SetupStepKey = "welcome" | "organization" | "branding" | "workspaces" | "admin" | "defaults" | "review";
+
+interface SetupStatusResponse {
+  success: boolean;
+  data?: {
+    setupCompleted: boolean;
+  };
+}
 
 interface SetupFormState {
   organizationName: string;
@@ -17,6 +27,7 @@ interface SetupFormState {
   adminFirstName: string;
   adminLastName: string;
   adminEmail: string;
+  adminPassword: string;
 }
 
 const SETUP_STEPS: Array<{ key: SetupStepKey; label: string }> = [
@@ -29,9 +40,13 @@ const SETUP_STEPS: Array<{ key: SetupStepKey; label: string }> = [
   { key: "review", label: "Review" },
 ];
 
-/** SetupPage gives a production-ready onboarding flow scaffold aligned to the phase plan. */
+/** SetupPage renders the onboarding wizard and handles setup status + completion calls. */
 export default function SetupPage() {
+  const router = useRouter();
+  const [statusLoading, setStatusLoading] = useState(true);
   const [stepIndex, setStepIndex] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState<SetupFormState>({
     organizationName: "",
@@ -45,14 +60,51 @@ export default function SetupPage() {
     adminFirstName: "",
     adminLastName: "",
     adminEmail: "",
+    adminPassword: "",
   });
 
   const step = SETUP_STEPS[stepIndex];
   const progress = ((stepIndex + 1) / SETUP_STEPS.length) * 100;
 
+  /**
+   * On mount, checks setup status and redirects to login if setup is already complete.
+   * Watches no external state and only runs once.
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSetupStatus() {
+      setStatusLoading(true);
+      setError(null);
+      try {
+        const response = await fetch(`${API}/api/setup/status`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = (await response.json()) as SetupStatusResponse;
+        if (!cancelled && payload?.data?.setupCompleted) {
+          router.replace("/login");
+          return;
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load setup status.");
+        }
+      } finally {
+        if (!cancelled) {
+          setStatusLoading(false);
+        }
+      }
+    }
+
+    void loadSetupStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
   /** Updates setup form fields in a typed way. */
   function setField<K extends keyof SetupFormState>(key: K, value: SetupFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+    setError(null);
   }
 
   /** Proceeds to the next setup step when available. */
@@ -65,9 +117,53 @@ export default function SetupPage() {
     setStepIndex((prev) => Math.max(prev - 1, 0));
   }
 
-  /** Handles final MVP completion action until backend endpoint is added. */
-  function completeSetup() {
-    setSubmitted(true);
+  /** Submits setup completion payload to the API and redirects to login on success. */
+  async function completeSetup() {
+    setSubmitting(true);
+    setError(null);
+    setSubmitted(false);
+    try {
+      const response = await fetch(`${API}/api/setup/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organization: {
+            name: form.organizationName,
+            organizationType: form.organizationType,
+            primaryContactEmail: form.primaryContactEmail,
+            timezone: form.timezone,
+          },
+          branding: {
+            primaryColor: form.primaryColor,
+            accentColor: form.accentColor,
+          },
+          workspaces: {
+            oyamacrm: form.enableOyamaCRM,
+            oyamacrmCompassion: form.enableCompassion,
+          },
+          adminUser: {
+            firstName: form.adminFirstName,
+            lastName: form.adminLastName,
+            email: form.adminEmail,
+            password: form.adminPassword,
+          },
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error?.message || `HTTP ${response.status}`);
+      }
+
+      setSubmitted(true);
+      setTimeout(() => {
+        router.replace("/login");
+      }, 900);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to complete setup.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const reviewRows = useMemo(
@@ -76,12 +172,25 @@ export default function SetupPage() {
       { label: "Type", value: form.organizationType },
       { label: "Primary Contact Email", value: form.primaryContactEmail || "Not set" },
       { label: "Timezone", value: form.timezone },
-      { label: "Workspaces", value: `${form.enableOyamaCRM ? "OyamaCRM" : ""}${form.enableOyamaCRM && form.enableCompassion ? " + " : ""}${form.enableCompassion ? "OyamaCRM-Compassion" : ""}` || "None selected" },
+      {
+        label: "Workspaces",
+        value:
+          `${form.enableOyamaCRM ? "OyamaCRM" : ""}${form.enableOyamaCRM && form.enableCompassion ? " + " : ""}${form.enableCompassion ? "OyamaCRM-Compassion" : ""}` ||
+          "None selected",
+      },
       { label: "Admin", value: `${form.adminFirstName} ${form.adminLastName}`.trim() || "Not set" },
       { label: "Admin Email", value: form.adminEmail || "Not set" },
     ],
     [form],
   );
+
+  if (statusLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-10">
@@ -100,9 +209,7 @@ export default function SetupPage() {
               <span
                 key={s.key}
                 className={`text-xs px-2 py-1 rounded-full border ${
-                  i === stepIndex
-                    ? "bg-green-50 text-green-700 border-green-200"
-                    : "bg-white text-gray-500 border-gray-200"
+                  i === stepIndex ? "bg-green-50 text-green-700 border-green-200" : "bg-white text-gray-500 border-gray-200"
                 }`}
               >
                 {i + 1}. {s.label}
@@ -112,6 +219,12 @@ export default function SetupPage() {
         </div>
 
         <div className="p-6 space-y-5">
+          {error && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+              {error}
+            </div>
+          )}
+
           {step.key === "welcome" && (
             <section className="space-y-3">
               <h2 className="text-base font-semibold text-gray-900">Get Started</h2>
@@ -239,6 +352,16 @@ export default function SetupPage() {
                   className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </label>
+              <label className="text-sm text-gray-600 sm:col-span-2">
+                Admin Password
+                <input
+                  type="password"
+                  value={form.adminPassword}
+                  onChange={(e) => setField("adminPassword", e.target.value)}
+                  className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="At least 8 characters"
+                />
+              </label>
             </section>
           )}
 
@@ -273,10 +396,8 @@ export default function SetupPage() {
 
           {submitted && (
             <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-              <p className="text-sm text-green-700 font-medium">Setup foundation captured.</p>
-              <p className="text-sm text-green-700 mt-1">
-                Next implementation step is wiring this form to <code>POST /api/setup/complete</code>.
-              </p>
+              <p className="text-sm text-green-700 font-medium">Setup completed successfully.</p>
+              <p className="text-sm text-green-700 mt-1">Redirecting to login…</p>
             </div>
           )}
         </div>
@@ -284,7 +405,7 @@ export default function SetupPage() {
         <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
           <button
             onClick={previousStep}
-            disabled={stepIndex === 0}
+            disabled={stepIndex === 0 || submitting}
             className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
           >
             Back
@@ -292,14 +413,16 @@ export default function SetupPage() {
           {step.key === "review" ? (
             <button
               onClick={completeSetup}
-              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
+              disabled={submitting}
+              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-60"
             >
-              Complete Setup
+              {submitting ? "Completing..." : "Complete Setup"}
             </button>
           ) : (
             <button
               onClick={nextStep}
-              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
+              disabled={submitting}
+              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-60"
             >
               Continue
             </button>

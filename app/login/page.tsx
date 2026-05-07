@@ -1,9 +1,13 @@
+/** Login page with setup-status gate to enforce first-run onboarding flow. */
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+
+/** LoginPage renders authentication form and redirects to setup when bootstrap is incomplete. */
 export default function LoginPage() {
   const { signIn } = useAuth();
   const router = useRouter();
@@ -12,6 +16,39 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [checkingSetup, setCheckingSetup] = useState(true);
+
+  /**
+   * On mount, checks whether setup is complete and redirects to /setup when needed.
+   * Watches router only and runs once per mount.
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkSetupStatus() {
+      setCheckingSetup(true);
+      try {
+        const res = await fetch(`${API}/api/setup/status`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const payload = await res.json();
+        if (!cancelled && payload?.data?.setupCompleted === false) {
+          router.replace("/setup");
+          return;
+        }
+      } catch {
+        // Keep login usable if setup-status endpoint is temporarily unavailable.
+      } finally {
+        if (!cancelled) {
+          setCheckingSetup(false);
+        }
+      }
+    }
+
+    void checkSetupStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -25,6 +62,14 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (checkingSetup) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
   return (
