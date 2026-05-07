@@ -7,7 +7,7 @@ import Sidebar from "./Sidebar";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
 
-const PUBLIC_PATHS = ["/login", "/email-builder"];
+const PUBLIC_PATHS = ["/login", "/email-builder", "/setup"];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -49,4 +49,3 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-

@@ -1,110 +1,141 @@
-# Oyama CRM
+# OyamaCRM — Public Application Goals & Product Overview
 
-A modern, modular nonprofit donor management and fundraising platform built with Next.js 16, inspired by Bloomerang and NeonCRM.
+OyamaCRM is a nonprofit-first CRM platform focused on donor stewardship, fundraising operations, and (planned) compassion/client-care workflows. The product is designed to give nonprofit teams one calm, professional workspace for managing constituents, donations, campaigns, tasks, communications, and operational reporting.
 
-## Overview
+---
 
-Oyama CRM helps nonprofits manage constituents (donors, volunteers, members), track donations, run fundraising campaigns, and measure impact. Built with a focus on modularity, maintainability, and nonprofit-specific workflows.
+## 1) Application Goal
 
-## Tech Stack
+The core goal of OyamaCRM is to help organizations run a complete stewardship loop:
 
-- **Framework**: Next.js 16 (App Router, Server Components, Turbopack)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS 4
-- **Package Manager**: pnpm
-- **Process Manager**: PM2 (cluster mode)
-- **Runtime**: Node.js
+1. Add and organize constituents
+2. Record and track donations
+3. Trigger follow-up tasks and communication
+4. Track campaign performance and retention
+5. Use role-based settings and operational dashboards to improve decisions
 
-## Getting Started
+This aligns the product with real nonprofit day-to-day work, not generic sales CRM patterns.
 
-### Development
+---
+
+## 2) Product Vision
+
+OyamaCRM is being built as:
+
+- **Modular**: each feature area has its own route and components
+- **Professional**: Bloomerang-inspired clean UI with white/gray surfaces and green action accents
+- **Expandable**: settings/workspace foundation supports future compassion/client-care modules
+- **Operationally practical**: donor, campaign, task, and communication workflows live in one app shell
+
+---
+
+## 3) Current UI Screenshots
+
+> Provided product snapshots (current state):
+
+### Dashboard
+![OyamaCRM dashboard screenshot](https://github.com/user-attachments/assets/2fbaaf4c-05ae-42a1-b0ef-ee8dd0d9761b)
+
+### Donations / Operations View
+![OyamaCRM donations screenshot](https://github.com/user-attachments/assets/a0a4174f-3e01-4173-967c-c7950b0a99c9)
+
+### Campaigns / Management View
+![OyamaCRM campaigns screenshot](https://github.com/user-attachments/assets/2de54f35-cefc-4c1c-b469-6d5c482daffe)
+
+---
+
+## 4) What Is Working Now
+
+- App shell with top navigation + sidebar
+- Dashboard widgets (revenue progress, retention, tasks, key metrics)
+- Constituents list/detail/edit flows
+- Donations list and record-entry flows
+- Campaign list/cards and creation flow
+- Task management table and completion actions
+- Communications and automations modules (foundational)
+- Settings foundation with dedicated settings workspace navigation
+- Setup foundation route (`/setup`) with multi-step onboarding UI scaffold
+
+---
+
+## 5) What Is In Foundation / In Progress
+
+Based on current planning packets:
+
+- First-run setup backend (`/api/setup/status`, `/api/setup/complete`) still needs wiring
+- Settings sections are scaffolded; deeper tabs need full data APIs and forms
+- Users, roles/scopes, and workspace permission matrix need full implementation
+- API response envelope standardization should be completed across server routes
+- Route-level workspace + permission enforcement should be completed for all sensitive routes
+- Expanded audit logging and retention tooling needs to be finished
+
+---
+
+## 6) Build Phases (High-Level)
+
+1. **Foundation & Auth**
+2. **Constituents & Timeline**
+3. **Donations, Funds, Campaigns**
+4. **Receipts, Tasks, Communications**
+5. **Dashboard & Reports**
+6. **Groups, Segments, Automation**
+7. **Events & Gala**
+8. **Security, Integrations, Ops**
+9. **Compassion Workspace**
+
+Additional recommended insertion:
+
+- **Phase 00 — Setup, Onboarding, Settings, Workspace Bootstrap**
+
+---
+
+## 7) Local Development
 
 ```bash
-# Install dependencies
+# install deps
 pnpm install
 
-# Run web only
+# web app
 pnpm dev
 
-# Run API + web together
+# web + API
 pnpm dev:all
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to view the app.
+Open: `http://localhost:3000`
 
-### Production Build
+---
 
-```bash
-# Build for production
-pnpm build
+## 8) Architecture Snapshot
 
-# Start production server
-pnpm start
-
-# Or use PM2 cluster mode
-pnpm pm2:start
-pnpm pm2:logs
-pnpm pm2:status
-```
-
-## Project Structure
-
-```
+```text
 app/
-├── components/
-│   ├── layout/           # AppShell, TopBar, Sidebar
-│   ├── ui/               # Reusable primitives (Card, CircularProgress)
-│   └── dashboard/        # Dashboard-specific widgets
-├── page.tsx              # Home/Dashboard page
-└── layout.tsx            # Root layout with AppShell
+  components/
+    layout/      # App shell pieces (TopBar, Sidebar, AppShell)
+    ui/          # Reusable UI primitives
+    dashboard/   # Dashboard widgets
+    settings/    # Settings navigation + placeholders
+  setup/         # First-run onboarding UI foundation
+  settings/      # Settings workspace + tab routes
 ```
 
-## Key Features (Planned)
+---
 
-### Core Modules
-- **Constituents** - Donor/volunteer profiles, households, engagement tracking
-- **Donations** - One-time/recurring gifts, pledges, in-kind donations, receipts
-- **Campaigns** - Fundraising goals, progress tracking, multi-channel outreach
-- **Tasks** - Stewardship workflows, follow-ups, assignments
-- **Reports** - Revenue analytics, donor retention, giving trends
-- **Communications** - Email campaigns, templates, segmentation
-- **Events** - Registration, ticketing, check-in
-- **Volunteers** - Opportunity posting, hour logging
+## 9) Design Direction
 
-### Current Implementation
-✅ Modular app shell (TopBar + Sidebar + main content)  
-✅ Dashboard with sample widgets:
-  - Revenue Progress (circular chart, goal tracking)
-  - Donor Retention metrics
-  - Tasks panel (due soon/later)
-  - Totals by Level (weekly summary)  
-✅ White + green-600 theme (Bloomerang-inspired)  
-✅ Nonprofit-specific navigation (Constituents, Donations, Campaigns, etc.)
+- White workspace background
+- Light gray card surfaces
+- Green-600 (`#16a34a`) as primary action/accent color
+- Minimal iconography, no emoji-heavy UI
+- Dense but readable data tables and management cards
 
-## Architecture Guidelines
+---
 
-See [AGENTS.md](AGENTS.md) for detailed conventions on:
-- Modular component architecture
-- Nonprofit CRM domain concepts
-- Server/Client Component boundaries
-- Theme and design patterns
-- Data modeling for nonprofit workflows
+## 10) Next Product Milestones
 
-## Scripts
+1. Wire setup UI to setup APIs and completion lock behavior
+2. Complete users + roles/scopes management pages
+3. Enforce workspace-aware RBAC across backend routes
+4. Complete audit logging surface and audit views
+5. Expand settings tabs from placeholders into full operational panels
 
-```bash
-pnpm dev           # Web development server
-pnpm dev:api       # API development server
-pnpm dev:all       # Run API + web together
-pnpm build         # Production build
-pnpm start         # Production server
-pnpm lint          # Run ESLint
-pnpm pm2:start     # Start PM2 cluster
-pnpm pm2:stop      # Stop PM2
-pnpm pm2:reload    # Zero-downtime reload
-pnpm pm2:logs      # View PM2 logs
-```
-
-## License
-
-Private - Internal Use Only
