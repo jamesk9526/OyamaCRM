@@ -31,7 +31,7 @@ export default function LoginPage() {
         const res = await fetch(`${API}/api/setup/status`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const payload = await res.json();
-        if (!cancelled && payload?.data?.setupCompleted === false) {
+        if (!cancelled && !payload?.data?.setupCompleted) {
           router.replace("/setup");
           return;
         }

@@ -23,7 +23,19 @@ interface SetupCompletePayload {
     email: string;
     password: string;
   };
+  branding?: {
+    primaryColor?: string;
+    accentColor?: string;
+  };
+  workspaces?: {
+    oyamacrm?: boolean;
+    oyamacrmCompassion?: boolean;
+  };
 }
+
+const ADMIN_ROLE = "admin";
+const DEFAULT_TIMEZONE = "America/Chicago";
+const BCRYPT_ROUNDS = Number.parseInt(process.env.BCRYPT_ROUNDS ?? "12", 10) || 12;
 
 /**
  * Evaluates whether bootstrap setup should be treated as complete.
@@ -48,12 +60,19 @@ async function getSetupState() {
 router.get("/status", async (_req: Request, res: Response) => {
   try {
     const state = await getSetupState();
+    const setupAudit = state.setupCompleted
+      ? await prisma.auditLog.findFirst({
+          where: { action: "SETUP_COMPLETED" },
+          orderBy: { createdAt: "desc" },
+          select: { createdAt: true },
+        })
+      : null;
 
     return res.json({
       success: true,
       data: {
         setupCompleted: state.setupCompleted,
-        setupCompletedAt: state.setupCompleted ? new Date().toISOString() : null,
+        setupCompletedAt: setupAudit?.createdAt?.toISOString() ?? null,
       },
       meta: {
         organizations: state.organizationCount,
@@ -92,7 +111,7 @@ router.post("/complete", async (req: Request, res: Response) => {
 
     const body = req.body as SetupCompletePayload;
     const orgName = body?.organization?.name?.trim();
-    const timezone = body?.organization?.timezone?.trim() || "America/Chicago";
+    const timezone = body?.organization?.timezone?.trim() || DEFAULT_TIMEZONE;
     const adminFirstName = body?.adminUser?.firstName?.trim();
     const adminLastName = body?.adminUser?.lastName?.trim();
     const adminEmail = body?.adminUser?.email?.trim().toLowerCase();
@@ -104,6 +123,26 @@ router.post("/complete", async (req: Request, res: Response) => {
         error: {
           code: "VALIDATION_ERROR",
           message: "organization.name, adminUser fields, and adminUser.password are required.",
+        },
+      });
+    }
+
+    if (!Intl.supportedValuesOf("timeZone").includes(timezone)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "INVALID_TIMEZONE",
+          message: "Timezone must be a valid IANA timezone string.",
+        },
+      });
+    }
+
+    if (!body?.workspaces?.oyamacrm && !body?.workspaces?.oyamacrmCompassion) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "WORKSPACE_REQUIRED",
+          message: "At least one workspace must be enabled.",
         },
       });
     }
@@ -129,7 +168,7 @@ router.post("/complete", async (req: Request, res: Response) => {
       });
     }
 
-    const passwordHash = await bcrypt.hash(adminPassword, 12);
+    const passwordHash = await bcrypt.hash(adminPassword, BCRYPT_ROUNDS);
 
     const result = await prisma.$transaction(async (tx) => {
       const organization = await tx.organization.create({
@@ -155,7 +194,7 @@ router.post("/complete", async (req: Request, res: Response) => {
           firstName: adminFirstName,
           lastName: adminLastName,
           email: adminEmail,
-          role: "admin",
+          role: ADMIN_ROLE,
           active: true,
           passwordHash,
         },
@@ -171,6 +210,8 @@ router.post("/complete", async (req: Request, res: Response) => {
           metadata: {
             organizationType: body?.organization?.organizationType ?? null,
             timezone,
+            branding: body?.branding ?? null,
+            workspaces: body?.workspaces ?? null,
           },
         },
       });

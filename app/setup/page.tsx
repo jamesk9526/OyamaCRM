@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const SUCCESS_REDIRECT_DELAY_MS = 900;
 
 type SetupStepKey = "welcome" | "organization" | "branding" | "workspaces" | "admin" | "defaults" | "review";
 
@@ -156,9 +157,10 @@ export default function SetupPage() {
       }
 
       setSubmitted(true);
+      // Keep success confirmation visible briefly before sending the user to login.
       setTimeout(() => {
         router.replace("/login");
-      }, 900);
+      }, SUCCESS_REDIRECT_DELAY_MS);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to complete setup.");
     } finally {
