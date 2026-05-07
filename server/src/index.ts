@@ -1,20 +1,66 @@
+/**
+ * OyamaCRM API server entry point.
+ * Configures and starts the Express application with CORS, cookie parsing,
+ * JSON body parsing, and all API route modules.
+ * Also exposes a `/health` endpoint for liveness/readiness probes.
+ *
+ * Environment variables:
+ *   API_PORT            — port to listen on (default: 4000)
+ *   NEXT_PUBLIC_API_URL — additional CORS origin allowed alongside localhost:3000
+ *   NODE_ENV            — controls logging verbosity and secure cookie flag
+ *
+ * @module index
+ */
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
+import rateLimit from "express-rate-limit";
 
 dotenv.config();
 
+import authRoutes from "./routes/auth.js";
 import constituentRoutes from "./routes/constituents.js";
 import donationRoutes from "./routes/donations.js";
 import campaignRoutes from "./routes/campaigns.js";
 import designationRoutes from "./routes/designations.js";
 import taskRoutes from "./routes/tasks.js";
 import reportRoutes from "./routes/reports.js";
+import householdRoutes from "./routes/households.js";
+import emailCampaignRoutes from "./routes/email-campaigns.js";
+import settingsRoutes from "./routes/settings.js";
+import automationRoutes from "./routes/automations.js";
+import eventRoutes from "./routes/events.js";
+import { prisma } from "./lib/prisma.js";
 
 const app = express();
 const PORT = process.env.API_PORT ? parseInt(process.env.API_PORT) : 4000;
+const startTime = Date.now();
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
+
+/**
+ * Global rate limiter — 200 requests per minute per IP.
+ * Auth routes use a tighter limiter (20/min) defined below.
+ */
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: "RATE_LIMITED", message: "Too many requests — please slow down." } },
+});
+
+/** Tight rate limiter for auth endpoints to limit brute-force attempts. */
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: "RATE_LIMITED", message: "Too many auth attempts — try again in a minute." } },
+});
+
+app.use(globalLimiter);
 
 app.use(
   cors({
@@ -27,37 +73,64 @@ app.use(
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+app.disable("x-powered-by");
+
+// ─── Health / readiness ───────────────────────────────────────────────────────
+
+/** GET /health — Liveness/readiness probe: checks DB connectivity and returns uptime. */
+app.get("/health", async (_req, res) => {
+  let dbStatus = "ok";
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+  } catch {
+    dbStatus = "error";
+  }
+  res.json({
+    status: dbStatus === "ok" ? "ok" : "degraded",
+    db: dbStatus,
+    version: process.env.npm_package_version ?? "0.1.0",
+    uptime: Math.floor((Date.now() - startTime) / 1000),
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
-});
-
+// Auth routes get a stricter rate limit to prevent brute-force
+app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/constituents", constituentRoutes);
 app.use("/api/donations", donationRoutes);
 app.use("/api/campaigns", campaignRoutes);
 app.use("/api/designations", designationRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/households", householdRoutes);
+app.use("/api/email-campaigns", emailCampaignRoutes);
+app.use("/api/settings", settingsRoutes);
+app.use("/api/automations", automationRoutes);
+app.use("/api/events", eventRoutes);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 
 app.use((_req, res) => {
-  res.status(404).json({ error: "Route not found" });
+  res.status(404).json({ error: { code: "NOT_FOUND", message: "Route not found" } });
 });
 
 // ─── Error handler ────────────────────────────────────────────────────────────
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err.stack);
-  res.status(500).json({ error: "Internal server error" });
+  res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Internal server error" } });
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
-app.listen(PORT, () => {
-  console.log(`[API] OyamaCRM API server running on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, () => {
+    console.log(`[API] OyamaCRM API server running on http://localhost:${PORT}`);
+  });
+}
 
 export default app;
+

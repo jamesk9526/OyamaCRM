@@ -1,13 +1,20 @@
+/**
+ * DonorRetention — circular gauge showing year-over-year donor retention rate.
+ * Uses real data from /api/reports/donor-retention.
+ */
 import Card from "@/app/components/ui/Card";
 import CircularProgress from "@/app/components/ui/CircularProgress";
 
 interface DonorRetentionProps {
   retained: number;
   total: number;
+  /** Pre-computed rate (0–100). If undefined, computed from retained/total. */
+  rate?: number;
+  loading?: boolean;
 }
 
-export default function DonorRetention({ retained, total }: DonorRetentionProps) {
-  const percentage = Math.round((retained / total) * 100);
+export default function DonorRetention({ retained, total, rate, loading }: DonorRetentionProps) {
+  const percentage = rate ?? (total > 0 ? Math.round((retained / total) * 100) : 0);
 
   return (
     <Card>
@@ -21,14 +28,22 @@ export default function DonorRetention({ retained, total }: DonorRetentionProps)
       </div>
 
       <div className="flex flex-col items-center py-4">
-        <CircularProgress percentage={percentage} size={180} strokeWidth={14} />
+        {loading ? (
+          <div className="w-44 h-44 rounded-full bg-gray-200 animate-pulse" />
+        ) : (
+          <CircularProgress percentage={percentage} size={180} strokeWidth={14} />
+        )}
         
-        <p className="text-xs text-gray-500 mt-1 uppercase tracking-wide">Custom</p>
+        <p className="text-xs text-gray-500 mt-1 uppercase tracking-wide">Year-over-Year</p>
         
         <div className="mt-4 text-center">
-          <p className="text-sm text-gray-600">
-            {retained} out of {total} donors retained
-          </p>
+          {loading ? (
+            <div className="h-4 w-40 bg-gray-200 rounded animate-pulse" />
+          ) : (
+            <p className="text-sm text-gray-600">
+              {retained} out of {total} donors retained
+            </p>
+          )}
         </div>
       </div>
     </Card>

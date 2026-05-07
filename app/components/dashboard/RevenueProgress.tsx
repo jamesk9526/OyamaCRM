@@ -1,13 +1,18 @@
+/**
+ * RevenueProgress — circular progress card showing YTD raised vs goal.
+ * Shows a skeleton loader while data is loading.
+ */
 import Card from "@/app/components/ui/Card";
 import CircularProgress from "@/app/components/ui/CircularProgress";
 
 interface RevenueProgressProps {
   current: number;
   goal: number;
+  loading?: boolean;
 }
 
-export default function RevenueProgress({ current, goal }: RevenueProgressProps) {
-  const percentage = Math.round((current / goal) * 100);
+export default function RevenueProgress({ current, goal, loading }: RevenueProgressProps) {
+  const percentage = goal > 0 ? Math.min(100, Math.round((current / goal) * 100)) : 0;
 
   return (
     <Card>
@@ -21,12 +26,20 @@ export default function RevenueProgress({ current, goal }: RevenueProgressProps)
       </div>
 
       <div className="flex flex-col items-center py-4">
-        <CircularProgress percentage={percentage} />
+        {loading ? (
+          <div className="w-36 h-36 rounded-full bg-gray-200 animate-pulse" />
+        ) : (
+          <CircularProgress percentage={percentage} />
+        )}
         
         <div className="mt-4 text-center">
-          <p className="text-3xl font-bold text-gray-900">
-            ${current.toLocaleString()}
-          </p>
+          {loading ? (
+            <div className="h-8 w-24 bg-gray-200 rounded animate-pulse mx-auto" />
+          ) : (
+            <p className="text-3xl font-bold text-gray-900">
+              ${current.toLocaleString()}
+            </p>
+          )}
           <p className="text-sm text-gray-500 mt-1">
             of ${goal.toLocaleString()} goal
           </p>

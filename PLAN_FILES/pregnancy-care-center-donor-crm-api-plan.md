@@ -2257,3 +2257,51 @@ Build in this order:
 13. Advanced integrations
 
 This order gets the center to practical daily value as quickly as possible.
+
+---
+
+## 18. OyamaCRM Implementation Notes Addendum
+
+These items are important for delivery quality and should be treated as required planning notes.
+
+### 18.1 Multi-tenant direction
+
+- Current implementation uses `org_demo` defaults in several places.
+- Phase work should include explicit tenancy decisions (single-tenant now vs. multi-tenant ready schema).
+- If multi-tenant ready, every donor, gift, task, and report query must be tenant-scoped.
+
+### 18.2 Validation and contract discipline
+
+- Every API write endpoint should use schema validation (Zod or equivalent).
+- API responses should keep stable shapes across modules.
+- Breaking response changes should be versioned.
+
+### 18.3 Testing and quality gates
+
+- Define minimum gates per phase: build, type-check, and critical smoke paths.
+- Add contract tests for high-risk flows (gift entry, receipt generation, task creation, report exports).
+- Seed data must remain compatible with schema evolution.
+
+### 18.4 Observability and operations
+
+- Add structured logs with request IDs and actor IDs.
+- Track core metrics: API latency, job failures, webhook failures, automation failures.
+- Add baseline alerting for payment failures, job dead-letter growth, and import errors.
+
+### 18.5 Data governance and retention
+
+- Financial records should be voided/reversed, not hard-deleted.
+- Define retention for logs, exports, and uploaded files.
+- Define PII handling rules and redaction policy for logs and AI prompts.
+
+### 18.6 Accessibility and UX consistency
+
+- Maintain white/gray background + green accent visual system.
+- Keep keyboard/focus accessibility as a release requirement.
+- Keep modular component boundaries; avoid page-level monoliths.
+
+### 18.7 Release management
+
+- Use phase checkpoints with explicit scope lock and deferred list.
+- Keep migration rollback strategy documented before production deploys.
+- Maintain PM2 deployment profile for web cluster + api process and document expected runtime topology.

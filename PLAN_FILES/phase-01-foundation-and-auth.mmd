@@ -1,0 +1,9 @@
+flowchart TD
+    A[Env and config contract] --> B[Auth and session/token model]
+    B --> C[Role and permission middleware]
+    C --> D[API response and error standard]
+    D --> E[Audit log + internal event scaffolding]
+    E --> F[Prisma + seed stability]
+    F --> G[Health checks + PM2 baseline]
+    G --> H[Phase 01 complete]
+

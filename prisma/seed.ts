@@ -1,9 +1,27 @@
-import { PrismaClient, ConstituentType, DonorStatus, PaymentMethod, DonationStatus, TaskType, TaskStatus, TaskPriority, CampaignCategory } from "@prisma/client";
+import {
+  PrismaClient,
+  ConstituentType,
+  DonorStatus,
+  PaymentMethod,
+  DonationStatus,
+  TaskType,
+  TaskStatus,
+  TaskPriority,
+  CampaignCategory,
+  EventType,
+  AutomationTrigger,
+  AutomationActionType,
+  ActivityType,
+} from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log("🌱 Seeding OyamaCRM...");
+
+  const adminHash = await bcrypt.hash("admin123!", 12);
+  const staffHash = await bcrypt.hash("staff123!", 12);
 
   // Organization
   const org = await prisma.organization.upsert({
@@ -17,6 +35,13 @@ async function main() {
           fiscalYearStart: 1,
           currency: "USD",
           timezone: "America/Chicago",
+          smtpHost: "smtp.mailtrap.io",
+          smtpPort: 587,
+          smtpSecure: false,
+          smtpUser: "",
+          smtpPass: "",
+          smtpFromName: "Hope Community Foundation",
+          smtpFromEmail: "giving@hopecommunity.org",
         },
       },
     },
@@ -25,25 +50,27 @@ async function main() {
   // Users
   const adminUser = await prisma.user.upsert({
     where: { email: "admin@hopefoundation.org" },
-    update: {},
+    update: { passwordHash: adminHash },
     create: {
       organizationId: org.id,
       email: "admin@hopefoundation.org",
       firstName: "Sarah",
       lastName: "Mitchell",
       role: "admin",
+      passwordHash: adminHash,
     },
   });
 
   const staffUser = await prisma.user.upsert({
     where: { email: "james@hopefoundation.org" },
-    update: {},
+    update: { passwordHash: staffHash },
     create: {
       organizationId: org.id,
       email: "james@hopefoundation.org",
       firstName: "James",
       lastName: "Oyama",
       role: "staff",
+      passwordHash: staffHash,
     },
   });
 
@@ -349,11 +376,135 @@ async function main() {
     });
   }
 
+  // Events
+  const eventData = [
+    {
+      id: "evt_gala_2025",
+      name: "Annual Gala 2025",
+      type: EventType.GALA,
+      location: "The Grand Ballroom, Chicago, IL",
+      startDate: new Date("2025-10-18T18:00:00"),
+      endDate: new Date("2025-10-18T22:00:00"),
+      registrationGoal: 350,
+      active: true,
+    },
+    {
+      id: "evt_volunteer_day",
+      name: "Spring Volunteer Day",
+      type: EventType.VOLUNTEER,
+      location: "Riverside Community Park",
+      startDate: new Date("2025-04-12T09:00:00"),
+      endDate: new Date("2025-04-12T15:00:00"),
+      registrationGoal: 100,
+      active: true,
+    },
+  ];
+
+  for (const e of eventData) {
+    await prisma.event.upsert({
+      where: { id: e.id },
+      update: {},
+      create: {
+        ...e,
+        organizationId: org.id,
+      },
+    });
+  }
+
+  // Automation presets seeded as ready-to-use workflows
+  const automationData = [
+    {
+      id: "auto_thank_you_donation",
+      name: "Donation Thank-You",
+      description: "When a donation is received, send thank-you email and create follow-up task.",
+      trigger: AutomationTrigger.DONATION_RECEIVED,
+      enabled: true,
+      actions: [
+        { type: AutomationActionType.SEND_EMAIL, order: 0, config: { template: "thank-you" } },
+        { type: AutomationActionType.CREATE_TASK, order: 1, config: { title: "Call donor within 48 hours" } },
+      ],
+    },
+    {
+      id: "auto_new_constituent_welcome",
+      name: "New Constituent Welcome",
+      description: "Welcome flow for new constituents and apply newsletter tag.",
+      trigger: AutomationTrigger.CONSTITUENT_CREATED,
+      enabled: true,
+      actions: [
+        { type: AutomationActionType.SEND_EMAIL, order: 0, config: { template: "welcome" } },
+        { type: AutomationActionType.ADD_TAG, order: 1, config: { tag: "Newsletter" } },
+      ],
+    },
+  ];
+
+  for (const a of automationData) {
+    await prisma.automation.upsert({
+      where: { id: a.id },
+      update: {
+        name: a.name,
+        description: a.description,
+        trigger: a.trigger,
+        enabled: a.enabled,
+      },
+      create: {
+        id: a.id,
+        organizationId: org.id,
+        name: a.name,
+        description: a.description,
+        trigger: a.trigger,
+        enabled: a.enabled,
+      },
+    });
+
+    // Replace action list on each seed run to keep presets deterministic
+    await prisma.automationAction.deleteMany({ where: { automationId: a.id } });
+    for (const action of a.actions) {
+      await prisma.automationAction.create({
+        data: {
+          automationId: a.id,
+          type: action.type,
+          order: action.order,
+          config: action.config as object,
+        },
+      });
+    }
+  }
+
+  // Baseline activity timeline records for phase-02 profile timeline support
+  const activitySeed = [
+    {
+      id: "act_con_01_created",
+      constituentId: "con_01",
+      userId: adminUser.id,
+      type: ActivityType.NOTE,
+      description: "Constituent profile created.",
+      createdAt: new Date("2025-01-02T09:00:00"),
+    },
+    {
+      id: "act_don_01",
+      constituentId: "con_01",
+      donationId: "don_01",
+      userId: staffUser.id,
+      type: ActivityType.DONATION,
+      description: "Recorded donation of $10,000.00",
+      createdAt: new Date("2025-02-10T12:15:00"),
+    },
+  ];
+  for (const a of activitySeed) {
+    await prisma.activity.upsert({
+      where: { id: a.id },
+      update: {},
+      create: a,
+    });
+  }
+
   console.log("✅ Seed complete!");
   console.log(`   Organization: ${org.name}`);
   console.log(`   Constituents: ${constituents.length}`);
   console.log(`   Donations:    ${donationData.length}`);
   console.log(`   Tasks:        ${taskData.length}`);
+  console.log(`   Events:       ${eventData.length}`);
+  console.log(`   Automations:  ${automationData.length}`);
 }
 
 main()

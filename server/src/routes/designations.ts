@@ -1,9 +1,22 @@
+/**
+ * Designation (fund) management routes for OyamaCRM.
+ * Designations represent named funds or programs that donations are earmarked for
+ * (e.g., General Fund, Building Fund, Scholarship Fund).
+ * Currently supports read and create; update/delete can be added as needed.
+ *
+ * Routes:
+ *   GET  /api/designations      — all designations with donation counts
+ *   GET  /api/designations/:id  — single designation with recent donations
+ *   POST /api/designations      — create a new designation
+ *
+ * @module routes/designations
+ */
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 
 const router = Router();
 
-// GET /api/designations
+/** GET /api/designations — List all designations sorted by name, including the number of linked donations. */
 router.get("/", async (_req, res) => {
   const designations = await prisma.designation.findMany({
     orderBy: { name: "asc" },
@@ -12,7 +25,7 @@ router.get("/", async (_req, res) => {
   res.json(designations);
 });
 
-// GET /api/designations/:id
+/** GET /api/designations/:id — Fetch a single designation with its 20 most recent donations. */
 router.get("/:id", async (req, res) => {
   const designation = await prisma.designation.findUnique({
     where: { id: req.params.id },
@@ -22,7 +35,7 @@ router.get("/:id", async (req, res) => {
   res.json(designation);
 });
 
-// POST /api/designations
+/** POST /api/designations — Create a new designation fund. Defaults `active` to true if not supplied. */
 router.post("/", async (req, res) => {
   const { name, description, active } = req.body;
   const designation = await prisma.designation.create({

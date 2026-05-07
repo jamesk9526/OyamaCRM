@@ -18,7 +18,7 @@ export type ConstituentRow = {
 };
 
 export const CONSTITUENT_TYPES = [
-  "DONOR", "VOLUNTEER", "MEMBER", "PROSPECT",
+  "DONOR", "HOUSEHOLD", "VOLUNTEER", "MEMBER", "PROSPECT",
   "SPONSOR", "BOARD_MEMBER", "FOUNDATION", "ORGANIZATION",
 ] as const;
 

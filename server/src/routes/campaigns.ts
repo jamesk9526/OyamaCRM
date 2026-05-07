@@ -1,9 +1,22 @@
+/**
+ * Fundraising campaign routes for OyamaCRM.
+ * Provides campaign listing and management. List responses include a computed
+ * `totalRaised` field aggregated from COMPLETED donations for each campaign.
+ *
+ * Routes:
+ *   GET   /api/campaigns      — all campaigns with donation counts and totalRaised
+ *   GET   /api/campaigns/:id  — single campaign with recent donations
+ *   POST  /api/campaigns      — create a new campaign
+ *   PATCH /api/campaigns/:id  — update campaign fields
+ *
+ * @module routes/campaigns
+ */
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 
 const router = Router();
 
-// GET /api/campaigns
+/** GET /api/campaigns — List all campaigns with donation counts and aggregated totalRaised amounts. */
 router.get("/", async (_req, res) => {
   const campaigns = await prisma.campaign.findMany({
     orderBy: { startDate: "desc" },
@@ -11,10 +24,25 @@ router.get("/", async (_req, res) => {
       _count: { select: { donations: true } },
     },
   });
-  res.json(campaigns);
+
+  // Aggregate totalRaised per campaign using a groupBy instead of N+1 queries
+  const sums = await prisma.donation.groupBy({
+    by: ["campaignId"],
+    where: { status: "COMPLETED", campaignId: { not: null } },
+    _sum: { amount: true },
+  });
+  // Build a lookup map so each campaign can be decorated in O(1)
+  const sumMap = new Map(sums.map((s) => [s.campaignId, Number(s._sum.amount ?? 0)]));
+
+  const result = campaigns.map((c) => ({
+    ...c,
+    totalRaised: sumMap.get(c.id) ?? 0,
+  }));
+
+  res.json(result);
 });
 
-// GET /api/campaigns/:id
+/** GET /api/campaigns/:id — Fetch a single campaign with its 20 most recent donations. */
 router.get("/:id", async (req, res) => {
   const campaign = await prisma.campaign.findUnique({
     where: { id: req.params.id },
@@ -27,13 +55,13 @@ router.get("/:id", async (req, res) => {
   res.json(campaign);
 });
 
-// POST /api/campaigns
+/** POST /api/campaigns — Create a new fundraising campaign. */
 router.post("/", async (req, res) => {
   const campaign = await prisma.campaign.create({ data: req.body });
   res.status(201).json(campaign);
 });
 
-// PATCH /api/campaigns/:id
+/** PATCH /api/campaigns/:id — Partially update campaign fields (name, goal, active status, dates, etc.). */
 router.patch("/:id", async (req, res) => {
   const campaign = await prisma.campaign.update({
     where: { id: req.params.id },

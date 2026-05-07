@@ -20,6 +20,31 @@ Every feature, section, or UI concept must live in its own file/component. Never
 - **Layout**: All pages share `AppShell` (TopBar + Sidebar + main). Add new sidebar items in `app/components/layout/Sidebar.tsx`.
 <!-- END:modular-architecture-rules -->
 
+<!-- BEGIN:code-style-rules -->
+# Code Style — Always Comment Your Code
+
+**Every file must be well-commented.** This is non-negotiable for maintainability.
+
+- **File header**: Every file gets a one-line comment describing its purpose.
+- **Functions/components**: JSDoc-style `/** ... */` comment on every exported function and React component explaining what it does, its props, and any non-obvious behavior.
+- **Complex logic**: Inline `//` comments explaining *why*, not just *what*, for any non-trivial block of code.
+- **API routes**: Comment every route with its method, path, description, and expected request/response shape.
+- **Hooks/effects**: Comment every `useEffect` with what it watches and what side effect it performs.
+- **Type definitions**: Comment every interface/type field that isn't self-explanatory.
+
+Example style:
+```ts
+/**
+ * Computes the donor retention rate for a given fiscal year.
+ * Retention = donors who gave last year AND this year / total donors last year.
+ */
+export function computeRetentionRate(lastYear: number, retained: number): number {
+  if (lastYear === 0) return 0;
+  return Math.round((retained / lastYear) * 100);
+}
+```
+<!-- END:code-style-rules -->
+
 <!-- BEGIN:nonprofit-crm-domain -->
 # Nonprofit CRM Domain Context
 

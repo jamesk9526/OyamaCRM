@@ -1,12 +1,17 @@
+/**
+ * TotalsByLevel — weekly giving summary card with a simple bar chart.
+ * Accepts loading prop for skeleton state.
+ */
 import Card from "@/app/components/ui/Card";
 
 interface TotalsByLevelProps {
   weekTotal: number;
   transactions: number;
   avgTransaction: number;
+  loading?: boolean;
 }
 
-export default function TotalsByLevel({ weekTotal, transactions, avgTransaction }: TotalsByLevelProps) {
+export default function TotalsByLevel({ weekTotal, transactions, avgTransaction, loading }: TotalsByLevelProps) {
   return (
     <Card>
       <div className="flex items-center justify-between mb-4">
@@ -25,15 +30,21 @@ export default function TotalsByLevel({ weekTotal, transactions, avgTransaction 
         <div>
           <p className="text-xs text-gray-500 mb-1">This week</p>
           <div className="flex items-baseline gap-4">
-            <p className="text-2xl font-bold text-gray-900">${weekTotal.toLocaleString()}</p>
-            <div className="text-sm text-gray-600 space-y-0.5">
-              <p>{transactions} transactions</p>
-              <p>${avgTransaction.toFixed(2)} avg</p>
-            </div>
+            {loading ? (
+              <div className="h-7 w-24 bg-gray-200 rounded animate-pulse" />
+            ) : (
+              <p className="text-2xl font-bold text-gray-900">${weekTotal.toLocaleString()}</p>
+            )}
+            {!loading && (
+              <div className="text-sm text-gray-600 space-y-0.5">
+                <p>{transactions} transactions</p>
+                <p>${avgTransaction.toFixed(2)} avg</p>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Mini chart placeholder */}
+        {/* Mini bar chart — decorative */}
         <div className="h-20 bg-gradient-to-r from-green-50 to-green-100 rounded flex items-end px-2 pb-2 gap-1">
           <div className="w-8 bg-green-500 rounded-t" style={{ height: "30%" }}></div>
           <div className="w-8 bg-green-600 rounded-t" style={{ height: "60%" }}></div>
@@ -44,7 +55,7 @@ export default function TotalsByLevel({ weekTotal, transactions, avgTransaction 
 
         <div className="flex justify-between text-xs text-gray-400">
           <span>$0K</span>
-          <span>$10K</span>
+          <span>${Math.max(10, Math.ceil(weekTotal / 1000))}K</span>
         </div>
       </div>
     </Card>

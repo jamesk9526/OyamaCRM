@@ -23,8 +23,11 @@ Oyama CRM helps nonprofits manage constituents (donors, volunteers, members), tr
 # Install dependencies
 pnpm install
 
-# Run development server
+# Run web only
 pnpm dev
+
+# Run API + web together
+pnpm dev:all
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to view the app.
@@ -90,7 +93,9 @@ See [AGENTS.md](AGENTS.md) for detailed conventions on:
 ## Scripts
 
 ```bash
-pnpm dev           # Development server
+pnpm dev           # Web development server
+pnpm dev:api       # API development server
+pnpm dev:all       # Run API + web together
 pnpm build         # Production build
 pnpm start         # Production server
 pnpm lint          # Run ESLint

@@ -1,139 +1,199 @@
+/**
+ * TasksWidget — live task list on the dashboard.
+ * Fetches from /api/tasks, groups into "Due Soon" (today/overdue) and "Due Later".
+ * Users can complete tasks directly from the dashboard.
+ */
 "use client";
 
 import Card from "@/app/components/ui/Card";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 
-interface Task {
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+
+/** Minimal task shape we need from the API */
+interface TaskItem {
   id: string;
   title: string;
-  organization: string;
-  type: string;
-  assignee: string;
-  dueDate: string;
+  taskType: string;
+  status: string;
+  dueDate: string | null;
+  assignee: { firstName: string; lastName: string } | null;
+  constituent: { firstName: string; lastName: string } | null;
 }
-
-const SAMPLE_TASKS: Task[] = [
-  {
-    id: "1",
-    title: "Thank you for annual gala support",
-    organization: "Horizon Health Partners",
-    type: "Phone",
-    assignee: "Michael Chen",
-    dueDate: "MAY 06",
-  },
-  {
-    id: "2",
-    title: "Receipt for recent donation",
-    organization: "Urban Youth Initiative",
-    type: "Mail",
-    assignee: "Priya Patel",
-    dueDate: "MAY 07",
-  },
-  {
-    id: "3",
-    title: "Follow-up on Q3 pledge",
-    organization: "GreenTech Foundation",
-    type: "Email",
-    assignee: "Jessica Lin",
-    dueDate: "MAY 08",
-  },
-  {
-    id: "4",
-    title: "Invitation to stewardship webinar",
-    organization: "Arts for All",
-    type: "Email",
-    assignee: "Michael Chen",
-    dueDate: "MAY 09",
-  },
-];
 
 export default function TasksWidget() {
   const [filter, setFilter] = useState<"all" | "my">("all");
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const dueSoon = SAMPLE_TASKS.slice(0, 1);
-  const dueLater = SAMPLE_TASKS.slice(1);
+  /** Fetch tasks from the API */
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/api/tasks?status=PENDING&limit=20`);
+      const data = await res.json();
+      // Tasks API returns { items: [...], total }
+      setTasks(Array.isArray(data) ? data : (data.items ?? []));
+    } catch {
+      setTasks([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  /** Mark a task as complete and refresh */
+  async function complete(id: string) {
+    await fetch(`${API}/api/tasks/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "COMPLETED" }),
+    });
+    load();
+  }
+
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 2);
+
+  // "Due soon" = no due date set OR due within 2 days (incl. overdue)
+  const dueSoon = tasks.filter((t) => !t.dueDate || new Date(t.dueDate) <= tomorrow);
+  const dueLater = tasks.filter((t) => t.dueDate && new Date(t.dueDate) > tomorrow);
 
   return (
     <Card className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <h3 className="font-semibold text-gray-900 flex items-center gap-2">
           Tasks
-          <span className="text-gray-400 text-sm">⏱️</span>
+          {!loading && tasks.length > 0 && (
+            <span className="bg-green-100 text-green-700 text-xs font-bold px-1.5 py-0.5 rounded-full">
+              {tasks.length}
+            </span>
+          )}
         </h3>
-        <button className="text-gray-400 hover:text-gray-600">
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-          </svg>
+        <button
+          onClick={load}
+          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          title="Refresh"
+        >
+          ↻
         </button>
       </div>
 
       {/* Filter tabs */}
-      <div className="flex border-b border-gray-200 mb-4">
-        <button
-          onClick={() => setFilter("all")}
-          className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors ${
-            filter === "all"
-              ? "border-green-600 text-green-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          ALL
-        </button>
-        <button
-          onClick={() => setFilter("my")}
-          className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors ${
-            filter === "my"
-              ? "border-green-600 text-green-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          MY
-        </button>
+      <div className="flex border-b border-gray-200 mb-3">
+        {(["all", "my"] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors ${
+              filter === f
+                ? "border-green-600 text-green-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {f.toUpperCase()}
+          </button>
+        ))}
       </div>
 
-      {/* Tasks list */}
-      <div className="flex-1 overflow-y-auto space-y-4">
-        {/* Due soon */}
-        <div>
-          <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-            Due Soon
-          </h4>
-          {dueSoon.map((task) => (
-            <TaskCard key={task.id} task={task} />
-          ))}
-        </div>
-
-        {/* Due later */}
-        <div>
-          <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-            Due Later
-          </h4>
-          <div className="space-y-2">
-            {dueLater.map((task) => (
-              <TaskCard key={task.id} task={task} />
-            ))}
+      {/* Task list */}
+      <div className="flex-1 overflow-y-auto space-y-4 min-h-0">
+        {loading ? (
+          // Skeleton rows
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-16 bg-gray-100 rounded animate-pulse" />
+          ))
+        ) : tasks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <span className="text-3xl mb-2">✓</span>
+            <p className="text-sm text-gray-500">No pending tasks!</p>
           </div>
-        </div>
+        ) : (
+          <>
+            {dueSoon.length > 0 && (
+              <div>
+                <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                  Due Soon
+                </h4>
+                <div className="space-y-2">
+                  {dueSoon.map((t) => (
+                    <TaskCard key={t.id} task={t} onComplete={complete} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {dueLater.length > 0 && (
+              <div>
+                <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                  Due Later
+                </h4>
+                <div className="space-y-2">
+                  {dueLater.map((t) => (
+                    <TaskCard key={t.id} task={t} onComplete={complete} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </Card>
   );
 }
 
-function TaskCard({ task }: { task: Task }) {
+/**
+ * Individual task row card.
+ */
+function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: (id: string) => void }) {
+  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
+
   return (
-    <div className="p-3 border border-gray-200 rounded-md hover:border-green-200 hover:bg-green-50/30 transition-colors group cursor-pointer">
-      <div className="flex items-start justify-between mb-1">
-        <h5 className="text-sm font-medium text-gray-900 group-hover:text-green-700">
+    <div className="p-3 border border-gray-200 rounded-lg hover:border-green-200 hover:bg-green-50/30 transition-colors group">
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <p className="text-sm font-medium text-gray-900 group-hover:text-green-700 flex-1">
           {task.title}
-        </h5>
-        <span className="text-xs text-gray-400 ml-2 shrink-0">{task.dueDate}</span>
+        </p>
+        <button
+          onClick={() => onComplete(task.id)}
+          className="shrink-0 text-gray-300 hover:text-green-600 transition-colors"
+          title="Mark complete"
+        >
+          {/* Checkmark circle */}
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </button>
       </div>
-      <p className="text-sm text-gray-600 mb-1">{task.organization}</p>
-      <p className="text-xs text-gray-500">{task.type}</p>
-      <p className="text-xs text-gray-500">Assignee: {task.assignee}</p>
-      <button className="text-green-600 hover:text-green-700 mt-2 text-xs font-medium">
-        →
-      </button>
+
+      {/* Constituent name */}
+      {task.constituent && (
+        <p className="text-xs text-gray-500">
+          {task.constituent.firstName} {task.constituent.lastName}
+        </p>
+      )}
+
+      <div className="flex items-center gap-2 mt-1.5">
+        {/* Task type badge */}
+        <span className="px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-600 rounded">
+          {task.taskType}
+        </span>
+        {/* Due date */}
+        {task.dueDate && (
+          <span className={`text-[10px] font-medium ${isOverdue ? "text-red-500" : "text-gray-400"}`}>
+            {isOverdue ? "⚠ " : ""}
+            {new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          </span>
+        )}
+        {/* Assignee */}
+        {task.assignee && (
+          <span className="text-[10px] text-gray-400 ml-auto">
+            {task.assignee.firstName} {task.assignee.lastName[0]}.
+          </span>
+        )}
+      </div>
     </div>
   );
 }

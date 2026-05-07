@@ -11,8 +11,31 @@ import {
   typeLabel,
   engagementColor,
 } from "@/app/components/constituents/constituent-utils";
+import HouseholdPanel from "@/app/components/constituents/HouseholdPanel";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+
+interface HouseholdData {
+  id: string;
+  name: string;
+  addressLine1?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  head?: { id: string; firstName: string; lastName: string; prefix?: string };
+  members: Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    prefix?: string;
+    email?: string;
+    phone?: string;
+    type: string;
+    donorStatus: string;
+    isPrimaryContact: boolean;
+    totalLifetimeGiving: string;
+  }>;
+}
 
 interface ConstituentDetail {
   id: string;
@@ -46,6 +69,7 @@ interface ConstituentDetail {
   doNotEmail: boolean;
   doNotCall: boolean;
   doNotMail: boolean;
+  householdId?: string;
   tags: Array<{ tagId: string; tag: { name: string; color: string } }>;
   donations: Array<{
     id: string;
@@ -64,6 +88,17 @@ interface ConstituentDetail {
     dueDate?: string;
     priority: string;
   }>;
+  activities: Array<{
+    id: string;
+    type: string;
+    description: string;
+    createdAt: string;
+    user?: { firstName: string; lastName: string };
+  }>;
+  // Household where this constituent is the head
+  headOf?: HouseholdData;
+  // Household this constituent belongs to as a member
+  household?: HouseholdData;
 }
 
 export default function ConstituentDetailPage() {
@@ -71,14 +106,17 @@ export default function ConstituentDetailPage() {
   const [constituent, setConstituent] = useState<ConstituentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"giving" | "tasks" | "notes">("giving");
+  const [tab, setTab] = useState<"giving" | "tasks" | "timeline" | "household" | "notes">("giving");
 
   useEffect(() => {
     async function load() {
       try {
         const res = await fetch(`${API_BASE}/api/constituents/${id}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        setConstituent(await res.json());
+        const data = await res.json();
+        setConstituent(data);
+        // Default to household tab for HOUSEHOLD type constituents
+        if (data.type === "HOUSEHOLD") setTab("household");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load");
       } finally {
@@ -93,6 +131,15 @@ export default function ConstituentDetailPage() {
 
   const c = constituent;
   const fullName = `${c.prefix ? c.prefix + " " : ""}${c.firstName} ${c.lastName}`;
+  const isHousehold = c.type === "HOUSEHOLD";
+
+  const tabs = [
+    ...(isHousehold ? [{ key: "household" as const, label: `Members (${c.headOf?.members?.length ?? 0})` }] : []),
+    { key: "giving" as const, label: `Giving History (${c.donations?.length ?? 0})` },
+    { key: "tasks" as const, label: `Tasks (${c.tasks?.length ?? 0})` },
+    { key: "timeline" as const, label: `Timeline (${c.activities?.length ?? 0})` },
+    { key: "notes" as const, label: "Notes" },
+  ];
 
   return (
     <div className="space-y-5">
@@ -108,7 +155,7 @@ export default function ConstituentDetailPage() {
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div className="flex items-start gap-4">
             <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center text-green-700 text-xl font-bold shrink-0">
-              {c.firstName[0]}{c.lastName[0]}
+              {isHousehold ? "🏠" : `${c.firstName[0]}${c.lastName[0]}`}
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -119,6 +166,15 @@ export default function ConstituentDetailPage() {
                 <span className="text-xs text-gray-400">{typeLabel(c.type)}</span>
               </div>
               {c.employer && <p className="text-sm text-gray-500 mt-0.5">{c.employer}{c.occupation ? ` · ${c.occupation}` : ""}</p>}
+              {/* Household membership badge */}
+              {c.household && !isHousehold && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Member of{" "}
+                  <Link href={`/constituents/${c.household.head?.id}`} className="text-green-600 hover:underline">
+                    {c.household.name}
+                  </Link>
+                </p>
+              )}
               <div className="flex flex-wrap gap-1 mt-2">
                 {c.tags.map((t) => (
                   <span key={t.tagId} className="inline-flex px-1.5 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: t.tag.color }}>
@@ -170,25 +226,29 @@ export default function ConstituentDetailPage() {
 
       {/* Tabbed detail */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="flex border-b border-gray-200">
-          {(["giving", "tasks", "notes"] as const).map((t) => (
+        <div className="flex border-b border-gray-200 overflow-x-auto">
+          {tabs.map((t) => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-5 py-3 text-sm font-medium capitalize transition-colors ${
-                tab === t
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`px-5 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
+                tab === t.key
                   ? "text-green-700 border-b-2 border-green-600"
                   : "text-gray-500 hover:text-gray-700"
               }`}
             >
-              {t === "giving" ? `Giving History (${c.donations?.length ?? 0})` : t === "tasks" ? `Tasks (${c.tasks?.length ?? 0})` : "Notes"}
+              {t.label}
             </button>
           ))}
         </div>
 
         <div className="p-5">
+          {tab === "household" && c.headOf && (
+            <HouseholdPanel householdId={c.headOf.id} headConstituentId={c.id} />
+          )}
           {tab === "giving" && <GivingTab donations={c.donations ?? []} />}
           {tab === "tasks" && <TasksTab tasks={c.tasks ?? []} />}
+          {tab === "timeline" && <TimelineTab activities={c.activities ?? []} />}
           {tab === "notes" && (
             <p className="text-sm text-gray-600 whitespace-pre-wrap">
               {c.notes || <span className="text-gray-400 italic">No notes recorded.</span>}
@@ -258,6 +318,27 @@ function TasksTab({ tasks }: { tasks: ConstituentDetail["tasks"] }) {
           }`}>
             {t.priority.toLowerCase()}
           </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TimelineTab({ activities }: { activities: ConstituentDetail["activities"] }) {
+  if (!activities.length) return <p className="text-sm text-gray-400 italic">No timeline events yet.</p>;
+  return (
+    <div className="space-y-3">
+      {activities.map((a) => (
+        <div key={a.id} className="flex gap-3 pb-3 border-b border-gray-50 last:border-0">
+          <div className="w-2 h-2 rounded-full bg-green-500 mt-2 shrink-0" />
+          <div>
+            <p className="text-sm text-gray-900">{a.description}</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {formatDate(a.createdAt)}
+              {a.user && ` · ${a.user.firstName} ${a.user.lastName}`}
+              {` · ${a.type.toLowerCase().replace("_", " ")}`}
+            </p>
+          </div>
         </div>
       ))}
     </div>
