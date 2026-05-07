@@ -27,11 +27,15 @@ interface StatCardProps {
  */
 function fmt(v: number, format: StatCardProps["format"] = "number"): string {
   if (format === "currency") {
-    return v >= 1_000_000
-      ? `$${(v / 1_000_000).toFixed(1)}M`
-      : v >= 1000
-      ? `$${(v / 1000).toFixed(1)}k`
-      : `$${v.toFixed(0)}`;
+    if (v >= 1_000_000) {
+      const m = v / 1_000_000;
+      return `$${m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)}M`;
+    }
+    if (v >= 1000) {
+      const k = v / 1000;
+      return `$${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}k`;
+    }
+    return `$${v.toFixed(0)}`;
   }
   if (format === "percent") return `${v}%`;
   return v.toLocaleString();
