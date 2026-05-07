@@ -1,0 +1,462 @@
+// This is your Prisma schema file.
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum ConstituentType {
+  DONOR
+  VOLUNTEER
+  MEMBER
+  PROSPECT
+  SPONSOR
+  BOARD_MEMBER
+  FOUNDATION
+  ORGANIZATION
+}
+
+enum DonorStatus {
+  NEW
+  ACTIVE
+  LAPSED
+  MAJOR_DONOR
+  DECEASED
+}
+
+enum DonationStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  ACH
+  CHECK
+  WIRE
+  STOCK
+  IN_KIND
+  CASH
+  ONLINE
+}
+
+enum RecurringFrequency {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskType {
+  CALL
+  EMAIL
+  MAIL
+  MEETING
+  THANK_YOU
+  FOLLOW_UP
+  OTHER
+}
+
+enum CampaignCategory {
+  ANNUAL_FUND
+  CAPITAL
+  ENDOWMENT
+  EVENT
+  GIVING_DAY
+  MAJOR_GIFTS
+  PLANNED_GIVING
+  GENERAL
+}
+
+enum EventType {
+  GALA
+  AUCTION
+  RUN_WALK
+  CONFERENCE
+  WORKSHOP
+  CULTIVATION
+  STEWARDSHIP
+  VOLUNTEER
+  ONLINE
+  OTHER
+}
+
+enum CommunicationChannel {
+  EMAIL
+  PHONE
+  MAIL
+  TEXT
+  IN_PERSON
+}
+
+enum ActivityType {
+  DONATION
+  TASK_COMPLETED
+  EMAIL_SENT
+  EMAIL_RECEIVED
+  CALL
+  MEETING
+  NOTE
+  EVENT_ATTENDANCE
+  VOLUNTEER_HOURS
+  PLEDGE_MADE
+}
+
+// ─── Core Models ─────────────────────────────────────────────────────────────
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  constituents Constituent[]
+  campaigns    Campaign[]
+  events       Event[]
+  users        User[]
+  settings     OrganizationSettings?
+}
+
+model OrganizationSettings {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  fiscalYearStart Int         @default(1) // Month 1-12
+  currency       String       @default("USD")
+  timezone       String       @default("America/Chicago")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+}
+
+model User {
+  id             String   @id @default(cuid())
+  organizationId String
+  email          String   @unique
+  firstName      String
+  lastName       String
+  role           String   @default("staff") // admin, staff, readonly
+  avatarUrl      String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  assignedTasks  Task[]       @relation("TaskAssignee")
+  createdTasks   Task[]       @relation("TaskCreator")
+  activities     Activity[]
+}
+
+// ─── Constituent (Donor/Volunteer/Member) ─────────────────────────────────────
+
+model Constituent {
+  id             String          @id @default(cuid())
+  organizationId String
+  type           ConstituentType @default(DONOR)
+  donorStatus    DonorStatus     @default(NEW)
+
+  // Contact info
+  prefix         String?
+  firstName      String
+  lastName       String
+  email          String?
+  email2         String?
+  phone          String?
+  phone2         String?
+  mobile         String?
+
+  // Address
+  addressLine1   String?
+  addressLine2   String?
+  city           String?
+  state          String?
+  zip            String?
+  country        String          @default("US")
+
+  // Profile
+  birthDate      DateTime?
+  employer       String?
+  occupation     String?
+  notes          String?         @db.Text
+  avatarUrl      String?
+
+  // Household
+  householdId    String?
+  isPrimaryContact Boolean       @default(true)
+
+  // Communication preferences
+  doNotEmail     Boolean         @default(false)
+  doNotCall      Boolean         @default(false)
+  doNotMail      Boolean         @default(false)
+  doNotContact   Boolean         @default(false)
+  emailOptOut    Boolean         @default(false)
+
+  // Giving summary (denormalized for performance)
+  totalLifetimeGiving  Decimal   @default(0) @db.Decimal(12, 2)
+  totalYtdGiving       Decimal   @default(0) @db.Decimal(12, 2)
+  firstGiftDate        DateTime?
+  lastGiftDate         DateTime?
+  lastGiftAmount       Decimal?  @db.Decimal(10, 2)
+  giftCount            Int       @default(0)
+  engagementScore      Int       @default(0) // 0-100
+
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  household      Household?      @relation(fields: [householdId], references: [id])
+  donations      Donation[]
+  tasks          Task[]
+  tags           ConstituentTag[]
+  activities     Activity[]
+  eventAttendances EventAttendance[]
+  volunteerHours VolunteerHour[]
+  pledges        Pledge[]
+}
+
+model Household {
+  id          String        @id @default(cuid())
+  name        String
+  addressLine1 String?
+  addressLine2 String?
+  city        String?
+  state       String?
+  zip         String?
+  country     String        @default("US")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  members     Constituent[]
+}
+
+model Tag {
+  id          String          @id @default(cuid())
+  name        String
+  color       String          @default("#16a34a")
+  description String?
+  createdAt   DateTime        @default(now())
+
+  constituents ConstituentTag[]
+}
+
+model ConstituentTag {
+  constituentId String
+  tagId         String
+  createdAt     DateTime @default(now())
+
+  constituent Constituent @relation(fields: [constituentId], references: [id], onDelete: Cascade)
+  tag         Tag         @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([constituentId, tagId])
+}
+
+// ─── Donations & Pledges ─────────────────────────────────────────────────────
+
+model Donation {
+  id             String         @id @default(cuid())
+  constituentId  String
+  campaignId     String?
+  designationId  String?
+  pledgeId       String?
+
+  amount         Decimal        @db.Decimal(10, 2)
+  feeAmount      Decimal        @default(0) @db.Decimal(8, 2)
+  date           DateTime       @default(now())
+  paymentMethod  PaymentMethod  @default(ONLINE)
+  status         DonationStatus @default(COMPLETED)
+  checkNumber    String?
+  transactionId  String?
+
+  isRecurring    Boolean        @default(false)
+  frequency      RecurringFrequency?
+  nextGiftDate   DateTime?
+
+  receiptNumber  String?        @unique
+  receiptSentAt  DateTime?
+  acknowledgmentSentAt DateTime?
+  taxDeductible  Boolean        @default(true)
+
+  inKindDescription String?
+  notes          String?
+
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  constituent    Constituent    @relation(fields: [constituentId], references: [id])
+  campaign       Campaign?      @relation(fields: [campaignId], references: [id])
+  designation    Designation?   @relation(fields: [designationId], references: [id])
+  pledge         Pledge?        @relation(fields: [pledgeId], references: [id])
+  activities     Activity[]
+}
+
+model Pledge {
+  id             String    @id @default(cuid())
+  constituentId  String
+  campaignId     String?
+  designationId  String?
+
+  totalAmount    Decimal   @db.Decimal(10, 2)
+  paidAmount     Decimal   @default(0) @db.Decimal(10, 2)
+  startDate      DateTime
+  endDate        DateTime?
+  frequency      RecurringFrequency?
+  notes          String?
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  constituent    Constituent  @relation(fields: [constituentId], references: [id])
+  campaign       Campaign?    @relation(fields: [campaignId], references: [id])
+  designation    Designation? @relation(fields: [designationId], references: [id])
+  payments       Donation[]
+}
+
+model Designation {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  donations   Donation[]
+  pledges     Pledge[]
+}
+
+// ─── Campaigns ───────────────────────────────────────────────────────────────
+
+model Campaign {
+  id             String           @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?          @db.Text
+  category       CampaignCategory @default(ANNUAL_FUND)
+  goal           Decimal?         @db.Decimal(12, 2)
+  startDate      DateTime
+  endDate        DateTime?
+  active         Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization   Organization     @relation(fields: [organizationId], references: [id])
+  donations      Donation[]
+  pledges        Pledge[]
+}
+
+// ─── Tasks ───────────────────────────────────────────────────────────────────
+
+model Task {
+  id             String       @id @default(cuid())
+  constituentId  String?
+  assigneeId     String?
+  createdById    String?
+
+  title          String
+  description    String?      @db.Text
+  type           TaskType     @default(FOLLOW_UP)
+  status         TaskStatus   @default(PENDING)
+  priority       TaskPriority @default(MEDIUM)
+  dueDate        DateTime?
+  completedAt    DateTime?
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  constituent    Constituent? @relation(fields: [constituentId], references: [id])
+  assignee       User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdBy      User?        @relation("TaskCreator", fields: [createdById], references: [id])
+  activities     Activity[]
+}
+
+// ─── Events ──────────────────────────────────────────────────────────────────
+
+model Event {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?   @db.Text
+  type           EventType @default(OTHER)
+  location       String?
+  startDate      DateTime
+  endDate        DateTime?
+  registrationGoal Int?
+  revenueGoal    Decimal?  @db.Decimal(10, 2)
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  attendances    EventAttendance[]
+  volunteerHours VolunteerHour[]
+}
+
+model EventAttendance {
+  id            String   @id @default(cuid())
+  eventId       String
+  constituentId String
+  checkedIn     Boolean  @default(false)
+  checkedInAt   DateTime?
+  ticketType    String?
+  amountPaid    Decimal? @db.Decimal(8, 2)
+  createdAt     DateTime @default(now())
+
+  event         Event        @relation(fields: [eventId], references: [id])
+  constituent   Constituent  @relation(fields: [constituentId], references: [id])
+}
+
+// ─── Volunteers ──────────────────────────────────────────────────────────────
+
+model VolunteerHour {
+  id            String   @id @default(cuid())
+  constituentId String
+  eventId       String?
+  hours         Decimal  @db.Decimal(6, 2)
+  description   String?
+  date          DateTime
+  createdAt     DateTime @default(now())
+
+  constituent   Constituent @relation(fields: [constituentId], references: [id])
+  event         Event?      @relation(fields: [eventId], references: [id])
+}
+
+// ─── Activity Timeline ────────────────────────────────────────────────────────
+
+model Activity {
+  id            String       @id @default(cuid())
+  constituentId String?
+  donationId    String?
+  taskId        String?
+  userId        String?
+
+  type          ActivityType
+  description   String       @db.Text
+  metadata      Json?
+  createdAt     DateTime     @default(now())
+
+  constituent   Constituent? @relation(fields: [constituentId], references: [id])
+  donation      Donation?    @relation(fields: [donationId], references: [id])
+  task          Task?        @relation(fields: [taskId], references: [id])
+  user          User?        @relation(fields: [userId], references: [id])
+}

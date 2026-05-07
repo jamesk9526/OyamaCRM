@@ -1,36 +1,105 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Oyama CRM
+
+A modern, modular nonprofit donor management and fundraising platform built with Next.js 16, inspired by Bloomerang and NeonCRM.
+
+## Overview
+
+Oyama CRM helps nonprofits manage constituents (donors, volunteers, members), track donations, run fundraising campaigns, and measure impact. Built with a focus on modularity, maintainability, and nonprofit-specific workflows.
+
+## Tech Stack
+
+- **Framework**: Next.js 16 (App Router, Server Components, Turbopack)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS 4
+- **Package Manager**: pnpm
+- **Process Manager**: PM2 (cluster mode)
+- **Runtime**: Node.js
 
 ## Getting Started
 
-First, run the development server:
+### Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+# Install dependencies
+pnpm install
+
+# Run development server
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to view the app.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Production Build
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# Build for production
+pnpm build
 
-## Learn More
+# Start production server
+pnpm start
 
-To learn more about Next.js, take a look at the following resources:
+# Or use PM2 cluster mode
+pnpm pm2:start
+pnpm pm2:logs
+pnpm pm2:status
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+app/
+├── components/
+│   ├── layout/           # AppShell, TopBar, Sidebar
+│   ├── ui/               # Reusable primitives (Card, CircularProgress)
+│   └── dashboard/        # Dashboard-specific widgets
+├── page.tsx              # Home/Dashboard page
+└── layout.tsx            # Root layout with AppShell
+```
 
-## Deploy on Vercel
+## Key Features (Planned)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Core Modules
+- **Constituents** - Donor/volunteer profiles, households, engagement tracking
+- **Donations** - One-time/recurring gifts, pledges, in-kind donations, receipts
+- **Campaigns** - Fundraising goals, progress tracking, multi-channel outreach
+- **Tasks** - Stewardship workflows, follow-ups, assignments
+- **Reports** - Revenue analytics, donor retention, giving trends
+- **Communications** - Email campaigns, templates, segmentation
+- **Events** - Registration, ticketing, check-in
+- **Volunteers** - Opportunity posting, hour logging
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Current Implementation
+✅ Modular app shell (TopBar + Sidebar + main content)  
+✅ Dashboard with sample widgets:
+  - Revenue Progress (circular chart, goal tracking)
+  - Donor Retention metrics
+  - Tasks panel (due soon/later)
+  - Totals by Level (weekly summary)  
+✅ White + green-600 theme (Bloomerang-inspired)  
+✅ Nonprofit-specific navigation (Constituents, Donations, Campaigns, etc.)
+
+## Architecture Guidelines
+
+See [AGENTS.md](AGENTS.md) for detailed conventions on:
+- Modular component architecture
+- Nonprofit CRM domain concepts
+- Server/Client Component boundaries
+- Theme and design patterns
+- Data modeling for nonprofit workflows
+
+## Scripts
+
+```bash
+pnpm dev           # Development server
+pnpm build         # Production build
+pnpm start         # Production server
+pnpm lint          # Run ESLint
+pnpm pm2:start     # Start PM2 cluster
+pnpm pm2:stop      # Stop PM2
+pnpm pm2:reload    # Zero-downtime reload
+pnpm pm2:logs      # View PM2 logs
+```
+
+## License
+
+Private - Internal Use Only
