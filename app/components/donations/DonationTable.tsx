@@ -51,6 +51,7 @@ export default function DonationTable({ donations }: { donations: DonationRow[] 
             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Fund / Campaign</th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Method</th>
             <Th label="Status" col="status" />
+            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide w-24">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -81,6 +82,14 @@ export default function DonationTable({ donations }: { donations: DonationRow[] 
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(d.status)}`}>
                   {d.status.charAt(0) + d.status.slice(1).toLowerCase()}
                 </span>
+              </td>
+              <td className="px-4 py-3 text-right">
+                <Link
+                  href={`/donations/${d.id}/edit`}
+                  className="text-xs font-medium text-green-700 hover:text-green-800 hover:underline"
+                >
+                  Edit
+                </Link>
               </td>
             </tr>
           ))}

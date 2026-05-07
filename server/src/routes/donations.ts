@@ -9,6 +9,7 @@
  *   GET  /api/donations/:id  — single donation with related pledge
  *   POST /api/donations      — record a new donation
  *   PUT  /api/donations/:id  — update a donation
+ *   DELETE /api/donations/:id — delete a donation (admin / batch entry corrections)
  *
  * @module routes/donations
  */
@@ -151,6 +152,35 @@ router.put("/:id", async (req, res) => {
   });
 
   res.json(donation);
+});
+
+/**
+ * DELETE /api/donations/:id — Permanently delete a donation record.
+ * Used for batch-entry corrections; logs a NOTE activity on the donor's timeline
+ * before deletion so the gift removal is auditable.
+ */
+router.delete("/:id", async (req, res) => {
+  const existing = await prisma.donation.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, constituentId: true, amount: true },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Donation not found" } });
+    return;
+  }
+
+  // Best-effort audit trail before the delete — keep history of what was removed.
+  await prisma.activity.create({
+    data: {
+      constituentId: existing.constituentId,
+      type: "NOTE",
+      description: `Donation deleted: $${Number(existing.amount).toFixed(2)}`,
+      metadata: { source: "api/donations:delete", donationId: existing.id },
+    },
+  });
+
+  await prisma.donation.delete({ where: { id: req.params.id } });
+  res.status(204).send();
 });
 
 export default router;
