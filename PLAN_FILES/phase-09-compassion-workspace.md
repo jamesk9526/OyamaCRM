@@ -264,8 +264,13 @@ everything.
 
 ### Manageable steps
 
-1. `CompassionTask` model (separate from donor `Task` _or_ a `workspace`
-   discriminator on the existing model — TBD; pick one and stay consistent).
+1. `CompassionTask` model — implemented as a discriminator field
+   (`workspace: WorkspaceEnum`) on the existing donor `Task` model. This
+   keeps a single task engine, automation surface, and timeline writer
+   while still scoping queries per workspace. All Compassion-side queries
+   add `where: { workspace: "COMPASSION" }`; all donor-side queries add
+   `where: { workspace: "DONOR" }`. _(Decision recorded; revisit only if a
+   future Compassion-only field set diverges materially.)_
 2. Task views: My Tasks, Today, Overdue, By Client, By Staff Member, By
    Appointment, By Service Type, Needs Director Review.
 3. Task fields: title, description, client, assigned staff, due date,

@@ -170,6 +170,31 @@ describe("auth-client", () => {
       expect(getAccessToken()).toBe("fresh");
     });
 
+    it("propagates the retried response error when refresh succeeds but the retry fails", async () => {
+      setAccessToken("expired");
+      const fetchMock = vi
+        .fn()
+        // 1) original call → 401
+        .mockResolvedValueOnce(jsonResponse({}, { status: 401 }))
+        // 2) refresh → new token
+        .mockResolvedValueOnce(
+          jsonResponse({ data: { accessToken: "fresh" } }),
+        )
+        // 3) retried call → 500 with a server message
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { error: { message: "downstream exploded" } },
+            { status: 500 },
+          ),
+        );
+      vi.stubGlobal("fetch", fetchMock);
+
+      await expect(apiFetch("/api/protected")).rejects.toThrow("downstream exploded");
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      // Token from the successful refresh is still stored.
+      expect(getAccessToken()).toBe("fresh");
+    });
+
     it("throws using the server-supplied message on non-OK responses", async () => {
       vi.stubGlobal(
         "fetch",

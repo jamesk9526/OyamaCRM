@@ -44,9 +44,19 @@ async function getSelectData() {
 
 /** Map a stored donation into the flat string-based form values DonationForm expects. */
 function toFormDefaults(d: Record<string, unknown>) {
-  const dateStr = typeof d.date === "string"
-    ? d.date.split("T")[0]
-    : new Date().toISOString().split("T")[0];
+  // Donations always have a `date` in our schema; the today fallback exists only
+  // as a defensive safeguard for malformed/legacy rows so the form still mounts
+  // instead of crashing. Real edits will overwrite this on save. Log a warning
+  // so data-quality issues surface in server logs and can be cleaned up.
+  let dateStr: string;
+  if (typeof d.date === "string") {
+    dateStr = d.date.split("T")[0];
+  } else {
+    console.warn(
+      `[donations/edit] donation ${String(d.id ?? "?")} missing a string date; defaulting to today`,
+    );
+    dateStr = new Date().toISOString().split("T")[0];
+  }
   return {
     constituentId: (d.constituentId as string) ?? "",
     amount: d.amount != null ? String(d.amount) : "",

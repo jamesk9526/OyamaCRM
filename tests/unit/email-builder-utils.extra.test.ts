@@ -101,4 +101,19 @@ describe("generateEmailHtml / generatePlainText", () => {
     const text = generatePlainText(t);
     expect(text.toLowerCase()).toContain("donate");
   });
+
+  it("plain-text output includes a button's exact label", () => {
+    // Build a minimal template with one known button so we can assert the
+    // label is preserved verbatim through HTML → plain-text conversion.
+    const button = createDefaultBlock("button");
+    (button as { label: string }).label = "Reserve My Seat";
+    const tpl = {
+      backgroundColor: "#fff",
+      contentWidth: 600,
+      fontFamily: "Arial",
+      blocks: [button],
+    };
+    const text = generatePlainText(tpl);
+    expect(text).toContain("Reserve My Seat");
+  });
 });
