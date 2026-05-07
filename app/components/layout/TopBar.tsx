@@ -102,8 +102,26 @@ function GlobalSearch() {
     if (e.key === "Enter" && results[selected]) navigate(results[selected].href);
   }
 
-  const typeIcon: Record<string, string> = { constituent: "👤", campaign: "📊", donation: "💰" };
   const typeLabel: Record<string, string> = { constituent: "Constituent", campaign: "Campaign", donation: "Donation" };
+
+  /** SVG icons keyed by result type */
+  function TypeIcon({ type }: { type: string }) {
+    if (type === "constituent") return (
+      <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      </svg>
+    );
+    if (type === "campaign") return (
+      <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
+      </svg>
+    );
+    return (
+      <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    );
+  }
 
   return (
     <div className="relative w-full max-w-xl">
@@ -138,7 +156,7 @@ function GlobalSearch() {
                   onMouseDown={() => navigate(r.href)}
                   className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${i === selected ? "bg-green-50" : "hover:bg-gray-50"}`}
                 >
-                  <span className="text-base">{typeIcon[r.type]}</span>
+                  <TypeIcon type={r.type} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{r.label}</p>
                     <p className="text-xs text-gray-400 truncate">{r.sublabel}</p>

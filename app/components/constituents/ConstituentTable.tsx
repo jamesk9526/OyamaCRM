@@ -15,6 +15,7 @@ import {
 interface Props {
   constituents: ConstituentRow[];
   loading?: boolean;
+  onDelete?: (id: string) => void;
 }
 
 const COLUMNS = [
@@ -26,11 +27,12 @@ const COLUMNS = [
   { key: "lastGift", label: "Last Gift", sortable: true },
   { key: "engagement", label: "Engagement", sortable: true },
   { key: "tags", label: "Tags", sortable: false },
+  { key: "actions", label: "", sortable: false },
 ];
 
 type SortKey = "name" | "type" | "status" | "ytd" | "lifetime" | "lastGift" | "engagement";
 
-export default function ConstituentTable({ constituents, loading }: Props) {
+export default function ConstituentTable({ constituents, loading, onDelete }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
@@ -171,6 +173,31 @@ export default function ConstituentTable({ constituents, loading }: Props) {
                   ))}
                   {c.tags.length > 3 && (
                     <span className="text-xs text-gray-400">+{c.tags.length - 3}</span>
+                  )}
+                </div>
+              </td>
+              {/* Actions */}
+              <td className="px-4 py-3">
+                <div className="flex items-center gap-1 justify-end">
+                  <Link
+                    href={`/constituents/${c.id}/edit`}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Edit
+                  </Link>
+                  {onDelete && (
+                    <button
+                      onClick={() => onDelete(c.id)}
+                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 transition-colors"
+                      title="Delete constituent"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   )}
                 </div>
               </td>

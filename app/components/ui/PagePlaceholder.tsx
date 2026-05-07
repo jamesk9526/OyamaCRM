@@ -1,10 +1,12 @@
 import ComingSoonBadge from "@/app/components/ui/ComingSoonBadge";
 import PlaceholderStatCard from "@/app/components/ui/PlaceholderStatCard";
+import type React from "react";
 
 interface PagePlaceholderProps {
   title: string;
   description: string;
-  icon: string;
+  /** SVG ReactNode — prefer SVG over emoji strings */
+  icon: React.ReactNode;
   stats: Array<{ label: string; description?: string }>;
   features: string[];
 }
@@ -21,7 +23,9 @@ export default function PagePlaceholder({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-2xl">{icon}</span>
+          <span className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
+            {icon}
+          </span>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
@@ -41,7 +45,9 @@ export default function PagePlaceholder({
 
       {/* Coming soon content box */}
       <div className="bg-white rounded-lg border border-dashed border-gray-300 p-8 text-center">
-        <div className="text-4xl mb-3">{icon}</div>
+        <span className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mx-auto mb-3 text-gray-400">
+          {icon}
+        </span>
         <h2 className="text-lg font-semibold text-gray-700 mb-2">{title} is coming soon</h2>
         <p className="text-sm text-gray-500 max-w-md mx-auto mb-6">
           This section is in development. Here&apos;s what you&apos;ll be able to do:
@@ -49,7 +55,9 @@ export default function PagePlaceholder({
         <ul className="text-sm text-gray-600 space-y-2 max-w-xs mx-auto text-left">
           {features.map((f) => (
             <li key={f} className="flex items-start gap-2">
-              <span className="text-green-600 mt-0.5 shrink-0">✓</span>
+              <svg className="w-4 h-4 text-green-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
               <span>{f}</span>
             </li>
           ))}

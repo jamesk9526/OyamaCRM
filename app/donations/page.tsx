@@ -45,6 +45,16 @@ export default function DonationsPage() {
   const completed   = donations.filter(d => d.status === "COMPLETED").length;
   const recurring   = donations.filter(d => d.isRecurring).length;
 
+  async function handleDelete(id: string) {
+    if (!confirm("Delete this donation record? This cannot be undone.")) return;
+    try {
+      await fetch(`${API}/api/donations/${id}`, { method: "DELETE" });
+      setDonations((prev) => prev.filter((d) => d.id !== id));
+    } catch {
+      alert("Failed to delete donation. Please try again.");
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -60,8 +70,11 @@ export default function DonationsPage() {
       </div>
 
       {apiDown && (
-        <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700">
-          ⚠️ API server not running — showing cached/empty data. Start with <code className="font-mono">pnpm start:server</code>.
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700 flex items-center gap-2">
+          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+          API server not running — showing cached/empty data. Start with <code className="font-mono">pnpm start:server</code>.
         </div>
       )}
 
@@ -108,7 +121,7 @@ export default function DonationsPage() {
         {loading ? (
           <div className="py-16 text-center text-gray-400 text-sm animate-pulse">Loading donations…</div>
         ) : (
-          <DonationTable donations={donations} />
+          <DonationTable donations={donations} onDelete={handleDelete} />
         )}
       </div>
     </div>

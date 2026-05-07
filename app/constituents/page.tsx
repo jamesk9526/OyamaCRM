@@ -51,6 +51,16 @@ export default function ConstituentsPage() {
     prospects: constituents.filter((c) => c.type === "PROSPECT").length,
   };
 
+  async function handleDelete(id: string) {
+    if (!confirm("Delete this constituent? This cannot be undone.")) return;
+    try {
+      await fetch(`${API_BASE}/api/constituents/${id}`, { method: "DELETE" });
+      setConstituents((prev) => prev.filter((c) => c.id !== id));
+    } catch {
+      alert("Failed to delete constituent. Please try again.");
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -124,7 +134,7 @@ export default function ConstituentsPage() {
         </div>
       )}
 
-      <ConstituentTable constituents={constituents} loading={loading && !error} />
+      <ConstituentTable constituents={constituents} loading={loading && !error} onDelete={handleDelete} />
 
       {!loading && !error && constituents.length > 0 && (
         <p className="text-xs text-gray-400 text-right">{constituents.length} record{constituents.length !== 1 ? "s" : ""}</p>

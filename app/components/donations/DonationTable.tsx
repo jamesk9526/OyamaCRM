@@ -6,7 +6,12 @@ import { DonationRow, formatCurrency, formatDate, methodLabel, statusColor } fro
 
 type SortKey = "date" | "amount" | "constituent" | "status";
 
-export default function DonationTable({ donations }: { donations: DonationRow[] }) {
+interface Props {
+  donations: DonationRow[];
+  onDelete?: (id: string) => void;
+}
+
+export default function DonationTable({ donations, onDelete }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -51,7 +56,7 @@ export default function DonationTable({ donations }: { donations: DonationRow[] 
             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Fund / Campaign</th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Method</th>
             <Th label="Status" col="status" />
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide w-24">Actions</th>
+            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide w-28">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -84,12 +89,28 @@ export default function DonationTable({ donations }: { donations: DonationRow[] 
                 </span>
               </td>
               <td className="px-4 py-3 text-right">
-                <Link
-                  href={`/donations/${d.id}/edit`}
-                  className="text-xs font-medium text-green-700 hover:text-green-800 hover:underline"
-                >
-                  Edit
-                </Link>
+                <div className="flex items-center gap-1 justify-end">
+                  <Link
+                    href={`/donations/${d.id}/edit`}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Edit
+                  </Link>
+                  {onDelete && (
+                    <button
+                      onClick={() => onDelete(d.id)}
+                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 transition-colors"
+                      title="Delete donation"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </td>
             </tr>
           ))}

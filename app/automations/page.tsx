@@ -31,15 +31,26 @@ const ACTION_LABELS: Record<string, string> = {
   ASSIGN_USER: "Assign user",
 };
 
-/** Trigger icon mapping */
-const TRIGGER_ICONS: Record<string, string> = {
-  DONATION_RECEIVED: "💰",
-  CONSTITUENT_CREATED: "👤",
-  TASK_DUE: "📋",
-  PLEDGE_CREATED: "🤝",
-  EMAIL_OPENED: "📧",
-  EVENT_REGISTERED: "📅",
-};
+/** SVG icon for each trigger type (no emoji) */
+function TriggerIcon({ trigger }: { trigger: string }) {
+  const cls = "w-4 h-4";
+  switch (trigger) {
+    case "DONATION_RECEIVED":
+      return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+    case "CONSTITUENT_CREATED":
+      return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>;
+    case "TASK_DUE":
+      return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>;
+    case "PLEDGE_CREATED":
+      return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>;
+    case "EMAIL_OPENED":
+      return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>;
+    case "EVENT_REGISTERED":
+      return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
+    default:
+      return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>;
+  }
+}
 
 interface AutomationAction {
   id: string;
@@ -219,7 +230,11 @@ export default function AutomationsPage() {
         </div>
       ) : automations.length === 0 ? (
         <div className="bg-white rounded-xl border border-dashed border-gray-300 py-16 text-center">
-          <div className="text-4xl mb-3">⚙️</div>
+          <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+            <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
           <h3 className="text-base font-medium text-gray-900">No automations yet</h3>
           <p className="text-sm text-gray-500 mt-1 mb-4">
             Create your first automation to save time on repetitive tasks
@@ -273,7 +288,9 @@ function AutomationCard({
       <div className="p-4">
         <div className="flex items-start gap-3">
           {/* Trigger icon */}
-          <span className="text-2xl shrink-0 mt-0.5">{TRIGGER_ICONS[a.trigger] ?? "⚡"}</span>
+          <span className="w-8 h-8 shrink-0 mt-0.5 rounded-md bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-500">
+            <TriggerIcon trigger={a.trigger} />
+          </span>
 
           <div className="flex-1 min-w-0">
             {/* Name + toggle */}

@@ -107,7 +107,9 @@ export default function TasksWidget() {
           ))
         ) : tasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">
-            <span className="text-3xl mb-2">✓</span>
+            <svg className="w-8 h-8 text-green-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
             <p className="text-sm text-gray-500">No pending tasks!</p>
           </div>
         ) : (
@@ -182,8 +184,12 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: (id: strin
         </span>
         {/* Due date */}
         {task.dueDate && (
-          <span className={`text-[10px] font-medium ${isOverdue ? "text-red-500" : "text-gray-400"}`}>
-            {isOverdue ? "⚠ " : ""}
+          <span className={`text-[10px] font-medium flex items-center gap-0.5 ${isOverdue ? "text-red-500" : "text-gray-400"}`}>
+            {isOverdue && (
+              <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+            )}
             {new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
           </span>
         )}
