@@ -1,0 +1,35 @@
+{
+  "name": "agents-create-oyamam-crm-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.11.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "pm2:start": "pm2 start ecosystem.config.cjs",
+    "pm2:stop": "pm2 stop ecosystem.config.cjs",
+    "pm2:restart": "pm2 restart ecosystem.config.cjs",
+    "pm2:reload": "pm2 reload ecosystem.config.cjs",
+    "pm2:delete": "pm2 delete ecosystem.config.cjs",
+    "pm2:logs": "pm2 logs oyama-crm",
+    "pm2:status": "pm2 status"
+  },
+  "dependencies": {
+    "next": "16.2.5",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.5",
+    "pm2": "^5",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
