@@ -67,6 +67,7 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [audiencePreview, setAudiencePreview] = useState<AudiencePreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewAudienceId, setPreviewAudienceId] = useState<string | null>(null);
 
   function set(field: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -74,6 +75,10 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
 
   /** Loads audience eligibility counts used by the send confirmation summary in step 3. */
   async function refreshAudiencePreview(audienceId: string) {
+    if (audiencePreview && previewAudienceId === audienceId) {
+      // Skip duplicate preview calls when the same audience is already hydrated.
+      return;
+    }
     setPreviewLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/email-campaigns/audience-preview`, {
@@ -84,8 +89,10 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
       if (!res.ok) throw new Error("Failed to preview audience");
       const payload = await res.json();
       setAudiencePreview(payload.audience as AudiencePreview);
+      setPreviewAudienceId(audienceId);
     } catch {
       setAudiencePreview(null);
+      setPreviewAudienceId(null);
     } finally {
       setPreviewLoading(false);
     }
@@ -256,6 +263,7 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
                         checked={form.audienceId === a.id}
                         onChange={() => {
                           set("audienceId", a.id);
+                          setPreviewAudienceId(null);
                           void refreshAudiencePreview(a.id);
                         }}
                         className="hidden"

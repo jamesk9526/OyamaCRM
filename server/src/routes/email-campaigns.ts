@@ -42,7 +42,8 @@ interface AudiencePreview {
 
 /** Basic email format check for send-test and from/reply fields. */
 function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  const email = value.trim();
+  return /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/.test(email);
 }
 
 /** Resolves audience filters into a Prisma where clause for constituents. */
@@ -367,7 +368,7 @@ router.post("/:id/schedule", async (req, res) => {
   }
 
   const scheduledDate = new Date(scheduledAt);
-  if (Number.isNaN(scheduledDate.getTime()) || scheduledDate <= new Date()) {
+  if (Number.isNaN(scheduledDate.getTime()) || scheduledDate < new Date()) {
     res.status(400).json({ error: "scheduledAt must be a valid future datetime." });
     return;
   }
