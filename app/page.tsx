@@ -12,8 +12,7 @@ import DonorRetention from "./components/dashboard/DonorRetention";
 import TasksWidget from "./components/dashboard/TasksWidget";
 import TotalsByLevel from "./components/dashboard/TotalsByLevel";
 import StatCard from "./components/dashboard/StatCard";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 /** Shape returned by /api/reports/summary */
 interface Summary {
@@ -53,8 +52,8 @@ export default function DashboardPage() {
     setLoading(true);
     try {
       const [s, r] = await Promise.all([
-        fetch(`${API}/api/reports/summary`).then((res) => res.json()),
-        fetch(`${API}/api/reports/donor-retention`).then((res) => res.json()),
+        apiFetch<Summary>("/api/reports/summary"),
+        apiFetch<RetentionData>("/api/reports/donor-retention"),
       ]);
       setSummary(s);
       setRetention(r);

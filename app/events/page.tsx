@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 interface EventItem {
   id: string;
@@ -36,8 +35,7 @@ export default function EventsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/events`);
-      const data = await res.json();
+      const data = await apiFetch<EventItem[]>("/api/events");
       setEvents(Array.isArray(data) ? data : []);
     } finally {
       setLoading(false);
@@ -150,9 +148,8 @@ function NewEventModal({ onClose, onCreated }: { onClose: () => void; onCreated:
     e.preventDefault();
     setSaving(true);
     try {
-      await fetch(`${API}/api/events`, {
+      await apiFetch("/api/events", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
           registrationGoal: form.registrationGoal ? Number(form.registrationGoal) : null,

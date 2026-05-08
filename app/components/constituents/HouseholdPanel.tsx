@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { formatCurrency, statusLabel, statusColor } from "@/app/components/constituents/constituent-utils";
+import { apiFetch } from "@/app/lib/auth-client";
 
 interface HouseholdMember {
   id: string;
@@ -35,8 +36,6 @@ interface SearchResult {
   type: string;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
 export default function HouseholdPanel({ householdId, headConstituentId }: {
   householdId: string;
   headConstituentId: string;
@@ -51,8 +50,8 @@ export default function HouseholdPanel({ householdId, headConstituentId }: {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/households/${householdId}`);
-      if (res.ok) setHousehold(await res.json());
+      const data = await apiFetch<Household>(`/api/households/${householdId}`);
+      setHousehold(data);
     } finally {
       setLoading(false);
     }
@@ -65,13 +64,10 @@ export default function HouseholdPanel({ householdId, headConstituentId }: {
     const timeout = setTimeout(async () => {
       setSearching(true);
       try {
-        const res = await fetch(`${API_BASE}/api/constituents?search=${encodeURIComponent(search)}&limit=10`);
-        if (res.ok) {
-          const data: SearchResult[] = await res.json();
+        const data = await apiFetch<SearchResult[]>(`/api/constituents?search=${encodeURIComponent(search)}&limit=10`);
           // Exclude head and current members
           const memberIds = new Set([headConstituentId, ...(household?.members.map((m) => m.id) ?? [])]);
           setSearchResults(data.filter((r) => !memberIds.has(r.id)));
-        }
       } finally {
         setSearching(false);
       }
@@ -80,23 +76,20 @@ export default function HouseholdPanel({ householdId, headConstituentId }: {
   }, [search, household, headConstituentId]);
 
   async function addMember(constituentId: string) {
-    const res = await fetch(`${API_BASE}/api/households/${householdId}/members`, {
+    await apiFetch(`/api/households/${householdId}/members`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ constituentId }),
     });
-    if (res.ok) {
-      setSearch("");
-      setSearchResults([]);
-      setAddOpen(false);
-      await load();
-    }
+    setSearch("");
+    setSearchResults([]);
+    setAddOpen(false);
+    await load();
   }
 
   async function removeMember(constituentId: string) {
     setRemovingId(constituentId);
     try {
-      await fetch(`${API_BASE}/api/households/${householdId}/members/${constituentId}`, {
+      await apiFetch(`/api/households/${householdId}/members/${constituentId}`, {
         method: "DELETE",
       });
       await load();

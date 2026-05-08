@@ -32,6 +32,8 @@ import settingsRoutes from "./routes/settings.js";
 import automationRoutes from "./routes/automations.js";
 import eventRoutes from "./routes/events.js";
 import setupRoutes from "./routes/setup.js";
+import userRoutes from "./routes/users.js";
+import auditLogRoutes from "./routes/audit-logs.js";
 import { prisma } from "./lib/prisma.js";
 import { getAppInfo } from "./lib/app-info.js";
 
@@ -126,6 +128,8 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/automations", automationRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/setup", setupRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/audit-logs", auditLogRoutes);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 
@@ -136,7 +140,13 @@ app.use((_req, res) => {
 // ─── Error handler ────────────────────────────────────────────────────────────
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error(err.stack);
+  // In production, suppress stack traces from stderr to avoid leaking internals.
+  // In development, log the full stack for easier debugging.
+  if (process.env.NODE_ENV === "production") {
+    console.error(`[ERROR] ${err.name}: ${err.message}`);
+  } else {
+    console.error(err.stack);
+  }
   res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Internal server error" } });
 });
 

@@ -13,9 +13,15 @@
  */
 import { Router } from "express";
 import { resolveOrganizationId } from "../lib/organization.js";
+import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
+import { requireAuth } from "../middleware/requireAuth.js";
+import { requireRole } from "../middleware/requireRole.js";
 
 const router = Router();
+
+// All campaign routes require authentication.
+router.use(requireAuth);
 
 /** GET /api/campaigns — List all campaigns with donation counts and aggregated totalRaised amounts. */
 router.get("/", async (req, res) => {
@@ -63,7 +69,7 @@ router.get("/:id", async (req, res) => {
       _count: { select: { donations: true } },
     },
   });
-  if (!campaign) return res.status(404).json({ error: "Campaign not found" });
+  if (!campaign) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
   res.json(campaign);
 });
 
@@ -84,6 +90,18 @@ router.post("/", async (req, res) => {
       organizationId,
     },
   });
+
+  logAudit({
+    action: "CAMPAIGN_CREATED",
+    entity: "Campaign",
+    entityId: campaign.id,
+    userId: req.user?.sub,
+    organizationId,
+    metadata: { name: campaign.name },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
   res.status(201).json(campaign);
 });
 
@@ -93,7 +111,31 @@ router.patch("/:id", async (req, res) => {
     where: { id: req.params.id },
     data: req.body,
   });
+  logAudit({
+    action: "CAMPAIGN_UPDATED",
+    entity: "Campaign",
+    entityId: campaign.id,
+    userId: req.user?.sub,
+    metadata: { fields: Object.keys(req.body) },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
   res.json(campaign);
+});
+
+/** DELETE /api/campaigns/:id — Archive/delete a campaign record. Admin-only. */
+router.delete("/:id", requireRole("admin"), async (req, res) => {
+  const id = req.params.id as string;
+  await prisma.campaign.delete({ where: { id } });
+  logAudit({
+    action: "CAMPAIGN_DELETED",
+    entity: "Campaign",
+    entityId: id,
+    userId: req.user?.sub,
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+  res.status(204).send();
 });
 
 export default router;

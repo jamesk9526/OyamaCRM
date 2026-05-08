@@ -4,8 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import DonationTable from "@/app/components/donations/DonationTable";
 import { DonationRow, formatCurrency } from "@/app/components/donations/donation-utils";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 export default function DonationsPage() {
   const [donations, setDonations] = useState<DonationRow[]>([]);
@@ -26,11 +25,9 @@ export default function DonationsPage() {
       if (status) params.set("status", status);
       if (from)   params.set("from", from);
       if (to)     params.set("to", to);
-      const res = await fetch(`${API}/api/donations?${params}`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setDonations(data.items ?? data ?? []);
-      setTotal(data.total ?? (data.items ?? data).length);
+      const data = await apiFetch<{ items?: DonationRow[]; total?: number }>(`/api/donations?${params}`);
+      setDonations(data.items ?? []);
+      setTotal(data.total ?? (data.items ?? []).length);
       setApiDown(false);
     } catch {
       setApiDown(true);
@@ -48,7 +45,7 @@ export default function DonationsPage() {
   async function handleDelete(id: string) {
     if (!confirm("Delete this donation record? This cannot be undone.")) return;
     try {
-      await fetch(`${API}/api/donations/${id}`, { method: "DELETE" });
+      await apiFetch(`/api/donations/${id}`, { method: "DELETE" });
       setDonations((prev) => prev.filter((d) => d.id !== id));
     } catch {
       alert("Failed to delete donation. Please try again.");

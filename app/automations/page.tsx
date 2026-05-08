@@ -8,8 +8,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import NewAutomationModal from "@/app/components/automations/NewAutomationModal";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 /** Trigger labels for display */
 const TRIGGER_LABELS: Record<string, string> = {
@@ -91,9 +90,10 @@ export default function AutomationsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/automations`);
-      const presetRes = await fetch(`${API}/api/automations/presets`);
-      const [data, presetData] = await Promise.all([res.json(), presetRes.json()]);
+      const [data, presetData] = await Promise.all([
+        apiFetch<Automation[]>("/api/automations"),
+        apiFetch<AutomationPreset[]>("/api/automations/presets"),
+      ]);
       setAutomations(Array.isArray(data) ? data : []);
       setPresets(Array.isArray(presetData) ? presetData : []);
     } catch {
@@ -109,9 +109,8 @@ export default function AutomationsPage() {
   async function toggle(a: Automation) {
     setToggling(a.id);
     try {
-      await fetch(`${API}/api/automations/${a.id}`, {
+      await apiFetch(`/api/automations/${a.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: !a.enabled }),
       });
       setAutomations((prev) =>
@@ -126,9 +125,8 @@ export default function AutomationsPage() {
   async function runNow(id: string) {
     setRunning(id);
     try {
-      const res = await fetch(`${API}/api/automations/${id}/run`, { method: "POST" });
-      const { automation } = await res.json();
-      setAutomations((prev) => prev.map((x) => (x.id === id ? automation : x)));
+      const result = await apiFetch<{ automation: Automation }>(`/api/automations/${id}/run`, { method: "POST" });
+      setAutomations((prev) => prev.map((x) => (x.id === id ? result.automation : x)));
     } finally {
       setRunning(null);
     }
@@ -137,7 +135,7 @@ export default function AutomationsPage() {
   /** Delete an automation after confirmation */
   async function del(id: string) {
     if (!confirm("Delete this automation? This cannot be undone.")) return;
-    await fetch(`${API}/api/automations/${id}`, { method: "DELETE" });
+    await apiFetch(`/api/automations/${id}`, { method: "DELETE" });
     setAutomations((prev) => prev.filter((x) => x.id !== id));
   }
 
@@ -145,13 +143,10 @@ export default function AutomationsPage() {
   async function installPreset(presetId: string) {
     setInstallingPreset(presetId);
     try {
-      const res = await fetch(`${API}/api/automations/from-preset`, {
+      const automation = await apiFetch<Automation>("/api/automations/from-preset", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ presetId }),
       });
-      if (!res.ok) throw new Error("Failed to install preset");
-      const automation = await res.json();
       setAutomations((prev) => [automation, ...prev]);
     } finally {
       setInstallingPreset(null);

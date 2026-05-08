@@ -13,8 +13,12 @@
 import { Router } from "express";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
+import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = Router();
+
+// All report routes require authentication — report data is sensitive org information.
+router.use(requireAuth);
 
 /** Filters orphan-safe task counts to the active installation organization. */
 function taskOrganizationWhere(organizationId: string) {

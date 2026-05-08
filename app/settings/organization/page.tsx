@@ -6,8 +6,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 /** Settings shape from GET /api/settings */
 interface Settings {
@@ -60,9 +59,7 @@ export default function OrganizationSettingsPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${API}/api/settings`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data: Settings = await res.json();
+        const data = await apiFetch<Settings>("/api/settings");
         setForm(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load settings");
@@ -86,12 +83,10 @@ export default function OrganizationSettingsPage() {
     setError(null);
     setSuccess(false);
     try {
-      const res = await fetch(`${API}/api/settings`, {
+      await apiFetch("/api/settings", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 4000);
     } catch (err) {

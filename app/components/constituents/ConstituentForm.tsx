@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CONSTITUENT_TYPES, DONOR_STATUSES } from "@/app/components/constituents/constituent-utils";
+import { apiFetch } from "@/app/lib/auth-client";
 
 interface ConstituentFormData {
   firstName: string;
@@ -56,8 +57,6 @@ export default function ConstituentForm({ mode, initialData, constituentId }: Pr
   const [form, setForm] = useState<ConstituentFormData>({ ...DEFAULTS, ...initialData });
   const [error, setError] = useState<string | null>(null);
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
   function set(field: keyof ConstituentFormData, value: string | boolean) {
     setForm((f) => ({ ...f, [field]: value }));
   }
@@ -68,22 +67,14 @@ export default function ConstituentForm({ mode, initialData, constituentId }: Pr
 
     startTransition(async () => {
       try {
-        const url = mode === "create"
-          ? `${API_BASE}/api/constituents`
-          : `${API_BASE}/api/constituents/${constituentId}`;
+        const path = mode === "create"
+          ? "/api/constituents"
+          : `/api/constituents/${constituentId}`;
 
-        const res = await fetch(url, {
+        const saved = await apiFetch<{ id: string }>(path, {
           method: mode === "create" ? "POST" : "PUT",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(form),
         });
-
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error ?? `Request failed (${res.status})`);
-        }
-
-        const saved = await res.json();
         router.push(`/constituents/${saved.id}`);
         router.refresh();
       } catch (err) {

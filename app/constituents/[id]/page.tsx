@@ -12,8 +12,7 @@ import {
   engagementColor,
 } from "@/app/components/constituents/constituent-utils";
 import HouseholdPanel from "@/app/components/constituents/HouseholdPanel";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 interface HouseholdData {
   id: string;
@@ -111,9 +110,7 @@ export default function ConstituentDetailPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(`${API_BASE}/api/constituents/${id}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        const data = await apiFetch<ConstituentDetail>(`/api/constituents/${id}`);
         setConstituent(data);
         // Default to household tab for HOUSEHOLD type constituents
         if (data.type === "HOUSEHOLD") setTab("household");

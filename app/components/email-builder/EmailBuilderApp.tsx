@@ -39,8 +39,7 @@ import BlockPalette  from './BlockPalette';
 import EmailCanvas   from './EmailCanvas';
 import BlockEditor   from './BlockEditor';
 import EmailPreview  from './EmailPreview';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+import { apiFetch } from "@/app/lib/auth-client";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -92,11 +91,8 @@ export default function EmailBuilderApp({ campaignId }: Props) {
 
   useEffect(() => {
     if (!campaignId) return;
-    fetch(`${API_BASE}/api/email-campaigns/${campaignId}`, { credentials: 'include' })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const body = await res.json();
-        const data = body.data ?? body;
+    apiFetch<{ name?: string; templateJson?: string }>(`/api/email-campaigns/${campaignId}`)
+      .then((data) => {
         if (data.name)     setCampaignName(data.name);
         /* If the API returns a stored template JSON, restore the full editor state. */
         if (data.templateJson) {
@@ -251,16 +247,10 @@ export default function EmailBuilderApp({ campaignId }: Props) {
     try {
       const bodyHtml = generateEmailHtml(template);
       const bodyText = generatePlainText(template);
-      const res = await fetch(`${API_BASE}/api/email-campaigns/${campaignId}`, {
+      await apiFetch(`/api/email-campaigns/${campaignId}`, {
         method:      'PUT',
-        credentials: 'include',
-        headers:     { 'Content-Type': 'application/json' },
         body:        JSON.stringify({ bodyHtml, bodyText, templateJson: JSON.stringify(template) }),
       });
-      if (!res.ok) {
-        const b = await res.json().catch(() => ({}));
-        throw new Error((b as { error?: { message?: string } })?.error?.message ?? `HTTP ${res.status}`);
-      }
       setSaveSuccess(true);
       setDirty(false);
       setTimeout(() => setSaveSuccess(false), 3000);

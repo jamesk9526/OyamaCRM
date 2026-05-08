@@ -1,19 +1,15 @@
-/** Users settings page placeholder for account and workspace access management. */
-import SettingsPlaceholderPage from "@/app/components/settings/SettingsPlaceholderPage";
+/**
+ * Users settings page — full admin UI for managing team member accounts.
+ * Renders the UserManagement component which provides list, add, edit, and password reset.
+ */
+import UserManagement from "@/app/components/settings/UserManagement";
 
-/** UsersSettingsPage presents the initial user-management foundation scope. */
+/** UsersSettingsPage renders the user management interface. Admin-only. */
 export default function UsersSettingsPage() {
   return (
-    <SettingsPlaceholderPage
-      title="Users"
-      description="Manage team access, account status, invitations, and workspace permissions."
-      plannedItems={[
-        "Add and edit user accounts",
-        "Disable users and reset passwords",
-        "Assign roles and workspace access",
-        "View last login and effective permissions",
-      ]}
-    />
+    <div className="max-w-5xl">
+      <UserManagement />
+    </div>
   );
 }
 

@@ -2,8 +2,7 @@
 "use client";
 
 import { useState } from "react";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 const TEMPLATES = [
   { id: "newsletter", name: "Monthly Ministry Update", subject: "Monthly Ministry Update — {{organization_name}}", description: "Monthly stewardship newsletter with donor impact updates" },
@@ -81,14 +80,11 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
     }
     setPreviewLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/email-campaigns/audience-preview`, {
+      const payload = await apiFetch<{ audience: AudiencePreview }>("/api/email-campaigns/audience-preview", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ audienceFilter: { type: audienceId } }),
       });
-      if (!res.ok) throw new Error("Failed to preview audience");
-      const payload = await res.json();
-      setAudiencePreview(payload.audience as AudiencePreview);
+      setAudiencePreview(payload.audience);
       setPreviewAudienceId(audienceId);
     } catch {
       setAudiencePreview(null);
@@ -113,9 +109,8 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/email-campaigns`, {
+      const campaign = await apiFetch<{ id: string }>("/api/email-campaigns", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: form.name,
           subject: form.subject,
@@ -128,8 +123,6 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
           audienceFilter: { type: form.audienceId },
         }),
       });
-      if (!res.ok) throw new Error("Failed to create campaign");
-      const campaign = await res.json();
       onCreated(campaign.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");

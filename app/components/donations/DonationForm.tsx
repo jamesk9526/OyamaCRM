@@ -3,8 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PAYMENT_METHODS, DONATION_STATUSES, methodLabel } from "./donation-utils";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 type Props = {
   mode?: "create" | "edit";
@@ -53,30 +52,26 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
     setError(null);
 
     startTransition(async () => {
-      const url  = mode === "edit" ? `${API}/api/donations/${donationId}` : `${API}/api/donations`;
+      const path  = mode === "edit" ? `/api/donations/${donationId}` : "/api/donations";
       const method = mode === "edit" ? "PUT" : "POST";
 
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          campaignId:    form.campaignId    || null,
-          designationId: form.designationId || null,
-          checkNumber:   form.checkNumber   || null,
-          frequency:     form.isRecurring ? form.frequency : null,
-          notes:         form.notes || null,
-        }),
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setError(body.error ?? "Failed to save donation.");
-        return;
+      try {
+        await apiFetch(path, {
+          method,
+          body: JSON.stringify({
+            ...form,
+            campaignId:    form.campaignId    || null,
+            designationId: form.designationId || null,
+            checkNumber:   form.checkNumber   || null,
+            frequency:     form.isRecurring ? form.frequency : null,
+            notes:         form.notes || null,
+          }),
+        });
+        router.push("/donations");
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to save donation.");
       }
-
-      router.push("/donations");
-      router.refresh();
     });
   }
 

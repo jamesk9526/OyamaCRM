@@ -8,8 +8,12 @@
 import { Router } from "express";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
+import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = Router();
+
+// All automation routes require authentication.
+router.use(requireAuth);
 
 const PRESET_AUTOMATIONS = [
   {

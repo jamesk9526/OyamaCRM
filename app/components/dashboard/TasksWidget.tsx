@@ -7,8 +7,7 @@
 
 import Card from "@/app/components/ui/Card";
 import { useState, useEffect, useCallback } from "react";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 /** Minimal task shape we need from the API */
 interface TaskItem {
@@ -30,10 +29,9 @@ export default function TasksWidget() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/tasks?status=PENDING&limit=20`);
-      const data = await res.json();
+      const data = await apiFetch<{ items?: TaskItem[] } | TaskItem[]>("/api/tasks?status=PENDING&limit=20");
       // Tasks API returns { items: [...], total }
-      setTasks(Array.isArray(data) ? data : (data.items ?? []));
+      setTasks(Array.isArray(data) ? data : ((data as { items?: TaskItem[] }).items ?? []));
     } catch {
       setTasks([]);
     } finally {
@@ -45,9 +43,8 @@ export default function TasksWidget() {
 
   /** Mark a task as complete and refresh */
   async function complete(id: string) {
-    await fetch(`${API}/api/tasks/${id}`, {
+    await apiFetch(`/api/tasks/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "COMPLETED" }),
     });
     load();

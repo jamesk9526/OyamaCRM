@@ -6,8 +6,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -77,10 +76,10 @@ export default function ReportsPage() {
       setError(null);
       try {
         const [s, m, r, d] = await Promise.all([
-          fetch(`${API}/api/reports/summary`).then((r) => r.json()),
-          fetch(`${API}/api/reports/giving-by-month?year=${year}`).then((r) => r.json()),
-          fetch(`${API}/api/reports/donor-retention`).then((r) => r.json()),
-          fetch(`${API}/api/reports/top-donors?limit=10`).then((r) => r.json()),
+          apiFetch<Summary>("/api/reports/summary"),
+          apiFetch<MonthlyDatum[]>(`/api/reports/giving-by-month?year=${year}`),
+          apiFetch<Retention>("/api/reports/donor-retention"),
+          apiFetch<TopDonor[]>("/api/reports/top-donors?limit=10"),
         ]);
         setSummary(s);
         setMonthly(Array.isArray(m) ? m : []);

@@ -8,8 +8,7 @@
 import { useState, useEffect, useCallback } from "react";
 import CampaignCard from "@/app/components/campaigns/CampaignCard";
 import NewCampaignModal from "@/app/components/campaigns/NewCampaignModal";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 /** Campaign as returned from the API */
 export interface Campaign {
@@ -38,9 +37,7 @@ export default function CampaignsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API}/api/campaigns`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: Campaign[] = await res.json();
+      const data = await apiFetch<Campaign[]>("/api/campaigns");
       setCampaigns(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
@@ -55,7 +52,7 @@ export default function CampaignsPage() {
   async function handleDelete(id: string) {
     if (!confirm("Delete this campaign? This cannot be undone.")) return;
     try {
-      await fetch(`${API}/api/campaigns/${id}`, { method: "DELETE" });
+      await apiFetch(`/api/campaigns/${id}`, { method: "DELETE" });
       setCampaigns((prev) => prev.filter((c) => c.id !== id));
     } catch {
       alert("Failed to delete campaign. Please try again.");
@@ -65,12 +62,10 @@ export default function CampaignsPage() {
   /** Toggle active state when editing */
   async function handleToggleActive(campaign: Campaign) {
     try {
-      const res = await fetch(`${API}/api/campaigns/${campaign.id}`, {
+      await apiFetch(`/api/campaigns/${campaign.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: !campaign.active }),
       });
-      if (!res.ok) throw new Error();
       setCampaigns((prev) => prev.map((c) => c.id === campaign.id ? { ...c, active: !c.active } : c));
     } catch {
       alert("Failed to update campaign.");

@@ -13,8 +13,12 @@
  */
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
+import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = Router();
+
+// All designation routes require authentication.
+router.use(requireAuth);
 
 /** GET /api/designations — List all designations sorted by name, including the number of linked donations. */
 router.get("/", async (_req, res) => {
@@ -31,7 +35,7 @@ router.get("/:id", async (req, res) => {
     where: { id: req.params.id },
     include: { donations: { orderBy: { date: "desc" }, take: 20 } },
   });
-  if (!designation) return res.status(404).json({ error: "Designation not found" });
+  if (!designation) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Designation not found" } });
   res.json(designation);
 });
 

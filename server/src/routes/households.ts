@@ -15,8 +15,12 @@
  */
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
+import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = Router();
+
+// All household routes require authentication.
+router.use(requireAuth);
 
 /**
  * Field set used when returning household members.
@@ -46,7 +50,7 @@ router.get("/:id", async (req, res) => {
   });
 
   if (!household) {
-    res.status(404).json({ error: "Household not found" });
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Household not found" } });
     return;
   }
   res.json(household);
@@ -62,7 +66,7 @@ router.get("/by-head/:constituentId", async (req, res) => {
   });
 
   if (!household) {
-    res.status(404).json({ error: "No household found for this constituent" });
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "No household found for this constituent" } });
     return;
   }
   res.json(household);
@@ -72,20 +76,20 @@ router.get("/by-head/:constituentId", async (req, res) => {
 router.post("/:id/members", async (req, res) => {
   const { constituentId } = req.body as { constituentId: string };
   if (!constituentId) {
-    res.status(400).json({ error: "constituentId is required" });
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "constituentId is required" } });
     return;
   }
 
   // Verify household exists
   const household = await prisma.household.findUnique({ where: { id: req.params.id } });
   if (!household) {
-    res.status(404).json({ error: "Household not found" });
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Household not found" } });
     return;
   }
 
   // Prevent adding the head constituent as a regular member
   if (household.headConstituentId === constituentId) {
-    res.status(400).json({ error: "Cannot add the household head as a member" });
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Cannot add the household head as a member" } });
     return;
   }
 
@@ -106,7 +110,7 @@ router.delete("/:id/members/:constituentId", async (req, res) => {
   });
 
   if (!constituent || constituent.householdId !== req.params.id) {
-    res.status(404).json({ error: "Member not found in this household" });
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Member not found in this household" } });
     return;
   }
 

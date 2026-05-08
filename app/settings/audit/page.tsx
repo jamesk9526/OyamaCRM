@@ -1,19 +1,15 @@
-/** Audit settings page placeholder for activity and compliance visibility. */
-import SettingsPlaceholderPage from "@/app/components/settings/SettingsPlaceholderPage";
+/**
+ * Audit logs settings page — paginated, filterable view of org-wide audit trail.
+ * Renders the AuditLogViewer component. Admin-only.
+ */
+import AuditLogViewer from "@/app/components/settings/AuditLogViewer";
 
-/** AuditSettingsPage anchors event-log visibility in the settings workspace. */
+/** AuditSettingsPage renders the audit log viewer. Admin-only access is enforced by the API. */
 export default function AuditSettingsPage() {
   return (
-    <SettingsPlaceholderPage
-      title="Audit Logs"
-      description="Track authentication, settings, user-access, export, and sensitive-data activity."
-      plannedItems={[
-        "Display setup and settings-change events",
-        "Track user and role modifications",
-        "Log sensitive read/download activity",
-        "Expose export and AI access events",
-      ]}
-    />
+    <div className="max-w-6xl">
+      <AuditLogViewer />
+    </div>
   );
 }
 

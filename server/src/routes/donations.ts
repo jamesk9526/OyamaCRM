@@ -14,9 +14,15 @@
  * @module routes/donations
  */
 import { Router } from "express";
+import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
+import { requireAuth } from "../middleware/requireAuth.js";
+import { requireRole } from "../middleware/requireRole.js";
 
 const router = Router();
+
+// All donation routes require authentication.
+router.use(requireAuth);
 
 /**
  * Standard relations to include on every donation response.
@@ -114,6 +120,17 @@ router.post("/", async (req, res) => {
     },
   });
 
+  // Audit trail for new donation
+  logAudit({
+    action: "DONATION_CREATED",
+    entity: "Donation",
+    entityId: donation.id,
+    userId: req.user?.sub,
+    metadata: { amount: Number(donation.amount), status: donation.status, constituentId: donation.constituentId },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
   res.status(201).json(donation);
 });
 
@@ -155,13 +172,14 @@ router.put("/:id", async (req, res) => {
 });
 
 /**
- * DELETE /api/donations/:id — Permanently delete a donation record.
+ * DELETE /api/donations/:id — Permanently delete a donation record. Admin-only.
  * Used for batch-entry corrections; logs a NOTE activity on the donor's timeline
  * before deletion so the gift removal is auditable.
  */
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireRole("admin"), async (req, res) => {
+  const id = req.params.id as string;
   const existing = await prisma.donation.findUnique({
-    where: { id: req.params.id },
+    where: { id },
     select: { id: true, constituentId: true, amount: true },
   });
   if (!existing) {
@@ -179,7 +197,19 @@ router.delete("/:id", async (req, res) => {
     },
   });
 
-  await prisma.donation.delete({ where: { id: req.params.id } });
+  await prisma.donation.delete({ where: { id } });
+
+  // Audit trail for donation deletion
+  logAudit({
+    action: "DONATION_DELETED",
+    entity: "Donation",
+    entityId: existing.id,
+    userId: req.user?.sub,
+    metadata: { amount: Number(existing.amount), constituentId: existing.constituentId },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
   res.status(204).send();
 });
 

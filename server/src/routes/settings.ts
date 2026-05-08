@@ -7,6 +7,7 @@
  */
 import { Router, Request, Response } from "express";
 import { REFRESH_COOKIE } from "../lib/auth.js";
+import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
 import {
   clearResetVerificationCode,
@@ -52,8 +53,8 @@ async function getActiveOrganization() {
   });
 }
 
-/** GET /api/settings — Return merged organization and settings (regional + SMTP). */
-router.get("/", async (_req: Request, res: Response) => {
+/** GET /api/settings — Return merged organization and settings (regional + SMTP). Requires authentication. */
+router.get("/", requireAuth, async (_req: Request, res: Response) => {
   try {
     const organization = await getActiveOrganization();
     const organizationId = organization?.id;
@@ -97,8 +98,8 @@ router.get("/", async (_req: Request, res: Response) => {
   }
 });
 
-/** PUT /api/settings — Update organization name, regional settings, and SMTP transport settings. */
-router.put("/", async (req: Request, res: Response) => {
+/** PUT /api/settings — Update organization name, regional settings, and SMTP transport settings. Admin-only. */
+router.put("/", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
   try {
     const organization = await getActiveOrganization();
     if (!organization) {
@@ -178,6 +179,16 @@ router.put("/", async (req: Request, res: Response) => {
     }
 
     await Promise.all(updates);
+    logAudit({
+      action: "SETTINGS_UPDATED",
+      entity: "OrganizationSettings",
+      entityId: organization.id,
+      userId: req.user?.sub,
+      organizationId: organization.id,
+      metadata: { fields: Object.keys(body).filter((k) => body[k as keyof SettingsPayload] !== undefined) },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
     return res.json({ success: true });
   } catch {
     return res.status(500).json({ error: { code: "SETTINGS_WRITE_FAILED", message: "Failed to save settings" } });

@@ -8,8 +8,7 @@
 import { useState, useEffect, useCallback } from "react";
 import TaskTable from "@/app/components/tasks/TaskTable";
 import NewTaskModal from "@/app/components/tasks/NewTaskModal";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 /** Task as returned from the API */
 export interface Task {
@@ -44,10 +43,8 @@ export default function TasksPage() {
     try {
       const params = new URLSearchParams({ page: "1", limit: "50" });
       if (statusFilter) params.set("status", statusFilter);
-      const res = await fetch(`${API}/api/tasks?${params}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      let items: Task[] = data.items ?? data ?? [];
+      const data = await apiFetch<{ items?: Task[]; total?: number }>(`/api/tasks?${params}`);
+      let items: Task[] = data.items ?? [];
       if (typeFilter) items = items.filter((t) => t.type === typeFilter);
       setTasks(items);
       setTotal(data.total ?? items.length);
@@ -62,9 +59,8 @@ export default function TasksPage() {
 
   /** Mark a task as COMPLETED via PATCH */
   async function handleComplete(id: string) {
-    await fetch(`${API}/api/tasks/${id}`, {
+    await apiFetch(`/api/tasks/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "COMPLETED" }),
     });
     loadTasks();
@@ -72,7 +68,7 @@ export default function TasksPage() {
 
   /** Delete a task */
   async function handleDelete(id: string) {
-    await fetch(`${API}/api/tasks/${id}`, { method: "DELETE" });
+    await apiFetch(`/api/tasks/${id}`, { method: "DELETE" });
     loadTasks();
   }
 

@@ -14,8 +14,13 @@
  */
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
+import { requireAuth } from "../middleware/requireAuth.js";
+import { requireRole } from "../middleware/requireRole.js";
 
 const router = Router();
+
+// All task routes require authentication.
+router.use(requireAuth);
 
 /** GET /api/tasks — Paginated task list. Filterable by assigneeId, status, and constituentId. */
 router.get("/", async (req, res) => {
@@ -91,9 +96,10 @@ router.patch("/:id", async (req, res) => {
   res.json(task);
 });
 
-/** DELETE /api/tasks/:id — Delete a task permanently. */
-router.delete("/:id", async (req, res) => {
-  await prisma.task.delete({ where: { id: req.params.id } });
+/** DELETE /api/tasks/:id — Delete a task permanently. Admin-only. */
+router.delete("/:id", requireRole("admin"), async (req, res) => {
+  const id = req.params.id as string;
+  await prisma.task.delete({ where: { id } });
   res.status(204).send();
 });
 

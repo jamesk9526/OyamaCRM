@@ -9,8 +9,7 @@ import {
   DONOR_STATUSES,
   typeLabel,
 } from "@/app/components/constituents/constituent-utils";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 export default function ConstituentsPage() {
   const [constituents, setConstituents] = useState<ConstituentRow[]>([]);
@@ -30,10 +29,8 @@ export default function ConstituentsPage() {
         if (typeFilter) params.set("type", typeFilter);
         if (statusFilter) params.set("status", statusFilter);
         params.set("limit", "100");
-        const res = await fetch(`${API_BASE}/api/constituents?${params}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        setConstituents(Array.isArray(data) ? data : data.data ?? []);
+        const data = await apiFetch<ConstituentRow[]>(`/api/constituents?${params}`);
+        setConstituents(Array.isArray(data) ? data : []);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load");
       } finally {
@@ -54,7 +51,7 @@ export default function ConstituentsPage() {
   async function handleDelete(id: string) {
     if (!confirm("Delete this constituent? This cannot be undone.")) return;
     try {
-      await fetch(`${API_BASE}/api/constituents/${id}`, { method: "DELETE" });
+      await apiFetch(`/api/constituents/${id}`, { method: "DELETE" });
       setConstituents((prev) => prev.filter((c) => c.id !== id));
     } catch {
       alert("Failed to delete constituent. Please try again.");

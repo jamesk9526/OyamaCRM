@@ -18,8 +18,13 @@ import { Router } from "express";
 import nodemailer from "nodemailer";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
+import { requireAuth } from "../middleware/requireAuth.js";
+import { requireRole } from "../middleware/requireRole.js";
 
 const router = Router();
+
+// All email-campaign routes require authentication.
+router.use(requireAuth);
 
 type AudienceFilter = { type?: string } | null;
 type AudienceConstituent = {
@@ -567,9 +572,10 @@ router.post("/:id/send", async (req, res) => {
   res.json(updated);
 });
 
-/** DELETE /api/email-campaigns/:id — Permanently delete an email campaign. */
-router.delete("/:id", async (req, res) => {
-  await prisma.emailCampaign.delete({ where: { id: req.params.id } });
+/** DELETE /api/email-campaigns/:id — Permanently delete an email campaign. Admin-only. */
+router.delete("/:id", requireRole("admin"), async (req, res) => {
+  const id = req.params.id as string;
+  await prisma.emailCampaign.delete({ where: { id } });
   res.status(204).send();
 });
 

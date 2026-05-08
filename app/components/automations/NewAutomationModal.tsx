@@ -5,8 +5,7 @@
 "use client";
 
 import { useState } from "react";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 const TRIGGERS = [
   { value: "DONATION_RECEIVED", label: "Donation received" },
@@ -49,9 +48,8 @@ export default function NewAutomationModal({ onClose, onCreated }: NewAutomation
     setSaving(true);
     setError("");
     try {
-      const res = await fetch(`${API}/api/automations`, {
+      await apiFetch("/api/automations", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
           description: description.trim() || null,
@@ -59,7 +57,6 @@ export default function NewAutomationModal({ onClose, onCreated }: NewAutomation
           actions: [{ type: actionType, order: 0 }],
         }),
       });
-      if (!res.ok) throw new Error("Failed to create automation");
       onCreated();
     } catch {
       setError("Failed to save. Please try again.");

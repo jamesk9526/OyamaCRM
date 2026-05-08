@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import NewCampaignModal from "@/app/components/communications/NewCampaignModal";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 interface EmailCampaign {
   id: string;
@@ -62,12 +61,12 @@ export default function CommunicationsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [cRes, sRes] = await Promise.all([
-        fetch(`${API_BASE}/api/email-campaigns`),
-        fetch(`${API_BASE}/api/email-campaigns/stats`),
+      const [cResult, sResult] = await Promise.allSettled([
+        apiFetch<EmailCampaign[]>("/api/email-campaigns"),
+        apiFetch<Stats>("/api/email-campaigns/stats"),
       ]);
-      if (cRes.ok) setCampaigns(await cRes.json());
-      if (sRes.ok) setStats(await sRes.json());
+      if (cResult.status === "fulfilled") setCampaigns(cResult.value);
+      if (sResult.status === "fulfilled") setStats(sResult.value);
     } finally {
       setLoading(false);
     }
@@ -78,7 +77,7 @@ export default function CommunicationsPage() {
   async function sendNow(id: string) {
     setSending(id);
     try {
-      await fetch(`${API_BASE}/api/email-campaigns/${id}/send`, { method: "POST" });
+      await apiFetch(`/api/email-campaigns/${id}/send`, { method: "POST" });
       await load();
     } finally {
       setSending(null);
@@ -87,7 +86,7 @@ export default function CommunicationsPage() {
 
   async function deleteCampaign(id: string) {
     if (!confirm("Delete this campaign?")) return;
-    await fetch(`${API_BASE}/api/email-campaigns/${id}`, { method: "DELETE" });
+    await apiFetch(`/api/email-campaigns/${id}`, { method: "DELETE" });
     await load();
   }
 

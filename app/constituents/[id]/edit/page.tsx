@@ -1,23 +1,50 @@
+/**
+ * Edit Constituent page.
+ * Client component that loads constituent data via authenticated apiFetch
+ * and renders ConstituentForm in edit mode.
+ */
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import ConstituentForm from "@/app/components/constituents/ConstituentForm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { apiFetch } from "@/app/lib/auth-client";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+/** Edit Constituent page — loads constituent data and renders ConstituentForm in edit mode. */
+export default function EditConstituentPage() {
+  const { id } = useParams<{ id: string }>();
+  const [constituent, setConstituent] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFoundFlag, setNotFoundFlag] = useState(false);
 
-async function getConstituent(id: string) {
-  try {
-    const res = await fetch(`${API}/api/constituents/${id}`, { cache: "no-store" });
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await apiFetch<Record<string, unknown>>(`/api/constituents/${id}`);
+        setConstituent(data);
+      } catch {
+        setNotFoundFlag(true);
+      } finally {
+        setLoading(false);
+      }
+    }
+    if (id) load();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto py-16 text-center text-gray-400 text-sm animate-pulse">
+        Loading…
+      </div>
+    );
+  }
+
+  if (notFoundFlag || !constituent) {
+    notFound();
     return null;
   }
-}
-
-export default async function EditConstituentPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const constituent = await getConstituent(id);
-  if (!constituent) notFound();
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
@@ -25,7 +52,7 @@ export default async function EditConstituentPage({ params }: { params: Promise<
         <Link href="/constituents" className="hover:text-green-600 transition-colors">Constituents</Link>
         <span>/</span>
         <Link href={`/constituents/${id}`} className="hover:text-green-600 transition-colors">
-          {constituent.firstName} {constituent.lastName}
+          {constituent.firstName as string} {constituent.lastName as string}
         </Link>
         <span>/</span>
         <span className="text-gray-900 font-medium">Edit</span>
@@ -33,7 +60,9 @@ export default async function EditConstituentPage({ params }: { params: Promise<
 
       <div>
         <h1 className="text-xl font-semibold text-gray-900">Edit Constituent</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Update profile information for {constituent.firstName} {constituent.lastName}.</p>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Update profile information for {constituent.firstName as string} {constituent.lastName as string}.
+        </p>
       </div>
 
       <ConstituentForm

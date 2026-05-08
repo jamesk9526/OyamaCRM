@@ -4,10 +4,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { PublicBuildInfo } from "@/app/lib/system-status";
+import type { PublicBuildInfo, FeatureStatus } from "@/app/lib/system-status";
 import SystemStatusBadge from "@/app/components/settings/SystemStatusBadge";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 interface HealthPayload {
   status: string;
@@ -42,17 +41,19 @@ export default function SystemHealthPanel({ buildInfo }: { buildInfo: PublicBuil
 
     async function load() {
       try {
-        const [healthRes, settingsRes] = await Promise.all([
-          fetch(`${API_BASE}/api/health`),
-          fetch(`${API_BASE}/api/settings`),
+        const [healthResult, settingsResult] = await Promise.allSettled([
+          apiFetch<HealthPayload>("/api/health"),
+          apiFetch<EmailSettingsPayload>("/api/settings"),
         ]);
 
-        if (!healthRes.ok) {
-          throw new Error(`Health request failed with HTTP ${healthRes.status}`);
+        if (healthResult.status === "rejected") {
+          throw healthResult.reason instanceof Error
+            ? healthResult.reason
+            : new Error(String(healthResult.reason));
         }
 
-        const nextHealth = (await healthRes.json()) as HealthPayload;
-        const settings = settingsRes.ok ? ((await settingsRes.json()) as EmailSettingsPayload) : null;
+        const nextHealth = healthResult.value;
+        const settings = settingsResult.status === "fulfilled" ? settingsResult.value : null;
 
         if (!active) return;
         setHealth(nextHealth);
@@ -81,7 +82,7 @@ export default function SystemHealthPanel({ buildInfo }: { buildInfo: PublicBuil
     lastAuditDate: buildInfo.lastAuditDate,
   };
 
-  const cards = [
+  const cards: { label: string; value: string; status: FeatureStatus }[] = [
     { label: "API Status", value: runtime.status === "ok" ? "Online" : "Needs Review", status: runtime.status === "ok" ? "Working" : "Partial" as const },
     { label: "Database Connection", value: runtime.database === "ok" ? "Connected" : "Not Ready", status: runtime.database === "ok" ? "Working" : "Partial" as const },
     { label: "Email Provider Status", value: emailReady === "Working" ? "SMTP Configured" : "SMTP Incomplete", status: emailReady },

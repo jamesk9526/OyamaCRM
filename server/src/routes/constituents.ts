@@ -16,9 +16,15 @@
  */
 import { Router } from "express";
 import { resolveOrganizationId } from "../lib/organization.js";
+import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
+import { requireAuth } from "../middleware/requireAuth.js";
+import { requireRole } from "../middleware/requireRole.js";
 
 const router = Router();
+
+// All constituent routes require a valid JWT — applied once for the entire router.
+router.use(requireAuth);
 
 /**
  * Minimal field set returned in list responses and household member arrays.
@@ -129,7 +135,7 @@ router.get("/:id", async (req, res) => {
   });
 
   if (!constituent) {
-    res.status(404).json({ error: "Constituent not found" });
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Constituent not found" } });
     return;
   }
   res.json(constituent);
@@ -193,6 +199,18 @@ router.post("/", async (req, res) => {
     },
   });
 
+  // Audit trail for constituent creation
+  logAudit({
+    action: "CONSTITUENT_CREATED",
+    entity: "Constituent",
+    entityId: constituent.id,
+    userId: req.user?.sub,
+    organizationId: resolvedOrganizationId,
+    metadata: { type: constituent.type, name: `${constituent.firstName} ${constituent.lastName}` },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
   res.status(201).json(constituent);
 });
 
@@ -245,12 +263,32 @@ router.put("/:id", async (req, res) => {
     },
   });
 
+  // Audit trail for constituent update
+  logAudit({
+    action: "CONSTITUENT_UPDATED",
+    entity: "Constituent",
+    entityId: constituent.id,
+    userId: req.user?.sub,
+    metadata: { source: "api/constituents:update" },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
   res.json(constituent);
 });
 
-/** DELETE /api/constituents/:id — Permanently delete a constituent record. */
-router.delete("/:id", async (req, res) => {
-  await prisma.constituent.delete({ where: { id: req.params.id } });
+/** DELETE /api/constituents/:id — Permanently delete a constituent record. Admin-only. */
+router.delete("/:id", requireRole("admin"), async (req, res) => {
+  const id = req.params.id as string;
+  await prisma.constituent.delete({ where: { id } });
+  logAudit({
+    action: "CONSTITUENT_DELETED",
+    entity: "Constituent",
+    entityId: id,
+    userId: req.user?.sub,
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
   res.status(204).send();
 });
 

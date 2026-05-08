@@ -6,8 +6,7 @@
 "use client";
 
 import { useState } from "react";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 const CATEGORIES = [
   "ANNUAL_FUND", "CAPITAL", "ENDOWMENT", "EVENT", "GIVING_DAY",
@@ -36,9 +35,8 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`${API}/api/campaigns`, {
+      await apiFetch("/api/campaigns", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
           category,
@@ -47,7 +45,6 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
           ...(endDate && { endDate: new Date(endDate).toISOString() }),
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       onCreated();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create campaign");

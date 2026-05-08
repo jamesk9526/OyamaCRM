@@ -1,29 +1,54 @@
+/**
+ * New Donation page.
+ * Client component that loads select data (constituents, campaigns, designations)
+ * via authenticated apiFetch and renders the shared DonationForm in create mode.
+ */
+"use client";
+
+import { useEffect, useState } from "react";
 import DonationForm from "@/app/components/donations/DonationForm";
+import { apiFetch } from "@/app/lib/auth-client";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+interface Constituent { id: string; firstName: string; lastName: string }
+interface Campaign    { id: string; name: string }
+interface Designation { id: string; name: string }
 
-async function getSelectData() {
-  try {
-    const [constRes, campRes, desigRes] = await Promise.all([
-      fetch(`${API}/api/constituents?limit=500`, { cache: "no-store" }),
-      fetch(`${API}/api/campaigns?limit=100`,    { cache: "no-store" }),
-      fetch(`${API}/api/designations?limit=100`, { cache: "no-store" }),
-    ]);
-    const constituents = constRes.ok  ? await constRes.json()  : [];
-    const campData     = campRes.ok   ? await campRes.json()   : [];
-    const desigData    = desigRes.ok  ? await desigRes.json()  : [];
-    return {
-      constituents: Array.isArray(constituents) ? constituents : (constituents.items ?? []),
-      campaigns:    Array.isArray(campData)     ? campData     : (campData.items ?? []),
-      designations: Array.isArray(desigData)    ? desigData    : (desigData.items ?? []),
-    };
-  } catch {
-    return { constituents: [], campaigns: [], designations: [] };
-  }
+interface SelectData {
+  constituents: Constituent[];
+  campaigns:    Campaign[];
+  designations: Designation[];
 }
 
-export default async function NewDonationPage() {
-  const { constituents, campaigns, designations } = await getSelectData();
+/** New Donation page — loads form options then renders DonationForm in create mode. */
+export default function NewDonationPage() {
+  const [selectData, setSelectData] = useState<SelectData>({
+    constituents: [],
+    campaigns:    [],
+    designations: [],
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [constData, campData, desigData] = await Promise.all([
+          apiFetch<Constituent[] | { items?: Constituent[] }>("/api/constituents?limit=500"),
+          apiFetch<Campaign[]    | { items?: Campaign[]    }>("/api/campaigns?limit=100"),
+          apiFetch<Designation[] | { items?: Designation[] }>("/api/designations?limit=100"),
+        ]);
+        setSelectData({
+          constituents: Array.isArray(constData) ? constData : ((constData as { items?: Constituent[] }).items ?? []),
+          campaigns:    Array.isArray(campData)  ? campData  : ((campData  as { items?: Campaign[]    }).items ?? []),
+          designations: Array.isArray(desigData) ? desigData : ((desigData as { items?: Designation[] }).items ?? []),
+        });
+      } catch {
+        // Silently fail — form renders with empty selects
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -32,12 +57,16 @@ export default async function NewDonationPage() {
         <p className="text-sm text-gray-500 mt-0.5">Enter a new donation or gift</p>
       </div>
 
-      <DonationForm
-        mode="create"
-        constituents={constituents}
-        campaigns={campaigns}
-        designations={designations}
-      />
+      {loading ? (
+        <div className="py-16 text-center text-gray-400 text-sm animate-pulse">Loading form…</div>
+      ) : (
+        <DonationForm
+          mode="create"
+          constituents={selectData.constituents}
+          campaigns={selectData.campaigns}
+          designations={selectData.designations}
+        />
+      )}
     </div>
   );
 }
