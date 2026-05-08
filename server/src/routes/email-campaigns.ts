@@ -40,10 +40,14 @@ interface AudiencePreview {
   recipients: string[];
 }
 
+// RFC 5322-inspired practical pattern for application-level email validation.
+const EMAIL_PATTERN =
+  /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
+
 /** Basic email format check for send-test and from/reply fields. */
 function isValidEmail(value: string): boolean {
   const email = value.trim();
-  return /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/.test(email);
+  return EMAIL_PATTERN.test(email);
 }
 
 /** Resolves audience filters into a Prisma where clause for constituents. */
