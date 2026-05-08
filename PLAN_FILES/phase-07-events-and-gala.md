@@ -27,3 +27,8 @@ Support end-to-end nonprofit event operations from setup through check-in and po
 - Seating and sponsor workflows are usable in production.
 - Event revenue can be reconciled through reports.
 
+## Audit snapshot — 2026-05-08
+
+- [x] Event schema and API list/create/update flows exist — `prisma/schema.prisma`, `server/src/routes/events.ts`.
+- [~] `/events` page is partial — route exists, but registration/ticketing/check-in workflows are missing.
+- [ ] Gala sponsorships, seating, auction, volunteer-hour tie-ins, and revenue rollups are not started in usable code.

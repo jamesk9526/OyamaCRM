@@ -43,6 +43,13 @@ These rules apply to **every** Compassion change and override convenience.
 7. **No sales-CRM language anywhere in Compassion.** Use "client", "case
    note", "service", "follow-up" — never "lead", "deal", "pipeline".
 
+## Audit snapshot — 2026-05-08
+
+- [ ] Compassion workspace routing has not started — no `/compassion/*` route group or workspace switcher found.
+- [ ] Workspace-aware permission enforcement has not started — no `requireWorkspace(...)` middleware found in live route usage.
+- [ ] Client, appointment, file, referral, schedule-page, and compassion-task models are not present in `prisma/schema.prisma`.
+- [ ] This packet remains planning-only and should not be marked working until server-side workspace isolation exists.
+
 ---
 
 ## C0 — Workspace Foundation

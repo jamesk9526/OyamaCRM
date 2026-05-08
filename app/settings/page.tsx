@@ -27,6 +27,11 @@ const CARDS = [
     description: "Enable/disable OyamaCRM and OyamaCRM-Compassion workspaces.",
     href: "/settings/workspaces",
   },
+  {
+    title: "System Status",
+    description: "Audit-backed feature readiness, versioning, and production-readiness tracking.",
+    href: "/settings/system-status",
+  },
 ];
 
 /** SettingsOverviewPage introduces the settings workspace foundation state. */

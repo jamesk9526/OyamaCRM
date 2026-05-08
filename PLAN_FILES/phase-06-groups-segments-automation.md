@@ -27,3 +27,8 @@ Enable list building and safe automation so stewardship actions scale without lo
 - Automations run with logs, safety controls, and retries.
 - Trigger reason is explainable for every automated action.
 
+## Audit snapshot — 2026-05-08
+
+- [x] Automation records, presets, manual run, toggle, and delete flows exist — `app/automations/page.tsx`, `server/src/routes/automations.ts`.
+- [~] Automation execution is partial — manual run increments counters, but no action engine is wired.
+- [ ] Groups, dynamic segments, rule builder, and automation run-history/audit workflows are not started in usable code.

@@ -26,6 +26,7 @@ const SETTINGS_NAV: SettingsNavItem[] = [
   { label: "Import / Export", href: "/settings/import-export" },
   { label: "Audit Logs", href: "/settings/audit" },
   { label: "System", href: "/settings/system" },
+  { label: "System Status", href: "/settings/system-status" },
 ];
 
 /** SettingsSidebar highlights the current settings route and groups config pages. */

@@ -27,3 +27,9 @@ Provide actionable daily visibility with fast dashboard loading and core fundrai
 - Core reports are queryable and exportable.
 - Data freshness is transparent to staff.
 
+## Audit snapshot — 2026-05-08
+
+- [x] Dashboard shell and summary endpoint exist — `app/page.tsx`, `server/src/routes/reports.ts`.
+- [x] Core report endpoints exist for summary, top donors, retention, and giving trends — `server/src/routes/reports.ts`.
+- [~] Dashboard/report UI is partial — `/reports` and several widgets remain placeholders or shallow visual shells.
+- [ ] Export workflows, cache freshness indicators, and advanced report builder capabilities are not started in usable code.

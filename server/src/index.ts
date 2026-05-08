@@ -33,6 +33,7 @@ import automationRoutes from "./routes/automations.js";
 import eventRoutes from "./routes/events.js";
 import setupRoutes from "./routes/setup.js";
 import { prisma } from "./lib/prisma.js";
+import { getAppInfo } from "./lib/app-info.js";
 
 const app = express();
 const PORT = process.env.API_PORT ? parseInt(process.env.API_PORT) : 4000;
@@ -79,22 +80,35 @@ app.disable("x-powered-by");
 
 // ─── Health / readiness ───────────────────────────────────────────────────────
 
-/** GET /health — Liveness/readiness probe: checks DB connectivity and returns uptime. */
-app.get("/health", async (_req, res) => {
+/** Shared health handler for liveness/readiness probes. */
+async function healthHandler(_req: express.Request, res: express.Response) {
   let dbStatus = "ok";
   try {
     await prisma.$queryRaw`SELECT 1`;
   } catch {
     dbStatus = "error";
   }
+  const appInfo = getAppInfo();
   res.json({
     status: dbStatus === "ok" ? "ok" : "degraded",
-    db: dbStatus,
-    version: process.env.npm_package_version ?? "0.1.0",
-    uptime: Math.floor((Date.now() - startTime) / 1000),
+    appName: appInfo.appName,
+    version: appInfo.version,
+    buildDate: appInfo.buildDate,
+    gitCommit: appInfo.gitCommit,
+    releaseChannel: appInfo.releaseChannel,
+    database: dbStatus,
+    environment: appInfo.environment,
+    lastAuditDate: appInfo.lastAuditDate,
+    uptimeSec: Math.floor((Date.now() - startTime) / 1000),
     timestamp: new Date().toISOString(),
   });
-});
+}
+
+/** GET /health — Liveness/readiness probe used by process managers and local development. */
+app.get("/health", healthHandler);
+
+/** GET /api/health — API-prefixed health probe for frontend/admin diagnostics. */
+app.get("/api/health", healthHandler);
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 

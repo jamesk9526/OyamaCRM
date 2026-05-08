@@ -29,3 +29,9 @@ Harden the system for real donor data, external integrations, and reliable long-
 - External integrations are reliable and recoverable.
 - AI outputs are controlled, reviewable, and non-autonomous.
 
+## Audit snapshot — 2026-05-08
+
+- [x] Password hashing, JWT auth, refresh rotation, and rate limiting are working — `server/src/lib/auth.ts`, `server/src/routes/auth.ts`, `server/src/index.ts`.
+- [x] Health/version diagnostics exist — `/health`, `/api/health`, and Settings → System / System Status.
+- [~] RBAC, audit coverage, and deployment hardening are partial — middleware exists, but broad enforcement and viewer UI do not.
+- [ ] Integrations, AI provider abstraction, queue/jobs, and backup/restore documentation are not started in usable code.

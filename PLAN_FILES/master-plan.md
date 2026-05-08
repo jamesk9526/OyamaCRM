@@ -33,14 +33,17 @@ Legend: `[x]` shipped · `[ ]` pending · `[~]` partially shipped (notes inline)
 
 - [x] Express API server bootstrapped (`server/src/index.ts`) with health probe
 - [x] Auth routes (`/api/auth/login`, `/refresh`, `/logout`, `/me`) wired to Prisma
+- [x] First-run setup APIs and `/setup` redirect enforcement (`server/src/routes/setup.ts`, `app/login/page.tsx`, `app/setup/page.tsx`)
 - [x] In-memory access token + httpOnly refresh cookie (`app/lib/auth-client.ts`)
 - [x] Rate limiting (global 200/min, auth 20/min) via `express-rate-limit`
 - [x] Prisma + MySQL schema and seed script (`prisma/seed.ts`)
 - [x] AppShell layout (TopBar + Sidebar) and theme tokens
+- [x] Settings workspace foundation with dedicated sidebar (`app/settings/layout.tsx`, `app/components/settings/SettingsSidebar.tsx`)
+- [x] System version + readiness surfaces (`/settings/system`, `/settings/system-status`, `/api/health`)
 - [~] Role/permission middleware — login works; route-level RBAC still partial
 - [ ] API response envelope is mixed (`{ data }` vs. raw); standardize to `{ data, error, meta }`
 - [ ] Audit-log table exists; write-side hooks only on a few routes — generalize
-- [ ] PM2 / production startup docs
+- [~] PM2 / production startup docs — `ecosystem.config.cjs` exists, but backup/restore and deployment runbook are still missing
 
 ### Phase 02 — Constituents & Timeline · packet: [`phase-02-constituents-and-timeline.md`](./phase-02-constituents-and-timeline.md)
 
@@ -85,12 +88,13 @@ Legend: `[x]` shipped · `[ ]` pending · `[~]` partially shipped (notes inline)
 - [x] Task PATCH endpoint writes timeline activity
 - [x] Email Builder MVP (`/email-builder`, `app/lib/email-builder-utils.ts`)
 - [x] Email campaigns CRUD + stats endpoint
+- [~] Communication send controls — preview, audience preview, send test, schedule, cancel exist; media uploads and timeline logging do not
 - [ ] **Inline edit on task rows** (priority / due date / assignee), not just complete
 - [ ] Task templates (7-day thank-you, 30-day impact update)
 - [ ] Bulk task creation from a segment
 - [ ] Acknowledgment letter / receipt template engine
 - [ ] Mail-merge export to PDF / DOCX
-- [ ] Email send pipeline + bounce/open tracking
+- [~] Email send pipeline + bounce/open tracking — SMTP-backed send/test exists, but provider event tracking does not
 - [ ] Communications history per constituent
 - [ ] SMS provider abstraction (placeholder only)
 
@@ -136,6 +140,7 @@ Legend: `[x]` shipped · `[ ]` pending · `[~]` partially shipped (notes inline)
 
 - [x] bcrypt password hashing + JWT issuance
 - [x] Rate limiting on `/api/auth/*`
+- [x] Health endpoint + safe version metadata (`/health`, `/api/health`, `/settings/system`)
 - [ ] CSRF posture review for cookie-based refresh
 - [ ] Two-factor auth (TOTP)
 - [ ] Audit log viewer UI
@@ -253,7 +258,8 @@ Legend: `[x]` shipped · `[ ]` pending · `[~]` partially shipped (notes inline)
 - [x] Phase packets and Mermaid diagrams in `PLAN_FILES/`
 - [x] `phase-rollout-plan.md` describes the execution workflow
 - [x] **This master plan** consolidates everything in one checklist
-- [ ] Top-level `README.md` quickstart for `pnpm dev:all`
+- [x] Top-level `README.md` quickstart and env/status notes
+- [x] Production readiness audit doc (`docs/audits/production-readiness-audit-2026-05-08.md`)
 - [ ] API reference (auto-generated from JSDoc on routes)
 - [ ] Component storybook for shared UI primitives
 

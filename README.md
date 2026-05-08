@@ -54,7 +54,8 @@ OyamaCRM is being built as:
 - Task management table and completion actions
 - Communications and automations modules (foundational)
 - Settings foundation with dedicated settings workspace navigation
-- Setup foundation route (`/setup`) with multi-step onboarding UI scaffold
+- Setup detection and onboarding flow (`/setup`) with backend completion enforcement
+- Settings → System and Settings → System Status & Feature Readiness pages
 
 ---
 
@@ -62,12 +63,12 @@ OyamaCRM is being built as:
 
 Based on current planning packets:
 
-- First-run setup backend (`/api/setup/status`, `/api/setup/complete`) still needs wiring
 - Settings sections are scaffolded; deeper tabs need full data APIs and forms
 - Users, roles/scopes, and workspace permission matrix need full implementation
 - API response envelope standardization should be completed across server routes
 - Route-level workspace + permission enforcement should be completed for all sensitive routes
 - Expanded audit logging and retention tooling needs to be finished
+- Communications tooling still needs media uploads, merge fields, timeline logging, and provider-backed tracking
 
 ---
 
@@ -93,16 +94,24 @@ Additional recommended insertion:
 
 ```bash
 # install deps
-pnpm install
+npm install --force
 
 # web app
-pnpm dev
+npm run dev
 
 # web + API
-pnpm dev:all
+npm run dev:all
 ```
 
 Open: `http://localhost:3000`
+
+Copy `.env.example` to `.env` and provide a working `DATABASE_URL` before running smoke tests or any Prisma-backed API flows.
+
+### Version & System Status
+
+- API health: `GET /api/health`
+- System runtime page: `/settings/system`
+- Feature readiness center: `/settings/system-status`
 
 ---
 
@@ -133,9 +142,8 @@ app/
 
 ## 10) Next Product Milestones
 
-1. Wire setup UI to setup APIs and completion lock behavior
-2. Complete users + roles/scopes management pages
-3. Enforce workspace-aware RBAC across backend routes
-4. Complete audit logging surface and audit views
-5. Expand settings tabs from placeholders into full operational panels
-
+1. Complete users + roles/scopes management pages
+2. Enforce workspace-aware RBAC across backend routes
+3. Complete audit logging surface and audit views
+4. Expand settings tabs from placeholders into full operational panels
+5. Add media uploads, merge fields, and communication history to the email/communications suite

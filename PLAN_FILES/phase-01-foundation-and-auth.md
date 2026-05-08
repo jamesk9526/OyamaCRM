@@ -29,3 +29,18 @@ Stabilize platform foundations so all later features ship on consistent architec
 - Audit/event scaffolding exists for key entities.
 - Local setup is deterministic with one start path.
 
+## Audit snapshot — 2026-05-08
+
+- [x] Auth flow works in code — verified in `server/src/routes/auth.ts` and `app/lib/auth-client.ts`.
+- [x] First-run setup enforcement exists — verified in `server/src/routes/setup.ts`, `app/login/page.tsx`, and `app/setup/page.tsx`.
+- [~] Role/permission middleware exists but is not broadly applied — `server/src/middleware/requireAuth.ts`, `server/src/middleware/requireRole.ts`.
+- [~] Health/version diagnostics now exist at `/api/health` and Settings → System, but backup/restore and deployment runbooks are still missing.
+- [ ] API response envelope standardization is incomplete — mixed raw payloads and `{ data }` responses remain across routes.
+
+## Audit snapshot — 2026-05-08
+
+- [x] Auth flow works in code — verified in `server/src/routes/auth.ts` and `app/lib/auth-client.ts`.
+- [x] First-run setup enforcement exists — verified in `server/src/routes/setup.ts`, `app/login/page.tsx`, and `app/setup/page.tsx`.
+- [~] Role/permission middleware exists but is not broadly applied — `server/src/middleware/requireAuth.ts`, `server/src/middleware/requireRole.ts`.
+- [~] Health/version diagnostics now exist at `/api/health` and Settings → System, but backup/restore and deployment runbooks are still missing.
+- [ ] API response envelope standardization is incomplete — mixed raw payloads and `{ data }` responses remain across routes.

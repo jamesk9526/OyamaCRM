@@ -17,6 +17,15 @@ The onboarding system should be simple enough for a nontechnical ministry or non
 
 OyamaCRM should detect whether setup has been completed before showing normal login or dashboard screens.
 
+## Audit update — 2026-05-08
+
+- [x] Setup status API exists — verified in `server/src/routes/setup.ts`.
+- [x] Login redirects to `/setup` when setup is incomplete — verified in `app/login/page.tsx`.
+- [x] Browser-based setup wizard exists — verified in `app/setup/page.tsx`.
+- [~] Settings workspace foundation exists — `app/settings/layout.tsx`, `app/components/settings/SettingsSidebar.tsx`.
+- [~] Settings → System and Settings → System Status now provide version and readiness visibility.
+- [ ] Users, roles/scopes, workspace access management, and most settings tabs are still not implemented beyond placeholders.
+
 Expected behavior:
 
 ```text

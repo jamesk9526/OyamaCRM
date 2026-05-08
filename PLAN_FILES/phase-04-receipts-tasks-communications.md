@@ -27,3 +27,10 @@ Ship stewardship follow-through after gift entry: acknowledgment, tasking, commu
 - Staff can run thank-you/follow-up operations from task queues.
 - Communication history is visible per constituent.
 
+## Audit snapshot — 2026-05-08
+
+- [x] Task list/create/complete/delete workflows are working — verified in `app/tasks/page.tsx` and `server/src/routes/tasks.ts`.
+- [x] Email builder MVP exists — verified in `app/email-builder/*`, `app/lib/email-builder-utils.ts`, and related unit tests.
+- [~] Communication workflows are partial — `server/src/routes/email-campaigns.ts` supports preview, audience preview, send test, schedule, cancel, and send.
+- [~] Communication dashboard exists, but it is not yet a full communication center — `app/communications/page.tsx`.
+- [ ] Media uploads, attachments, merge fields, communication timeline logging, and provider-backed delivery/open/click tracking are not implemented.

@@ -4,6 +4,14 @@
 
 This document reviews the existing OyamaCRM planning files and identifies what appears to be missing, what should be corrected before new feature work accelerates, and what the agents should do next. It is intended to become the next planning handoff after the current master plan, donor CRM API plan, phase packets, and OyamaCRM-Compassion plan.
 
+## Audit update — 2026-05-08
+
+- [x] Setup flow is no longer just planned — verified in `server/src/routes/setup.ts`, `app/login/page.tsx`, and `app/setup/page.tsx`.
+- [x] Settings workspace is real at the layout/navigation level — verified in `app/settings/layout.tsx` and `app/components/settings/SettingsSidebar.tsx`.
+- [~] Settings depth remains partial — most settings tabs are still placeholders despite the workspace foundation.
+- [x] System status/versioning surfaces now exist — `/api/health`, `/settings/system`, `/settings/system-status`.
+- [~] RBAC, audit coverage, communications depth, and ops hardening remain the main blockers before production-readiness.
+
 ## Source Files Reviewed
 
 - `pregnancy-care-center-donor-crm-api-plan(2).md`
