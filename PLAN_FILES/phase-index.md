@@ -1,38 +1,30 @@
-# OyamaCRM Phase Packets
+# OyamaCRM Phase Packet Index
 
-> 👉 **Start here:** [`master-plan.md`](./master-plan.md) — the consolidated
-> checklist showing what is shipped vs. pending across every phase, plus the
-> new OyamaCRM-Compassion workspace.
->
-> The packets below remain the per-phase deep dives. Tick boxes in the
-> master plan first; sync them into the relevant packet as you ship.
+> **Start here:** [`master-plan.md`](./master-plan.md) — the active backlog of
+> work that still needs to be implemented.
 
-## Markdown packets
+## Active phase packets
 
-1. `phase-01-foundation-and-auth.md`
-2. `phase-02-constituents-and-timeline.md`
-3. `phase-03-donations-funds-campaigns.md`
-4. `phase-04-receipts-tasks-communications.md`
-5. `phase-05-dashboard-and-reports.md`
-6. `phase-06-groups-segments-automation.md`
-7. `phase-07-events-and-gala.md`
-8. `phase-08-security-integrations-ai-ops.md`
-9. `phase-09-compassion-workspace.md` — secondary OyamaCRM-Compassion CRM (sub-phases C0–C7)
+1. `phase-00-setup-onboarding-settings.md`
+2. `phase-01-foundation-and-auth.md`
+3. `phase-02-constituents-and-timeline.md`
+4. `phase-03-donations-funds-campaigns.md`
+5. `phase-04-receipts-tasks-communications.md`
+6. `phase-05-dashboard-and-reports.md`
+7. `phase-06-groups-segments-automation.md`
+8. `phase-07-events-and-gala.md`
+9. `phase-08-security-integrations-ai-ops.md`
+10. `phase-09-compassion-workspace.md`
 
-## Mermaid plans
+## Supporting docs
 
-1. `phase-01-foundation-and-auth.mmd`
-2. `phase-02-constituents-and-timeline.mmd`
-3. `phase-03-donations-funds-campaigns.mmd`
-4. `phase-04-receipts-tasks-communications.mmd`
-5. `phase-05-dashboard-and-reports.mmd`
-6. `phase-06-groups-segments-automation.mmd`
-7. `phase-07-events-and-gala.mmd`
-8. `phase-08-security-integrations-ai-ops.mmd`
+- `master-plan.md` — active implementation backlog
+- `phase-rollout-plan.md` — execution order and workflow rules
+- `phase-01` through `phase-09` Mermaid files — optional visual companions, not the authoritative backlog
 
-## Companion docs
+## Archived reference notes
 
-- `master-plan.md` — single-page progress index (start here)
-- `oyamacrm-compassion-agent-plan.md` — original Compassion brief (source for Phase 09)
-- `pregnancy-care-center-donor-crm-api-plan.md` — original donor-side API/spec brief
-- `phase-rollout-plan.md` — execution workflow + governance rules
+- `oyamacrm-agent-audit-and-next-steps.md`
+- `oyamacrm-onboarding-and-settings-setup-plan.md`
+- `pregnancy-care-center-donor-crm-api-plan.md`
+- `oyamacrm-compassion-agent-plan.md`

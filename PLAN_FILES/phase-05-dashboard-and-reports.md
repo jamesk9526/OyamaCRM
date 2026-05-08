@@ -2,34 +2,31 @@
 
 ## Goal
 
-Provide actionable daily visibility with fast dashboard loading and core fundraising reports.
+Finish the reporting depth and freshness controls needed for day-to-day fundraising visibility.
 
-## Scope
+## Already in place
 
-- Dashboard summary endpoint + cache snapshot strategy
-- Revenue/retention/new/lapsed/monthly reports
-- Campaign and fund rollups
-- Export foundation (CSV/PDF placeholders where needed)
+- Home dashboard shell
+- Summary reporting endpoint
+- Core donor / retention / giving-trend APIs
 
-## Manageable steps
+## Remaining scope
 
-1. Define dashboard payload contract and widget ownership.
-2. Add snapshot table/service for cached dashboard metrics.
-3. Trigger refreshes on donation/task/event changes.
-4. Implement report endpoints and shared query layer.
-5. Build report UI placeholders and result tables.
-6. Add export endpoints with role checks.
-7. Track freshness metadata (last refreshed + status).
+- Rich dashboard visuals
+- Report-builder UX
+- Scheduled summaries
+- Export workflows
+- Cache freshness metadata
+
+## Remaining implementation steps
+
+1. Add year-over-year, retention, donor-level, and engagement visuals.
+2. Build the custom report builder UI and supporting queries.
+3. Add scheduled summary emails.
+4. Finish CSV / Excel / PDF exports.
+5. Add freshness indicators and caching for expensive aggregates.
 
 ## Exit criteria
 
-- Dashboard loads from one optimized request.
-- Core reports are queryable and exportable.
-- Data freshness is transparent to staff.
-
-## Audit snapshot — 2026-05-08
-
-- [x] Dashboard shell and summary endpoint exist — `app/page.tsx`, `server/src/routes/reports.ts`.
-- [x] Core report endpoints exist for summary, top donors, retention, and giving trends — `server/src/routes/reports.ts`.
-- [~] Dashboard/report UI is partial — `/reports` and several widgets remain placeholders or shallow visual shells.
-- [ ] Export workflows, cache freshness indicators, and advanced report builder capabilities are not started in usable code.
+- Dashboard widgets answer day-to-day fundraising questions directly.
+- Reports are both exportable and understandable without manual SQL work.

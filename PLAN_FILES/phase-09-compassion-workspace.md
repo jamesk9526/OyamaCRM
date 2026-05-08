@@ -1,6 +1,6 @@
 # Phase 09 — OyamaCRM-Compassion Workspace (Client-Services CRM)
 
-> **Source brief:** [`oyamacrm-compassion-agent-plan.md`](./oyamacrm-compassion-agent-plan.md)
+> **Archived source brief:** [`oyamacrm-compassion-agent-plan.md`](./oyamacrm-compassion-agent-plan.md)
 >
 > This packet turns the high-level Compassion brief into an executable plan
 > for the secondary workspace inside OyamaCRM. Compassion is a separate CRM
@@ -38,17 +38,17 @@ These rules apply to **every** Compassion change and override convenience.
 5. **Naming convention** (DB tables): prefix `core_*`, `donor_*`,
    `compassion_*` — keeps mixing accidentally impossible.
 6. **Theme separation.** Donor UI = green-600 accents, white. Compassion UI
-   = warm teal + cream + neutral accents to make the workspace switch
-   visually obvious.
+   = blue-600 accents with a visually distinct shell so the workspace switch
+   is obvious immediately.
 7. **No sales-CRM language anywhere in Compassion.** Use "client", "case
    note", "service", "follow-up" — never "lead", "deal", "pipeline".
 
 ## Audit snapshot — 2026-05-08
 
-- [ ] Compassion workspace routing has not started — no `/compassion/*` route group or workspace switcher found.
-- [ ] Workspace-aware permission enforcement has not started — no `requireWorkspace(...)` middleware found in live route usage.
-- [ ] Client, appointment, file, referral, schedule-page, and compassion-task models are not present in `prisma/schema.prisma`.
-- [ ] This packet remains planning-only and should not be marked working until server-side workspace isolation exists.
+- [~] Compassion routing and shell scaffolding exist — `/compassion/*` pages, `app/compassion/layout.tsx`, `app/components/layout/CompassionSidebar.tsx`, and a module switcher in `TopBar.tsx`.
+- [ ] Workspace-aware permission enforcement still has not started on the server — no `requireWorkspace(...)` middleware found in live route usage.
+- [ ] Client, appointment, file, referral, schedule-page, and compassion-task models are still not present in `prisma/schema.prisma`.
+- [ ] Compassion remains shell-first until server-side workspace isolation and real data models are added.
 
 ---
 
@@ -65,7 +65,7 @@ Stand up the workspace boundary so all later phases plug into a clean shell.
    cookie `workspace=COMPASSION`.
 2. Build `WorkspaceSwitcher` component for `TopBar` showing current workspace
    and the user's other accessible workspaces.
-3. Create the `/compassion` route group with its own `layout.tsx` (warm
+3. Create the `/compassion` route group with its own `layout.tsx` (blue
    palette, dedicated sidebar). Reuse `AppShell` primitives but render
    `CompassionSidebar`.
 4. Add `requireWorkspace(name)` middleware on the API. Default donor routes

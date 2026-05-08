@@ -2,35 +2,33 @@
 
 ## Goal
 
-Make gift entry and attribution trustworthy, fast, and report-ready.
+Finish the advanced donation workflows that still sit beyond basic CRUD and attribution.
 
-## Scope
+## Already in place
 
-- Donations CRUD and donor attribution
-- Funds/designations, campaigns, appeals
-- Recurring gifts and pledge linkage baseline
-- Donation-side timeline events
+- Donation create/edit/delete flows
+- Campaign CRUD
+- Designation selectors and designation API support
+- Recurring gift flags and donation timeline writes
 
-## Manageable steps
+## Remaining scope
 
-1. Finalize donation field contract and validation rules.
-2. Complete donation list/new/edit/detail flows.
-3. Implement funds/designations CRUD and selectors.
-4. Implement campaign and appeal relationships.
-5. Add recurring donation flags and schedule metadata.
-6. Add pledge-reference support where applicable.
-7. Ensure donation writes trigger summary/timeline hooks.
+- Pledge management
+- Receipts / acknowledgments
+- Soft credits at donation level
+- In-kind valuation
+- Stock / wire confirmations
+- Refund / chargeback handling
+
+## Remaining implementation steps
+
+1. Build pledge entry, tracking, and payment-application UI.
+2. Generate receipts and acknowledgments for real donor workflows.
+3. Add donation-level soft-credit attribution.
+4. Add in-kind, stock, and wire-specific workflows.
+5. Add refund / chargeback handling with audit and activity updates.
 
 ## Exit criteria
 
-- Staff can enter and find gifts with full attribution.
-- Campaign/fund reporting dimensions are stored correctly.
-- Recurring and pledge-linked cases are modeled safely.
-
-## Audit snapshot — 2026-05-08
-
-- [x] Donation CRUD is working — verified in `app/donations/*` and `server/src/routes/donations.ts`.
-- [x] Campaign CRUD is working — verified in `app/campaigns/page.tsx` and `server/src/routes/campaigns.ts`.
-- [x] Designation support exists in schema, forms, and API — `prisma/schema.prisma`, `server/src/routes/designations.ts`.
-- [~] Pledge data model exists, but no usable pledge management workflow was found.
-- [ ] Receipt generation, refunds/chargebacks, in-kind workflows, and soft credits are not started in usable code.
+- Staff can handle non-basic gift workflows without manual side systems.
+- Donation acknowledgments and exceptions are tracked inside the CRM.

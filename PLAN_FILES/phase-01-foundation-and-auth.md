@@ -2,37 +2,31 @@
 
 ## Goal
 
-Stabilize platform foundations so all later features ship on consistent architecture.
+Finish the remaining platform-level blockers so later features sit on stable API, auth, and audit conventions.
 
-## Scope
+## Already in place
 
-- Environment/config standards
-- Auth and role/permission baseline
-- API versioning and error shape
-- Core audit/event hooks
-- Dev workflow and seed reliability
+- Login, refresh, logout, and current-user flows
+- First-run setup enforcement
+- Health/version diagnostics
+- Base `requireAuth` / `requireRole` middleware
 
-## Manageable steps
+## Remaining scope
 
-1. Standardize `.env` contract for web/api/db and local/prod parity.
-2. Finalize auth flow (login/session/token), guard middleware, and role checks.
-3. Lock API response envelope + error format + pagination conventions.
-4. Add base audit logging + internal event publisher scaffolding.
-5. Ensure Prisma migrate/generate/seed scripts are stable with pnpm.
-6. Add base health/readiness checks and PM2 process assumptions.
-7. Document conventions in AGENTS.md and developer notes.
+- API response-envelope standardization
+- Broader route-level RBAC
+- Generalized audit coverage
+- CI and operator-quality guardrails
+
+## Remaining implementation steps
+
+1. Standardize all remaining routes to `{ success, data, meta, error }`.
+2. Apply route-level RBAC to sensitive settings, exports, and destructive workflows.
+3. Replace scattered audit writes with shared audit helpers/services where needed.
+4. Add CI automation for lint, tests, and smoke checks.
 
 ## Exit criteria
 
-- Users can authenticate and access controlled routes by role.
-- API contracts are stable and documented.
-- Audit/event scaffolding exists for key entities.
-- Local setup is deterministic with one start path.
-
-## Audit snapshot — 2026-05-08
-
-- [x] Auth flow works in code — verified in `server/src/routes/auth.ts` and `app/lib/auth-client.ts`.
-- [x] First-run setup enforcement exists — verified in `server/src/routes/setup.ts`, `app/login/page.tsx`, and `app/setup/page.tsx`.
-- [~] Role/permission middleware exists but is not broadly applied — `server/src/middleware/requireAuth.ts`, `server/src/middleware/requireRole.ts`.
-- [~] Health/version diagnostics now exist at `/api/health` and Settings → System, but backup/restore and deployment runbooks are still missing.
-- [ ] API response envelope standardization is incomplete — mixed raw payloads and `{ data }` responses remain across routes.
+- API contracts are consistent across remaining routes.
+- High-risk actions are protected server-side by auth + role checks.
+- Audit coverage is broad enough for production-sensitive actions.

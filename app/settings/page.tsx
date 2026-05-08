@@ -32,6 +32,11 @@ const CARDS = [
     description: "Audit-backed feature readiness, versioning, and production-readiness tracking.",
     href: "/settings/system-status",
   },
+  {
+    title: "Security",
+    description: "Authentication controls plus verified setup-reset recovery for the CRM installation.",
+    href: "/settings/security",
+  },
 ];
 
 /** SettingsOverviewPage introduces the settings workspace foundation state. */

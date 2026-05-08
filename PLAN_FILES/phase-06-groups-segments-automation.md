@@ -2,33 +2,33 @@
 
 ## Goal
 
-Enable list building and safe automation so stewardship actions scale without losing control.
+Move from saved automation records to real list-building and explainable workflow execution.
 
-## Scope
+## Already in place
 
-- Static groups and dynamic segments
-- Segment rules and preview
-- Automation definitions and run logs
-- Safety/approval and observability
+- Automation CRUD
+- Preset library and preset install
+- Manual run / toggle / delete flows
 
-## Manageable steps
+## Remaining scope
 
-1. Build static group CRUD + membership operations.
-2. Build dynamic segment rule schema and evaluator.
-3. Add segment preview/member APIs and UI views.
-4. Implement automation model and enable/disable lifecycle.
-5. Add automation run log + failure/retry handling.
-6. Enforce opt-out, throttling, and confirmation rules.
-7. Add staff-visible "why this triggered" traceability.
+- Static groups
+- Dynamic segments
+- In-place automation editing
+- Real execution engine
+- Run logs / retries / audit
+- Expanded triggers and action library
+
+## Remaining implementation steps
+
+1. Build group CRUD and membership management.
+2. Build the dynamic segment rule engine and preview UI.
+3. Add in-place automation editing and action reordering.
+4. Replace manual run counters with real action execution.
+5. Add run history, retries, and audit visibility.
+6. Expand supported triggers and actions.
 
 ## Exit criteria
 
-- Staff can build lists and preview exactly who matches.
-- Automations run with logs, safety controls, and retries.
-- Trigger reason is explainable for every automated action.
-
-## Audit snapshot — 2026-05-08
-
-- [x] Automation records, presets, manual run, toggle, and delete flows exist — `app/automations/page.tsx`, `server/src/routes/automations.ts`.
-- [~] Automation execution is partial — manual run increments counters, but no action engine is wired.
-- [ ] Groups, dynamic segments, rule builder, and automation run-history/audit workflows are not started in usable code.
+- Staff can preview exactly who matches a list.
+- Automations do real work with explainable traces and safe retries.

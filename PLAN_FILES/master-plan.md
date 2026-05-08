@@ -1,295 +1,154 @@
-# OyamaCRM Master Plan & Status Index
+# OyamaCRM Remaining Implementation Backlog
 
-> **Single source of truth.** This file consolidates every phase packet in
-> `PLAN_FILES/`, plus the secondary OyamaCRM-Compassion workspace, into one
-> living checklist. Each phase links to its detailed packet. Boxes reflect what
-> is **shipped today** in `main` vs. what is **pending**.
+> **Active source of truth.** This file is the consolidated backlog for work
+> that still needs to be implemented. Shipped work has been removed from the
+> active checklist so the planning set stays focused on what is left.
 >
-> When you finish a checklist item, tick the box here _and_ in the matching
-> phase packet. When a new item emerges, add it here first, then propagate to
-> the packet so this index stays authoritative.
+> Use this file first, then open the linked phase packet when you need deeper
+> scope, constraints, or exit criteria.
 
 ---
 
-## 0. How to use this plan
+## How to use this backlog
 
-1. **Pick the next unchecked item under the active phase.** Phases are intended
-   to ship in order, but small cross-cutting items (tests, docs) can run in
-   parallel.
-2. **Implement in vertical slices**: schema → API → UI → automation → tests.
-3. **Tick the checkbox here when the slice is in `main`.** Add a one-line note
-   if the implementation deviates from the packet.
-4. **Run gate checks at phase exit**: `pnpm lint`, `pnpm test`, smoke paths,
-   seed compatibility (`pnpm db:seed`).
-5. **Promote to the next phase only when its exit criteria are met.**
+1. Start with the earliest phase that still has unchecked work.
+2. Implement in vertical slices: schema → API → UI → tests → docs.
+3. Update this file first when new remaining work is discovered.
+4. Keep phase packets aligned with the remaining items listed here.
 
-Legend: `[x]` shipped · `[ ]` pending · `[~]` partially shipped (notes inline)
+Legend: `[ ]` pending · `[~]` partial / in progress
 
 ---
 
-## 1. OyamaCRM (donor / fundraising workspace)
+## Phase 00 — Setup, Settings, and Workspace Bootstrap
 
-### Phase 01 — Foundation & Auth · packet: [`phase-01-foundation-and-auth.md`](./phase-01-foundation-and-auth.md)
+Packet: [`phase-00-setup-onboarding-settings.md`](./phase-00-setup-onboarding-settings.md)
 
-- [x] Express API server bootstrapped (`server/src/index.ts`) with health probe
-- [x] Auth routes (`/api/auth/login`, `/refresh`, `/logout`, `/me`) wired to Prisma
-- [x] First-run setup APIs and `/setup` redirect enforcement (`server/src/routes/setup.ts`, `app/login/page.tsx`, `app/setup/page.tsx`)
-- [x] In-memory access token + httpOnly refresh cookie (`app/lib/auth-client.ts`)
-- [x] Rate limiting (global 200/min, auth 20/min) via `express-rate-limit`
-- [x] Prisma + MySQL schema and seed script (`prisma/seed.ts`)
-- [x] AppShell layout (TopBar + Sidebar) and theme tokens
-- [x] Settings workspace foundation with dedicated sidebar (`app/settings/layout.tsx`, `app/components/settings/SettingsSidebar.tsx`)
-- [x] System version + readiness surfaces (`/settings/system`, `/settings/system-status`, `/api/health`)
-- [~] Role/permission middleware — login works; route-level RBAC still partial
-- [ ] API response envelope is mixed (`{ data }` vs. raw); standardize to `{ data, error, meta }`
-- [ ] Audit-log table exists; write-side hooks only on a few routes — generalize
-- [~] PM2 / production startup docs — `ecosystem.config.cjs` exists, but backup/restore and deployment runbook are still missing
+- [ ] Finish **Users** management in Settings (add/edit/disable/invite/reset password).
+- [ ] Finish **Roles & Scopes** management with a real permission matrix editor.
+- [ ] Finish **Workspaces** settings so donor and Compassion access can be toggled intentionally.
+- [ ] Remove remaining hard-coded seeded-org assumptions (`org_demo`) from live routes and UI flows.
+- [ ] Apply admin / RBAC guards consistently to sensitive settings and setup-recovery surfaces.
+- [ ] Add backup, restore, and recovery runbooks for operators.
 
-### Phase 02 — Constituents & Timeline · packet: [`phase-02-constituents-and-timeline.md`](./phase-02-constituents-and-timeline.md)
+## Phase 01 — Foundation and Auth
 
-- [x] List page with search + type/status filters (`app/constituents/page.tsx`)
-- [x] Detail page including donations, tasks, activities, household, tags
-- [x] Create flow (`app/constituents/new`) using shared `ConstituentForm`
-- [x] Edit flow (`app/constituents/[id]/edit`) using the same form in edit mode
-- [x] Auto-create `Household` record when `type === HOUSEHOLD`
-- [x] Timeline activity writes on create/update
-- [x] Household panel rendering on detail page
-- [ ] Soft-credit / influencer relationship modeling
-- [ ] Custom fields per constituent
-- [ ] Tag management UI (CRUD on `Tag` + bulk apply)
-- [ ] Saved segments / smart lists
-- [ ] CSV import + dedupe wizard
-- [ ] Bulk edit (assign tag, change status, change owner)
-- [ ] Wealth-screening indicator surfaces (capacity to give)
+Packet: [`phase-01-foundation-and-auth.md`](./phase-01-foundation-and-auth.md)
 
-### Phase 03 — Donations, Funds, Campaigns · packet: [`phase-03-donations-funds-campaigns.md`](./phase-03-donations-funds-campaigns.md)
+- [ ] Standardize the API response envelope across remaining routes to `{ success, data, meta, error }`.
+- [ ] Expand route-level RBAC beyond auth-only middleware on sensitive CRUD, export, and settings endpoints.
+- [ ] Generalize audit logging so high-risk routes write consistently without per-route duplication.
+- [ ] Add CI / quality automation for lint, unit tests, and smoke paths.
 
-- [x] List + filters (search, status, date range) at `/donations`
-- [x] New donation flow (`/donations/new`) wired to `POST /api/donations`
-- [x] Edit donation flow (`/donations/[id]/edit`) wired to `PUT /api/donations/:id`
-- [x] Edit link surfaced from the donations table
-- [x] `DELETE /api/donations/:id` for batch-entry corrections (with audit)
-- [x] Recurring gift flag + frequency on form
-- [x] Campaign + designation selectors on form
-- [x] Donation activity timeline write on create
-- [x] Campaigns CRUD (`/campaigns`, `routes/campaigns.ts`)
-- [x] Designations CRUD (`/api/designations`)
-- [ ] Pledge schedule UI (model exists; no pledge entry / payment-application UI)
-- [ ] Receipt / acknowledgment generation (PDF + email)
-- [ ] Soft-credit attribution at the donation level
-- [ ] In-kind valuation workflow
-- [ ] Stock / wire confirmations
-- [ ] Refund + chargeback flow with linked activity
+## Phase 02 — Constituents and Timeline
 
-### Phase 04 — Receipts, Tasks, Communications · packet: [`phase-04-receipts-tasks-communications.md`](./phase-04-receipts-tasks-communications.md)
+Packet: [`phase-02-constituents-and-timeline.md`](./phase-02-constituents-and-timeline.md)
 
-- [x] Tasks list with status/type filters, complete + delete actions
-- [x] New Task modal
-- [x] Task PATCH endpoint writes timeline activity
-- [x] Email Builder MVP (`/email-builder`, `app/lib/email-builder-utils.ts`)
-- [x] Email campaigns CRUD + stats endpoint
-- [~] Communication send controls — preview, audience preview, send test, schedule, cancel exist; media uploads and timeline logging do not
-- [ ] **Inline edit on task rows** (priority / due date / assignee), not just complete
-- [ ] Task templates (7-day thank-you, 30-day impact update)
-- [ ] Bulk task creation from a segment
-- [ ] Acknowledgment letter / receipt template engine
-- [ ] Mail-merge export to PDF / DOCX
-- [~] Email send pipeline + bounce/open tracking — SMTP-backed send/test exists, but provider event tracking does not
-- [ ] Communications history per constituent
-- [ ] SMS provider abstraction (placeholder only)
+- [ ] Add soft-credit / influencer relationship modeling.
+- [ ] Add custom fields per constituent.
+- [ ] Build tag management UI and bulk tag application.
+- [ ] Build saved segments / smart lists.
+- [ ] Finish CSV import + dedupe workflow.
+- [ ] Add bulk edit for filtered constituent sets.
+- [ ] Surface wealth-screening / capacity indicators.
 
-### Phase 05 — Dashboard & Reports · packet: [`phase-05-dashboard-and-reports.md`](./phase-05-dashboard-and-reports.md)
+## Phase 03 — Donations, Funds, Campaigns
 
-- [x] Home dashboard scaffold (`app/page.tsx`) with greeting + cards
-- [x] `GET /api/reports/summary` aggregating revenue, donor counts
-- [ ] Year-over-year revenue chart (donut + line)
-- [ ] Donor retention card (with prior-year comparison)
-- [ ] Totals by donor level (major / mid / annual)
-- [ ] Engagement heatmap
-- [ ] Custom report builder
-- [ ] Scheduled email summaries (weekly / monthly)
-- [ ] CSV / Excel / PDF exports
-- [ ] Caching layer for expensive aggregates
+Packet: [`phase-03-donations-funds-campaigns.md`](./phase-03-donations-funds-campaigns.md)
 
-### Phase 06 — Groups, Segments & Automation · packet: [`phase-06-groups-segments-automation.md`](./phase-06-groups-segments-automation.md)
+- [ ] Build usable pledge management and payment-application workflows.
+- [ ] Generate receipts / acknowledgments (PDF + email).
+- [ ] Add soft-credit attribution at the donation level.
+- [ ] Add in-kind valuation workflow.
+- [ ] Add stock / wire confirmation handling.
+- [ ] Add refund / chargeback handling with linked activity.
 
-- [x] Automations list page with toggle / run / delete (`/automations`)
-- [x] Preset library (`GET /api/automations/presets`) + one-click install
-- [x] `POST /api/automations` and `PATCH /api/automations/:id`
-- [x] Manual `POST /api/automations/:id/run` increments run count
-- [ ] **Edit automation in place** (rename, change trigger, reorder actions)
-- [ ] Real execution engine — actions are stored but not executed
-- [ ] Tag-based and rule-based segment builder
-- [ ] Group membership mgmt (manual + dynamic)
-- [ ] Action library: SEND_EMAIL, ADD_TAG, ASSIGN_USER, UPDATE_FIELD, CREATE_TASK
-- [ ] Trigger expansion: PLEDGE_CREATED, EMAIL_OPENED, EVENT_REGISTERED
-- [ ] Run history + audit per automation execution
+## Phase 04 — Receipts, Tasks, Communications
 
-### Phase 07 — Events & Gala · packet: [`phase-07-events-and-gala.md`](./phase-07-events-and-gala.md)
+Packet: [`phase-04-receipts-tasks-communications.md`](./phase-04-receipts-tasks-communications.md)
 
-- [x] Events list endpoint + create endpoint
-- [x] `/events` page scaffold
-- [ ] Registration / ticketing flow
-- [ ] Sponsorships + table assignments
-- [ ] Auction (silent / live) tracking
-- [ ] Check-in app
-- [ ] Event revenue rollup into reports
-- [ ] Volunteer hour logging tied to events
+- [ ] Add inline editing on task rows (priority, due date, assignee).
+- [ ] Add reusable task templates for stewardship workflows.
+- [ ] Add bulk task creation from a segment.
+- [ ] Build acknowledgment letter / receipt templates.
+- [ ] Add print / mail-merge export for offline sends.
+- [ ] Add communication timeline logging per constituent.
+- [ ] Add provider-backed delivery, bounce, open, and click tracking.
+- [ ] Add SMS provider abstraction beyond placeholders.
 
-### Phase 08 — Security, Integrations, AI Ops · packet: [`phase-08-security-integrations-ai-ops.md`](./phase-08-security-integrations-ai-ops.md)
+## Phase 05 — Dashboard and Reports
 
-- [x] bcrypt password hashing + JWT issuance
-- [x] Rate limiting on `/api/auth/*`
-- [x] Health endpoint + safe version metadata (`/health`, `/api/health`, `/settings/system`)
-- [ ] CSRF posture review for cookie-based refresh
-- [ ] Two-factor auth (TOTP)
-- [ ] Audit log viewer UI
-- [ ] Field-level encryption for sensitive notes
-- [ ] Payment processor integration (Stripe / Authorize.Net)
-- [ ] Accounting export (QuickBooks / CSV journal entries)
-- [ ] Email provider integration (SendGrid / Postmark / SES)
-- [ ] AI assistant (summarize donor profile, draft thank-you, suggest next task)
-- [ ] AI safety: human review before send, no third-party training on donor data
+Packet: [`phase-05-dashboard-and-reports.md`](./phase-05-dashboard-and-reports.md)
+
+- [ ] Add year-over-year revenue visuals.
+- [ ] Add donor retention and donor-level summary cards.
+- [ ] Add engagement heatmap surfaces.
+- [ ] Build the custom report builder.
+- [ ] Add scheduled summary emails.
+- [ ] Finish CSV / Excel / PDF exports.
+- [ ] Add freshness metadata and caching for expensive aggregates.
+
+## Phase 06 — Groups, Segments, Automation
+
+Packet: [`phase-06-groups-segments-automation.md`](./phase-06-groups-segments-automation.md)
+
+- [ ] Build static groups and group membership management.
+- [ ] Build the dynamic segment rule engine and preview UI.
+- [ ] Add in-place automation editing and action reordering.
+- [ ] Replace manual run counters with a real execution engine.
+- [ ] Add run history, retry handling, and audit traces for automations.
+- [ ] Expand triggers and action library coverage.
+
+## Phase 07 — Events and Gala Operations
+
+Packet: [`phase-07-events-and-gala.md`](./phase-07-events-and-gala.md)
+
+- [ ] Build registration / ticketing workflows.
+- [ ] Add table seating and host workflows.
+- [ ] Add sponsor tracking and event revenue categorization.
+- [ ] Build check-in and walk-in flows.
+- [ ] Add auction workflows and post-event reporting.
+- [ ] Tie volunteer-hour logging into events.
+
+## Phase 08 — Security, Integrations, AI, Operations
+
+Packet: [`phase-08-security-integrations-ai-ops.md`](./phase-08-security-integrations-ai-ops.md)
+
+- [ ] Complete CSRF posture review for cookie-based refresh flows.
+- [ ] Add two-factor auth (TOTP).
+- [ ] Build the audit log viewer UI.
+- [ ] Add field-level encryption for sensitive notes/files where needed.
+- [ ] Build payment processor integrations and webhook hardening.
+- [ ] Build import/export reliability, rollback, and duplicate-handling tooling.
+- [ ] Add private file handling + signed access patterns.
+- [ ] Add queue / background job visibility, retries, and dead-letter handling.
+- [ ] Add AI provider abstraction with human approval before send/save.
+
+## Phase 09 — Compassion Workspace
+
+Packet: [`phase-09-compassion-workspace.md`](./phase-09-compassion-workspace.md)
+
+- [~] Compassion shell, route group, and module switcher exist, but server-side workspace isolation is still missing.
+- [ ] Add workspace-aware middleware and session context for Compassion routes.
+- [ ] Add Compassion-side data models (`Client`, `Appointment`, `ClientFile`, `Referral`, etc.).
+- [ ] Replace Compassion placeholder pages with real CRUD flows and reports.
+- [ ] Enforce workspace-specific permissions and audit logging on every sensitive action.
 
 ---
 
-## 2. OyamaCRM-Compassion (client-services workspace) — _new_
+## Cross-cutting quality work
 
-> Detailed packet: [`phase-09-compassion-workspace.md`](./phase-09-compassion-workspace.md)
->
-> **Architectural rule:** workspace switcher in the top bar — donor data and
-> client data must never cross-pollinate in search, exports, dashboards, or
-> reports. Permissions are checked _per workspace_.
-
-### Phase C0 — Workspace Foundation
-
-- [ ] Add `workspace` enum + cookie/header so server filters by workspace
-- [ ] `WorkspaceSwitcher` component in TopBar (Donor / Compassion)
-- [ ] Separate sidebar (`CompassionSidebar`) — Dashboard, Clients, Appointments, Schedule Pages, Forms, Files, Resources, Tasks, Reports, Settings
-- [ ] `/compassion/*` route group with its own layout (warm teal/cream theme)
-- [ ] Workspace-aware permission middleware (`requireWorkspace("COMPASSION")`)
-- [ ] Audit-log foundation — every read / write logs `workspaceId`
-
-### Phase C1 — Client Records
-
-- [ ] `Client` Prisma model (separate from `Constituent`)
-- [ ] Client list with search + status / service-type filters
-- [ ] Client profile tabs: Overview, Timeline, Appointments, Services, Notes, Forms, Files, Referrals, Tasks, Communications, Audit
-- [ ] Client create / edit forms
-- [ ] Quick actions: add note, schedule appointment, upload file, create task, add referral
-- [ ] Timeline event writers for create / update / appointment / file / note / referral
-
-### Phase C2 — Scheduling Core
-
-- [ ] `AppointmentType` model with duration, eligible staff/rooms, buffers, max/day
-- [ ] `Location`, `Room`, `StaffAvailability` models
-- [ ] Internal calendar (day / week / month / staff / room views)
-- [ ] Appointment statuses: Requested, Confirmed, Checked In, In Progress, Completed, No-Show, Cancelled, Rescheduled, Needs Follow-Up
-- [ ] Check-in flow
-- [ ] Reschedule + cancel flows with audit
-- [ ] No-show tracking + report
-
-### Phase C3 — Public Scheduling Pages & Embeds
-
-- [ ] `SchedulePage` model (title, description, type, location, intake form, design)
-- [ ] Public booking page renderer (`/schedule/[slug]`)
-- [ ] Booking flow: choose service → location → date/time → intake → review → confirm
-- [ ] Confirmation email/SMS hooks
-- [ ] Embed script (`/embed/scheduler.js`) + iframe fallback
-- [ ] Embed customization (color, logo, copy, prefilled fields, UTM)
-- [ ] Spam protection (rate limit + honeypot)
-
-### Phase C4 — Client Files & Forms
-
-- [ ] `ClientFile` model with category, version history, audit on every view/download
-- [ ] Upload / replace / archive UI with permission checks
-- [ ] Form builder (Short/Long text, Phone, Email, Date, Dropdown, Checkbox, Radio, Yes/No, Signature, File, Private staff field, Conditional section)
-- [ ] Conditional logic engine (show/hide fields, trigger tag/task/referral)
-- [ ] Form submission → match-or-create client → attach to appointment / profile / task
-
-### Phase C5 — Resources & Referrals
-
-- [ ] `Resource` model with category, contact, eligibility, last-verified
-- [ ] Resource directory UI (search, filter by category, mark inactive)
-- [ ] `Referral` model linking Client → Resource → Staff → outcome
-- [ ] Follow-up task auto-created on referral
-- [ ] Resource needs report (which categories are most-requested)
-
-### Phase C6 — Tasks, Notes, Permissions
-
-- [ ] Compassion-side `Task` (separate from donor task or filtered by workspace)
-- [ ] Task views: My Tasks, Today, Overdue, By Client, By Staff, By Service Type, Needs Director Review
-- [ ] Notes (regular + private staff-only) with edit/delete audit
-- [ ] Roles: Super Admin, Director, Client Services Mgr, Nurse/Medical, Advocate, Reception/Scheduler, Volunteer, Donor Staff, Board View
-- [ ] Permission types — all server-side checks (view/create/edit/delete client, view sensitive notes, file ops, appointment ops, exports)
-
-### Phase C7 — Reporting, AI, Hardening
-
-- [ ] Compassion dashboard cards (Appointments today, No-shows this week, New clients, Pregnancy tests, Ultrasounds, Material assistance, Referrals, Follow-ups overdue, Classes attended, Needs by category)
-- [ ] Reports: Client visit, Service, Appointment, Referral, Material assistance, Staff workload, Outcome, No-show, Resource needs, Monthly board summary
-- [ ] Board reports default to anonymized rollups
-- [ ] AI: summarize visit notes, draft follow-up message, suggest next task, prepare referral summary, find resources
-- [ ] AI safety: never auto-save, mark as draft, audit on every AI access
-- [ ] Two-factor auth, session timeout, suspicious-activity alerts
+- [ ] Add React component tests for interactive UI modules.
+- [ ] Add route-level tests for high-risk branches and destructive flows.
+- [ ] Add a CI pipeline that runs lint + tests.
+- [ ] Add coverage thresholds for shared app/server utilities.
+- [ ] Add an end-to-end happy path that covers setup → login → constituent → donation → follow-up.
 
 ---
 
-## 3. Cross-cutting workstreams
+## Planning hierarchy
 
-### Testing & quality
-
-- [x] Unit test suite scaffolded with Vitest + v8 coverage provider
-- [x] `email-builder-utils` — base tests + extra branch tests (presets, providers, plain-text)
-- [x] `donation-utils` — formatter / label / status tests
-- [x] `constituent-utils` — formatter / status / engagement bucket tests
-- [x] `auth-client` — login / refresh / logout / `apiFetch` auto-refresh tests (fetch mocked)
-- [x] Smoke tests against the Express app (`tests/smoke/*`) — _require live MySQL_
-- [ ] Component tests with React Testing Library (no UI test runner yet)
-- [ ] Route-level tests for `routes/donations.ts` DELETE + PUT branches
-- [ ] Route-level tests for `routes/constituents.ts` household auto-create branch
-- [ ] Route-level tests for `routes/automations.ts` preset install branch
-- [ ] CI pipeline that runs `pnpm lint && pnpm test`
-- [ ] Coverage threshold gate (target ≥ 70 % on `app/lib/**` and `server/src/routes/**`)
-- [ ] E2E happy path with Playwright (login → add constituent → record gift → mark task complete)
-
-### Documentation & developer experience
-
-- [x] `AGENTS.md` codifies modular architecture, code style, and domain language
-- [x] Phase packets and Mermaid diagrams in `PLAN_FILES/`
-- [x] `phase-rollout-plan.md` describes the execution workflow
-- [x] **This master plan** consolidates everything in one checklist
-- [x] Top-level `README.md` quickstart and env/status notes
-- [x] Production readiness audit doc (`docs/audits/production-readiness-audit-2026-05-08.md`)
-- [ ] API reference (auto-generated from JSDoc on routes)
-- [ ] Component storybook for shared UI primitives
-
-### Editability sweep — make every record editable
-
-- [x] Constituents: list / detail / new / **edit** all wired
-- [x] Donations: list / new / **edit** + DELETE endpoint (this PR)
-- [x] Tasks: list / create / complete / delete (PATCH supports any field)
-- [x] Automations: list / create / toggle / delete + manual run
-- [x] Campaigns: PATCH endpoint exists; UI for inline edit shipped
-- [ ] Tasks UI: inline edit row (priority / due date / assignee) instead of complete-only
-- [ ] Automations UI: rename + change trigger + reorder/edit actions in place
-- [ ] Donations UI: bulk-status update on filtered set
-
----
-
-## 4. Active focus
-
-> Update this section on every PR so the team knows where energy is going.
-
-**Now (this PR):**
-
-- Add donation edit page + DELETE endpoint
-- Boost unit-test coverage (`donation-utils`, `constituent-utils`, `auth-client`,
-  email-builder branches)
-- Consolidate `PLAN_FILES/` into this master index
-- Stand up the Compassion workspace plan (`phase-09-compassion-workspace.md`)
-
-**Next:**
-
-- Inline-edit task rows + automation rename
-- Standardize API response envelope (`{ data, error, meta }`) across all routes
-- Begin Phase C0 — workspace switcher + `/compassion` route group skeleton
+- **Active backlog:** this file
+- **Per-phase detail:** `phase-00` through `phase-09`
+- **Execution workflow:** `phase-rollout-plan.md`
+- **Archived source briefs:** the long-form legacy plan files now act as reference notes only
