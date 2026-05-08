@@ -45,7 +45,6 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
           ...(goal && { goal: parseFloat(goal) }),
           startDate: new Date(startDate).toISOString(),
           ...(endDate && { endDate: new Date(endDate).toISOString() }),
-          organizationId: "org_demo",
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

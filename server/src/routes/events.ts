@@ -5,15 +5,21 @@
  * @module routes/events
  */
 import { Router } from "express";
+import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 
 const router = Router();
-const ORG_ID = "org_demo";
 
 /** GET /api/events — List all events with attendance counts. */
-router.get("/", async (_req, res) => {
+router.get("/", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json([]);
+    return;
+  }
+
   const events = await prisma.event.findMany({
-    where: { organizationId: ORG_ID },
+    where: { organizationId },
     include: {
       _count: { select: { attendances: true, volunteerHours: true } },
     },
@@ -25,10 +31,15 @@ router.get("/", async (_req, res) => {
 /** POST /api/events — Create a new event record. */
 router.post("/", async (req, res) => {
   const { name, description, type, location, startDate, endDate, registrationGoal, revenueGoal, active } = req.body;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured for this installation." } });
+    return;
+  }
 
   const event = await prisma.event.create({
     data: {
-      organizationId: ORG_ID,
+      organizationId,
       name,
       description: description ?? undefined,
       type: type ?? "OTHER",

@@ -15,6 +15,7 @@
  * @module routes/constituents
  */
 import { Router } from "express";
+import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 
 const router = Router();
@@ -143,6 +144,15 @@ router.post("/", async (req, res) => {
     doNotEmail, doNotCall, doNotMail, organizationId,
   } = req.body;
 
+  const resolvedOrganizationId = await resolveOrganizationId({
+    req,
+    requestedOrganizationId: organizationId,
+  });
+  if (!resolvedOrganizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured for this installation." } });
+    return;
+  }
+
   const constituent = await prisma.constituent.create({
     data: {
       firstName, lastName, prefix, email, email2, phone, phone2, mobile,
@@ -154,7 +164,7 @@ router.post("/", async (req, res) => {
       doNotEmail: doNotEmail ?? false,
       doNotCall: doNotCall ?? false,
       doNotMail: doNotMail ?? false,
-      organizationId: organizationId ?? "org_demo",
+      organizationId: resolvedOrganizationId,
     },
   });
 

@@ -16,10 +16,10 @@
  */
 import { Router } from "express";
 import nodemailer from "nodemailer";
+import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 
 const router = Router();
-const ORG_ID = "org_demo";
 
 type AudienceFilter = { type?: string } | null;
 type AudienceConstituent = {
@@ -62,10 +62,10 @@ function audienceWhere(filter: AudienceFilter) {
 }
 
 /** Returns all audience-matching constituents with email preferences for preview/sending flows. */
-async function getAudienceConstituents(filter: AudienceFilter): Promise<AudienceConstituent[]> {
+async function getAudienceConstituents(filter: AudienceFilter, organizationId: string): Promise<AudienceConstituent[]> {
   const rows = await prisma.constituent.findMany({
     where: {
-      organizationId: ORG_ID,
+      organizationId,
       ...(audienceWhere(filter) as object),
     },
     select: {
@@ -146,8 +146,25 @@ function getTransport(settings: {
  * Response: { audience: { totalMatched, validEmail, missingEmail, optedOut, duplicateEmails, finalSendCount } }
  */
 router.post("/audience-preview", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json({
+      audience: {
+        totalMatched: 0,
+        validEmail: 0,
+        missingEmail: 0,
+        optedOut: 0,
+        duplicateEmails: 0,
+        suppressionCount: 0,
+        finalSendCount: 0,
+      },
+      recipientsSample: [],
+    });
+    return;
+  }
+
   const filter = (req.body?.audienceFilter ?? null) as AudienceFilter;
-  const rows = await getAudienceConstituents(filter);
+  const rows = await getAudienceConstituents(filter, organizationId);
   const preview = computeAudiencePreview(rows);
 
   res.json({
@@ -167,10 +184,15 @@ router.post("/audience-preview", async (req, res) => {
 /** GET /api/email-campaigns — List email campaigns with optional status and name search filters. */
 router.get("/", async (req, res) => {
   const { status, search, limit = "50" } = req.query as Record<string, string>;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json([]);
+    return;
+  }
 
   const campaigns = await prisma.emailCampaign.findMany({
     where: {
-      organizationId: ORG_ID,
+      organizationId,
       ...(status && { status: status as never }),
       ...(search && { name: { contains: search } }),
     },
@@ -183,14 +205,27 @@ router.get("/", async (req, res) => {
 
 /** GET /api/email-campaigns/stats — Aggregate email engagement metrics (total, sent, open rate, etc.) across all campaigns. */
 router.get("/stats", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json({
+      total: 0,
+      sent: 0,
+      scheduled: 0,
+      draft: 0,
+      totalRecipientsSent: 0,
+      avgOpenRate: 0,
+    });
+    return;
+  }
+
   const [total, sent, scheduled, draft] = await Promise.all([
-    prisma.emailCampaign.count({ where: { organizationId: ORG_ID } }),
+    prisma.emailCampaign.count({ where: { organizationId } }),
     prisma.emailCampaign.findMany({
-      where: { organizationId: ORG_ID, status: "SENT" },
+      where: { organizationId, status: "SENT" },
       select: { totalRecipients: true, opened: true, clicked: true, delivered: true },
     }),
-    prisma.emailCampaign.count({ where: { organizationId: ORG_ID, status: "SCHEDULED" } }),
-    prisma.emailCampaign.count({ where: { organizationId: ORG_ID, status: "DRAFT" } }),
+    prisma.emailCampaign.count({ where: { organizationId, status: "SCHEDULED" } }),
+    prisma.emailCampaign.count({ where: { organizationId, status: "DRAFT" } }),
   ]);
 
   // Compute aggregate open rate from all sent campaigns
@@ -230,6 +265,11 @@ router.post("/", async (req, res) => {
     name, subject, previewText, fromName, fromEmail, replyToEmail,
     bodyHtml, bodyText, templateJson, scheduledAt, audienceFilter,
   } = req.body;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: "No organization is configured for this installation." });
+    return;
+  }
 
   if (fromEmail && !isValidEmail(fromEmail)) {
     res.status(400).json({ error: "fromEmail must be a valid email address." });
@@ -242,7 +282,7 @@ router.post("/", async (req, res) => {
 
   const campaign = await prisma.emailCampaign.create({
     data: {
-      organizationId: ORG_ID,
+      organizationId,
       name: name ?? "Untitled Campaign",
       subject: subject ?? "",
       previewText, fromName, fromEmail, replyToEmail,
@@ -324,7 +364,7 @@ router.post("/:id/send-test", async (req, res) => {
     return;
   }
 
-  const settings = await prisma.organizationSettings.findUnique({ where: { organizationId: ORG_ID } });
+  const settings = await prisma.organizationSettings.findUnique({ where: { organizationId: campaign.organizationId } });
   if (!settings?.smtpFromEmail) {
     res.status(400).json({
       error: "SMTP from email is not configured. Save SMTP settings before sending test emails.",
@@ -347,7 +387,7 @@ router.post("/:id/send-test", async (req, res) => {
 
   await prisma.auditLog.create({
     data: {
-      organizationId: ORG_ID,
+      organizationId: campaign.organizationId,
       action: "EMAIL_CAMPAIGN_TEST_SENT",
       entity: "EmailCampaign",
       entityId: campaign.id,
@@ -393,7 +433,7 @@ router.post("/:id/schedule", async (req, res) => {
 
   await prisma.auditLog.create({
     data: {
-      organizationId: ORG_ID,
+      organizationId: campaign.organizationId,
       action: "EMAIL_CAMPAIGN_SCHEDULED",
       entity: "EmailCampaign",
       entityId: campaign.id,
@@ -432,7 +472,7 @@ router.post("/:id/cancel", async (req, res) => {
 
   await prisma.auditLog.create({
     data: {
-      organizationId: ORG_ID,
+      organizationId: campaign.organizationId,
       action: "EMAIL_CAMPAIGN_CANCELLED",
       entity: "EmailCampaign",
       entityId: campaign.id,
@@ -460,7 +500,7 @@ router.post("/:id/send", async (req, res) => {
   }
 
   const settings = await prisma.organizationSettings.findUnique({
-    where: { organizationId: ORG_ID },
+    where: { organizationId: campaign.organizationId },
   });
   if (!settings?.smtpHost || !settings.smtpPort || !settings.smtpFromEmail) {
     res.status(400).json({
@@ -470,7 +510,7 @@ router.post("/:id/send", async (req, res) => {
   }
 
   const filter = campaign.audienceFilter ? (JSON.parse(campaign.audienceFilter) as AudienceFilter) : null;
-  const preview = computeAudiencePreview(await getAudienceConstituents(filter));
+  const preview = computeAudiencePreview(await getAudienceConstituents(filter, campaign.organizationId));
   const to = preview.recipients;
   const recipientCount = to.length;
 
@@ -510,7 +550,7 @@ router.post("/:id/send", async (req, res) => {
 
   await prisma.auditLog.create({
     data: {
-      organizationId: ORG_ID,
+      organizationId: campaign.organizationId,
       action: "EMAIL_CAMPAIGN_SENT",
       entity: "EmailCampaign",
       entityId: campaign.id,

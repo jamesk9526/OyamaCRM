@@ -12,13 +12,21 @@
  * @module routes/campaigns
  */
 import { Router } from "express";
+import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 
 const router = Router();
 
 /** GET /api/campaigns — List all campaigns with donation counts and aggregated totalRaised amounts. */
-router.get("/", async (_req, res) => {
+router.get("/", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json([]);
+    return;
+  }
+
   const campaigns = await prisma.campaign.findMany({
+    where: { organizationId },
     orderBy: { startDate: "desc" },
     include: {
       _count: { select: { donations: true } },
@@ -28,7 +36,11 @@ router.get("/", async (_req, res) => {
   // Aggregate totalRaised per campaign using a groupBy instead of N+1 queries
   const sums = await prisma.donation.groupBy({
     by: ["campaignId"],
-    where: { status: "COMPLETED", campaignId: { not: null } },
+    where: {
+      status: "COMPLETED",
+      campaignId: { not: null },
+      campaign: { organizationId },
+    },
     _sum: { amount: true },
   });
   // Build a lookup map so each campaign can be decorated in O(1)
@@ -57,7 +69,21 @@ router.get("/:id", async (req, res) => {
 
 /** POST /api/campaigns — Create a new fundraising campaign. */
 router.post("/", async (req, res) => {
-  const campaign = await prisma.campaign.create({ data: req.body });
+  const organizationId = await resolveOrganizationId({
+    req,
+    requestedOrganizationId: req.body?.organizationId,
+  });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured for this installation." } });
+    return;
+  }
+
+  const campaign = await prisma.campaign.create({
+    data: {
+      ...req.body,
+      organizationId,
+    },
+  });
   res.status(201).json(campaign);
 });
 

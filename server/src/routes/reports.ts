@@ -1,7 +1,6 @@
 /**
  * Analytics and reporting routes for OyamaCRM.
  * Provides aggregated dashboard metrics and downloadable report data.
- * All routes are currently scoped to the hard-coded `org_demo` organization.
  *
  * Routes:
  *   GET /api/reports/summary          — high-level dashboard KPIs (YTD revenue, task counts, etc.)
@@ -12,16 +11,44 @@
  * @module routes/reports
  */
 import { Router } from "express";
+import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 
 const router = Router();
-const ORG_ID = "org_demo";
+
+/** Filters orphan-safe task counts to the active installation organization. */
+function taskOrganizationWhere(organizationId: string) {
+  return {
+    OR: [
+      { constituent: { organizationId } },
+      { assignee: { organizationId } },
+      { createdBy: { organizationId } },
+    ],
+  };
+}
 
 /**
  * GET /api/reports/summary — Return high-level org-wide KPIs for the dashboard header cards.
  * Runs all aggregation queries concurrently to minimise response latency.
  */
-router.get("/summary", async (_req, res) => {
+router.get("/summary", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json({
+      totalConstituents: 0,
+      ytdAmount: 0,
+      ytdCount: 0,
+      weekAmount: 0,
+      weekCount: 0,
+      weekAvg: 0,
+      activeCampaigns: 0,
+      activeGoalTotal: 0,
+      pendingTasks: 0,
+      overdueTasks: 0,
+    });
+    return;
+  }
+
   const now = new Date();
   const startOfYear = new Date(now.getFullYear(), 0, 1);
   const startOfWeek = new Date(now);
@@ -37,25 +64,25 @@ router.get("/summary", async (_req, res) => {
     overdueTasks,
     activeCampaignGoal,
   ] = await Promise.all([
-    prisma.constituent.count({ where: { organizationId: ORG_ID } }),
+    prisma.constituent.count({ where: { organizationId } }),
     // YTD completed donations — sum and count since Jan 1 of the current year
     prisma.donation.aggregate({
-      where: { status: "COMPLETED", date: { gte: startOfYear } },
+      where: { status: "COMPLETED", date: { gte: startOfYear }, constituent: { organizationId } },
       _sum: { amount: true },
       _count: true,
     }),
     // This week's donations
     prisma.donation.aggregate({
-      where: { status: "COMPLETED", date: { gte: startOfWeek } },
+      where: { status: "COMPLETED", date: { gte: startOfWeek }, constituent: { organizationId } },
       _sum: { amount: true },
       _count: true,
     }),
-    prisma.campaign.count({ where: { organizationId: ORG_ID, active: true } }),
-    prisma.task.count({ where: { status: "PENDING" } }),
-    prisma.task.count({ where: { status: "PENDING", dueDate: { lt: now } } }),
+    prisma.campaign.count({ where: { organizationId, active: true } }),
+    prisma.task.count({ where: { status: "PENDING", ...taskOrganizationWhere(organizationId) } }),
+    prisma.task.count({ where: { status: "PENDING", dueDate: { lt: now }, ...taskOrganizationWhere(organizationId) } }),
     // Sum of goals across active campaigns for progress tracking
     prisma.campaign.aggregate({
-      where: { organizationId: ORG_ID, active: true, goal: { not: null } },
+      where: { organizationId, active: true, goal: { not: null } },
       _sum: { goal: true },
     }),
   ]);
@@ -83,12 +110,22 @@ router.get("/summary", async (_req, res) => {
  * Returns an array of 12 objects `{ month: 1-12, amount: number }`.
  */
 router.get("/giving-by-month", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json(Array.from({ length: 12 }, (_, i) => ({ month: i + 1, amount: 0 })));
+    return;
+  }
+
   const { year = new Date().getFullYear().toString() } = req.query as Record<string, string>;
   const startDate = new Date(`${year}-01-01`);
   const endDate = new Date(`${year}-12-31`);
 
   const donations = await prisma.donation.findMany({
-    where: { date: { gte: startDate, lte: endDate }, status: "COMPLETED" },
+    where: {
+      date: { gte: startDate, lte: endDate },
+      status: "COMPLETED",
+      constituent: { organizationId },
+    },
     select: { date: true, amount: true },
   });
 
@@ -110,36 +147,42 @@ router.get("/giving-by-month", async (req, res) => {
 /**
  * GET /api/reports/donor-retention — Compute year-over-year donor retention rate.
  * Formula: (donors who gave in both lastYear AND thisYear) / (donors who gave in lastYear) × 100.
- * Uses a raw SQL join query for the intersection set to avoid loading all IDs into memory.
  */
-router.get("/donor-retention", async (_req, res) => {
+router.get("/donor-retention", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json({ total: 0, retained: 0, rate: 0, year: new Date().getFullYear() });
+    return;
+  }
+
   const thisYear = new Date().getFullYear();
   const lastYear = thisYear - 1;
 
-  const [lastYearDonors, retainedDonors] = await Promise.all([
+  const [lastYearDonors, thisYearDonors] = await Promise.all([
     // Unique constituent IDs who donated last year (base cohort for retention rate)
     prisma.donation.findMany({
       where: {
         status: "COMPLETED",
         date: { gte: new Date(`${lastYear}-01-01`), lte: new Date(`${lastYear}-12-31`) },
+        constituent: { organizationId },
       },
       select: { constituentId: true },
       distinct: ["constituentId"],
     }),
-    // Unique constituent IDs who donated in both years — raw SQL INNER JOIN for efficiency
-    prisma.$queryRaw<{ constituentId: string }[]>`
-      SELECT DISTINCT d1.constituentId
-      FROM Donation d1
-      INNER JOIN Donation d2 ON d1.constituentId = d2.constituentId
-      WHERE d1.status = 'COMPLETED'
-        AND YEAR(d1.date) = ${lastYear}
-        AND d2.status = 'COMPLETED'
-        AND YEAR(d2.date) = ${thisYear}
-    `,
+    prisma.donation.findMany({
+      where: {
+        status: "COMPLETED",
+        date: { gte: new Date(`${thisYear}-01-01`), lte: new Date(`${thisYear}-12-31`) },
+        constituent: { organizationId },
+      },
+      select: { constituentId: true },
+      distinct: ["constituentId"],
+    }),
   ]);
 
   const total = lastYearDonors.length;
-  const retained = retainedDonors.length;
+  const thisYearSet = new Set(thisYearDonors.map((donor) => donor.constituentId));
+  const retained = lastYearDonors.filter((donor) => thisYearSet.has(donor.constituentId)).length;
   const rate = total > 0 ? Math.round((retained / total) * 100) : 0;
 
   res.json({ total, retained, rate, year: thisYear });
@@ -150,10 +193,16 @@ router.get("/donor-retention", async (_req, res) => {
  * Defaults to top 10. Only includes constituents with at least one recorded gift.
  */
 router.get("/top-donors", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json([]);
+    return;
+  }
+
   const limit = parseInt((req.query.limit as string) ?? "10");
 
   const donors = await prisma.constituent.findMany({
-    where: { organizationId: ORG_ID, totalLifetimeGiving: { gt: 0 } },
+    where: { organizationId, totalLifetimeGiving: { gt: 0 } },
     orderBy: { totalLifetimeGiving: "desc" },
     take: limit,
     select: {

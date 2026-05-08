@@ -6,12 +6,10 @@
  * @module routes/automations
  */
 import { Router } from "express";
+import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 
 const router = Router();
-
-/** Default org ID — will be replaced by session-based org lookup in a future auth refactor. */
-const ORG_ID = "org_demo";
 
 const PRESET_AUTOMATIONS = [
   {
@@ -54,8 +52,14 @@ const PRESET_AUTOMATIONS = [
  * Returns all automations for the org, including their actions ordered by `order`.
  */
 router.get("/", async (_req, res) => {
+  const organizationId = await resolveOrganizationId({ req: _req });
+  if (!organizationId) {
+    res.json([]);
+    return;
+  }
+
   const automations = await prisma.automation.findMany({
-    where: { organizationId: ORG_ID },
+    where: { organizationId },
     include: { actions: { orderBy: { order: "asc" } } },
     orderBy: { createdAt: "desc" },
   });
@@ -79,9 +83,15 @@ router.post("/from-preset", async (req, res) => {
     return;
   }
 
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured for this installation." } });
+    return;
+  }
+
   const automation = await prisma.automation.create({
     data: {
-      organizationId: ORG_ID,
+      organizationId,
       name: name || preset.name,
       description: preset.description,
       trigger: preset.trigger as never,
@@ -130,10 +140,15 @@ router.get("/:id", async (req, res) => {
  */
 router.post("/", async (req, res) => {
   const { name, trigger, description, triggerConfig, enabled = true, actions = [] } = req.body;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured for this installation." } });
+    return;
+  }
 
   const automation = await prisma.automation.create({
     data: {
-      organizationId: ORG_ID,
+      organizationId,
       name,
       trigger,
       description,
