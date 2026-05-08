@@ -1,3 +1,4 @@
+/** Modal for creating stewardship email campaigns with template, audience, and schedule setup. */
 "use client";
 
 import { useState } from "react";
@@ -5,10 +6,13 @@ import { useState } from "react";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 const TEMPLATES = [
-  { id: "appeal", name: "Donation Appeal", subject: "Your gift makes a difference", description: "Standard fundraising appeal" },
-  { id: "newsletter", name: "Newsletter", subject: "OyamaCRM Newsletter — {Month}", description: "Monthly supporter update" },
-  { id: "thanks", name: "Thank You", subject: "Thank you for your generous gift", description: "Post-donation acknowledgment" },
-  { id: "event", name: "Event Invite", subject: "You're invited — {Event Name}", description: "Event invitation and RSVP" },
+  { id: "newsletter", name: "Monthly Ministry Update", subject: "Monthly Ministry Update — {{organization_name}}", description: "Monthly stewardship newsletter with donor impact updates" },
+  { id: "impact", name: "Donor Impact Newsletter", subject: "Your generosity in action, {{first_name | Friend}}", description: "Impact highlights, stories, and campaign progress" },
+  { id: "thanks", name: "Thank-You Email", subject: "Thank you for your generosity, {{first_name | Friend}}", description: "Post-donation acknowledgment and next-step stewardship" },
+  { id: "event", name: "Event Announcement", subject: "You’re invited: {{event_name}}", description: "Event invitation, details, and RSVP call-to-action" },
+  { id: "appeal", name: "Giving Appeal", subject: "Help us reach more families this month", description: "Fundraising appeal tied to current ministry needs" },
+  { id: "board", name: "Board Update", subject: "Board Update — {{organization_name}}", description: "Internal board-level update template" },
+  { id: "volunteer", name: "Volunteer Newsletter", subject: "Volunteer update and upcoming opportunities", description: "Volunteer stories, needs, and opportunities" },
   { id: "blank", name: "Blank", subject: "", description: "Start from scratch" },
 ];
 
@@ -21,12 +25,30 @@ const AUDIENCE_OPTIONS = [
   { id: "volunteers", label: "Volunteers" },
 ];
 
+interface AudiencePreview {
+  /** Total constituents that match the selected audience filter before exclusions. */
+  totalMatched: number;
+  /** Constituents with non-empty, deliverable email candidates. */
+  validEmail: number;
+  /** Matched constituents missing any email address. */
+  missingEmail: number;
+  /** Matched constituents skipped due to communication opt-out preferences. */
+  optedOut: number;
+  /** Duplicate email addresses suppressed for single-send safety. */
+  duplicateEmails: number;
+  /** Combined suppression count from missing/opt-out/duplicate buckets. */
+  suppressionCount: number;
+  /** Final unique recipients that would receive this campaign. */
+  finalSendCount: number;
+}
+
 interface Props {
   onClose: () => void;
   /** Called with the new campaign's ID so the parent can open the email builder. */
   onCreated: (id: string) => void;
 }
 
+/** NewCampaignModal guides staff through template, setup, and audience confirmation for new campaigns. */
 export default function NewCampaignModal({ onClose, onCreated }: Props) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedTemplate, setSelectedTemplate] = useState("blank");
@@ -43,9 +65,30 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [audiencePreview, setAudiencePreview] = useState<AudiencePreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   function set(field: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  /** Loads audience eligibility counts used by the send confirmation summary in step 3. */
+  async function refreshAudiencePreview(audienceId: string) {
+    setPreviewLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/email-campaigns/audience-preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audienceFilter: { type: audienceId } }),
+      });
+      if (!res.ok) throw new Error("Failed to preview audience");
+      const payload = await res.json();
+      setAudiencePreview(payload.audience as AudiencePreview);
+    } catch {
+      setAudiencePreview(null);
+    } finally {
+      setPreviewLoading(false);
+    }
   }
 
   function pickTemplate(id: string) {
@@ -207,7 +250,16 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
                         form.audienceId === a.id ? "border-green-500 bg-green-50" : "border-gray-200 hover:border-gray-300"
                       }`}
                     >
-                      <input type="radio" name="audience" checked={form.audienceId === a.id} onChange={() => set("audienceId", a.id)} className="hidden" />
+                      <input
+                        type="radio"
+                        name="audience"
+                        checked={form.audienceId === a.id}
+                        onChange={() => {
+                          set("audienceId", a.id);
+                          void refreshAudiencePreview(a.id);
+                        }}
+                        className="hidden"
+                      />
                       <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${form.audienceId === a.id ? "border-green-600" : "border-gray-300"}`}>
                         {form.audienceId === a.id && <div className="w-2 h-2 bg-green-600 rounded-full" />}
                       </div>
@@ -215,6 +267,26 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
                     </label>
                   ))}
                 </div>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Recipient preview</p>
+                {previewLoading ? (
+                  <p className="text-sm text-gray-500 mt-1">Loading audience preview…</p>
+                ) : audiencePreview ? (
+                  <div className="mt-2 space-y-1 text-sm text-gray-700">
+                    <p>Matched: <span className="font-medium">{audiencePreview.totalMatched}</span></p>
+                    <p>Valid email: <span className="font-medium">{audiencePreview.validEmail}</span></p>
+                    <p>Missing email: <span className="font-medium">{audiencePreview.missingEmail}</span></p>
+                    <p>Opted out: <span className="font-medium">{audiencePreview.optedOut}</span></p>
+                    <p>Duplicate addresses skipped: <span className="font-medium">{audiencePreview.duplicateEmails}</span></p>
+                    <p className="pt-1 border-t border-gray-200">
+                      Final send count: <span className="font-semibold text-green-700">{audiencePreview.finalSendCount}</span>
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 mt-1">Audience preview unavailable.</p>
+                )}
               </div>
 
               <FormField label="Schedule Send (optional)" optional>
@@ -246,7 +318,14 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
           </button>
           {step < 3 ? (
             <button
-              onClick={() => setStep((s) => (s + 1) as 1 | 2 | 3)}
+              onClick={() => {
+                const nextStep = ((step + 1) as 1 | 2 | 3);
+                setStep(nextStep);
+                // When entering step 3, refresh audience counts for confirmation messaging.
+                if (nextStep === 3) {
+                  void refreshAudiencePreview(form.audienceId);
+                }
+              }}
               className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
             >
               Continue →

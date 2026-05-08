@@ -22,6 +22,28 @@ const router = Router();
 const ORG_ID = "org_demo";
 
 type AudienceFilter = { type?: string } | null;
+type AudienceConstituent = {
+  id: string;
+  email: string | null;
+  doNotEmail: boolean;
+  emailOptOut: boolean;
+};
+
+interface AudiencePreview {
+  totalMatched: number;
+  validEmail: number;
+  missingEmail: number;
+  optedOut: number;
+  duplicateEmails: number;
+  suppressionCount: number;
+  finalSendCount: number;
+  recipients: string[];
+}
+
+/** Basic email format check for send-test and from/reply fields. */
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
 
 /** Resolves audience filters into a Prisma where clause for constituents. */
 function audienceWhere(filter: AudienceFilter) {
@@ -33,6 +55,109 @@ function audienceWhere(filter: AudienceFilter) {
   if (type === "volunteers") return { type: "VOLUNTEER" as const };
   return {};
 }
+
+/** Returns all audience-matching constituents with email preferences for preview/sending flows. */
+async function getAudienceConstituents(filter: AudienceFilter): Promise<AudienceConstituent[]> {
+  const rows = await prisma.constituent.findMany({
+    where: {
+      organizationId: ORG_ID,
+      ...(audienceWhere(filter) as object),
+    },
+    select: {
+      id: true,
+      email: true,
+      doNotEmail: true,
+      emailOptOut: true,
+    },
+    take: 5000,
+  });
+  return rows;
+}
+
+/**
+ * Computes recipient preview counts and de-duplicates valid email recipients.
+ * This powers pre-send confirmations and keeps send behavior consistent with preview.
+ */
+function computeAudiencePreview(rows: AudienceConstituent[]): AudiencePreview {
+  const validCandidates: string[] = [];
+  const seen = new Set<string>();
+  const uniqueRecipients: string[] = [];
+  let missingEmail = 0;
+  let optedOut = 0;
+
+  for (const row of rows) {
+    const email = row.email?.trim().toLowerCase() ?? "";
+    if (!email) {
+      missingEmail += 1;
+      continue;
+    }
+    if (row.doNotEmail || row.emailOptOut) {
+      optedOut += 1;
+      continue;
+    }
+    validCandidates.push(email);
+    if (!seen.has(email)) {
+      seen.add(email);
+      uniqueRecipients.push(email);
+    }
+  }
+
+  const duplicateEmails = validCandidates.length - uniqueRecipients.length;
+  const suppressionCount = missingEmail + optedOut + duplicateEmails;
+
+  return {
+    totalMatched: rows.length,
+    validEmail: validCandidates.length,
+    missingEmail,
+    optedOut,
+    duplicateEmails,
+    suppressionCount,
+    finalSendCount: uniqueRecipients.length,
+    recipients: uniqueRecipients,
+  };
+}
+
+/** Builds an SMTP transport from organization settings, returning null when SMTP is incomplete. */
+function getTransport(settings: {
+  smtpHost: string | null;
+  smtpPort: number | null;
+  smtpSecure: boolean;
+  smtpUser: string | null;
+  smtpPass: string | null;
+}) {
+  if (!settings.smtpHost || !settings.smtpPort) return null;
+  return nodemailer.createTransport({
+    host: settings.smtpHost,
+    port: settings.smtpPort,
+    secure: settings.smtpSecure,
+    auth: settings.smtpUser ? { user: settings.smtpUser, pass: settings.smtpPass ?? "" } : undefined,
+  });
+}
+
+/**
+ * POST /api/email-campaigns/audience-preview
+ * Description: Returns audience eligibility counts used in send confirmations.
+ * Request: { audienceFilter?: { type?: string } }
+ * Response: { audience: { totalMatched, validEmail, missingEmail, optedOut, duplicateEmails, finalSendCount } }
+ */
+router.post("/audience-preview", async (req, res) => {
+  const filter = (req.body?.audienceFilter ?? null) as AudienceFilter;
+  const rows = await getAudienceConstituents(filter);
+  const preview = computeAudiencePreview(rows);
+
+  res.json({
+    audience: {
+      totalMatched: preview.totalMatched,
+      validEmail: preview.validEmail,
+      missingEmail: preview.missingEmail,
+      optedOut: preview.optedOut,
+      duplicateEmails: preview.duplicateEmails,
+      suppressionCount: preview.suppressionCount,
+      finalSendCount: preview.finalSendCount,
+    },
+    recipientsSample: preview.recipients.slice(0, 25),
+  });
+});
 
 /** GET /api/email-campaigns — List email campaigns with optional status and name search filters. */
 router.get("/", async (req, res) => {
@@ -101,6 +226,15 @@ router.post("/", async (req, res) => {
     bodyHtml, bodyText, templateJson, scheduledAt, audienceFilter,
   } = req.body;
 
+  if (fromEmail && !isValidEmail(fromEmail)) {
+    res.status(400).json({ error: "fromEmail must be a valid email address." });
+    return;
+  }
+  if (replyToEmail && !isValidEmail(replyToEmail)) {
+    res.status(400).json({ error: "replyToEmail must be a valid email address." });
+    return;
+  }
+
   const campaign = await prisma.emailCampaign.create({
     data: {
       organizationId: ORG_ID,
@@ -141,6 +275,169 @@ router.put("/:id", async (req, res) => {
 });
 
 /**
+ * POST /api/email-campaigns/:id/preview
+ * Description: Returns an HTML/text preview payload for review tooling without sending.
+ * Request: {}
+ * Response: { id, subject, previewText, fromName, fromEmail, bodyHtml, bodyText }
+ */
+router.post("/:id/preview", async (req, res) => {
+  const campaign = await prisma.emailCampaign.findUnique({ where: { id: req.params.id } });
+  if (!campaign) {
+    res.status(404).json({ error: "Campaign not found" });
+    return;
+  }
+
+  res.json({
+    id: campaign.id,
+    subject: campaign.subject,
+    previewText: campaign.previewText,
+    fromName: campaign.fromName,
+    fromEmail: campaign.fromEmail,
+    bodyHtml: campaign.bodyHtml,
+    bodyText: campaign.bodyText,
+    status: campaign.status,
+    scheduledAt: campaign.scheduledAt,
+  });
+});
+
+/**
+ * POST /api/email-campaigns/:id/send-test
+ * Description: Sends a single test email for campaign review without changing campaign send stats.
+ * Request: { toEmail: string }
+ * Response: { success: true }
+ */
+router.post("/:id/send-test", async (req, res) => {
+  const { toEmail } = req.body as { toEmail?: string };
+  if (!toEmail || !isValidEmail(toEmail)) {
+    res.status(400).json({ error: "toEmail is required and must be valid." });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findUnique({ where: { id: req.params.id } });
+  if (!campaign) {
+    res.status(404).json({ error: "Campaign not found" });
+    return;
+  }
+
+  const settings = await prisma.organizationSettings.findUnique({ where: { organizationId: ORG_ID } });
+  if (!settings?.smtpFromEmail) {
+    res.status(400).json({
+      error: "SMTP from email is not configured. Save SMTP settings before sending test emails.",
+    });
+    return;
+  }
+  const transporter = getTransport(settings);
+  if (!transporter) {
+    res.status(400).json({ error: "SMTP host/port are required before sending test emails." });
+    return;
+  }
+
+  await transporter.sendMail({
+    from: `"${settings.smtpFromName || campaign.fromName}" <${settings.smtpFromEmail}>`,
+    to: toEmail.trim().toLowerCase(),
+    subject: `[TEST] ${campaign.subject || campaign.name}`,
+    text: campaign.bodyText || "No text content",
+    html: campaign.bodyHtml || `<p>${campaign.bodyText || "No content"}</p>`,
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      organizationId: ORG_ID,
+      action: "EMAIL_CAMPAIGN_TEST_SENT",
+      entity: "EmailCampaign",
+      entityId: campaign.id,
+      metadata: { toEmail: toEmail.trim().toLowerCase() },
+    },
+  });
+
+  res.json({ success: true });
+});
+
+/**
+ * POST /api/email-campaigns/:id/schedule
+ * Description: Schedules or reschedules a campaign send time and marks status as SCHEDULED.
+ * Request: { scheduledAt: ISO string, timezone?: string }
+ * Response: campaign
+ */
+router.post("/:id/schedule", async (req, res) => {
+  const { scheduledAt, timezone } = req.body as { scheduledAt?: string; timezone?: string };
+  if (!scheduledAt) {
+    res.status(400).json({ error: "scheduledAt is required." });
+    return;
+  }
+
+  const scheduledDate = new Date(scheduledAt);
+  if (Number.isNaN(scheduledDate.getTime()) || scheduledDate <= new Date()) {
+    res.status(400).json({ error: "scheduledAt must be a valid future datetime." });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findUnique({ where: { id: req.params.id } });
+  if (!campaign) {
+    res.status(404).json({ error: "Campaign not found" });
+    return;
+  }
+
+  const updated = await prisma.emailCampaign.update({
+    where: { id: req.params.id },
+    data: {
+      status: "SCHEDULED",
+      scheduledAt: scheduledDate,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      organizationId: ORG_ID,
+      action: "EMAIL_CAMPAIGN_SCHEDULED",
+      entity: "EmailCampaign",
+      entityId: campaign.id,
+      metadata: { scheduledAt: scheduledDate.toISOString(), timezone: timezone ?? "UTC" },
+    },
+  });
+
+  res.json(updated);
+});
+
+/**
+ * POST /api/email-campaigns/:id/cancel
+ * Description: Cancels a scheduled campaign and clears the scheduled send time.
+ * Request: {}
+ * Response: campaign
+ */
+router.post("/:id/cancel", async (req, res) => {
+  const campaign = await prisma.emailCampaign.findUnique({ where: { id: req.params.id } });
+  if (!campaign) {
+    res.status(404).json({ error: "Campaign not found" });
+    return;
+  }
+
+  if (campaign.status !== "SCHEDULED") {
+    res.status(400).json({ error: "Only scheduled campaigns can be cancelled." });
+    return;
+  }
+
+  const updated = await prisma.emailCampaign.update({
+    where: { id: req.params.id },
+    data: {
+      status: "CANCELLED",
+      scheduledAt: null,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      organizationId: ORG_ID,
+      action: "EMAIL_CAMPAIGN_CANCELLED",
+      entity: "EmailCampaign",
+      entityId: campaign.id,
+    },
+  });
+
+  res.json(updated);
+});
+
+/**
  * POST /api/email-campaigns/:id/send — Send a campaign to opted-in constituents via SMTP.
  * Requires SMTP settings in OrganizationSettings. Recipients are filtered by audienceFilter.
  */
@@ -168,18 +465,8 @@ router.post("/:id/send", async (req, res) => {
   }
 
   const filter = campaign.audienceFilter ? (JSON.parse(campaign.audienceFilter) as AudienceFilter) : null;
-  const recipients = await prisma.constituent.findMany({
-    where: {
-      organizationId: ORG_ID,
-      doNotEmail: false,
-      emailOptOut: false,
-      email: { not: null },
-      ...(audienceWhere(filter) as object),
-    },
-    select: { email: true, firstName: true, lastName: true },
-    take: 1000,
-  });
-  const to = recipients.map((r) => r.email).filter((email): email is string => Boolean(email));
+  const preview = computeAudiencePreview(await getAudienceConstituents(filter));
+  const to = preview.recipients;
   const recipientCount = to.length;
 
   if (recipientCount === 0) {
@@ -187,14 +474,11 @@ router.post("/:id/send", async (req, res) => {
     return;
   }
 
-  const transporter = nodemailer.createTransport({
-    host: settings.smtpHost,
-    port: settings.smtpPort,
-    secure: settings.smtpSecure,
-    auth: settings.smtpUser
-      ? { user: settings.smtpUser, pass: settings.smtpPass ?? "" }
-      : undefined,
-  });
+  const transporter = getTransport(settings);
+  if (!transporter) {
+    res.status(400).json({ error: "SMTP host/port are required before sending campaigns." });
+    return;
+  }
 
   await transporter.sendMail({
     from: `"${settings.smtpFromName || campaign.fromName}" <${settings.smtpFromEmail}>`,
@@ -216,6 +500,22 @@ router.post("/:id/send", async (req, res) => {
       clicked: 0,
       bounced: 0,
       unsubscribed: 0,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      organizationId: ORG_ID,
+      action: "EMAIL_CAMPAIGN_SENT",
+      entity: "EmailCampaign",
+      entityId: campaign.id,
+      metadata: {
+        totalMatched: preview.totalMatched,
+        missingEmail: preview.missingEmail,
+        optedOut: preview.optedOut,
+        duplicateEmails: preview.duplicateEmails,
+        finalSendCount: preview.finalSendCount,
+      },
     },
   });
 
