@@ -7,7 +7,8 @@ import Sidebar from "./Sidebar";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
 
-const PUBLIC_PATHS = ["/login", "/email-builder", "/setup"];
+// /compassion routes render their own CompassionShell — bypass AppShell wrapper
+const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/compassion"];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();

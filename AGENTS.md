@@ -191,3 +191,34 @@ Start with the **minimum viable stewardship loop**: add constituents → record 
 <!-- END:nonprofit-crm-domain -->
 
 
+
+<!-- BEGIN:module-rules -->
+## DonorCRM and Compassion CRM Module Rules
+
+OyamaCRM is **one platform with two modules**: DonorCRM and Compassion CRM.
+
+- **DonorCRM** is donor, donation, campaign, communication, and fundraising focused. It uses the **green** (`#16a34a`) accent theme.
+- **Compassion CRM** is client, case, appointment, service, assessment, and care-plan focused. It uses the **blue** (`#2563eb` / `blue-600`) accent theme.
+- Both modules share: authentication, user roles, organization settings, audit logs, import/export infrastructure, and the same design system (layout, typography, card style, spacing).
+- **Donor records and client records are distinct by default.** A shared person layer connects them only when staff intentionally links them.
+- Sensitive client data must NOT appear inside DonorCRM without explicit permission. Donor giving history must NOT appear in Compassion CRM without a clear use case and proper permission.
+- Compassion CRM pages live in `app/compassion/`. DonorCRM pages live in `app/` (top-level routes).
+- Compassion CRM uses `CompassionShell` (blue `CompassionSidebar` + blue-accented `TopBar`). DonorCRM uses `AppShell` (green `Sidebar` + green-accented `TopBar`).
+- Do NOT use donor-specific labels (Donations, Campaigns, YTD Raised, Donor Retention) inside Compassion CRM. Do NOT use client case-management labels (Cases, Care Plans, Assessments) inside DonorCRM unless explicitly linked.
+- The TopBar in both modules shows a **module switcher** so users can switch between DonorCRM and Compassion CRM.
+- Compassion CRM routes must be permission-aware. Add `// TODO: enforce Compassion workspace permission` comments wherever role checks are not yet implemented.
+<!-- END:module-rules -->
+
+<!-- BEGIN:import-mapping-rules -->
+## Import Mapping and Merge Workflow Rules
+
+The import mapper must NEVER fall behind the data model. Treat field mapping, validation, duplicate detection, and merge behavior as part of the same feature.
+
+**Rules for all agents:**
+1. Whenever a new field is added to any CRM model (donor, client, case, household, donation, communication, note, task, appointment, assessment, care-plan), review `app/data-tools/import/` and update `IMPORT_FIELD_MAP` in `app/data-tools/import/fieldMap.ts` if that field should be importable.
+2. Always keep `docs/status/import-tools.md` current with what works, what is missing, and what the next step is.
+3. The import flow must always be: Upload CSV → Preview Data → Map Fields → Validate Required Fields → Detect Duplicates → Review Merge Suggestions → Confirm Import → Show Results → Update Data Quality.
+4. Dry-run mode must be preserved and tested. Never remove it.
+5. Merge workflow must never silently overwrite data. Always show the user what will change.
+6. Add `// TODO: backend API needed` comments where import/merge backend endpoints are not yet wired.
+<!-- END:import-mapping-rules -->

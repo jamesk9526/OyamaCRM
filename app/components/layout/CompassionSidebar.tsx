@@ -1,0 +1,155 @@
+// Blue-themed sidebar navigation for the Compassion CRM module.
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useAuth } from "@/app/components/auth/AuthProvider";
+import type React from "react";
+
+/** Single navigation item definition */
+interface NavItem {
+  label: string;
+  href: string;
+  icon: React.ReactNode;
+}
+
+/** Group of related navigation items with an optional heading */
+interface NavSection {
+  label?: string;
+  items: NavItem[];
+}
+
+/** Helper: wraps an SVG path string in a standard-sized icon element */
+const Ico = ({ d, children, size = 18 }: { d?: string; children?: React.ReactNode; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+    {d ? <path d={d} /> : children}
+  </svg>
+);
+
+/** Heart-pulse icon used in the Compassion CRM logo area */
+const HeartPulseIcon = () => (
+  <svg width={18} height={18} viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+    <path d="M17.5 5.5C16 4 13.5 4 12 6c-1.5-2-4-2-5.5-.5C5 7 5 9.5 7 11.5L12 17l5-5.5c2-2 2-4.5.5-6z" />
+  </svg>
+);
+
+/** Centralized Compassion CRM nav — add new routes here */
+const NAV_SECTIONS: NavSection[] = [
+  {
+    label: "Client Management",
+    items: [
+      { label: "Dashboard",    href: "/compassion/dashboard",    icon: <Ico d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /> },
+      { label: "Clients",      href: "/compassion/clients",      icon: <Ico d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /> },
+      { label: "Families",     href: "/compassion/families",     icon: <Ico d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9" /> },
+      { label: "Cases",        href: "/compassion/cases",        icon: <Ico d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /> },
+      { label: "Assessments",  href: "/compassion/assessments",  icon: <Ico d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /> },
+      { label: "Care Plans",   href: "/compassion/care-plans",   icon: <Ico d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /> },
+    ],
+  },
+  {
+    label: "Engagement",
+    items: [
+      { label: "Appointments", href: "/compassion/appointments", icon: <Ico d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
+      { label: "Activities",   href: "/compassion/activities",   icon: <Ico d="M13 10V3L4 14h7v7l9-11h-7z" /> },
+      { label: "Communications", href: "/compassion/communications", icon: <Ico d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /> },
+      { label: "Tasks",        href: "/compassion/tasks",        icon: <Ico d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /> },
+      { label: "Follow Ups",   href: "/compassion/follow-ups",   icon: <Ico d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /> },
+    ],
+  },
+  {
+    label: "Reports",
+    items: [
+      { label: "Reports",    href: "/compassion/reports",    icon: <Ico d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /> },
+      { label: "Dashboards", href: "/compassion/dashboards", icon: <Ico d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" /> },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      { label: "Data Tools", href: "/compassion/data-tools", icon: <Ico d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" /> },
+      { label: "Settings",   href: "/compassion/settings",   icon: <Ico d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /> },
+    ],
+  },
+];
+
+/**
+ * CompassionSidebar: blue-accented navigation sidebar for the Compassion CRM module.
+ * Active route is highlighted with blue-600 background.
+ * Shows user avatar + name + role at the bottom.
+ */
+export default function CompassionSidebar() {
+  const pathname = usePathname();
+  const { user } = useAuth();
+
+  const initials = user
+    ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
+    : "?";
+
+  return (
+    <aside className="w-52 shrink-0 bg-white border-r border-blue-100 flex flex-col overflow-y-auto select-none">
+      {/* Logo area */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-blue-100">
+        <span className="w-7 h-7 rounded-md bg-blue-600 flex items-center justify-center text-white shrink-0">
+          <HeartPulseIcon />
+        </span>
+        <span className="font-semibold text-blue-900 text-sm tracking-tight leading-tight">
+          Compassion<br /><span className="text-blue-600">CRM</span>
+        </span>
+      </div>
+
+      {/* Navigation sections */}
+      <div className="flex-1 pt-2">
+        {NAV_SECTIONS.map((section, si) => (
+          <div key={si} className="pb-1">
+            {section.label && (
+              <p className="px-4 pt-3 pb-1 text-[10px] font-bold text-blue-300 uppercase tracking-widest">
+                {section.label}
+              </p>
+            )}
+            <nav>
+              {section.items.map((item) => {
+                // Dashboard uses exact match; all others use prefix match
+                const active = item.href === "/compassion/dashboard"
+                  ? pathname === "/compassion/dashboard"
+                  : pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`mx-2 mb-0.5 flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium transition-colors ${
+                      active
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "text-gray-600 hover:bg-blue-50 hover:text-blue-900"
+                    }`}
+                  >
+                    {/* Icon color inherits from text */}
+                    <span className={`shrink-0 ${active ? "opacity-100" : "opacity-50"}`}>
+                      {item.icon}
+                    </span>
+                    <span className="truncate">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        ))}
+      </div>
+
+      {/* User block at bottom */}
+      {user && (
+        <div className="border-t border-blue-100 px-4 py-3 flex items-center gap-2">
+          <span className="w-7 h-7 rounded-full bg-blue-700 border-2 border-blue-500 text-white flex items-center justify-center text-xs font-bold shrink-0">
+            {initials}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-gray-900 truncate">{user.firstName} {user.lastName}</p>
+            <p className="text-[10px] text-gray-400 capitalize truncate">{user.role}</p>
+          </div>
+        </div>
+      )}
+    </aside>
+  );
+}

@@ -1,7 +1,8 @@
+// TopBar: global navigation header with module switcher, search, and user controls.
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -178,23 +179,29 @@ function GlobalSearch() {
 }
 
 export default function TopBar() {
+  const pathname = usePathname();
+  /** Detect which module is active based on the current path */
+  const isCompassion = pathname.startsWith("/compassion");
+
   return (
     <header className="h-14 shrink-0 flex items-center z-10" style={{ background: "linear-gradient(to right, #ffffff 208px, #1a2332 208px)" }}>
 
       {/* ── Brand (white section, matches sidebar w-52 = 208px) ── */}
       <div className="w-52 shrink-0 flex items-center gap-2 px-4 bg-white h-full border-b border-gray-200">
-        <span className="w-7 h-7 rounded-md bg-green-600 flex items-center justify-center text-white font-bold text-sm select-none">
+        <span className={`w-7 h-7 rounded-md flex items-center justify-center text-white font-bold text-sm select-none ${isCompassion ? "bg-blue-600" : "bg-green-600"}`}>
           O
         </span>
         <span className="font-semibold text-gray-900 text-base tracking-tight">
-          Oyama<span className="text-green-600">CRM</span>
+          Oyama<span className={isCompassion ? "text-blue-600" : "text-green-600"}>CRM</span>
         </span>
       </div>
 
       {/* ── Dark right section ── */}
       <div className="flex flex-1 items-center px-5 bg-[#1a2332] h-full border-b border-[#0f1924]">
-        {/* Move controls to the right cluster for a cleaner top bar balance */}
         <div className="ml-auto flex items-center gap-3 w-full max-w-[980px] justify-end">
+          {/* Module switcher — sits before search */}
+          <ModuleSwitcher isCompassion={isCompassion} />
+
           <GlobalSearch />
 
           {/* Divider */}
@@ -231,14 +238,14 @@ export default function TopBar() {
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
           </svg>
-          {/* Unread dot */}
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-green-500 rounded-full border-2 border-[#1a2332]" />
+          {/* Unread dot — color matches module */}
+          <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full border-2 border-[#1a2332] ${isCompassion ? "bg-blue-400" : "bg-green-500"}`} />
         </button>
 
         {/* Icon slot: Quick Add */}
         <button
           title="Quick Add"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white text-sm font-medium transition-colors shrink-0"
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-sm font-medium transition-colors shrink-0 ${isCompassion ? "bg-blue-600 hover:bg-blue-500" : "bg-green-600 hover:bg-green-500"}`}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
@@ -247,14 +254,78 @@ export default function TopBar() {
         </button>
 
           {/* User avatar + menu */}
-          <UserMenu />
+          <UserMenu isCompassion={isCompassion} />
         </div>
       </div>
     </header>
   );
 }
 
-function UserMenu() {
+/**
+ * ModuleSwitcher: pill/dropdown letting users switch between DonorCRM and Compassion CRM.
+ * Renders green for DonorCRM, blue for Compassion CRM.
+ */
+function ModuleSwitcher({ isCompassion }: { isCompassion: boolean }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+
+  const modules = [
+    { key: "donor", label: "DonorCRM", href: "/", color: "bg-green-500", active: !isCompassion },
+    { key: "compassion", label: "Compassion CRM", href: "/compassion/dashboard", color: "bg-blue-500", active: isCompassion },
+  ];
+  const current = modules.find((m) => m.active) ?? modules[0];
+
+  function switchTo(href: string) {
+    setOpen(false);
+    router.push(href);
+  }
+
+  return (
+    <div className="relative shrink-0">
+      {/* Current module pill */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors border border-white/20"
+      >
+        <span className={`w-2 h-2 rounded-full ${current.color}`} />
+        <span>{current.label}</span>
+        {/* Chevron down */}
+        <svg className="w-3 h-3 text-gray-300 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full mt-2 w-52 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
+            <p className="px-3 pt-2.5 pb-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Switch Module</p>
+            {modules.map((m) => (
+              <button
+                key={m.key}
+                onClick={() => switchTo(m.href)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm text-left transition-colors ${m.active ? "bg-gray-50 text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"}`}
+              >
+                <span className={`w-2.5 h-2.5 rounded-full ${m.color}`} />
+                <span>{m.label}</span>
+                {m.active && (
+                  <svg className="w-4 h-4 text-gray-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+
+/** UserMenu: avatar button with dropdown for profile info and sign-out. Tints avatar by module. */
+function UserMenu({ isCompassion }: { isCompassion: boolean }) {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -268,12 +339,17 @@ function UserMenu() {
     router.replace("/login");
   }
 
+  /** Avatar ring color follows module: green for DonorCRM, blue for Compassion CRM */
+  const avatarCls = isCompassion
+    ? "bg-blue-700 border-blue-500"
+    : "bg-green-700 border-green-500";
+
   return (
     <div className="relative shrink-0">
       <button
         onClick={() => setOpen((v) => !v)}
         title={user ? `${user.firstName} ${user.lastName}` : "Account"}
-        className="w-8 h-8 rounded-full bg-green-700 border-2 border-green-500 text-white flex items-center justify-center text-xs font-bold hover:bg-green-600 transition-colors"
+        className={`w-8 h-8 rounded-full border-2 text-white flex items-center justify-center text-xs font-bold hover:opacity-90 transition-colors ${avatarCls}`}
       >
         {initials}
       </button>

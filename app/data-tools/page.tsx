@@ -1,6 +1,9 @@
+// Data Tools page: CSV export, data-quality metrics, CSV import wizard, and merge workflow.
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import ImportWizard from "./import/ImportWizard";
+import MergeWorkflow from "./merge/MergeWorkflow";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -117,9 +120,13 @@ export default function DataToolsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-gray-900">Data Tools</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Export real data and monitor profile quality.</p>
+        <p className="text-sm text-gray-500 mt-0.5">Export real data, import constituents, detect duplicates, and monitor profile quality.</p>
       </div>
 
+      {/* ── Import Constituents wizard ── */}
+      <ImportWizard existingConstituents={constituents} />
+
+      {/* ── Export Data ── */}
       <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
         <h2 className="text-sm font-semibold text-gray-900">Export Data</h2>
         <p className="text-sm text-gray-500">Download live CRM records as CSV.</p>
@@ -135,6 +142,7 @@ export default function DataToolsPage() {
         </div>
       </div>
 
+      {/* ── Data Quality ── */}
       <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
         <h2 className="text-sm font-semibold text-gray-900">Data Quality</h2>
         <div className="grid gap-4 sm:grid-cols-3">
@@ -144,9 +152,8 @@ export default function DataToolsPage() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-        Import tools and merge workflow are next. Export and data-quality metrics now use live data.
-      </div>
+      {/* ── Merge Duplicate Records ── */}
+      <MergeWorkflow constituents={constituents} />
     </div>
   );
 }
