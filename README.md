@@ -1,149 +1,188 @@
-# OyamaCRM — Public Application Goals & Product Overview
+<div align="center">
 
-OyamaCRM is a nonprofit-first CRM platform focused on donor stewardship, fundraising operations, and (planned) compassion/client-care workflows. The product is designed to give nonprofit teams one calm, professional workspace for managing constituents, donations, campaigns, tasks, communications, and operational reporting.
+<img src="https://img.shields.io/badge/OyamaCRM-Nonprofit%20Platform-16a34a?style=for-the-badge&logoColor=white" alt="OyamaCRM" height="36">
 
----
+# OyamaCRM
 
-## 1) Application Goal
+### One platform. Two modules. Built for the mission.
 
-The core goal of OyamaCRM is to help organizations run a complete stewardship loop:
+**DonorCRM** · Donor stewardship, fundraising campaigns, and retention analytics  
+**Compassion CRM** · Client cases, care plans, appointments, and caseload management
 
-1. Add and organize constituents
-2. Record and track donations
-3. Trigger follow-up tasks and communication
-4. Track campaign performance and retention
-5. Use role-based settings and operational dashboards to improve decisions
+<br>
 
-This aligns the product with real nonprofit day-to-day work, not generic sales CRM patterns.
+[![License: Free Forever](https://img.shields.io/badge/License-Free%20Forever%20(Self--Hosted)-16a34a?style=flat-square)](##-license)
+[![Built with Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
+[![Prisma ORM](https://img.shields.io/badge/Prisma-MySQL-2D3748?style=flat-square&logo=prisma)](https://prisma.io)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript)](https://typescriptlang.org)
 
----
-
-## 2) Product Vision
-
-OyamaCRM is being built as:
-
-- **Modular**: each feature area has its own route and components
-- **Professional**: Bloomerang-inspired clean UI with white/gray surfaces and green action accents
-- **Expandable**: settings/workspace foundation supports future compassion/client-care modules
-- **Operationally practical**: donor, campaign, task, and communication workflows live in one app shell
+</div>
 
 ---
 
-## 3) Current UI Screenshots
+## 🟢 DonorCRM — Fundraising & Donor Stewardship
 
-> Provided product snapshots (current state):
+> A calm, professional workspace for managing constituents, donations, campaigns, tasks, and retention — built specifically for nonprofits, not adapted from a generic sales CRM.
 
-### Dashboard
-![OyamaCRM dashboard screenshot](https://github.com/user-attachments/assets/2fbaaf4c-05ae-42a1-b0ef-ee8dd0d9761b)
+![DonorCRM Dashboard](https://github.com/user-attachments/assets/2dfb8c06-a753-440f-a3ec-f806c6cd47bc)
 
-### Donations / Operations View
-![OyamaCRM donations screenshot](https://github.com/user-attachments/assets/a0a4174f-3e01-4173-967c-c7950b0a99c9)
+<details>
+<summary><strong>DonorCRM Features</strong></summary>
 
-### Campaigns / Management View
-![OyamaCRM campaigns screenshot](https://github.com/user-attachments/assets/2de54f35-cefc-4c1c-b469-6d5c482daffe)
+| Area | What's Included |
+|------|----------------|
+| **Dashboard** | Revenue progress ring, donor retention rate, tasks widget, totals-by-level bar chart, real-time refresh |
+| **Constituents** | Full profiles, giving history, engagement timeline, household relationships, donor status tracking |
+| **Donations** | One-time & recurring gifts, pledge management, batch entry, receipt generation, payment methods |
+| **Campaigns** | Goal tracking, multi-channel campaigns, progress charts, peer-to-peer fundraising, matching gifts |
+| **Communications** | Email builder, templates, segmented audiences, automation rules, open/click tracking |
+| **Tasks** | Assignment, due dates, priority levels, stewardship workflow templates, overdue alerts |
+| **Reports** | YTD revenue, donor retention, giving trends, campaign performance, exportable |
+| **Data Tools** | CSV import wizard with field mapping, duplicate detection, merge workflow, dry-run mode |
+| **Settings** | Organization profile, users & roles, audit logs, system status, feature readiness |
 
----
-
-## 4) What Is Working Now
-
-- App shell with top navigation + sidebar
-- Dashboard widgets (revenue progress, retention, tasks, key metrics)
-- Constituents list/detail/edit flows
-- Donations list and record-entry flows
-- Campaign list/cards and creation flow
-- Task management table and completion actions
-- Communications and automations modules (foundational)
-- Settings foundation with dedicated settings workspace navigation
-- Setup detection and onboarding flow (`/setup`) with backend completion enforcement
-- Settings → System and Settings → System Status & Feature Readiness pages
+</details>
 
 ---
 
-## 5) What Is In Foundation / In Progress
+## 🔵 Compassion CRM — Client Care & Case Management
 
-Based on current planning packets:
+> A dedicated blue-themed workspace for social service teams — built alongside DonorCRM in the same platform but with completely separate data boundaries and permissions.
 
-- Settings sections are scaffolded; deeper tabs need full data APIs and forms
-- Users, roles/scopes, and workspace permission matrix need full implementation
-- API response envelope standardization should be completed across server routes
-- Route-level workspace + permission enforcement should be completed for all sensitive routes
-- Expanded audit logging and retention tooling needs to be finished
-- Communications tooling still needs media uploads, merge fields, timeline logging, and provider-backed tracking
+![Compassion CRM Dashboard](https://github.com/user-attachments/assets/8c1020ba-6fcc-4dfa-99a5-1ffcf2fc177d)
 
----
+<details>
+<summary><strong>Compassion CRM Features</strong></summary>
 
-## 6) Build Phases (High-Level)
+| Area | What's Included |
+|------|----------------|
+| **Dashboard** | Caseload overview donut, cases-by-status chart, today's schedule, recent activity feed, alerts & reminders |
+| **Clients** | Full client profiles, family relationships, contact info, communication preferences, service history |
+| **Cases** | Open/in-progress/closed case tracking, case notes, status management, assigned workers |
+| **Assessments** | Structured assessment forms, scoring, progress tracking, review history |
+| **Care Plans** | Goal-based care plans, service assignments, expiry tracking, review reminders |
+| **Appointments** | Calendar scheduling, home visits, internal meetings, confirmation workflows |
+| **Activities** | Activity logging, interaction history, worker notes, time tracking |
+| **Follow Ups** | Automated follow-up reminders, overdue alerts, worker assignment |
+| **Reports** | Caseload reports, service utilization, outcomes dashboards |
 
-1. **Foundation & Auth**
-2. **Constituents & Timeline**
-3. **Donations, Funds, Campaigns**
-4. **Receipts, Tasks, Communications**
-5. **Dashboard & Reports**
-6. **Groups, Segments, Automation**
-7. **Events & Gala**
-8. **Security, Integrations, Ops**
-9. **Compassion Workspace**
-
-Additional recommended insertion:
-
-- **Phase 00 — Setup, Onboarding, Settings, Workspace Bootstrap**
+</details>
 
 ---
 
-## 7) Local Development
+## 🏗️ Architecture
+
+```
+OyamaCRM
+├── app/                        # Next.js 16 frontend
+│   ├── components/
+│   │   ├── layout/             # AppShell (green), CompassionShell (blue), TopBar, Sidebars
+│   │   ├── ui/                 # Shared primitives (buttons, cards, badges, inputs)
+│   │   └── dashboard/          # Widget components (RevenueProgress, DonorRetention, etc.)
+│   ├── compassion/             # Compassion CRM module — /compassion/* routes
+│   ├── settings/               # Settings workspace — /settings/* routes
+│   ├── data-tools/import/      # CSV import wizard (fieldMap.ts, ImportWizard.tsx)
+│   └── setup/                  # First-run onboarding flow
+├── server/src/                 # Express 5 API
+│   └── routes/                 # REST endpoints (auth, constituents, donations, etc.)
+└── prisma/                     # MySQL schema + migrations + seed
+```
+
+**Module boundary rule:** Donor records and client records are distinct. Sensitive client data never surfaces in DonorCRM. Donor giving history never surfaces in Compassion CRM without explicit permission.
+
+---
+
+## ⚡ Quick Start
 
 ```bash
-# install deps
-npm install --force
+# 1. Clone and install
+git clone https://github.com/jamesk9526/OyamaCRM.git
+cd OyamaCRM
+npm install --force          # or: pnpm install
 
-# web app
-npm run dev
+# 2. Configure environment
+cp .env.example .env
+# Edit .env — set DATABASE_URL, JWT_SECRET, API_PORT
 
-# web + API
+# 3. Initialize database
+npx prisma migrate dev
+npx prisma db seed
+
+# 4. Start development (web + API together)
 npm run dev:all
 ```
 
-Open: `http://localhost:3000`
+Open **http://localhost:3000** — the setup wizard will guide you through first-run configuration.
 
-Copy `.env.example` to `.env` and provide a working `DATABASE_URL` before running smoke tests or any Prisma-backed API flows.
+> **Dev credentials (after seed):**  
+> `admin@hopefoundation.org` / `admin123!`  
+> `james@hopefoundation.org` / `staff123!`
 
-### Version & System Status
+### Health & Status Endpoints
 
-- API health: `GET /api/health`
-- System runtime page: `/settings/system`
-- Feature readiness center: `/settings/system-status`
-
----
-
-## 8) Architecture Snapshot
-
-```text
-app/
-  components/
-    layout/      # App shell pieces (TopBar, Sidebar, AppShell)
-    ui/          # Reusable UI primitives
-    dashboard/   # Dashboard widgets
-    settings/    # Settings navigation + placeholders
-  setup/         # First-run onboarding UI foundation
-  settings/      # Settings workspace + tab routes
-```
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/health` | API health + version info |
+| `/settings/system` | Runtime version page |
+| `/settings/system-status` | Feature readiness center |
 
 ---
 
-## 9) Design Direction
+## 💡 Design System
 
-- White workspace background
-- Light gray card surfaces
-- Green-600 (`#16a34a`) as primary action/accent color
-- Minimal iconography, no emoji-heavy UI
-- Dense but readable data tables and management cards
+| Token | Value | Used For |
+|-------|-------|---------|
+| **Green-600** | `#16a34a` | DonorCRM accents, primary actions, active states |
+| **Blue-600** | `#2563eb` | Compassion CRM accents, case management UI |
+| **White** | `#ffffff` | Page backgrounds, card surfaces |
+| **Gray-50** | `#f9fafb` | Content area backgrounds |
+| **Gray-200** | `#e5e7eb` | Borders, dividers |
+
+Both modules share the same layout shell structure, typography, card style, spacing, and component primitives — only the accent color differs.
 
 ---
 
-## 10) Next Product Milestones
+## 📋 License
 
-1. Complete users + roles/scopes management pages
-2. Enforce workspace-aware RBAC across backend routes
-3. Complete audit logging surface and audit views
-4. Expand settings tabs from placeholders into full operational panels
-5. Add media uploads, merge fields, and communication history to the email/communications suite
+### Free Forever — No Strings Attached
+
+OyamaCRM is **free forever** under the following conditions:
+
+#### ✅ Always Free
+| Use Case | Free? |
+|----------|-------|
+| **Self-hosted with your own GPU** (AI/LLM features powered by local models) | **Free forever** |
+| **Simple workflow users** — organizations using core CRM features without AI or premium integrations | **Free forever** |
+| Development, testing, evaluation | **Free forever** |
+| Non-commercial nonprofit use (self-hosted) | **Free forever** |
+
+#### 💼 Commercial / Hosted Plans *(coming soon)*
+Cloud-hosted deployment, managed infrastructure, premium SLAs, and commercial support tiers will be available separately. Self-hosted users are never affected.
+
+> **The promise:** If you run OyamaCRM on your own server — whether you're a small nonprofit tracking 50 donors or a social services team managing 500 cases — you will never pay a license fee. Ever.
+
+---
+
+## 🗺️ Roadmap
+
+- [x] App shell, auth, setup/onboarding flow
+- [x] Constituents, donations, campaigns, tasks
+- [x] Communications & automations (foundation)
+- [x] Settings workspace with system status
+- [x] Compassion CRM module (dashboard, clients, cases, care plans)
+- [x] CSV import wizard with field mapping & duplicate detection
+- [ ] Full users + roles/RBAC enforcement
+- [ ] Email provider integration (SendGrid / Mailgun)
+- [ ] AI-assisted donor insights (self-hosted LLM support)
+- [ ] Events & gala management
+- [ ] Mobile-responsive layouts
+- [ ] Public giving pages / donation forms
+- [ ] Advanced reporting & data exports
+
+---
+
+<div align="center">
+
+Built for nonprofits, by people who care about the mission. 💚
+
+</div>
