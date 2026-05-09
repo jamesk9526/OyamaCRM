@@ -50,3 +50,4 @@ dist/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+/REFERANCE_SOFTWARE/GalaSoft

@@ -30,6 +30,10 @@ interface Table {
   name: string;
   capacity: number;
   notes?: string;
+  tableNumber?: number;
+  isSponsored: boolean;
+  hostName?: string;
+  shape: string;
   guests: Guest[];
   _count: { guests: number };
 }
@@ -139,12 +143,20 @@ export default function EventTablesPage() {
   }
 
   /** Create new table */
-  async function createTable(name: string, capacity: number, notes?: string) {
+  async function createTable(
+    name: string,
+    capacity: number,
+    notes?: string,
+    tableNumber?: number,
+    isSponsored?: boolean,
+    hostName?: string,
+    shape?: string,
+  ) {
     if (!selectedEventId) return;
     try {
       await apiFetch(`/api/events/${selectedEventId}/tables`, {
         method: "POST",
-        body: JSON.stringify({ name, capacity, notes }),
+        body: JSON.stringify({ name, capacity, notes, tableNumber, isSponsored, hostName, shape }),
       });
       setShowNewTableModal(false);
       loadData();
@@ -154,11 +166,20 @@ export default function EventTablesPage() {
   }
 
   /** Update table */
-  async function updateTable(tableId: string, name: string, capacity: number, notes?: string) {
+  async function updateTable(
+    tableId: string,
+    name: string,
+    capacity: number,
+    notes?: string,
+    tableNumber?: number,
+    isSponsored?: boolean,
+    hostName?: string,
+    shape?: string,
+  ) {
     try {
       await apiFetch(`/api/events/tables/${tableId}`, {
         method: "PATCH",
-        body: JSON.stringify({ name, capacity, notes }),
+        body: JSON.stringify({ name, capacity, notes, tableNumber, isSponsored, hostName, shape }),
       });
       setEditingTable(null);
       loadData();
@@ -319,13 +340,25 @@ function TableCard({
   const hasOpenSeats = table._count.guests < table.capacity;
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4">
+    <div className={`bg-white rounded-lg border p-4 ${table.isSponsored ? "border-amber-300 ring-1 ring-amber-200" : "border-gray-200"}`}>
       <div className="flex items-start justify-between mb-3">
         <div>
-          <h3 className="text-lg font-bold text-gray-900">{table.name}</h3>
-          <p className="text-sm text-gray-500">
+          <div className="flex items-center gap-2 flex-wrap">
+            {table.tableNumber != null && (
+              <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded">#{table.tableNumber}</span>
+            )}
+            <h3 className="text-base font-bold text-gray-900">{table.name}</h3>
+            {table.isSponsored && (
+              <span className="text-xs font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">Sponsored</span>
+            )}
+          </div>
+          <p className="text-sm text-gray-500 mt-0.5">
             {table._count.guests} / {table.capacity} seats
+            {table.shape !== "round" && <> · <span className="capitalize">{table.shape}</span></>}
           </p>
+          {table.hostName && (
+            <p className="text-xs text-gray-400 mt-0.5">Host: {table.hostName}</p>
+          )}
         </div>
         <div className="flex gap-2">
           <button
@@ -452,39 +485,84 @@ function NewTableModal({
   onCreate,
 }: {
   onClose: () => void;
-  onCreate: (name: string, capacity: number, notes?: string) => void;
+  onCreate: (name: string, capacity: number, notes?: string, tableNumber?: number, isSponsored?: boolean, hostName?: string, shape?: string) => void;
 }) {
   const [name, setName] = useState("");
   const [capacity, setCapacity] = useState(10);
   const [notes, setNotes] = useState("");
+  const [tableNumber, setTableNumber] = useState("");
+  const [isSponsored, setIsSponsored] = useState(false);
+  const [hostName, setHostName] = useState("");
+  const [shape, setShape] = useState("round");
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-bold text-gray-900 mb-4">Create New Table</h2>
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Table Name *
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Table 1"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Table Name *
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Table 1"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Table # (optional)
+              </label>
+              <input
+                type="number"
+                value={tableNumber}
+                onChange={(e) => setTableNumber(e.target.value)}
+                min="1"
+                placeholder="e.g. 1"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Capacity *
+              </label>
+              <input
+                type="number"
+                value={capacity}
+                onChange={(e) => setCapacity(Number(e.target.value))}
+                min="1"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Shape</label>
+              <select
+                value={shape}
+                onChange={(e) => setShape(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
+              >
+                <option value="round">Round</option>
+                <option value="rectangular">Rectangular</option>
+                <option value="square">Square</option>
+              </select>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Capacity *
+              Host Name (optional)
             </label>
             <input
-              type="number"
-              value={capacity}
-              onChange={(e) => setCapacity(Number(e.target.value))}
-              min="1"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              type="text"
+              value={hostName}
+              onChange={(e) => setHostName(e.target.value)}
+              placeholder="Primary host or donor name"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
           </div>
           <div>
@@ -496,8 +574,20 @@ function NewTableModal({
               onChange={(e) => setNotes(e.target.value)}
               placeholder="VIP table, sponsor table, etc."
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id="isSponsored"
+              type="checkbox"
+              checked={isSponsored}
+              onChange={(e) => setIsSponsored(e.target.checked)}
+              className="w-4 h-4 text-amber-600 border-gray-300 rounded"
+            />
+            <label htmlFor="isSponsored" className="text-sm font-semibold text-gray-700 cursor-pointer">
+              Sponsored Table
+            </label>
           </div>
         </div>
         <div className="flex gap-3 mt-6">
@@ -510,7 +600,15 @@ function NewTableModal({
           <button
             onClick={() => {
               if (name.trim()) {
-                onCreate(name.trim(), capacity, notes.trim() || undefined);
+                onCreate(
+                  name.trim(),
+                  capacity,
+                  notes.trim() || undefined,
+                  tableNumber ? Number(tableNumber) : undefined,
+                  isSponsored,
+                  hostName.trim() || undefined,
+                  shape,
+                );
               }
             }}
             disabled={!name.trim()}
@@ -532,38 +630,81 @@ function EditTableModal({
 }: {
   table: Table;
   onClose: () => void;
-  onUpdate: (tableId: string, name: string, capacity: number, notes?: string) => void;
+  onUpdate: (tableId: string, name: string, capacity: number, notes?: string, tableNumber?: number, isSponsored?: boolean, hostName?: string, shape?: string) => void;
 }) {
   const [name, setName] = useState(table.name);
   const [capacity, setCapacity] = useState(table.capacity);
   const [notes, setNotes] = useState(table.notes || "");
+  const [tableNumber, setTableNumber] = useState(table.tableNumber ? String(table.tableNumber) : "");
+  const [isSponsored, setIsSponsored] = useState(table.isSponsored);
+  const [hostName, setHostName] = useState(table.hostName || "");
+  const [shape, setShape] = useState(table.shape || "round");
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-bold text-gray-900 mb-4">Edit Table</h2>
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Table Name *
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Table Name *
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Table # (optional)
+              </label>
+              <input
+                type="number"
+                value={tableNumber}
+                onChange={(e) => setTableNumber(e.target.value)}
+                min="1"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Capacity *
+              </label>
+              <input
+                type="number"
+                value={capacity}
+                onChange={(e) => setCapacity(Number(e.target.value))}
+                min="1"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Shape</label>
+              <select
+                value={shape}
+                onChange={(e) => setShape(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
+              >
+                <option value="round">Round</option>
+                <option value="rectangular">Rectangular</option>
+                <option value="square">Square</option>
+              </select>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Capacity *
+              Host Name (optional)
             </label>
             <input
-              type="number"
-              value={capacity}
-              onChange={(e) => setCapacity(Number(e.target.value))}
-              min="1"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              type="text"
+              value={hostName}
+              onChange={(e) => setHostName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
           </div>
           <div>
@@ -574,8 +715,20 @@ function EditTableModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id="editIsSponsored"
+              type="checkbox"
+              checked={isSponsored}
+              onChange={(e) => setIsSponsored(e.target.checked)}
+              className="w-4 h-4 text-amber-600 border-gray-300 rounded"
+            />
+            <label htmlFor="editIsSponsored" className="text-sm font-semibold text-gray-700 cursor-pointer">
+              Sponsored Table
+            </label>
           </div>
         </div>
         <div className="flex gap-3 mt-6">
@@ -588,7 +741,16 @@ function EditTableModal({
           <button
             onClick={() => {
               if (name.trim()) {
-                onUpdate(table.id, name.trim(), capacity, notes.trim() || undefined);
+                onUpdate(
+                  table.id,
+                  name.trim(),
+                  capacity,
+                  notes.trim() || undefined,
+                  tableNumber ? Number(tableNumber) : undefined,
+                  isSponsored,
+                  hostName.trim() || undefined,
+                  shape,
+                );
               }
             }}
             disabled={!name.trim()}

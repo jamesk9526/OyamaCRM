@@ -365,7 +365,7 @@ router.post("/:eventId/ticket-types", async (req, res) => {
     return;
   }
 
-  const { name, description, price, capacity, available, sortOrder, active } = req.body;
+  const { name, description, price, capacity, available, sortOrder, active, isTable, seatsIncluded, minPerOrder, maxPerOrder } = req.body;
 
   const ticketType = await prisma.ticketType.create({
     data: {
@@ -377,6 +377,10 @@ router.post("/:eventId/ticket-types", async (req, res) => {
       available: available ?? capacity ?? undefined,
       sortOrder: sortOrder ?? 0,
       active: active ?? true,
+      isTable: isTable ?? false,
+      seatsIncluded: seatsIncluded ?? 1,
+      minPerOrder: minPerOrder ?? 1,
+      maxPerOrder: maxPerOrder ?? undefined,
     },
     include: { _count: { select: { orderItems: true, guests: true } } },
   });
@@ -401,7 +405,7 @@ router.patch("/:eventId/ticket-types/:id", async (req, res) => {
     return;
   }
 
-  const { name, description, price, capacity, available, sortOrder, active } = req.body;
+  const { name, description, price, capacity, available, sortOrder, active, isTable, seatsIncluded, minPerOrder, maxPerOrder } = req.body;
 
   const ticketType = await prisma.ticketType.update({
     where: { id: req.params.id, eventId: req.params.eventId },
@@ -413,6 +417,10 @@ router.patch("/:eventId/ticket-types/:id", async (req, res) => {
       ...(available !== undefined && { available }),
       ...(sortOrder !== undefined && { sortOrder }),
       ...(active !== undefined && { active }),
+      ...(isTable !== undefined && { isTable }),
+      ...(seatsIncluded !== undefined && { seatsIncluded }),
+      ...(minPerOrder !== undefined && { minPerOrder }),
+      ...(maxPerOrder !== undefined && { maxPerOrder }),
     },
     include: { _count: { select: { orderItems: true, guests: true } } },
   });
@@ -693,6 +701,7 @@ router.get("/guests", async (req, res) => {
       { firstName: { contains: searchStr } },
       { lastName: { contains: searchStr } },
       { email: { contains: searchStr } },
+      { checkinCode: { contains: searchStr } },
       { constituent: { firstName: { contains: searchStr } } },
       { constituent: { lastName: { contains: searchStr } } },
     ];
@@ -711,6 +720,36 @@ router.get("/guests", async (req, res) => {
   });
 
   res.json(guests);
+});
+
+/** GET /api/events/guests/by-code/:code — Look up a guest by their unique checkin code. */
+router.get("/guests/by-code/:code", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const guest = await prisma.eventGuest.findFirst({
+    where: {
+      checkinCode: req.params.code.toUpperCase(),
+      event: { organizationId },
+    },
+    include: {
+      event: { select: { id: true, name: true, startDate: true } },
+      constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
+      ticketType: { select: { id: true, name: true } },
+      order: { select: { id: true, orderNumber: true, status: true } },
+      table: { select: { id: true, name: true } },
+    },
+  });
+
+  if (!guest) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "No guest found with that check-in code." } });
+    return;
+  }
+
+  res.json(guest);
 });
 
 /** GET /api/events/:eventId/guests — List guests for a specific event. */
@@ -773,7 +812,25 @@ router.post("/:eventId/guests", async (req, res) => {
     dietaryRestrictions,
     specialNeeds,
     notes,
+    paymentStatus,
+    rsvpStatus,
+    mealPreference,
+    seatNumber,
+    partyName,
   } = req.body;
+
+  // Generate a unique 6-character alphanumeric check-in code.
+  async function generateCheckinCode(): Promise<string> {
+    for (let attempts = 0; attempts < 10; attempts++) {
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const existing = await prisma.eventGuest.findUnique({ where: { checkinCode: code } });
+      if (!existing) return code;
+    }
+    // Fallback: use timestamp if random codes keep colliding
+    return Date.now().toString(36).toUpperCase().slice(-6);
+  }
+
+  const checkinCode = await generateCheckinCode();
 
   const guest = await prisma.eventGuest.create({
     data: {
@@ -789,6 +846,12 @@ router.post("/:eventId/guests", async (req, res) => {
       dietaryRestrictions: dietaryRestrictions ?? undefined,
       specialNeeds: specialNeeds ?? undefined,
       notes: notes ?? undefined,
+      checkinCode,
+      paymentStatus: paymentStatus ?? undefined,
+      rsvpStatus: rsvpStatus ?? undefined,
+      mealPreference: mealPreference ?? undefined,
+      seatNumber: seatNumber ?? undefined,
+      partyName: partyName ?? undefined,
     },
     include: {
       event: { select: { id: true, name: true } },
@@ -850,6 +913,11 @@ router.patch("/guests/:guestId", async (req, res) => {
     dietaryRestrictions,
     specialNeeds,
     notes,
+    paymentStatus,
+    rsvpStatus,
+    mealPreference,
+    seatNumber,
+    partyName,
   } = req.body;
 
   const updated = await prisma.eventGuest.update({
@@ -867,6 +935,11 @@ router.patch("/guests/:guestId", async (req, res) => {
       ...(dietaryRestrictions !== undefined && { dietaryRestrictions }),
       ...(specialNeeds !== undefined && { specialNeeds }),
       ...(notes !== undefined && { notes }),
+      ...(paymentStatus !== undefined && { paymentStatus }),
+      ...(rsvpStatus !== undefined && { rsvpStatus }),
+      ...(mealPreference !== undefined && { mealPreference }),
+      ...(seatNumber !== undefined && { seatNumber }),
+      ...(partyName !== undefined && { partyName }),
     },
     include: {
       event: { select: { id: true, name: true, startDate: true } },
@@ -956,7 +1029,7 @@ router.post("/:eventId/tables", async (req, res) => {
     return;
   }
 
-  const { name, capacity, notes } = req.body;
+  const { name, capacity, notes, tableNumber, isSponsored, hostName, xPosition, yPosition, shape } = req.body;
 
   const table = await prisma.eventTable.create({
     data: {
@@ -964,6 +1037,12 @@ router.post("/:eventId/tables", async (req, res) => {
       name,
       capacity: capacity ?? 10,
       notes: notes ?? undefined,
+      tableNumber: tableNumber ?? undefined,
+      isSponsored: isSponsored ?? false,
+      hostName: hostName ?? undefined,
+      xPosition: xPosition ?? 0,
+      yPosition: yPosition ?? 0,
+      shape: shape ?? "round",
     },
     include: {
       guests: {
@@ -998,7 +1077,7 @@ router.patch("/tables/:tableId", async (req, res) => {
     return;
   }
 
-  const { name, capacity, notes } = req.body;
+  const { name, capacity, notes, tableNumber, isSponsored, hostName, xPosition, yPosition, shape } = req.body;
 
   const updated = await prisma.eventTable.update({
     where: { id: req.params.tableId },
@@ -1006,6 +1085,12 @@ router.patch("/tables/:tableId", async (req, res) => {
       ...(name !== undefined && { name }),
       ...(capacity !== undefined && { capacity }),
       ...(notes !== undefined && { notes }),
+      ...(tableNumber !== undefined && { tableNumber }),
+      ...(isSponsored !== undefined && { isSponsored }),
+      ...(hostName !== undefined && { hostName }),
+      ...(xPosition !== undefined && { xPosition }),
+      ...(yPosition !== undefined && { yPosition }),
+      ...(shape !== undefined && { shape }),
     },
     include: {
       guests: {

@@ -209,6 +209,50 @@ OyamaCRM is **one platform with two modules**: DonorCRM and Compassion CRM.
 - Compassion CRM routes must be permission-aware. Add `// TODO: enforce Compassion workspace permission` comments wherever role checks are not yet implemented.
 <!-- END:module-rules -->
 
+<!-- BEGIN:reference-software-rules -->
+## Reference Software Folder Rules
+
+The `REFERANCE_SOFTWARE` folder stores external or older software projects that are useful as functional references.
+
+These projects are **not part of the active application** unless explicitly stated. Agents may inspect them for workflows, features, data models, edge cases, and implementation ideas, but must **not blindly copy UI, CSS, branding, file structures, or outdated architecture** into the main app.
+
+When using a reference project, agents must document:
+- Which reference project was reviewed
+- Which features or workflows were useful
+- Which ideas should be adapted
+- Which ideas should be ignored
+- What should be built inside the current OyamaCRM architecture
+
+### Galasoft Reference
+
+**Location:** `REFERANCE_SOFTWARE/GalaSoft/`
+
+Galasoft is being used as a functional reference for the Events CRM. Agents should study Galasoft for event-management workflows, ticketing, registration, attendee handling, reporting, event pages, and administrative tools.
+
+**Do not copy Galasoft UI/CSS.** Only use it to understand functionality and feature ideas.
+
+**Key functional concepts learned from Galasoft (adapt, don't copy):**
+- Guest model: checkin code (unique QR/code), payment status (paid/due/comp/sponsored), RSVP status, meal preference, seat number, party name
+- Table model: table number, shape (round/rectangle), position coordinates for seating chart, host name, sponsored flag
+- Ticket types: individual vs table-of-N, comp, sponsored — all distinct types with different seat counts
+- Check-in: multiple modes — QR scan, search by name, browse by table, name/nickname tabs
+- Registration service: transactional insertions with auto seat assignment within tables
+- Invitation system: tokenized table invite links for table hosts to invite their own guests
+- Sponsorship: packages with included seats that auto-assign sponsored guests
+- Outbox/notifications: queued email/SMS sending with retry logic
+
+**Reference files of interest:**
+- `REFERANCE_SOFTWARE/GalaSoft/backend/schema.sql` — data model reference
+- `REFERANCE_SOFTWARE/GalaSoft/vite-project/src/pages/CheckInDashboard.tsx` — multi-mode check-in tabs
+- `REFERANCE_SOFTWARE/GalaSoft/vite-project/src/pages/Dashboard.tsx` — live ops overview with progress bars
+- `REFERANCE_SOFTWARE/GalaSoft/backend/services/registrationService.js` — transactional guest creation
+- `REFERANCE_SOFTWARE/GalaSoft/vite-project/src/pages/EventOps/EventOpsHub.tsx` — event operations hub
+- `REFERANCE_SOFTWARE/GalaSoft/vite-project/src/pages/Seating/` — seating chart components
+
+**Galasoft TS errors are pre-existing** (`@playwright/test` missing, FC<{}> type issues) — do not attempt to fix them and do not count them as new errors in CI.
+
+<!-- END:reference-software-rules -->
+
 <!-- BEGIN:import-mapping-rules -->
 ## Import Mapping and Merge Workflow Rules
 

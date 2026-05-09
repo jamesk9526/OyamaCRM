@@ -138,6 +138,21 @@ enum SponsorshipLevel {
   IN_KIND
 }
 
+enum EventGuestPaymentStatus {
+  PAID
+  DUE
+  PENDING_CHECK
+  COMP
+  SPONSORED
+}
+
+enum EventGuestRsvpStatus {
+  PENDING
+  CONFIRMED
+  DECLINED
+  WAITLIST
+}
+
 enum CommunicationChannel {
   EMAIL
   PHONE
@@ -613,6 +628,11 @@ model TicketType {
   available   Int?
   sortOrder   Int      @default(0)
   active      Boolean  @default(true)
+  // Table ticket support (from GalaSoft concepts)
+  isTable       Boolean @default(false)
+  seatsIncluded Int     @default(1)
+  minPerOrder   Int     @default(1)
+  maxPerOrder   Int?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -675,6 +695,14 @@ model EventGuest {
   // Check-in
   checkedIn   Boolean   @default(false)
   checkedInAt DateTime?
+  checkinCode String?   @unique
+
+  // Registration status fields (from GalaSoft concepts)
+  paymentStatus  EventGuestPaymentStatus @default(DUE)
+  rsvpStatus     EventGuestRsvpStatus    @default(PENDING)
+  mealPreference String?
+  seatNumber     Int?
+  partyName      String?
 
   // Dietary & accessibility
   dietaryRestrictions String?
@@ -697,6 +725,13 @@ model EventTable {
   name      String
   capacity  Int      @default(10)
   notes     String?  @db.Text
+  // Seating layout fields (from GalaSoft concepts)
+  tableNumber Int?
+  isSponsored Boolean @default(false)
+  hostName    String?
+  xPosition   Int     @default(0)
+  yPosition   Int     @default(0)
+  shape       String  @default("round")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
