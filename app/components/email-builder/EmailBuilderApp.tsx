@@ -40,6 +40,7 @@ import EmailCanvas   from './EmailCanvas';
 import BlockEditor   from './BlockEditor';
 import EmailPreview  from './EmailPreview';
 import { apiFetch } from "@/app/lib/auth-client";
+import { useAuth } from "@/app/components/auth/AuthProvider";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -84,13 +85,17 @@ export default function EmailBuilderApp({ campaignId }: Props) {
   const [activeLabel, setActiveLabel] = useState<string | null>(null);
 
   // ── Load campaign from API ─────────────────────────────────────────────────
+  const { loading: authLoading } = useAuth();
   const [loadError, setLoadError] = useState<string | null>(null);
   /* Start in loading state when a campaignId is present so the first render
      shows the spinner without a synchronous setState call in the effect. */
   const [loading,   setLoading]   = useState(Boolean(campaignId));
 
+  // Wait for auth to finish refreshing before fetching — avoids the race where
+  // the in-memory access token is still null when this effect fires on page load.
   useEffect(() => {
     if (!campaignId) return;
+    if (authLoading) return; // token not ready yet
     apiFetch<{ name?: string; templateJson?: string }>(`/api/email-campaigns/${campaignId}`)
       .then((data) => {
         if (data.name)     setCampaignName(data.name);
@@ -110,7 +115,7 @@ export default function EmailBuilderApp({ campaignId }: Props) {
         setLoadError(`Failed to load campaign: ${msg}`);
       })
       .finally(() => setLoading(false));
-  }, [campaignId]);
+  }, [campaignId, authLoading]);
 
   // ── Block helpers ──────────────────────────────────────────────────────────
 
