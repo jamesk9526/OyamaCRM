@@ -55,6 +55,9 @@ router.get("/summary", async (req, res) => {
 
   const now = new Date();
   const startOfYear = new Date(now.getFullYear(), 0, 1);
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
   const startOfWeek = new Date(now);
   startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
   startOfWeek.setHours(0, 0, 0, 0);
@@ -63,10 +66,13 @@ router.get("/summary", async (req, res) => {
     totalConstituents,
     ytdDonations,
     weekDonations,
+    monthDonations,
+    lastMonthDonations,
     activeCampaigns,
     pendingTasks,
     overdueTasks,
     activeCampaignGoal,
+    newDonorsThisMonth,
   ] = await Promise.all([
     prisma.constituent.count({ where: { organizationId } }),
     // YTD completed donations — sum and count since Jan 1 of the current year
@@ -81,6 +87,18 @@ router.get("/summary", async (req, res) => {
       _sum: { amount: true },
       _count: true,
     }),
+    // This month's donations (for trend comparison)
+    prisma.donation.aggregate({
+      where: { status: "COMPLETED", date: { gte: startOfMonth }, constituent: { organizationId } },
+      _sum: { amount: true },
+      _count: true,
+    }),
+    // Last month's donations (for MoM trend)
+    prisma.donation.aggregate({
+      where: { status: "COMPLETED", date: { gte: startOfLastMonth, lte: endOfLastMonth }, constituent: { organizationId } },
+      _sum: { amount: true },
+      _count: true,
+    }),
     prisma.campaign.count({ where: { organizationId, active: true } }),
     prisma.task.count({ where: { status: "PENDING", ...taskOrganizationWhere(organizationId) } }),
     prisma.task.count({ where: { status: "PENDING", dueDate: { lt: now }, ...taskOrganizationWhere(organizationId) } }),
@@ -89,10 +107,18 @@ router.get("/summary", async (req, res) => {
       where: { organizationId, active: true, goal: { not: null } },
       _sum: { goal: true },
     }),
+    // Constituents whose first recorded gift is this month (new donors)
+    prisma.constituent.count({
+      where: { organizationId, firstGiftDate: { gte: startOfMonth } },
+    }),
   ]);
 
   const weekAmt = Number(weekDonations._sum.amount ?? 0);
   const weekCount = weekDonations._count;
+  const monthAmt = Number(monthDonations._sum.amount ?? 0);
+  const lastMonthAmt = Number(lastMonthDonations._sum.amount ?? 0);
+  // Month-over-month trend: positive = up, negative = down
+  const momTrend = lastMonthAmt > 0 ? Math.round(((monthAmt - lastMonthAmt) / lastMonthAmt) * 100) : null;
 
   res.json({
     totalConstituents,
@@ -101,6 +127,10 @@ router.get("/summary", async (req, res) => {
     weekAmount: weekAmt,
     weekCount,
     weekAvg: weekCount > 0 ? weekAmt / weekCount : 0,
+    monthAmount: monthAmt,
+    monthCount: monthDonations._count,
+    momTrend,
+    newDonorsThisMonth,
     activeCampaigns,
     activeGoalTotal: Number(activeCampaignGoal._sum.goal ?? 0),
     pendingTasks,
@@ -758,4 +788,41 @@ router.get("/new-vs-returning", async (req, res) => {
   res.json(result);
 });
 
+
+
+/**
+ * GET /api/reports/recent-donations?limit=N
+ * Last N completed donations with constituent name, amount, date, campaign.
+ * Used by the dashboard Recent Donations widget. Default limit = 8.
+ */
+router.get("/recent-donations", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) { res.json([]); return; }
+
+  const limit = Math.min(50, parseInt((req.query.limit as string) ?? "8"));
+
+  const donations = await prisma.donation.findMany({
+    where: { status: "COMPLETED", constituent: { organizationId } },
+    orderBy: { date: "desc" },
+    take: limit,
+    select: {
+      id: true,
+      amount: true,
+      date: true,
+      paymentMethod: true,
+      constituent: { select: { id: true, firstName: true, lastName: true } },
+      campaign: { select: { name: true } },
+    },
+  });
+
+  res.json(donations.map((d) => ({
+    id: d.id,
+    amount: Number(d.amount),
+    date: d.date,
+    paymentMethod: d.paymentMethod,
+    constituentId: d.constituent.id,
+    constituentName: `${d.constituent.firstName} ${d.constituent.lastName}`.trim(),
+    campaignName: d.campaign?.name ?? null,
+  })));
+});
 export default router;

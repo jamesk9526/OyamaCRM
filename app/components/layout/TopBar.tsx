@@ -5,6 +5,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import AppsDrawer, { AppsGridIcon } from "@/app/components/layout/AppsDrawer";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -182,31 +183,44 @@ function GlobalSearch() {
 export default function TopBar() {
   const pathname = usePathname();
   const isCompassion = pathname.startsWith("/compassion");
+  const [appsOpen, setAppsOpen] = useState(false);
 
   return (
-    <header className="h-14 shrink-0 w-full flex items-center gap-4 px-4 bg-[#1a2332] border-b border-[#0f1924] z-20">
+    <>
+      <AppsDrawer open={appsOpen} onClose={() => setAppsOpen(false)} />
+      <header className="h-14 shrink-0 w-full flex items-center gap-4 px-4 bg-[#1a2332] border-b border-[#0f1924] z-20">
 
-      {/* ── Module switcher (left anchor) ── */}
-      <ModuleSwitcher isCompassion={isCompassion} />
+        {/* ── Module switcher (left anchor) ── */}
+        <ModuleSwitcher isCompassion={isCompassion} />
 
-      {/* ── Divider ── */}
-      <div className="w-px h-5 bg-white/10 shrink-0" />
+        {/* ── Divider ── */}
+        <div className="w-px h-5 bg-white/10 shrink-0" />
 
-      {/* ── Search (grows to fill available space) ── */}
-      <div className="flex-1">
-        <GlobalSearch />
-      </div>
+        {/* ── Search (grows to fill available space) ── */}
+        <div className="flex-1">
+          <GlobalSearch />
+        </div>
 
-      {/* ── Right-side icon controls ── */}
-      <div className="flex items-center gap-1 shrink-0">
+        {/* ── Right-side icon controls ── */}
+        <div className="flex items-center gap-1 shrink-0">
 
-        {/* AI Assistant (future) */}
-        <button
-          title="AI Assistant (coming soon)"
-          className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors relative group"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+          {/* Apps Drawer trigger */}
+          <button
+            title="Apps"
+            onClick={() => setAppsOpen((v) => !v)}
+            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors
+              ${appsOpen ? "text-white bg-white/20" : "text-gray-400 hover:text-white hover:bg-white/10"}`}
+          >
+            <AppsGridIcon className="w-4 h-4" />
+          </button>
+
+          {/* AI Assistant (future) */}
+          <button
+            title="AI Assistant (coming soon)"
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors relative group"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
           </svg>
           <span className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
             AI Assistant
@@ -251,6 +265,7 @@ export default function TopBar() {
         <UserMenu isCompassion={isCompassion} />
       </div>
     </header>
+    </>
   );
 }
 

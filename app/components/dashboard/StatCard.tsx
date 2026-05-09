@@ -20,6 +20,8 @@ interface StatCardProps {
   alert?: string;
   /** Optional left-border accent color class, e.g. "border-green-500" */
   accent?: string;
+  /** Optional month-over-month trend: { value: ±%, label: string } */
+  trend?: { value: number; label: string };
 }
 
 /**
@@ -41,7 +43,7 @@ function fmt(v: number, format: StatCardProps["format"] = "number"): string {
   return v.toLocaleString();
 }
 
-export default function StatCard({ label, value, format, icon, loading, alert, accent = "border-gray-200" }: StatCardProps) {
+export default function StatCard({ label, value, format, icon, loading, alert, accent = "border-gray-200", trend }: StatCardProps) {
   return (
     <div className={`bg-white rounded-lg border-l-4 border border-gray-200 ${accent} px-4 py-3.5 flex items-center gap-3.5 shadow-sm`}>
       {/* Icon container */}
@@ -58,6 +60,12 @@ export default function StatCard({ label, value, format, icon, loading, alert, a
         ) : (
           <p className="text-xl font-bold text-gray-900 mt-0.5">
             {value != null ? fmt(value, format) : "—"}
+          </p>
+        )}
+        {/* Trend indicator (MoM) */}
+        {trend != null && !loading && (
+          <p className={`text-[11px] font-medium mt-0.5 ${trend.value >= 0 ? "text-green-600" : "text-red-500"}`}>
+            {trend.value >= 0 ? "▲" : "▼"} {Math.abs(trend.value)}% {trend.label}
           </p>
         )}
         {/* Alert badge (e.g. overdue count) */}
