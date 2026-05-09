@@ -32,6 +32,8 @@ interface Summary {
   totalConstituents: number;
   ytdAmount: number;
   ytdCount: number;
+  /** YTD awarded grant total — always returned; added to ytdAmount when includeGrants=true */
+  ytdGrantAmount: number;
   weekAmount: number;
   weekCount: number;
   weekAvg: number;
@@ -79,6 +81,8 @@ const WIDGET_META = [
 
 const LS_ORDER_KEY = "dashboard-widget-order";
 const LS_LOCK_KEY = "dashboard-locked";
+/** Persists the "Include Grants in revenue" preference */
+const LS_GRANTS_KEY = "dashboard-include-grants";
 
 /** Load widget order from localStorage, falling back to defaults */
 function loadOrder(): WidgetId[] {
@@ -101,6 +105,12 @@ function loadLocked(): boolean {
   return localStorage.getItem(LS_LOCK_KEY) === "true";
 }
 
+/** Load grant-inclusion preference from localStorage */
+function loadIncludeGrants(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(LS_GRANTS_KEY) === "true";
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -113,6 +123,10 @@ export default function DashboardPage() {
   const [editMode, setEditMode] = useState(false);
   const [locked, setLocked] = useState(loadLocked);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
+
+  // ── Grant toggle — persisted to localStorage ──
+  const [includeGrants, setIncludeGrants] = useState(loadIncludeGrants);
+  const toggleGrants = () => setIncludeGrants((v) => !v);
 
   // ── Drag state (only active in edit mode) ──
   const dragFrom = useRef<number | null>(null);
@@ -154,6 +168,11 @@ export default function DashboardPage() {
     // Exiting lock mode also exits edit mode
     if (locked) setEditMode(false);
   }, [locked]);
+
+  // Persist grant inclusion preference to localStorage
+  useEffect(() => {
+    localStorage.setItem(LS_GRANTS_KEY, includeGrants ? "true" : "false");
+  }, [includeGrants]);
 
   /** Swap widget at `from` index to `to` index */
   function moveWidget(from: number, to: number) {
@@ -209,7 +228,7 @@ export default function DashboardPage() {
       case "giving-trend":
         return (
           <DashboardWidget key={id} id={id} title="Giving Trend" subtitle={`${new Date().getFullYear()} monthly totals`} className="lg:col-span-2 min-h-[280px]" {...editProps}>
-            <GivingTrendChart />
+            <GivingTrendChart includeGrants={includeGrants} />
           </DashboardWidget>
         );
       case "recent-donations":
@@ -224,6 +243,9 @@ export default function DashboardPage() {
             <RevenueProgress
               current={summary?.ytdAmount ?? 0}
               goal={summary?.activeGoalTotal || 200000}
+              grantAmount={summary?.ytdGrantAmount ?? 0}
+              includeGrants={includeGrants}
+              onToggleGrants={toggleGrants}
               loading={loading}
             />
           </DashboardWidget>
@@ -399,11 +421,12 @@ export default function DashboardPage() {
         />
         <StatCard
           label="YTD Raised"
-          value={summary?.ytdAmount}
+          value={(summary?.ytdAmount ?? 0) + (includeGrants ? (summary?.ytdGrantAmount ?? 0) : 0)}
           format="currency"
           loading={loading}
           accent="border-l-green-500"
           trend={summary?.momTrend != null ? { value: summary.momTrend, label: "vs last month" } : undefined}
+          note={includeGrants && (summary?.ytdGrantAmount ?? 0) > 0 ? `incl. $${(summary!.ytdGrantAmount).toLocaleString()} in grants` : undefined}
           icon={
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

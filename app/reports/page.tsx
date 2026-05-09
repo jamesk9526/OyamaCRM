@@ -32,6 +32,8 @@ interface Summary {
   totalConstituents: number;
   ytdAmount: number;
   ytdCount: number;
+  /** YTD awarded grant total — always returned; add to ytdAmount when includeGrants=true */
+  ytdGrantAmount: number;
   weekAmount: number;
   weekCount: number;
   weekAvg: number;
@@ -45,6 +47,8 @@ interface Summary {
 interface BoardSummary {
   ytdRevenue: number;
   ytdGoal: number;
+  /** YTD awarded grant revenue — always returned; add when includeGrants=true */
+  ytdGrantRevenue: number;
   donorRetentionRate: number;
   totalDonors: number;
   newDonorsYtd: number;
@@ -63,6 +67,8 @@ interface BoardSummaryResponse {
 interface MonthlyDatum {
   month: number;
   amount: number;
+  /** Awarded grant amount for this month — may be 0 */
+  grantAmount?: number;
 }
 
 /** Donor retention data from GET /api/reports/donor-retention */
@@ -515,6 +521,23 @@ export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [year, setYear] = useState<number>(CURRENT_YEAR);
 
+  /**
+   * Whether to include awarded grants in YTD revenue figures.
+   * Persisted to localStorage so the preference survives page reloads.
+   */
+  const [includeGrants, setIncludeGrants] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("reports-include-grants") === "true";
+  });
+
+  function toggleGrants() {
+    setIncludeGrants((v) => {
+      const next = !v;
+      localStorage.setItem("reports-include-grants", next ? "true" : "false");
+      return next;
+    });
+  }
+
   // ── Overview tab data ─────────────────────────────────────────────────────
   const [summary, setSummary] = useState<Summary | null>(null);
   const [boardSummary, setBoardSummary] = useState<BoardSummary | null>(null);
@@ -784,6 +807,23 @@ export default function ReportsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Include Grants toggle — applies to all revenue figures across all tabs */}
+          <button
+            onClick={toggleGrants}
+            title={includeGrants ? "Grants included in revenue totals — click to exclude" : "Click to include awarded grants in revenue totals"}
+            className={`flex items-center gap-2 text-xs font-medium rounded-full px-3 py-1.5 border transition-colors ${
+              includeGrants
+                ? "bg-emerald-50 border-emerald-300 text-emerald-700"
+                : "bg-gray-50 border-gray-200 text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {/* Mini toggle pill */}
+            <span className={`w-7 h-3.5 rounded-full relative transition-colors ${includeGrants ? "bg-emerald-400" : "bg-gray-300"}`}>
+              <span className={`absolute top-0.5 w-2.5 h-2.5 bg-white rounded-full shadow transition-all ${includeGrants ? "left-4" : "left-0.5"}`} />
+            </span>
+            Incl. Grants
+          </button>
+
           {/* Global year selector — affects all year-dependent charts and tables */}
           <select
             value={year}
@@ -834,7 +874,12 @@ export default function ReportsPage() {
             {[
               {
                 label: "YTD Revenue",
-                value: summary ? `$${fmtCurrency(summary.ytdAmount)}` : null,
+                value: summary
+                  ? `$${fmtCurrency(summary.ytdAmount + (includeGrants ? (summary.ytdGrantAmount ?? 0) : 0))}`
+                  : null,
+                note: includeGrants && (summary?.ytdGrantAmount ?? 0) > 0
+                  ? `incl. $${fmtCurrency(summary!.ytdGrantAmount)} grants`
+                  : undefined,
               },
               {
                 label: "Total Constituents",
@@ -875,7 +920,13 @@ export default function ReportsPage() {
                 {loadingOverview ? (
                   <Sk className="h-8 w-24 mt-2" />
                 ) : (
-                  <p className="text-2xl font-bold mt-1 text-gray-900">{card.value ?? "—"}</p>
+                  <>
+                    <p className="text-2xl font-bold mt-1 text-gray-900">{card.value ?? "—"}</p>
+                    {/* Grant note shown under YTD Revenue when toggle is on */}
+                    {"note" in card && card.note && (
+                      <p className="text-[11px] text-emerald-600 font-medium mt-0.5">{card.note}</p>
+                    )}
+                  </>
                 )}
               </div>
             ))}
@@ -883,7 +934,15 @@ export default function ReportsPage() {
 
           {/* Monthly giving bar chart */}
           <div className="bg-white rounded-lg border border-gray-200 p-5">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Monthly Giving — {year}</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-gray-900">Monthly Giving — {year}</h2>
+              {/* Grants-included badge mirrors the global toggle state */}
+              {includeGrants && (
+                <span className="text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-full px-2 py-0.5">
+                  + Grants included
+                </span>
+              )}
+            </div>
             {loadingOverview ? (
               <div className="flex items-end gap-1 h-52">
                 {Array.from({ length: 12 }).map((_, i) => (
@@ -895,7 +954,13 @@ export default function ReportsPage() {
                 ))}
               </div>
             ) : (
-              <BarChart data={monthly} height={200} />
+              <BarChart
+                data={monthly.map((d) => ({
+                  month: d.month,
+                  amount: d.amount + (includeGrants ? (d.grantAmount ?? 0) : 0),
+                }))}
+                height={200}
+              />
             )}
           </div>
 

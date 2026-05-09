@@ -18,6 +18,8 @@ interface StatCardProps {
   loading?: boolean;
   /** Small red alert text shown below the value */
   alert?: string;
+  /** Small gray info note shown below the value (e.g. "incl. $X grants") */
+  note?: string;
   /** Optional left-border accent color class, e.g. "border-green-500" */
   accent?: string;
   /** Optional month-over-month trend: { value: ±%, label: string } */
@@ -43,7 +45,7 @@ function fmt(v: number, format: StatCardProps["format"] = "number"): string {
   return v.toLocaleString();
 }
 
-export default function StatCard({ label, value, format, icon, loading, alert, accent = "border-gray-200", trend }: StatCardProps) {
+export default function StatCard({ label, value, format, icon, loading, alert, note, accent = "border-gray-200", trend }: StatCardProps) {
   return (
     <div className={`bg-white rounded-lg border-l-4 border border-gray-200 ${accent} px-4 py-3.5 flex items-center gap-3.5 shadow-sm`}>
       {/* Icon container */}
@@ -67,6 +69,10 @@ export default function StatCard({ label, value, format, icon, loading, alert, a
           <p className={`text-[11px] font-medium mt-0.5 ${trend.value >= 0 ? "text-green-600" : "text-red-500"}`}>
             {trend.value >= 0 ? "▲" : "▼"} {Math.abs(trend.value)}% {trend.label}
           </p>
+        )}
+        {/* Contextual note (e.g. grants included) */}
+        {note && !loading && (
+          <p className="text-[11px] text-gray-400 font-medium mt-0.5">{note}</p>
         )}
         {/* Alert badge (e.g. overdue count) */}
         {alert && (

@@ -48,6 +48,7 @@ router.get("/summary", async (req, res) => {
       totalConstituents: 0,
       ytdAmount: 0,
       ytdCount: 0,
+      ytdGrantAmount: 0,
       weekAmount: 0,
       weekCount: 0,
       weekAvg: 0,
@@ -77,6 +78,8 @@ router.get("/summary", async (req, res) => {
     overdueTasks,
     activeCampaignGoal,
     newDonorsThisMonth,
+    // YTD awarded grants — amountAwarded where status=AWARDED and awardedAt is this year.
+    ytdGrants,
   ] = await Promise.all([
     prisma.constituent.count({ where: { organizationId } }),
     // YTD completed donations — sum and count since Jan 1 of the current year
@@ -115,6 +118,17 @@ router.get("/summary", async (req, res) => {
     prisma.constituent.count({
       where: { organizationId, firstGiftDate: { gte: startOfMonth } },
     }),
+    // YTD awarded grants — grants with status AWARDED and awardedAt in the current year.
+    // amountAwarded is used (not amountRequested) since this is what was actually received.
+    prisma.grant.aggregate({
+      where: {
+        organizationId,
+        status: "AWARDED",
+        awardedAt: { gte: startOfYear },
+        amountAwarded: { not: null },
+      },
+      _sum: { amountAwarded: true },
+    }),
   ]);
 
   const weekAmt = Number(weekDonations._sum.amount ?? 0);
@@ -128,6 +142,8 @@ router.get("/summary", async (req, res) => {
     totalConstituents,
     ytdAmount: Number(ytdDonations._sum.amount ?? 0),
     ytdCount: ytdDonations._count,
+    // ytdGrantAmount is always returned separately so the UI can decide whether to include it
+    ytdGrantAmount: Number(ytdGrants._sum.amountAwarded ?? 0),
     weekAmount: weekAmt,
     weekCount,
     weekAvg: weekCount > 0 ? weekAmt / weekCount : 0,
@@ -145,12 +161,13 @@ router.get("/summary", async (req, res) => {
 /**
  * GET /api/reports/giving-by-month?year=YYYY — Monthly donation totals for a given calendar year.
  * Aggregates COMPLETED donations in application code to stay DB-agnostic.
- * Returns an array of 12 objects `{ month: 1-12, amount: number }`.
+ * Returns an array of 12 objects: `{ month: 1-12, amount: number, grantAmount: number }`.
+ * `grantAmount` is always included (may be 0) so the frontend can optionally stack it.
  */
 router.get("/giving-by-month", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
-    res.json(Array.from({ length: 12 }, (_, i) => ({ month: i + 1, amount: 0 })));
+    res.json(Array.from({ length: 12 }, (_, i) => ({ month: i + 1, amount: 0, grantAmount: 0 })));
     return;
   }
 
@@ -158,14 +175,23 @@ router.get("/giving-by-month", async (req, res) => {
   const yearNum = parseInt(year, 10);
   const dateFilter = getYearRange(yearNum);
 
-  const donations = await prisma.donation.findMany({
-    where: {
-      date: dateFilter,
-      status: "COMPLETED",
-      constituent: { organizationId },
-    },
-    select: { date: true, amount: true },
-  });
+  // Fetch donations and grants concurrently
+  const [donations, grants] = await Promise.all([
+    prisma.donation.findMany({
+      where: { date: dateFilter, status: "COMPLETED", constituent: { organizationId } },
+      select: { date: true, amount: true },
+    }),
+    // Awarded grants with an awardedAt date in this year; amountAwarded may be null so filter it out.
+    prisma.grant.findMany({
+      where: {
+        organizationId,
+        status: "AWARDED",
+        awardedAt: dateFilter,
+        amountAwarded: { not: null },
+      },
+      select: { awardedAt: true, amountAwarded: true },
+    }),
+  ]);
 
   // Aggregate by month number 1–12 in application code (avoids SQL MONTH() dialect differences)
   const byMonth: Record<number, number> = {};
@@ -174,9 +200,17 @@ router.get("/giving-by-month", async (req, res) => {
     byMonth[month] = (byMonth[month] ?? 0) + Number(d.amount);
   });
 
+  const grantByMonth: Record<number, number> = {};
+  grants.forEach((g) => {
+    if (!g.awardedAt) return;
+    const month = new Date(g.awardedAt).getMonth() + 1;
+    grantByMonth[month] = (grantByMonth[month] ?? 0) + Number(g.amountAwarded ?? 0);
+  });
+
   const result = Array.from({ length: 12 }, (_, i) => ({
     month: i + 1,
     amount: byMonth[i + 1] ?? 0,
+    grantAmount: grantByMonth[i + 1] ?? 0,
   }));
 
   res.json(result);
@@ -292,8 +326,8 @@ router.get("/board-summary", async (req, res) => {
   const year = now.getFullYear();
   const startOfYear = new Date(year, 0, 1);
 
-  // Fetch all YTD donations and all constituents concurrently
-  const [ytdDonations, totalDonors, newDonorsYtd, activeCampaigns] = await Promise.all([
+  // Fetch all YTD donations and all constituents concurrently; also fetch YTD awarded grants
+  const [ytdDonations, totalDonors, newDonorsYtd, activeCampaigns, ytdGrants] = await Promise.all([
     prisma.donation.findMany({
       where: {
         constituent: { organizationId },
@@ -309,6 +343,16 @@ router.get("/board-summary", async (req, res) => {
     prisma.campaign.findMany({
       where: { organizationId, active: true },
       select: { goal: true },
+    }),
+    // YTD awarded grants — returned separately; UI decides whether to include in totals
+    prisma.grant.aggregate({
+      where: {
+        organizationId,
+        status: "AWARDED",
+        awardedAt: { gte: startOfYear },
+        amountAwarded: { not: null },
+      },
+      _sum: { amountAwarded: true },
     }),
   ]);
 
@@ -361,6 +405,8 @@ router.get("/board-summary", async (req, res) => {
     summary: {
       ytdRevenue: Math.round(ytdRevenue),
       ytdGoal: Math.round(ytdGoal),
+      // ytdGrantRevenue is always returned so the board view can optionally surface it
+      ytdGrantRevenue: Math.round(Number(ytdGrants._sum.amountAwarded ?? 0)),
       donorRetentionRate,
       totalDonors,
       newDonorsYtd,
