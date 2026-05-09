@@ -1,0 +1,53 @@
+-- AlterTable
+ALTER TABLE `activity` ADD COLUMN `meetingId` VARCHAR(191) NULL,
+    MODIFY `type` ENUM('DONATION', 'TASK_COMPLETED', 'EMAIL_SENT', 'EMAIL_RECEIVED', 'CALL', 'MEETING', 'MEETING_SCHEDULED', 'MEETING_COMPLETED', 'MEETING_CANCELED', 'NOTE', 'EVENT_REGISTRATION', 'EVENT_ATTENDANCE', 'VOLUNTEER_HOURS', 'PLEDGE_MADE') NOT NULL;
+
+-- AlterTable
+ALTER TABLE `task` ADD COLUMN `meetingId` VARCHAR(191) NULL;
+
+-- CreateTable
+CREATE TABLE `Meeting` (
+    `id` VARCHAR(191) NOT NULL,
+    `organizationId` VARCHAR(191) NOT NULL,
+    `title` VARCHAR(191) NOT NULL,
+    `type` ENUM('DONOR_VISIT', 'PHONE_CALL', 'LUNCH_MEETING', 'BOARD_MEETING', 'SPONSOR_MEETING', 'MAJOR_DONOR_MEETING', 'CHURCH_PRESENTATION', 'VOLUNTEER_MEETING', 'FOLLOW_UP_CALL', 'THANK_YOU_VISIT', 'VIDEO_CALL', 'OTHER') NOT NULL DEFAULT 'OTHER',
+    `status` ENUM('SCHEDULED', 'COMPLETED', 'CANCELED', 'NO_SHOW', 'RESCHEDULED', 'NEEDS_FOLLOW_UP') NOT NULL DEFAULT 'SCHEDULED',
+    `startTime` DATETIME(3) NOT NULL,
+    `endTime` DATETIME(3) NULL,
+    `timezone` VARCHAR(191) NOT NULL DEFAULT 'America/Chicago',
+    `locationType` ENUM('IN_PERSON', 'PHONE', 'VIDEO', 'AT_DONORS_HOME', 'AT_CHURCH', 'AT_OFFICE', 'AT_EVENT', 'CUSTOM') NOT NULL DEFAULT 'IN_PERSON',
+    `location` VARCHAR(191) NULL,
+    `meetingUrl` VARCHAR(191) NULL,
+    `purpose` TEXT NULL,
+    `notes` TEXT NULL,
+    `privateNotes` TEXT NULL,
+    `outcome` TEXT NULL,
+    `followUpNeeded` BOOLEAN NOT NULL DEFAULT false,
+    `constituentId` VARCHAR(191) NULL,
+    `assignedStaffId` VARCHAR(191) NULL,
+    `createdById` VARCHAR(191) NULL,
+    `completedAt` DATETIME(3) NULL,
+    `canceledAt` DATETIME(3) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- AddForeignKey
+ALTER TABLE `Task` ADD CONSTRAINT `Task_meetingId_fkey` FOREIGN KEY (`meetingId`) REFERENCES `Meeting`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Meeting` ADD CONSTRAINT `Meeting_organizationId_fkey` FOREIGN KEY (`organizationId`) REFERENCES `Organization`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Meeting` ADD CONSTRAINT `Meeting_constituentId_fkey` FOREIGN KEY (`constituentId`) REFERENCES `Constituent`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Meeting` ADD CONSTRAINT `Meeting_assignedStaffId_fkey` FOREIGN KEY (`assignedStaffId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Meeting` ADD CONSTRAINT `Meeting_createdById_fkey` FOREIGN KEY (`createdById`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Activity` ADD CONSTRAINT `Activity_meetingId_fkey` FOREIGN KEY (`meetingId`) REFERENCES `Meeting`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;

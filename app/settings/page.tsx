@@ -23,6 +23,21 @@ const CARDS = [
     href: "/settings/roles",
   },
   {
+    title: "CRM Modules",
+    description: "Enable/disable CRM areas: DonorCRM, Compassion CRM, Events, Automations, and more.",
+    href: "/settings/modules",
+  },
+  {
+    title: "Meetings",
+    description: "Default meeting types, durations, reminder windows, and follow-up task behavior.",
+    href: "/settings/meetings",
+  },
+  {
+    title: "Tasks",
+    description: "Task categories, priorities, overdue handling, and auto-assignment rules.",
+    href: "/settings/tasks",
+  },
+  {
     title: "Workspaces",
     description: "Enable/disable OyamaCRM and OyamaCRM-Compassion workspaces.",
     href: "/settings/workspaces",

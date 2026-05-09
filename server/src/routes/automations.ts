@@ -28,6 +28,50 @@ const PRESET_AUTOMATIONS = [
     ],
   },
   {
+    id: "preset-first-time-donor",
+    name: "First-Time Donor Welcome",
+    description: "When someone gives their first donation, send a welcome email, add a tag, and create a stewardship call task.",
+    trigger: "FIRST_DONATION_RECEIVED",
+    actions: [
+      { type: "SEND_EMAIL", order: 0, config: { template: "first-time-donor-welcome" } },
+      { type: "ADD_TAG", order: 1, config: { tag: "First-Time Donor" } },
+      { type: "CREATE_TASK", order: 2, config: { title: "Call new donor within 48 hours", priority: "HIGH", category: "Thank-You Call" } },
+      { type: "ADD_TIMELINE", order: 3, config: { note: "First gift received — welcome flow started" } },
+    ],
+  },
+  {
+    id: "preset-major-gift",
+    name: "Major Gift Follow-Up",
+    description: "When a gift above your major donor threshold is received, notify staff and schedule a thank-you visit.",
+    trigger: "MAJOR_DONATION_RECEIVED",
+    actions: [
+      { type: "NOTIFY_STAFF", order: 0, config: { message: "Major gift received — please review immediately" } },
+      { type: "CREATE_TASK", order: 1, config: { title: "Schedule major donor thank-you meeting", priority: "URGENT", category: "Major Donor Cultivation" } },
+      { type: "ADD_TAG", order: 2, config: { tag: "Major Gift" } },
+      { type: "ADD_TIMELINE", order: 3, config: { note: "Major gift follow-up workflow started" } },
+    ],
+  },
+  {
+    id: "preset-meeting-followup",
+    name: "Meeting Follow-Up Workflow",
+    description: "When a meeting is marked completed, create a follow-up task and add a timeline entry.",
+    trigger: "MEETING_COMPLETED",
+    actions: [
+      { type: "CREATE_TASK", order: 0, config: { title: "Follow up after meeting", daysAfter: 2, category: "Meeting Follow-Up" } },
+      { type: "ADD_TIMELINE", order: 1, config: { note: "Meeting completed — follow-up assigned" } },
+    ],
+  },
+  {
+    id: "preset-meeting-scheduled",
+    name: "Meeting Preparation Reminder",
+    description: "When a meeting is scheduled, create a preparation task for the assigned staff member.",
+    trigger: "MEETING_SCHEDULED",
+    actions: [
+      { type: "CREATE_TASK", order: 0, config: { title: "Prepare for upcoming meeting", category: "Meeting Prep", priority: "MEDIUM" } },
+      { type: "ADD_TIMELINE", order: 1, config: { note: "Meeting scheduled" } },
+    ],
+  },
+  {
     id: "preset-new-constituent",
     name: "New Constituent Welcome",
     description: "Welcome email + internal assignment when a new constituent is created.",
@@ -41,12 +85,23 @@ const PRESET_AUTOMATIONS = [
   {
     id: "preset-lapsed-reengagement",
     name: "Lapsed Donor Re-engagement",
-    description: "When a task is due for a lapsed donor, create outreach sequence actions.",
-    trigger: "TASK_DUE",
+    description: "When a donor has not given in 12 months, flag them and start an outreach workflow.",
+    trigger: "DONOR_LAPSED",
     actions: [
-      { type: "CREATE_TASK", order: 0, config: { title: "Send re-engagement email" } },
-      { type: "CREATE_TASK", order: 1, config: { title: "Call donor if no response in 7 days" } },
+      { type: "ADD_TAG", order: 0, config: { tag: "Lapsed Donor" } },
+      { type: "CREATE_TASK", order: 1, config: { title: "Re-engage lapsed donor with personalized outreach", category: "Donor Follow-Up" } },
       { type: "SEND_EMAIL", order: 2, config: { template: "impact-story" } },
+      { type: "ADD_TIMELINE", order: 3, config: { note: "Donor lapsed — re-engagement workflow started" } },
+    ],
+  },
+  {
+    id: "preset-pledge-reminder",
+    name: "Pledge Payment Reminder",
+    description: "When a pledge payment date is approaching, create a reminder task and optionally notify the donor.",
+    trigger: "PLEDGE_DUE_SOON",
+    actions: [
+      { type: "CREATE_TASK", order: 0, config: { title: "Follow up on upcoming pledge payment", category: "Pledge Follow-Up", priority: "HIGH" } },
+      { type: "NOTIFY_STAFF", order: 1, config: { message: "Pledge payment approaching — please review" } },
     ],
   },
 ] as const;

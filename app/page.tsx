@@ -17,6 +17,7 @@ import DashboardWidget from "./components/dashboard/DashboardWidget";
 import GivingTrendChart from "./components/dashboard/GivingTrendChart";
 import RecentDonationsWidget from "./components/dashboard/RecentDonationsWidget";
 import TopDonorsWidget from "./components/dashboard/TopDonorsWidget";
+import MeetingsWidget from "./components/dashboard/MeetingsWidget";
 import { apiFetch } from "@/app/lib/auth-client";
 
 /** Shape returned by /api/reports/summary (extended) */
@@ -51,6 +52,7 @@ const DEFAULT_WIDGET_ORDER = [
   "retention",
   "top-donors",
   "tasks",
+  "meetings",
   "weekly-stats",
 ] as const;
 
@@ -197,6 +199,12 @@ export default function DashboardPage() {
         return (
           <DashboardWidget key={id} id={id} title="Tasks" subtitle="Open & upcoming" className="lg:row-span-2" {...dp}>
             <TasksWidget />
+          </DashboardWidget>
+        );
+      case "meetings":
+        return (
+          <DashboardWidget key={id} id={id} title="Upcoming Meetings" subtitle="Scheduled donor meetings" {...dp}>
+            <MeetingsWidget />
           </DashboardWidget>
         );
       case "weekly-stats":

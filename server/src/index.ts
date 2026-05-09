@@ -36,6 +36,7 @@ import userRoutes from "./routes/users.js";
 import auditLogRoutes from "./routes/audit-logs.js";
 import customFieldRoutes from "./routes/custom-fields.js";
 import grantRoutes from "./routes/grants.js";
+import meetingRoutes from "./routes/meetings.js";
 import { prisma } from "./lib/prisma.js";
 import { getAppInfo } from "./lib/app-info.js";
 
@@ -135,6 +136,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/audit-logs", auditLogRoutes);
 app.use("/api/custom-fields", customFieldRoutes);
 app.use("/api/grants", grantRoutes);
+app.use("/api/meetings", meetingRoutes);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 

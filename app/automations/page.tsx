@@ -13,11 +13,17 @@ import { apiFetch } from "@/app/lib/auth-client";
 /** Trigger labels for display */
 const TRIGGER_LABELS: Record<string, string> = {
   DONATION_RECEIVED: "Donation received",
+  FIRST_DONATION_RECEIVED: "First donation received",
+  MAJOR_DONATION_RECEIVED: "Major gift received",
   CONSTITUENT_CREATED: "New constituent added",
   TASK_DUE: "Task becomes due",
   PLEDGE_CREATED: "Pledge created",
+  PLEDGE_DUE_SOON: "Pledge payment due soon",
   EMAIL_OPENED: "Email opened",
   EVENT_REGISTERED: "Event registration",
+  MEETING_COMPLETED: "Meeting completed",
+  MEETING_SCHEDULED: "Meeting scheduled",
+  DONOR_LAPSED: "Donor becomes lapsed",
 };
 
 /** Action type labels */
@@ -28,6 +34,9 @@ const ACTION_LABELS: Record<string, string> = {
   ADD_TAG: "Add tag",
   REMOVE_TAG: "Remove tag",
   ASSIGN_USER: "Assign user",
+  NOTIFY_STAFF: "Notify staff member",
+  ADD_TIMELINE: "Add timeline entry",
+  SCHEDULE_MEETING: "Schedule follow-up meeting",
 };
 
 /** SVG icon for each trigger type (no emoji) */
@@ -35,17 +44,25 @@ function TriggerIcon({ trigger }: { trigger: string }) {
   const cls = "w-4 h-4";
   switch (trigger) {
     case "DONATION_RECEIVED":
+    case "FIRST_DONATION_RECEIVED":
+    case "MAJOR_DONATION_RECEIVED":
       return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
     case "CONSTITUENT_CREATED":
       return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>;
     case "TASK_DUE":
       return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>;
     case "PLEDGE_CREATED":
+    case "PLEDGE_DUE_SOON":
       return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>;
     case "EMAIL_OPENED":
       return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>;
     case "EVENT_REGISTERED":
       return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
+    case "MEETING_COMPLETED":
+    case "MEETING_SCHEDULED":
+      return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
+    case "DONOR_LAPSED":
+      return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
     default:
       return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>;
   }

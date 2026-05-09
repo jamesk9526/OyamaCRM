@@ -161,11 +161,51 @@ enum ActivityType {
   EMAIL_RECEIVED
   CALL
   MEETING
+  MEETING_SCHEDULED
+  MEETING_COMPLETED
+  MEETING_CANCELED
   NOTE
   EVENT_REGISTRATION
   EVENT_ATTENDANCE
   VOLUNTEER_HOURS
   PLEDGE_MADE
+}
+
+// ─── Meeting Enums ────────────────────────────────────────────────────────────
+
+enum MeetingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELED
+  NO_SHOW
+  RESCHEDULED
+  NEEDS_FOLLOW_UP
+}
+
+enum MeetingType {
+  DONOR_VISIT
+  PHONE_CALL
+  LUNCH_MEETING
+  BOARD_MEETING
+  SPONSOR_MEETING
+  MAJOR_DONOR_MEETING
+  CHURCH_PRESENTATION
+  VOLUNTEER_MEETING
+  FOLLOW_UP_CALL
+  THANK_YOU_VISIT
+  VIDEO_CALL
+  OTHER
+}
+
+enum MeetingLocationType {
+  IN_PERSON
+  PHONE
+  VIDEO
+  AT_DONORS_HOME
+  AT_CHURCH
+  AT_OFFICE
+  AT_EVENT
+  CUSTOM
 }
 
 // ─── Core Models ─────────────────────────────────────────────────────────────
@@ -180,6 +220,7 @@ model Organization {
   campaigns      Campaign[]
   events         Event[]
   users          User[]
+  meetings       Meeting[]
   settings       OrganizationSettings?
   emailCampaigns EmailCampaign[]
   customFields   CustomField[]
@@ -223,6 +264,8 @@ model User {
   organization    Organization     @relation(fields: [organizationId], references: [id])
   assignedTasks   Task[]           @relation("TaskAssignee")
   createdTasks    Task[]           @relation("TaskCreator")
+  assignedMeetings Meeting[]       @relation("MeetingAssignee")
+  createdMeetings  Meeting[]       @relation("MeetingCreator")
   activities      Activity[]
   refreshTokens   RefreshToken[]
   auditLogs       AuditLog[]
@@ -294,6 +337,7 @@ model Constituent {
   headOf           Household?        @relation("HouseholdHead")
   donations        Donation[]
   tasks            Task[]
+  meetings         Meeting[]
   tags             ConstituentTag[]
   activities       Activity[]
   eventAttendances EventAttendance[]
@@ -459,6 +503,51 @@ model Task {
   assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
   createdBy   User?        @relation("TaskCreator", fields: [createdById], references: [id])
   activities  Activity[]
+  meeting     Meeting?     @relation(fields: [meetingId], references: [id])
+  meetingId   String?
+}
+
+// ─── Meetings ─────────────────────────────────────────────────────────────────
+
+model Meeting {
+  id             String @id @default(cuid())
+  organizationId String
+
+  title   String
+  type    MeetingType         @default(OTHER)
+  status  MeetingStatus       @default(SCHEDULED)
+
+  startTime DateTime
+  endTime   DateTime?
+  timezone  String            @default("America/Chicago")
+
+  locationType MeetingLocationType @default(IN_PERSON)
+  location     String?
+  meetingUrl   String?
+
+  purpose      String?  @db.Text
+  notes        String?  @db.Text
+  privateNotes String?  @db.Text
+  outcome      String?  @db.Text
+
+  followUpNeeded Boolean @default(false)
+
+  // Relations
+  constituentId  String?
+  assignedStaffId String?
+  createdById    String?
+
+  completedAt DateTime?
+  canceledAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  constituent    Constituent? @relation(fields: [constituentId], references: [id])
+  assignedStaff  User?        @relation("MeetingAssignee", fields: [assignedStaffId], references: [id])
+  createdBy      User?        @relation("MeetingCreator", fields: [createdById], references: [id])
+  tasks          Task[]
+  activities     Activity[]
 }
 
 // ─── Events ──────────────────────────────────────────────────────────────────
@@ -670,6 +759,7 @@ model Activity {
   constituentId String?
   donationId    String?
   taskId        String?
+  meetingId     String?
   userId        String?
   eventId       String?
 
@@ -681,6 +771,7 @@ model Activity {
   constituent Constituent? @relation(fields: [constituentId], references: [id])
   donation    Donation?    @relation(fields: [donationId], references: [id])
   task        Task?        @relation(fields: [taskId], references: [id])
+  meeting     Meeting?     @relation(fields: [meetingId], references: [id])
   user        User?        @relation(fields: [userId], references: [id])
   event       Event?       @relation(fields: [eventId], references: [id])
 }
