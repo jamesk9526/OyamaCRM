@@ -149,6 +149,8 @@ model Organization {
   settings       OrganizationSettings?
   emailCampaigns EmailCampaign[]
   customFields   CustomField[]
+  grantFunders   GrantFunder[]
+  grants         Grant[]
 }
 
 model OrganizationSettings {
@@ -191,6 +193,8 @@ model User {
   refreshTokens  RefreshToken[]
   auditLogs      AuditLog[]
   permissions    UserPermission[]
+  assignedGrants Grant[]          @relation("GrantAssignee")
+  grantActivities GrantActivity[]
 }
 
 // ─── Constituent (Donor/Volunteer/Member) ─────────────────────────────────────
@@ -689,4 +693,150 @@ model SetupSnapshot {
   createdAt    DateTime  @default(now())
   // When this snapshot was last restored (null = never restored)
   restoredAt   DateTime?
+}
+
+// ─── Grant Management ─────────────────────────────────────────────────────────
+
+/// Current stage of a grant application in the pipeline.
+enum GrantStatus {
+  IDEA               // Initial idea / not yet researched
+  RESEARCH           // Researching funder requirements
+  LOI_DRAFT          // Drafting letter of intent
+  LOI_SUBMITTED      // LOI sent to funder
+  PROPOSAL_DRAFT     // Writing the full proposal
+  PROPOSAL_SUBMITTED // Full proposal submitted
+  UNDER_REVIEW       // Funder is reviewing the proposal
+  AWARDED            // Grant awarded!
+  REJECTED           // Grant denied
+  WITHDRAWN          // Application withdrawn by us
+  CLOSED             // Closed for any other reason
+}
+
+/// Category of the grant-making organization.
+enum GrantFunderType {
+  GOVERNMENT
+  PRIVATE_FOUNDATION
+  CORPORATE
+  COMMUNITY
+  FAITH_BASED
+  INDIVIDUAL
+  OTHER
+}
+
+/// Type of activity recorded on a grant's timeline.
+enum GrantActivityType {
+  NOTE
+  STATUS_CHANGE
+  LOI_SUBMITTED
+  PROPOSAL_SUBMITTED
+  AWARD_NOTIFICATION
+  REJECTION_NOTIFICATION
+  REPORTING_SUBMITTED
+  DOCUMENT_ADDED
+  OTHER
+}
+
+/// A grant-making organization (foundation, government agency, corporate, etc.)
+model GrantFunder {
+  id             String          @id @default(cuid())
+  organizationId String
+  name           String
+  type           GrantFunderType @default(PRIVATE_FOUNDATION)
+  website        String?
+  contactName    String?
+  contactEmail   String?
+  contactPhone   String?
+  address        String?
+  /// Research notes, relationship history, giving interests.
+  notes          String?         @db.Text
+  active         Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  grants         Grant[]
+}
+
+/// A single grant opportunity tracked through the application pipeline.
+model Grant {
+  id             String      @id @default(cuid())
+  organizationId String
+  funderId       String
+  /// Staff member responsible for writing / managing this grant.
+  assigneeId     String?
+
+  /// Name of the grant program or opportunity.
+  title          String
+  /// Program area / focus area (e.g., Youth Services, Housing, Education).
+  programArea    String?
+  status         GrantStatus @default(IDEA)
+
+  amountRequested Decimal?   @db.Decimal(12, 2)
+  amountAwarded   Decimal?   @db.Decimal(12, 2)
+
+  /// Whether this funder requires a letter of intent before the full proposal.
+  requiresLOI    Boolean     @default(false)
+  loiDeadline    DateTime?
+  loiSubmittedAt DateTime?
+
+  applicationDeadline  DateTime?
+  submittedAt          DateTime?
+  awardedAt            DateTime?
+  rejectedAt           DateTime?
+
+  /// Grant period start (when funded work begins).
+  grantPeriodStart     DateTime?
+  /// Grant period end (when funded work must be completed).
+  grantPeriodEnd       DateTime?
+
+  /// Next reporting deadline (for awarded grants).
+  reportingDeadline    DateTime?
+  reportingSubmittedAt DateTime?
+
+  notes         String?     @db.Text
+  internalNotes String?     @db.Text
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  funder        GrantFunder    @relation(fields: [funderId], references: [id])
+  assignee      User?          @relation("GrantAssignee", fields: [assigneeId], references: [id])
+  sections      GrantSection[]
+  activities    GrantActivity[]
+}
+
+/// A single writing section within a grant proposal (e.g., need statement, budget narrative).
+model GrantSection {
+  id        String   @id @default(cuid())
+  grantId   String
+  /// Machine key for the section (e.g., "executive_summary", "need_statement").
+  key       String
+  /// Human-readable section title.
+  title     String
+  content   String?  @db.LongText
+  /// Optional word count guidance from the funder.
+  wordLimit Int?
+  sortOrder Int      @default(0)
+  completed Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  grant     Grant    @relation(fields: [grantId], references: [id], onDelete: Cascade)
+
+  @@unique([grantId, key])
+}
+
+/// A timeline event or note recorded against a grant.
+model GrantActivity {
+  id          String            @id @default(cuid())
+  grantId     String
+  userId      String?
+  type        GrantActivityType @default(NOTE)
+  description String            @db.Text
+  metadata    Json?
+  createdAt   DateTime          @default(now())
+
+  grant       Grant  @relation(fields: [grantId], references: [id], onDelete: Cascade)
+  user        User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
 }
