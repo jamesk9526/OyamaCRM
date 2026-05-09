@@ -29,6 +29,9 @@ interface Guest {
   ticketType?: { id: string; name: string };
   order?: { id: string; orderNumber: string; status: string };
   table?: { id: string; name: string };
+  paymentStatus?: string;
+  rsvpStatus?: string;
+  checkinCode?: string;
 }
 
 /**
@@ -43,6 +46,14 @@ export default function EventCheckInPage() {
   const [checkedInFilter, setCheckedInFilter] = useState("false"); // Default to not checked in
   const [autoRefresh, setAutoRefresh] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  /** Tab state for Search vs. QR/Code Scan modes */
+  const [activeTab, setActiveTab] = useState<"search" | "scan">("search");
+  const [scanCode, setScanCode] = useState("");
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scanGuest, setScanGuest] = useState<Guest | null>(null);
+  const [scanError, setScanError] = useState("");
+  const [scanSuccess, setScanSuccess] = useState("");
+  const scanInputRef = useRef<HTMLInputElement>(null);
 
   /** Load guests for selected event */
   async function loadData() {
@@ -170,6 +181,69 @@ export default function EventCheckInPage() {
     }
   }
 
+  /** Look up a guest by their printed or scanned check-in code. */
+  async function lookupByCode(e: React.FormEvent) {
+    e.preventDefault();
+    const code = scanCode.trim();
+    if (!code) return;
+
+    setScanLoading(true);
+    setScanError("");
+    setScanGuest(null);
+    setScanSuccess("");
+
+    try {
+      const guest = await apiFetch<Guest>(`/api/events/guests/by-code/${encodeURIComponent(code)}`);
+      setScanGuest(guest);
+    } catch {
+      setScanError("No guest found for that code. Please check and try again.");
+    } finally {
+      setScanLoading(false);
+    }
+  }
+
+  /**
+   * Handle check-in toggle for a guest found via code scan.
+   * Updates scan guest state and the main guest list, then shows
+   * a 2-second success banner before resetting for the next guest.
+   */
+  async function toggleScanCheckIn(guest: Guest) {
+    const newCheckedIn = !guest.checkedIn;
+    try {
+      await apiFetch(`/api/events/guests/${guest.id}/check-in`, {
+        method: "POST",
+        body: JSON.stringify({ checkedIn: newCheckedIn }),
+      });
+      // Update scan guest card immediately
+      setScanGuest((prev) =>
+        prev ? { ...prev, checkedIn: newCheckedIn, checkedInAt: newCheckedIn ? new Date().toISOString() : undefined } : prev
+      );
+      // Also keep the main guest list in sync for accurate metrics
+      setGuests((prev) =>
+        prev.map((g) =>
+          g.id === guest.id
+            ? { ...g, checkedIn: newCheckedIn, checkedInAt: newCheckedIn ? new Date().toISOString() : undefined }
+            : g
+        )
+      );
+      if (newCheckedIn) {
+        // Show success banner for 2 seconds, then clear for next scan
+        const guestName = `${guest.firstName || ""} ${guest.lastName || ""}`.trim() || "Guest";
+        setScanSuccess(`✓ ${guestName} checked in!`);
+        setTimeout(() => {
+          setScanSuccess("");
+          setScanCode("");
+          setScanGuest(null);
+          setScanError("");
+          scanInputRef.current?.focus();
+        }, 2000);
+      }
+    } catch (err) {
+      console.error("Failed to toggle check-in via scan:", err);
+      loadData();
+    }
+  }
+
   return (
     <div className="p-6">
       {/* Header */}
@@ -216,7 +290,7 @@ export default function EventCheckInPage() {
         </div>
       ) : (
         <>
-          {/* Metrics */}
+          {/* Metrics — visible for both tabs to track event progress */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-white p-4 rounded-lg border border-gray-200">
               <p className="text-xs text-gray-500 uppercase font-medium">Checked In</p>
@@ -236,62 +310,157 @@ export default function EventCheckInPage() {
             </div>
           </div>
 
-          {/* Search & Filters */}
-          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
-            <div className="flex flex-col md:flex-row gap-3 items-end">
-              <div className="flex-1">
-                <label className="block text-xs font-semibold text-gray-600 mb-1">
-                  Quick Search
-                </label>
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="Name, email, phone, or table..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full px-3 py-2 text-lg border-2 border-gray-300 rounded-lg focus:border-amber-500 focus:outline-none"
-                  autoFocus
-                />
-              </div>
-              <div className="w-full md:w-48">
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Status</label>
-                <select
-                  value={checkedInFilter}
-                  onChange={(e) => setCheckedInFilter(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
-                >
-                  <option value="">All Guests</option>
-                  <option value="false">Not Checked In</option>
-                  <option value="true">Checked In</option>
-                </select>
-              </div>
-              <button
-                onClick={loadData}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                🔄 Refresh
-              </button>
-            </div>
+          {/* Tab switcher — Search (name/email) vs. Scan (QR / printed code) */}
+          <div className="flex gap-0 mb-4 border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab("search")}
+              className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "search"
+                  ? "border-amber-600 text-amber-700"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              🔍 Search
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab("scan");
+                // Focus the scan input after the tab switch renders
+                setTimeout(() => scanInputRef.current?.focus(), 50);
+              }}
+              className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "scan"
+                  ? "border-amber-600 text-amber-700"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              📷 Scan Code
+            </button>
           </div>
 
-          {/* Guest List */}
-          {loading ? (
-            <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
-              Loading guests...
-            </div>
-          ) : filteredGuests.length === 0 ? (
-            <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
-              {searchQuery ? "No guests match your search." : "No guests found."}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredGuests.map((guest) => (
+          {/* SEARCH TAB */}
+          {activeTab === "search" && (
+            <>
+              {/* Search & Filters */}
+              <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+                <div className="flex flex-col md:flex-row gap-3 items-end">
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">
+                      Quick Search
+                    </label>
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      placeholder="Name, email, phone, or table..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full px-3 py-2 text-lg border-2 border-gray-300 rounded-lg focus:border-amber-500 focus:outline-none"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="w-full md:w-48">
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Status</label>
+                    <select
+                      value={checkedInFilter}
+                      onChange={(e) => setCheckedInFilter(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
+                    >
+                      <option value="">All Guests</option>
+                      <option value="false">Not Checked In</option>
+                      <option value="true">Checked In</option>
+                    </select>
+                  </div>
+                  <button
+                    onClick={loadData}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    🔄 Refresh
+                  </button>
+                </div>
+              </div>
+
+              {/* Guest List */}
+              {loading ? (
+                <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
+                  Loading guests...
+                </div>
+              ) : filteredGuests.length === 0 ? (
+                <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
+                  {searchQuery ? "No guests match your search." : "No guests found."}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredGuests.map((guest) => (
+                    <GuestCheckInCard
+                      key={guest.id}
+                      guest={guest}
+                      onToggleCheckIn={() => toggleCheckIn(guest.id, guest.checkedIn)}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* SCAN TAB — look up a single guest by QR code or printed ticket code */}
+          {activeTab === "scan" && (
+            <div className="max-w-lg">
+              <h2 className="text-lg font-bold text-gray-900 mb-1">Scan Check-In Code</h2>
+              <p className="text-sm text-gray-500 mb-5">
+                Scan the QR code or type the code printed on the guest&apos;s ticket or badge.
+              </p>
+
+              {/* Code input form */}
+              <form onSubmit={lookupByCode} className="bg-white rounded-lg border border-gray-200 p-5 mb-4">
+                <label className="block text-xs font-semibold text-gray-600 mb-2">Code</label>
+                <div className="flex gap-2">
+                  <input
+                    ref={scanInputRef}
+                    type="text"
+                    value={scanCode}
+                    onChange={(e) => {
+                      setScanCode(e.target.value);
+                      setScanError("");
+                      setScanGuest(null);
+                      setScanSuccess("");
+                    }}
+                    placeholder="Scan or type code..."
+                    className="flex-1 px-4 py-3 text-xl border-2 border-gray-300 rounded-lg focus:border-amber-500 focus:outline-none font-mono tracking-widest"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                  <button
+                    type="submit"
+                    disabled={scanLoading || !scanCode.trim()}
+                    className="px-5 py-3 text-sm font-bold text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50"
+                  >
+                    {scanLoading ? "..." : "Look Up"}
+                  </button>
+                </div>
+              </form>
+
+              {/* Success banner — auto-dismissed after 2 seconds */}
+              {scanSuccess && (
+                <div className="mb-4 px-4 py-3 bg-green-100 border border-green-300 rounded-lg text-green-800 font-semibold text-sm">
+                  {scanSuccess}
+                </div>
+              )}
+
+              {/* Error message */}
+              {scanError && (
+                <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  {scanError}
+                </div>
+              )}
+
+              {/* Guest card shown after successful lookup */}
+              {scanGuest && !scanSuccess && (
                 <GuestCheckInCard
-                  key={guest.id}
-                  guest={guest}
-                  onToggleCheckIn={() => toggleCheckIn(guest.id, guest.checkedIn)}
+                  guest={scanGuest}
+                  onToggleCheckIn={() => toggleScanCheckIn(scanGuest)}
                 />
-              ))}
+              )}
             </div>
           )}
         </>

@@ -531,4 +531,56 @@ router.patch("/:id/notes", async (req, res) => {
   res.json(updated);
 });
 
+/**
+ * GET /api/constituents/:id/events — List events this constituent attended or registered for.
+ *
+ * Returns an array of { event, guest } objects so the UI can display
+ * event history with check-in status, RSVP status, and payment status.
+ */
+router.get("/:id/events", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  // Verify constituent exists and belongs to this org
+  const constituent = await prisma.constituent.findFirst({
+    where: { id: req.params.id, organizationId },
+    select: { id: true },
+  });
+
+  if (!constituent) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Constituent not found" } });
+    return;
+  }
+
+  const eventGuests = await prisma.eventGuest.findMany({
+    where: {
+      constituentId: req.params.id,
+      event: { organizationId },
+    },
+    include: {
+      event: { select: { id: true, name: true, startDate: true, type: true } },
+      ticketType: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // Shape the response to a clean { event, guest } pair per record
+  const result = eventGuests.map((g) => ({
+    event: g.event,
+    guest: {
+      id: g.id,
+      checkedIn: g.checkedIn,
+      checkedInAt: g.checkedInAt,
+      paymentStatus: g.paymentStatus,
+      rsvpStatus: g.rsvpStatus,
+      ticketType: g.ticketType,
+    },
+  }));
+
+  res.json(result);
+});
+
 export default router;

@@ -107,8 +107,11 @@ export default function ConstituentDetailPage() {
   const [constituent, setConstituent] = useState<ConstituentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"giving" | "tasks" | "timeline" | "household" | "notes">("giving");
+  const [tab, setTab] = useState<"giving" | "tasks" | "timeline" | "household" | "notes" | "events">("giving");
   const [showGiftModal, setShowGiftModal] = useState(false);
+  /** Event attendance records — fetched lazily when the Events tab is activated. */
+  const [constituentEvents, setConstituentEvents] = useState<ConstituentEventRecord[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -133,12 +136,27 @@ export default function ConstituentDetailPage() {
   const fullName = `${c.prefix ? c.prefix + " " : ""}${c.firstName} ${c.lastName}`;
   const isHousehold = c.type === "HOUSEHOLD";
 
+  /** Lazy-fetch event attendance when the Events tab is first opened. */
+  async function loadConstituentEvents() {
+    if (constituentEvents.length > 0 || eventsLoading) return;
+    setEventsLoading(true);
+    try {
+      const data = await apiFetch<ConstituentEventRecord[]>(`/api/constituents/${id}/events`);
+      setConstituentEvents(data);
+    } catch (err) {
+      console.error("Failed to load constituent events:", err);
+    } finally {
+      setEventsLoading(false);
+    }
+  }
+
   const tabs = [
     ...(isHousehold ? [{ key: "household" as const, label: `Members (${c.headOf?.members?.length ?? 0})` }] : []),
     { key: "giving" as const, label: `Giving History (${c.donations?.length ?? 0})` },
     { key: "tasks" as const, label: `Tasks (${c.tasks?.length ?? 0})` },
     { key: "timeline" as const, label: `Timeline (${c.activities?.length ?? 0})` },
     { key: "notes" as const, label: "Notes" },
+    { key: "events" as const, label: constituentEvents.length > 0 ? `Events (${constituentEvents.length})` : "Events" },
   ];
 
   return (
@@ -243,7 +261,11 @@ export default function ConstituentDetailPage() {
           {tabs.map((t) => (
             <button
               key={t.key}
-              onClick={() => setTab(t.key)}
+              onClick={() => {
+                setTab(t.key);
+                // Lazy-load events on first tab click
+                if (t.key === "events") loadConstituentEvents();
+              }}
               className={`px-5 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
                 tab === t.key
                   ? "text-green-700 border-b-2 border-green-600"
@@ -267,6 +289,12 @@ export default function ConstituentDetailPage() {
               constituentId={id}
               initialNotes={c.notes ?? ""}
               existingActivities={c.activities ?? []}
+            />
+          )}
+          {tab === "events" && (
+            <EventsTab
+              records={constituentEvents}
+              loading={eventsLoading}
             />
           )}
         </div>
@@ -311,6 +339,112 @@ export default function ConstituentDetailPage() {
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
+
+/** Shape returned by GET /api/constituents/:id/events */
+interface ConstituentEventRecord {
+  event: { id: string; name: string; startDate: string; type?: string };
+  guest: {
+    id: string;
+    checkedIn: boolean;
+    checkedInAt?: string;
+    paymentStatus?: string;
+    rsvpStatus?: string;
+    ticketType?: { id: string; name: string };
+  };
+}
+
+/**
+ * EventsTab — shows all events this constituent has registered for or attended.
+ * Data is fetched lazily from GET /api/constituents/:id/events.
+ */
+function EventsTab({
+  records,
+  loading,
+}: {
+  records: ConstituentEventRecord[];
+  loading: boolean;
+}) {
+  if (loading) {
+    return <p className="text-sm text-gray-400 italic">Loading event history...</p>;
+  }
+  if (!records.length) {
+    return <p className="text-sm text-gray-400 italic">No event registrations found.</p>;
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-gray-100">
+            {["Event", "Date", "Type", "Ticket", "RSVP", "Payment", "Check-in"].map((h) => (
+              <th key={h} className="pb-2 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide pr-4">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-50">
+          {records.map((r) => (
+            <tr key={r.guest.id}>
+              {/* Event name — links to the event workspace */}
+              <td className="py-2 pr-4">
+                <a
+                  href={`/events/${r.event.id}/overview`}
+                  className="font-medium text-green-600 hover:underline"
+                >
+                  {r.event.name}
+                </a>
+              </td>
+              <td className="py-2 pr-4 text-gray-600 whitespace-nowrap">
+                {new Date(r.event.startDate).toLocaleDateString()}
+              </td>
+              <td className="py-2 pr-4 text-gray-500">
+                {r.event.type ? r.event.type.replace("_", " ") : "—"}
+              </td>
+              <td className="py-2 pr-4 text-gray-600">
+                {r.guest.ticketType?.name ?? "—"}
+              </td>
+              {/* RSVP status badge */}
+              <td className="py-2 pr-4">
+                {r.guest.rsvpStatus ? (
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                    r.guest.rsvpStatus === "CONFIRMED" ? "bg-green-100 text-green-700" :
+                    r.guest.rsvpStatus === "PENDING" ? "bg-amber-100 text-amber-700" :
+                    r.guest.rsvpStatus === "DECLINED" ? "bg-red-100 text-red-700" :
+                    "bg-blue-100 text-blue-700"
+                  }`}>
+                    {r.guest.rsvpStatus.toLowerCase()}
+                  </span>
+                ) : "—"}
+              </td>
+              {/* Payment status badge */}
+              <td className="py-2 pr-4">
+                {r.guest.paymentStatus ? (
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                    r.guest.paymentStatus === "PAID" ? "bg-green-100 text-green-700" :
+                    r.guest.paymentStatus === "DUE" ? "bg-red-100 text-red-700" :
+                    r.guest.paymentStatus === "COMP" ? "bg-gray-100 text-gray-600" :
+                    r.guest.paymentStatus === "SPONSORED" ? "bg-amber-100 text-amber-700" :
+                    "bg-yellow-100 text-yellow-700"
+                  }`}>
+                    {r.guest.paymentStatus.replace("_", " ").toLowerCase()}
+                  </span>
+                ) : "—"}
+              </td>
+              {/* Check-in status */}
+              <td className="py-2 pr-4">
+                {r.guest.checkedIn ? (
+                  <span className="text-xs font-medium text-green-600">
+                    ✓ {r.guest.checkedInAt ? new Date(r.guest.checkedInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Checked In"}
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-400">Not checked in</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 function GivingTab({ donations }: { donations: ConstituentDetail["donations"] }) {
   if (!donations.length) return <p className="text-sm text-gray-400 italic">No donations recorded.</p>;

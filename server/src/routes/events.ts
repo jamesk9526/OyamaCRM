@@ -1498,4 +1498,174 @@ router.get("/reports/summary", async (req, res) => {
   });
 });
 
+// ─── Event Sponsors ──────────────────────────────────────────────────────────
+
+/** GET /api/events/:eventId/sponsors — List all sponsors for an event with constituent details. */
+router.get("/:eventId/sponsors", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({
+    where: { id: req.params.eventId, organizationId },
+  });
+
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const sponsors = await prisma.eventSponsor.findMany({
+    where: { eventId: req.params.eventId },
+    include: {
+      // Include constituent details needed for the sponsor table
+      constituent: {
+        select: { id: true, firstName: true, lastName: true, email: true, employer: true },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  res.json(sponsors);
+});
+
+/** POST /api/events/:eventId/sponsors — Add a sponsor to an event. */
+router.post("/:eventId/sponsors", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({
+    where: { id: req.params.eventId, organizationId },
+  });
+
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const { constituentId, level, amount, benefits, logoUrl, websiteUrl, notes } = req.body;
+
+  if (!constituentId || !level || amount === undefined) {
+    res.status(400).json({
+      error: { code: "INVALID_INPUT", message: "constituentId, level, and amount are required" },
+    });
+    return;
+  }
+
+  // Ensure the constituent belongs to the same organization as the event
+  const constituent = await prisma.constituent.findFirst({
+    where: { id: constituentId, organizationId },
+  });
+
+  if (!constituent) {
+    res.status(404).json({
+      error: { code: "NOT_FOUND", message: "Constituent not found in this organization" },
+    });
+    return;
+  }
+
+  const sponsor = await prisma.eventSponsor.create({
+    data: {
+      eventId: req.params.eventId,
+      constituentId,
+      level,
+      amount,
+      benefits: benefits ?? undefined,
+      logoUrl: logoUrl ?? undefined,
+      websiteUrl: websiteUrl ?? undefined,
+      notes: notes ?? undefined,
+    },
+    include: {
+      constituent: {
+        select: { id: true, firstName: true, lastName: true, email: true, employer: true },
+      },
+    },
+  });
+
+  // Log sponsorship to constituent timeline for CRM visibility
+  await prisma.activity.create({
+    data: {
+      constituentId,
+      eventId: req.params.eventId,
+      type: "NOTE",
+      description: `Added as ${level} sponsor for event: ${event.name} ($${Number(amount).toFixed(2)})`,
+      metadata: {
+        sponsorId: sponsor.id,
+        level,
+        amount: Number(amount),
+        source: "api/events:sponsors:create",
+      },
+    },
+  });
+
+  res.status(201).json(sponsor);
+});
+
+/** PATCH /api/events/sponsors/:sponsorId — Update a sponsor record (level, amount, benefits, etc.). */
+router.patch("/sponsors/:sponsorId", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const sponsor = await prisma.eventSponsor.findFirst({
+    where: { id: req.params.sponsorId },
+    include: { event: true },
+  });
+
+  if (!sponsor || sponsor.event.organizationId !== organizationId) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Sponsor not found" } });
+    return;
+  }
+
+  const { level, amount, benefits, logoUrl, websiteUrl, notes } = req.body;
+
+  const updated = await prisma.eventSponsor.update({
+    where: { id: req.params.sponsorId },
+    data: {
+      ...(level !== undefined && { level }),
+      ...(amount !== undefined && { amount }),
+      ...(benefits !== undefined && { benefits }),
+      ...(logoUrl !== undefined && { logoUrl }),
+      ...(websiteUrl !== undefined && { websiteUrl }),
+      ...(notes !== undefined && { notes }),
+    },
+    include: {
+      constituent: {
+        select: { id: true, firstName: true, lastName: true, email: true, employer: true },
+      },
+    },
+  });
+
+  res.json(updated);
+});
+
+/** DELETE /api/events/sponsors/:sponsorId — Remove a sponsor from an event. */
+router.delete("/sponsors/:sponsorId", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const sponsor = await prisma.eventSponsor.findFirst({
+    where: { id: req.params.sponsorId },
+    include: { event: true },
+  });
+
+  if (!sponsor || sponsor.event.organizationId !== organizationId) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Sponsor not found" } });
+    return;
+  }
+
+  await prisma.eventSponsor.delete({ where: { id: req.params.sponsorId } });
+  res.json({ message: "Sponsor removed" });
+});
+
 export default router;

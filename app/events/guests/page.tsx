@@ -24,6 +24,10 @@ interface Guest {
   checkedInAt?: string;
   dietaryRestrictions?: string;
   specialNeeds?: string;
+  /** Payment status from the EventGuestPaymentStatus enum: PAID | DUE | PENDING_CHECK | COMP | SPONSORED */
+  paymentStatus?: string;
+  /** RSVP status from the EventGuestRsvpStatus enum: PENDING | CONFIRMED | DECLINED | WAITLIST */
+  rsvpStatus?: string;
   event: { id: string; name: string; startDate: string };
   constituent?: { id: string; firstName: string; lastName: string; email?: string };
   ticketType?: { id: string; name: string };
@@ -41,6 +45,10 @@ export default function EventGuestsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [checkedInFilter, setCheckedInFilter] = useState("");
   const [linkedFilter, setLinkedFilter] = useState("");
+  /** Filter by EventGuestPaymentStatus: PAID | DUE | PENDING_CHECK | COMP | SPONSORED */
+  const [paymentFilter, setPaymentFilter] = useState("");
+  /** Filter by EventGuestRsvpStatus: PENDING | CONFIRMED | DECLINED | WAITLIST */
+  const [rsvpFilter, setRsvpFilter] = useState("");
 
   /** Load guests and events */
   useEffect(() => {
@@ -62,13 +70,15 @@ export default function EventGuestsPage() {
     loadData();
   }, []);
 
-  /** Filter guests */
+  /** Filter guests by all active filter criteria */
   const filteredGuests = guests.filter((guest) => {
     if (selectedEventId && guest.event.id !== selectedEventId) return false;
     if (checkedInFilter === "true" && !guest.checkedIn) return false;
     if (checkedInFilter === "false" && guest.checkedIn) return false;
     if (linkedFilter === "true" && !guest.constituent) return false;
     if (linkedFilter === "false" && guest.constituent) return false;
+    if (paymentFilter && guest.paymentStatus !== paymentFilter) return false;
+    if (rsvpFilter && guest.rsvpStatus !== rsvpFilter) return false;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const matchesName = `${guest.firstName || ""} ${guest.lastName || ""}`.toLowerCase().includes(query);
@@ -87,6 +97,8 @@ export default function EventGuestsPage() {
     linked: filteredGuests.filter((g) => g.constituent).length,
     needsReview: filteredGuests.filter((g) => !g.firstName || !g.lastName || !g.constituent).length,
     checkedIn: filteredGuests.filter((g) => g.checkedIn).length,
+    /** Guests who confirmed their RSVP */
+    confirmedRsvp: filteredGuests.filter((g) => g.rsvpStatus === "CONFIRMED").length,
   };
 
   /** Reload data helper for mutations */
@@ -133,7 +145,7 @@ export default function EventGuestsPage() {
       </div>
 
       {/* Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
         <div className="bg-white p-4 rounded-lg border border-gray-200">
           <p className="text-xs text-gray-500 uppercase font-medium">Total Guests</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">{metrics.total}</p>
@@ -149,6 +161,11 @@ export default function EventGuestsPage() {
         <div className="bg-white p-4 rounded-lg border border-gray-200">
           <p className="text-xs text-gray-500 uppercase font-medium">Checked In</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">{metrics.checkedIn}</p>
+        </div>
+        {/* 5th card: Confirmed RSVP count */}
+        <div className="bg-white p-4 rounded-lg border border-gray-200">
+          <p className="text-xs text-gray-500 uppercase font-medium">Confirmed RSVP</p>
+          <p className="text-2xl font-bold text-amber-600 mt-1">{metrics.confirmedRsvp}</p>
         </div>
       </div>
 
@@ -202,6 +219,37 @@ export default function EventGuestsPage() {
               <option value="false">Not Checked In</option>
             </select>
           </div>
+          {/* Payment status filter */}
+          <div className="w-full md:w-44">
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Payment</label>
+            <select
+              value={paymentFilter}
+              onChange={(e) => setPaymentFilter(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
+            >
+              <option value="">All</option>
+              <option value="PAID">Paid</option>
+              <option value="DUE">Due</option>
+              <option value="PENDING_CHECK">Pending Check</option>
+              <option value="COMP">Comp</option>
+              <option value="SPONSORED">Sponsored</option>
+            </select>
+          </div>
+          {/* RSVP status filter */}
+          <div className="w-full md:w-44">
+            <label className="block text-xs font-semibold text-gray-600 mb-1">RSVP</label>
+            <select
+              value={rsvpFilter}
+              onChange={(e) => setRsvpFilter(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
+            >
+              <option value="">All</option>
+              <option value="CONFIRMED">Confirmed</option>
+              <option value="PENDING">Pending</option>
+              <option value="DECLINED">Declined</option>
+              <option value="WAITLIST">Waitlist</option>
+            </select>
+          </div>
           <button
             onClick={() => {
               if (events.length > 0) {
@@ -236,6 +284,8 @@ export default function EventGuestsPage() {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Ticket Type</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Order</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Dietary</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Payment</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">RSVP</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Check-in</th>
               </tr>
             </thead>
@@ -284,6 +334,39 @@ export default function EventGuestsPage() {
                       </p>
                     ) : (
                       <p className="text-xs text-gray-400">—</p>
+                    )}
+                  </td>
+                  {/* Payment status badge */}
+                  <td className="px-4 py-3">
+                    {guest.paymentStatus ? (
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
+                        guest.paymentStatus === "PAID" ? "bg-green-100 text-green-800" :
+                        guest.paymentStatus === "DUE" ? "bg-red-100 text-red-800" :
+                        guest.paymentStatus === "PENDING_CHECK" ? "bg-yellow-100 text-yellow-800" :
+                        guest.paymentStatus === "COMP" ? "bg-gray-100 text-gray-700" :
+                        guest.paymentStatus === "SPONSORED" ? "bg-amber-100 text-amber-800" :
+                        "bg-gray-100 text-gray-600"
+                      }`}>
+                        {guest.paymentStatus.replace("_", " ")}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                  {/* RSVP status badge */}
+                  <td className="px-4 py-3">
+                    {guest.rsvpStatus ? (
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
+                        guest.rsvpStatus === "CONFIRMED" ? "bg-green-100 text-green-800" :
+                        guest.rsvpStatus === "PENDING" ? "bg-amber-100 text-amber-800" :
+                        guest.rsvpStatus === "DECLINED" ? "bg-red-100 text-red-800" :
+                        guest.rsvpStatus === "WAITLIST" ? "bg-blue-100 text-blue-800" :
+                        "bg-gray-100 text-gray-600"
+                      }`}>
+                        {guest.rsvpStatus}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-center">
