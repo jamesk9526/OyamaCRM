@@ -72,67 +72,21 @@
 
 ## 📸 App Screenshot Gallery
 
-All screenshots below are captured from the current local app and stored in the repository root folder `README_SCREENSHOTS/`.
+Screenshots are captured from the local app and stored in the repository root folder `README_SCREENSHOTS/`.
 
-### DonorCRM
+For privacy, README visuals are limited to high-level pages that avoid exposing potentially real email addresses.
 
-#### Dashboard
+### DonorCRM Dashboard
 ![Donor Dashboard](README_SCREENSHOTS/01-donor-dashboard-home.png)
 
-#### Constituents
-![Donor Constituents](README_SCREENSHOTS/02-donor-constituents.png)
-
-#### Donations
-![Donor Donations](README_SCREENSHOTS/03-donor-donations.png)
-
-#### Campaigns
-![Donor Campaigns](README_SCREENSHOTS/04-donor-campaigns.png)
-
-#### Tasks
-![Donor Tasks](README_SCREENSHOTS/05-donor-tasks.png)
-
-#### Communications
-![Donor Communications](README_SCREENSHOTS/06-donor-communications.png)
-
-#### Steward Paths
-![Steward Paths](README_SCREENSHOTS/07-donor-steward-paths.png)
-
-#### Steward Signals
+### Steward Signals Workspace
 ![Steward Signals](README_SCREENSHOTS/08-donor-steward-signals.png)
 
-#### Reports
-![Donor Reports](README_SCREENSHOTS/09-donor-reports.png)
-
-#### Settings
-![Donor Settings](README_SCREENSHOTS/10-donor-settings.png)
-
-### Compassion CRM
-
-#### Dashboard
+### Compassion CRM Dashboard
 ![Compassion Dashboard](README_SCREENSHOTS/11-compassion-dashboard.png)
 
-#### Clients
-![Compassion Clients](README_SCREENSHOTS/12-compassion-clients.png)
-
-#### Cases
-![Compassion Cases](README_SCREENSHOTS/13-compassion-cases.png)
-
-#### Appointments
-![Compassion Appointments](README_SCREENSHOTS/14-compassion-appointments.png)
-
-### Events CRM
-
-#### Command Center
+### Events Command Center
 ![Events Command Center](README_SCREENSHOTS/15-events-command-center.png)
-
-#### Events Registry
-![Events Registry](README_SCREENSHOTS/16-events-registry.png)
-
-#### Guests
-![Events Guests](README_SCREENSHOTS/17-events-guests.png)
-
-#### Check-In
-![Events Check-In](README_SCREENSHOTS/18-events-check-in.png)
 
 ---
 

@@ -37,6 +37,12 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
+import {
+  APPOINTMENT_WIDGET_PLUGIN_KEY,
+  createWidgetToken,
+  parseWidgetConfig,
+  type AppointmentWidgetConfig,
+} from "../services/compassion-appointment-widget.js";
 import type {
   CompassionClientStatus,
   CompassionCaseStatus,
@@ -50,8 +56,148 @@ import type {
 
 const router = Router();
 
+/** Returns a canonical key for a family grouping candidate. */
+function computeFamilyKey(client: {
+  id: string;
+  lastName: string;
+  addressLine1: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  phone: string | null;
+}): string {
+  const address = (client.addressLine1 ?? "").trim().toLowerCase();
+  const city = (client.city ?? "").trim().toLowerCase();
+  const state = (client.state ?? "").trim().toLowerCase();
+  const zip = (client.zip ?? "").trim().toLowerCase();
+  const digits = (client.phone ?? "").replace(/\D/g, "");
+  const lastName = (client.lastName ?? "").trim().toLowerCase();
+
+  if (address) {
+    return `address:${address}|${zip || `${city}|${state}`}`;
+  }
+  if (digits.length >= 10) {
+    return `phone:${digits.slice(-10)}`;
+  }
+  if (lastName && zip) {
+    return `namezip:${lastName}|${zip}`;
+  }
+  return `client:${client.id}`;
+}
+
 // All Compassion CRM routes require a valid JWT — client care data is sensitive.
 router.use(requireAuth);
+
+// ─── Widget Builder Settings ────────────────────────────────────────────────
+
+/**
+ * GET /api/compassion/appointment-widget
+ * Returns current authenticated-org widget builder configuration.
+ */
+router.get("/appointment-widget", async (req, res) => {
+  try {
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+
+    const plugin = await prisma.pluginSetting.findUnique({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: APPOINTMENT_WIDGET_PLUGIN_KEY,
+        },
+      },
+    });
+
+    const config = parseWidgetConfig(plugin?.config ?? null);
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const publicUrl = `${appUrl.replace(/\/$/, "")}/compassion/public/appointments/${config.token}`;
+
+    res.json({
+      enabled: plugin?.enabled ?? config.enabled,
+      config,
+      publicUrl,
+      iframeSnippet: `<iframe src="${publicUrl}" width="100%" height="760" style="border:0;border-radius:12px;" title="Appointment Request"></iframe>`,
+    });
+  } catch (err) {
+    console.error("[compassion] GET /appointment-widget error:", err);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load widget settings" } });
+  }
+});
+
+/**
+ * PUT /api/compassion/appointment-widget
+ * Updates the authenticated-org appointment widget builder config. Admin only.
+ */
+router.put("/appointment-widget", requireRole("admin"), async (req, res) => {
+  try {
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+
+    const existing = await prisma.pluginSetting.findUnique({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: APPOINTMENT_WIDGET_PLUGIN_KEY,
+        },
+      },
+    });
+
+    const base = parseWidgetConfig(existing?.config ?? null);
+    const incoming = parseWidgetConfig(req.body?.config ?? req.body ?? null);
+
+    const merged: AppointmentWidgetConfig = {
+      ...base,
+      ...incoming,
+      token: typeof req.body?.regenerateToken === "boolean" && req.body.regenerateToken
+        ? createWidgetToken()
+        : incoming.token || base.token,
+    };
+
+    const enabled = typeof req.body?.enabled === "boolean" ? req.body.enabled : existing?.enabled ?? merged.enabled;
+
+    const saved = await prisma.pluginSetting.upsert({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: APPOINTMENT_WIDGET_PLUGIN_KEY,
+        },
+      },
+      create: {
+        organizationId,
+        pluginKey: APPOINTMENT_WIDGET_PLUGIN_KEY,
+        enabled,
+        config: merged,
+      },
+      update: {
+        enabled,
+        config: merged,
+      },
+    });
+
+    await logAudit({
+      action: "COMPASSION_APPOINTMENT_WIDGET_UPDATED",
+      entity: "PluginSetting",
+      entityId: saved.id,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: { enabled },
+    });
+
+    res.json({
+      enabled: saved.enabled,
+      config: parseWidgetConfig(saved.config),
+    });
+  } catch (err) {
+    console.error("[compassion] PUT /appointment-widget error:", err);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to update widget settings" } });
+  }
+});
 
 // ─── Dashboard Summary ─────────────────────────────────────────────────────────
 
@@ -244,6 +390,248 @@ router.get("/dashboard-summary", async (req, res) => {
   } catch (err) {
     console.error("[compassion] dashboard-summary error:", err);
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load dashboard summary" } });
+  }
+});
+
+// ─── Families ────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/compassion/families
+ * Returns household-style family groupings inferred from address/phone/name data.
+ */
+router.get("/families", async (req, res) => {
+  try {
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+
+    const { search, minMembers = "2", limit = "100" } = req.query as Record<string, string>;
+    const min = Math.max(parseInt(minMembers || "2", 10) || 2, 1);
+    const take = Math.min(Math.max(parseInt(limit || "100", 10) || 100, 1), 250);
+
+    const clients = await prisma.compassionClient.findMany({
+      where: {
+        organizationId,
+        ...(search
+          ? {
+              OR: [
+                { firstName: { contains: search } },
+                { lastName: { contains: search } },
+                { addressLine1: { contains: search } },
+                { city: { contains: search } },
+                { phone: { contains: search } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      take,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        preferredName: true,
+        phone: true,
+        email: true,
+        addressLine1: true,
+        city: true,
+        state: true,
+        zip: true,
+        clientStatus: true,
+        intakeDate: true,
+      },
+    });
+
+    const grouped = new Map<string, typeof clients>();
+    for (const client of clients) {
+      const key = computeFamilyKey(client);
+      const list = grouped.get(key) ?? [];
+      list.push(client);
+      grouped.set(key, list);
+    }
+
+    const families = Array.from(grouped.entries())
+      .filter(([, members]) => members.length >= min)
+      .map(([key, members]) => {
+        const familyName = `${members[0].lastName || members[0].firstName} Family`;
+        const location = [members[0].addressLine1, members[0].city, members[0].state, members[0].zip]
+          .filter(Boolean)
+          .join(", ");
+        const activeMembers = members.filter((m) => m.clientStatus === "ACTIVE").length;
+
+        return {
+          id: key,
+          familyName,
+          familyKey: key,
+          memberCount: members.length,
+          activeMembers,
+          location,
+          members: members.map((member) => ({
+            id: member.id,
+            firstName: member.firstName,
+            lastName: member.lastName,
+            preferredName: member.preferredName,
+            clientStatus: member.clientStatus,
+            phone: member.phone,
+            email: member.email,
+            intakeDate: member.intakeDate,
+          })),
+        };
+      })
+      .sort((a, b) => b.memberCount - a.memberCount || a.familyName.localeCompare(b.familyName));
+
+    res.json({
+      totalFamilies: families.length,
+      totalClientsGrouped: families.reduce((sum, family) => sum + family.memberCount, 0),
+      families,
+    });
+  } catch (err) {
+    console.error("[compassion] GET /families error:", err);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load families" } });
+  }
+});
+
+// ─── Reports ─────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/compassion/reports/summary
+ * Returns report-oriented KPIs for cases, appointments, and client growth.
+ */
+router.get("/reports/summary", async (req, res) => {
+  try {
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    const [
+      totalClients,
+      activeCases,
+      newClientsThisMonth,
+      apptsThisMonth,
+      apptsLastMonth,
+      completedApptsThisMonth,
+      casesByType,
+      casesByStatus,
+      appointmentsByType,
+      recentCases,
+    ] = await Promise.all([
+      prisma.compassionClient.count({ where: { organizationId } }),
+      prisma.compassionCase.count({
+        where: {
+          organizationId,
+          caseStatus: { in: ["OPEN", "IN_PROGRESS"] },
+        },
+      }),
+      prisma.compassionClient.count({
+        where: {
+          organizationId,
+          intakeDate: { gte: startOfMonth },
+        },
+      }),
+      prisma.compassionAppointment.count({
+        where: {
+          organizationId,
+          startTime: { gte: startOfMonth },
+        },
+      }),
+      prisma.compassionAppointment.count({
+        where: {
+          organizationId,
+          startTime: { gte: startOfLastMonth, lt: startOfMonth },
+        },
+      }),
+      prisma.compassionAppointment.count({
+        where: {
+          organizationId,
+          startTime: { gte: startOfMonth },
+          status: "COMPLETED",
+        },
+      }),
+      prisma.compassionCase.groupBy({
+        by: ["caseType"],
+        where: { organizationId },
+        _count: { caseType: true },
+      }),
+      prisma.compassionCase.groupBy({
+        by: ["caseStatus"],
+        where: { organizationId },
+        _count: { caseStatus: true },
+      }),
+      prisma.compassionAppointment.groupBy({
+        by: ["appointmentType"],
+        where: {
+          organizationId,
+          startTime: { gte: startOfLastMonth },
+        },
+        _count: { appointmentType: true },
+      }),
+      prisma.compassionCase.findMany({
+        where: { organizationId },
+        orderBy: { openedAt: "desc" },
+        take: 6,
+        include: {
+          client: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const completionRate = apptsThisMonth > 0
+      ? Math.round((completedApptsThisMonth / apptsThisMonth) * 100)
+      : 0;
+
+    const monthDeltaPercent = apptsLastMonth > 0
+      ? Math.round(((apptsThisMonth - apptsLastMonth) / apptsLastMonth) * 100)
+      : (apptsThisMonth > 0 ? 100 : 0);
+
+    res.json({
+      generatedAt: now.toISOString(),
+      kpis: {
+        totalClients,
+        activeCases,
+        newClientsThisMonth,
+        appointmentsThisMonth: apptsThisMonth,
+        appointmentsLastMonth: apptsLastMonth,
+        completedAppointmentsThisMonth: completedApptsThisMonth,
+        completionRate,
+        monthDeltaPercent,
+      },
+      casesByType: casesByType.map((row) => ({
+        label: row.caseType,
+        value: row._count.caseType,
+      })),
+      casesByStatus: casesByStatus.map((row) => ({
+        label: row.caseStatus,
+        value: row._count.caseStatus,
+      })),
+      appointmentsByType: appointmentsByType.map((row) => ({
+        label: row.appointmentType,
+        value: row._count.appointmentType,
+      })),
+      recentCases: recentCases.map((item) => ({
+        id: item.id,
+        caseNumber: item.caseNumber,
+        caseType: item.caseType,
+        caseStatus: item.caseStatus,
+        openedAt: item.openedAt,
+        clientName: `${item.client.firstName} ${item.client.lastName}`,
+      })),
+    });
+  } catch (err) {
+    console.error("[compassion] GET /reports/summary error:", err);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load reports summary" } });
   }
 });
 

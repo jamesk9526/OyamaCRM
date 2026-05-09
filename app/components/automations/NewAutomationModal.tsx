@@ -41,6 +41,7 @@ export default function NewAutomationModal({ onClose, onCreated }: NewAutomation
   const [actionType, setActionType] = useState("SEND_EMAIL");
   const [firstDonationOnly, setFirstDonationOnly] = useState(false);
   const [majorGiftMinAmount, setMajorGiftMinAmount] = useState("");
+  const [sharedWithOrganization, setSharedWithOrganization] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -73,6 +74,7 @@ export default function NewAutomationModal({ onClose, onCreated }: NewAutomation
           description: description.trim() || null,
           trigger,
           triggerConfig: Object.keys(triggerConfig).length ? triggerConfig : undefined,
+          sharedWithOrganization,
           actions: [{ type: actionType, order: 0 }],
         }),
       });
@@ -123,6 +125,16 @@ export default function NewAutomationModal({ onClose, onCreated }: NewAutomation
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
             />
           </div>
+
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={sharedWithOrganization}
+              onChange={(e) => setSharedWithOrganization(e.target.checked)}
+              className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+            />
+            Visible to other users in this organization
+          </label>
 
           {/* Trigger */}
           <div>

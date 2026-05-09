@@ -8,6 +8,11 @@ const CARDS = [
     href: "/settings/organization",
   },
   {
+    title: "Events CRM",
+    description: "Configure event operations defaults and module-specific communication templates.",
+    href: "/settings/events",
+  },
+  {
     title: "Branding",
     description: "Logo, primary colors, and public display defaults for forms and pages.",
     href: "/settings/branding",
@@ -41,6 +46,11 @@ const CARDS = [
     title: "Workspaces",
     description: "Enable/disable OyamaCRM and OyamaCRM-Compassion workspaces.",
     href: "/settings/workspaces",
+  },
+  {
+    title: "AI Assistant",
+    description: "Configure Steward AI with local Ollama or a remote hosted Ollama endpoint.",
+    href: "/settings/ai",
   },
   {
     title: "System Status",

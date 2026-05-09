@@ -67,6 +67,7 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
   const [audiencePreview, setAudiencePreview] = useState<AudiencePreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewAudienceId, setPreviewAudienceId] = useState<string | null>(null);
+  const [sharedWithOrganization, setSharedWithOrganization] = useState(false);
 
   function set(field: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -121,6 +122,7 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
           bodyText: form.bodyText || null,
           scheduledAt: form.scheduledAt || null,
           audienceFilter: { type: form.audienceId },
+          sharedWithOrganization,
         }),
       });
       onCreated(campaign.id);
@@ -299,6 +301,16 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
                 />
                 <p className="text-xs text-gray-400 mt-1">Leave blank to save as draft and send manually later.</p>
               </FormField>
+
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={sharedWithOrganization}
+                  onChange={(e) => setSharedWithOrganization(e.target.checked)}
+                  className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                />
+                Visible to other users in this organization
+              </label>
 
               {error && (
                 <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">

@@ -12,6 +12,7 @@ export default function DonorSettingsPage() {
         "Configure default gift/payment method sets",
         "Set campaign and receipt defaults",
         "Adjust communication and stewardship thresholds",
+        "Configure DonorCRM email sender, SMS sender, and template defaults",
       ]}
     />
   );

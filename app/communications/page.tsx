@@ -8,6 +8,8 @@ interface EmailCampaign {
   id: string;
   name: string;
   subject: string;
+  ownerId?: string | null;
+  sharedWithOrganization?: boolean;
   status: string;
   sentAt?: string;
   scheduledAt?: string;
@@ -57,6 +59,7 @@ export default function CommunicationsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [showModal, setShowModal] = useState(false);
   const [sending, setSending] = useState<string | null>(null);
+  const [sharingUpdateId, setSharingUpdateId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,6 +91,21 @@ export default function CommunicationsPage() {
     if (!confirm("Delete this campaign?")) return;
     await apiFetch(`/api/email-campaigns/${id}`, { method: "DELETE" });
     await load();
+  }
+
+  async function toggleCampaignVisibility(campaign: EmailCampaign) {
+    setSharingUpdateId(campaign.id);
+    try {
+      await apiFetch(`/api/email-campaigns/${campaign.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          sharedWithOrganization: !campaign.sharedWithOrganization,
+        }),
+      });
+      await load();
+    } finally {
+      setSharingUpdateId(null);
+    }
   }
 
   /** Opens the drag-and-drop email builder in a new tab for the given campaign. */
@@ -155,8 +173,10 @@ export default function CommunicationsPage() {
               key={c.id}
               campaign={c}
               sending={sending === c.id}
+              sharingUpdating={sharingUpdateId === c.id}
               onSend={() => sendNow(c.id)}
               onEdit={() => openEditor(c.id)}
+              onToggleSharing={() => toggleCampaignVisibility(c)}
               onDelete={() => deleteCampaign(c.id)}
             />
           ))}
@@ -173,12 +193,14 @@ export default function CommunicationsPage() {
   );
 }
 
-function CampaignCard({ campaign: c, sending, onSend, onEdit, onDelete }: {
+function CampaignCard({ campaign: c, sending, sharingUpdating, onSend, onEdit, onToggleSharing, onDelete }: {
   campaign: EmailCampaign;
   sending: boolean;
+  sharingUpdating: boolean;
   onSend: () => void;
   /** Opens the email builder in a new tab for this campaign. */
   onEdit: () => void;
+  onToggleSharing: () => void;
   onDelete: () => void;
 }){
   const cfg = STATUS_CONFIG[c.status] ?? STATUS_CONFIG.DRAFT;
@@ -192,6 +214,9 @@ function CampaignCard({ campaign: c, sending, onSend, onEdit, onDelete }: {
             <h3 className="text-sm font-semibold text-gray-900 truncate">{c.name}</h3>
             <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${cfg.color}`}>
               {cfg.label}
+            </span>
+            <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${c.sharedWithOrganization ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-600"}`}>
+              {c.sharedWithOrganization ? "Shared" : "Private"}
             </span>
           </div>
           <p className="text-sm text-gray-500 mt-0.5 truncate">
@@ -223,6 +248,13 @@ function CampaignCard({ campaign: c, sending, onSend, onEdit, onDelete }: {
               Edit
             </button>
           )}
+          <button
+            onClick={onToggleSharing}
+            disabled={sharingUpdating}
+            className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {sharingUpdating ? "Saving..." : c.sharedWithOrganization ? "Make Private" : "Share"}
+          </button>
           <button
             onClick={onDelete}
             className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"

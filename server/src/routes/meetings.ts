@@ -21,12 +21,17 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { requireRole } from "../middleware/requireRole.js";
 
 const router = Router();
 
 // All meeting routes require an authenticated session.
 router.use(requireAuth);
+
+/** Access predicate for meeting visibility/editing. */
+function canAccessMeeting(meeting: { createdById: string | null; assignedStaffId: string | null }, userId: string, role: string | undefined): boolean {
+  if (role === "admin") return true;
+  return meeting.createdById === userId || meeting.assignedStaffId === userId;
+}
 
 // ─── List / Search ────────────────────────────────────────────────────────────
 
@@ -37,19 +42,38 @@ router.use(requireAuth);
  */
 router.get("/", async (req, res) => {
   try {
+    const userId = req.user?.sub;
+    const organizationId = req.user?.orgId;
+    const role = req.user?.role;
+    if (!userId || !organizationId) {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+      return;
+    }
+
     const {
       status,
       constituentId,
       assignedStaffId,
+      scope = "personal",
       page = "1",
       limit = "25",
       upcoming,
     } = req.query as Record<string, string>;
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const parsedPage = Math.max(parseInt(page) || 1, 1);
+    const parsedLimit = Math.min(Math.max(parseInt(limit) || 25, 1), 100);
+    const skip = (parsedPage - 1) * parsedLimit;
+    const personalScope = !(scope === "all" && role === "admin");
 
     // Build where clause from query params
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = {
+      organizationId,
+      ...(personalScope
+        ? {
+            OR: [{ createdById: userId }, { assignedStaffId: userId }],
+          }
+        : {}),
+    };
     if (status) where.status = status;
     if (constituentId) where.constituentId = constituentId;
     if (assignedStaffId) where.assignedStaffId = assignedStaffId;
@@ -64,7 +88,7 @@ router.get("/", async (req, res) => {
       prisma.meeting.findMany({
         where,
         skip,
-        take: parseInt(limit),
+        take: parsedLimit,
         orderBy: { startTime: "asc" },
         include: {
           constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -76,7 +100,7 @@ router.get("/", async (req, res) => {
       prisma.meeting.count({ where }),
     ]);
 
-    res.json({ items, total, page: parseInt(page), limit: parseInt(limit) });
+    res.json({ items, total, page: parsedPage, limit: parsedLimit });
   } catch (err) {
     console.error("GET /api/meetings error:", err);
     res.status(500).json({ error: { code: "INTERNAL", message: "Failed to load meetings" } });
@@ -92,11 +116,27 @@ router.get("/", async (req, res) => {
  */
 router.get("/upcoming", async (req, res) => {
   try {
+    const userId = req.user?.sub;
+    const organizationId = req.user?.orgId;
+    const role = req.user?.role;
+    if (!userId || !organizationId) {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+      return;
+    }
+
     const { assignedStaffId } = req.query as Record<string, string>;
+    const scope = (req.query.scope as string) ?? "personal";
+    const personalScope = !(scope === "all" && role === "admin");
 
     const where: Record<string, unknown> = {
+      organizationId,
       status: "SCHEDULED",
       startTime: { gte: new Date() },
+      ...(personalScope
+        ? {
+            OR: [{ createdById: userId }, { assignedStaffId: userId }],
+          }
+        : {}),
     };
     if (assignedStaffId) where.assignedStaffId = assignedStaffId;
 
@@ -118,8 +158,14 @@ router.get("/upcoming", async (req, res) => {
 
     const todayCount = await prisma.meeting.count({
       where: {
+        organizationId,
         status: "SCHEDULED",
         startTime: { gte: todayStart, lt: tomorrowStart },
+        ...(personalScope
+          ? {
+              OR: [{ createdById: userId }, { assignedStaffId: userId }],
+            }
+          : {}),
       },
     });
 
@@ -138,8 +184,20 @@ router.get("/upcoming", async (req, res) => {
  */
 router.get("/:id", async (req, res) => {
   try {
-    const meeting = await prisma.meeting.findUnique({
-      where: { id: req.params.id },
+    const userId = req.user?.sub;
+    const organizationId = req.user?.orgId;
+    const role = req.user?.role;
+    if (!userId || !organizationId) {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+      return;
+    }
+
+    const meeting = await prisma.meeting.findFirst({
+      where: {
+        id: req.params.id,
+        organizationId,
+        OR: role === "admin" ? undefined : [{ createdById: userId }, { assignedStaffId: userId }],
+      },
       include: {
         constituent: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
         assignedStaff: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -178,8 +236,11 @@ router.get("/:id", async (req, res) => {
  */
 router.post("/", async (req, res) => {
   try {
-    const user = (req as unknown as { user?: { id: string; organizationId: string } }).user;
-    if (!user) return res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    const userId = req.user?.sub;
+    const organizationId = req.user?.orgId;
+    if (!userId || !organizationId) {
+      return res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    }
 
     const {
       title,
@@ -205,7 +266,7 @@ router.post("/", async (req, res) => {
     const meeting = await prisma.$transaction(async (tx) => {
       const created = await tx.meeting.create({
         data: {
-          organizationId: user.organizationId,
+          organizationId,
           title,
           type: type || "OTHER",
           status: "SCHEDULED",
@@ -220,7 +281,7 @@ router.post("/", async (req, res) => {
           privateNotes: privateNotes || null,
           constituentId: constituentId || null,
           assignedStaffId: assignedStaffId || null,
-          createdById: user.id,
+          createdById: userId,
         },
         include: {
           constituent: { select: { id: true, firstName: true, lastName: true } },
@@ -237,7 +298,7 @@ router.post("/", async (req, res) => {
           data: {
             constituentId,
             meetingId: created.id,
-            userId: user.id,
+            userId,
             type: "MEETING_SCHEDULED",
             description: `Meeting scheduled: "${title}" on ${new Date(startTime).toLocaleDateString()}.`,
             metadata: { meetingId: created.id, type, locationType, location },
@@ -264,6 +325,14 @@ router.post("/", async (req, res) => {
  */
 router.patch("/:id", async (req, res) => {
   try {
+    const userId = req.user?.sub;
+    const organizationId = req.user?.orgId;
+    const role = req.user?.role;
+    if (!userId || !organizationId) {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+      return;
+    }
+
     const {
       title,
       type,
@@ -283,9 +352,22 @@ router.patch("/:id", async (req, res) => {
       status,
     } = req.body;
 
-    const existing = await prisma.meeting.findUnique({ where: { id: req.params.id } });
+    const existing = await prisma.meeting.findFirst({
+      where: {
+        id: req.params.id,
+        organizationId,
+      },
+      select: {
+        id: true,
+        createdById: true,
+        assignedStaffId: true,
+      },
+    });
     if (!existing) {
       return res.status(404).json({ error: { code: "NOT_FOUND", message: "Meeting not found" } });
+    }
+    if (!canAccessMeeting(existing, userId, role)) {
+      return res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this meeting" } });
     }
 
     const updated = await prisma.meeting.update({
@@ -331,12 +413,25 @@ router.patch("/:id", async (req, res) => {
  */
 router.post("/:id/complete", async (req, res) => {
   try {
-    const user = (req as unknown as { user?: { id: string } }).user;
+    const userId = req.user?.sub;
+    const organizationId = req.user?.orgId;
+    const role = req.user?.role;
+    if (!userId || !organizationId) {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+      return;
+    }
+
     const { outcome, notes, followUpNeeded } = req.body;
 
-    const existing = await prisma.meeting.findUnique({ where: { id: req.params.id } });
+    const existing = await prisma.meeting.findFirst({
+      where: { id: req.params.id, organizationId },
+      select: { id: true, createdById: true, assignedStaffId: true, constituentId: true, title: true },
+    });
     if (!existing) {
       return res.status(404).json({ error: { code: "NOT_FOUND", message: "Meeting not found" } });
+    }
+    if (!canAccessMeeting(existing, userId, role)) {
+      return res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this meeting" } });
     }
 
     const meeting = await prisma.$transaction(async (tx) => {
@@ -360,7 +455,7 @@ router.post("/:id/complete", async (req, res) => {
           data: {
             constituentId: existing.constituentId,
             meetingId: existing.id,
-            userId: user?.id,
+            userId,
             type: "MEETING_COMPLETED",
             description: `Meeting completed: "${existing.title}".${outcome ? ` Outcome: ${outcome}` : ""}`,
             metadata: { meetingId: existing.id, outcome, followUpNeeded },
@@ -387,11 +482,23 @@ router.post("/:id/complete", async (req, res) => {
  */
 router.post("/:id/cancel", async (req, res) => {
   try {
-    const user = (req as unknown as { user?: { id: string } }).user;
+    const userId = req.user?.sub;
+    const organizationId = req.user?.orgId;
+    const role = req.user?.role;
+    if (!userId || !organizationId) {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+      return;
+    }
 
-    const existing = await prisma.meeting.findUnique({ where: { id: req.params.id } });
+    const existing = await prisma.meeting.findFirst({
+      where: { id: req.params.id, organizationId },
+      select: { id: true, createdById: true, assignedStaffId: true, constituentId: true, title: true },
+    });
     if (!existing) {
       return res.status(404).json({ error: { code: "NOT_FOUND", message: "Meeting not found" } });
+    }
+    if (!canAccessMeeting(existing, userId, role)) {
+      return res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this meeting" } });
     }
 
     const meeting = await prisma.$transaction(async (tx) => {
@@ -405,7 +512,7 @@ router.post("/:id/cancel", async (req, res) => {
           data: {
             constituentId: existing.constituentId,
             meetingId: existing.id,
-            userId: user?.id,
+            userId,
             type: "MEETING_CANCELED",
             description: `Meeting canceled: "${existing.title}".`,
             metadata: { meetingId: existing.id },
@@ -431,9 +538,23 @@ router.post("/:id/cancel", async (req, res) => {
  */
 router.post("/:id/no-show", async (req, res) => {
   try {
-    const existing = await prisma.meeting.findUnique({ where: { id: req.params.id } });
+    const userId = req.user?.sub;
+    const organizationId = req.user?.orgId;
+    const role = req.user?.role;
+    if (!userId || !organizationId) {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+      return;
+    }
+
+    const existing = await prisma.meeting.findFirst({
+      where: { id: req.params.id, organizationId },
+      select: { id: true, createdById: true, assignedStaffId: true },
+    });
     if (!existing) {
       return res.status(404).json({ error: { code: "NOT_FOUND", message: "Meeting not found" } });
+    }
+    if (!canAccessMeeting(existing, userId, role)) {
+      return res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this meeting" } });
     }
 
     const meeting = await prisma.meeting.update({
@@ -452,14 +573,28 @@ router.post("/:id/no-show", async (req, res) => {
 
 /**
  * DELETE /api/meetings/:id
- * Permanently delete a meeting record. Admin only.
+ * Permanently delete a meeting record for owner/assignee/admin.
  */
-router.delete("/:id", requireRole("admin"), async (req, res) => {
+router.delete("/:id", async (req, res) => {
   try {
+    const userId = req.user?.sub;
+    const organizationId = req.user?.orgId;
+    const role = req.user?.role;
+    if (!userId || !organizationId) {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+      return;
+    }
+
     const id = String(req.params.id);
-    const existing = await prisma.meeting.findUnique({ where: { id } });
+    const existing = await prisma.meeting.findFirst({
+      where: { id, organizationId },
+      select: { id: true, createdById: true, assignedStaffId: true },
+    });
     if (!existing) {
       return res.status(404).json({ error: { code: "NOT_FOUND", message: "Meeting not found" } });
+    }
+    if (!canAccessMeeting(existing, userId, role)) {
+      return res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this meeting" } });
     }
 
     await prisma.meeting.delete({ where: { id } });

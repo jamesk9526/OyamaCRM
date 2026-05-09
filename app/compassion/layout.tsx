@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import TopBar from "@/app/components/layout/TopBar";
 import CompassionSidebar from "@/app/components/layout/CompassionSidebar";
@@ -18,13 +18,20 @@ import ErrorBoundary from "@/app/components/ErrorBoundary";
 export default function CompassionLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const isPublicWidgetRoute = pathname.startsWith("/compassion/public");
 
   // Redirect unauthenticated users to login
   useEffect(() => {
+    if (isPublicWidgetRoute) return;
     if (!loading && !user) {
       router.replace("/login");
     }
-  }, [loading, user, router]);
+  }, [isPublicWidgetRoute, loading, user, router]);
+
+  if (isPublicWidgetRoute) {
+    return <>{children}</>;
+  }
 
   // Loading state — prevent flash of unauthenticated content
   if (loading || !user) {

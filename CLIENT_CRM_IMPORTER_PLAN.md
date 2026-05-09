@@ -66,6 +66,13 @@ A client importer that:
 - [ ] Add a reusable `<NotYetImplemented feature="…" />` popup component. Use it on every stub tab.
 - [ ] Record each stub in `AGENTS.md` (already established in this PR).
 
+## Batch 6 — Client-scoped linked-record import expansion
+
+- [x] Extend Compassion field map with planned linked-record mappings (case, visit, assessment, pregnancy test, referral, class, boutique).
+- [ ] Persist mapped linked-record fields into dedicated client-scoped entities (case visits, assessments, tests, referrals, classes, boutique usage).
+- [ ] Import results should show per-entity counts (clients created/updated, case rows created, medical rows created, referral rows created).
+- [ ] Add audit events per entity type created or updated during import.
+
 ---
 
 ## Out of scope

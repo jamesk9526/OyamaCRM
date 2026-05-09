@@ -192,6 +192,7 @@ export default function CompassionCasesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
 
   /** Load cases from API */
@@ -226,6 +227,17 @@ export default function CompassionCasesPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const filteredCases = cases.filter((item) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    const clientName = `${item.client?.firstName ?? ""} ${item.client?.lastName ?? ""}`.trim().toLowerCase();
+    return item.caseNumber.toLowerCase().includes(q) || clientName.includes(q) || typeLabel(item.caseType).toLowerCase().includes(q);
+  });
+
+  const openCount = filteredCases.filter((item) => item.caseStatus === "OPEN").length;
+  const inProgressCount = filteredCases.filter((item) => item.caseStatus === "IN_PROGRESS").length;
+  const urgentCount = filteredCases.filter((item) => item.priority === "URGENT").length;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -245,8 +257,29 @@ export default function CompassionCasesPage() {
         </button>
       </div>
 
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Open Cases</p>
+          <p className="text-2xl font-semibold text-gray-900 mt-1">{openCount}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">In Progress</p>
+          <p className="text-2xl font-semibold text-gray-900 mt-1">{inProgressCount}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Urgent Priority</p>
+          <p className="text-2xl font-semibold text-gray-900 mt-1">{urgentCount}</p>
+        </div>
+      </div>
+
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by case #, client, or type..."
+          className="flex-1 min-w-[220px] border border-gray-200 rounded-lg px-3 py-2 text-sm"
+        />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -269,7 +302,7 @@ export default function CompassionCasesPage() {
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-10 text-center text-sm text-gray-400 animate-pulse">Loading cases…</div>
-        ) : cases.length === 0 ? (
+        ) : filteredCases.length === 0 ? (
           <div className="p-10 text-center">
             <p className="text-gray-400 text-sm">No cases found.</p>
             <button onClick={() => setShowModal(true)}
@@ -289,7 +322,7 @@ export default function CompassionCasesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {cases.map((c) => (
+              {filteredCases.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs text-blue-700">{c.caseNumber}</td>
                   <td className="px-4 py-3 font-medium text-gray-900">
@@ -322,8 +355,8 @@ export default function CompassionCasesPage() {
         )}
       </div>
 
-      {!loading && cases.length > 0 && (
-        <p className="text-xs text-gray-400">{cases.length} case{cases.length !== 1 ? "s" : ""} shown</p>
+      {!loading && filteredCases.length > 0 && (
+        <p className="text-xs text-gray-400">{filteredCases.length} case{filteredCases.length !== 1 ? "s" : ""} shown</p>
       )}
 
       {showModal && (

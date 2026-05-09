@@ -87,6 +87,14 @@ Batch 1 closes all four gaps.
 
 - `tests/unit/compassion-client-import-validator.test.ts` — 39 tests covering the bug-report example, name-parsing, email/phone/date validation, in-file duplicate detection, status normalisation, error-CSV serialisation, and the new auto-delimiter parser.
 
+### 3.7 Client-scoped workspace structure (new)
+
+- Compassion sidebar was simplified to major tools only: Dashboard, Clients, Cases, Appointments, Tasks, Follow Ups, Reports, Data Tools, Settings.
+- Families, Care Plans, Activities, and Communications were removed from top-level sidebar navigation.
+- Client profile route (`/compassion/clients/[id]`) was expanded into a client-scoped workspace with tabs for detailed service areas.
+- Existing data-backed tabs remain active (Overview, Details, Cases, Activity, Appointments, Resources, Audit Log).
+- Planned tabs now show explicit in-development notices with criteria for removal (Notes, Follow Ups, Documents, Medical, Assessments, Pregnancy Tests, Sonograms, Referrals, Classes, Boutique, Communication, Portal).
+
 ---
 
 ## 4. Backlog (next batches)

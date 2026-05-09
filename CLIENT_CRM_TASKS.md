@@ -20,6 +20,11 @@ A live checklist of remaining production work for the Compassion CRM. Update as 
 - [x] Client list page — assignment / missing-contact / intake-window filters.
 - [x] 39 unit tests for the validator + parser.
 - [x] Docs: `CLIENT_CRM_AUDIT.md`, `CLIENT_CRM_IMPORTER_PLAN.md`, `CLIENT_CRM_TASKS.md`.
+- [x] Simplify Compassion sidebar to major tools only (Dashboard, Clients, Cases, Appointments, Tasks, Follow Ups, Reports, Data Tools, Settings).
+- [x] Remove Families, Care Plans, Activities, and Communications from top-level Compassion sidebar.
+- [x] Expand client profile into a client-scoped workspace with broad service-domain tabs.
+- [x] Add in-development warning scaffolding for not-yet-implemented client tabs.
+- [x] Add module-specific communication settings skeleton pages for Donor, Compassion, and Events modules.
 
 ## 🚧 In progress / next batch
 
@@ -53,6 +58,7 @@ A live checklist of remaining production work for the Compassion CRM. Update as 
 - [ ] Referrals (housing / GED / jobs / nutrition / diapers / clothing / transport / parenting).
 - [ ] Activity timeline.
 - [ ] Privacy-safe audit log viewer.
+- [ ] Persist client-scoped linked-record import mappings (case/visit/medical/referral/class/boutique entities).
 
 ---
 
@@ -62,4 +68,15 @@ When a stub tab/button/page is shipped behind the `<NotYetImplemented />` popup,
 
 | Surface | Removal criteria | Status |
 |---|---|---|
-| _none yet — added in Batch 5_ | | |
+| Client tab: Notes (`/compassion/clients/[id]`) | Client-scoped API + create/edit flow + audit events + happy-path test | In development |
+| Client tab: Follow Ups (`/compassion/clients/[id]`) | Client-scoped API + status updates + audit events + happy-path test | In development |
+| Client tab: Documents (`/compassion/clients/[id]`) | Upload/list/delete with client permissions + audit + happy-path test | In development |
+| Client tab: Medical (`/compassion/clients/[id]`) | Medical data model + role-aware read/write + audit + happy-path test | In development |
+| Client tab: Assessments (`/compassion/clients/[id]`) | Assessment records linked to client/case + audit + happy-path test | In development |
+| Client tab: Pregnancy Tests (`/compassion/clients/[id]`) | Pregnancy test model + record flow + audit + happy-path test | In development |
+| Client tab: Sonograms (`/compassion/clients/[id]`) | Sonogram records + scheduling links + audit + happy-path test | In development |
+| Client tab: Referrals (`/compassion/clients/[id]`) | Referral model + outcome tracking + audit + happy-path test | In development |
+| Client tab: Classes (`/compassion/clients/[id]`) | Class attendance/completion model + audit + happy-path test | In development |
+| Client tab: Boutique (`/compassion/clients/[id]`) | Item/points tracking model + audit + happy-path test | In development |
+| Client tab: Communication (`/compassion/clients/[id]`) | Email/SMS/call log model + consent checks + audit + happy-path test | In development |
+| Client tab: Portal (`/compassion/clients/[id]`) | Portal event ingestion and read model + audit + happy-path test | In development |

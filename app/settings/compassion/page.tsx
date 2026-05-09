@@ -12,6 +12,9 @@ export default function CompassionSettingsPage() {
         "Configure file and note categories",
         "Define referral and material-assistance categories",
         "Set client privacy and access defaults",
+        "Configure Compassion-specific email and SMS sender defaults",
+        "Set consent rules and communication logging behavior",
+        "Define enhanced audit rules for sensitive client actions",
       ]}
     />
   );

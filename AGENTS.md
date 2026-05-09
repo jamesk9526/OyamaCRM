@@ -295,6 +295,47 @@ Keep these three documents current as the Compassion CRM evolves:
 - `CLIENT_CRM_AUDIT.md` — current state of importer, search, profile, scheduling.
 - `CLIENT_CRM_IMPORTER_PLAN.md` — the multi-batch importer plan.
 - `CLIENT_CRM_TASKS.md` — live checklist; never delete completed entries.
+
+## Compassion CRM Client-Scoped Architecture
+
+Compassion CRM is a client-services module. Keep top-level navigation focused and avoid turning the sidebar into a list of every form type.
+
+Primary sidebar items should remain:
+- Dashboard
+- Clients
+- Cases
+- Appointments
+- Tasks
+- Follow Ups
+- Reports
+- Data Tools
+- Settings
+
+Detailed service records must live inside the client-scoped workspace (`/compassion/clients/[clientId]`) rather than as top-level nav items. This includes:
+- Care plans
+- Activities and timeline entries
+- Notes
+- Assessments
+- Medical records
+- Pregnancy tests
+- Sonograms
+- Referrals
+- Classes
+- Boutique/resource usage
+- Documents
+- Communications
+- Audit logs
+
+The client profile is the source of truth for client-specific history.
+
+## Compassion CRM Audit And Communication Rules
+
+Compassion CRM may contain sensitive client-service data and requires stronger audit behavior than donor workflows.
+
+- Any client-related view/create/update/import/merge/delete action should eventually write an audit event.
+- Audit log views should be available in the client workspace and remain privacy-safe.
+- Email and SMS settings are module-specific. Do not assume DonorCRM, Compassion CRM, and Events CRM share sender defaults, consent behavior, or templates.
+- When communication features are not fully implemented, show clear in-development notices and add `// TODO: backend API needed` where persistence routes are missing.
 <!-- END:compassion-crm-rules -->
 
 <!-- BEGIN:quickbooks-plugin-rules -->

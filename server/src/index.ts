@@ -38,9 +38,12 @@ import customFieldRoutes from "./routes/custom-fields.js";
 import grantRoutes from "./routes/grants.js";
 import meetingRoutes from "./routes/meetings.js";
 import compassionRoutes from "./routes/compassion.js";
+import compassionPublicRoutes from "./routes/compassion-public.js";
 import quickbooksRoutes from "./routes/quickbooks.js";
 import searchRoutes from "./routes/search.js";
+import notificationsRoutes from "./routes/notifications.js";
 import stewardSignalsRoutes from "./routes/steward-signals.js";
+import stewardAiRoutes from "./routes/steward-ai.js";
 import { prisma } from "./lib/prisma.js";
 import { getAppInfo } from "./lib/app-info.js";
 import { getEmailQueueWorkerStatus, startEmailQueueWorker } from "./services/email-queue-worker.js";
@@ -147,10 +150,13 @@ app.use("/api/audit-logs", auditLogRoutes);
 app.use("/api/custom-fields", customFieldRoutes);
 app.use("/api/grants", grantRoutes);
 app.use("/api/meetings", meetingRoutes);
+app.use("/api/compassion-public", compassionPublicRoutes);
 app.use("/api/compassion", compassionRoutes);
 app.use("/api/quickbooks", quickbooksRoutes);
 app.use("/api/search", searchRoutes);
+app.use("/api/notifications", notificationsRoutes);
 app.use("/api/steward-signals", stewardSignalsRoutes);
+app.use("/api/steward-ai", stewardAiRoutes);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 

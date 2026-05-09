@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
+import ClientWorkspacePlaceholder from "@/app/components/compassion/client-workspace/ClientWorkspacePlaceholder";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -359,6 +360,34 @@ function OverviewTab({ client }: { client: ClientDetail }) {
   );
 }
 
+/**
+ * DetailsTab shows deeper demographic and lifecycle details for the active client.
+ */
+function DetailsTab({ client }: { client: ClientDetail }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <section className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+        <h3 className="text-sm font-semibold text-gray-700">Demographics</h3>
+        <InfoRow label="Legal Name" value={`${client.firstName} ${client.lastName}`} />
+        <InfoRow label="Preferred Name" value={client.preferredName} />
+        <InfoRow label="Date of Birth" value={fmtDate(client.dateOfBirth)} />
+        <InfoRow label="Gender" value="Not captured yet" />
+      </section>
+
+      <section className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+        <h3 className="text-sm font-semibold text-gray-700">Lifecycle</h3>
+        <InfoRow label="Client Status" value={pretty(client.clientStatus)} />
+        <InfoRow label="Intake Date" value={fmtDate(client.intakeDate)} />
+        <InfoRow label="Referral Source" value={client.referralSource} />
+        <InfoRow
+          label="Assigned Staff"
+          value={client.assignedStaff ? `${client.assignedStaff.firstName} ${client.assignedStaff.lastName}` : undefined}
+        />
+      </section>
+    </div>
+  );
+}
+
 /** Simple label/value row used in overview panels */
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
   return (
@@ -382,10 +411,12 @@ function CasesTab({ cases }: { cases: CompassionCase[] }) {
         <thead>
           <tr className="border-b border-gray-100 bg-gray-50">
             <th className="text-left px-4 py-3 font-medium text-gray-600">Case #</th>
-            <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
+            <th className="text-left px-4 py-3 font-medium text-gray-600">Case Date</th>
             <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-            <th className="text-left px-4 py-3 font-medium text-gray-600">Priority</th>
-            <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Opened</th>
+            <th className="text-left px-4 py-3 font-medium text-gray-600">Due Date</th>
+            <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Outcome</th>
+            <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Assessment Stage</th>
+            <th className="text-left px-4 py-3 font-medium text-gray-600 hidden xl:table-cell">Spiritual Status</th>
             <th className="text-left px-4 py-3 font-medium text-gray-600 hidden xl:table-cell">Assigned</th>
           </tr>
         </thead>
@@ -393,14 +424,16 @@ function CasesTab({ cases }: { cases: CompassionCase[] }) {
           {cases.map((c) => (
             <tr key={c.id} className="hover:bg-gray-50">
               <td className="px-4 py-3 font-mono text-xs text-gray-700">{c.caseNumber}</td>
-              <td className="px-4 py-3 text-gray-700">{pretty(c.caseType)}</td>
+              <td className="px-4 py-3 text-gray-500">{fmtDate(c.openedAt)}</td>
               <td className="px-4 py-3">
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${caseStatusBadge(c.caseStatus)}`}>
                   {pretty(c.caseStatus)}
                 </span>
               </td>
-              <td className="px-4 py-3 text-gray-600">{pretty(c.priority)}</td>
-              <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">{fmtDate(c.openedAt)}</td>
+              <td className="px-4 py-3 text-gray-500">{fmtDate(c.closedAt)}</td>
+              <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">{c.summary ?? "Pending"}</td>
+              <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">{pretty(c.caseType)}</td>
+              <td className="px-4 py-3 text-gray-500 hidden xl:table-cell">Not recorded</td>
               <td className="px-4 py-3 text-gray-500 hidden xl:table-cell">
                 {c.assignedStaff ? `${c.assignedStaff.firstName} ${c.assignedStaff.lastName}` : "—"}
               </td>
@@ -446,11 +479,11 @@ function AppointmentsTab({ appointments }: { appointments: CompassionAppointment
 }
 
 /**
- * ServicesTab: services rendered for this client.
+ * ResourcesTab: resource and service records rendered for this client.
  */
-function ServicesTab({ services }: { services: CompassionService[] }) {
+function ResourcesTab({ services }: { services: CompassionService[] }) {
   if (services.length === 0) {
-    return <EmptyState message="No services recorded for this client." />;
+    return <EmptyState message="No resource or service records found for this client." />;
   }
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -475,6 +508,59 @@ function ServicesTab({ services }: { services: CompassionService[] }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+/**
+ * AuditLogTab shows a chronological list of auditable activity entries tied to this client.
+ */
+function AuditLogTab({ activities }: { activities: CompassionActivity[] }) {
+  if (activities.length === 0) {
+    return <EmptyState message="No audit events recorded yet for this client." />;
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-gray-100 bg-gray-50">
+            <th className="text-left px-4 py-3 font-medium text-gray-600">Date / Time</th>
+            <th className="text-left px-4 py-3 font-medium text-gray-600">Action</th>
+            <th className="text-left px-4 py-3 font-medium text-gray-600">Description</th>
+            <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">User</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-50">
+          {activities.map((a) => (
+            <tr key={a.id} className="hover:bg-gray-50">
+              <td className="px-4 py-3 text-gray-500">{fmtDateTime(a.createdAt)}</td>
+              <td className="px-4 py-3 text-gray-700 font-medium">{pretty(a.activityType)}</td>
+              <td className="px-4 py-3 text-gray-600">{a.description}</td>
+              <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">
+                {a.performedBy ? `${a.performedBy.firstName} ${a.performedBy.lastName}` : "System"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * PlannedClientTab displays a standard in-development warning for tabs not fully implemented yet.
+ */
+function PlannedClientTab({ title, description }: { title: string; description: string }) {
+  return (
+    <ClientWorkspacePlaceholder
+      title={title}
+      description={description}
+      criteria={[
+        "Client-scoped data retrieval is implemented and filtered by clientId.",
+        "At least one create/update happy-path test exists.",
+        "Audit events for view/create/update actions are written.",
+      ]}
+    />
   );
 }
 
@@ -522,7 +608,26 @@ function EmptyState({ message }: { message: string }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-type Tab = "overview" | "cases" | "appointments" | "services" | "activity";
+type Tab =
+  | "overview"
+  | "details"
+  | "cases"
+  | "activity"
+  | "notes"
+  | "appointments"
+  | "followUps"
+  | "resources"
+  | "documents"
+  | "medical"
+  | "assessments"
+  | "pregnancyTests"
+  | "sonograms"
+  | "referrals"
+  | "classes"
+  | "boutique"
+  | "communication"
+  | "portal"
+  | "auditLog";
 
 /**
  * ClientProfilePage: full client profile for a Compassion CRM client.
@@ -593,10 +698,24 @@ export default function ClientProfilePage() {
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "overview", label: "Overview" },
+    { id: "details", label: "Details" },
     { id: "cases", label: "Cases", count: client.cases.length },
-    { id: "appointments", label: "Appointments", count: client.appointments.length },
-    { id: "services", label: "Services", count: client.services.length },
     { id: "activity", label: "Activity", count: client.activities.length },
+    { id: "notes", label: "Notes" },
+    { id: "appointments", label: "Appointments", count: client.appointments.length },
+    { id: "followUps", label: "Follow Ups" },
+    { id: "resources", label: "Resources", count: client.services.length },
+    { id: "documents", label: "Documents" },
+    { id: "medical", label: "Medical" },
+    { id: "assessments", label: "Assessments" },
+    { id: "pregnancyTests", label: "Pregnancy Tests" },
+    { id: "sonograms", label: "Sonograms" },
+    { id: "referrals", label: "Referrals" },
+    { id: "classes", label: "Classes" },
+    { id: "boutique", label: "Boutique" },
+    { id: "communication", label: "Communication" },
+    { id: "portal", label: "Portal" },
+    { id: "auditLog", label: "Audit Log", count: client.activities.length },
   ];
 
   const displayName = client.preferredName
@@ -655,7 +774,7 @@ export default function ClientProfilePage() {
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
-        <nav className="flex gap-0 -mb-px">
+        <nav className="flex gap-0 -mb-px overflow-x-auto">
           {tabs.map((t) => (
             <button
               key={t.id}
@@ -679,12 +798,33 @@ export default function ClientProfilePage() {
         </nav>
       </div>
 
+      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <p className="text-sm font-semibold text-blue-800">Client-scoped workspace</p>
+        <p className="text-sm text-blue-700 mt-1">
+          This profile is the source of truth for client service history. Top-level navigation stays focused while detailed care records are managed here by client.
+        </p>
+      </div>
+
       {/* Tab content */}
       {tab === "overview"      && <OverviewTab client={client} />}
+      {tab === "details"       && <DetailsTab client={client} />}
       {tab === "cases"         && <CasesTab cases={client.cases} />}
-      {tab === "appointments"  && <AppointmentsTab appointments={client.appointments} />}
-      {tab === "services"      && <ServicesTab services={client.services} />}
       {tab === "activity"      && <ActivityTab activities={client.activities} />}
+      {tab === "notes"         && <PlannedClientTab title="Notes" description="Structured and freeform client notes will be managed here with author attribution and history." />}
+      {tab === "appointments"  && <AppointmentsTab appointments={client.appointments} />}
+      {tab === "followUps"     && <PlannedClientTab title="Follow Ups" description="Client-linked follow-up records and outcomes will be managed here and synced with the top-level follow-up queue." />}
+      {tab === "resources"     && <ResourcesTab services={client.services} />}
+      {tab === "documents"     && <PlannedClientTab title="Documents" description="Client documents and forms will be stored here with secure visibility controls." />}
+      {tab === "medical"       && <PlannedClientTab title="Medical" description="Sensitive medical information views will be client-scoped and permission-aware." />}
+      {tab === "assessments"   && <PlannedClientTab title="Assessments" description="Assessment history, stage transitions, and case-linked progress will appear in this tab." />}
+      {tab === "pregnancyTests" && <PlannedClientTab title="Pregnancy Tests" description="Pregnancy test records, outcomes, and follow-up links will be managed per client." />}
+      {tab === "sonograms"     && <PlannedClientTab title="Sonograms" description="Sonogram scheduling and results tracking will be client-scoped in this tab." />}
+      {tab === "referrals"     && <PlannedClientTab title="Referrals" description="Referral source and destination tracking with outcomes will be available here." />}
+      {tab === "classes"       && <PlannedClientTab title="Classes" description="Class attendance, completion, and education history will be managed here." />}
+      {tab === "boutique"      && <PlannedClientTab title="Boutique" description="Material assistance and boutique item usage with points tracking will appear here." />}
+      {tab === "communication" && <PlannedClientTab title="Communication" description="Client email, SMS, calls, and letters with consent-aware logs will be shown here." />}
+      {tab === "portal"        && <PlannedClientTab title="Portal" description="Client portal activity, form submissions, and engagement events will be tracked here." />}
+      {tab === "auditLog"      && <AuditLogTab activities={client.activities} />}
 
       {/* Edit Modal */}
       {showEdit && (

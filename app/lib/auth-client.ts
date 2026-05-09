@@ -127,6 +127,22 @@ export async function apiFetch<T = unknown>(
     throw new Error(body?.error?.message ?? `API error ${res.status}`);
   }
 
-  const body = await res.json();
+  // 204/205 and HEAD responses intentionally have no response body.
+  if (res.status === 204 || res.status === 205 || init.method?.toUpperCase() === "HEAD") {
+    return undefined as T;
+  }
+
+  // Some successful endpoints may return an empty body with a 2xx status.
+  const contentLength = res.headers.get("content-length");
+  if (contentLength === "0") {
+    return undefined as T;
+  }
+
+  const rawBody = await res.text();
+  if (!rawBody.trim()) {
+    return undefined as T;
+  }
+
+  const body = JSON.parse(rawBody) as { data?: T } | T;
   return (body.data ?? body) as T;
 }

@@ -1,94 +1,94 @@
 externalSourceId,fullName,email,homePhone,status,location,birthdate,notes
-DEMO-CLI-00001,Lucas Anderson,lucas.anderson.1@client.demo.oyamacrm.invalid,630-555-1001,ACTIVE,Wheaton,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00002,Harper Ramirez,,630-555-1002,ACTIVE,Evanston,2000-06-17,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00003,Michael Green,michael.green.3@client.demo.oyamacrm.invalid,,PENDING,Chicago,1988-09-28,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00004,Camila Wilson,,630-555-1004,INACTIVE,Glenview,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00005,Jackson Clark,jackson.clark.5@client.demo.oyamacrm.invalid,630-555-1005,GRADUATED,Skokie,1990-01-15,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00006,Emma Flores,emma.flores.6@client.demo.oyamacrm.invalid,,ACTIVE,Elmhurst,1979-08-12,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00007,Mason Gonzalez,mason.gonzalez.7@client.demo.oyamacrm.invalid,630-555-1007,ACTIVE,Oak Park,1978-11-26,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00008,Evelyn Sanchez,evelyn.sanchez.8@client.demo.oyamacrm.invalid,630-555-1008,ACTIVE,Naperville,1992-08-10,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00009,Daniel Hill,daniel.hill.9@client.demo.oyamacrm.invalid,630-555-1009,PENDING,Oak Park,2002-03-01,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00010,Chloe Lopez,chloe.lopez.10@client.demo.oyamacrm.invalid,630-555-1010,INACTIVE,Chicago,1983-11-02,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00011,Owen Harris,,630-555-1011,GRADUATED,Chicago,1982-07-23,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00012,Ava Nguyen,ava.nguyen.12@client.demo.oyamacrm.invalid,,ACTIVE,Joliet,1982-08-26,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00013,Elijah Hernandez,elijah.hernandez.13@client.demo.oyamacrm.invalid,,ACTIVE,Oak Park,2001-12-16,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00014,Abigail White,abigail.white.14@client.demo.oyamacrm.invalid,630-555-1014,ACTIVE,Skokie,1998-11-03,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00015,Matthew Torres,matthew.torres.15@client.demo.oyamacrm.invalid,630-555-1015,PENDING,Oak Park,1994-09-01,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00016,Luna Martinez,luna.martinez.16@client.demo.oyamacrm.invalid,630-555-1016,INACTIVE,Elmhurst,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00017,Wyatt Thompson,wyatt.thompson.17@client.demo.oyamacrm.invalid,630-555-1017,GRADUATED,Glenview,1997-10-04,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00018,Mia Scott,mia.scott.18@client.demo.oyamacrm.invalid,630-555-1018,ACTIVE,Oak Park,2008-01-31,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00019,James Rodriguez,james.rodriguez.19@client.demo.oyamacrm.invalid,630-555-1019,ACTIVE,Skokie,1992-12-10,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00020,Charlotte Perez,charlotte.perez.20@client.demo.oyamacrm.invalid,630-555-1020,ACTIVE,Chicago,1994-12-29,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00021,Joseph Wright,joseph.wright.21@client.demo.oyamacrm.invalid,630-555-1021,PENDING,Naperville,2002-11-25,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00022,Aria Davis,aria.davis.22@client.demo.oyamacrm.invalid,,INACTIVE,Joliet,1995-05-11,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00023,Liam Lee,liam.lee.23@client.demo.oyamacrm.invalid,630-555-1023,GRADUATED,Chicago,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00024,Sophia King,,630-555-1024,ACTIVE,Chicago,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00025,Benjamin Miller,benjamin.miller.25@client.demo.oyamacrm.invalid,630-555-1025,ACTIVE,Oak Park,1981-04-26,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00026,Ella Martin,ella.martin.26@client.demo.oyamacrm.invalid,630-555-1026,ACTIVE,Elmhurst,2001-01-21,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00027,David Allen,david.allen.27@client.demo.oyamacrm.invalid,630-555-1027,PENDING,Oak Park,1979-10-02,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00028,Penelope Garcia,,630-555-1028,INACTIVE,Wheaton,2004-01-01,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00029,Noah Jackson,noah.jackson.29@client.demo.oyamacrm.invalid,,GRADUATED,Naperville,1999-12-27,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00030,Isabella Young,isabella.young.30@client.demo.oyamacrm.invalid,,ACTIVE,Joliet,1997-12-08,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00031,Henry Jones,henry.jones.31@client.demo.oyamacrm.invalid,630-555-1031,ACTIVE,Glenview,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00032,Avery Moore,avery.moore.32@client.demo.oyamacrm.invalid,630-555-1032,ACTIVE,Naperville,1994-02-10,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00033,Samuel Walker,samuel.walker.33@client.demo.oyamacrm.invalid,630-555-1033,PENDING,Naperville,1980-07-10,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00034,Layla Brown,layla.brown.34@client.demo.oyamacrm.invalid,630-555-1034,INACTIVE,Evanston,1989-09-12,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00035,Ethan Taylor,ethan.taylor.35@client.demo.oyamacrm.invalid,,GRADUATED,Skokie,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00036,Amelia Robinson,amelia.robinson.36@client.demo.oyamacrm.invalid,630-555-1036,ACTIVE,Aurora,1994-12-16,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00037,Alexander Williams,alexander.williams.37@client.demo.oyamacrm.invalid,630-555-1037,ACTIVE,Evanston,1981-09-22,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00038,Scarlett Thomas,scarlett.thomas.38@client.demo.oyamacrm.invalid,630-555-1038,ACTIVE,Wheaton,1987-02-11,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00039,Sebastian Lewis,,630-555-1039,PENDING,Glenview,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00040,Olivia Johnson,,630-555-1040,INACTIVE,Aurora,2002-05-06,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00041,Lucas Anderson,lucas.anderson.41@client.demo.oyamacrm.invalid,630-555-1041,GRADUATED,Chicago,1982-03-17,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00042,Harper Ramirez,harper.ramirez.42@client.demo.oyamacrm.invalid,630-555-1042,ACTIVE,Glenview,1986-12-26,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00043,Michael Green,michael.green.43@client.demo.oyamacrm.invalid,630-555-1043,ACTIVE,Aurora,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00044,Camila Wilson,camila.wilson.44@client.demo.oyamacrm.invalid,630-555-1044,ACTIVE,Wheaton,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00045,Jackson Clark,jackson.clark.45@client.demo.oyamacrm.invalid,630-555-1045,PENDING,Glenview,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00046,Emma Flores,emma.flores.46@client.demo.oyamacrm.invalid,630-555-1046,INACTIVE,Naperville,1982-01-26,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00047,Mason Gonzalez,mason.gonzalez.47@client.demo.oyamacrm.invalid,630-555-1047,GRADUATED,Oak Park,1989-11-07,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00048,Evelyn Sanchez,evelyn.sanchez.48@client.demo.oyamacrm.invalid,630-555-1048,ACTIVE,Chicago,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00049,Daniel Hill,daniel.hill.49@client.demo.oyamacrm.invalid,,ACTIVE,Evanston,2002-06-28,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00050,Chloe Lopez,chloe.lopez.50@client.demo.oyamacrm.invalid,,ACTIVE,Naperville,1984-09-11,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00051,Owen Harris,owen.harris.51@client.demo.oyamacrm.invalid,,PENDING,Evanston,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00052,Ava Nguyen,ava.nguyen.52@client.demo.oyamacrm.invalid,,INACTIVE,Chicago,1982-03-07,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00053,Elijah Hernandez,elijah.hernandez.53@client.demo.oyamacrm.invalid,,GRADUATED,Chicago,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00054,Abigail White,abigail.white.54@client.demo.oyamacrm.invalid,630-555-1054,ACTIVE,Oak Park,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00055,Matthew Torres,matthew.torres.55@client.demo.oyamacrm.invalid,630-555-1055,ACTIVE,Skokie,1991-11-21,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00056,Luna Martinez,luna.martinez.56@client.demo.oyamacrm.invalid,630-555-1056,ACTIVE,Chicago,1985-06-05,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00057,Wyatt Thompson,wyatt.thompson.57@client.demo.oyamacrm.invalid,630-555-1057,PENDING,Elmhurst,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00058,Mia Scott,mia.scott.58@client.demo.oyamacrm.invalid,630-555-1058,INACTIVE,Aurora,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00059,James Rodriguez,james.rodriguez.59@client.demo.oyamacrm.invalid,630-555-1059,GRADUATED,Joliet,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00060,Charlotte Perez,charlotte.perez.60@client.demo.oyamacrm.invalid,630-555-1060,ACTIVE,Elmhurst,2007-05-16,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00061,Joseph Wright,joseph.wright.61@client.demo.oyamacrm.invalid,630-555-1061,ACTIVE,Aurora,1989-09-17,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00062,Aria Davis,,630-555-1062,ACTIVE,Skokie,2008-11-22,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00063,Liam Lee,liam.lee.63@client.demo.oyamacrm.invalid,630-555-1063,PENDING,Glenview,1985-11-20,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00064,Sophia King,sophia.king.64@client.demo.oyamacrm.invalid,,INACTIVE,Naperville,1996-01-13,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00065,Benjamin Miller,benjamin.miller.65@client.demo.oyamacrm.invalid,,GRADUATED,Aurora,1992-08-11,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00066,Ella Martin,ella.martin.66@client.demo.oyamacrm.invalid,630-555-1066,ACTIVE,Wheaton,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00067,David Allen,,630-555-1067,ACTIVE,Glenview,2004-08-28,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00068,Penelope Garcia,penelope.garcia.68@client.demo.oyamacrm.invalid,,ACTIVE,Evanston,1992-06-11,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00069,Noah Jackson,noah.jackson.69@client.demo.oyamacrm.invalid,,PENDING,Evanston,1990-09-20,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00070,Isabella Young,isabella.young.70@client.demo.oyamacrm.invalid,,INACTIVE,Oak Park,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00071,Henry Jones,henry.jones.71@client.demo.oyamacrm.invalid,630-555-1071,GRADUATED,Aurora,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00072,Avery Moore,,630-555-1072,ACTIVE,Chicago,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00073,Samuel Walker,samuel.walker.73@client.demo.oyamacrm.invalid,630-555-1073,ACTIVE,Joliet,1992-10-18,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00074,Layla Brown,,630-555-1074,ACTIVE,Naperville,2001-06-13,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00075,Ethan Taylor,,630-555-1075,PENDING,Elmhurst,1988-12-18,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00076,Amelia Robinson,amelia.robinson.76@client.demo.oyamacrm.invalid,,INACTIVE,Wheaton,2006-08-12,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00077,Alexander Williams,alexander.williams.77@client.demo.oyamacrm.invalid,630-555-1077,GRADUATED,Oak Park,1985-11-08,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00078,Scarlett Thomas,scarlett.thomas.78@client.demo.oyamacrm.invalid,630-555-1078,ACTIVE,Evanston,2006-06-26,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00079,Sebastian Lewis,sebastian.lewis.79@client.demo.oyamacrm.invalid,630-555-1079,ACTIVE,Aurora,2004-11-08,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00080,Olivia Johnson,olivia.johnson.80@client.demo.oyamacrm.invalid,630-555-1080,ACTIVE,Skokie,1994-09-15,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00081,Lucas Anderson,lucas.anderson.81@client.demo.oyamacrm.invalid,,PENDING,Glenview,1986-12-22,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00082,Harper Ramirez,harper.ramirez.82@client.demo.oyamacrm.invalid,630-555-1082,INACTIVE,Oak Park,1995-01-16,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00083,Michael Green,michael.green.83@client.demo.oyamacrm.invalid,630-555-1083,GRADUATED,Aurora,1988-02-04,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00084,Camila Wilson,camila.wilson.84@client.demo.oyamacrm.invalid,630-555-1084,ACTIVE,Naperville,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00085,Jackson Clark,jackson.clark.85@client.demo.oyamacrm.invalid,630-555-1085,ACTIVE,Aurora,1991-08-17,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00086,Emma Flores,,630-555-1086,ACTIVE,Chicago,1984-10-13,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00087,Mason Gonzalez,mason.gonzalez.87@client.demo.oyamacrm.invalid,,PENDING,Joliet,1996-12-29,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00088,Evelyn Sanchez,evelyn.sanchez.88@client.demo.oyamacrm.invalid,630-555-1088,INACTIVE,Naperville,1985-06-06,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00089,Daniel Hill,daniel.hill.89@client.demo.oyamacrm.invalid,,GRADUATED,Skokie,1999-07-14,[DEMO DATA - SYNTHETIC RECORD] Client import sample
-DEMO-CLI-00090,Chloe Lopez,chloe.lopez.90@client.demo.oyamacrm.invalid,630-555-1090,ACTIVE,Elmhurst,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00001,Lucas Anderson,lucas.anderson.1@client.demo.oyamacrm.invalid,630-555-1001,ACTIVE,Elmhurst,1979-03-14,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00002,Harper Ramirez,harper.ramirez.2@client.demo.oyamacrm.invalid,630-555-1002,ACTIVE,Glenview,1994-03-25,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00003,Michael Green,michael.green.3@client.demo.oyamacrm.invalid,630-555-1003,PENDING,Glenview,2003-03-22,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00004,Camila Wilson,camila.wilson.4@client.demo.oyamacrm.invalid,630-555-1004,INACTIVE,Glenview,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00005,Jackson Clark,jackson.clark.5@client.demo.oyamacrm.invalid,630-555-1005,GRADUATED,Joliet,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00006,Emma Flores,emma.flores.6@client.demo.oyamacrm.invalid,630-555-1006,ACTIVE,Glenview,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00007,Mason Gonzalez,mason.gonzalez.7@client.demo.oyamacrm.invalid,630-555-1007,ACTIVE,Aurora,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00008,Evelyn Sanchez,evelyn.sanchez.8@client.demo.oyamacrm.invalid,630-555-1008,ACTIVE,Aurora,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00009,Daniel Hill,daniel.hill.9@client.demo.oyamacrm.invalid,,PENDING,Chicago,1980-08-22,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00010,Chloe Lopez,chloe.lopez.10@client.demo.oyamacrm.invalid,630-555-1010,INACTIVE,Oak Park,1994-07-08,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00011,Owen Harris,owen.harris.11@client.demo.oyamacrm.invalid,,GRADUATED,Evanston,1990-05-18,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00012,Ava Nguyen,ava.nguyen.12@client.demo.oyamacrm.invalid,630-555-1012,ACTIVE,Evanston,1996-10-16,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00013,Elijah Hernandez,elijah.hernandez.13@client.demo.oyamacrm.invalid,630-555-1013,ACTIVE,Evanston,1982-12-17,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00014,Abigail White,abigail.white.14@client.demo.oyamacrm.invalid,630-555-1014,ACTIVE,Chicago,1990-12-21,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00015,Matthew Torres,matthew.torres.15@client.demo.oyamacrm.invalid,,PENDING,Elmhurst,1993-03-18,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00016,Luna Martinez,,630-555-1016,INACTIVE,Joliet,2003-09-08,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00017,Wyatt Thompson,,630-555-1017,GRADUATED,Chicago,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00018,Mia Scott,mia.scott.18@client.demo.oyamacrm.invalid,630-555-1018,ACTIVE,Joliet,1978-10-15,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00019,James Rodriguez,,,ACTIVE,Elmhurst,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00020,Charlotte Perez,,630-555-1020,ACTIVE,Joliet,1991-10-23,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00021,Joseph Wright,joseph.wright.21@client.demo.oyamacrm.invalid,630-555-1021,PENDING,Aurora,1984-01-11,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00022,Aria Davis,aria.davis.22@client.demo.oyamacrm.invalid,630-555-1022,INACTIVE,Aurora,2008-03-06,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00023,Liam Lee,liam.lee.23@client.demo.oyamacrm.invalid,630-555-1023,GRADUATED,Wheaton,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00024,Sophia King,sophia.king.24@client.demo.oyamacrm.invalid,,ACTIVE,Naperville,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00025,Benjamin Miller,benjamin.miller.25@client.demo.oyamacrm.invalid,630-555-1025,ACTIVE,Wheaton,1995-08-17,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00026,Ella Martin,,630-555-1026,ACTIVE,Naperville,2007-06-07,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00027,David Allen,,630-555-1027,PENDING,Glenview,1988-08-02,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00028,Penelope Garcia,penelope.garcia.28@client.demo.oyamacrm.invalid,630-555-1028,INACTIVE,Wheaton,1999-04-13,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00029,Noah Jackson,noah.jackson.29@client.demo.oyamacrm.invalid,630-555-1029,GRADUATED,Oak Park,1991-08-14,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00030,Isabella Young,isabella.young.30@client.demo.oyamacrm.invalid,630-555-1030,ACTIVE,Glenview,1998-11-13,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00031,Henry Jones,henry.jones.31@client.demo.oyamacrm.invalid,,ACTIVE,Oak Park,1981-05-26,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00032,Avery Moore,avery.moore.32@client.demo.oyamacrm.invalid,630-555-1032,ACTIVE,Aurora,1982-05-22,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00033,Samuel Walker,samuel.walker.33@client.demo.oyamacrm.invalid,630-555-1033,PENDING,Aurora,1980-04-03,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00034,Layla Brown,layla.brown.34@client.demo.oyamacrm.invalid,630-555-1034,INACTIVE,Naperville,1984-05-25,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00035,Ethan Taylor,ethan.taylor.35@client.demo.oyamacrm.invalid,630-555-1035,GRADUATED,Joliet,1996-03-15,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00036,Amelia Robinson,amelia.robinson.36@client.demo.oyamacrm.invalid,630-555-1036,ACTIVE,Naperville,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00037,Alexander Williams,alexander.williams.37@client.demo.oyamacrm.invalid,630-555-1037,ACTIVE,Elmhurst,1981-01-07,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00038,Scarlett Thomas,scarlett.thomas.38@client.demo.oyamacrm.invalid,,ACTIVE,Elmhurst,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00039,Sebastian Lewis,sebastian.lewis.39@client.demo.oyamacrm.invalid,630-555-1039,PENDING,Wheaton,2006-10-10,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00040,Olivia Johnson,olivia.johnson.40@client.demo.oyamacrm.invalid,630-555-1040,INACTIVE,Naperville,1997-06-10,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00041,Lucas Anderson,lucas.anderson.41@client.demo.oyamacrm.invalid,630-555-1041,GRADUATED,Skokie,1993-11-15,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00042,Harper Ramirez,harper.ramirez.42@client.demo.oyamacrm.invalid,630-555-1042,ACTIVE,Aurora,2006-09-15,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00043,Michael Green,michael.green.43@client.demo.oyamacrm.invalid,,ACTIVE,Glenview,1993-01-07,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00044,Camila Wilson,camila.wilson.44@client.demo.oyamacrm.invalid,630-555-1044,ACTIVE,Glenview,1985-04-22,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00045,Jackson Clark,jackson.clark.45@client.demo.oyamacrm.invalid,,PENDING,Elmhurst,1994-04-15,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00046,Emma Flores,emma.flores.46@client.demo.oyamacrm.invalid,630-555-1046,INACTIVE,Naperville,1991-10-15,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00047,Mason Gonzalez,mason.gonzalez.47@client.demo.oyamacrm.invalid,630-555-1047,GRADUATED,Joliet,1979-03-21,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00048,Evelyn Sanchez,,630-555-1048,ACTIVE,Joliet,1997-01-11,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00049,Daniel Hill,daniel.hill.49@client.demo.oyamacrm.invalid,630-555-1049,ACTIVE,Wheaton,2002-10-29,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00050,Chloe Lopez,chloe.lopez.50@client.demo.oyamacrm.invalid,630-555-1050,ACTIVE,Aurora,1996-04-20,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00051,Owen Harris,owen.harris.51@client.demo.oyamacrm.invalid,630-555-1051,PENDING,Skokie,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00052,Ava Nguyen,ava.nguyen.52@client.demo.oyamacrm.invalid,,INACTIVE,Evanston,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00053,Elijah Hernandez,elijah.hernandez.53@client.demo.oyamacrm.invalid,630-555-1053,GRADUATED,Glenview,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00054,Abigail White,abigail.white.54@client.demo.oyamacrm.invalid,630-555-1054,ACTIVE,Oak Park,1983-10-30,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00055,Matthew Torres,matthew.torres.55@client.demo.oyamacrm.invalid,,ACTIVE,Oak Park,1978-12-25,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00056,Luna Martinez,luna.martinez.56@client.demo.oyamacrm.invalid,630-555-1056,ACTIVE,Aurora,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00057,Wyatt Thompson,,,PENDING,Skokie,1987-08-27,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00058,Mia Scott,mia.scott.58@client.demo.oyamacrm.invalid,630-555-1058,INACTIVE,Evanston,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00059,James Rodriguez,james.rodriguez.59@client.demo.oyamacrm.invalid,630-555-1059,GRADUATED,Evanston,1997-01-11,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00060,Charlotte Perez,charlotte.perez.60@client.demo.oyamacrm.invalid,,ACTIVE,Oak Park,2007-06-20,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00061,Joseph Wright,joseph.wright.61@client.demo.oyamacrm.invalid,630-555-1061,ACTIVE,Oak Park,1978-01-07,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00062,Aria Davis,aria.davis.62@client.demo.oyamacrm.invalid,,ACTIVE,Wheaton,1998-04-29,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00063,Liam Lee,,630-555-1063,PENDING,Aurora,1994-08-22,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00064,Sophia King,sophia.king.64@client.demo.oyamacrm.invalid,630-555-1064,INACTIVE,Evanston,1982-02-01,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00065,Benjamin Miller,benjamin.miller.65@client.demo.oyamacrm.invalid,630-555-1065,GRADUATED,Chicago,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00066,Ella Martin,ella.martin.66@client.demo.oyamacrm.invalid,630-555-1066,ACTIVE,Wheaton,2006-03-11,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00067,David Allen,david.allen.67@client.demo.oyamacrm.invalid,630-555-1067,ACTIVE,Joliet,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00068,Penelope Garcia,penelope.garcia.68@client.demo.oyamacrm.invalid,,ACTIVE,Skokie,1979-09-06,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00069,Noah Jackson,noah.jackson.69@client.demo.oyamacrm.invalid,630-555-1069,PENDING,Skokie,1987-08-30,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00070,Isabella Young,isabella.young.70@client.demo.oyamacrm.invalid,630-555-1070,INACTIVE,Naperville,2000-11-13,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00071,Henry Jones,henry.jones.71@client.demo.oyamacrm.invalid,630-555-1071,GRADUATED,Joliet,2002-08-10,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00072,Avery Moore,avery.moore.72@client.demo.oyamacrm.invalid,630-555-1072,ACTIVE,Evanston,1987-11-22,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00073,Samuel Walker,samuel.walker.73@client.demo.oyamacrm.invalid,630-555-1073,ACTIVE,Elmhurst,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00074,Layla Brown,layla.brown.74@client.demo.oyamacrm.invalid,,ACTIVE,Wheaton,1987-11-15,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00075,Ethan Taylor,ethan.taylor.75@client.demo.oyamacrm.invalid,630-555-1075,PENDING,Evanston,1991-05-09,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00076,Amelia Robinson,amelia.robinson.76@client.demo.oyamacrm.invalid,630-555-1076,INACTIVE,Naperville,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00077,Alexander Williams,alexander.williams.77@client.demo.oyamacrm.invalid,,GRADUATED,Joliet,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00078,Scarlett Thomas,scarlett.thomas.78@client.demo.oyamacrm.invalid,630-555-1078,ACTIVE,Elmhurst,1986-06-08,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00079,Sebastian Lewis,sebastian.lewis.79@client.demo.oyamacrm.invalid,630-555-1079,ACTIVE,Skokie,2004-03-31,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00080,Olivia Johnson,olivia.johnson.80@client.demo.oyamacrm.invalid,630-555-1080,ACTIVE,Joliet,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00081,Lucas Anderson,lucas.anderson.81@client.demo.oyamacrm.invalid,,PENDING,Oak Park,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00082,Harper Ramirez,,630-555-1082,INACTIVE,Wheaton,1979-06-01,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00083,Michael Green,michael.green.83@client.demo.oyamacrm.invalid,630-555-1083,GRADUATED,Naperville,1981-01-19,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00084,Camila Wilson,camila.wilson.84@client.demo.oyamacrm.invalid,630-555-1084,ACTIVE,Joliet,2003-03-14,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00085,Jackson Clark,jackson.clark.85@client.demo.oyamacrm.invalid,630-555-1085,ACTIVE,Oak Park,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00086,Emma Flores,emma.flores.86@client.demo.oyamacrm.invalid,630-555-1086,ACTIVE,Skokie,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00087,Mason Gonzalez,mason.gonzalez.87@client.demo.oyamacrm.invalid,630-555-1087,PENDING,Elmhurst,1980-10-21,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00088,Evelyn Sanchez,evelyn.sanchez.88@client.demo.oyamacrm.invalid,630-555-1088,INACTIVE,Oak Park,,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00089,Daniel Hill,daniel.hill.89@client.demo.oyamacrm.invalid,630-555-1089,GRADUATED,Joliet,1997-04-22,[DEMO DATA - SYNTHETIC RECORD] Client import sample
+DEMO-CLI-00090,Chloe Lopez,chloe.lopez.90@client.demo.oyamacrm.invalid,630-555-1090,ACTIVE,Chicago,1993-05-20,[DEMO DATA - SYNTHETIC RECORD] Client import sample
 DEMO-CLI-DUP-1,Miranda Abrisz(Miranda),miranda.abrisz@client.demo.oyamacrm.invalid,630-555-0101,ACTIVE,Aurora,1998-07-04,duplicate nickname format
 DEMO-CLI-DUP-1,Miranda Abrisz (Mira),miranda.abrisz@client.demo.oyamacrm.invalid,630-555-0101,ACTIVE,Aurora,1998-07-04,duplicate source id
 DEMO-CLI-BAD-1,Text,Aurora,False,Active,No,Not Applicable,metadata row

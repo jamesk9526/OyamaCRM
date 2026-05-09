@@ -90,6 +90,8 @@ interface Automation {
   enabled: boolean;
   runCount: number;
   lastRunAt: string | null;
+  ownerId?: string | null;
+  sharedWithOrganization?: boolean;
   actions: AutomationAction[];
 }
 
@@ -131,6 +133,7 @@ export default function AutomationsPage() {
   const [toggling, setToggling] = useState<string | null>(null);
   const [running, setRunning] = useState<string | null>(null);
   const [installingPreset, setInstallingPreset] = useState<string | null>(null);
+  const [sharingUpdateId, setSharingUpdateId] = useState<string | null>(null);
   const [presets, setPresets] = useState<AutomationPreset[]>([]);
   const [runs, setRuns] = useState<StewardPathRun[]>([]);
   const [activeTab, setActiveTab] = useState<"paths" | "history">("paths");
@@ -204,6 +207,22 @@ export default function AutomationsPage() {
     if (!confirm("Delete this automation? This cannot be undone.")) return;
     await apiFetch(`/api/automations/${id}`, { method: "DELETE" });
     setAutomations((prev) => prev.filter((x) => x.id !== id));
+  }
+
+  /** Toggle whether this Steward Path is visible to other users in the organization. */
+  async function toggleSharing(a: Automation) {
+    setSharingUpdateId(a.id);
+    try {
+      const updated = await apiFetch<Automation>(`/api/automations/${a.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          sharedWithOrganization: !a.sharedWithOrganization,
+        }),
+      });
+      setAutomations((prev) => prev.map((x) => (x.id === a.id ? updated : x)));
+    } finally {
+      setSharingUpdateId(null);
+    }
   }
 
   /** Installs one of the predefined automation presets. */
@@ -366,8 +385,10 @@ export default function AutomationsPage() {
               onToggle={() => toggle(a)}
               onRun={() => runNow(a.id)}
               onDelete={() => del(a.id)}
+              onToggleSharing={() => toggleSharing(a)}
               toggling={toggling === a.id}
               running={running === a.id}
+              sharingUpdating={sharingUpdateId === a.id}
             />
           ))}
         </div>
@@ -451,14 +472,16 @@ export default function AutomationsPage() {
 
 /** Individual automation card showing trigger, actions, stats, and controls. */
 function AutomationCard({
-  automation: a, onToggle, onRun, onDelete, toggling, running,
+  automation: a, onToggle, onRun, onDelete, onToggleSharing, toggling, running, sharingUpdating,
 }: {
   automation: Automation;
   onToggle: () => void;
   onRun: () => void;
   onDelete: () => void;
+  onToggleSharing: () => void;
   toggling: boolean;
   running: boolean;
+  sharingUpdating: boolean;
 }) {
   return (
     <div className={`bg-white rounded-xl border transition-all ${a.enabled ? "border-gray-200" : "border-gray-200 opacity-60"}`}>
@@ -472,7 +495,12 @@ function AutomationCard({
           <div className="flex-1 min-w-0">
             {/* Name + toggle */}
             <div className="flex items-center justify-between gap-3">
-              <h3 className="font-semibold text-gray-900 truncate">{a.name}</h3>
+              <div className="min-w-0 flex items-center gap-2">
+                <h3 className="font-semibold text-gray-900 truncate">{a.name}</h3>
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${a.sharedWithOrganization ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-600"}`}>
+                  {a.sharedWithOrganization ? "Shared" : "Private"}
+                </span>
+              </div>
 
               {/* Toggle switch */}
               <button
@@ -531,6 +559,13 @@ function AutomationCard({
             )}
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={onToggleSharing}
+              disabled={sharingUpdating}
+              className="text-xs px-2.5 py-1 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              {sharingUpdating ? "Saving..." : a.sharedWithOrganization ? "Make Private" : "Share"}
+            </button>
             <button
               onClick={onRun}
               disabled={running}

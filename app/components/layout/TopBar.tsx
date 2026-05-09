@@ -6,6 +6,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import AppsDrawer, { AppsGridIcon } from "@/app/components/layout/AppsDrawer";
+import StewardChatPanel from "@/app/components/ai/StewardChatPanel";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface SearchResult {
@@ -21,6 +22,16 @@ interface SearchResponse {
   module: "donor" | "compassion" | "events";
   query: string;
   results: SearchResult[];
+}
+
+interface TopBarNotification {
+  id: string;
+  type: "task" | "meeting" | "follow_up" | "appointment";
+  title: string;
+  message: string;
+  href: string;
+  createdAt: string;
+  priority: "low" | "medium" | "high";
 }
 
 function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "events" }) {
@@ -236,6 +247,7 @@ function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "even
 
 /** Full-width top navigation bar — spans the entire viewport width. */
 export default function TopBar() {
+  const router = useRouter();
   const pathname = usePathname();
   const moduleKey = pathname.startsWith("/compassion")
     ? "compassion"
@@ -243,10 +255,49 @@ export default function TopBar() {
       ? "events"
       : "donor";
   const [appsOpen, setAppsOpen] = useState(false);
+  const [stewardOpen, setStewardOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsError, setNotificationsError] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<TopBarNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const loadNotifications = useCallback(async () => {
+    setNotificationsLoading(true);
+    setNotificationsError(null);
+    try {
+      const data = await apiFetch<{ items: TopBarNotification[]; unreadCount: number }>(
+        `/api/notifications?module=${moduleKey}`
+      );
+      setNotifications(Array.isArray(data.items) ? data.items : []);
+      setUnreadCount(typeof data.unreadCount === "number" ? data.unreadCount : 0);
+    } catch (err) {
+      setNotificationsError(err instanceof Error ? err.message : "Failed to load notifications");
+      setNotifications([]);
+      setUnreadCount(0);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, [moduleKey]);
+
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    void loadNotifications();
+  }, [notificationsOpen, loadNotifications]);
+
+  useEffect(() => {
+    setNotificationsOpen(false);
+  }, [pathname]);
 
   return (
     <>
       <AppsDrawer open={appsOpen} onClose={() => setAppsOpen(false)} />
+      <StewardChatPanel
+        open={stewardOpen}
+        onClose={() => setStewardOpen(false)}
+        moduleKey={moduleKey}
+        scopePath={pathname}
+      />
       <header className="h-14 shrink-0 w-full flex items-center gap-4 px-4 bg-[#1a2332] border-b border-[#0f1924] z-20">
 
         {/* ── Module switcher (left anchor) ── */}
@@ -273,10 +324,11 @@ export default function TopBar() {
             <AppsGridIcon className="w-4 h-4" />
           </button>
 
-          {/* AI Assistant (future) */}
+          {/* AI Assistant */}
           <button
-            title="AI Assistant (coming soon)"
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors relative group"
+            title="Open Steward AI Assistant"
+            onClick={() => setStewardOpen(true)}
+            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors relative group ${stewardOpen ? "text-white bg-white/20" : "text-gray-400 hover:text-white hover:bg-white/10"}`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
@@ -297,28 +349,71 @@ export default function TopBar() {
         </button>
 
         {/* Notifications */}
-        <button
-          title="Notifications"
-          className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors relative"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
-          </svg>
-          <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full border-2 border-[#1a2332] ${moduleKey === "compassion" ? "bg-blue-400" : moduleKey === "events" ? "bg-amber-400" : "bg-green-500"}`} />
-        </button>
+        <div className="relative">
+          <button
+            title="Notifications"
+            onClick={() => setNotificationsOpen((v) => !v)}
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors relative"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+            </svg>
+            {unreadCount > 0 && (
+              <span className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold text-white flex items-center justify-center ${moduleKey === "compassion" ? "bg-blue-500" : moduleKey === "events" ? "bg-amber-500" : "bg-green-600"}`}>
+                {Math.min(unreadCount, 99)}
+              </span>
+            )}
+          </button>
+
+          {notificationsOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setNotificationsOpen(false)} />
+              <div className="absolute right-0 top-full mt-2 w-[360px] max-w-[calc(100vw-1rem)] bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                  <p className="text-sm font-semibold text-gray-900">Notifications</p>
+                  <button
+                    onClick={() => void loadNotifications()}
+                    className="text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                {notificationsLoading ? (
+                  <div className="px-4 py-6 text-sm text-gray-400">Loading notifications...</div>
+                ) : notificationsError ? (
+                  <div className="px-4 py-6 text-sm text-red-600">{notificationsError}</div>
+                ) : notifications.length === 0 ? (
+                  <div className="px-4 py-6 text-sm text-gray-500">No new notifications.</div>
+                ) : (
+                  <div className="max-h-[360px] overflow-y-auto">
+                    {notifications.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          setNotificationsOpen(false);
+                          router.push(item.href);
+                        }}
+                        className="w-full px-4 py-3 border-b border-gray-100 text-left hover:bg-gray-50"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-medium text-gray-900 line-clamp-1">{item.title}</p>
+                          <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${item.priority === "high" ? "bg-red-100 text-red-700" : item.priority === "medium" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
+                            {item.priority}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{item.message}</p>
+                        <p className="text-[11px] text-gray-400 mt-1">{new Date(item.createdAt).toLocaleString()}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
 
         <div className="w-px h-5 bg-white/10 mx-1 shrink-0" />
-
-        {/* Quick Add */}
-        <button
-          title="Quick Add"
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-sm font-medium transition-colors shrink-0 ${moduleKey === "compassion" ? "bg-blue-600 hover:bg-blue-500" : moduleKey === "events" ? "bg-amber-600 hover:bg-amber-500" : "bg-green-600 hover:bg-green-500"}`}
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-          </svg>
-          <span className="hidden sm:inline">New</span>
-        </button>
 
         {/* User avatar */}
         <UserMenu moduleKey={moduleKey} />

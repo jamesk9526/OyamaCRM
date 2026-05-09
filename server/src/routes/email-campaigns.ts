@@ -19,7 +19,6 @@ import nodemailer from "nodemailer";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { requireRole } from "../middleware/requireRole.js";
 
 const router = Router();
 
@@ -53,6 +52,11 @@ interface SmtpSettingsSnapshot {
   smtpPass: string | null;
   smtpFromName?: string | null;
   smtpFromEmail?: string | null;
+}
+
+interface CampaignSharingSettings {
+  ownerId: string | null;
+  sharedWithOrganization: boolean;
 }
 
 // RFC 5322-inspired practical pattern for application-level email validation.
@@ -170,6 +174,67 @@ function resolveSmtpSettings(settings: SmtpSettingsSnapshot | null): SmtpSetting
   };
 }
 
+/** Parse audienceFilter JSON into filter + sharing settings with safe defaults. */
+function parseCampaignAudienceFilter(raw: string | null): { filter: AudienceFilter; sharing: CampaignSharingSettings } {
+  if (!raw) {
+    return {
+      filter: null,
+      sharing: { ownerId: null, sharedWithOrganization: true },
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const sharing = parsed._sharing;
+    const sharingObj = sharing && typeof sharing === "object" && !Array.isArray(sharing)
+      ? (sharing as Record<string, unknown>)
+      : null;
+
+    return {
+      filter: { type: typeof parsed.type === "string" ? parsed.type : undefined },
+      sharing: {
+        ownerId: sharingObj && typeof sharingObj.ownerId === "string" ? sharingObj.ownerId : null,
+        sharedWithOrganization:
+          sharingObj && typeof sharingObj.sharedWithOrganization === "boolean"
+            ? sharingObj.sharedWithOrganization
+            : true,
+      },
+    };
+  } catch {
+    return {
+      filter: null,
+      sharing: { ownerId: null, sharedWithOrganization: true },
+    };
+  }
+}
+
+/** Serialize filter payload back into audienceFilter JSON while preserving sharing metadata. */
+function serializeCampaignAudienceFilter(filter: AudienceFilter, ownerId: string, sharedWithOrganization: boolean): string {
+  const safeFilter = filter && typeof filter === "object" ? { ...filter } : {};
+  return JSON.stringify({
+    ...safeFilter,
+    _sharing: {
+      ownerId,
+      sharedWithOrganization,
+    },
+  });
+}
+
+/** True when user can view campaign. */
+function canAccessCampaign(sharing: CampaignSharingSettings, userId: string, role: string | undefined): boolean {
+  if (role === "admin") return true;
+  if (!sharing.ownerId) return true;
+  if (sharing.ownerId === userId) return true;
+  return sharing.sharedWithOrganization;
+}
+
+/** True when user can edit/send/delete campaign. */
+function canManageCampaign(sharing: CampaignSharingSettings, userId: string, role: string | undefined): boolean {
+  if (role === "admin") return true;
+  if (!sharing.ownerId) return true;
+  return sharing.ownerId === userId;
+}
+
 /** Typed HTTP-friendly error for campaign send flows. */
 class CampaignSendError extends Error {
   status: number;
@@ -235,7 +300,7 @@ export async function sendCampaignNow(campaignId: string, trigger: "MANUAL" | "Q
       );
     }
 
-    const filter = campaign.audienceFilter ? (JSON.parse(campaign.audienceFilter) as AudienceFilter) : null;
+    const filter = parseCampaignAudienceFilter(campaign.audienceFilter).filter;
     const preview = computeAudiencePreview(await getAudienceConstituents(filter, campaign.organizationId));
     const to = preview.recipients;
     const recipientCount = to.length;
@@ -344,6 +409,13 @@ router.post("/audience-preview", async (req, res) => {
 
 /** GET /api/email-campaigns — List email campaigns with optional status and name search filters. */
 router.get("/", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
   const { status, search, limit = "50" } = req.query as Record<string, string>;
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
@@ -361,11 +433,29 @@ router.get("/", async (req, res) => {
     take: Math.min(parseInt(limit), 200),
   });
 
-  res.json(campaigns);
+  const visible = campaigns
+    .filter((campaign) => canAccessCampaign(parseCampaignAudienceFilter(campaign.audienceFilter).sharing, userId, role))
+    .map((campaign) => {
+      const parsed = parseCampaignAudienceFilter(campaign.audienceFilter);
+      return {
+        ...campaign,
+        ownerId: parsed.sharing.ownerId,
+        sharedWithOrganization: parsed.sharing.sharedWithOrganization,
+      };
+    });
+
+  res.json(visible);
 });
 
 /** GET /api/email-campaigns/stats — Aggregate email engagement metrics (total, sent, open rate, etc.) across all campaigns. */
 router.get("/stats", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
     res.json({
@@ -379,15 +469,24 @@ router.get("/stats", async (req, res) => {
     return;
   }
 
-  const [total, sent, scheduled, draft] = await Promise.all([
-    prisma.emailCampaign.count({ where: { organizationId } }),
-    prisma.emailCampaign.findMany({
-      where: { organizationId, status: "SENT" },
-      select: { totalRecipients: true, opened: true, clicked: true, delivered: true },
-    }),
-    prisma.emailCampaign.count({ where: { organizationId, status: "SCHEDULED" } }),
-    prisma.emailCampaign.count({ where: { organizationId, status: "DRAFT" } }),
-  ]);
+  const campaigns = await prisma.emailCampaign.findMany({
+    where: { organizationId },
+    select: {
+      status: true,
+      audienceFilter: true,
+      totalRecipients: true,
+      opened: true,
+      clicked: true,
+      delivered: true,
+    },
+  });
+
+  const visible = campaigns.filter((campaign) =>
+    canAccessCampaign(parseCampaignAudienceFilter(campaign.audienceFilter).sharing, userId, role)
+  );
+  const sent = visible.filter((campaign) => campaign.status === "SENT");
+  const scheduled = visible.filter((campaign) => campaign.status === "SCHEDULED").length;
+  const draft = visible.filter((campaign) => campaign.status === "DRAFT").length;
 
   // Compute aggregate open rate from all sent campaigns
   const totalSent = sent.reduce((sum, c) => sum + c.totalRecipients, 0);
@@ -396,7 +495,7 @@ router.get("/stats", async (req, res) => {
   const avgOpenRate = totalDelivered > 0 ? Math.round((totalOpened / totalDelivered) * 100) : 0;
 
   res.json({
-    total,
+    total: visible.length,
     sent: sent.length,
     scheduled,
     draft,
@@ -407,14 +506,41 @@ router.get("/stats", async (req, res) => {
 
 /** GET /api/email-campaigns/:id — Fetch a single email campaign by ID. */
 router.get("/:id", async (req, res) => {
-  const campaign = await prisma.emailCampaign.findUnique({
-    where: { id: req.params.id },
-  });
-  if (!campaign) {
-    res.status(404).json({ error: "Campaign not found" });
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
     return;
   }
-  res.json(campaign);
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured for this installation." } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({
+    where: {
+      id: req.params.id,
+      organizationId,
+    },
+  });
+  if (!campaign) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  const parsed = parseCampaignAudienceFilter(campaign.audienceFilter);
+  if (!canAccessCampaign(parsed.sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this campaign" } });
+    return;
+  }
+
+  res.json({
+    ...campaign,
+    ownerId: parsed.sharing.ownerId,
+    sharedWithOrganization: parsed.sharing.sharedWithOrganization,
+  });
 });
 
 /**
@@ -422,9 +548,15 @@ router.get("/:id", async (req, res) => {
  * Status is automatically set to "SCHEDULED" if `scheduledAt` is provided, otherwise "DRAFT".
  */
 router.post("/", async (req, res) => {
+  const userId = req.user?.sub;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
   const {
     name, subject, previewText, fromName, fromEmail, replyToEmail,
-    bodyHtml, bodyText, templateJson, scheduledAt, audienceFilter,
+    bodyHtml, bodyText, templateJson, scheduledAt, audienceFilter, sharedWithOrganization = false,
   } = req.body;
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
@@ -450,8 +582,12 @@ router.post("/", async (req, res) => {
       bodyHtml, bodyText,
       templateJson,
       scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
-      // Serialize audience filter criteria as JSON string for flexible query storage
-      audienceFilter: audienceFilter ? JSON.stringify(audienceFilter) : null,
+      // Serialize audience filter criteria and sharing visibility together.
+      audienceFilter: serializeCampaignAudienceFilter(
+        (audienceFilter ?? null) as AudienceFilter,
+        userId,
+        Boolean(sharedWithOrganization),
+      ),
       status: scheduledAt ? "SCHEDULED" : "DRAFT",
     },
   });
@@ -461,10 +597,48 @@ router.post("/", async (req, res) => {
 
 /** PUT /api/email-campaigns/:id — Update campaign content, scheduling, or audience filter. */
 router.put("/:id", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured for this installation." } });
+    return;
+  }
+
   const {
     name, subject, previewText, fromName, fromEmail, replyToEmail,
-    bodyHtml, bodyText, templateJson, scheduledAt, audienceFilter, status,
+    bodyHtml, bodyText, templateJson, scheduledAt, audienceFilter, status, sharedWithOrganization,
   } = req.body;
+
+  const existing = await prisma.emailCampaign.findFirst({
+    where: {
+      id: req.params.id,
+      organizationId,
+    },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  const parsedExisting = parseCampaignAudienceFilter(existing.audienceFilter);
+  if (!canManageCampaign(parsedExisting.sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only the owner can edit this campaign" } });
+    return;
+  }
+
+  const ownerId = parsedExisting.sharing.ownerId ?? userId;
+  const nextSharing = typeof sharedWithOrganization === "boolean"
+    ? sharedWithOrganization
+    : parsedExisting.sharing.sharedWithOrganization;
+  const nextFilter = audienceFilter !== undefined
+    ? (audienceFilter as AudienceFilter)
+    : parsedExisting.filter;
 
   const campaign = await prisma.emailCampaign.update({
     where: { id: req.params.id },
@@ -472,12 +646,16 @@ router.put("/:id", async (req, res) => {
       name, subject, previewText, fromName, fromEmail, replyToEmail,
       bodyHtml, bodyText, templateJson,
       scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
-      audienceFilter: audienceFilter !== undefined ? JSON.stringify(audienceFilter) : undefined,
+      audienceFilter: serializeCampaignAudienceFilter(nextFilter, ownerId, nextSharing),
       status,
     },
   });
 
-  res.json(campaign);
+  res.json({
+    ...campaign,
+    ownerId,
+    sharedWithOrganization: nextSharing,
+  });
 });
 
 /**
@@ -487,9 +665,27 @@ router.put("/:id", async (req, res) => {
  * Response: { id, subject, previewText, fromName, fromEmail, bodyHtml, bodyText }
  */
 router.post("/:id/preview", async (req, res) => {
-  const campaign = await prisma.emailCampaign.findUnique({ where: { id: req.params.id } });
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({
+    where: {
+      id: req.params.id,
+      organizationId,
+    },
+  });
   if (!campaign) {
-    res.status(404).json({ error: "Campaign not found" });
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  if (!canAccessCampaign(parseCampaignAudienceFilter(campaign.audienceFilter).sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this campaign" } });
     return;
   }
 
@@ -513,15 +709,33 @@ router.post("/:id/preview", async (req, res) => {
  * Response: { success: true }
  */
 router.post("/:id/send-test", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
   const { toEmail } = req.body as { toEmail?: string };
   if (!toEmail || !isValidEmail(toEmail)) {
     res.status(400).json({ error: "toEmail is required and must be valid." });
     return;
   }
 
-  const campaign = await prisma.emailCampaign.findUnique({ where: { id: req.params.id } });
+  const campaign = await prisma.emailCampaign.findFirst({
+    where: {
+      id: req.params.id,
+      organizationId,
+    },
+  });
   if (!campaign) {
-    res.status(404).json({ error: "Campaign not found" });
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  if (!canManageCampaign(parseCampaignAudienceFilter(campaign.audienceFilter).sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only the owner can send test emails" } });
     return;
   }
 
@@ -578,6 +792,14 @@ router.post("/:id/send-test", async (req, res) => {
  * Response: campaign
  */
 router.post("/:id/schedule", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
   const { scheduledAt, timezone } = req.body as { scheduledAt?: string; timezone?: string };
   if (!scheduledAt) {
     res.status(400).json({ error: "scheduledAt is required." });
@@ -590,9 +812,19 @@ router.post("/:id/schedule", async (req, res) => {
     return;
   }
 
-  const campaign = await prisma.emailCampaign.findUnique({ where: { id: req.params.id } });
+  const campaign = await prisma.emailCampaign.findFirst({
+    where: {
+      id: req.params.id,
+      organizationId,
+    },
+  });
   if (!campaign) {
-    res.status(404).json({ error: "Campaign not found" });
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  if (!canManageCampaign(parseCampaignAudienceFilter(campaign.audienceFilter).sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only the owner can schedule this campaign" } });
     return;
   }
 
@@ -624,9 +856,27 @@ router.post("/:id/schedule", async (req, res) => {
  * Response: campaign
  */
 router.post("/:id/cancel", async (req, res) => {
-  const campaign = await prisma.emailCampaign.findUnique({ where: { id: req.params.id } });
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({
+    where: {
+      id: req.params.id,
+      organizationId,
+    },
+  });
   if (!campaign) {
-    res.status(404).json({ error: "Campaign not found" });
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  if (!canManageCampaign(parseCampaignAudienceFilter(campaign.audienceFilter).sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only the owner can cancel this campaign" } });
     return;
   }
 
@@ -661,6 +911,30 @@ router.post("/:id/cancel", async (req, res) => {
  */
 router.post("/:id/send", async (req, res) => {
   try {
+    const userId = req.user?.sub;
+    const role = req.user?.role;
+    const organizationId = await resolveOrganizationId({ req });
+    if (!userId || !organizationId) {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+      return;
+    }
+
+    const campaign = await prisma.emailCampaign.findFirst({
+      where: {
+        id: req.params.id,
+        organizationId,
+      },
+      select: { id: true, audienceFilter: true },
+    });
+    if (!campaign) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+      return;
+    }
+    if (!canManageCampaign(parseCampaignAudienceFilter(campaign.audienceFilter).sharing, userId, role)) {
+      res.status(403).json({ error: { code: "FORBIDDEN", message: "Only the owner can send this campaign" } });
+      return;
+    }
+
     const updated = await sendCampaignNow(req.params.id as string, "MANUAL");
     res.json(updated);
   } catch (err) {
@@ -673,10 +947,33 @@ router.post("/:id/send", async (req, res) => {
   }
 });
 
-/** DELETE /api/email-campaigns/:id — Permanently delete an email campaign. Admin-only. */
-router.delete("/:id", requireRole("admin"), async (req, res) => {
-  const id = req.params.id as string;
-  await prisma.emailCampaign.delete({ where: { id } });
+/** DELETE /api/email-campaigns/:id — Permanently delete an email campaign (owner/admin). */
+router.delete("/:id", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({
+    where: {
+      id: req.params.id,
+      organizationId,
+    },
+    select: { id: true, audienceFilter: true },
+  });
+  if (!campaign) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+  if (!canManageCampaign(parseCampaignAudienceFilter(campaign.audienceFilter).sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only the owner can delete this campaign" } });
+    return;
+  }
+
+  await prisma.emailCampaign.delete({ where: { id: campaign.id } });
   res.status(204).send();
 });
 

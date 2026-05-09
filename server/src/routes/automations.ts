@@ -93,11 +93,72 @@ const PRESET_AUTOMATIONS: PresetAutomation[] = [
   },
 ];
 
+interface SharingSettings {
+  ownerId: string | null;
+  sharedWithOrganization: boolean;
+}
+
+/** Safely parse sharing settings from triggerConfig JSON. */
+function parseAutomationSharing(triggerConfig: unknown): SharingSettings {
+  if (!triggerConfig || typeof triggerConfig !== "object" || Array.isArray(triggerConfig)) {
+    return { ownerId: null, sharedWithOrganization: true };
+  }
+  const cfg = triggerConfig as Record<string, unknown>;
+  const sharing = cfg._sharing;
+  if (!sharing || typeof sharing !== "object" || Array.isArray(sharing)) {
+    return { ownerId: null, sharedWithOrganization: true };
+  }
+  const sharingObj = sharing as Record<string, unknown>;
+  return {
+    ownerId: typeof sharingObj.ownerId === "string" ? sharingObj.ownerId : null,
+    sharedWithOrganization:
+      typeof sharingObj.sharedWithOrganization === "boolean"
+        ? sharingObj.sharedWithOrganization
+        : true,
+  };
+}
+
+/** Writes sharing metadata into triggerConfig while preserving existing keys. */
+function withAutomationSharing(triggerConfig: unknown, ownerId: string, sharedWithOrganization: boolean): Prisma.InputJsonValue {
+  const base = triggerConfig && typeof triggerConfig === "object" && !Array.isArray(triggerConfig)
+    ? { ...(triggerConfig as Record<string, unknown>) }
+    : {};
+  return {
+    ...base,
+    _sharing: {
+      ownerId,
+      sharedWithOrganization,
+    },
+  } as Prisma.InputJsonValue;
+}
+
+/** True if the current user can see a Steward Path. */
+function canAccessAutomation(sharing: SharingSettings, userId: string, role: string | undefined): boolean {
+  if (role === "admin") return true;
+  if (!sharing.ownerId) return true;
+  if (sharing.ownerId === userId) return true;
+  return sharing.sharedWithOrganization;
+}
+
+/** True if the current user can edit/delete a Steward Path. */
+function canManageAutomation(sharing: SharingSettings, userId: string, role: string | undefined): boolean {
+  if (role === "admin") return true;
+  if (!sharing.ownerId) return true;
+  return sharing.ownerId === userId;
+}
+
 /**
  * GET /api/automations
  * Returns all automations for the org, including their actions ordered by `order`.
  */
 router.get("/", async (_req, res) => {
+  const userId = _req.user?.sub;
+  const role = _req.user?.role;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
   const organizationId = await resolveOrganizationId({ req: _req });
   if (!organizationId) {
     res.json([]);
@@ -109,7 +170,19 @@ router.get("/", async (_req, res) => {
     include: { actions: { orderBy: { order: "asc" } } },
     orderBy: { createdAt: "desc" },
   });
-  res.json(automations);
+
+  const visible = automations
+    .filter((automation) => canAccessAutomation(parseAutomationSharing(automation.triggerConfig), userId, role))
+    .map((automation) => {
+      const sharing = parseAutomationSharing(automation.triggerConfig);
+      return {
+        ...automation,
+        ownerId: sharing.ownerId,
+        sharedWithOrganization: sharing.sharedWithOrganization,
+      };
+    });
+
+  res.json(visible);
 });
 
 /** GET /api/automations/presets — Return predefined automation templates users can install. */
@@ -202,6 +275,13 @@ function mapRunLogsToHistory(logs: Array<{ id: string; entityId: string | null; 
  * Returns most recent Steward Path execution runs with per-action traces.
  */
 router.get("/runs", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
     res.json([]);
@@ -211,10 +291,24 @@ router.get("/runs", async (req, res) => {
   const parsedLimit = Number.parseInt((req.query.limit as string) ?? "50", 10);
   const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 200) : 50;
 
+  const automationsForAccess = await prisma.automation.findMany({
+    where: { organizationId },
+    select: { id: true, name: true, triggerConfig: true },
+  });
+  const visibleAutomations = automationsForAccess.filter((automation) =>
+    canAccessAutomation(parseAutomationSharing(automation.triggerConfig), userId, role)
+  );
+  const visibleIds = visibleAutomations.map((automation) => automation.id);
+  if (visibleIds.length === 0) {
+    res.json([]);
+    return;
+  }
+
   const logs = await prisma.auditLog.findMany({
     where: {
       organizationId,
       action: "STEWARD_PATH_RUN",
+      entityId: { in: visibleIds },
     },
     orderBy: { createdAt: "desc" },
     take: limit,
@@ -226,16 +320,7 @@ router.get("/runs", async (req, res) => {
     },
   });
 
-  const automationIds = logs.map((log) => log.entityId).filter((id): id is string => Boolean(id));
-  const automations = await prisma.automation.findMany({
-    where: {
-      organizationId,
-      id: { in: automationIds },
-    },
-    select: { id: true, name: true },
-  });
-
-  const nameMap = new Map(automations.map((a) => [a.id, a.name]));
+  const nameMap = new Map(visibleAutomations.map((a) => [a.id, a.name]));
   res.json(mapRunLogsToHistory(logs, nameMap));
 });
 
@@ -244,7 +329,18 @@ router.get("/runs", async (req, res) => {
  * Installs a predefined preset as a real automation record.
  */
 router.post("/from-preset", async (req, res) => {
-  const { presetId, name, enabled = true } = req.body as { presetId?: string; name?: string; enabled?: boolean };
+  const userId = req.user?.sub;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const { presetId, name, enabled = true, sharedWithOrganization = false } = req.body as {
+    presetId?: string;
+    name?: string;
+    enabled?: boolean;
+    sharedWithOrganization?: boolean;
+  };
   const preset = PRESET_AUTOMATIONS.find((p) => p.id === presetId);
   if (!preset) {
     res.status(404).json({ error: { code: "PRESET_NOT_FOUND", message: "Preset not found" } });
@@ -263,7 +359,11 @@ router.post("/from-preset", async (req, res) => {
       name: name || preset.name,
       description: preset.description,
       trigger: preset.trigger as never,
-      triggerConfig: (preset.triggerConfig ?? undefined) as Prisma.InputJsonValue | undefined,
+      triggerConfig: withAutomationSharing(
+        preset.triggerConfig ?? undefined,
+        userId,
+        Boolean(sharedWithOrganization)
+      ),
       enabled,
       actions: {
         create: preset.actions.map((a) => ({
@@ -284,6 +384,13 @@ router.post("/from-preset", async (req, res) => {
  * Returns recent runs for one Steward Path with per-action traces.
  */
 router.get("/:id/runs", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
     res.json([]);
@@ -298,11 +405,17 @@ router.get("/:id/runs", async (req, res) => {
       id: req.params.id,
       organizationId,
     },
-    select: { id: true, name: true },
+    select: { id: true, name: true, triggerConfig: true },
   });
 
   if (!automation) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Automation not found" } });
+    return;
+  }
+
+  const sharing = parseAutomationSharing((automation as { triggerConfig?: unknown }).triggerConfig);
+  if (!canAccessAutomation(sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this Steward Path" } });
     return;
   }
 
@@ -331,15 +444,42 @@ router.get("/:id/runs", async (req, res) => {
  * Returns a single automation with its actions.
  */
 router.get("/:id", async (req, res) => {
-  const automation = await prisma.automation.findUnique({
-    where: { id: req.params.id },
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured for this installation." } });
+    return;
+  }
+
+  const automation = await prisma.automation.findFirst({
+    where: {
+      id: req.params.id,
+      organizationId,
+    },
     include: { actions: { orderBy: { order: "asc" } } },
   });
   if (!automation) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Automation not found" } });
     return;
   }
-  res.json(automation);
+
+  const sharing = parseAutomationSharing(automation.triggerConfig);
+  if (!canAccessAutomation(sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this Steward Path" } });
+    return;
+  }
+
+  res.json({
+    ...automation,
+    ownerId: sharing.ownerId,
+    sharedWithOrganization: sharing.sharedWithOrganization,
+  });
 });
 
 /**
@@ -355,7 +495,21 @@ router.get("/:id", async (req, res) => {
  * - actions?: Array<{ type, config?, order? }>
  */
 router.post("/", async (req, res) => {
-  const { name, trigger, description, triggerConfig, enabled = true, actions = [] } = req.body;
+  const userId = req.user?.sub;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const {
+    name,
+    trigger,
+    description,
+    triggerConfig,
+    enabled = true,
+    actions = [],
+    sharedWithOrganization = false,
+  } = req.body;
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
     res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured for this installation." } });
@@ -368,8 +522,7 @@ router.post("/", async (req, res) => {
       name,
       trigger,
       description,
-      // Prisma requires explicit InputJsonValue cast for Json fields
-      triggerConfig: triggerConfig ?? undefined,
+      triggerConfig: withAutomationSharing(triggerConfig ?? undefined, userId, Boolean(sharedWithOrganization)),
       enabled,
       actions: {
         // Create all actions in the same transaction
@@ -392,14 +545,60 @@ router.post("/", async (req, res) => {
  * Does NOT update nested actions via this endpoint — use the action sub-routes.
  */
 router.patch("/:id", async (req, res) => {
-  const { actions: _actions, ...data } = req.body;
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured for this installation." } });
+    return;
+  }
+
+  const { actions: _actions, sharedWithOrganization, ...data } = req.body;
+
+  const existing = await prisma.automation.findFirst({
+    where: { id: req.params.id, organizationId },
+    select: { id: true, triggerConfig: true },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Automation not found" } });
+    return;
+  }
+
+  const sharing = parseAutomationSharing(existing.triggerConfig);
+  if (!canManageAutomation(sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only the owner can edit this Steward Path" } });
+    return;
+  }
+
+  const ownerId = sharing.ownerId ?? userId;
+  const nextShared = typeof sharedWithOrganization === "boolean"
+    ? sharedWithOrganization
+    : sharing.sharedWithOrganization;
+  const nextTriggerConfig = withAutomationSharing(
+    data.triggerConfig !== undefined ? data.triggerConfig : existing.triggerConfig,
+    ownerId,
+    nextShared,
+  );
 
   const automation = await prisma.automation.update({
     where: { id: req.params.id },
-    data,
+    data: {
+      ...data,
+      triggerConfig: nextTriggerConfig,
+    },
     include: { actions: { orderBy: { order: "asc" } } },
   });
-  res.json(automation);
+
+  res.json({
+    ...automation,
+    ownerId,
+    sharedWithOrganization: nextShared,
+  });
 });
 
 /**
@@ -407,6 +606,33 @@ router.patch("/:id", async (req, res) => {
  * Deletes an automation and all its actions (cascade).
  */
 router.delete("/:id", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured for this installation." } });
+    return;
+  }
+
+  const existing = await prisma.automation.findFirst({
+    where: { id: req.params.id, organizationId },
+    select: { id: true, triggerConfig: true },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Automation not found" } });
+    return;
+  }
+
+  if (!canManageAutomation(parseAutomationSharing(existing.triggerConfig), userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only the owner can delete this Steward Path" } });
+    return;
+  }
+
   await prisma.automation.delete({ where: { id: req.params.id } });
   res.status(204).send();
 });
@@ -417,13 +643,35 @@ router.delete("/:id", async (req, res) => {
  * This runs through the Steward Paths execution service and returns action results.
  */
 router.post("/:id/run", async (req, res) => {
-  const automation = await prisma.automation.findUnique({
-    where: { id: req.params.id },
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured for this installation." } });
+    return;
+  }
+
+  const automation = await prisma.automation.findFirst({
+    where: {
+      id: req.params.id,
+      organizationId,
+    },
     include: { actions: { orderBy: { order: "asc" } } },
   });
 
   if (!automation) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Automation not found" } });
+    return;
+  }
+
+  const sharing = parseAutomationSharing(automation.triggerConfig);
+  if (!canAccessAutomation(sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this Steward Path" } });
     return;
   }
 
@@ -437,7 +685,7 @@ router.post("/:id/run", async (req, res) => {
     constituentId: inputConstituentId,
     donationId: inputDonationId,
     taskId: inputTaskId,
-    userId: req.user?.sub,
+    userId,
     source: "manual-run",
   });
 
