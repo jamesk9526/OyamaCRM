@@ -108,11 +108,11 @@ export const PROJECT_STATUS_ITEMS: ProjectStatusItem[] = [
   },
   {
     area: "Donor CRM",
-    feature: "Automations",
+    feature: "Steward Paths",
     status: "Partial",
-    dataSource: "Mixed Real/Demo Data",
-    notes: "Automation records/actions are DB-backed, but /api/automations/:id/run only increments counters.",
-    nextStep: "Build execution engine + run history + retry/failure handling.",
+    dataSource: "Real API Data",
+    notes: "Steward Path records/actions are DB-backed and execute on donation/constituent triggers; manual runs are supported.",
+    nextStep: "Add first-class run-history UI and expand trigger coverage with retries and failure dashboards.",
   },
   {
     area: "Donor CRM",

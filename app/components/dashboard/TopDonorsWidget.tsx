@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch } from "@/app/lib/auth-client";
 
 interface TopDonor {
   id: string;
@@ -49,11 +50,30 @@ export default function TopDonorsWidget() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/reports/top-donors?limit=5")
-      .then((r) => r.json())
-      .then((data) => setDonors(Array.isArray(data) ? data : []))
-      .catch(() => setDonors([]))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+
+    async function loadTopDonors() {
+      try {
+        const data = await apiFetch<TopDonor[]>("/api/reports/top-donors?limit=5");
+        if (!cancelled) {
+          setDonors(Array.isArray(data) ? data : []);
+        }
+      } catch {
+        if (!cancelled) {
+          setDonors([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadTopDonors();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (loading) {

@@ -14,6 +14,7 @@ import { Router } from "express";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { completedDonationWhere } from "../lib/donationScope.js";
 import {
   getYearRange,
   getStartOfWeek,
@@ -84,25 +85,25 @@ router.get("/summary", async (req, res) => {
     prisma.constituent.count({ where: { organizationId } }),
     // YTD completed donations — sum and count since Jan 1 of the current year
     prisma.donation.aggregate({
-      where: { status: "COMPLETED", date: { gte: startOfYear }, constituent: { organizationId } },
+      where: completedDonationWhere(organizationId, { gte: startOfYear }),
       _sum: { amount: true },
       _count: true,
     }),
     // This week's donations
     prisma.donation.aggregate({
-      where: { status: "COMPLETED", date: { gte: startOfWeek }, constituent: { organizationId } },
+      where: completedDonationWhere(organizationId, { gte: startOfWeek }),
       _sum: { amount: true },
       _count: true,
     }),
     // This month's donations (for trend comparison)
     prisma.donation.aggregate({
-      where: { status: "COMPLETED", date: { gte: startOfMonth }, constituent: { organizationId } },
+      where: completedDonationWhere(organizationId, { gte: startOfMonth }),
       _sum: { amount: true },
       _count: true,
     }),
     // Last month's donations (for MoM trend) — exclusive end = start of current month
     prisma.donation.aggregate({
-      where: { status: "COMPLETED", date: { gte: startOfLastMonth, lt: startOfMonth }, constituent: { organizationId } },
+      where: completedDonationWhere(organizationId, { gte: startOfLastMonth, lt: startOfMonth }),
       _sum: { amount: true },
       _count: true,
     }),
@@ -178,7 +179,7 @@ router.get("/giving-by-month", async (req, res) => {
   // Fetch donations and grants concurrently
   const [donations, grants] = await Promise.all([
     prisma.donation.findMany({
-      where: { date: dateFilter, status: "COMPLETED", constituent: { organizationId } },
+      where: completedDonationWhere(organizationId, dateFilter),
       select: { date: true, amount: true },
     }),
     // Awarded grants with an awardedAt date in this year; amountAwarded may be null so filter it out.
@@ -274,22 +275,60 @@ router.get("/top-donors", async (req, res) => {
     return;
   }
 
-  const limit = parseInt((req.query.limit as string) ?? "10");
+  const parsedLimit = Number.parseInt((req.query.limit as string) ?? "10", 10);
+  const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 50) : 10;
 
-  const donors = await prisma.constituent.findMany({
-    where: { organizationId, totalLifetimeGiving: { gt: 0 } },
-    orderBy: { totalLifetimeGiving: "desc" },
+  const grouped = await prisma.donation.groupBy({
+    by: ["constituentId"],
+    where: {
+      ...completedDonationWhere(organizationId),
+    },
+    _sum: { amount: true },
+    _max: { date: true },
+    orderBy: { _sum: { amount: "desc" } },
     take: limit,
+  });
+
+  if (grouped.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  const constituentIds = grouped
+    .map((row) => row.constituentId)
+    .filter((id): id is string => Boolean(id));
+
+  const constituents = await prisma.constituent.findMany({
+    where: {
+      organizationId,
+      id: { in: constituentIds },
+    },
     select: {
       id: true,
       firstName: true,
       lastName: true,
       email: true,
-      totalLifetimeGiving: true,
-      lastGiftDate: true,
       donorStatus: true,
     },
   });
+
+  const constituentMap = new Map(constituents.map((c) => [c.id, c]));
+
+  const donors = grouped
+    .map((row) => {
+      const constituent = row.constituentId ? constituentMap.get(row.constituentId) : undefined;
+      if (!constituent) return null;
+      return {
+        id: constituent.id,
+        firstName: constituent.firstName,
+        lastName: constituent.lastName,
+        email: constituent.email,
+        donorStatus: constituent.donorStatus,
+        totalLifetimeGiving: Number(row._sum?.amount ?? 0),
+        lastGiftDate: row._max?.date ?? null,
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => Boolean(row));
 
   res.json(donors);
 });

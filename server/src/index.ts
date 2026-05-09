@@ -39,9 +39,12 @@ import grantRoutes from "./routes/grants.js";
 import meetingRoutes from "./routes/meetings.js";
 import compassionRoutes from "./routes/compassion.js";
 import quickbooksRoutes from "./routes/quickbooks.js";
+import searchRoutes from "./routes/search.js";
+import stewardSignalsRoutes from "./routes/steward-signals.js";
 import { prisma } from "./lib/prisma.js";
 import { getAppInfo } from "./lib/app-info.js";
 import { getEmailQueueWorkerStatus, startEmailQueueWorker } from "./services/email-queue-worker.js";
+import { getStewardPathsWorkerStatus, startStewardPathsWorker } from "./services/steward-paths-worker.js";
 
 const app = express();
 const PORT = process.env.API_PORT ? parseInt(process.env.API_PORT) : 4000;
@@ -99,6 +102,7 @@ async function healthHandler(_req: express.Request, res: express.Response) {
   }
   const appInfo = getAppInfo();
   const queue = getEmailQueueWorkerStatus();
+  const stewardPaths = getStewardPathsWorkerStatus();
   res.json({
     status: dbStatus === "ok" ? "ok" : "degraded",
     appName: appInfo.appName,
@@ -112,6 +116,7 @@ async function healthHandler(_req: express.Request, res: express.Response) {
     uptimeSec: Math.floor((Date.now() - startTime) / 1000),
     timestamp: new Date().toISOString(),
     queue,
+    stewardPaths,
   });
 }
 
@@ -144,6 +149,8 @@ app.use("/api/grants", grantRoutes);
 app.use("/api/meetings", meetingRoutes);
 app.use("/api/compassion", compassionRoutes);
 app.use("/api/quickbooks", quickbooksRoutes);
+app.use("/api/search", searchRoutes);
+app.use("/api/steward-signals", stewardSignalsRoutes);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 
@@ -168,6 +175,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 if (process.env.NODE_ENV !== "test") {
   startEmailQueueWorker();
+  startStewardPathsWorker();
   app.listen(PORT, () => {
     console.log(`[API] OyamaCRM API server running on http://localhost:${PORT}`);
   });

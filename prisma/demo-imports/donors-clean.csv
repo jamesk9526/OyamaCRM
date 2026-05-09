@@ -1,0 +1,121 @@
+sourceId,firstName,lastName,email,phone,city,state,status,segment
+DEMO-EXT-000001,Liam,Jones,liam.jones.1@demo.oyamacrm.invalid,312-555-1001,Oak Park,IL,ACTIVE,recurring
+DEMO-EXT-000002,Emma,Davis,emma.davis.2@demo.oyamacrm.invalid,312-555-1002,Chicago,IL,MAJOR_DONOR,major
+DEMO-EXT-000003,Noah,Hernandez,noah.hernandez.3@demo.oyamacrm.invalid,312-555-1003,Oak Park,IL,LAPSED,lapsed
+DEMO-EXT-000004,Ava,Wilson,,312-555-1004,Chicago,IL,ACTIVE,mail_only
+DEMO-EXT-000005,Ethan,Taylor,ethan.taylor.5@demo.oyamacrm.invalid,312-555-1005,Oak Park,IL,MAJOR_DONOR,event_sponsor_table_host
+DEMO-EXT-000006,Mia,Martin,,312-555-1006,Chicago,IL,ACTIVE,incomplete_contact
+DEMO-EXT-000007,Lucas,Thompson,lucas.thompson.7@demo.oyamacrm.invalid,312-555-1007,Oak Park,IL,ACTIVE,active
+DEMO-EXT-000008,Sophia,Sanchez,sophia.sanchez.8@demo.oyamacrm.invalid,312-555-1008,Chicago,IL,NEW,new
+DEMO-EXT-000009,Mason,Lewis,mason.lewis.9@demo.oyamacrm.invalid,312-555-1009,Oak Park,IL,ACTIVE,recurring
+DEMO-EXT-000010,Isabella,Young,isabella.young.10@demo.oyamacrm.invalid,312-555-1010,Chicago,IL,MAJOR_DONOR,major
+DEMO-EXT-000011,Elijah,Wright,elijah.wright.11@demo.oyamacrm.invalid,312-555-1011,Oak Park,IL,LAPSED,lapsed
+DEMO-EXT-000012,Amelia,Nguyen,,312-555-1012,Chicago,IL,ACTIVE,mail_only
+DEMO-EXT-000013,James,Green,james.green.13@demo.oyamacrm.invalid,312-555-1013,Oak Park,IL,MAJOR_DONOR,event_sponsor_table_host
+DEMO-EXT-000014,Harper,Brown,,,Chicago,IL,ACTIVE,incomplete_contact
+DEMO-EXT-000015,Benjamin,Miller,benjamin.miller.15@demo.oyamacrm.invalid,312-555-1015,Oak Park,IL,ACTIVE,active
+DEMO-EXT-000016,Evelyn,Martinez,evelyn.martinez.16@demo.oyamacrm.invalid,312-555-1016,Chicago,IL,NEW,new
+DEMO-EXT-000017,Henry,Gonzalez,henry.gonzalez.17@demo.oyamacrm.invalid,312-555-1017,Oak Park,IL,ACTIVE,recurring
+DEMO-EXT-000018,Abigail,Thomas,abigail.thomas.18@demo.oyamacrm.invalid,312-555-1018,Chicago,IL,MAJOR_DONOR,major
+DEMO-EXT-000019,Alexander,Jackson,alexander.jackson.19@demo.oyamacrm.invalid,312-555-1019,Oak Park,IL,LAPSED,lapsed
+DEMO-EXT-000020,Charlotte,Perez,,312-555-1020,Chicago,IL,ACTIVE,mail_only
+DEMO-EXT-000021,Michael,Harris,michael.harris.21@demo.oyamacrm.invalid,312-555-1021,Oak Park,IL,MAJOR_DONOR,event_sponsor_table_host
+DEMO-EXT-000022,Ella,Ramirez,,,Chicago,IL,ACTIVE,incomplete_contact
+DEMO-EXT-000023,Daniel,Walker,daniel.walker.23@demo.oyamacrm.invalid,312-555-1023,Oak Park,IL,ACTIVE,active
+DEMO-EXT-000024,Avery,King,avery.king.24@demo.oyamacrm.invalid,312-555-1024,Chicago,IL,NEW,new
+DEMO-EXT-000025,Matthew,Torres,matthew.torres.25@demo.oyamacrm.invalid,312-555-1025,Oak Park,IL,ACTIVE,recurring
+DEMO-EXT-000026,Scarlett,Flores,scarlett.flores.26@demo.oyamacrm.invalid,312-555-1026,Chicago,IL,MAJOR_DONOR,major
+DEMO-EXT-000027,Joseph,Williams,joseph.williams.27@demo.oyamacrm.invalid,312-555-1027,Oak Park,IL,LAPSED,lapsed
+DEMO-EXT-000028,Camila,Garcia,,312-555-1028,Chicago,IL,ACTIVE,mail_only
+DEMO-EXT-000029,David,Rodriguez,david.rodriguez.29@demo.oyamacrm.invalid,312-555-1029,Oak Park,IL,MAJOR_DONOR,event_sponsor_table_host
+DEMO-EXT-000030,Chloe,Lopez,,,Chicago,IL,ACTIVE,incomplete_contact
+DEMO-EXT-000031,Samuel,Anderson,samuel.anderson.31@demo.oyamacrm.invalid,312-555-1031,Oak Park,IL,ACTIVE,active
+DEMO-EXT-000032,Luna,Moore,luna.moore.32@demo.oyamacrm.invalid,312-555-1032,Chicago,IL,NEW,new
+DEMO-EXT-000033,Sebastian,Lee,sebastian.lee.33@demo.oyamacrm.invalid,312-555-1033,Oak Park,IL,ACTIVE,recurring
+DEMO-EXT-000034,Aria,White,aria.white.34@demo.oyamacrm.invalid,312-555-1034,Chicago,IL,MAJOR_DONOR,major
+DEMO-EXT-000035,Jackson,Clark,jackson.clark.35@demo.oyamacrm.invalid,312-555-1035,Oak Park,IL,LAPSED,lapsed
+DEMO-EXT-000036,Penelope,Robinson,,312-555-1036,Chicago,IL,ACTIVE,mail_only
+DEMO-EXT-000037,Owen,Allen,owen.allen-invalid-email,312-555-1037,Oak Park,IL,MAJOR_DONOR,event_sponsor_table_host
+DEMO-EXT-000038,Layla,Scott,,,Chicago,IL,ACTIVE,incomplete_contact
+DEMO-EXT-000039,Wyatt,Hill,wyatt.hill.39@demo.oyamacrm.invalid,312-555-1039,Oak Park,IL,ACTIVE,active
+DEMO-EXT-000040,Olivia,Johnson,olivia.johnson.40@demo.oyamacrm.invalid,312-555-1040,Chicago,IL,NEW,new
+DEMO-EXT-000041,Liam,Jones,liam.jones.41@demo.oyamacrm.invalid,312-555-1041,Oak Park,IL,ACTIVE,recurring
+DEMO-EXT-000042,Emma,Davis,emma.davis.42@demo.oyamacrm.invalid,312-555-1042,Chicago,IL,MAJOR_DONOR,major
+DEMO-DUP-001,Noah,Hernandez,noah.hernandez.43@demo.oyamacrm.invalid,312-555-1043,Oak Park,IL,LAPSED,lapsed
+DEMO-EXT-000044,Ava,Wilson,,312-555-1044,Chicago,IL,ACTIVE,mail_only
+DEMO-EXT-000045,Ethan,Taylor,ethan.taylor.45@demo.oyamacrm.invalid,312-555-1045,Oak Park,IL,MAJOR_DONOR,event_sponsor_table_host
+DEMO-EXT-000046,Mia,Martin,mia.martin.46@demo.oyamacrm.invalid,,Chicago,IL,ACTIVE,incomplete_contact
+DEMO-EXT-000047,Lucas,Thompson,lucas.thompson.47@demo.oyamacrm.invalid,312-555-1047,Oak Park,IL,ACTIVE,active
+DEMO-EXT-000048,Sophia,Sanchez,sophia.sanchez.48@demo.oyamacrm.invalid,312-555-1048,Chicago,IL,NEW,new
+DEMO-EXT-000049,Mason,Lewis,mason.lewis.49@demo.oyamacrm.invalid,312-555-1049,Oak Park,IL,ACTIVE,recurring
+DEMO-EXT-000050,Isabella,Young,isabella.young.50@demo.oyamacrm.invalid,312-555-1050,Chicago,IL,MAJOR_DONOR,major
+DEMO-EXT-000051,Elijah,Wright,elijah.wright.51@demo.oyamacrm.invalid,312-555-1051,Oak Park,IL,LAPSED,lapsed
+DEMO-EXT-000052,Amelia,Nguyen,,312-555-1052,Chicago,IL,ACTIVE,mail_only
+DEMO-EXT-000053,James,Green,james.green.53@demo.oyamacrm.invalid,312-555-1053,Oak Park,IL,MAJOR_DONOR,event_sponsor_table_host
+DEMO-EXT-000054,Harper,Brown,harper.brown.54@demo.oyamacrm.invalid,,Chicago,IL,ACTIVE,incomplete_contact
+DEMO-EXT-000055,Benjamin,Miller,benjamin.miller.55@demo.oyamacrm.invalid,312-555-1055,Oak Park,IL,ACTIVE,active
+DEMO-EXT-000056,Evelyn,Martinez,evelyn.martinez.56@demo.oyamacrm.invalid,312-555-1056,Chicago,IL,NEW,new
+DEMO-EXT-000057,Henry,Gonzalez,henry.gonzalez.57@demo.oyamacrm.invalid,312-555-1057,Oak Park,IL,ACTIVE,recurring
+DEMO-EXT-000058,Abigail,Thomas,abigail.thomas.58@demo.oyamacrm.invalid,312-555-1058,Chicago,IL,MAJOR_DONOR,major
+DEMO-EXT-000059,Alexander,Jackson,alexander.jackson.59@demo.oyamacrm.invalid,312-555-1059,Oak Park,IL,LAPSED,lapsed
+DEMO-EXT-000060,Charlotte,Perez,,312-555-1060,Chicago,IL,ACTIVE,mail_only
+DEMO-EXT-000061,Michael,Harris,michael.harris.61@demo.oyamacrm.invalid,312-555-1061,Oak Park,IL,MAJOR_DONOR,event_sponsor_table_host
+DEMO-EXT-000062,Ella,Ramirez,ella.ramirez.62@demo.oyamacrm.invalid,312-555-1062,Chicago,IL,ACTIVE,incomplete_contact
+DEMO-EXT-000063,Daniel,Walker,daniel.walker.63@demo.oyamacrm.invalid,312-555-1063,Oak Park,IL,ACTIVE,active
+DEMO-EXT-000064,Avery,King,avery.king.64@demo.oyamacrm.invalid,312-555-1064,Chicago,IL,NEW,new
+DEMO-EXT-000065,Matthew,Torres,matthew.torres.65@demo.oyamacrm.invalid,312-555-1065,Oak Park,IL,ACTIVE,recurring
+DEMO-EXT-000066,Scarlett,Flores,scarlett.flores.66@demo.oyamacrm.invalid,312-555-1066,Chicago,IL,MAJOR_DONOR,major
+DEMO-EXT-000067,Joseph,Williams,joseph.williams.67@demo.oyamacrm.invalid,312-555-1067,Oak Park,IL,LAPSED,lapsed
+DEMO-EXT-000068,Camila,Garcia,,312-555-1068,Chicago,IL,ACTIVE,mail_only
+DEMO-EXT-000069,David,Rodriguez,david.rodriguez.69@demo.oyamacrm.invalid,312-555-1069,Oak Park,IL,MAJOR_DONOR,event_sponsor_table_host
+DEMO-EXT-000070,Chloe,Lopez,,,Chicago,IL,ACTIVE,incomplete_contact
+DEMO-EXT-000071,Samuel,Anderson,samuel.anderson.71@demo.oyamacrm.invalid,312-555-1071,Oak Park,IL,ACTIVE,active
+DEMO-EXT-000072,Luna,Moore,luna.moore.72@demo.oyamacrm.invalid,312-555-1072,Chicago,IL,NEW,new
+DEMO-EXT-000073,Sebastian,Lee,sebastian.lee.73@demo.oyamacrm.invalid,312-555-1073,Oak Park,IL,ACTIVE,recurring
+DEMO-EXT-000074,Aria,White,aria.white-invalid-email,312-555-1074,Chicago,IL,MAJOR_DONOR,major
+DEMO-EXT-000075,Jackson,Clark,jackson.clark.75@demo.oyamacrm.invalid,312-555-1075,Oak Park,IL,LAPSED,lapsed
+DEMO-EXT-000076,Penelope,Robinson,,312-555-1076,Chicago,IL,ACTIVE,mail_only
+DEMO-EXT-000077,Owen,Allen,owen.allen.77@demo.oyamacrm.invalid,312-555-1077,Oak Park,IL,MAJOR_DONOR,event_sponsor_table_host
+DEMO-EXT-000078,Layla,Scott,,,Chicago,IL,ACTIVE,incomplete_contact
+DEMO-EXT-000079,Wyatt,Hill,wyatt.hill.79@demo.oyamacrm.invalid,312-555-1079,Oak Park,IL,ACTIVE,active
+DEMO-EXT-000080,Olivia,Johnson,olivia.johnson.80@demo.oyamacrm.invalid,312-555-1080,Chicago,IL,NEW,new
+DEMO-EXT-000081,Liam,Jones,liam.jones.81@demo.oyamacrm.invalid,312-555-1081,Oak Park,IL,ACTIVE,recurring
+DEMO-EXT-000082,Emma,Davis,emma.davis.82@demo.oyamacrm.invalid,312-555-1082,Chicago,IL,MAJOR_DONOR,major
+DEMO-EXT-000083,Noah,Hernandez,noah.hernandez.83@demo.oyamacrm.invalid,312-555-1083,Oak Park,IL,LAPSED,lapsed
+DEMO-EXT-000084,Ava,Wilson,,312-555-1084,Chicago,IL,ACTIVE,mail_only
+DEMO-EXT-000085,Ethan,Taylor,ethan.taylor.85@demo.oyamacrm.invalid,312-555-1085,Oak Park,IL,MAJOR_DONOR,event_sponsor_table_host
+DEMO-DUP-002,Mia,Martin,,312-555-1086,Chicago,IL,ACTIVE,incomplete_contact
+DEMO-EXT-000087,Lucas,Thompson,lucas.thompson.87@demo.oyamacrm.invalid,312-555-1087,Oak Park,IL,ACTIVE,active
+DEMO-EXT-000088,Sophia,Sanchez,sophia.sanchez.88@demo.oyamacrm.invalid,312-555-1088,Chicago,IL,NEW,new
+DEMO-EXT-000089,Mason,Lewis,mason.lewis.89@demo.oyamacrm.invalid,312-555-1089,Oak Park,IL,ACTIVE,recurring
+DEMO-EXT-000090,Isabella,Young,isabella.young.90@demo.oyamacrm.invalid,312-555-1090,Chicago,IL,MAJOR_DONOR,major
+DEMO-EXT-000091,Elijah,Wright,elijah.wright.91@demo.oyamacrm.invalid,312-555-1091,Oak Park,IL,LAPSED,lapsed
+DEMO-EXT-000092,Amelia,Nguyen,,312-555-1092,Chicago,IL,ACTIVE,mail_only
+DEMO-EXT-000093,James,Green,james.green.93@demo.oyamacrm.invalid,312-555-1093,Oak Park,IL,MAJOR_DONOR,event_sponsor_table_host
+DEMO-EXT-000094,Harper,Brown,,,Chicago,IL,ACTIVE,incomplete_contact
+DEMO-EXT-000095,Benjamin,Miller,benjamin.miller.95@demo.oyamacrm.invalid,312-555-1095,Oak Park,IL,ACTIVE,active
+DEMO-EXT-000096,Evelyn,Martinez,evelyn.martinez.96@demo.oyamacrm.invalid,312-555-1096,Chicago,IL,NEW,new
+DEMO-EXT-000097,Jordan,Taylor,henry.gonzalez.97@demo.oyamacrm.invalid,312-555-1097,Oak Park,IL,ACTIVE,recurring
+DEMO-EXT-000098,Abigail,Thomas,abigail.thomas.98@demo.oyamacrm.invalid,312-555-1098,Chicago,IL,MAJOR_DONOR,major
+DEMO-EXT-000099,Alexander,Jackson,alexander.jackson.99@demo.oyamacrm.invalid,312-555-1099,Oak Park,IL,LAPSED,lapsed
+DEMO-EXT-000100,Charlotte,Perez,,312-555-1100,Chicago,IL,ACTIVE,mail_only
+DEMO-EXT-000101,Michael,Harris,michael.harris.101@demo.oyamacrm.invalid,312-555-1101,Oak Park,IL,MAJOR_DONOR,event_sponsor_table_host
+DEMO-EXT-000102,Ella,Ramirez,ella.ramirez.102@demo.oyamacrm.invalid,312-555-1102,Chicago,IL,ACTIVE,incomplete_contact
+DEMO-EXT-000103,Daniel,Walker,daniel.walker.103@demo.oyamacrm.invalid,312-555-1103,Oak Park,IL,ACTIVE,active
+DEMO-EXT-000104,Avery,King,avery.king.104@demo.oyamacrm.invalid,312-555-1104,Chicago,IL,NEW,new
+DEMO-EXT-000105,Matthew,Torres,matthew.torres.105@demo.oyamacrm.invalid,312-555-1105,Oak Park,IL,ACTIVE,recurring
+DEMO-EXT-000106,Scarlett,Flores,scarlett.flores.106@demo.oyamacrm.invalid,312-555-1106,Chicago,IL,MAJOR_DONOR,major
+DEMO-EXT-000107,Joseph,Williams,joseph.williams.107@demo.oyamacrm.invalid,312-555-1107,Oak Park,IL,LAPSED,lapsed
+DEMO-EXT-000108,Camila,Garcia,,312-555-1108,Chicago,IL,ACTIVE,mail_only
+DEMO-EXT-000109,David,Rodriguez,david.rodriguez.109@demo.oyamacrm.invalid,312-555-1109,Oak Park,IL,MAJOR_DONOR,event_sponsor_table_host
+DEMO-EXT-000110,Chloe,Lopez,,,Chicago,IL,ACTIVE,incomplete_contact
+DEMO-EXT-000111,Samuel,Anderson,samuel.anderson-invalid-email,312-555-1111,Oak Park,IL,ACTIVE,active
+DEMO-EXT-000112,Luna,Moore,luna.moore.112@demo.oyamacrm.invalid,312-555-1112,Chicago,IL,NEW,new
+DEMO-EXT-000113,Sebastian,Lee,sebastian.lee.113@demo.oyamacrm.invalid,312-555-1113,Oak Park,IL,ACTIVE,recurring
+DEMO-EXT-000114,Aria,White,aria.white.114@demo.oyamacrm.invalid,312-555-1114,Chicago,IL,MAJOR_DONOR,major
+DEMO-EXT-000115,Jackson,Clark,jackson.clark.115@demo.oyamacrm.invalid,312-555-1115,Oak Park,IL,LAPSED,lapsed
+DEMO-EXT-000116,Penelope,Robinson,,312-555-1116,Chicago,IL,ACTIVE,mail_only
+DEMO-EXT-000117,Owen,Allen,owen.allen.117@demo.oyamacrm.invalid,312-555-1117,Oak Park,IL,MAJOR_DONOR,event_sponsor_table_host
+DEMO-EXT-000118,Layla,Scott,,312-555-1118,Chicago,IL,ACTIVE,incomplete_contact
+DEMO-EXT-000119,Wyatt,Hill,wyatt.hill.119@demo.oyamacrm.invalid,312-555-1119,Oak Park,IL,ACTIVE,active
+DEMO-EXT-000120,Olivia,Johnson,olivia.johnson.120@demo.oyamacrm.invalid,312-555-1120,Chicago,IL,NEW,new

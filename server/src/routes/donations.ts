@@ -14,11 +14,14 @@
  * @module routes/donations
  */
 import { Router } from "express";
+import type { DonationStatus, Prisma } from "@prisma/client";
 import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { resolveOrganizationId } from "../lib/organization.js";
+import { donationOrgWhere } from "../lib/donationScope.js";
+import { executeStewardPathsForTrigger } from "../services/stewardPathsEngine.js";
 
 const router = Router();
 
@@ -38,31 +41,46 @@ const INCLUDE = {
 
 /** GET /api/donations — Paginated donation list with optional filters for constituent, campaign, date range, and status. */
 router.get("/", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json({ items: [], total: 0, page: 1, limit: 50 });
+    return;
+  }
+
   const { constituentId, campaignId, designationId, status, from, to, search, page = "1", limit = "50" } = req.query as Record<string, string>;
   const skip = (parseInt(page) - 1) * parseInt(limit);
 
-  const where: Record<string, unknown> = {
-    ...(constituentId && { constituentId }),
-    ...(campaignId    && { campaignId }),
-    ...(designationId && { designationId }),
-    ...(status        && { status }),
-    // Build date range filter only when at least one bound is supplied
-    ...((from || to)  && {
-      date: {
-        ...(from && { gte: new Date(from) }),
-        ...(to   && { lte: new Date(to) }),
-      },
-    }),
-    // Search is applied as a filter on the related constituent record
-    ...(search && {
-      constituent: {
-        OR: [
-          { firstName: { contains: search } },
-          { lastName:  { contains: search } },
-          { email:     { contains: search } },
-        ],
-      },
-    }),
+  const where: Prisma.DonationWhereInput = {
+    AND: [
+      donationOrgWhere(organizationId),
+      ...(constituentId ? [{ constituentId }] : []),
+      ...(campaignId ? [{ campaignId }] : []),
+      ...(designationId ? [{ designationId }] : []),
+      ...(status ? [{ status: status as DonationStatus }] : []),
+      ...(from || to
+        ? [
+            {
+              date: {
+                ...(from ? { gte: new Date(from) } : {}),
+                ...(to ? { lte: new Date(to) } : {}),
+              },
+            },
+          ]
+        : []),
+      ...(search
+        ? [
+            {
+              constituent: {
+                OR: [
+                  { firstName: { contains: search } },
+                  { lastName: { contains: search } },
+                  { email: { contains: search } },
+                ],
+              },
+            },
+          ]
+        : []),
+    ],
   };
 
   // Run the list query and count in parallel to avoid two sequential round-trips
@@ -111,6 +129,8 @@ router.post("/", async (req, res) => {
     include: INCLUDE,
   });
 
+  const organizationId = await resolveOrganizationId({ req });
+
   await prisma.activity.create({
     data: {
       constituentId: donation.constituentId,
@@ -131,6 +151,18 @@ router.post("/", async (req, res) => {
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
   });
+
+  // Execute Steward Paths for completed donations so repetitive stewardship work happens automatically.
+  if (organizationId && donation.status === "COMPLETED") {
+    await executeStewardPathsForTrigger({
+      organizationId,
+      trigger: "DONATION_RECEIVED",
+      constituentId: donation.constituentId,
+      donationId: donation.id,
+      userId: req.user?.sub,
+      source: "api/donations:create",
+    });
+  }
 
   res.status(201).json(donation);
 });

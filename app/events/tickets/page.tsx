@@ -6,6 +6,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -66,8 +67,13 @@ const DEFAULT_FORM: TicketTypeFormState = {
  * Select an event from the dropdown to view and manage its ticket types.
  */
 export default function EventTicketsPage() {
+  const params = useParams<{ eventId?: string }>();
+  const searchParams = useSearchParams();
+  const workspaceEventId = params.eventId ?? searchParams.get("eventId") ?? "";
+  const eventScoped = workspaceEventId.length > 0;
+
   const [events, setEvents] = useState<EventItem[]>([]);
-  const [selectedEventId, setSelectedEventId] = useState("");
+  const [selectedEventId, setSelectedEventId] = useState(workspaceEventId);
   const [ticketTypes, setTicketTypes] = useState<TicketType[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingEvents, setLoadingEvents] = useState(true);
@@ -76,12 +82,22 @@ export default function EventTicketsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (workspaceEventId) {
+      setSelectedEventId(workspaceEventId);
+    }
+  }, [workspaceEventId]);
+
   /** Load all events on mount */
   useEffect(() => {
     async function loadEvents() {
       try {
         const data = await apiFetch<EventItem[]>("/api/events");
-        setEvents(data.filter((e) => e.active !== false));
+        const activeEvents = data.filter((e) => e.active !== false);
+        setEvents(activeEvents);
+        if (!workspaceEventId && !selectedEventId && activeEvents.length > 0) {
+          setSelectedEventId(activeEvents[0].id);
+        }
       } catch (err) {
         console.error("Failed to load events:", err);
       } finally {
@@ -89,7 +105,7 @@ export default function EventTicketsPage() {
       }
     }
     loadEvents();
-  }, []);
+  }, [workspaceEventId, selectedEventId]);
 
   /** Load ticket types for selected event */
   const loadTicketTypes = useCallback(async () => {
@@ -223,7 +239,7 @@ export default function EventTicketsPage() {
             disabled={loadingEvents}
           >
             <option value="">
-              {loadingEvents ? "Loading events..." : "Select an event to manage ticket types"}
+              {loadingEvents ? "Loading events..." : eventScoped ? "Event Workspace" : "Select an event to manage ticket types"}
             </option>
             {events.map((e) => (
               <option key={e.id} value={e.id}>

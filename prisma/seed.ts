@@ -1,3 +1,4 @@
+/** Main Prisma seed script for baseline records plus configurable large-scale demo expansion. */
 import {
   PrismaClient,
   ConstituentType,
@@ -14,11 +15,49 @@ import {
   ActivityType,
 } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { seedDemoExpansion, type DemoSeedSize } from "./demo-seed-expansion";
 
 const prisma = new PrismaClient();
 
+/** Parses CLI args/env vars for demo dataset size and deterministic seed key. */
+function parseDemoSeedOptions(argv: string[]): { size: DemoSeedSize; seedKey: string } {
+  let sizeArg: string | undefined;
+  let seedKeyArg: string | undefined;
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const token = argv[i];
+    if (token === "--size" && argv[i + 1]) {
+      sizeArg = argv[i + 1];
+      i += 1;
+      continue;
+    }
+    if (token.startsWith("--size=")) {
+      sizeArg = token.slice("--size=".length);
+      continue;
+    }
+    if (token === "--seed" && argv[i + 1]) {
+      seedKeyArg = argv[i + 1];
+      i += 1;
+      continue;
+    }
+    if (token.startsWith("--seed=")) {
+      seedKeyArg = token.slice("--seed=".length);
+      continue;
+    }
+  }
+
+  const rawSize = (sizeArg ?? process.env.DEMO_SEED_SIZE ?? "small").toLowerCase();
+  const size: DemoSeedSize = rawSize === "medium" || rawSize === "large" ? rawSize : "small";
+  const seedKey = seedKeyArg ?? process.env.DEMO_SEED_KEY ?? "oyamacrm-demo-seed-v1";
+
+  return { size, seedKey };
+}
+
 async function main() {
+  const demoOptions = parseDemoSeedOptions(process.argv.slice(2));
   console.log("🌱 Seeding OyamaCRM...");
+  console.log(`   Demo profile: ${demoOptions.size}`);
+  console.log(`   Demo seed key: ${demoOptions.seedKey}`);
 
   const adminHash = await bcrypt.hash("admin123!", 12);
   const staffHash = await bcrypt.hash("staff123!", 12);
@@ -141,6 +180,22 @@ async function main() {
       goal: 500000,
       startDate: new Date("2024-07-01"),
       endDate: new Date("2026-06-30"),
+      active: true,
+    },
+  });
+
+  const annualCampaign2026 = await prisma.campaign.upsert({
+    where: { id: "camp_annual_2026" },
+    update: {},
+    create: {
+      id: "camp_annual_2026",
+      organizationId: org.id,
+      name: "Annual Fund 2026",
+      description: "Primary 2026 annual campaign for unrestricted and program support.",
+      category: CampaignCategory.ANNUAL_FUND,
+      goal: 300000,
+      startDate: new Date("2026-01-01"),
+      endDate: new Date("2026-12-31"),
       active: true,
     },
   });
@@ -383,6 +438,186 @@ async function main() {
     });
   }
 
+  // High-volume 2026 demo donation stream to simulate an active nonprofit.
+  // This intentionally creates many gifts and ensures completed revenue is > $250k.
+  const donationData2026: Array<{
+    id: string;
+    constituentId: string;
+    amount: number;
+    date: Date;
+    campaignId: string;
+    designationId: string;
+    paymentMethod: PaymentMethod;
+    status: DonationStatus;
+    taxDeductible: boolean;
+    receiptNumber?: string;
+  }> = [];
+
+  const coreDonorIds = ["con_01", "con_02", "con_03", "con_04", "con_06", "con_07", "con_08"];
+  const paymentMethods = [
+    PaymentMethod.CREDIT_CARD,
+    PaymentMethod.ONLINE,
+    PaymentMethod.CHECK,
+    PaymentMethod.ACH,
+    PaymentMethod.WIRE,
+    PaymentMethod.CASH,
+  ];
+  const designationIds = [generalFund.id, youthFund.id, capitalFund.id];
+
+  let smallCounter = 1;
+  let midCounter = 1;
+  let majorCounter = 1;
+  let pendingCounter = 1;
+
+  for (let month = 0; month < 12; month++) {
+    // 40 small recurring gifts per month (480/year)
+    for (let i = 0; i < 40; i++) {
+      const seq = smallCounter++;
+      const donorId = coreDonorIds[(month + i) % coreDonorIds.length];
+      const amount = 60 + ((month * 37 + i * 29) % 340); // 60 - 399
+      const day = ((i * 3) % 27) + 1;
+      const method = paymentMethods[(month + i) % paymentMethods.length];
+      const designationId = designationIds[(month + i) % designationIds.length];
+
+      donationData2026.push({
+        id: `don_2026_s_${String(seq).padStart(4, "0")}`,
+        constituentId: donorId,
+        amount,
+        date: new Date(Date.UTC(2026, month, day, 15, 0, 0)),
+        campaignId: annualCampaign2026.id,
+        designationId,
+        paymentMethod: method,
+        status: DonationStatus.COMPLETED,
+        taxDeductible: true,
+        receiptNumber: `RCP-2026-S-${String(seq).padStart(4, "0")}`,
+      });
+    }
+
+    // 5 mid-level gifts per month (60/year)
+    for (let i = 0; i < 5; i++) {
+      const seq = midCounter++;
+      const donorId = coreDonorIds[(month * 2 + i) % coreDonorIds.length];
+      const amount = 800 + ((month * 191 + i * 211) % 3200); // 800 - 3999
+      const day = 8 + i * 4;
+      const method = paymentMethods[(month + i + 2) % paymentMethods.length];
+      const designationId = designationIds[(month + i + 1) % designationIds.length];
+
+      donationData2026.push({
+        id: `don_2026_m_${String(seq).padStart(4, "0")}`,
+        constituentId: donorId,
+        amount,
+        date: new Date(Date.UTC(2026, month, day, 16, 30, 0)),
+        campaignId: annualCampaign2026.id,
+        designationId,
+        paymentMethod: method,
+        status: DonationStatus.COMPLETED,
+        taxDeductible: true,
+        receiptNumber: `RCP-2026-M-${String(seq).padStart(4, "0")}`,
+      });
+    }
+
+    // 1 major gift per month (12/year)
+    {
+      const seq = majorCounter++;
+      const donorId = coreDonorIds[(month * 3) % coreDonorIds.length];
+      const amount = 9000 + ((month * 1379) % 12000); // 9,000 - 20,999
+      const method = month % 2 === 0 ? PaymentMethod.WIRE : PaymentMethod.CHECK;
+
+      donationData2026.push({
+        id: `don_2026_g_${String(seq).padStart(4, "0")}`,
+        constituentId: donorId,
+        amount,
+        date: new Date(Date.UTC(2026, month, 24, 18, 0, 0)),
+        campaignId: capitalCampaign.id,
+        designationId: capitalFund.id,
+        paymentMethod: method,
+        status: DonationStatus.COMPLETED,
+        taxDeductible: true,
+        receiptNumber: `RCP-2026-G-${String(seq).padStart(4, "0")}`,
+      });
+    }
+
+    // 2 non-completed gifts per month for realistic pipeline/failure states
+    for (let i = 0; i < 2; i++) {
+      const seq = pendingCounter++;
+      const donorId = coreDonorIds[(month + i + 3) % coreDonorIds.length];
+      const amount = 75 + ((month * 41 + i * 17) % 500);
+      const status = i % 2 === 0 ? DonationStatus.PENDING : DonationStatus.FAILED;
+
+      donationData2026.push({
+        id: `don_2026_p_${String(seq).padStart(4, "0")}`,
+        constituentId: donorId,
+        amount,
+        date: new Date(Date.UTC(2026, month, 27 + i, 14, 0, 0)),
+        campaignId: annualCampaign2026.id,
+        designationId: generalFund.id,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        status,
+        taxDeductible: true,
+      });
+    }
+  }
+
+  // Replace generated 2026 records on each run to keep demo data deterministic.
+  await prisma.donation.deleteMany({ where: { id: { startsWith: "don_2026_" } } });
+
+  // Insert in chunks to keep createMany payload sizes safe.
+  const chunkSize = 200;
+  for (let i = 0; i < donationData2026.length; i += chunkSize) {
+    await prisma.donation.createMany({
+      data: donationData2026.slice(i, i + chunkSize),
+    });
+  }
+
+  // Sync constituent giving rollups from donation ledger so donation records remain source-of-truth.
+  const orgConstituents = await prisma.constituent.findMany({
+    where: { organizationId: org.id },
+    select: { id: true },
+  });
+
+  const startOf2026 = new Date("2026-01-01T00:00:00.000Z");
+  const endOf2026 = new Date("2027-01-01T00:00:00.000Z");
+
+  for (const constituent of orgConstituents) {
+    const [lifetimeAgg, ytdAgg, lastGift] = await Promise.all([
+      prisma.donation.aggregate({
+        where: { constituentId: constituent.id, status: DonationStatus.COMPLETED },
+        _sum: { amount: true },
+        _count: true,
+        _min: { date: true },
+      }),
+      prisma.donation.aggregate({
+        where: {
+          constituentId: constituent.id,
+          status: DonationStatus.COMPLETED,
+          date: { gte: startOf2026, lt: endOf2026 },
+        },
+        _sum: { amount: true },
+      }),
+      prisma.donation.findFirst({
+        where: { constituentId: constituent.id, status: DonationStatus.COMPLETED },
+        orderBy: { date: "desc" },
+        select: { amount: true, date: true },
+      }),
+    ]);
+
+    await prisma.constituent.update({
+      where: { id: constituent.id },
+      data: {
+        totalLifetimeGiving: Number(lifetimeAgg._sum.amount ?? 0),
+        totalYtdGiving: Number(ytdAgg._sum.amount ?? 0),
+        giftCount: lifetimeAgg._count,
+        firstGiftDate: lifetimeAgg._min.date ?? null,
+        lastGiftDate: lastGift?.date ?? null,
+        lastGiftAmount: Number(lastGift?.amount ?? 0),
+      },
+    });
+  }
+
+  const completed2026Total = donationData2026
+    .filter((d) => d.status === DonationStatus.COMPLETED)
+    .reduce((sum, d) => sum + d.amount, 0);
+
   // Tasks
   const taskData = [
     { id: "task_01", title: "Send thank you to Margaret Chen", type: TaskType.THANK_YOU, constituentId: "con_01", assigneeId: staffUser.id, createdById: adminUser.id, dueDate: new Date("2025-05-10"), status: TaskStatus.PENDING, priority: TaskPriority.HIGH },
@@ -527,13 +762,41 @@ async function main() {
     });
   }
 
+  // Large-scale expansion adds deterministic synthetic records for stress testing,
+  // search, analytics, workflows, and import-validation edge-case coverage.
+  const expansion = await seedDemoExpansion(prisma, {
+    size: demoOptions.size,
+    seedKey: demoOptions.seedKey,
+    organizationId: org.id,
+    adminUserId: adminUser.id,
+    staffUserId: staffUser.id,
+    campaignIds: [annualCampaign.id, capitalCampaign.id, annualCampaign2026.id],
+    designationIds: [generalFund.id, youthFund.id, capitalFund.id],
+  });
+
   console.log("✅ Seed complete!");
   console.log(`   Organization: ${org.name}`);
   console.log(`   Constituents: ${constituents.length}`);
-  console.log(`   Donations:    ${donationData.length}`);
+  console.log(`   Donations:    ${donationData.length + donationData2026.length} (${donationData2026.length} generated for 2026)`);
+  console.log(`   2026 Revenue: $${completed2026Total.toLocaleString()} (completed gifts only)`);
   console.log(`   Tasks:        ${taskData.length}`);
   console.log(`   Events:       ${eventData.length}`);
   console.log(`   Automations:  ${automationData.length}`);
+  console.log("   --- Demo Expansion ---");
+  console.log(`   + Constituents: ${expansion.additionalConstituents}`);
+  console.log(`   + Donations:    ${expansion.additionalDonations}`);
+  console.log(`   + Events:       ${expansion.additionalEvents}`);
+  console.log(`   + Orders:       ${expansion.additionalOrders}`);
+  console.log(`   + Guests:       ${expansion.additionalGuests}`);
+  console.log(`   + Clients:      ${expansion.additionalClients}`);
+  console.log(`   + Appointments: ${expansion.additionalAppointments}`);
+  console.log(`   + Services:     ${expansion.additionalServices}`);
+  console.log(`   + Follow-ups:   ${expansion.additionalFollowUps}`);
+  console.log(`   + Tasks:        ${expansion.additionalTasks}`);
+  console.log(`   + Activities:   ${expansion.additionalActivities}`);
+  console.log(`   + Campaigns:    ${expansion.additionalEmailCampaigns} email campaigns`);
+  console.log(`   + Steward runs: ${expansion.additionalStewardRuns}`);
+  console.log(`   Import fixtures: ${expansion.importFixturesDir}`);
 }
 
 main()

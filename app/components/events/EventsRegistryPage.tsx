@@ -2,6 +2,7 @@
 /** EventsRegistryPage renders the main event list and create flow for the Events CRM. */
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { apiFetch } from "@/app/lib/auth-client";
 import NewEventModal from "@/app/components/events/NewEventModal";
 import EventsMetricCard from "@/app/components/events/EventsMetricCard";
@@ -145,6 +146,14 @@ export default function EventsRegistryPage() {
                       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                         <div className="h-full bg-amber-500 rounded-full" style={{ width: `${pct}%` }} />
                       </div>
+                    </div>
+                    <div className="pt-1">
+                      <Link
+                        href={`/events/${event.id}`}
+                        className="inline-flex items-center rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+                      >
+                        Open Event Workspace
+                      </Link>
                     </div>
                   </div>
                 );

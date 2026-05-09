@@ -98,14 +98,14 @@ const DONOR_SECTIONS: NavSection[] = [
         icon: <Ico d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
       },
       {
-        label: "Automations",
+        label: "Steward Paths",
         href: "/automations",
         icon: <Ico><circle cx="12" cy="12" r="3" /><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14" /></Ico>,
       },
       {
-        label: "Events",
-        href: "/events",
-        icon: <Ico d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />,
+        label: "Steward Signals",
+        href: "/steward-signals",
+        icon: <Ico d="M13 10V3L4 14h7v7l9-11h-7z" />,
       },
       {
         label: "Volunteers",

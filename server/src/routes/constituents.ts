@@ -18,6 +18,7 @@
 import { Router } from "express";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
+import { executeStewardPathsForTrigger } from "../services/stewardPathsEngine.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
@@ -211,6 +212,15 @@ router.post("/", async (req, res) => {
     metadata: { type: constituent.type, name: `${constituent.firstName} ${constituent.lastName}` },
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
+  });
+
+  // Execute Steward Paths for new constituent onboarding.
+  await executeStewardPathsForTrigger({
+    organizationId: resolvedOrganizationId,
+    trigger: "CONSTITUENT_CREATED",
+    constituentId: constituent.id,
+    userId: req.user?.sub,
+    source: "api/constituents:create",
   });
 
   res.status(201).json(constituent);

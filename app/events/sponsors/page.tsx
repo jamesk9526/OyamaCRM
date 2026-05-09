@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -319,14 +320,25 @@ function SponsorModal({
  * Shows metrics, a sponsor table/grid, and modals for add/edit/delete.
  */
 export default function EventsSponsorsPage() {
+  const params = useParams<{ eventId?: string }>();
+  const searchParams = useSearchParams();
+  const workspaceEventId = params.eventId ?? searchParams.get("eventId") ?? "";
+  const eventScoped = workspaceEventId.length > 0;
+
   const [events, setEvents] = useState<Event[]>([]);
-  const [selectedEventId, setSelectedEventId] = useState("");
+  const [selectedEventId, setSelectedEventId] = useState(workspaceEventId);
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingSponsor, setEditingSponsor] = useState<Sponsor | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (workspaceEventId) {
+      setSelectedEventId(workspaceEventId);
+    }
+  }, [workspaceEventId]);
 
   /** Load active events for the selector */
   useEffect(() => {
@@ -335,10 +347,10 @@ export default function EventsSponsorsPage() {
         const active = (data as Event[]).filter((e) => e.active);
         setEvents(active);
         // Auto-select first event
-        if (active.length > 0) setSelectedEventId(active[0].id);
+        if (!workspaceEventId && active.length > 0) setSelectedEventId(active[0].id);
       })
       .catch(console.error);
-  }, []);
+  }, [workspaceEventId]);
 
   /** Load sponsors when the selected event changes */
   const loadSponsors = useCallback(async () => {
@@ -407,9 +419,10 @@ export default function EventsSponsorsPage() {
         <select
           value={selectedEventId}
           onChange={(e) => setSelectedEventId(e.target.value)}
+          disabled={eventScoped}
           className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
         >
-          <option value="">Select an event</option>
+          <option value="">{eventScoped ? "Event Workspace" : "Select an event"}</option>
           {events.map((e) => (
             <option key={e.id} value={e.id}>
               {e.name} — {new Date(e.startDate).toLocaleDateString()}

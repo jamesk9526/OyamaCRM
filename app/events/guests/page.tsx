@@ -4,6 +4,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 import NewGuestModal from "@/app/components/events/NewGuestModal";
 
@@ -37,11 +38,16 @@ interface Guest {
 
 /** EventGuestsPage provides guest roster management for Events CRM. */
 export default function EventGuestsPage() {
+  const params = useParams<{ eventId?: string }>();
+  const searchParams = useSearchParams();
+  const workspaceEventId = params.eventId ?? searchParams.get("eventId") ?? "";
+  const eventScoped = workspaceEventId.length > 0;
+
   const [guests, setGuests] = useState<Guest[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNewGuestModal, setShowNewGuestModal] = useState(false);
-  const [selectedEventId, setSelectedEventId] = useState("");
+  const [selectedEventId, setSelectedEventId] = useState(workspaceEventId);
   const [searchQuery, setSearchQuery] = useState("");
   const [checkedInFilter, setCheckedInFilter] = useState("");
   const [linkedFilter, setLinkedFilter] = useState("");
@@ -50,17 +56,29 @@ export default function EventGuestsPage() {
   /** Filter by EventGuestRsvpStatus: PENDING | CONFIRMED | DECLINED | WAITLIST */
   const [rsvpFilter, setRsvpFilter] = useState("");
 
+  useEffect(() => {
+    if (workspaceEventId) {
+      setSelectedEventId(workspaceEventId);
+    }
+  }, [workspaceEventId]);
+
   /** Load guests and events */
   useEffect(() => {
     async function loadData() {
       setLoading(true);
       try {
         const [guestsData, eventsData] = await Promise.all([
-          apiFetch("/api/events/guests"),
+          selectedEventId
+            ? apiFetch(`/api/events/${selectedEventId}/guests`)
+            : apiFetch("/api/events/guests"),
           apiFetch("/api/events"),
         ]);
         setGuests(guestsData as Guest[]);
-        setEvents((eventsData as Event[]).filter((e) => e.active));
+        const activeEvents = (eventsData as Event[]).filter((e) => e.active);
+        setEvents(activeEvents);
+        if (!workspaceEventId && !selectedEventId && activeEvents.length > 0) {
+          setSelectedEventId(activeEvents[0].id);
+        }
       } catch (err) {
         console.error("Failed to load guests:", err);
       } finally {
@@ -68,7 +86,7 @@ export default function EventGuestsPage() {
       }
     }
     loadData();
-  }, []);
+  }, [selectedEventId, workspaceEventId]);
 
   /** Filter guests by all active filter criteria */
   const filteredGuests = guests.filter((guest) => {
@@ -106,7 +124,9 @@ export default function EventGuestsPage() {
     setLoading(true);
     try {
       const [guestsData, eventsData] = await Promise.all([
-        apiFetch("/api/events/guests"),
+        selectedEventId
+          ? apiFetch(`/api/events/${selectedEventId}/guests`)
+          : apiFetch("/api/events/guests"),
         apiFetch("/api/events"),
       ]);
       setGuests(guestsData as Guest[]);
@@ -116,7 +136,7 @@ export default function EventGuestsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedEventId]);
 
   /** Toggle check-in status */
   async function toggleCheckIn(guestId: string, currentStatus: boolean) {
@@ -187,9 +207,10 @@ export default function EventGuestsPage() {
             <select
               value={selectedEventId}
               onChange={(e) => setSelectedEventId(e.target.value)}
+              disabled={eventScoped}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
             >
-              <option value="">All Events</option>
+              <option value="">{eventScoped ? "Event Workspace" : "All Events"}</option>
               {events.map((e) => (
                 <option key={e.id} value={e.id}>{e.name}</option>
               ))}

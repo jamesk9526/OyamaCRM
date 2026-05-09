@@ -1,0 +1,45 @@
+{
+  "marker": "[DEMO DATA - SYNTHETIC RECORD]",
+  "generatedAt": "2026-05-09T16:11:00.993Z",
+  "profile": {
+    "additionalConstituents": 180,
+    "targetAdditionalDonations": 3500,
+    "additionalEvents": 12,
+    "ordersPerEvent": 24,
+    "tablesPerEvent": 8,
+    "additionalClients": 120,
+    "appointmentsPerClientMin": 1,
+    "appointmentsPerClientMax": 3,
+    "servicesPerClientMin": 1,
+    "servicesPerClientMax": 2,
+    "followUpsPerClientMin": 1,
+    "followUpsPerClientMax": 2,
+    "additionalTasks": 280,
+    "additionalMeetings": 120,
+    "additionalActivities": 1400,
+    "additionalEmailCampaigns": 24,
+    "stewardRunCount": 180
+  },
+  "files": [
+    {
+      "file": "donors-clean.csv",
+      "purpose": "Baseline clean donor import regression"
+    },
+    {
+      "file": "donors-messy.csv",
+      "purpose": "Duplicate + malformed + invalid donor import edge cases"
+    },
+    {
+      "file": "clients-messy.csv",
+      "purpose": "Compassion import validation edge cases"
+    }
+  ],
+  "expectedIssues": [
+    "Duplicate source IDs",
+    "Duplicate person rows",
+    "Invalid emails",
+    "Missing phone/city",
+    "Metadata-style garbage rows",
+    "Malformed CSV quote rows"
+  ]
+}

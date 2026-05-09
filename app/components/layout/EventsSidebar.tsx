@@ -1,15 +1,16 @@
 // Amber-themed sidebar navigation for the Events CRM module.
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type React from "react";
 
 /** Single events navigation item definition. */
 interface NavItem {
   label: string;
   href: string;
+  activePath?: string;
   icon: React.ReactNode;
 }
 
@@ -39,40 +40,52 @@ const CalendarStarIcon = () => (
   </svg>
 );
 
-/** Centralized Events CRM nav — add new routes here. */
-const NAV_SECTIONS: NavSection[] = [
+/** Global Events CRM navigation visible before selecting an event. */
+const BASE_NAV_SECTIONS: NavSection[] = [
   {
     label: "Command Center",
     items: [
       { label: "Dashboard", href: "/events", icon: <Ico d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" /> },
       { label: "Events", href: "/events/events", icon: <Ico d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
       { label: "Setup", href: "/events/setup", icon: <Ico d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /> },
-      { label: "Tickets", href: "/events/tickets", icon: <Ico d="M3 8a2 2 0 012-2h14a2 2 0 012 2v2a2 2 0 010 4v2a2 2 0 01-2 2H5a2 2 0 01-2-2v-2a2 2 0 010-4V8z" /> },
-      { label: "Orders", href: "/events/orders", icon: <Ico d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" /> },
-      { label: "Guests", href: "/events/guests", icon: <Ico d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /> },
-      { label: "Tables", href: "/events/tables", icon: <Ico><circle cx="12" cy="12" r="5" /><circle cx="12" cy="4" r="1.5" /><circle cx="20" cy="12" r="1.5" /><circle cx="12" cy="20" r="1.5" /><circle cx="4" cy="12" r="1.5" /></Ico> },
-      { label: "Check-In", href: "/events/check-in", icon: <Ico d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /> },
-    ],
-  },
-  {
-    label: "Revenue & Follow-Up",
-    items: [
-      { label: "Sponsors", href: "/events/sponsors", icon: <Ico d="M4 6h16M4 12h16M4 18h10" /> },
-      { label: "Fundraising", href: "/events/fundraising", icon: <Ico d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /> },
-      { label: "Communications", href: "/events/communications", icon: <Ico d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /> },
-      { label: "Reports", href: "/events/reports", icon: <Ico d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /> },
-    ],
-  },
-  {
-    label: "Operations",
-    items: [
-      { label: "Tasks", href: "/events/tasks", icon: <Ico d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /> },
-      { label: "Volunteers", href: "/events/volunteers", icon: <Ico d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /> },
-      { label: "Files", href: "/events/files", icon: <Ico d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /> },
-      { label: "Settings", href: "/events/settings", icon: <Ico d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /> },
     ],
   },
 ];
+
+/** Build event-scoped tool links once an event is selected. */
+function getWorkspaceSections(eventId: string): NavSection[] {
+  return [
+    {
+      label: "Event Workspace",
+      items: [
+        { label: "Overview", href: `/events/${eventId}/overview`, activePath: `/events/${eventId}`, icon: <Ico d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" /> },
+        { label: "Tickets", href: `/events/${eventId}/tickets`, activePath: `/events/${eventId}/tickets`, icon: <Ico d="M3 8a2 2 0 012-2h14a2 2 0 012 2v2a2 2 0 010 4v2a2 2 0 01-2 2H5a2 2 0 01-2-2v-2a2 2 0 010-4V8z" /> },
+        { label: "Orders", href: `/events/${eventId}/orders`, activePath: `/events/${eventId}/orders`, icon: <Ico d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" /> },
+        { label: "Guests", href: `/events/${eventId}/guests`, activePath: `/events/${eventId}/guests`, icon: <Ico d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /> },
+        { label: "Tables", href: `/events/${eventId}/tables`, activePath: `/events/${eventId}/tables`, icon: <Ico><circle cx="12" cy="12" r="5" /><circle cx="12" cy="4" r="1.5" /><circle cx="20" cy="12" r="1.5" /><circle cx="12" cy="20" r="1.5" /><circle cx="4" cy="12" r="1.5" /></Ico> },
+        { label: "Check-In", href: `/events/${eventId}/check-in`, activePath: `/events/${eventId}/check-in`, icon: <Ico d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /> },
+      ],
+    },
+    {
+      label: "Revenue & Follow-Up",
+      items: [
+        { label: "Sponsors", href: `/events/${eventId}/sponsors`, activePath: `/events/${eventId}/sponsors`, icon: <Ico d="M4 6h16M4 12h16M4 18h10" /> },
+        { label: "Fundraising", href: `/events/${eventId}/fundraising`, activePath: `/events/${eventId}/fundraising`, icon: <Ico d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /> },
+        { label: "Communications", href: `/events/${eventId}/communications`, activePath: `/events/${eventId}/communications`, icon: <Ico d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /> },
+        { label: "Reports", href: `/events/${eventId}/reports`, activePath: `/events/${eventId}/reports`, icon: <Ico d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /> },
+      ],
+    },
+    {
+      label: "Operations",
+      items: [
+        { label: "Tasks", href: `/events/${eventId}/tasks`, activePath: `/events/${eventId}/tasks`, icon: <Ico d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /> },
+        { label: "Volunteers", href: `/events/${eventId}/volunteers`, activePath: `/events/${eventId}/volunteers`, icon: <Ico d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /> },
+        { label: "Files", href: `/events/${eventId}/files`, activePath: `/events/${eventId}/files`, icon: <Ico d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /> },
+        { label: "Settings", href: `/events/${eventId}/settings`, activePath: `/events/${eventId}/settings`, icon: <Ico d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /> },
+      ],
+    },
+  ];
+}
 
 /** Collapsible nav section for the Events module sidebar. */
 function EventsSection({
@@ -83,7 +96,9 @@ function EventsSection({
   pathname: string;
 }) {
   const hasActive = section.items.some((item) =>
-    item.href === "/events" ? pathname === "/events" : pathname.startsWith(item.href)
+    (item.activePath ?? item.href) === "/events"
+      ? pathname === "/events"
+      : pathname.startsWith(item.activePath ?? item.href)
   );
   const [open, setOpen] = useState(hasActive || section.label === "Command Center");
 
@@ -104,9 +119,10 @@ function EventsSection({
       {open && (
         <nav className="space-y-0.5">
           {section.items.map((item) => {
-            const active = item.href === "/events"
+            const activePath = item.activePath ?? item.href;
+            const active = activePath === "/events"
               ? pathname === "/events"
-              : pathname.startsWith(item.href);
+              : pathname.startsWith(activePath);
             return (
               <Link
                 key={item.href}
@@ -136,6 +152,40 @@ function EventsSection({
  */
 export default function EventsSidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const activeEventId = useMemo(() => {
+    const explicit = searchParams.get("eventId");
+    if (explicit) return explicit;
+
+    const parts = pathname.split("/").filter(Boolean);
+    const third = parts[1];
+    const reserved = new Set([
+      "events",
+      "setup",
+      "tickets",
+      "orders",
+      "guests",
+      "tables",
+      "check-in",
+      "sponsors",
+      "fundraising",
+      "communications",
+      "reports",
+      "tasks",
+      "volunteers",
+      "files",
+      "settings",
+      "page",
+    ]);
+    if (third && !reserved.has(third)) return third;
+    return null;
+  }, [pathname, searchParams]);
+
+  const sections = useMemo(() => {
+    if (!activeEventId) return BASE_NAV_SECTIONS;
+    return [...BASE_NAV_SECTIONS, ...getWorkspaceSections(activeEventId)];
+  }, [activeEventId]);
 
   return (
     <aside className="w-56 shrink-0 bg-white border-r border-gray-200 flex flex-col h-full select-none">
@@ -152,7 +202,7 @@ export default function EventsSidebar() {
       </div>
 
       <div className="flex-1 overflow-y-auto py-2 px-0">
-        {NAV_SECTIONS.map((section) => (
+        {sections.map((section) => (
           <EventsSection key={section.label} section={section} pathname={pathname} />
         ))}
       </div>

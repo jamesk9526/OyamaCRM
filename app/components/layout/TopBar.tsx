@@ -10,10 +10,17 @@ import { apiFetch } from "@/app/lib/auth-client";
 
 interface SearchResult {
   id: string;
-  type: "constituent" | "donation" | "campaign" | "client" | "case";
+  type: "tool" | "constituent" | "donation" | "campaign" | "client" | "case" | "event" | "guest";
   label: string;
   sublabel?: string;
   href: string;
+  group: "tools" | "records";
+}
+
+interface SearchResponse {
+  module: "donor" | "compassion" | "events";
+  query: string;
+  results: SearchResult[];
 }
 
 function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "events" }) {
@@ -24,6 +31,7 @@ function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "even
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastRequestIdRef = useRef(0);
 
   // ⌘K / Ctrl+K focus shortcut
   useEffect(() => {
@@ -43,64 +51,33 @@ function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "even
   }, []);
 
   const search = useCallback(async (q: string) => {
-    if (!q.trim()) { setResults([]); setOpen(false); return; }
+    const normalized = q.trim();
+    if (!normalized) { setResults([]); setOpen(false); return; }
+
+    const requestId = ++lastRequestIdRef.current;
     setLoading(true);
     try {
-      const allResults: SearchResult[] = [];
+      const params = new URLSearchParams({
+        module: moduleKey,
+        q: normalized,
+        limit: "6",
+      });
+      const data = await apiFetch<SearchResponse>(`/api/search?${params.toString()}`);
 
-      if (moduleKey === "compassion") {
-        const clients = await apiFetch<Array<{
-          id: string;
-          firstName: string;
-          lastName: string;
-          preferredName?: string;
-          email?: string;
-          clientStatus?: string;
-        }>>(`/api/compassion/clients?search=${encodeURIComponent(q)}&limit=8`);
-        for (const c of clients) {
-          allResults.push({
-            id: c.id,
-            type: "client",
-            label: `${c.firstName} ${c.lastName}`,
-            sublabel: c.email ?? c.preferredName ?? c.clientStatus ?? "Client",
-            href: "/compassion/clients",
-          });
-        }
-      } else if (moduleKey === "donor") {
-        const [constituents, campaigns] = await Promise.all([
-          apiFetch<Array<{ id: string; firstName: string; lastName: string; email?: string; type?: string }>>(`/api/constituents?search=${encodeURIComponent(q)}&limit=5`),
-          apiFetch<Array<{ id: string; name: string }>>(`/api/campaigns?search=${encodeURIComponent(q)}&limit=3`),
-        ]);
+      // Ignore stale responses when users type quickly and previous requests finish late.
+      if (requestId !== lastRequestIdRef.current) return;
 
-        for (const c of constituents) {
-          allResults.push({
-            id: c.id,
-            type: "constituent",
-            label: `${c.firstName} ${c.lastName}`,
-            sublabel: c.email ?? c.type,
-            href: `/constituents/${c.id}`,
-          });
-        }
-
-        for (const c of campaigns) {
-          allResults.push({
-            id: c.id,
-            type: "campaign",
-            label: c.name,
-            sublabel: "Campaign",
-            href: `/campaigns`,
-          });
-        }
-      }
-
-      setResults(allResults);
-      setOpen(allResults.length > 0);
+      setResults(data.results);
+      setOpen(true);
       setSelected(0);
     } catch {
+      if (requestId !== lastRequestIdRef.current) return;
       setResults([]);
       setOpen(false);
     } finally {
-      setLoading(false);
+      if (requestId === lastRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [moduleKey]);
 
@@ -123,14 +100,32 @@ function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "even
   }
 
   const typeLabel: Record<string, string> = {
+    tool: "Tool",
     constituent: "Constituent",
     campaign: "Campaign",
     donation: "Donation",
     client: "Client",
     case: "Case",
+    event: "Event",
+    guest: "Guest",
   };
 
   function TypeIcon({ type }: { type: string }) {
+    if (type === "tool") return (
+      <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    );
+    if (type === "event") return (
+      <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    );
+    if (type === "guest") return (
+      <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      </svg>
+    );
     if (type === "client") return (
       <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -174,15 +169,15 @@ function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "even
       ? "border-amber-400"
       : "border-green-400";
   const placeholder = moduleKey === "compassion"
-    ? "Search clients… (⌘K)"
+    ? "Search tools, clients, and cases (Ctrl+K)"
     : moduleKey === "events"
-      ? "Search events… (⌘K)"
-      : "Search constituents, campaigns… (⌘K)";
+      ? "Search tools, events, and guests (Ctrl+K)"
+      : "Search tools, constituents, campaigns... (Ctrl+K)";
 
   return (
-    <div className="relative w-full max-w-lg">
+    <div className="relative w-full max-w-3xl">
       <div className="relative">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
         </svg>
         <input
@@ -193,18 +188,19 @@ function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "even
           onFocus={() => results.length > 0 && setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           placeholder={placeholder}
-          className={`w-full pl-9 pr-14 py-2 text-sm bg-white/10 text-white placeholder:text-gray-400 border border-white/15 rounded-lg focus:outline-none focus:ring-1 ${focusRing} focus:bg-white/15 transition-all`}
+          className={`w-full pl-11 pr-16 py-2.5 text-sm bg-white/12 text-white placeholder:text-gray-300 border border-white/20 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.18)] backdrop-blur-sm focus:outline-none focus:ring-1 ${focusRing} focus:bg-white/20 transition-all`}
         />
-        <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-gray-500 bg-white/10 px-1.5 py-0.5 rounded border border-white/15 hidden sm:block">
-          ⌘K
+        <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-gray-300 bg-white/10 px-1.5 py-0.5 rounded border border-white/20 hidden md:block">
+          Ctrl+K
         </kbd>
         {loading && (
-          <div className={`absolute right-10 top-1/2 -translate-y-1/2 w-3 h-3 border-2 ${spinnerColor} border-t-transparent rounded-full animate-spin`} />
+          <div className={`absolute right-11 top-1/2 -translate-y-1/2 w-3 h-3 border-2 ${spinnerColor} border-t-transparent rounded-full animate-spin`} />
         )}
       </div>
 
-      {open && results.length > 0 && (
-        <div className="absolute top-full mt-2 left-0 right-0 bg-white rounded-xl border border-gray-200 shadow-2xl z-50 overflow-hidden">
+      {open && (
+        <div className="absolute top-full mt-2 left-0 right-0 bg-white rounded-2xl border border-gray-200 shadow-2xl z-50 overflow-hidden">
+          {results.length > 0 ? (
           <ul className="py-1">
             {results.map((r, i) => (
               <li key={r.id}>
@@ -217,11 +213,16 @@ function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "even
                     <p className="text-sm font-medium text-gray-900 truncate">{r.label}</p>
                     <p className="text-xs text-gray-400 truncate">{r.sublabel}</p>
                   </div>
-                  <span className="text-xs text-gray-300 shrink-0">{typeLabel[r.type]}</span>
+                  <span className={`text-[10px] uppercase tracking-wide shrink-0 px-1.5 py-0.5 rounded-full border ${r.group === "tools" ? "text-slate-500 bg-slate-50 border-slate-200" : "text-gray-400 bg-gray-50 border-gray-200"}`}>
+                    {typeLabel[r.type]}
+                  </span>
                 </button>
               </li>
             ))}
           </ul>
+          ) : (
+            <div className="px-4 py-4 text-sm text-gray-500">No matches in this CRM scope.</div>
+          )}
           <div className="border-t border-gray-100 px-4 py-2 flex items-center gap-3 bg-gray-50">
             <span className="text-xs text-gray-400">↑↓ navigate</span>
             <span className="text-xs text-gray-400">↵ open</span>
@@ -254,8 +255,8 @@ export default function TopBar() {
         {/* ── Divider ── */}
         <div className="w-px h-5 bg-white/10 shrink-0" />
 
-        {/* ── Search (grows to fill available space) ── */}
-        <div className="flex-1">
+        {/* ── Search (centered) ── */}
+        <div className="flex-1 flex justify-center px-1 sm:px-3">
           <GlobalSearch moduleKey={moduleKey} />
         </div>
 

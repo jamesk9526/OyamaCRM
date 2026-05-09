@@ -135,9 +135,9 @@ export const SYSTEM_STATUS_SECTIONS: SystemStatusSection[] = [
     summary: "Summary/report endpoints exist, but advanced widgets, exports, and freshness tracking remain incomplete.",
   },
   {
-    title: "Automation Status",
+    title: "Steward Paths Status",
     status: "Partial",
-    summary: "Automation records, presets, and manual run counts exist; no execution engine is wired.",
+    summary: "Steward Paths records, presets, and trigger-driven execution are wired for core donor workflows (donation/constituent events).",
   },
   {
     title: "Events / Gala Status",
@@ -228,13 +228,13 @@ export const FEATURE_READINESS: FeatureReadinessItem[] = [
     linkedPlanFile: "PLAN_FILES/phase-05-dashboard-and-reports.md",
   },
   {
-    feature: "Automations",
+    feature: "Steward Paths",
     workspace: "OyamaCRM",
     status: "Partial",
     lastVerified: AUDIT_DATE,
-    workingPieces: "Automation records, preset install, toggle, manual run count increment.",
-    missingPieces: "Real execution engine, action dispatch, run history, segment triggers.",
-    nextAction: "Build execution worker/service and persist run history events.",
+    workingPieces: "Steward Path records, preset install, toggle, manual runs, run-history API/UI, and action execution for donation/constituent/task-due/pledge-timeline triggers.",
+    missingPieces: "Retry/backoff strategy, richer filtering/export for run history, and segment-driven triggers.",
+    nextAction: "Add retry queues and expose worker diagnostics/actions in settings for operations teams.",
     linkedPlanFile: "PLAN_FILES/phase-06-groups-segments-automation.md",
   },
   {

@@ -225,6 +225,16 @@ router.patch("/:id", async (req, res) => {
     return;
   }
 
+  const existing = await prisma.event.findFirst({
+    where: { id: req.params.id, organizationId },
+    select: { id: true },
+  });
+
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
   const {
     name,
     description,
@@ -730,10 +740,24 @@ router.get("/guests/by-code/:code", async (req, res) => {
     return;
   }
 
+  const { eventId } = req.query as { eventId?: string };
+
+  if (eventId) {
+    const event = await prisma.event.findFirst({
+      where: { id: eventId, organizationId },
+      select: { id: true },
+    });
+    if (!event) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+      return;
+    }
+  }
+
   const guest = await prisma.eventGuest.findFirst({
     where: {
       checkinCode: req.params.code.toUpperCase(),
       event: { organizationId },
+      ...(eventId ? { eventId } : {}),
     },
     include: {
       event: { select: { id: true, name: true, startDate: true } },

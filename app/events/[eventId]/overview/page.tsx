@@ -43,6 +43,12 @@ interface GuestSummary {
   rsvpStatus?: string;
 }
 
+interface EventOrderSummary {
+  id: string;
+  status: string;
+  totalAmount: number | string;
+}
+
 // ─── Helper Components ────────────────────────────────────────────────────────
 
 /**
@@ -109,18 +115,21 @@ export default function EventOverviewPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [guests, setGuests] = useState<GuestSummary[]>([]);
+  const [orders, setOrders] = useState<EventOrderSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     if (!eventId) return;
     setLoading(true);
     try {
-      const [eventData, guestsData] = await Promise.all([
+      const [eventData, guestsData, ordersData] = await Promise.all([
         apiFetch<EventDetail>(`/api/events/${eventId}`),
         apiFetch<GuestSummary[]>(`/api/events/${eventId}/guests`),
+        apiFetch<EventOrderSummary[]>(`/api/events/${eventId}/orders`),
       ]);
       setEvent(eventData);
       setGuests(guestsData);
+      setOrders(ordersData);
     } catch (err) {
       console.error("Failed to load event overview:", err);
     } finally {
@@ -163,10 +172,14 @@ export default function EventOverviewPage() {
     (g) => g.paymentStatus === "DUE" || g.paymentStatus === "PENDING_CHECK"
   ).length;
 
-  // Revenue: sum from orders would require additional API call — use _count as proxy
+  // Revenue from order ledger (source-of-truth), counting only confirmed orders.
+  const revenue = orders
+    .filter((order) => order.status === "CONFIRMED")
+    .reduce((sum, order) => sum + Number(order.totalAmount ?? 0), 0);
+
   const tableCount = event._count?.tables ?? 0;
   const sponsorCount = event._count?.sponsors ?? 0;
-  const orderCount = event._count?.orders ?? 0;
+  const orderCount = orders.length;
 
   // ─── Readiness checklist ──────────────────────────────────────────────────
 
@@ -209,7 +222,7 @@ export default function EventOverviewPage() {
           accent={paymentIssues > 0 ? "text-red-600" : "text-green-600"}
         />
         <KpiCard label="Tables" value={tableCount} />
-        <KpiCard label="Sponsors" value={sponsorCount} />
+        <KpiCard label="Revenue" value={`$${revenue.toLocaleString()}`} accent="text-amber-700" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -287,25 +300,25 @@ export default function EventOverviewPage() {
               icon="✅"
               title="Check-In"
               description="Start door check-in for this event"
-              href="/events/check-in"
+              href={`/events/check-in?eventId=${eventId}`}
             />
             <ActionCard
               icon="👥"
               title="Guest List"
               description="View and manage all registered guests"
-              href="/events/guests"
+              href={`/events/guests?eventId=${eventId}`}
             />
             <ActionCard
               icon="🏆"
               title="Sponsors"
               description="Manage event sponsors and packages"
-              href="/events/sponsors"
+              href={`/events/sponsors?eventId=${eventId}`}
             />
             <ActionCard
               icon="📋"
               title="Tables"
               description="Assign guests to tables and seating"
-              href="/events/tables"
+              href={`/events/tables?eventId=${eventId}`}
             />
           </div>
         </div>

@@ -1,8 +1,6 @@
 /**
- * Automations page.
- * Lists workflow automation rules from /api/automations.
- * Users can toggle enable/disable, run manually, and create new automations.
- * Full execution engine is a future feature — actions are stored but not run server-side yet.
+ * Steward Paths page.
+ * Lists workflow rules from /api/automations and lets teams automate stewardship work.
  */
 "use client";
 
@@ -13,17 +11,11 @@ import { apiFetch } from "@/app/lib/auth-client";
 /** Trigger labels for display */
 const TRIGGER_LABELS: Record<string, string> = {
   DONATION_RECEIVED: "Donation received",
-  FIRST_DONATION_RECEIVED: "First donation received",
-  MAJOR_DONATION_RECEIVED: "Major gift received",
   CONSTITUENT_CREATED: "New constituent added",
   TASK_DUE: "Task becomes due",
   PLEDGE_CREATED: "Pledge created",
-  PLEDGE_DUE_SOON: "Pledge payment due soon",
   EMAIL_OPENED: "Email opened",
   EVENT_REGISTERED: "Event registration",
-  MEETING_COMPLETED: "Meeting completed",
-  MEETING_SCHEDULED: "Meeting scheduled",
-  DONOR_LAPSED: "Donor becomes lapsed",
 };
 
 /** Action type labels */
@@ -34,9 +26,6 @@ const ACTION_LABELS: Record<string, string> = {
   ADD_TAG: "Add tag",
   REMOVE_TAG: "Remove tag",
   ASSIGN_USER: "Assign user",
-  NOTIFY_STAFF: "Notify staff member",
-  ADD_TIMELINE: "Add timeline entry",
-  SCHEDULE_MEETING: "Schedule follow-up meeting",
 };
 
 /** SVG icon for each trigger type (no emoji) */
@@ -44,28 +33,46 @@ function TriggerIcon({ trigger }: { trigger: string }) {
   const cls = "w-4 h-4";
   switch (trigger) {
     case "DONATION_RECEIVED":
-    case "FIRST_DONATION_RECEIVED":
-    case "MAJOR_DONATION_RECEIVED":
       return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
     case "CONSTITUENT_CREATED":
       return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>;
     case "TASK_DUE":
       return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>;
     case "PLEDGE_CREATED":
-    case "PLEDGE_DUE_SOON":
       return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>;
     case "EMAIL_OPENED":
       return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>;
     case "EVENT_REGISTERED":
       return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
-    case "MEETING_COMPLETED":
-    case "MEETING_SCHEDULED":
-      return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
-    case "DONOR_LAPSED":
-      return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
     default:
       return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>;
   }
+}
+
+/** Creates practical suggestions so teams can configure Steward Paths faster. */
+function getStewardSuggestions(automations: Automation[]): string[] {
+  const active = automations.filter((a) => a.enabled);
+  const triggers = new Set(active.map((a) => a.trigger));
+  const actionTypes = new Set(active.flatMap((a) => a.actions.map((act) => act.type)));
+  const suggestions: string[] = [];
+
+  if (!triggers.has("DONATION_RECEIVED")) {
+    suggestions.push("Add a donation-received Steward Path for thank-you outreach and follow-up tasks.");
+  }
+  if (!triggers.has("CONSTITUENT_CREATED")) {
+    suggestions.push("Create a new-constituent onboarding path so profiles get assigned and tagged automatically.");
+  }
+  if (!actionTypes.has("CREATE_TASK")) {
+    suggestions.push("Include at least one Create Task action so workflows produce actionable staff work.");
+  }
+  if (!actionTypes.has("ADD_TAG")) {
+    suggestions.push("Use Add Tag actions to drive cleaner segmentation and smarter campaign targeting.");
+  }
+  if (suggestions.length === 0) {
+    suggestions.push("Your Steward Paths cover core stewardship moments. Next step: tune task due dates and tag rules by donor tier.");
+  }
+
+  return suggestions.slice(0, 3);
 }
 
 interface AutomationAction {
@@ -94,14 +101,53 @@ interface AutomationPreset {
   actions: Array<{ type: string; order: number }>;
 }
 
+interface StewardPathRun {
+  id: string;
+  runId: string;
+  automationId: string;
+  automationName: string;
+  trigger: string;
+  source: string;
+  actionsAttempted: number;
+  actionsSucceeded: number;
+  actionsFailed: number;
+  constituentId: string | null;
+  donationId: string | null;
+  taskId: string | null;
+  createdAt: string;
+  results: Array<{
+    actionId: string;
+    type: string;
+    success: boolean;
+    message: string;
+  }>;
+}
+
 export default function AutomationsPage() {
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [runsLoading, setRunsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
   const [running, setRunning] = useState<string | null>(null);
   const [installingPreset, setInstallingPreset] = useState<string | null>(null);
   const [presets, setPresets] = useState<AutomationPreset[]>([]);
+  const [runs, setRuns] = useState<StewardPathRun[]>([]);
+  const [activeTab, setActiveTab] = useState<"paths" | "history">("paths");
+  const stewardSuggestions = getStewardSuggestions(automations);
+
+  /** Fetch Steward Path run history from the API. */
+  const loadRuns = useCallback(async () => {
+    setRunsLoading(true);
+    try {
+      const runData = await apiFetch<StewardPathRun[]>("/api/automations/runs?limit=60");
+      setRuns(Array.isArray(runData) ? runData : []);
+    } catch {
+      setRuns([]);
+    } finally {
+      setRunsLoading(false);
+    }
+  }, []);
 
   /** Fetch all automations from the API */
   const load = useCallback(async () => {
@@ -120,7 +166,10 @@ export default function AutomationsPage() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    loadRuns();
+  }, [load, loadRuns]);
 
   /** Toggle the enabled state of an automation */
   async function toggle(a: Automation) {
@@ -144,6 +193,7 @@ export default function AutomationsPage() {
     try {
       const result = await apiFetch<{ automation: Automation }>(`/api/automations/${id}/run`, { method: "POST" });
       setAutomations((prev) => prev.map((x) => (x.id === id ? result.automation : x)));
+      await loadRuns();
     } finally {
       setRunning(null);
     }
@@ -175,9 +225,9 @@ export default function AutomationsPage() {
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Automations</h1>
+          <h1 className="text-xl font-semibold text-gray-900">Steward Paths</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Automate repetitive workflows — trigger actions when key events happen
+            Steward Paths automate repetitive stewardship work when key donor events happen.
           </p>
         </div>
         <button
@@ -187,9 +237,58 @@ export default function AutomationsPage() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
           </svg>
-          New Automation
+          New Steward Path
         </button>
       </div>
+
+      <div className="flex items-center gap-2 border-b border-gray-200">
+        <button
+          onClick={() => setActiveTab("paths")}
+          className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === "paths"
+              ? "border-green-600 text-green-700"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Steward Paths
+        </button>
+        <button
+          onClick={() => setActiveTab("history")}
+          className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === "history"
+              ? "border-green-600 text-green-700"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Run History
+        </button>
+      </div>
+
+      {activeTab === "paths" && (
+        <>
+
+      {!loading && (
+        <div className="bg-gradient-to-r from-green-50 to-white border border-green-100 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-green-600 text-white flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-gray-900">Steward Suggestions</h2>
+              <p className="text-xs text-gray-600 mt-0.5">Steward is your AI teammate and your donor-care philosophy. These suggestions keep both aligned.</p>
+              <div className="mt-3 grid gap-2 md:grid-cols-3">
+                {stewardSuggestions.map((suggestion) => (
+                  <div key={suggestion} className="rounded-lg border border-green-100 bg-white px-3 py-2 text-xs text-gray-700">
+                    {suggestion}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Stats row ── */}
       {!loading && (
@@ -211,7 +310,7 @@ export default function AutomationsPage() {
       {!loading && presets.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-900">Prebuilt Automations</h2>
+            <h2 className="text-sm font-semibold text-gray-900">Prebuilt Steward Paths</h2>
             <p className="text-xs text-gray-400">Install with one click</p>
           </div>
           <div className="grid gap-3 md:grid-cols-3">
@@ -247,15 +346,15 @@ export default function AutomationsPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </div>
-          <h3 className="text-base font-medium text-gray-900">No automations yet</h3>
+          <h3 className="text-base font-medium text-gray-900">No Steward Paths yet</h3>
           <p className="text-sm text-gray-500 mt-1 mb-4">
-            Create your first automation to save time on repetitive tasks
+            Create your first Steward Path to save time on repetitive donor workflows.
           </p>
           <button
             onClick={() => setShowModal(true)}
             className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
           >
-            Create automation
+            Create Steward Path
           </button>
         </div>
       ) : (
@@ -271,6 +370,72 @@ export default function AutomationsPage() {
               running={running === a.id}
             />
           ))}
+        </div>
+      )}
+
+        </>
+      )}
+
+      {activeTab === "history" && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-900">Steward Path Run History</h2>
+            <button
+              onClick={() => loadRuns()}
+              className="px-2.5 py-1.5 text-xs font-medium rounded-md border border-gray-300 hover:bg-gray-50"
+            >
+              Refresh
+            </button>
+          </div>
+
+          {runsLoading ? (
+            <div className="p-4 space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-16 bg-gray-100 rounded animate-pulse" />
+              ))}
+            </div>
+          ) : runs.length === 0 ? (
+            <div className="p-8 text-center text-sm text-gray-500">No run history yet. Run a Steward Path or wait for scheduled triggers.</div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {runs.map((run) => (
+                <div key={run.id} className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{run.automationName}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {TRIGGER_LABELS[run.trigger] ?? run.trigger} · {new Date(run.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500">{run.source}</p>
+                      <p className="text-xs mt-1">
+                        <span className="text-green-700 font-semibold">{run.actionsSucceeded} passed</span>
+                        <span className="text-gray-400"> · </span>
+                        <span className="text-red-600 font-semibold">{run.actionsFailed} failed</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid gap-2">
+                    {run.results.map((result) => (
+                      <div
+                        key={`${run.id}-${result.actionId}-${result.type}`}
+                        className={`rounded-md border px-3 py-2 text-xs ${
+                          result.success
+                            ? "border-green-200 bg-green-50 text-green-800"
+                            : "border-red-200 bg-red-50 text-red-700"
+                        }`}
+                      >
+                        <p className="font-semibold">{ACTION_LABELS[result.type] ?? result.type}</p>
+                        <p className="mt-0.5">{result.message}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

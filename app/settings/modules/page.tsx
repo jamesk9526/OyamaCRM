@@ -87,11 +87,11 @@ const MODULES: Module[] = [
     configLink: "/settings/email",
   },
   {
-    name: "Automations",
+    name: "Steward Paths",
     area: "Donor CRM",
     status: "Partial",
     dataSource: "Real DB",
-    notes: "Automation rules CRUD + manual trigger. Missing: cron/queue worker, meeting triggers.",
+    notes: "Steward Path rule CRUD + manual trigger + core action execution. Missing: queue/retry worker and broader trigger coverage.",
     configLink: "/settings/automations",
   },
   {

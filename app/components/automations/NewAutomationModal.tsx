@@ -1,5 +1,5 @@
 /**
- * NewAutomationModal — modal form to create a new automation workflow.
+ * NewAutomationModal — modal form to create a new Steward Path workflow.
  * Sends POST /api/automations with trigger + 1 initial action.
  */
 "use client";
@@ -31,7 +31,7 @@ interface NewAutomationModalProps {
 }
 
 /**
- * Modal form for creating a new automation rule.
+ * Modal form for creating a new Steward Path rule.
  * Supports one initial action; more can be added later (future feature).
  */
 export default function NewAutomationModal({ onClose, onCreated }: NewAutomationModalProps) {
@@ -39,6 +39,8 @@ export default function NewAutomationModal({ onClose, onCreated }: NewAutomation
   const [description, setDescription] = useState("");
   const [trigger, setTrigger] = useState("DONATION_RECEIVED");
   const [actionType, setActionType] = useState("SEND_EMAIL");
+  const [firstDonationOnly, setFirstDonationOnly] = useState(false);
+  const [majorGiftMinAmount, setMajorGiftMinAmount] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -48,12 +50,29 @@ export default function NewAutomationModal({ onClose, onCreated }: NewAutomation
     setSaving(true);
     setError("");
     try {
+      const triggerConfig: Record<string, unknown> = {};
+      if (trigger === "DONATION_RECEIVED") {
+        if (firstDonationOnly) {
+          triggerConfig.firstDonationOnly = true;
+        }
+        if (majorGiftMinAmount.trim()) {
+          const parsed = Number.parseFloat(majorGiftMinAmount);
+          if (!Number.isFinite(parsed) || parsed < 0) {
+            setError("Major gift threshold must be a valid positive number.");
+            setSaving(false);
+            return;
+          }
+          triggerConfig.majorGiftMinAmount = parsed;
+        }
+      }
+
       await apiFetch("/api/automations", {
         method: "POST",
         body: JSON.stringify({
           name: name.trim(),
           description: description.trim() || null,
           trigger,
+          triggerConfig: Object.keys(triggerConfig).length ? triggerConfig : undefined,
           actions: [{ type: actionType, order: 0 }],
         }),
       });
@@ -71,7 +90,7 @@ export default function NewAutomationModal({ onClose, onCreated }: NewAutomation
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">New Automation</h2>
+          <h2 className="text-lg font-semibold text-gray-900">New Steward Path</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -100,7 +119,7 @@ export default function NewAutomationModal({ onClose, onCreated }: NewAutomation
             <input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Optional — describe what this automation does"
+              placeholder="Optional — describe what this Steward Path does"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
             />
           </div>
@@ -110,7 +129,14 @@ export default function NewAutomationModal({ onClose, onCreated }: NewAutomation
             <label className="block text-sm font-medium text-gray-700 mb-1">When (trigger)</label>
             <select
               value={trigger}
-              onChange={(e) => setTrigger(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setTrigger(next);
+                if (next !== "DONATION_RECEIVED") {
+                  setFirstDonationOnly(false);
+                  setMajorGiftMinAmount("");
+                }
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               {TRIGGERS.map((t) => (
@@ -118,6 +144,31 @@ export default function NewAutomationModal({ onClose, onCreated }: NewAutomation
               ))}
             </select>
           </div>
+
+          {trigger === "DONATION_RECEIVED" && (
+            <div className="rounded-lg border border-green-100 bg-green-50/50 p-3 space-y-3">
+              <p className="text-xs font-semibold text-green-800 uppercase tracking-wide">Donation Guardrails</p>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={firstDonationOnly}
+                  onChange={(e) => setFirstDonationOnly(e.target.checked)}
+                  className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                />
+                Run only for the constituent's first completed donation
+              </label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Major gift threshold (optional)</label>
+                <input
+                  value={majorGiftMinAmount}
+                  onChange={(e) => setMajorGiftMinAmount(e.target.value)}
+                  placeholder="e.g. 1000"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">If provided, path runs only when donation amount is at least this value.</p>
+              </div>
+            </div>
+          )}
 
           {/* Initial action */}
           <div>
@@ -142,7 +193,7 @@ export default function NewAutomationModal({ onClose, onCreated }: NewAutomation
             </button>
             <button type="submit" disabled={saving}
               className="px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50">
-              {saving ? "Creating…" : "Create Automation"}
+              {saving ? "Creating…" : "Create Steward Path"}
             </button>
           </div>
         </form>

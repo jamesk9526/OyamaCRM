@@ -3,7 +3,8 @@
  */
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface Event {
@@ -38,16 +39,21 @@ interface Guest {
  * EventCheckInPage provides fast, volunteer-friendly event check-in for Events CRM.
  */
 export default function EventCheckInPage() {
+  const params = useParams<{ eventId?: string }>();
+  const searchParams = useSearchParams();
+  const workspaceEventId = params.eventId ?? searchParams.get("eventId") ?? "";
+  const eventScoped = workspaceEventId.length > 0;
+
   const [guests, setGuests] = useState<Guest[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedEventId, setSelectedEventId] = useState("");
+  const [selectedEventId, setSelectedEventId] = useState(workspaceEventId);
   const [searchQuery, setSearchQuery] = useState("");
   const [checkedInFilter, setCheckedInFilter] = useState("false"); // Default to not checked in
   const [autoRefresh, setAutoRefresh] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  /** Tab state for Search vs. QR/Code Scan modes */
-  const [activeTab, setActiveTab] = useState<"search" | "scan">("search");
+  /** Tab state for Search vs. QR/Code Scan vs. Table browse modes */
+  const [activeTab, setActiveTab] = useState<"search" | "scan" | "tables">("search");
   const [scanCode, setScanCode] = useState("");
   const [scanLoading, setScanLoading] = useState(false);
   const [scanGuest, setScanGuest] = useState<Guest | null>(null);
@@ -74,6 +80,12 @@ export default function EventCheckInPage() {
     }
   }
 
+  useEffect(() => {
+    if (workspaceEventId) {
+      setSelectedEventId(workspaceEventId);
+    }
+  }, [workspaceEventId]);
+
   /** Load events on mount */
   useEffect(() => {
     async function loadEvents() {
@@ -81,7 +93,7 @@ export default function EventCheckInPage() {
         const data = await apiFetch("/api/events");
         const activeEvents = (data as Event[]).filter((e) => e.active);
         setEvents(activeEvents);
-        if (activeEvents.length > 0) {
+        if (!workspaceEventId && activeEvents.length > 0) {
           setSelectedEventId(activeEvents[0].id);
         }
       } catch (err) {
@@ -89,7 +101,7 @@ export default function EventCheckInPage() {
       }
     }
     loadEvents();
-  }, []);
+  }, [workspaceEventId]);
 
   useEffect(() => {
     async function loadData() {
@@ -154,6 +166,19 @@ export default function EventCheckInPage() {
   const notCheckedInCount = totalGuests - checkedInCount;
   const paymentIssues = guests.filter((g) => g.order?.status === "PENDING").length;
 
+  const guestsByTable = useMemo(() => {
+    const grouped = new Map<string, Guest[]>();
+    for (const guest of guests) {
+      const tableName = guest.table?.name ?? "Unassigned";
+      const bucket = grouped.get(tableName) ?? [];
+      bucket.push(guest);
+      grouped.set(tableName, bucket);
+    }
+    return Array.from(grouped.entries())
+      .map(([tableName, tableGuests]) => ({ tableName, guests: tableGuests }))
+      .sort((a, b) => a.tableName.localeCompare(b.tableName));
+  }, [guests]);
+
   /** Check in or undo check-in for a guest */
   async function toggleCheckIn(guestId: string, currentStatus: boolean) {
     try {
@@ -193,7 +218,8 @@ export default function EventCheckInPage() {
     setScanSuccess("");
 
     try {
-      const guest = await apiFetch<Guest>(`/api/events/guests/by-code/${encodeURIComponent(code)}`);
+      const eventScopeQuery = selectedEventId ? `?eventId=${encodeURIComponent(selectedEventId)}` : "";
+      const guest = await apiFetch<Guest>(`/api/events/guests/by-code/${encodeURIComponent(code)}${eventScopeQuery}`);
       setScanGuest(guest);
     } catch {
       setScanError("No guest found for that code. Please check and try again.");
@@ -261,6 +287,7 @@ export default function EventCheckInPage() {
           <select
             value={selectedEventId}
             onChange={(e) => setSelectedEventId(e.target.value)}
+            disabled={eventScoped}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
           >
             <option value="">Select an event</option>
@@ -270,6 +297,9 @@ export default function EventCheckInPage() {
               </option>
             ))}
           </select>
+          {eventScoped && (
+            <p className="text-xs text-amber-700 mt-1">Event is locked by workspace context.</p>
+          )}
         </div>
         <div className="flex items-end">
           <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
@@ -335,6 +365,16 @@ export default function EventCheckInPage() {
               }`}
             >
               📷 Scan Code
+            </button>
+            <button
+              onClick={() => setActiveTab("tables")}
+              className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "tables"
+                  ? "border-amber-600 text-amber-700"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              🪑 Tables
             </button>
           </div>
 
@@ -460,6 +500,40 @@ export default function EventCheckInPage() {
                   guest={scanGuest}
                   onToggleCheckIn={() => toggleScanCheckIn(scanGuest)}
                 />
+              )}
+            </div>
+          )}
+
+          {/* TABLES TAB — GalaSoft-inspired table browse mode for fast floor operations */}
+          {activeTab === "tables" && (
+            <div className="space-y-4">
+              {guestsByTable.length === 0 ? (
+                <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
+                  No tables or guests found for this event.
+                </div>
+              ) : (
+                guestsByTable.map((group) => {
+                  const tableCheckedIn = group.guests.filter((g) => g.checkedIn).length;
+                  return (
+                    <div key={group.tableName} className="bg-white rounded-lg border border-gray-200 p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h3 className="text-base font-semibold text-gray-900">{group.tableName}</h3>
+                          <p className="text-xs text-gray-500">{tableCheckedIn}/{group.guests.length} checked in</p>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        {group.guests.map((guest) => (
+                          <GuestCheckInCard
+                            key={guest.id}
+                            guest={guest}
+                            onToggleCheckIn={() => toggleCheckIn(guest.id, guest.checkedIn)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
               )}
             </div>
           )}

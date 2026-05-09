@@ -129,7 +129,9 @@ router.post("/complete", async (req: Request, res: Response) => {
       });
     }
 
-    if (!Intl.supportedValuesOf("timeZone").includes(timezone)) {
+    const supportedValuesOf = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf;
+    const supportedTimezones = typeof supportedValuesOf === "function" ? supportedValuesOf("timeZone") : [];
+    if (supportedTimezones.length > 0 && !supportedTimezones.includes(timezone)) {
       return res.status(400).json({
         success: false,
         error: {

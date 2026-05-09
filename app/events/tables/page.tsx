@@ -4,6 +4,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface Event {
@@ -42,13 +43,24 @@ interface Table {
  * EventTablesPage provides operational table and seating management for Events CRM.
  */
 export default function EventTablesPage() {
+  const params = useParams<{ eventId?: string }>();
+  const searchParams = useSearchParams();
+  const workspaceEventId = params.eventId ?? searchParams.get("eventId") ?? "";
+  const eventScoped = workspaceEventId.length > 0;
+
   const [tables, setTables] = useState<Table[]>([]);
   const [unassignedGuests, setUnassignedGuests] = useState<Guest[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedEventId, setSelectedEventId] = useState("");
+  const [selectedEventId, setSelectedEventId] = useState(workspaceEventId);
   const [showNewTableModal, setShowNewTableModal] = useState(false);
   const [editingTable, setEditingTable] = useState<Table | null>(null);
+
+  useEffect(() => {
+    if (workspaceEventId) {
+      setSelectedEventId(workspaceEventId);
+    }
+  }, [workspaceEventId]);
 
   /** Load tables and unassigned guests for selected event */
   async function loadData() {
@@ -84,7 +96,7 @@ export default function EventTablesPage() {
         const data = await apiFetch("/api/events");
         const activeEvents = (data as Event[]).filter((e) => e.active);
         setEvents(activeEvents);
-        if (activeEvents.length > 0) {
+        if (!workspaceEventId && activeEvents.length > 0) {
           setSelectedEventId(activeEvents[0].id);
         }
       } catch (err) {
@@ -92,7 +104,7 @@ export default function EventTablesPage() {
       }
     }
     loadEvents();
-  }, []);
+  }, [workspaceEventId]);
 
   useEffect(() => {
     async function loadData() {
@@ -215,9 +227,10 @@ export default function EventTablesPage() {
         <select
           value={selectedEventId}
           onChange={(e) => setSelectedEventId(e.target.value)}
+          disabled={eventScoped}
           className="w-full md:w-96 px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
         >
-          <option value="">Select an event</option>
+          <option value="">{eventScoped ? "Event Workspace" : "Select an event"}</option>
           {events.map((e) => (
             <option key={e.id} value={e.id}>
               {e.name} - {new Date(e.startDate).toLocaleDateString()}

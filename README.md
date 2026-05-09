@@ -24,7 +24,7 @@
 
 > A calm, professional workspace for managing constituents, donations, campaigns, tasks, and retention — built specifically for nonprofits, not adapted from a generic sales CRM.
 
-![DonorCRM Dashboard](https://github.com/user-attachments/assets/2dfb8c06-a753-440f-a3ec-f806c6cd47bc)
+![DonorCRM Dashboard](README_SCREENSHOTS/01-donor-dashboard-home.png)
 
 <details>
 <summary><strong>DonorCRM Features</strong></summary>
@@ -49,7 +49,7 @@
 
 > A dedicated blue-themed workspace for social service teams — built alongside DonorCRM in the same platform but with completely separate data boundaries and permissions.
 
-![Compassion CRM Dashboard](https://github.com/user-attachments/assets/8c1020ba-6fcc-4dfa-99a5-1ffcf2fc177d)
+![Compassion CRM Dashboard](README_SCREENSHOTS/11-compassion-dashboard.png)
 
 <details>
 <summary><strong>Compassion CRM Features</strong></summary>
@@ -67,6 +67,72 @@
 | **Reports** | Planned; UI scaffold only |
 
 </details>
+
+---
+
+## 📸 App Screenshot Gallery
+
+All screenshots below are captured from the current local app and stored in the repository root folder `README_SCREENSHOTS/`.
+
+### DonorCRM
+
+#### Dashboard
+![Donor Dashboard](README_SCREENSHOTS/01-donor-dashboard-home.png)
+
+#### Constituents
+![Donor Constituents](README_SCREENSHOTS/02-donor-constituents.png)
+
+#### Donations
+![Donor Donations](README_SCREENSHOTS/03-donor-donations.png)
+
+#### Campaigns
+![Donor Campaigns](README_SCREENSHOTS/04-donor-campaigns.png)
+
+#### Tasks
+![Donor Tasks](README_SCREENSHOTS/05-donor-tasks.png)
+
+#### Communications
+![Donor Communications](README_SCREENSHOTS/06-donor-communications.png)
+
+#### Steward Paths
+![Steward Paths](README_SCREENSHOTS/07-donor-steward-paths.png)
+
+#### Steward Signals
+![Steward Signals](README_SCREENSHOTS/08-donor-steward-signals.png)
+
+#### Reports
+![Donor Reports](README_SCREENSHOTS/09-donor-reports.png)
+
+#### Settings
+![Donor Settings](README_SCREENSHOTS/10-donor-settings.png)
+
+### Compassion CRM
+
+#### Dashboard
+![Compassion Dashboard](README_SCREENSHOTS/11-compassion-dashboard.png)
+
+#### Clients
+![Compassion Clients](README_SCREENSHOTS/12-compassion-clients.png)
+
+#### Cases
+![Compassion Cases](README_SCREENSHOTS/13-compassion-cases.png)
+
+#### Appointments
+![Compassion Appointments](README_SCREENSHOTS/14-compassion-appointments.png)
+
+### Events CRM
+
+#### Command Center
+![Events Command Center](README_SCREENSHOTS/15-events-command-center.png)
+
+#### Events Registry
+![Events Registry](README_SCREENSHOTS/16-events-registry.png)
+
+#### Guests
+![Events Guests](README_SCREENSHOTS/17-events-guests.png)
+
+#### Check-In
+![Events Check-In](README_SCREENSHOTS/18-events-check-in.png)
 
 ---
 
@@ -106,7 +172,7 @@ cp .env.example .env
 
 # 3. Initialize database
 npx prisma migrate dev
-npx prisma db seed
+pnpm db:seed:small
 
 # 4. Start development (web + API together)
 npm run dev:all
@@ -117,6 +183,18 @@ Open **http://localhost:3000** — the setup wizard will guide you through first
 > **Dev credentials (after seed):**  
 > `admin@hopefoundation.org` / `admin123!`  
 > `james@hopefoundation.org` / `staff123!`
+
+### Demo Seed Profiles
+
+```bash
+pnpm db:seed:small
+pnpm db:seed:medium
+pnpm db:seed:large
+pnpm db:verify:demo
+pnpm db:reset:demo
+```
+
+Full seed-system details: `docs/status/demo-seed-system.md`.
 
 ### Health & Status Endpoints
 
