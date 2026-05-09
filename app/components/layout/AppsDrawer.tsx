@@ -120,6 +120,21 @@ const APPS: AppTile[] = [
     available: true,
   },
   {
+    id: "payments",
+    label: "Payment Portal",
+    description: "Payment processors & transactions",
+    href: "/payments",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-7 h-7">
+        <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+        <line x1="1" y1="10" x2="23" y2="10" />
+      </svg>
+    ),
+    color: "text-green-600",
+    bgColor: "bg-green-50",
+    available: true,
+  },
+  {
     id: "board",
     label: "Board Portal",
     description: "Board reports & dashboards",
