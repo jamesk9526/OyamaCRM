@@ -1,8 +1,14 @@
 /**
  * Dashboard page — OyamaCRM home screen.
  * Displays a real-time snapshot of org health: revenue, retention, tasks, giving trends,
- * recent donations, and top donors. Widgets are drag-and-drop rearrangeable with
- * order persisted to localStorage.
+ * recent donations, and top donors.
+ *
+ * Widget layout is customizable via Edit Mode:
+ *   - Edit button (pencil) in header enters edit mode.
+ *   - In edit mode each card shows ↑↓ buttons and a drag handle.
+ *   - "Customize Layout" opens a modal with a full drag-and-drop reorder list.
+ *   - Layout lock prevents accidental changes.
+ * Order is persisted to localStorage.
  */
 "use client";
 
@@ -18,6 +24,7 @@ import GivingTrendChart from "./components/dashboard/GivingTrendChart";
 import RecentDonationsWidget from "./components/dashboard/RecentDonationsWidget";
 import TopDonorsWidget from "./components/dashboard/TopDonorsWidget";
 import MeetingsWidget from "./components/dashboard/MeetingsWidget";
+import DashboardLayoutModal from "./components/dashboard/DashboardLayoutModal";
 import { apiFetch } from "@/app/lib/auth-client";
 
 /** Shape returned by /api/reports/summary (extended) */
@@ -44,7 +51,7 @@ interface RetentionData {
   rate: number;
 }
 
-/** Ordered list of draggable widget IDs */
+/** Ordered list of widget IDs */
 const DEFAULT_WIDGET_ORDER = [
   "giving-trend",
   "recent-donations",
@@ -58,22 +65,40 @@ const DEFAULT_WIDGET_ORDER = [
 
 type WidgetId = (typeof DEFAULT_WIDGET_ORDER)[number];
 
-const LS_KEY = "dashboard-widget-order";
+/** Human-readable label + description for each widget (used in the layout modal) */
+const WIDGET_META = [
+  { id: "giving-trend", label: "Giving Trend", description: "Monthly giving totals chart" },
+  { id: "recent-donations", label: "Recent Donations", description: "Last 8 gifts received" },
+  { id: "revenue", label: "Revenue Progress", description: "Active campaign goal tracking" },
+  { id: "retention", label: "Donor Retention", description: "Year-over-year retention rate" },
+  { id: "top-donors", label: "Top Donors", description: "By lifetime giving amount" },
+  { id: "tasks", label: "Tasks", description: "Open & upcoming staff tasks" },
+  { id: "meetings", label: "Upcoming Meetings", description: "Scheduled donor meetings" },
+  { id: "weekly-stats", label: "This Week", description: "Weekly donation activity summary" },
+];
 
-/** Load widget order from localStorage, fall back to defaults */
+const LS_ORDER_KEY = "dashboard-widget-order";
+const LS_LOCK_KEY = "dashboard-locked";
+
+/** Load widget order from localStorage, falling back to defaults */
 function loadOrder(): WidgetId[] {
   if (typeof window === "undefined") return [...DEFAULT_WIDGET_ORDER];
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    const raw = localStorage.getItem(LS_ORDER_KEY);
     if (!raw) return [...DEFAULT_WIDGET_ORDER];
     const parsed: WidgetId[] = JSON.parse(raw);
-    // Merge: keep existing order but include any new widgets
+    // Merge: keep saved order, but append any new widgets not yet in the saved list
     const existing = new Set(parsed);
-    const full = [...parsed, ...DEFAULT_WIDGET_ORDER.filter((w) => !existing.has(w))];
-    return full;
+    return [...parsed, ...DEFAULT_WIDGET_ORDER.filter((w) => !existing.has(w))];
   } catch {
     return [...DEFAULT_WIDGET_ORDER];
   }
+}
+
+/** Load dashboard lock state from localStorage */
+function loadLocked(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(LS_LOCK_KEY) === "true";
 }
 
 export default function DashboardPage() {
@@ -83,12 +108,17 @@ export default function DashboardPage() {
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
   const [loading, setLoading] = useState(true);
 
-  // Widget order & drag state
+  // ── Layout state ──
   const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(loadOrder);
+  const [editMode, setEditMode] = useState(false);
+  const [locked, setLocked] = useState(loadLocked);
+  const [showCustomizeModal, setShowCustomizeModal] = useState(false);
+
+  // ── Drag state (only active in edit mode) ──
   const dragFrom = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
-  /** Greeting based on time of day */
+  /** Time-of-day greeting */
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const name = user ? `${user.firstName} ${user.lastName}` : "…";
@@ -105,7 +135,7 @@ export default function DashboardPage() {
       setRetention(r);
       setLastRefreshed(new Date());
     } catch {
-      // Silently fail — widgets handle empty data
+      // Silently fail — widgets handle empty data gracefully
     } finally {
       setLoading(false);
     }
@@ -113,25 +143,36 @@ export default function DashboardPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Persist order whenever it changes
+  // Persist widget order to localStorage
   useEffect(() => {
-    localStorage.setItem(LS_KEY, JSON.stringify(widgetOrder));
+    localStorage.setItem(LS_ORDER_KEY, JSON.stringify(widgetOrder));
   }, [widgetOrder]);
 
-  /** Drag handlers — pure index-based splice */
-  function handleDragStart(idx: number) {
-    dragFrom.current = idx;
+  // Persist lock state to localStorage
+  useEffect(() => {
+    localStorage.setItem(LS_LOCK_KEY, locked ? "true" : "false");
+    // Exiting lock mode also exits edit mode
+    if (locked) setEditMode(false);
+  }, [locked]);
+
+  /** Swap widget at `from` index to `to` index */
+  function moveWidget(from: number, to: number) {
+    if (to < 0 || to >= widgetOrder.length) return;
+    const next = [...widgetOrder];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setWidgetOrder(next);
   }
+
+  // ── Drag handlers ──
+  function handleDragStart(idx: number) { dragFrom.current = idx; }
   function handleDragOver(e: React.DragEvent, idx: number) {
     e.preventDefault();
     setDragOverIdx(idx);
   }
   function handleDrop(idx: number) {
     if (dragFrom.current === null || dragFrom.current === idx) return;
-    const next = [...widgetOrder];
-    const [moved] = next.splice(dragFrom.current, 1);
-    next.splice(idx, 0, moved);
-    setWidgetOrder(next);
+    moveWidget(dragFrom.current, idx);
     dragFrom.current = null;
     setDragOverIdx(null);
   }
@@ -140,7 +181,7 @@ export default function DashboardPage() {
     setDragOverIdx(null);
   }
 
-  /** Build drag props for widget at a given index */
+  /** Build drag event props object for a widget at the given index */
   function dragProps(idx: number) {
     return {
       onDragStart: (e: React.DragEvent) => { e.dataTransfer.effectAllowed = "move"; handleDragStart(idx); },
@@ -154,23 +195,32 @@ export default function DashboardPage() {
 
   /** Render a single widget by its ID */
   function renderWidget(id: WidgetId, idx: number) {
-    const dp = dragProps(idx);
+    // Common edit-mode props passed to every DashboardWidget
+    const editProps = {
+      editMode,
+      onMoveUp: () => moveWidget(idx, idx - 1),
+      onMoveDown: () => moveWidget(idx, idx + 1),
+      canMoveUp: idx > 0,
+      canMoveDown: idx < widgetOrder.length - 1,
+      ...(editMode ? dragProps(idx) : {}),
+    };
+
     switch (id) {
       case "giving-trend":
         return (
-          <DashboardWidget key={id} id={id} title="Giving Trend" subtitle={`${new Date().getFullYear()} monthly totals`} className="lg:col-span-2 min-h-[280px]" {...dp}>
+          <DashboardWidget key={id} id={id} title="Giving Trend" subtitle={`${new Date().getFullYear()} monthly totals`} className="lg:col-span-2 min-h-[280px]" {...editProps}>
             <GivingTrendChart />
           </DashboardWidget>
         );
       case "recent-donations":
         return (
-          <DashboardWidget key={id} id={id} title="Recent Donations" subtitle="Last 8 gifts" {...dp}>
+          <DashboardWidget key={id} id={id} title="Recent Donations" subtitle="Last 8 gifts" {...editProps}>
             <RecentDonationsWidget />
           </DashboardWidget>
         );
       case "revenue":
         return (
-          <DashboardWidget key={id} id={id} title="Revenue Progress" subtitle="Active campaign goals" {...dp}>
+          <DashboardWidget key={id} id={id} title="Revenue Progress" subtitle="Active campaign goals" {...editProps}>
             <RevenueProgress
               current={summary?.ytdAmount ?? 0}
               goal={summary?.activeGoalTotal || 200000}
@@ -180,7 +230,7 @@ export default function DashboardPage() {
         );
       case "retention":
         return (
-          <DashboardWidget key={id} id={id} title="Donor Retention" subtitle="Year-over-year" {...dp}>
+          <DashboardWidget key={id} id={id} title="Donor Retention" subtitle="Year-over-year" {...editProps}>
             <DonorRetention
               retained={retention?.retained ?? 0}
               total={retention?.total ?? 0}
@@ -191,25 +241,25 @@ export default function DashboardPage() {
         );
       case "top-donors":
         return (
-          <DashboardWidget key={id} id={id} title="Top Donors" subtitle="By lifetime giving" {...dp}>
+          <DashboardWidget key={id} id={id} title="Top Donors" subtitle="By lifetime giving" {...editProps}>
             <TopDonorsWidget />
           </DashboardWidget>
         );
       case "tasks":
         return (
-          <DashboardWidget key={id} id={id} title="Tasks" subtitle="Open & upcoming" className="lg:row-span-2" {...dp}>
+          <DashboardWidget key={id} id={id} title="Tasks" subtitle="Open & upcoming" className="lg:row-span-2" {...editProps}>
             <TasksWidget />
           </DashboardWidget>
         );
       case "meetings":
         return (
-          <DashboardWidget key={id} id={id} title="Upcoming Meetings" subtitle="Scheduled donor meetings" {...dp}>
+          <DashboardWidget key={id} id={id} title="Upcoming Meetings" subtitle="Scheduled donor meetings" {...editProps}>
             <MeetingsWidget />
           </DashboardWidget>
         );
       case "weekly-stats":
         return (
-          <DashboardWidget key={id} id={id} title="This Week" subtitle="Donation activity" {...dp}>
+          <DashboardWidget key={id} id={id} title="This Week" subtitle="Donation activity" {...editProps}>
             <TotalsByLevel
               weekTotal={summary?.weekAmount ?? 0}
               transactions={summary?.weekCount ?? 0}
@@ -226,7 +276,8 @@ export default function DashboardPage() {
   return (
     <div className="space-y-4">
       {/* ── Header ── */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4">
+        {/* Left: greeting */}
         <div>
           <h1 className="text-xl font-semibold text-gray-900">
             {greeting}, {name}!
@@ -235,8 +286,11 @@ export default function DashboardPage() {
             Here&apos;s what&apos;s happening today
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right">
+
+        {/* Right: refresh + layout controls */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Refresh info */}
+          <div className="text-right mr-1">
             <p className="text-xs text-gray-400">
               Refreshed {lastRefreshed.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
             </p>
@@ -247,18 +301,90 @@ export default function DashboardPage() {
               ↻ Refresh
             </button>
           </div>
-          {/* Reset widget order */}
+
+          {/* Lock / unlock toggle */}
           <button
-            onClick={() => setWidgetOrder([...DEFAULT_WIDGET_ORDER])}
-            title="Reset widget layout"
-            className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg px-2 py-1 transition-colors"
+            onClick={() => setLocked((v) => !v)}
+            title={locked ? "Dashboard is locked — click to unlock" : "Lock dashboard layout"}
+            className={`p-2 rounded-lg border transition-colors ${
+              locked
+                ? "bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
+                : "border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+            }`}
           >
-            ⊞ Reset
+            {locked ? (
+              /* Lock-closed icon */
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            ) : (
+              /* Lock-open icon */
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 018 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+              </svg>
+            )}
           </button>
+
+          {/* Edit mode toggle */}
+          {!editMode ? (
+            <button
+              onClick={() => { if (!locked) setEditMode(true); }}
+              disabled={locked}
+              title={locked ? "Unlock to edit layout" : "Edit dashboard layout"}
+              className="flex items-center gap-1.5 text-xs font-medium border rounded-lg px-3 py-2 transition-colors border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit
+            </button>
+          ) : (
+            <button
+              onClick={() => setEditMode(false)}
+              className="flex items-center gap-1.5 text-xs font-medium border rounded-lg px-3 py-2 transition-colors bg-green-600 border-green-600 text-white hover:bg-green-700"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+              Done
+            </button>
+          )}
         </div>
       </div>
 
-      {/* ── Top stat row (not draggable — always pinned) ── */}
+      {/* ── Edit mode banner ── */}
+      {editMode && (
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-green-50 border border-green-200 rounded-xl">
+          {/* Info text */}
+          <svg className="w-4 h-4 text-green-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+          </svg>
+          <span className="text-sm text-green-700 font-medium">
+            Editing layout — drag cards or use ↑↓ arrows to rearrange
+          </span>
+
+          {/* Right-side edit actions */}
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => setShowCustomizeModal(true)}
+              className="flex items-center gap-1.5 text-xs font-medium text-green-700 hover:text-green-900 border border-green-300 rounded-lg px-3 py-1.5 hover:bg-green-100 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5h16M4 9h16M4 13h16M4 17h16" />
+              </svg>
+              Customize Layout
+            </button>
+            <button
+              onClick={() => setWidgetOrder([...DEFAULT_WIDGET_ORDER])}
+              className="text-xs text-green-600 hover:text-green-800 font-medium px-2 py-1.5 rounded-lg hover:bg-green-100 transition-colors"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Top stat row (always pinned — not reorderable) ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
           label="Constituents"
@@ -309,13 +435,20 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* ── Draggable widget grid ── */}
-      <p className="text-[11px] text-gray-400 flex items-center gap-1.5">
-        <span>⠿</span> Drag cards to rearrange your dashboard
-      </p>
+      {/* ── Widget grid ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {widgetOrder.map((id, idx) => renderWidget(id, idx))}
       </div>
+
+      {/* ── Customize Layout modal ── */}
+      {showCustomizeModal && (
+        <DashboardLayoutModal
+          order={widgetOrder}
+          widgetMeta={WIDGET_META}
+          onApply={(newOrder) => setWidgetOrder(newOrder as WidgetId[])}
+          onClose={() => setShowCustomizeModal(false)}
+        />
+      )}
     </div>
   );
 }

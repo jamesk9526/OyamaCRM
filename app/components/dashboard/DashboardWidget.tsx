@@ -1,11 +1,12 @@
 "use client";
 /**
- * DashboardWidget — drag-and-drop wrapper for dashboard cards.
- * Provides a uniform card shell with a drag handle, title, and optional
- * "drag over" highlight ring. Children are rendered inside the card body.
+ * DashboardWidget — card shell for all dashboard widgets.
+ * In normal mode: clean white card, no drag handles (Bloomerang style).
+ * In edit mode: reveals drag handle + move up/down arrows so the user can
+ * rearrange widgets without accidentally triggering drags when interacting
+ * with card content in normal usage.
  *
- * Drag state is managed by the parent (app/page.tsx). This component is
- * purely presentational — it fires the parent's drag event handlers.
+ * All drag state is managed by the parent (app/page.tsx).
  */
 
 import React from "react";
@@ -24,20 +25,32 @@ interface DashboardWidgetProps {
   /** Extra CSS classes on the outer card */
   className?: string;
 
-  /* ── Drag & drop callbacks ── */
+  /* ── Edit mode ── */
+  /** When true, exposes drag handles + move buttons. Default false. */
+  editMode?: boolean;
+  /** Called when the user clicks the "move up" button */
+  onMoveUp?: () => void;
+  /** Called when the user clicks the "move down" button */
+  onMoveDown?: () => void;
+  /** True if this widget can move up (not already first) */
+  canMoveUp?: boolean;
+  /** True if this widget can move down (not already last) */
+  canMoveDown?: boolean;
+
+  /* ── Drag & drop callbacks (only wired in edit mode) ── */
   onDragStart?: (e: React.DragEvent) => void;
   onDragOver?: (e: React.DragEvent) => void;
   onDrop?: (e: React.DragEvent) => void;
   onDragEnd?: (e: React.DragEvent) => void;
-  /** True while this widget is being dragged (dim it) */
+  /** True while this widget is being dragged (dims the card) */
   isDragging?: boolean;
-  /** True while another widget is dragged over this one (highlight) */
+  /** True while another widget is dragged over this one (highlight ring) */
   isDragOver?: boolean;
 }
 
 /**
- * DashboardWidget renders a white card with a top drag handle.
- * The six-dot drag handle (⠿) is visible on hover to keep the UI clean.
+ * Renders a white dashboard card. Drag/move controls are visible only
+ * when `editMode` is true so the normal view stays completely clean.
  */
 export default function DashboardWidget({
   id,
@@ -46,6 +59,11 @@ export default function DashboardWidget({
   headerRight,
   children,
   className = "",
+  editMode = false,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp = false,
+  canMoveDown = false,
   onDragStart,
   onDragOver,
   onDrop,
@@ -56,31 +74,36 @@ export default function DashboardWidget({
   return (
     <div
       data-widget-id={id}
-      draggable
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-      onDragEnd={onDragEnd}
+      /* Only participates in drag-and-drop during edit mode */
+      draggable={editMode}
+      onDragStart={editMode ? onDragStart : undefined}
+      onDragOver={editMode ? onDragOver : undefined}
+      onDrop={editMode ? onDrop : undefined}
+      onDragEnd={editMode ? onDragEnd : undefined}
       className={`
-        bg-white rounded-xl shadow-sm border transition-all duration-150 flex flex-col
-        ${isDragging ? "opacity-40 scale-[0.98] shadow-none" : ""}
-        ${isDragOver ? "ring-2 ring-green-400 ring-offset-1 border-transparent" : "border-gray-200"}
+        bg-white rounded-xl shadow-sm border flex flex-col transition-all duration-150
+        ${editMode && isDragging ? "opacity-40 scale-[0.98] shadow-none" : ""}
+        ${editMode && isDragOver ? "ring-2 ring-green-400 ring-offset-1 border-transparent" : "border-gray-200"}
+        ${editMode ? "ring-1 ring-green-200" : ""}
         ${className}
       `}
     >
-      {/* Card header */}
+      {/* ── Card header ── */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 select-none">
-        {/* Drag handle — visible on hover */}
-        <div className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing shrink-0 transition-colors">
-          <svg viewBox="0 0 10 16" fill="currentColor" className="w-3 h-4">
-            <circle cx="2" cy="2" r="1.5" />
-            <circle cx="8" cy="2" r="1.5" />
-            <circle cx="2" cy="8" r="1.5" />
-            <circle cx="8" cy="8" r="1.5" />
-            <circle cx="2" cy="14" r="1.5" />
-            <circle cx="8" cy="14" r="1.5" />
-          </svg>
-        </div>
+
+        {/* Six-dot drag handle — visible only in edit mode */}
+        {editMode && (
+          <div className="text-gray-400 hover:text-green-600 cursor-grab active:cursor-grabbing shrink-0 transition-colors">
+            <svg viewBox="0 0 10 16" fill="currentColor" className="w-3 h-4">
+              <circle cx="2" cy="2" r="1.5" />
+              <circle cx="8" cy="2" r="1.5" />
+              <circle cx="2" cy="8" r="1.5" />
+              <circle cx="8" cy="8" r="1.5" />
+              <circle cx="2" cy="14" r="1.5" />
+              <circle cx="8" cy="14" r="1.5" />
+            </svg>
+          </div>
+        )}
 
         {/* Title block */}
         <div className="flex-1 min-w-0">
@@ -90,13 +113,39 @@ export default function DashboardWidget({
           )}
         </div>
 
-        {/* Optional right-side slot */}
-        {headerRight && (
+        {/* Optional right-side slot (visible in normal mode) */}
+        {headerRight && !editMode && (
           <div className="shrink-0">{headerRight}</div>
+        )}
+
+        {/* Move up / down arrows — visible only in edit mode */}
+        {editMode && (
+          <div className="flex items-center gap-0.5 shrink-0 ml-auto">
+            <button
+              onClick={(e) => { e.stopPropagation(); onMoveUp?.(); }}
+              disabled={!canMoveUp}
+              className="p-1 rounded text-gray-400 hover:text-green-700 hover:bg-green-50 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+              title="Move up"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+              </svg>
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onMoveDown?.(); }}
+              disabled={!canMoveDown}
+              className="p-1 rounded text-gray-400 hover:text-green-700 hover:bg-green-50 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+              title="Move down"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
         )}
       </div>
 
-      {/* Card body */}
+      {/* ── Card body ── */}
       <div className="flex-1 p-4 overflow-auto">
         {children}
       </div>
