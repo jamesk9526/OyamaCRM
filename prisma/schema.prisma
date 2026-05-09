@@ -241,6 +241,14 @@ model Organization {
   customFields   CustomField[]
   grantFunders   GrantFunder[]
   grants         Grant[]
+
+  // ─── Compassion CRM back-relations ───────────────────────────────────────
+  compassionClients      CompassionClient[]
+  compassionCases        CompassionCase[]
+  compassionAppointments CompassionAppointment[]
+  compassionServices     CompassionService[]
+  compassionFollowUps    CompassionFollowUp[]
+  compassionActivities   CompassionActivity[]
 }
 
 model OrganizationSettings {
@@ -288,6 +296,14 @@ model User {
   assignedGrants  Grant[]          @relation("GrantAssignee")
   grantActivities GrantActivity[]
   ownedEvents     Event[]
+
+  // ─── Compassion CRM staff relations ──────────────────────────────────────
+  compassionClientsAssigned  CompassionClient[]      @relation("CompassionClientStaff")
+  compassionCasesAssigned    CompassionCase[]        @relation("CompassionCaseStaff")
+  compassionApptsAssigned    CompassionAppointment[] @relation("CompassionApptStaff")
+  compassionServicesProvided CompassionService[]     @relation("CompassionServiceProvider")
+  compassionFollowUpsAssigned CompassionFollowUp[]   @relation("CompassionFollowUpStaff")
+  compassionActivitiesPerformed CompassionActivity[] @relation("CompassionActivityUser")
 }
 
 // ─── Constituent (Donor/Volunteer/Member) ─────────────────────────────────────
@@ -361,6 +377,9 @@ model Constituent {
   eventSponsors    EventSponsor[]
   volunteerHours   VolunteerHour[]
   pledges          Pledge[]
+
+  // ─── Compassion CRM link (optional shared-person layer) ───────────────────
+  compassionClients CompassionClient[]
 }
 
 model Household {
@@ -1157,4 +1176,259 @@ model GrantActivity {
 
   grant Grant @relation(fields: [grantId], references: [id], onDelete: Cascade)
   user  User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+// ─── Compassion CRM Enums ─────────────────────────────────────────────────────
+
+enum CompassionClientStatus {
+  ACTIVE
+  INACTIVE
+  GRADUATED
+  ARCHIVED
+  PENDING
+}
+
+enum CompassionCaseStatus {
+  OPEN
+  IN_PROGRESS
+  PENDING
+  CLOSED
+  ARCHIVED
+}
+
+enum CompassionCaseType {
+  PREGNANCY_SUPPORT
+  PARENTING
+  MATERIAL_ASSISTANCE
+  HOUSING
+  EDUCATION
+  EMPLOYMENT
+  COUNSELING
+  RESOURCE_REFERRAL
+  FOLLOW_UP
+  OTHER
+}
+
+enum CompassionAppointmentType {
+  INTAKE
+  PREGNANCY_TEST
+  ULTRASOUND
+  PARENTING_CLASS
+  MATERIAL_ASSISTANCE
+  RESOURCE_REFERRAL
+  FOLLOW_UP
+  MENTORING
+  CASE_REVIEW
+  HOME_VISIT
+  OTHER
+}
+
+enum CompassionAppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum CompassionServiceType {
+  PREGNANCY_TEST
+  ULTRASOUND
+  DIAPERS
+  CLOTHING
+  FORMULA
+  PARENTING_CLASS
+  HOUSING_REFERRAL
+  EDUCATION_REFERRAL
+  JOB_REFERRAL
+  NUTRITION_SUPPORT
+  COUNSELING
+  TRANSPORTATION_RESOURCE
+  OTHER
+}
+
+enum CompassionFollowUpStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  OVERDUE
+}
+
+enum CompassionPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// ─── Compassion CRM Models ────────────────────────────────────────────────────
+
+/// Client record — Compassion CRM's core entity, separate from DonorCRM Constituent.
+/// Sensitive client data must NOT appear in DonorCRM without explicit permission.
+model CompassionClient {
+  id             String  @id @default(cuid())
+  organizationId String
+  /// Optional link to shared Constituent identity (explicit staff-set link only)
+  constituentId  String?
+
+  firstName     String
+  lastName      String
+  preferredName String?
+  email         String?
+  phone         String?
+  addressLine1  String?
+  addressLine2  String?
+  city          String?
+  state         String?
+  zip           String?
+  dateOfBirth   DateTime?
+
+  clientStatus    CompassionClientStatus @default(ACTIVE)
+  assignedStaffId String?
+  intakeDate      DateTime               @default(now())
+  referralSource  String?
+  /// Private notes — must NOT appear in shared timelines or public-facing endpoints
+  privateNotes    String?                @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization  Organization           @relation(fields: [organizationId], references: [id])
+  constituent   Constituent?           @relation(fields: [constituentId], references: [id])
+  assignedStaff User?                  @relation("CompassionClientStaff", fields: [assignedStaffId], references: [id])
+  cases         CompassionCase[]
+  appointments  CompassionAppointment[]
+  services      CompassionService[]
+  followUps     CompassionFollowUp[]
+  activities    CompassionActivity[]
+}
+
+/// Case record — tracks a client's service engagement over time.
+model CompassionCase {
+  id             String @id @default(cuid())
+  organizationId String
+  clientId       String
+
+  caseNumber      String               @unique
+  caseStatus      CompassionCaseStatus @default(OPEN)
+  caseType        CompassionCaseType   @default(OTHER)
+  openedAt        DateTime             @default(now())
+  closedAt        DateTime?
+  assignedStaffId String?
+  priority        CompassionPriority   @default(MEDIUM)
+  summary         String?              @db.Text
+  /// Private notes — must NOT appear in shared timelines
+  privateNotes    String?              @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization  Organization            @relation(fields: [organizationId], references: [id])
+  client        CompassionClient        @relation(fields: [clientId], references: [id])
+  assignedStaff User?                   @relation("CompassionCaseStaff", fields: [assignedStaffId], references: [id])
+  appointments  CompassionAppointment[]
+  services      CompassionService[]
+  followUps     CompassionFollowUp[]
+  activities    CompassionActivity[]
+}
+
+/// Appointment — scheduled meeting between staff and client.
+model CompassionAppointment {
+  id             String @id @default(cuid())
+  organizationId String
+  clientId       String
+  caseId         String?
+
+  appointmentType CompassionAppointmentType   @default(OTHER)
+  status          CompassionAppointmentStatus @default(SCHEDULED)
+  startTime       DateTime
+  endTime         DateTime?
+  timezone        String                      @default("America/Chicago")
+  location        String?
+  assignedStaffId String?
+  notes           String?                     @db.Text
+  outcome         String?                     @db.Text
+  followUpNeeded  Boolean                     @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization  Organization         @relation(fields: [organizationId], references: [id])
+  client        CompassionClient     @relation(fields: [clientId], references: [id])
+  case          CompassionCase?      @relation(fields: [caseId], references: [id])
+  assignedStaff User?                @relation("CompassionApptStaff", fields: [assignedStaffId], references: [id])
+  followUps     CompassionFollowUp[]
+  activities    CompassionActivity[]
+}
+
+/// Service — tracks a specific service delivered to a client.
+model CompassionService {
+  id             String @id @default(cuid())
+  organizationId String
+  clientId       String
+  caseId         String?
+
+  serviceType  CompassionServiceType @default(OTHER)
+  serviceDate  DateTime              @default(now())
+  quantity     Int?
+  notes        String?               @db.Text
+  providedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  client       CompassionClient @relation(fields: [clientId], references: [id])
+  case         CompassionCase?  @relation(fields: [caseId], references: [id])
+  providedBy   User?            @relation("CompassionServiceProvider", fields: [providedById], references: [id])
+}
+
+/// Follow-up — a tracked action item tied to a client or case.
+model CompassionFollowUp {
+  id             String @id @default(cuid())
+  organizationId String
+  clientId       String
+  caseId         String?
+  appointmentId  String?
+
+  title           String
+  dueDate         DateTime
+  status          CompassionFollowUpStatus @default(PENDING)
+  priority        CompassionPriority       @default(MEDIUM)
+  assignedStaffId String?
+  notes           String?                  @db.Text
+  completedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization  Organization           @relation(fields: [organizationId], references: [id])
+  client        CompassionClient       @relation(fields: [clientId], references: [id])
+  case          CompassionCase?        @relation(fields: [caseId], references: [id])
+  appointment   CompassionAppointment? @relation(fields: [appointmentId], references: [id])
+  assignedStaff User?                  @relation("CompassionFollowUpStaff", fields: [assignedStaffId], references: [id])
+}
+
+/// Activity timeline for Compassion CRM events.
+model CompassionActivity {
+  id             String @id @default(cuid())
+  organizationId String
+  clientId       String
+  caseId         String?
+  appointmentId  String?
+
+  /// Activity type string: CLIENT_CREATED, CASE_OPENED, APPOINTMENT_SCHEDULED, etc.
+  activityType  String
+  description   String  @db.Text
+  performedById String?
+  metadata      Json?
+
+  createdAt DateTime @default(now())
+
+  organization  Organization           @relation(fields: [organizationId], references: [id])
+  client        CompassionClient       @relation(fields: [clientId], references: [id])
+  case          CompassionCase?        @relation(fields: [caseId], references: [id])
+  appointment   CompassionAppointment? @relation(fields: [appointmentId], references: [id])
+  performedBy   User?                  @relation("CompassionActivityUser", fields: [performedById], references: [id])
 }

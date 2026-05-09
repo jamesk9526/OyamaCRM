@@ -120,3 +120,107 @@ describe("route workflow smoke", () => {
     expect(accessToken).toBeTruthy();
   });
 });
+
+// ─── Compassion CRM smoke tests ────────────────────────────────────────────────
+
+describe("compassion CRM smoke", () => {
+  let compassionToken = "";
+  let createdClientId = "";
+  let createdCaseId = "";
+
+  beforeAll(async () => {
+    const res = await request(app).post("/api/auth/login").send({
+      email: "admin@hopefoundation.org",
+      password: "admin123!",
+    });
+    compassionToken = res.body.data?.accessToken ?? "";
+  });
+
+  it("returns dashboard summary with expected shape", async () => {
+    const auth = { Authorization: `Bearer ${compassionToken}` };
+    const res = await request(app).get("/api/compassion/dashboard-summary").set(auth);
+    expect(res.status).toBe(200);
+    expect(typeof res.body.totalClients).toBe("number");
+    expect(typeof res.body.activeClients).toBe("number");
+    expect(typeof res.body.activeCases).toBe("number");
+    expect(typeof res.body.tasksDue).toBe("number");
+    expect(Array.isArray(res.body.caseloadByStatus)).toBe(true);
+    expect(Array.isArray(res.body.casesByStatus)).toBe(true);
+    expect(Array.isArray(res.body.todaysAppointments)).toBe(true);
+    expect(Array.isArray(res.body.upcomingFollowUps)).toBe(true);
+  });
+
+  it("creates a new Compassion CRM client", async () => {
+    const auth = { Authorization: `Bearer ${compassionToken}` };
+    const res = await request(app).post("/api/compassion/clients").set(auth).send({
+      firstName: "Smoke",
+      lastName: "TestClient",
+      email: "smoke-compassion@example.com",
+      intakeDate: new Date().toISOString(),
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.firstName).toBe("Smoke");
+    createdClientId = res.body.id;
+    expect(createdClientId).toBeTruthy();
+  });
+
+  it("lists clients and includes the newly created one", async () => {
+    const auth = { Authorization: `Bearer ${compassionToken}` };
+    const res = await request(app).get("/api/compassion/clients?limit=100").set(auth);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    const found = (res.body as Array<{ id: string }>).some((c) => c.id === createdClientId);
+    expect(found).toBe(true);
+  });
+
+  it("opens a case with correct case number format", async () => {
+    const auth = { Authorization: `Bearer ${compassionToken}` };
+    const res = await request(app).post("/api/compassion/cases").set(auth).send({
+      clientId: createdClientId,
+      caseType: "OTHER",
+      priority: "MEDIUM",
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.caseNumber).toMatch(/^CASE-\d{4}-\d{3,}$/);
+    expect(res.body.caseStatus).toBe("OPEN");
+    createdCaseId = res.body.id;
+    expect(createdCaseId).toBeTruthy();
+  });
+
+  it("lists cases and includes the newly created case", async () => {
+    const auth = { Authorization: `Bearer ${compassionToken}` };
+    const res = await request(app).get("/api/compassion/cases?limit=100").set(auth);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    const found = (res.body as Array<{ id: string }>).some((c) => c.id === createdCaseId);
+    expect(found).toBe(true);
+  });
+
+  it("creates a follow-up for the client", async () => {
+    const auth = { Authorization: `Bearer ${compassionToken}` };
+    const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const res = await request(app).post("/api/compassion/follow-ups").set(auth).send({
+      clientId: createdClientId,
+      caseId: createdCaseId,
+      title: "Smoke follow-up check-in",
+      priority: "HIGH",
+      dueDate,
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.status).toBe("PENDING");
+    expect(res.body.priority).toBe("HIGH");
+  });
+
+  it("schedules an appointment for the client", async () => {
+    const auth = { Authorization: `Bearer ${compassionToken}` };
+    const startTime = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const res = await request(app).post("/api/compassion/appointments").set(auth).send({
+      clientId: createdClientId,
+      caseId: createdCaseId,
+      appointmentType: "INTAKE",
+      startTime,
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.appointmentType).toBe("INTAKE");
+  });
+});

@@ -1,23 +1,339 @@
-// Compassion CRM — Cases placeholder page.
-import ComingSoonBadge from "@/app/components/ui/ComingSoonBadge";
+// Compassion CRM — Cases page. Full list with search, filter, and create modal.
+"use client";
 
-/** Cases page: open, manage, and close client cases. */
+import { useState, useEffect, useCallback } from "react";
+import { apiFetch } from "@/app/lib/auth-client";
+
+/** Case as returned from GET /api/compassion/cases */
+interface CompassionCase {
+  id: string;
+  caseNumber: string;
+  caseStatus: string;
+  caseType: string;
+  priority: string;
+  openedAt: string;
+  summary?: string;
+  client?: { id: string; firstName: string; lastName: string };
+  assignedStaff?: { id: string; firstName: string; lastName: string };
+  _count?: { appointments: number; followUps: number };
+}
+
+/** Client for the case-create dropdown */
+interface ClientOption {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
+/** Staff user for assignee dropdown */
+interface StaffUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
+/** Maps case status to badge style */
+function statusBadge(status: string) {
+  const styles: Record<string, string> = {
+    OPEN:        "bg-blue-100 text-blue-700",
+    IN_PROGRESS: "bg-violet-100 text-violet-700",
+    PENDING:     "bg-amber-100 text-amber-700",
+    CLOSED:      "bg-gray-100 text-gray-500",
+    ARCHIVED:    "bg-gray-100 text-gray-400",
+  };
+  return styles[status] ?? "bg-gray-100 text-gray-500";
+}
+
+/** Maps priority to badge style */
+function priorityBadge(priority: string) {
+  const styles: Record<string, string> = {
+    URGENT: "bg-red-100 text-red-700",
+    HIGH:   "bg-orange-100 text-orange-700",
+    MEDIUM: "bg-yellow-50 text-yellow-700",
+    LOW:    "bg-gray-100 text-gray-500",
+  };
+  return styles[priority] ?? "bg-gray-100 text-gray-500";
+}
+
+/** Human-readable case type label */
+function typeLabel(t: string) {
+  return t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// ─── New Case Modal ───────────────────────────────────────────────────────────
+
+/**
+ * NewCaseModal: form to create a new Compassion CRM case.
+ * Posts to POST /api/compassion/cases with clientId, caseType, priority, summary.
+ */
+function NewCaseModal({ onClose, onCreated, clientList, staffList }: {
+  onClose: () => void;
+  onCreated: () => void;
+  clientList: ClientOption[];
+  staffList: StaffUser[];
+}) {
+  const [form, setForm] = useState({
+    clientId: "", caseType: "OTHER", priority: "MEDIUM", summary: "", assignedStaffId: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.clientId) { setError("Please select a client"); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      await apiFetch("/api/compassion/cases", {
+        method: "POST",
+        body: JSON.stringify({
+          ...form,
+          assignedStaffId: form.assignedStaffId || undefined,
+          summary: form.summary || undefined,
+        }),
+      });
+      onCreated();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create case");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">New Case</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
+          {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Client *</label>
+            <select required value={form.clientId} onChange={(e) => set("clientId", e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+              <option value="">Select a client…</option>
+              {clientList.map((c) => (
+                <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Case Type</label>
+              <select value={form.caseType} onChange={(e) => set("caseType", e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                {["PREGNANCY_SUPPORT","PARENTING","MATERIAL_ASSISTANCE","HOUSING","EDUCATION",
+                  "EMPLOYMENT","COUNSELING","RESOURCE_REFERRAL","FOLLOW_UP","OTHER"].map((t) => (
+                  <option key={t} value={t}>{typeLabel(t)}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Priority</label>
+              <select value={form.priority} onChange={(e) => set("priority", e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="URGENT">Urgent</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Assigned Staff</label>
+            <select value={form.assignedStaffId} onChange={(e) => set("assignedStaffId", e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+              <option value="">Unassigned</option>
+              {staffList.map((s) => (
+                <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Summary</label>
+            <textarea rows={3} value={form.summary} onChange={(e) => set("summary", e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none"
+              placeholder="Brief description of the case…" />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+            <button type="submit" disabled={saving}
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+              {saving ? "Creating…" : "Open Case"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
+
+/**
+ * CompassionCasesPage: full case list with search, status filter, and create modal.
+ * Fetches from GET /api/compassion/cases. Clients list is loaded for the create form.
+ * TODO: enforce Compassion workspace permission
+ */
 export default function CompassionCasesPage() {
+  const [cases, setCases] = useState<CompassionCase[]>([]);
+  const [clientList, setClientList] = useState<ClientOption[]>([]);
+  const [staffList, setStaffList] = useState<StaffUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [showModal, setShowModal] = useState(false);
+
+  /** Load cases from API */
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ limit: "50" });
+      if (statusFilter) params.set("status", statusFilter);
+      const data = await apiFetch<CompassionCase[]>(`/api/compassion/cases?${params}`);
+      setCases(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load cases");
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter]);
+
+  // Load client and staff lists for the create form
+  useEffect(() => {
+    apiFetch<ClientOption[]>("/api/compassion/clients?limit=200")
+      .then((d) => setClientList(Array.isArray(d) ? d : []))
+      .catch(() => setClientList([]));
+
+    apiFetch<{ items?: StaffUser[] } | StaffUser[]>("/api/users?limit=100")
+      .then((d) => {
+        const list = Array.isArray(d) ? d : (d as { items?: StaffUser[] }).items ?? [];
+        setStaffList(list);
+      })
+      .catch(() => setStaffList([]));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 text-xl">📋</div>
-        <div>
-          <div className="flex items-center gap-2">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 text-xl">📋</div>
+          <div>
             <h1 className="text-xl font-semibold text-gray-900">Cases</h1>
-            <ComingSoonBadge />
+            <p className="text-sm text-gray-500 mt-0.5">Open, manage, and close client cases.</p>
           </div>
-          <p className="text-sm text-gray-500 mt-0.5">Open, manage, and close client cases.</p>
         </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+        >
+          + New Case
+        </button>
       </div>
-      <div className="bg-white rounded-xl border border-dashed border-blue-200 p-10 text-center">
-        <p className="text-gray-400 text-sm">Case management is coming soon.</p>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3">
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+        >
+          <option value="">All Statuses</option>
+          <option value="OPEN">Open</option>
+          <option value="IN_PROGRESS">In Progress</option>
+          <option value="PENDING">Pending</option>
+          <option value="CLOSED">Closed</option>
+          <option value="ARCHIVED">Archived</option>
+        </select>
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">{error}</div>
+      )}
+
+      {/* Table */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="p-10 text-center text-sm text-gray-400 animate-pulse">Loading cases…</div>
+        ) : cases.length === 0 ? (
+          <div className="p-10 text-center">
+            <p className="text-gray-400 text-sm">No cases found.</p>
+            <button onClick={() => setShowModal(true)}
+              className="mt-3 text-sm text-blue-600 hover:underline">Open the first case</button>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50">
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Case #</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Client</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Type</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Priority</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Opened</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden xl:table-cell">Assigned Staff</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {cases.map((c) => (
+                <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 font-mono text-xs text-blue-700">{c.caseNumber}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900">
+                    {c.client ? `${c.client.firstName} ${c.client.lastName}` : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 hidden md:table-cell">{typeLabel(c.caseType)}</td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusBadge(c.caseStatus)}`}>
+                      {c.caseStatus === "IN_PROGRESS" ? "In Progress"
+                        : c.caseStatus.charAt(0) + c.caseStatus.slice(1).toLowerCase()}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 hidden lg:table-cell">
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${priorityBadge(c.priority)}`}>
+                      {c.priority.charAt(0) + c.priority.slice(1).toLowerCase()}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">
+                    {new Date(c.openedAt).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 hidden xl:table-cell">
+                    {c.assignedStaff
+                      ? `${c.assignedStaff.firstName} ${c.assignedStaff.lastName}`
+                      : <span className="text-gray-300">Unassigned</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {!loading && cases.length > 0 && (
+        <p className="text-xs text-gray-400">{cases.length} case{cases.length !== 1 ? "s" : ""} shown</p>
+      )}
+
+      {showModal && (
+        <NewCaseModal
+          onClose={() => setShowModal(false)}
+          onCreated={load}
+          clientList={clientList}
+          staffList={staffList}
+        />
+      )}
     </div>
   );
 }
