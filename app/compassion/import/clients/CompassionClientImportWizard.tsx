@@ -1,7 +1,8 @@
 "use client";
 // Compassion CRM — 5-step client CSV import wizard.
 // Blue-themed mirror of app/data-tools/import/ImportWizard.tsx.
-// Reuses csvParser utilities; imports from compassionFieldMap for field definitions.
+// Uses csvParser for parsing (with auto-delimiter detection) and the dedicated
+// clientImportValidator module for all validation/transformation logic.
 
 import { useState, useRef, useCallback, useMemo, Fragment } from "react";
 import {
@@ -9,20 +10,19 @@ import {
   COMPASSION_AUTO_MAP_ALIASES,
   COMPASSION_FIELD_GROUPS,
   COMPASSION_SENSITIVE_FIELDS,
-  CLIENT_STATUS_MAP,
 } from "./compassionFieldMap";
 import type { CompassionClientField } from "./compassionFieldMap";
+import {
+  validateAndTransformClients,
+  issuesToCsv,
+  type FieldMapping,
+  type ClientValidationResult,
+} from "./clientImportValidator";
 import { parseCSV, computeColumnStats } from "@/app/data-tools/import/csvParser";
-import type { CsvParseResult, ColumnStats, RawRow } from "@/app/data-tools/import/csvParser";
+import type { CsvParseResult, ColumnStats, Delimiter } from "@/app/data-tools/import/csvParser";
 import { apiFetch } from "@/app/lib/auth-client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-/** Maps each CSV column header to a CompassionClient field key (or "skip") */
-type FieldMapping = Record<string, string>;
-
-/** A fully-mapped row ready for import: CRM field keys to string values */
-type MappedRow = Record<string, string>;
 
 /** Visual status badge variant for each CSV column's current mapping assignment */
 type MappingStatus = "mapped" | "required" | "unmapped" | "sensitive";
@@ -32,13 +32,6 @@ type StatusFilter = "all" | MappingStatus;
 
 /** How to handle existing client records during import */
 type ImportMode = "create_only" | "upsert" | "update_only";
-
-/** Result of running validateAndTransform in Step 3 */
-interface ValidationResult {
-  valid: MappedRow[];
-  errors: Array<{ row: number; field: string; message: string }>;
-  warnings: string[];
-}
 
 /** Import API response shape */
 interface ImportResult {
@@ -123,95 +116,21 @@ function getMappingStatus(csvHeader: string, crmKey: string): MappingStatus {
 }
 
 /**
- * formatPhone: normalizes a raw phone string to (xxx) xxx-xxxx US format.
- * Handles 10-digit and 11-digit (leading 1) numbers. Returns raw value if unrecognized.
+ * downloadIssuesCsv: triggers a browser download of the validation issues as a CSV file.
+ * Used by Step 3 "Download Error Report" button so users can fix and re-upload.
  */
-function formatPhone(raw: string): string {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length === 10) return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-  if (digits.length === 11 && digits[0] === "1")
-    return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
-  return raw;
-}
-
-/** CRM field keys that contain phone numbers — all get formatPhone() applied */
-const PHONE_FIELDS = new Set(["phone", "mobilePhone", "workPhone"]);
-
-/**
- * validateAndTransform: applies field-specific value transformations and validates required fields.
- * Returns valid (importable) rows plus per-row errors and file-level warnings.
- *
- * Transformations applied per field type:
- * - Phone fields:  normalize to (xxx) xxx-xxxx
- * - state:         uppercase + truncate to 2 characters
- * - clientStatus:  mapped through CLIENT_STATUS_MAP for eKYROS enum normalization
- *
- * Rows with neither firstName nor lastName (and no fullName fallback) are skipped.
- */
-function validateAndTransform(rows: RawRow[], mapping: FieldMapping): ValidationResult {
-  const valid: MappedRow[] = [];
-  const errors: Array<{ row: number; field: string; message: string }> = [];
-
-  rows.forEach((rawRow, i) => {
-    const mapped: MappedRow = {};
-
-    for (const [csvCol, crmKey] of Object.entries(mapping)) {
-      if (crmKey === "skip") continue;
-      let value = (rawRow[csvCol] ?? "").trim();
-
-      // Apply field-specific transformations
-      if (PHONE_FIELDS.has(crmKey)) {
-        value = formatPhone(value);
-      } else if (crmKey === "state") {
-        value = value.toUpperCase().slice(0, 2);
-      } else if (crmKey === "clientStatus" && value) {
-        // Normalize eKYROS status values to Prisma enum
-        value = CLIENT_STATUS_MAP[value.toLowerCase()] ?? "ACTIVE";
-      }
-
-      if (value !== "") mapped[crmKey] = value;
-    }
-
-    // If only fullName is available, try to split into first/last
-    if (!mapped.firstName && !mapped.lastName && mapped.fullName) {
-      const parts = mapped.fullName.trim().split(/\s+/);
-      mapped.firstName = parts[0] ?? "";
-      mapped.lastName = parts.slice(1).join(" ") || (parts[0] ?? "");
-    }
-
-    // Require at least firstName or lastName — skip rows with neither
-    if (!mapped.firstName && !mapped.lastName) {
-      errors.push({
-        row: i + 1,
-        field: "lastName",
-        message: `Row ${i + 1}: no name found — record skipped`,
-      });
-      return;
-    }
-
-    // Reject metadata/report rows: names containing commas or matching eKYROS report patterns
-    // e.g. "Text,Aurora,False,Active,,," is a report-widget configuration row, not a real client
-    const isMetadataName = (s: string) =>
-      s.includes(",") ||
-      /^(text|true|false|#|row|column|label|field|widget|report)\b/i.test(s);
-    if (isMetadataName(mapped.firstName ?? "") || isMetadataName(mapped.lastName ?? "")) {
-      errors.push({
-        row: i + 1,
-        field: "firstName",
-        message: `Row ${i + 1}: name looks like report metadata ("${mapped.firstName}") — skipped`,
-      });
-      return;
-    }
-
-    valid.push(mapped);
-  });
-
-  const warnings: string[] = [];
-  if (errors.length > 0) {
-    warnings.push(`${errors.length} row(s) missing name fields will be skipped.`);
-  }
-
-  return { valid, errors, warnings };
+function downloadIssuesCsv(result: ClientValidationResult, sourceFilename: string) {
+  const csv = issuesToCsv(result.issues);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const baseName = sourceFilename.replace(/\.[^.]+$/, "") || "compassion-import";
+  a.download = `${baseName}-import-issues.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -400,6 +319,9 @@ export default function CompassionClientImportWizard() {
 
   // ── Step 1: Upload ───────────────────────────────────────────────────────
   const [file, setFile] = useState<File | null>(null);
+  const [rawText, setRawText] = useState<string>("");
+  const [pasteText, setPasteText] = useState<string>("");
+  const [delimiter, setDelimiter] = useState<Delimiter>("auto");
   const [parseResult, setParseResult] = useState<CsvParseResult | null>(null);
   const [columnStats, setColumnStats] = useState<Record<string, ColumnStats>>({});
   const [dragOver, setDragOver] = useState(false);
@@ -412,7 +334,7 @@ export default function CompassionClientImportWizard() {
   const [colSearch, setColSearch] = useState("");
 
   // ── Step 3: Validation ───────────────────────────────────────────────────
-  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [validationResult, setValidationResult] = useState<ClientValidationResult | null>(null);
 
   // ── Step 4: Import settings ──────────────────────────────────────────────
   const [importMode, setImportMode] = useState<ImportMode>("create_only");
@@ -481,31 +403,52 @@ export default function CompassionClientImportWizard() {
     return w;
   }, [parseResult, columnStats]);
 
-  // ── File handling ─────────────────────────────────────────────────────────
+  // ── File / text handling ─────────────────────────────────────────────────
 
   /**
-   * processFile: reads a File object, parses CSV content, computes column stats,
-   * and auto-maps headers using the compassion alias table.
+   * processText: parses raw CSV/TSV/pasted text using the current delimiter setting,
+   * computes column stats, and auto-maps headers using the compassion alias table.
+   * Called whenever a file is loaded, text is pasted, or the delimiter dropdown changes.
+   */
+  const processText = useCallback((text: string, withDelimiter: Delimiter) => {
+    setRawText(text);
+    const result = parseCSV(text, withDelimiter);
+    const stats = computeColumnStats(result.headers, result.rows);
+    setParseResult(result);
+    setColumnStats(stats);
+    setMapping(autoMap(result.headers));
+    setSelectedCol(result.headers[0] ?? null);
+    // Reset downstream state when source changes
+    setValidationResult(null);
+    setImportResult(null);
+    setImportError(null);
+  }, []);
+
+  /**
+   * processFile: reads a File object and hands the text to processText.
    * Called on file drop or file input change.
    */
-  const processFile = useCallback((f: File) => {
-    setFile(f);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      const result = parseCSV(text);
-      const stats = computeColumnStats(result.headers, result.rows);
-      setParseResult(result);
-      setColumnStats(stats);
-      setMapping(autoMap(result.headers));
-      setSelectedCol(result.headers[0] ?? null);
-      // Reset downstream state when a new file is loaded
-      setValidationResult(null);
-      setImportResult(null);
-      setImportError(null);
-    };
-    reader.readAsText(f);
-  }, []);
+  const processFile = useCallback(
+    (f: File) => {
+      setFile(f);
+      const reader = new FileReader();
+      reader.onload = (e) => processText((e.target?.result as string) ?? "", delimiter);
+      reader.readAsText(f);
+    },
+    [processText, delimiter],
+  );
+
+  /**
+   * applyDelimiterChange: re-parses the currently loaded text using the new delimiter.
+   * Lets the user override auto-detection without re-uploading the file.
+   */
+  const applyDelimiterChange = useCallback(
+    (next: Delimiter) => {
+      setDelimiter(next);
+      if (rawText) processText(rawText, next);
+    },
+    [rawText, processText],
+  );
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -587,13 +530,20 @@ export default function CompassionClientImportWizard() {
 
   /** Step 1: drag-drop file upload zone with SSN warning banner and data quality notes */
   function renderStep1() {
+    const delimiterLabel: Record<Exclude<Delimiter, "auto">, string> = {
+      ",": "Comma",
+      "\t": "Tab",
+      ";": "Semicolon",
+      "|": "Pipe",
+    };
+
     return (
       <div className="flex flex-col gap-6">
         <div>
           <h2 className="text-lg font-bold text-gray-800">Upload CSV File</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Supports eKYROS &ldquo;Client File Address List&rdquo; exports and standard client CSVs.
-            Column headers are auto-detected even when the file contains title rows above the data.
+            Supports eKYROS &ldquo;Client File Address List&rdquo; exports, standard CSVs, TSVs,
+            and pasted tabular text. The delimiter is auto-detected; you can override it below.
           </p>
         </div>
 
@@ -612,26 +562,71 @@ export default function CompassionClientImportWizard() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".csv,.txt"
+            accept=".csv,.tsv,.txt"
             className="hidden"
             onChange={handleFileInput}
           />
-          <span className="text-4xl mb-3">{file ? "📄" : "📂"}</span>
-          {file ? (
+          <span className="text-4xl mb-3">{file || rawText ? "📄" : "📂"}</span>
+          {file || (rawText && !file) ? (
             <div className="text-center">
-              <p className="font-semibold text-gray-800">{file.name}</p>
+              <p className="font-semibold text-gray-800">{file?.name ?? "Pasted text"}</p>
               <p className="text-sm text-gray-500 mt-1">
                 {parseResult
-                  ? `${parseResult.rows.length.toLocaleString()} records · ${parseResult.headers.length} columns · headers on row ${parseResult.detectedHeaderRow}`
+                  ? `${parseResult.rows.length.toLocaleString()} records · ${parseResult.headers.length} columns · headers on row ${parseResult.detectedHeaderRow} · ${delimiterLabel[parseResult.delimiter]}-delimited`
                   : "Parsing…"}
               </p>
             </div>
           ) : (
             <div className="text-center">
               <p className="font-semibold text-gray-700">Drop CSV here or click to browse</p>
-              <p className="text-sm text-gray-400 mt-1">Accepts .csv or .txt · Processed entirely in your browser</p>
+              <p className="text-sm text-gray-400 mt-1">
+                Accepts .csv, .tsv, .txt · Processed entirely in your browser
+              </p>
             </div>
           )}
+        </div>
+
+        {/* Delimiter override + paste tabular data */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          <div className="md:col-span-1">
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Delimiter</label>
+            <select
+              value={delimiter}
+              onChange={(e) => applyDelimiterChange(e.target.value as Delimiter)}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+            >
+              <option value="auto">Auto-detect</option>
+              <option value=",">Comma (,)</option>
+              <option value="\t">Tab</option>
+              <option value=";">Semicolon (;)</option>
+              <option value="|">Pipe (|)</option>
+            </select>
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-xs font-semibold text-gray-600 mb-1">
+              … or paste tabular data
+            </label>
+            <div className="flex gap-2">
+              <textarea
+                rows={2}
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+                placeholder="Paste CSV / TSV rows here (including the header row)…"
+                className="flex-1 text-xs border border-gray-200 rounded-lg px-3 py-2 font-mono"
+              />
+              <button
+                type="button"
+                disabled={!pasteText.trim()}
+                onClick={() => {
+                  setFile(null);
+                  processText(pasteText, delimiter);
+                }}
+                className="px-3 py-2 text-xs font-medium border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50 disabled:opacity-40"
+              >
+                Parse Text
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* SSN blocking warning banner — shown when SSN column detected */}
@@ -841,7 +836,7 @@ export default function CompassionClientImportWizard() {
           <button
             disabled={statusCounts.required > 0}
             onClick={() => {
-              const result = validateAndTransform(parseResult.rows, mapping);
+              const result = validateAndTransformClients(parseResult.rows, mapping);
               setValidationResult(result);
               setStep(3);
             }}
@@ -854,41 +849,61 @@ export default function CompassionClientImportWizard() {
     );
   }
 
-  /** Step 3: validation results — error list, warnings, and first-5-row preview */
+  /** Step 3: validation results — error+warning list, file warnings, downloadable report, preview */
   function renderStep3() {
     if (!validationResult || !parseResult) return null;
-    const { valid, errors, warnings } = validationResult;
+    const { valid, issues, warnings, counts } = validationResult;
+    const errorIssues = issues.filter((i) => i.severity === "error");
+    const warningIssues = issues.filter((i) => i.severity === "warning");
     const total = parseResult.rows.length;
 
     return (
       <div className="flex flex-col gap-6">
-        <div>
-          <h2 className="text-lg font-bold text-gray-800">Review &amp; Validate</h2>
-          <p className="text-sm text-gray-500">
-            Fields have been transformed and validated. Review any issues before continuing.
-          </p>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-lg font-bold text-gray-800">Review &amp; Validate</h2>
+            <p className="text-sm text-gray-500">
+              Fields have been transformed and validated. Garbage rows are filtered out automatically.
+            </p>
+          </div>
+          {issues.length > 0 && (
+            <button
+              type="button"
+              onClick={() => downloadIssuesCsv(validationResult, file?.name ?? "compassion-import")}
+              className="px-3 py-1.5 text-xs font-medium border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50"
+            >
+              ⬇ Download Error Report ({issues.length})
+            </button>
+          )}
         </div>
 
         {/* Summary stats */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <StatCard label="Total Rows" value={total.toLocaleString()} />
           <StatCard label="Ready" value={valid.length.toLocaleString()} accent="text-blue-600" />
           <StatCard
-            label="Row Errors"
-            value={errors.length}
-            accent={errors.length > 0 ? "text-red-600" : "text-gray-400"}
+            label="Garbage Skipped"
+            value={counts.skippedGarbage}
+            accent={counts.skippedGarbage > 0 ? "text-red-600" : "text-gray-400"}
+            sub="report/widget rows"
+          />
+          <StatCard
+            label="Errors"
+            value={errorIssues.length}
+            accent={errorIssues.length > 0 ? "text-red-600" : "text-gray-400"}
           />
           <StatCard
             label="Warnings"
-            value={warnings.length}
-            accent={warnings.length > 0 ? "text-orange-500" : "text-gray-400"}
+            value={warningIssues.length}
+            accent={warningIssues.length > 0 ? "text-orange-500" : "text-gray-400"}
+            sub={counts.duplicatesInFile > 0 ? `${counts.duplicatesInFile} dup` : undefined}
           />
         </div>
 
-        {/* Warnings */}
+        {/* File-level warnings */}
         {warnings.length > 0 && (
           <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
-            <p className="text-xs font-bold text-orange-700 mb-1.5">Warnings</p>
+            <p className="text-xs font-bold text-orange-700 mb-1.5">File-level notes</p>
             <ul className="list-disc list-inside space-y-0.5">
               {warnings.map((w, i) => (
                 <li key={i} className="text-xs text-orange-700">{w}</li>
@@ -897,33 +912,51 @@ export default function CompassionClientImportWizard() {
           </div>
         )}
 
-        {/* Row errors */}
-        {errors.length > 0 && (
+        {/* Per-row issues table (errors first, then warnings) */}
+        {issues.length > 0 && (
           <div>
-            <p className="text-xs font-bold text-red-600 mb-2">
-              Rows with errors (will be skipped):
+            <p className="text-xs font-bold text-gray-700 mb-2">
+              Row issues ({errorIssues.length} error{errorIssues.length !== 1 ? "s" : ""},{" "}
+              {warningIssues.length} warning{warningIssues.length !== 1 ? "s" : ""})
             </p>
-            <div className="max-h-40 overflow-y-auto rounded-lg border border-red-200">
+            <div className="max-h-56 overflow-y-auto rounded-lg border border-gray-200">
               <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-red-100 border-b border-red-200">
+                <thead className="sticky top-0 bg-gray-100 border-b border-gray-200">
                   <tr>
-                    <th className="text-left px-3 py-1.5 text-red-700 font-semibold">Row</th>
-                    <th className="text-left px-3 py-1.5 text-red-700 font-semibold">Field</th>
-                    <th className="text-left px-3 py-1.5 text-red-700 font-semibold">Issue</th>
+                    <th className="text-left px-3 py-1.5 text-gray-600 font-semibold w-14">Row</th>
+                    <th className="text-left px-3 py-1.5 text-gray-600 font-semibold w-20">Severity</th>
+                    <th className="text-left px-3 py-1.5 text-gray-600 font-semibold w-28">Field</th>
+                    <th className="text-left px-3 py-1.5 text-gray-600 font-semibold">Issue</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {errors.slice(0, 50).map((e, i) => (
-                    <tr key={i} className="border-t border-red-100">
-                      <td className="px-3 py-1 text-red-600 tabular-nums">{e.row}</td>
-                      <td className="px-3 py-1 text-red-600">{e.field}</td>
-                      <td className="px-3 py-1 text-red-700">{e.message}</td>
+                  {[...errorIssues, ...warningIssues].slice(0, 100).map((e, i) => (
+                    <tr
+                      key={i}
+                      className={`border-t ${
+                        e.severity === "error" ? "border-red-100 bg-red-50/40" : "border-orange-100 bg-orange-50/30"
+                      }`}
+                    >
+                      <td className="px-3 py-1 tabular-nums text-gray-600">{e.row}</td>
+                      <td className="px-3 py-1">
+                        <span
+                          className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                            e.severity === "error"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-orange-100 text-orange-700"
+                          }`}
+                        >
+                          {e.severity}
+                        </span>
+                      </td>
+                      <td className="px-3 py-1 text-gray-600">{e.field}</td>
+                      <td className="px-3 py-1 text-gray-700">{e.message}</td>
                     </tr>
                   ))}
-                  {errors.length > 50 && (
+                  {issues.length > 100 && (
                     <tr>
-                      <td colSpan={3} className="px-3 py-1 text-red-400 italic">
-                        … and {errors.length - 50} more
+                      <td colSpan={4} className="px-3 py-1 text-gray-400 italic text-center">
+                        … and {issues.length - 100} more — download the error report for the full list.
                       </td>
                     </tr>
                   )}
@@ -1167,6 +1200,8 @@ export default function CompassionClientImportWizard() {
             onClick={() => {
               setStep(1);
               setFile(null);
+              setRawText("");
+              setPasteText("");
               setParseResult(null);
               setValidationResult(null);
               setImportResult(null);
@@ -1191,11 +1226,11 @@ export default function CompassionClientImportWizard() {
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 space-y-1.5">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">File</p>
-            <p className="text-sm font-semibold text-gray-800 truncate">{file?.name ?? "—"}</p>
+            <p className="text-sm font-semibold text-gray-800 truncate">{file?.name ?? "Pasted text"}</p>
             <p className="text-xs text-gray-500">
               {validationResult.valid.length} valid rows
-              {validationResult.errors.length > 0
-                ? ` · ${validationResult.errors.length} skipped`
+              {validationResult.counts.skippedGarbage + validationResult.counts.skippedMissingName > 0
+                ? ` · ${validationResult.counts.skippedGarbage + validationResult.counts.skippedMissingName} skipped`
                 : ""}
             </p>
           </div>

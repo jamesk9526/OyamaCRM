@@ -266,3 +266,33 @@ The import mapper must NEVER fall behind the data model. Treat field mapping, va
 5. Merge workflow must never silently overwrite data. Always show the user what will change.
 6. Add `// TODO: backend API needed` comments where import/merge backend endpoints are not yet wired.
 <!-- END:import-mapping-rules -->
+
+<!-- BEGIN:compassion-crm-rules -->
+## Compassion CRM (Client) Rules
+
+The Compassion CRM is **privacy-first** and contains sensitive client data (intake records, assessments, case notes, appointments). Treat every client record as its own isolated scope.
+
+### Client-scope rules
+1. Every client tool/tab must be scoped by `clientId`. Notes, appointments, documents, services, assessments, pregnancy tests, ultrasounds, material assistance, referrals, and communication logs **must** filter by the client whose profile is open.
+2. Compassion CRM data must never appear in Donor CRM or Events CRM lists/reports/exports unless the user explicitly links a donor↔client through the shared person layer.
+3. SSN / SIN / tax-ID columns are **always** stripped server-side, even if a payload includes them.
+4. Public-facing forms (scheduling widget, intake forms) must never expose private staff-only fields, internal IDs, or other clients' data.
+5. Imports must run through `app/compassion/import/clients/clientImportValidator.ts` (the single source of truth for "is this row real?"). Any new validation rule should land there, with a unit test.
+
+### Importer source of truth
+- Heuristics for rejecting metadata/garbage/widget rows live in `clientImportValidator.ts` (`GARBAGE_NAME_PATTERNS`, `RESERVED_NAME_TOKENS`).
+- The same heuristics are mirrored in `server/src/routes/compassion.ts` `POST /clients/import` for defense-in-depth. Keep them in sync; if you change one, change the other.
+- The list endpoint `GET /api/compassion/clients` also defensively filters comma- or em-dash-named legacy rows out of responses. Keep this guard.
+
+### "Not yet implemented" warning policy
+Any tab, button, page, or feature in the Compassion CRM that is **not fully functional** must show a clear popup or banner explaining that the feature is still in development. Add an entry to the table in `CLIENT_CRM_TASKS.md` ("Not yet implemented popup tracking") with explicit criteria for removing the warning. The warning may only be removed once:
+1. All listed removal criteria are met.
+2. At least one happy-path test exists.
+3. The criteria-met removal is mentioned in the PR description.
+
+### Documentation
+Keep these three documents current as the Compassion CRM evolves:
+- `CLIENT_CRM_AUDIT.md` — current state of importer, search, profile, scheduling.
+- `CLIENT_CRM_IMPORTER_PLAN.md` — the multi-batch importer plan.
+- `CLIENT_CRM_TASKS.md` — live checklist; never delete completed entries.
+<!-- END:compassion-crm-rules -->

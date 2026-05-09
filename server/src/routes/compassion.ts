@@ -252,7 +252,18 @@ router.get("/dashboard-summary", async (req, res) => {
 /**
  * GET /api/compassion/clients
  * List clients for the authenticated org.
- * Supports query params: search, status, staffId, limit (default 50).
+ *
+ * Query params:
+ *   search        — full-text-ish match against firstName/lastName/preferredName/email/phone/referralSource
+ *   status        — filter by clientStatus enum
+ *   staffId       — filter by exact assignedStaffId
+ *   assigned      — "true" → only assigned, "false" → only unassigned
+ *   missingContact — "true" → only clients with no email AND no phone
+ *   intakeWithinDays — number; only clients whose intakeDate is within the last N days
+ *   limit         — defaults to 50
+ *
+ * Defense-in-depth: rows whose firstName or lastName contains a comma are filtered out
+ * after the DB query so legacy garbage rows from older imports never surface in the UI.
  */
 router.get("/clients", async (req, res) => {
   try {
@@ -262,25 +273,51 @@ router.get("/clients", async (req, res) => {
       return;
     }
 
-    const { search, status, staffId, limit = "50" } = req.query as Record<string, string>;
+    const {
+      search,
+      status,
+      staffId,
+      assigned,
+      missingContact,
+      intakeWithinDays,
+      limit = "50",
+    } = req.query as Record<string, string>;
+
+    const intakeFloor =
+      intakeWithinDays && /^\d+$/.test(intakeWithinDays)
+        ? new Date(Date.now() - Number(intakeWithinDays) * 24 * 60 * 60 * 1000)
+        : undefined;
 
     const where = {
       organizationId,
       ...(status && { clientStatus: status as CompassionClientStatus }),
       ...(staffId && { assignedStaffId: staffId }),
+      ...(assigned === "true" && { NOT: [{ assignedStaffId: null }] }),
+      ...(assigned === "false" && { assignedStaffId: null }),
+      ...(missingContact === "true" && {
+        AND: [
+          { OR: [{ email: null }, { email: "" }] },
+          { OR: [{ phone: null }, { phone: "" }] },
+        ],
+      }),
+      ...(intakeFloor && { intakeDate: { gte: intakeFloor } }),
       ...(search && {
         OR: [
           { firstName: { contains: search } },
           { lastName: { contains: search } },
+          { preferredName: { contains: search } },
           { email: { contains: search } },
           { phone: { contains: search } },
+          { referralSource: { contains: search } },
         ],
       }),
     };
 
+    const parsedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
+
     const clients = await prisma.compassionClient.findMany({
       where,
-      take: parseInt(limit),
+      take: parsedLimit,
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       select: {
         id: true,
@@ -297,7 +334,19 @@ router.get("/clients", async (req, res) => {
       },
     });
 
-    res.json(clients);
+    // Defensive filter: never return rows whose name field contains comma-separated metadata.
+    // This protects users from legacy bad imports that pre-date the importer hardening.
+    const safe = clients.filter((c) => {
+      const fn = (c.firstName ?? "").trim();
+      const ln = (c.lastName ?? "").trim();
+      // Comma in a name almost always means metadata leaked in (e.g. "Text,Aurora,False,...").
+      if (fn.includes(",") || ln.includes(",")) return false;
+      // Em-dash separator from eKYROS report exports.
+      if (/\s—\s/.test(fn) || /\s—\s/.test(ln)) return false;
+      return true;
+    });
+
+    res.json(safe);
   } catch (err) {
     console.error("[compassion] GET /clients error:", err);
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load clients" } });
@@ -1275,14 +1324,36 @@ router.post("/clients/import", async (req, res) => {
           continue;
         }
 
-        // Reject metadata rows: names containing commas or matching known eKYROS report patterns
-        // (e.g. "Text,Aurora,False,Active,,," are report-widget rows, not real clients)
-        const isMetadataName = (s: string) =>
-          s.includes(",") ||
-          /^(text|true|false|#|row|column|label|field|widget|report)\b/i.test(s);
-        if (isMetadataName(firstName) || isMetadataName(lastName)) {
+        // Reject metadata / report / widget rows with a stronger heuristic that mirrors
+        // the client-side validator in app/compassion/import/clients/clientImportValidator.ts.
+        // This is defense-in-depth: the wizard already filters these out, but a misbehaving
+        // client (or curl) must not be able to inject garbage rows directly into the DB.
+        const looksLikeGarbage = (s: string) => {
+          const t = (s ?? "").trim();
+          if (!t) return false;
+          // Comma-separated metadata e.g. "Text,Aurora,False,Active,No,Not Applicable"
+          if (/^[A-Za-z]+(?:,[^,]*){2,}/.test(t)) return true;
+          // Widget / control / report tokens
+          if (/^(text|true|false|null|none|n\/a|na|undefined|#?\s*row|column|label|field|widget|report|page|total|export|generated|filter|legend|header|footer)\b/i.test(t))
+            return true;
+          // ALL_CAPS layout artifacts
+          if (/^[A-Z0-9_\-\s]{12,}$/.test(t)) return true;
+          // Mostly digits / dashes / em-dashes
+          if (/^[\d\s\-—–.,/]{6,}$/.test(t)) return true;
+          // Contains the eKYROS em-dash separator
+          if (/\s—\s/.test(t)) return true;
+          // Single-token reserved placeholders
+          if (/^(test|demo|sample|placeholder|tbd|tba|anonymous|unknown)$/i.test(t)) return true;
+          return false;
+        };
+        if (looksLikeGarbage(firstName) || looksLikeGarbage(lastName)) {
           skipped++;
           continue;
+        }
+
+        // Drop obviously-invalid emails server-side too — never store junk in the email column.
+        if (rec.email && !/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]{2,}$/.test(rec.email.trim())) {
+          delete rec.email;
         }
 
         const clientStatus = statusNormalize(rec.clientStatus ?? "");

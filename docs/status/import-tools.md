@@ -15,7 +15,8 @@ Donor-side import tooling is operational and API-backed for constituent and dona
 | Data Tools | Field mapping engine | Working | Real API Data | `fieldMap.ts` + `donationFieldMap.ts` provide mapping aliases and required-field behavior. | Keep maps synchronized whenever schema fields are added. |
 | Data Tools | Duplicate review + merge | Partial | Mixed Real/Demo Data | `MergeWorkflow.tsx` provides review UI but no backend merge write endpoint. | Implement `POST /api/constituents/merge` with conflict-resolution options. |
 | Data Tools | Saved mapping templates | Partial | Mixed Real/Demo Data | Save support exists but load/history flow is not complete end-to-end. | Add mapping template management APIs and selector UI. |
-| Data Tools | Compassion import tools | Not Started | Unknown / Needs Verification | No dedicated `/compassion/data-tools/import` with real client schema integration. | Build Compassion import flow after client/case models are implemented. |
+| Data Tools | Compassion client import wizard | Working | Real API Data | `app/compassion/import/clients/CompassionClientImportWizard.tsx` posts to `/api/compassion/clients/import` with dry-run, auto-delimiter, paste-text, downloadable error report, in-file dedup, and `Full Name(Preferred)` parsing. Validation lives in `clientImportValidator.ts` (39 unit tests). | Add import-history page + rollback (Batch 2). |
+| Data Tools | Compassion duplicate review center | Not Started | n/a | Today the importer warns on in-file dups but the server upserts on email match without a review queue. | Persist duplicate candidates and add `app/compassion/clients/duplicates/page.tsx` (Batch 3). |
 
 ## Real Data vs Demo Data Audit
 

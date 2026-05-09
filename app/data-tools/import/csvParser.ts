@@ -1,8 +1,12 @@
-// CSV parsing utilities — smart header detection, quoted-field parsing, and column-type inference.
-// Used by ImportWizard to process uploaded CSV files entirely client-side (no external libraries).
+// CSV / TSV / pasted-tabular parsing utilities — smart header detection,
+// delimiter auto-detection, quoted-field parsing, and column-type inference.
+// Used by both Donor and Compassion CRM import wizards. Pure client-side; no deps.
 
 /** Raw parsed row: maps CSV column header names to cell values (as strings). */
 export type RawRow = Record<string, string>;
+
+/** Supported delimiters. "auto" lets parseCSV detect from sample lines. */
+export type Delimiter = "," | "\t" | ";" | "|" | "auto";
 
 /** Result of parsing a CSV file, including which row contained the headers. */
 export interface CsvParseResult {
@@ -10,6 +14,8 @@ export interface CsvParseResult {
   rows: RawRow[];
   /** 1-based row number where actual column headers were found (for display to the user). */
   detectedHeaderRow: number;
+  /** The delimiter that was actually used (resolved from "auto" if needed). */
+  delimiter: Exclude<Delimiter, "auto">;
 }
 
 /**
@@ -30,10 +36,10 @@ export interface ColumnStats {
 // ─── Internal parsing helpers ─────────────────────────────────────────────────
 
 /**
- * splitCsvLine: parse one CSV line, respecting quoted fields with embedded commas and "" escapes.
- * Handles the RFC 4180 standard quoting rules.
+ * splitCsvLine: parse one line using the given delimiter, respecting quoted fields with embedded
+ * delimiters and "" escapes. Handles RFC 4180-style quoting for any single-character delimiter.
  */
-function splitCsvLine(line: string): string[] {
+function splitCsvLine(line: string, delimiter: string = ","): string[] {
   const fields: string[] = [];
   let cur = "";
   let inQuotes = false;
@@ -43,7 +49,7 @@ function splitCsvLine(line: string): string[] {
       // "" inside a quoted field = escaped double-quote
       if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
       else { inQuotes = !inQuotes; }
-    } else if (ch === "," && !inQuotes) {
+    } else if (ch === delimiter && !inQuotes) {
       fields.push(cur.trim());
       cur = "";
     } else {
@@ -52,6 +58,36 @@ function splitCsvLine(line: string): string[] {
   }
   fields.push(cur.trim());
   return fields;
+}
+
+/**
+ * detectDelimiter: choose the most likely column delimiter from the first ~20 non-empty lines
+ * by counting occurrences of `,`, `\t`, `;`, and `|` outside of quoted regions and picking the
+ * delimiter whose per-line count is the most consistent and largest.
+ *
+ * Falls back to "," when no delimiter shows up clearly (single-column files).
+ */
+export function detectDelimiter(lines: string[]): Exclude<Delimiter, "auto"> {
+  const candidates: Array<Exclude<Delimiter, "auto">> = [",", "\t", ";", "|"];
+  const sample = lines.filter((l) => l.trim() !== "").slice(0, 20);
+  if (sample.length === 0) return ",";
+
+  let best: Exclude<Delimiter, "auto"> = ",";
+  let bestScore = -1;
+  for (const d of candidates) {
+    const counts = sample.map((l) => splitCsvLine(l, d).length - 1);
+    const max = Math.max(...counts);
+    if (max < 1) continue;
+    // Score = avg count, penalised by variance so jagged delimiters lose
+    const avg = counts.reduce((a, b) => a + b, 0) / counts.length;
+    const variance = counts.reduce((a, b) => a + (b - avg) ** 2, 0) / counts.length;
+    const score = avg - variance * 0.5;
+    if (score > bestScore) {
+      bestScore = score;
+      best = d;
+    }
+  }
+  return best;
 }
 
 /**
@@ -89,41 +125,53 @@ function isHeaderRow(cells: string[]): boolean {
  * Skips title/blank rows (e.g. "textbox1", report titles, empty lines).
  * Returns the 0-based index of the detected header row; falls back to 0 if none found.
  */
-export function detectHeaderRow(lines: string[]): number {
+export function detectHeaderRow(lines: string[], delimiter: string = ","): number {
   const limit = Math.min(lines.length, 10);
   for (let i = 0; i < limit; i++) {
-    const cells = splitCsvLine(lines[i]);
+    const cells = splitCsvLine(lines[i], delimiter);
     if (!isTitleRow(cells) && isHeaderRow(cells)) return i;
   }
   return 0;
 }
 
 /**
- * parseCSV: full CSV parser with smart header detection.
- * Skips title/blank rows above the detected header row.
- * Returns the headers array, data rows keyed by header name, and the 1-based header row number.
+ * parseCSV: full parser with smart header + delimiter detection. Strips a leading UTF-8 BOM and
+ * normalizes line endings. Skips title/blank rows above the detected header row.
  *
- * @param text — raw CSV file content as a string
+ * @param text       — raw CSV/TSV/pasted-tabular content
+ * @param delimiter  — delimiter to use; "auto" (default) detects from the file content
  */
-export function parseCSV(text: string): CsvParseResult {
-  const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
-  if (lines.length === 0) return { headers: [], rows: [], detectedHeaderRow: 1 };
+export function parseCSV(text: string, delimiter: Delimiter = "auto"): CsvParseResult {
+  // Strip UTF-8 BOM if present (common in Windows / Excel exports)
+  const cleaned = text.replace(/^\uFEFF/, "");
+  const lines = cleaned.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  if (lines.length === 0) {
+    return { headers: [], rows: [], detectedHeaderRow: 1, delimiter: "," };
+  }
 
-  const headerIdx = detectHeaderRow(lines);
-  // Filter empty trailing header cells (from trailing commas)
-  const headers = splitCsvLine(lines[headerIdx]).filter((h) => h.trim() !== "");
+  const resolvedDelimiter: Exclude<Delimiter, "auto"> =
+    delimiter === "auto" ? detectDelimiter(lines) : delimiter;
+
+  const headerIdx = detectHeaderRow(lines, resolvedDelimiter);
+  // Filter empty trailing header cells (from trailing delimiters)
+  const headers = splitCsvLine(lines[headerIdx], resolvedDelimiter).filter((h) => h.trim() !== "");
   const rows: RawRow[] = [];
 
   for (let i = headerIdx + 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue; // skip blank lines
-    const values = splitCsvLine(line);
+    const line = lines[i];
+    if (!line.trim()) continue; // skip blank lines
+    const values = splitCsvLine(line, resolvedDelimiter);
     const row: RawRow = {};
     headers.forEach((h, idx) => { row[h] = values[idx] ?? ""; });
     rows.push(row);
   }
 
-  return { headers, rows, detectedHeaderRow: headerIdx + 1 }; // +1 for 1-based display
+  return {
+    headers,
+    rows,
+    detectedHeaderRow: headerIdx + 1, // +1 for 1-based display
+    delimiter: resolvedDelimiter,
+  };
 }
 
 // ─── Column statistics ────────────────────────────────────────────────────────

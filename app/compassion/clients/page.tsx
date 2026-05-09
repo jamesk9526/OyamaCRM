@@ -202,6 +202,9 @@ export default function CompassionClientsPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [assignedFilter, setAssignedFilter] = useState<"" | "true" | "false">("");
+  const [missingContact, setMissingContact] = useState(false);
+  const [intakeWindow, setIntakeWindow] = useState<"" | "30" | "90">("");
   const [showModal, setShowModal] = useState(false);
 
   /** Load clients from API */
@@ -212,6 +215,9 @@ export default function CompassionClientsPage() {
       const params = new URLSearchParams({ limit: "50" });
       if (search) params.set("search", search);
       if (statusFilter) params.set("status", statusFilter);
+      if (assignedFilter) params.set("assigned", assignedFilter);
+      if (missingContact) params.set("missingContact", "true");
+      if (intakeWindow) params.set("intakeWithinDays", intakeWindow);
       const data = await apiFetch<CompassionClient[]>(`/api/compassion/clients?${params}`);
       setClients(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -219,7 +225,7 @@ export default function CompassionClientsPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter]);
+  }, [search, statusFilter, assignedFilter, missingContact, intakeWindow]);
 
   // Load staff list for assignee dropdown (reuse /api/users)
   useEffect(() => {
@@ -231,7 +237,7 @@ export default function CompassionClientsPage() {
       .catch(() => setStaffList([]));
   }, []);
 
-  // Reload when filters change (debounced for search)
+  // Reload when filters change (debounced for search; immediate for select/checkbox toggles)
   useEffect(() => {
     const timer = setTimeout(load, search ? 300 : 0);
     return () => clearTimeout(timer);
@@ -257,13 +263,13 @@ export default function CompassionClientsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3 items-center">
         <input
           type="text"
-          placeholder="Search by name, email, phone…"
+          placeholder="Search name, preferred name, email, phone, referral source…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-64"
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-72"
         />
         <select
           value={statusFilter}
@@ -277,6 +283,50 @@ export default function CompassionClientsPage() {
           <option value="ARCHIVED">Archived</option>
           <option value="PENDING">Pending</option>
         </select>
+        <select
+          value={assignedFilter}
+          onChange={(e) => setAssignedFilter(e.target.value as "" | "true" | "false")}
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+          title="Filter by staff assignment"
+        >
+          <option value="">Any Assignment</option>
+          <option value="true">Assigned</option>
+          <option value="false">Unassigned</option>
+        </select>
+        <select
+          value={intakeWindow}
+          onChange={(e) => setIntakeWindow(e.target.value as "" | "30" | "90")}
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+          title="Filter by recent intake"
+        >
+          <option value="">Any Intake Date</option>
+          <option value="30">Intake last 30 days</option>
+          <option value="90">Intake last 90 days</option>
+        </select>
+        <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={missingContact}
+            onChange={(e) => setMissingContact(e.target.checked)}
+            className="rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+          />
+          Missing contact info
+        </label>
+        {(search || statusFilter || assignedFilter || missingContact || intakeWindow) && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearch("");
+              setStatusFilter("");
+              setAssignedFilter("");
+              setMissingContact(false);
+              setIntakeWindow("");
+            }}
+            className="text-xs text-gray-500 hover:text-gray-700 underline"
+          >
+            Clear filters
+          </button>
+        )}
       </div>
 
       {/* Error */}
