@@ -6,18 +6,17 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import AppsDrawer, { AppsGridIcon } from "@/app/components/layout/AppsDrawer";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 interface SearchResult {
   id: string;
-  type: "constituent" | "donation" | "campaign";
+  type: "constituent" | "donation" | "campaign" | "client" | "case";
   label: string;
   sublabel?: string;
   href: string;
 }
 
-function GlobalSearch() {
+function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "events" }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -47,15 +46,32 @@ function GlobalSearch() {
     if (!q.trim()) { setResults([]); setOpen(false); return; }
     setLoading(true);
     try {
-      const [constituentRes, campaignRes] = await Promise.all([
-        fetch(`${API_BASE}/api/constituents?search=${encodeURIComponent(q)}&limit=5`),
-        fetch(`${API_BASE}/api/campaigns?search=${encodeURIComponent(q)}&limit=3`),
-      ]);
-
       const allResults: SearchResult[] = [];
 
-      if (constituentRes.ok) {
-        const constituents = await constituentRes.json();
+      if (moduleKey === "compassion") {
+        const clients = await apiFetch<Array<{
+          id: string;
+          firstName: string;
+          lastName: string;
+          preferredName?: string;
+          email?: string;
+          clientStatus?: string;
+        }>>(`/api/compassion/clients?search=${encodeURIComponent(q)}&limit=8`);
+        for (const c of clients) {
+          allResults.push({
+            id: c.id,
+            type: "client",
+            label: `${c.firstName} ${c.lastName}`,
+            sublabel: c.email ?? c.preferredName ?? c.clientStatus ?? "Client",
+            href: "/compassion/clients",
+          });
+        }
+      } else if (moduleKey === "donor") {
+        const [constituents, campaigns] = await Promise.all([
+          apiFetch<Array<{ id: string; firstName: string; lastName: string; email?: string; type?: string }>>(`/api/constituents?search=${encodeURIComponent(q)}&limit=5`),
+          apiFetch<Array<{ id: string; name: string }>>(`/api/campaigns?search=${encodeURIComponent(q)}&limit=3`),
+        ]);
+
         for (const c of constituents) {
           allResults.push({
             id: c.id,
@@ -65,9 +81,7 @@ function GlobalSearch() {
             href: `/constituents/${c.id}`,
           });
         }
-      }
-      if (campaignRes.ok) {
-        const campaigns = await campaignRes.json();
+
         for (const c of campaigns) {
           allResults.push({
             id: c.id,
@@ -82,10 +96,13 @@ function GlobalSearch() {
       setResults(allResults);
       setOpen(allResults.length > 0);
       setSelected(0);
+    } catch {
+      setResults([]);
+      setOpen(false);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [moduleKey]);
 
   useEffect(() => {
     const t = setTimeout(() => search(query), 250);
@@ -105,9 +122,25 @@ function GlobalSearch() {
     if (e.key === "Enter" && results[selected]) navigate(results[selected].href);
   }
 
-  const typeLabel: Record<string, string> = { constituent: "Constituent", campaign: "Campaign", donation: "Donation" };
+  const typeLabel: Record<string, string> = {
+    constituent: "Constituent",
+    campaign: "Campaign",
+    donation: "Donation",
+    client: "Client",
+    case: "Case",
+  };
 
   function TypeIcon({ type }: { type: string }) {
+    if (type === "client") return (
+      <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      </svg>
+    );
+    if (type === "case") return (
+      <svg className="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" />
+      </svg>
+    );
     if (type === "constituent") return (
       <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -125,6 +158,27 @@ function GlobalSearch() {
     );
   }
 
+  const focusRing = moduleKey === "compassion"
+    ? "focus:ring-blue-400/60"
+    : moduleKey === "events"
+      ? "focus:ring-amber-400/60"
+      : "focus:ring-green-400/60";
+  const activeResultBg = moduleKey === "compassion"
+    ? "bg-blue-50"
+    : moduleKey === "events"
+      ? "bg-amber-50"
+      : "bg-green-50";
+  const spinnerColor = moduleKey === "compassion"
+    ? "border-blue-400"
+    : moduleKey === "events"
+      ? "border-amber-400"
+      : "border-green-400";
+  const placeholder = moduleKey === "compassion"
+    ? "Search clients… (⌘K)"
+    : moduleKey === "events"
+      ? "Search events… (⌘K)"
+      : "Search constituents, campaigns… (⌘K)";
+
   return (
     <div className="relative w-full max-w-lg">
       <div className="relative">
@@ -138,14 +192,14 @@ function GlobalSearch() {
           onKeyDown={onKeyDown}
           onFocus={() => results.length > 0 && setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder="Search constituents, campaigns… (⌘K)"
-          className="w-full pl-9 pr-14 py-2 text-sm bg-white/10 text-white placeholder:text-gray-400 border border-white/15 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-400/60 focus:bg-white/15 transition-all"
+          placeholder={placeholder}
+          className={`w-full pl-9 pr-14 py-2 text-sm bg-white/10 text-white placeholder:text-gray-400 border border-white/15 rounded-lg focus:outline-none focus:ring-1 ${focusRing} focus:bg-white/15 transition-all`}
         />
         <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-gray-500 bg-white/10 px-1.5 py-0.5 rounded border border-white/15 hidden sm:block">
           ⌘K
         </kbd>
         {loading && (
-          <div className="absolute right-10 top-1/2 -translate-y-1/2 w-3 h-3 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
+          <div className={`absolute right-10 top-1/2 -translate-y-1/2 w-3 h-3 border-2 ${spinnerColor} border-t-transparent rounded-full animate-spin`} />
         )}
       </div>
 
@@ -156,7 +210,7 @@ function GlobalSearch() {
               <li key={r.id}>
                 <button
                   onMouseDown={() => navigate(r.href)}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${i === selected ? "bg-green-50" : "hover:bg-gray-50"}`}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${i === selected ? activeResultBg : "hover:bg-gray-50"}`}
                 >
                   <TypeIcon type={r.type} />
                   <div className="flex-1 min-w-0">
@@ -202,7 +256,7 @@ export default function TopBar() {
 
         {/* ── Search (grows to fill available space) ── */}
         <div className="flex-1">
-          <GlobalSearch />
+          <GlobalSearch moduleKey={moduleKey} />
         </div>
 
         {/* ── Right-side icon controls ── */}

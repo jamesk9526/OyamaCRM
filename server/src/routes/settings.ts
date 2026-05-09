@@ -56,6 +56,26 @@ interface ResetPayload {
   confirmationText?: string;
 }
 
+/** Reads SMTP defaults from environment for deployments that configure SMTP outside DB settings. */
+function getEnvSmtpDefaults() {
+  const envPort = Number.parseInt((process.env.SMTP_PORT ?? "").trim(), 10);
+  return {
+    smtpHost: (process.env.SMTP_HOST ?? "").trim(),
+    smtpPort: Number.isFinite(envPort) ? envPort : 587,
+    smtpSecure: /^(1|true|yes|on)$/i.test((process.env.SMTP_SECURE ?? "").trim()),
+    smtpUser: (process.env.SMTP_USER ?? "").trim(),
+    smtpPass: process.env.SMTP_PASS ?? "",
+    smtpFromName: (process.env.SMTP_FROM_NAME ?? "").trim(),
+    smtpFromEmail: (process.env.SMTP_FROM_EMAIL ?? "").trim(),
+  };
+}
+
+/** Picks DB value when configured, otherwise falls back to env-level defaults. */
+function valueOrEnv(value: string | null | undefined, envValue: string): string {
+  const trimmed = (value ?? "").trim();
+  return trimmed || envValue;
+}
+
 /**
  * Resolves the single active installation organization for settings surfaces.
  * The app still behaves as a single-install CRM, so the oldest org is the
@@ -71,6 +91,7 @@ async function getActiveOrganization() {
 /** GET /api/settings — Return merged organization and settings (regional + SMTP). Requires authentication. */
 router.get("/", requireAuth, async (_req: Request, res: Response) => {
   try {
+    const envSmtp = getEnvSmtpDefaults();
     const organization = await getActiveOrganization();
     const organizationId = organization?.id;
 
@@ -80,13 +101,13 @@ router.get("/", requireAuth, async (_req: Request, res: Response) => {
         fiscalYearStart: 1,
         currency: "USD",
         timezone: "America/Chicago",
-        smtpHost: "",
-        smtpPort: 587,
-        smtpSecure: false,
-        smtpUser: "",
-        smtpPass: "",
-        smtpFromName: "OyamaCRM",
-        smtpFromEmail: "",
+        smtpHost: envSmtp.smtpHost,
+        smtpPort: envSmtp.smtpPort,
+        smtpSecure: envSmtp.smtpSecure,
+        smtpUser: envSmtp.smtpUser,
+        smtpPass: envSmtp.smtpPass,
+        smtpFromName: envSmtp.smtpFromName || "OyamaCRM",
+        smtpFromEmail: envSmtp.smtpFromEmail,
       });
     }
 
@@ -100,13 +121,13 @@ router.get("/", requireAuth, async (_req: Request, res: Response) => {
       fiscalYearStart: settings?.fiscalYearStart ?? 1,
       currency: settings?.currency ?? "USD",
       timezone: settings?.timezone ?? "America/Chicago",
-      smtpHost: settings?.smtpHost ?? "",
-      smtpPort: settings?.smtpPort ?? 587,
-      smtpSecure: settings?.smtpSecure ?? false,
-      smtpUser: settings?.smtpUser ?? "",
-      smtpPass: settings?.smtpPass ?? "",
-      smtpFromName: settings?.smtpFromName ?? org?.name ?? "OyamaCRM",
-      smtpFromEmail: settings?.smtpFromEmail ?? "",
+      smtpHost: valueOrEnv(settings?.smtpHost, envSmtp.smtpHost),
+      smtpPort: settings?.smtpPort ?? envSmtp.smtpPort,
+      smtpSecure: settings?.smtpSecure ?? envSmtp.smtpSecure,
+      smtpUser: valueOrEnv(settings?.smtpUser, envSmtp.smtpUser),
+      smtpPass: valueOrEnv(settings?.smtpPass, envSmtp.smtpPass),
+      smtpFromName: valueOrEnv(settings?.smtpFromName, envSmtp.smtpFromName || org?.name || "OyamaCRM"),
+      smtpFromEmail: valueOrEnv(settings?.smtpFromEmail, envSmtp.smtpFromEmail),
     });
   } catch {
     return res.status(500).json({ error: { code: "SETTINGS_READ_FAILED", message: "Failed to load settings" } });

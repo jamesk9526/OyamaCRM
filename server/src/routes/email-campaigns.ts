@@ -45,6 +45,16 @@ interface AudiencePreview {
   recipients: string[];
 }
 
+interface SmtpSettingsSnapshot {
+  smtpHost: string | null;
+  smtpPort: number | null;
+  smtpSecure: boolean;
+  smtpUser: string | null;
+  smtpPass: string | null;
+  smtpFromName?: string | null;
+  smtpFromEmail?: string | null;
+}
+
 // RFC 5322-inspired practical pattern for application-level email validation.
 const EMAIL_PATTERN =
   /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
@@ -128,13 +138,7 @@ function computeAudiencePreview(rows: AudienceConstituent[]): AudiencePreview {
 }
 
 /** Builds an SMTP transport from organization settings, returning null when SMTP is incomplete. */
-function getTransport(settings: {
-  smtpHost: string | null;
-  smtpPort: number | null;
-  smtpSecure: boolean;
-  smtpUser: string | null;
-  smtpPass: string | null;
-}) {
+function getTransport(settings: SmtpSettingsSnapshot) {
   if (!settings.smtpHost || !settings.smtpPort) return null;
   return nodemailer.createTransport({
     host: settings.smtpHost,
@@ -142,6 +146,158 @@ function getTransport(settings: {
     secure: settings.smtpSecure,
     auth: settings.smtpUser ? { user: settings.smtpUser, pass: settings.smtpPass ?? "" } : undefined,
   });
+}
+
+/** Parses truthy environment values like "1", "true", or "yes". */
+function parseEnvBool(value: string | undefined): boolean {
+  return /^(1|true|yes|on)$/i.test((value ?? "").trim());
+}
+
+/** Coerces environment SMTP values into one effective settings snapshot. */
+function resolveSmtpSettings(settings: SmtpSettingsSnapshot | null): SmtpSettingsSnapshot {
+  const envPortRaw = (process.env.SMTP_PORT ?? "").trim();
+  const envPort = envPortRaw ? Number.parseInt(envPortRaw, 10) : NaN;
+  const envPortSafe = Number.isFinite(envPort) ? envPort : null;
+
+  return {
+    smtpHost: settings?.smtpHost?.trim() || process.env.SMTP_HOST?.trim() || null,
+    smtpPort: settings?.smtpPort ?? envPortSafe,
+    smtpSecure: settings?.smtpSecure ?? parseEnvBool(process.env.SMTP_SECURE),
+    smtpUser: settings?.smtpUser?.trim() || process.env.SMTP_USER?.trim() || null,
+    smtpPass: settings?.smtpPass || process.env.SMTP_PASS || null,
+    smtpFromName: settings?.smtpFromName?.trim() || process.env.SMTP_FROM_NAME?.trim() || null,
+    smtpFromEmail: settings?.smtpFromEmail?.trim() || process.env.SMTP_FROM_EMAIL?.trim() || null,
+  };
+}
+
+/** Typed HTTP-friendly error for campaign send flows. */
+class CampaignSendError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "CampaignSendError";
+    this.status = status;
+  }
+}
+
+/**
+ * Sends one email campaign immediately and writes send metrics/audit.
+ * Used by both manual send route and the scheduled queue worker.
+ */
+export async function sendCampaignNow(campaignId: string, trigger: "MANUAL" | "QUEUE" = "MANUAL") {
+  const campaign = await prisma.emailCampaign.findUnique({
+    where: { id: campaignId },
+  });
+  if (!campaign) {
+    throw new CampaignSendError("Campaign not found", 404);
+  }
+  if (campaign.status === "SENT") {
+    throw new CampaignSendError("Campaign already sent", 400);
+  }
+  if (campaign.status === "CANCELLED") {
+    throw new CampaignSendError("Cancelled campaigns cannot be sent.", 400);
+  }
+  if (campaign.status === "SENDING") {
+    throw new CampaignSendError("Campaign send is already in progress.", 409);
+  }
+  if (trigger === "QUEUE" && campaign.status !== "SCHEDULED") {
+    throw new CampaignSendError("Only scheduled campaigns can be processed by the queue worker.", 400);
+  }
+
+  const previousStatus = campaign.status;
+  const claimed = await prisma.emailCampaign.updateMany({
+    where: { id: campaign.id, status: previousStatus },
+    data: { status: "SENDING" },
+  });
+  if (claimed.count === 0) {
+    throw new CampaignSendError("Campaign is currently being processed.", 409);
+  }
+
+  try {
+    const settingsRaw = await prisma.organizationSettings.findUnique({
+      where: { organizationId: campaign.organizationId },
+      select: {
+        smtpHost: true,
+        smtpPort: true,
+        smtpSecure: true,
+        smtpUser: true,
+        smtpPass: true,
+        smtpFromName: true,
+        smtpFromEmail: true,
+      },
+    });
+    const settings = resolveSmtpSettings(settingsRaw);
+    if (!settings.smtpHost || !settings.smtpPort || !settings.smtpFromEmail) {
+      throw new CampaignSendError(
+        "SMTP is not configured. Open Settings and save SMTP host/port/from email before sending.",
+        400
+      );
+    }
+
+    const filter = campaign.audienceFilter ? (JSON.parse(campaign.audienceFilter) as AudienceFilter) : null;
+    const preview = computeAudiencePreview(await getAudienceConstituents(filter, campaign.organizationId));
+    const to = preview.recipients;
+    const recipientCount = to.length;
+
+    if (recipientCount === 0) {
+      throw new CampaignSendError("No recipients match this audience filter.", 400);
+    }
+
+    const transporter = getTransport(settings);
+    if (!transporter) {
+      throw new CampaignSendError("SMTP host/port are required before sending campaigns.", 400);
+    }
+
+    await transporter.sendMail({
+      from: `"${settings.smtpFromName || campaign.fromName}" <${settings.smtpFromEmail}>`,
+      to: settings.smtpFromEmail,
+      bcc: to,
+      subject: campaign.subject || campaign.name,
+      text: campaign.bodyText || "No text content",
+      html: campaign.bodyHtml || `<p>${campaign.bodyText || "No content"}</p>`,
+    });
+
+    const updated = await prisma.emailCampaign.update({
+      where: { id: campaign.id },
+      data: {
+        status: "SENT",
+        sentAt: new Date(),
+        totalRecipients: recipientCount,
+        delivered: recipientCount,
+        opened: 0,
+        clicked: 0,
+        bounced: 0,
+        unsubscribed: 0,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        organizationId: campaign.organizationId,
+        action: "EMAIL_CAMPAIGN_SENT",
+        entity: "EmailCampaign",
+        entityId: campaign.id,
+        metadata: {
+          trigger,
+          totalMatched: preview.totalMatched,
+          missingEmail: preview.missingEmail,
+          optedOut: preview.optedOut,
+          duplicateEmails: preview.duplicateEmails,
+          finalSendCount: preview.finalSendCount,
+        },
+      },
+    });
+
+    return updated;
+  } catch (err) {
+    // Return campaign to its previous state when send fails after claim.
+    await prisma.emailCampaign.updateMany({
+      where: { id: campaign.id, status: "SENDING" },
+      data: { status: previousStatus },
+    });
+    throw err;
+  }
 }
 
 /**
@@ -369,8 +525,20 @@ router.post("/:id/send-test", async (req, res) => {
     return;
   }
 
-  const settings = await prisma.organizationSettings.findUnique({ where: { organizationId: campaign.organizationId } });
-  if (!settings?.smtpFromEmail) {
+  const settingsRaw = await prisma.organizationSettings.findUnique({
+    where: { organizationId: campaign.organizationId },
+    select: {
+      smtpHost: true,
+      smtpPort: true,
+      smtpSecure: true,
+      smtpUser: true,
+      smtpPass: true,
+      smtpFromName: true,
+      smtpFromEmail: true,
+    },
+  });
+  const settings = resolveSmtpSettings(settingsRaw);
+  if (!settings.smtpFromEmail) {
     res.status(400).json({
       error: "SMTP from email is not configured. Save SMTP settings before sending test emails.",
     });
@@ -489,87 +657,20 @@ router.post("/:id/cancel", async (req, res) => {
 
 /**
  * POST /api/email-campaigns/:id/send — Send a campaign to opted-in constituents via SMTP.
- * Requires SMTP settings in OrganizationSettings. Recipients are filtered by audienceFilter.
+ * Uses the shared send helper so manual and queued sending stay aligned.
  */
 router.post("/:id/send", async (req, res) => {
-  const campaign = await prisma.emailCampaign.findUnique({
-    where: { id: req.params.id },
-  });
-  if (!campaign) {
-    res.status(404).json({ error: "Campaign not found" });
-    return;
+  try {
+    const updated = await sendCampaignNow(req.params.id as string, "MANUAL");
+    res.json(updated);
+  } catch (err) {
+    if (err instanceof CampaignSendError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    console.error("[email-campaigns] POST /:id/send error:", err);
+    res.status(500).json({ error: "Failed to send campaign." });
   }
-  if (campaign.status === "SENT") {
-    res.status(400).json({ error: "Campaign already sent" });
-    return;
-  }
-
-  const settings = await prisma.organizationSettings.findUnique({
-    where: { organizationId: campaign.organizationId },
-  });
-  if (!settings?.smtpHost || !settings.smtpPort || !settings.smtpFromEmail) {
-    res.status(400).json({
-      error: "SMTP is not configured. Open Settings and save SMTP host/port/from email before sending.",
-    });
-    return;
-  }
-
-  const filter = campaign.audienceFilter ? (JSON.parse(campaign.audienceFilter) as AudienceFilter) : null;
-  const preview = computeAudiencePreview(await getAudienceConstituents(filter, campaign.organizationId));
-  const to = preview.recipients;
-  const recipientCount = to.length;
-
-  if (recipientCount === 0) {
-    res.status(400).json({ error: "No recipients match this audience filter." });
-    return;
-  }
-
-  const transporter = getTransport(settings);
-  if (!transporter) {
-    res.status(400).json({ error: "SMTP host/port are required before sending campaigns." });
-    return;
-  }
-
-  await transporter.sendMail({
-    from: `"${settings.smtpFromName || campaign.fromName}" <${settings.smtpFromEmail}>`,
-    to: settings.smtpFromEmail,
-    bcc: to,
-    subject: campaign.subject || campaign.name,
-    text: campaign.bodyText || "No text content",
-    html: campaign.bodyHtml || `<p>${campaign.bodyText || "No content"}</p>`,
-  });
-
-  const updated = await prisma.emailCampaign.update({
-    where: { id: req.params.id },
-    data: {
-      status: "SENT",
-      sentAt: new Date(),
-      totalRecipients: recipientCount,
-      delivered: recipientCount,
-      opened: 0,
-      clicked: 0,
-      bounced: 0,
-      unsubscribed: 0,
-    },
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      organizationId: campaign.organizationId,
-      action: "EMAIL_CAMPAIGN_SENT",
-      entity: "EmailCampaign",
-      entityId: campaign.id,
-      metadata: {
-        totalMatched: preview.totalMatched,
-        missingEmail: preview.missingEmail,
-        optedOut: preview.optedOut,
-        duplicateEmails: preview.duplicateEmails,
-        finalSendCount: preview.finalSendCount,
-      },
-    },
-  });
-
-  res.json(updated);
 });
 
 /** DELETE /api/email-campaigns/:id — Permanently delete an email campaign. Admin-only. */

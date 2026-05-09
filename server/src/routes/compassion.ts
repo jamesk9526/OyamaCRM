@@ -448,8 +448,12 @@ router.post("/clients", async (req, res) => {
 router.get("/clients/:id", async (req, res) => {
   try {
     const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
     const client = await prisma.compassionClient.findFirst({
-      where: { id: req.params.id as string },
+      where: { id: req.params.id as string, organizationId },
       include: {
         assignedStaff: { select: { id: true, firstName: true, lastName: true } },
         cases: {
@@ -502,6 +506,10 @@ router.get("/clients/:id", async (req, res) => {
 router.put("/clients/:id", async (req, res) => {
   try {
     const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
     const {
       firstName, lastName, preferredName, email, phone,
       addressLine1, addressLine2, city, state, zip,
@@ -510,7 +518,7 @@ router.put("/clients/:id", async (req, res) => {
     } = req.body;
 
     const client = await prisma.compassionClient.updateMany({
-      where: { id: req.params.id as string },
+      where: { id: req.params.id as string, organizationId },
       data: {
         ...(firstName !== undefined && { firstName }),
         ...(lastName !== undefined && { lastName }),
@@ -559,9 +567,17 @@ router.put("/clients/:id", async (req, res) => {
 router.delete("/clients/:id", requireRole("admin"), async (req, res) => {
   try {
     const organizationId = await resolveOrganizationId({ req });
-    await prisma.compassionClient.deleteMany({
-      where: { id: req.params.id as string },
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+    const deleted = await prisma.compassionClient.deleteMany({
+      where: { id: req.params.id as string, organizationId },
     });
+    if (deleted.count === 0) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Client not found" } });
+      return;
+    }
 
     await logAudit({
       action: "COMPASSION_CLIENT_DELETED",
@@ -699,8 +715,12 @@ router.post("/cases", async (req, res) => {
 router.get("/cases/:id", async (req, res) => {
   try {
     const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
     const compassionCase = await prisma.compassionCase.findFirst({
-      where: { id: req.params.id as string },
+      where: { id: req.params.id as string, organizationId },
       include: {
         client: { select: { id: true, firstName: true, lastName: true } },
         assignedStaff: { select: { id: true, firstName: true, lastName: true } },
@@ -739,10 +759,14 @@ router.get("/cases/:id", async (req, res) => {
 router.put("/cases/:id", async (req, res) => {
   try {
     const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
     const { caseStatus, caseType, priority, summary, assignedStaffId, closedAt, privateNotes } = req.body;
 
     const updated = await prisma.compassionCase.updateMany({
-      where: { id: req.params.id as string },
+      where: { id: req.params.id as string, organizationId },
       data: {
         ...(caseStatus !== undefined && { caseStatus: caseStatus as CompassionCaseStatus }),
         ...(caseType !== undefined && { caseType: caseType as CompassionCaseType }),
@@ -781,9 +805,17 @@ router.put("/cases/:id", async (req, res) => {
 router.delete("/cases/:id", requireRole("admin"), async (req, res) => {
   try {
     const organizationId = await resolveOrganizationId({ req });
-    await prisma.compassionCase.deleteMany({
-      where: { id: req.params.id as string },
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+    const deleted = await prisma.compassionCase.deleteMany({
+      where: { id: req.params.id as string, organizationId },
     });
+    if (deleted.count === 0) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Case not found" } });
+      return;
+    }
 
     await logAudit({
       action: "COMPASSION_CASE_DELETED",
@@ -918,8 +950,12 @@ router.post("/appointments", async (req, res) => {
 router.get("/appointments/:id", async (req, res) => {
   try {
     const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
     const appointment = await prisma.compassionAppointment.findFirst({
-      where: { id: req.params.id as string },
+      where: { id: req.params.id as string, organizationId },
       include: {
         client: { select: { id: true, firstName: true, lastName: true } },
         case: { select: { id: true, caseNumber: true, caseType: true } },
@@ -947,13 +983,17 @@ router.get("/appointments/:id", async (req, res) => {
 router.patch("/appointments/:id", async (req, res) => {
   try {
     const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
     const {
       status, outcome, notes, startTime, endTime,
       location, assignedStaffId, followUpNeeded, appointmentType,
     } = req.body;
 
     const updated = await prisma.compassionAppointment.updateMany({
-      where: { id: req.params.id as string },
+      where: { id: req.params.id as string, organizationId },
       data: {
         ...(status !== undefined && { status: status as CompassionAppointmentStatus }),
         ...(outcome !== undefined && { outcome }),
@@ -986,9 +1026,17 @@ router.patch("/appointments/:id", async (req, res) => {
 router.delete("/appointments/:id", async (req, res) => {
   try {
     const organizationId = await resolveOrganizationId({ req });
-    await prisma.compassionAppointment.deleteMany({
-      where: { id: req.params.id as string },
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+    const deleted = await prisma.compassionAppointment.deleteMany({
+      where: { id: req.params.id as string, organizationId },
     });
+    if (deleted.count === 0) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Appointment not found" } });
+      return;
+    }
     res.status(204).send();
   } catch (err) {
     console.error("[compassion] DELETE /appointments/:id error:", err);
@@ -1087,10 +1135,14 @@ router.post("/follow-ups", async (req, res) => {
 router.patch("/follow-ups/:id", async (req, res) => {
   try {
     const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
     const { status, title, dueDate, priority, assignedStaffId, notes } = req.body;
 
     const updated = await prisma.compassionFollowUp.updateMany({
-      where: { id: req.params.id as string },
+      where: { id: req.params.id as string, organizationId },
       data: {
         ...(status !== undefined && { status: status as CompassionFollowUpStatus }),
         ...(title !== undefined && { title }),
@@ -1122,9 +1174,17 @@ router.patch("/follow-ups/:id", async (req, res) => {
 router.delete("/follow-ups/:id", async (req, res) => {
   try {
     const organizationId = await resolveOrganizationId({ req });
-    await prisma.compassionFollowUp.deleteMany({
-      where: { id: req.params.id as string },
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+    const deleted = await prisma.compassionFollowUp.deleteMany({
+      where: { id: req.params.id as string, organizationId },
     });
+    if (deleted.count === 0) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Follow-up not found" } });
+      return;
+    }
     res.status(204).send();
   } catch (err) {
     console.error("[compassion] DELETE /follow-ups/:id error:", err);
@@ -1220,9 +1280,17 @@ router.post("/services", async (req, res) => {
 router.delete("/services/:id", requireRole("admin"), async (req, res) => {
   try {
     const organizationId = await resolveOrganizationId({ req });
-    await prisma.compassionService.deleteMany({
-      where: { id: req.params.id as string },
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+    const deleted = await prisma.compassionService.deleteMany({
+      where: { id: req.params.id as string, organizationId },
     });
+    if (deleted.count === 0) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Service record not found" } });
+      return;
+    }
     res.status(204).send();
   } catch (err) {
     console.error("[compassion] DELETE /services/:id error:", err);

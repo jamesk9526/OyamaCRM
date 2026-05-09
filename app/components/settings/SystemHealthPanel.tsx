@@ -20,6 +20,17 @@ interface HealthPayload {
   lastAuditDate: string;
   uptimeSec?: number;
   timestamp?: string;
+  queue?: {
+    running: boolean;
+    processing: boolean;
+    status: FeatureStatus;
+    pollMs: number;
+    batchSize: number;
+    pendingDueCount: number;
+    lastRunAt: string | null;
+    lastSuccessAt: string | null;
+    lastError: string | null;
+  };
 }
 
 interface EmailSettingsPayload {
@@ -81,12 +92,16 @@ export default function SystemHealthPanel({ buildInfo }: { buildInfo: PublicBuil
     environment: buildInfo.environment,
     lastAuditDate: buildInfo.lastAuditDate,
   };
+  const queueStatus: FeatureStatus = runtime.queue?.status ?? "Not Started";
+  const queueValue = runtime.queue?.running
+    ? `Worker active (${Math.round(runtime.queue.pollMs / 1000)}s poll, ${runtime.queue.pendingDueCount} due)`
+    : "No queue worker configured";
 
   const cards: { label: string; value: string; status: FeatureStatus }[] = [
     { label: "API Status", value: runtime.status === "ok" ? "Online" : "Needs Review", status: runtime.status === "ok" ? "Working" : "Partial" as const },
     { label: "Database Connection", value: runtime.database === "ok" ? "Connected" : "Not Ready", status: runtime.database === "ok" ? "Working" : "Partial" as const },
     { label: "Email Provider Status", value: emailReady === "Working" ? "SMTP Configured" : "SMTP Incomplete", status: emailReady },
-    { label: "Queue Status", value: "No queue worker configured", status: "Not Started" as const },
+    { label: "Queue Status", value: queueValue, status: queueStatus },
     { label: "AI Provider Status", value: "No AI provider configured", status: "Not Started" as const },
   ];
 

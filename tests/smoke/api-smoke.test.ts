@@ -24,6 +24,8 @@ describe("API smoke tests", () => {
     expect(res.body).toHaveProperty("status");
     // The health endpoint returns "database" (not "db") with the DB connection status
     expect(res.body).toHaveProperty("database");
+    expect(res.body).toHaveProperty("queue");
+    expect(typeof res.body.queue.running).toBe("boolean");
   });
 
   it("returns settings payload (requires auth)", async () => {

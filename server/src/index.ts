@@ -41,6 +41,7 @@ import compassionRoutes from "./routes/compassion.js";
 import quickbooksRoutes from "./routes/quickbooks.js";
 import { prisma } from "./lib/prisma.js";
 import { getAppInfo } from "./lib/app-info.js";
+import { getEmailQueueWorkerStatus, startEmailQueueWorker } from "./services/email-queue-worker.js";
 
 const app = express();
 const PORT = process.env.API_PORT ? parseInt(process.env.API_PORT) : 4000;
@@ -97,6 +98,7 @@ async function healthHandler(_req: express.Request, res: express.Response) {
     dbStatus = "error";
   }
   const appInfo = getAppInfo();
+  const queue = getEmailQueueWorkerStatus();
   res.json({
     status: dbStatus === "ok" ? "ok" : "degraded",
     appName: appInfo.appName,
@@ -109,6 +111,7 @@ async function healthHandler(_req: express.Request, res: express.Response) {
     lastAuditDate: appInfo.lastAuditDate,
     uptimeSec: Math.floor((Date.now() - startTime) / 1000),
     timestamp: new Date().toISOString(),
+    queue,
   });
 }
 
@@ -164,6 +167,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 if (process.env.NODE_ENV !== "test") {
+  startEmailQueueWorker();
   app.listen(PORT, () => {
     console.log(`[API] OyamaCRM API server running on http://localhost:${PORT}`);
   });
