@@ -21,7 +21,7 @@ import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
-import type { DonorStatus, ConstituentType } from "@prisma/client";
+import type { DonorStatus, ConstituentType, ActivityType, Prisma } from "@prisma/client";
 
 const router = Router();
 
@@ -463,6 +463,72 @@ router.delete("/:id", requireRole("admin"), async (req, res) => {
     userAgent: req.headers["user-agent"],
   });
   res.status(204).send();
+});
+
+/**
+ * POST /api/constituents/:id/activities — Log a manual activity entry (call, meeting, email, note)
+ * against a constituent's timeline.
+ *
+ * Body: { type: string, description: string, metadata?: object }
+ * Returns the created Activity record.
+ */
+router.post("/:id/activities", async (req, res) => {
+  const id = req.params.id as string;
+  const { type = "NOTE", description, metadata } = req.body as {
+    type?: string;
+    description: string;
+    metadata?: Record<string, unknown>;
+  };
+
+  if (!description?.trim()) {
+    res.status(400).json({ error: { code: "DESCRIPTION_REQUIRED", message: "description is required" } });
+    return;
+  }
+
+  // Verify the constituent exists before creating the activity
+  const exists = await prisma.constituent.findUnique({ where: { id }, select: { id: true } });
+  if (!exists) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Constituent not found" } });
+    return;
+  }
+
+  const activity = await prisma.activity.create({
+    data: {
+      constituentId: id,
+      type: type as ActivityType,
+      description: description.trim(),
+      metadata: (metadata ?? { source: "manual" }) as Prisma.InputJsonValue,
+      userId: req.user?.sub ?? undefined,
+    },
+    include: { user: { select: { id: true, firstName: true, lastName: true } } },
+  });
+
+  res.status(201).json(activity);
+});
+
+/**
+ * PATCH /api/constituents/:id/notes — Quickly update only the notes field on a constituent.
+ * This avoids sending the full PUT body when only saving a notes change.
+ *
+ * Body: { notes: string }
+ */
+router.patch("/:id/notes", async (req, res) => {
+  const id = req.params.id as string;
+  const { notes } = req.body as { notes: string };
+
+  const exists = await prisma.constituent.findUnique({ where: { id }, select: { id: true } });
+  if (!exists) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Constituent not found" } });
+    return;
+  }
+
+  const updated = await prisma.constituent.update({
+    where: { id },
+    data: { notes: notes ?? "" },
+    select: { id: true, notes: true },
+  });
+
+  res.json(updated);
 });
 
 export default router;

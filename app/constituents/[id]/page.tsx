@@ -12,6 +12,8 @@ import {
   engagementColor,
 } from "@/app/components/constituents/constituent-utils";
 import HouseholdPanel from "@/app/components/constituents/HouseholdPanel";
+import QuickGiftModal from "@/app/components/constituents/QuickGiftModal";
+import ConstituentNotesTab from "@/app/components/constituents/ConstituentNotesTab";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface HouseholdData {
@@ -92,7 +94,7 @@ interface ConstituentDetail {
     type: string;
     description: string;
     createdAt: string;
-    user?: { firstName: string; lastName: string };
+    user?: { id: string; firstName: string; lastName: string };
   }>;
   // Household where this constituent is the head
   headOf?: HouseholdData;
@@ -106,6 +108,7 @@ export default function ConstituentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"giving" | "tasks" | "timeline" | "household" | "notes">("giving");
+  const [showGiftModal, setShowGiftModal] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -185,12 +188,21 @@ export default function ConstituentDetailPage() {
               </div>
             </div>
           </div>
-          <Link
-            href={`/constituents/${id}/edit`}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Edit
-          </Link>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Record Gift — primary stewardship action */}
+            <button
+              onClick={() => setShowGiftModal(true)}
+              className="px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5"
+            >
+              💚 Record Gift
+            </button>
+            <Link
+              href={`/constituents/${id}/edit`}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Edit
+            </Link>
+          </div>
         </div>
 
         {/* Contact grid */}
@@ -251,12 +263,47 @@ export default function ConstituentDetailPage() {
           {tab === "tasks" && <TasksTab tasks={c.tasks ?? []} />}
           {tab === "timeline" && <TimelineTab activities={c.activities ?? []} />}
           {tab === "notes" && (
-            <p className="text-sm text-gray-600 whitespace-pre-wrap">
-              {c.notes || <span className="text-gray-400 italic">No notes recorded.</span>}
-            </p>
+            <ConstituentNotesTab
+              constituentId={id}
+              initialNotes={c.notes ?? ""}
+              existingActivities={c.activities ?? []}
+            />
           )}
         </div>
       </div>
+
+      {/* Record Gift quick modal */}
+      {showGiftModal && (
+        <QuickGiftModal
+          constituentId={id}
+          constituentName={`${c.firstName} ${c.lastName}`}
+          onClose={() => setShowGiftModal(false)}
+          onSaved={(donation) => {
+            // Optimistically prepend the new donation and update lifetime giving
+            setConstituent((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                donations: [
+                  {
+                    id: donation.id,
+                    amount: String(donation.amount),
+                    date: donation.date,
+                    paymentMethod: donation.paymentMethod,
+                    status: donation.status,
+                    campaign: donation.campaign ?? undefined,
+                    designation: donation.designation ?? undefined,
+                  },
+                  ...(prev.donations ?? []),
+                ],
+                giftCount: prev.giftCount + 1,
+              };
+            });
+            setShowGiftModal(false);
+            setTab("giving");
+          }}
+        />
+      )}
 
       <p className="text-xs text-gray-400">Record added {formatDate(c.createdAt)}</p>
     </div>
