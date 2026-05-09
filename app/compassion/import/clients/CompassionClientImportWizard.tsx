@@ -176,7 +176,7 @@ function validateAndTransform(rows: RawRow[], mapping: FieldMapping): Validation
     if (!mapped.firstName && !mapped.lastName && mapped.fullName) {
       const parts = mapped.fullName.trim().split(/\s+/);
       mapped.firstName = parts[0] ?? "";
-      mapped.lastName = parts.slice(1).join(" ") || parts[0] ?? "";
+      mapped.lastName = parts.slice(1).join(" ") || (parts[0] ?? "");
     }
 
     // Require at least firstName or lastName — skip rows with neither
@@ -185,6 +185,20 @@ function validateAndTransform(rows: RawRow[], mapping: FieldMapping): Validation
         row: i + 1,
         field: "lastName",
         message: `Row ${i + 1}: no name found — record skipped`,
+      });
+      return;
+    }
+
+    // Reject metadata/report rows: names containing commas or matching eKYROS report patterns
+    // e.g. "Text,Aurora,False,Active,,," is a report-widget configuration row, not a real client
+    const isMetadataName = (s: string) =>
+      s.includes(",") ||
+      /^(text|true|false|#|row|column|label|field|widget|report)\b/i.test(s);
+    if (isMetadataName(mapped.firstName ?? "") || isMetadataName(mapped.lastName ?? "")) {
+      errors.push({
+        row: i + 1,
+        field: "firstName",
+        message: `Row ${i + 1}: name looks like report metadata ("${mapped.firstName}") — skipped`,
       });
       return;
     }

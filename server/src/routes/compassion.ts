@@ -1275,6 +1275,16 @@ router.post("/clients/import", async (req, res) => {
           continue;
         }
 
+        // Reject metadata rows: names containing commas or matching known eKYROS report patterns
+        // (e.g. "Text,Aurora,False,Active,,," are report-widget rows, not real clients)
+        const isMetadataName = (s: string) =>
+          s.includes(",") ||
+          /^(text|true|false|#|row|column|label|field|widget|report)\b/i.test(s);
+        if (isMetadataName(firstName) || isMetadataName(lastName)) {
+          skipped++;
+          continue;
+        }
+
         const clientStatus = statusNormalize(rec.clientStatus ?? "");
         const intakeDate = parseDateOrUndefined(rec.sourceCreatedDate || rec.intakeDate) ?? new Date();
 
