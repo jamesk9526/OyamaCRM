@@ -9,6 +9,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import type React from "react";
+import { usePlugins } from "@/app/components/plugins/PluginProvider";
 
 /** Single navigation item */
 interface NavItem {
@@ -208,13 +209,37 @@ function SidebarSection({
 /**
  * Main Sidebar component.
  * Renders brand logo + collapsible nav sections for the active module.
+ * When the QuickBooks plugin is enabled, injects the QB Sync nav item.
  */
 export default function Sidebar() {
   const pathname = usePathname();
   const isCompassion = pathname.startsWith("/compassion");
+  const { qbEnabled } = usePlugins();
 
   const brandBg = isCompassion ? "bg-blue-600" : "bg-green-600";
-  const brandHover = isCompassion ? "hover:bg-blue-700" : "hover:bg-green-700";
+
+  /** QB Sync nav item — only injected when plugin is enabled */
+  const qbSyncItem: NavItem = {
+    label: "QB Sync",
+    href: "/quickbooks-sync",
+    icon: (
+      <Ico>
+        {/* Intuit-style refresh/sync icon */}
+        <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </Ico>
+    ),
+  };
+
+  /** Build sections dynamically so we can inject QB Sync when enabled */
+  const sections: NavSection[] = DONOR_SECTIONS.map((section) => {
+    if (section.label === "Fundraising" && qbEnabled) {
+      return {
+        ...section,
+        items: [...section.items, qbSyncItem],
+      };
+    }
+    return section;
+  });
 
   return (
     <aside className="w-56 shrink-0 bg-white border-r border-gray-200 flex flex-col h-full select-none">
@@ -240,7 +265,7 @@ export default function Sidebar() {
 
       {/* ── Navigation sections (scrollable) ── */}
       <div className="flex-1 overflow-y-auto py-2 px-0">
-        {DONOR_SECTIONS.map((section) => (
+        {sections.map((section) => (
           <SidebarSection
             key={section.label}
             section={section}

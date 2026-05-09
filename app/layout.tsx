@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "./components/auth/AuthProvider";
 import AppShell from "./components/layout/AppShell";
+import { PluginProvider } from "./components/plugins/PluginProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -23,7 +24,9 @@ export default function RootLayout({
     <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
       <body className="h-full">
         <AuthProvider>
-          <AppShell>{children}</AppShell>
+          <PluginProvider>
+            <AppShell>{children}</AppShell>
+          </PluginProvider>
         </AuthProvider>
       </body>
     </html>

@@ -249,6 +249,10 @@ model Organization {
   compassionServices     CompassionService[]
   compassionFollowUps    CompassionFollowUp[]
   compassionActivities   CompassionActivity[]
+
+  // ─── Plugin / Integration back-relations ────────────────────────────────
+  pluginSettings  PluginSetting[]
+  qbSyncQueueItems QBSyncQueueItem[]
 }
 
 model OrganizationSettings {
@@ -459,6 +463,8 @@ model Donation {
   pledge      Pledge?      @relation(fields: [pledgeId], references: [id])
   event       Event?       @relation(fields: [eventId], references: [id])
   activities  Activity[]
+  // QuickBooks sync queue items linked to this donation
+  qbSyncQueueItems QBSyncQueueItem[]
 }
 
 model Pledge {
@@ -1221,6 +1227,75 @@ enum CompassionAppointmentType {
   CASE_REVIEW
   HOME_VISIT
   OTHER
+}
+
+// ─── Plugin System ────────────────────────────────────────────────────────────
+
+/// Status of a single item in the QuickBooks sync queue.
+enum QBSyncStatus {
+  PENDING    // Waiting in queue; not yet sent to QB
+  SYNCED     // Successfully pushed to QuickBooks
+  FAILED     // Sync attempted but QB returned an error
+  SKIPPED    // Manually removed from queue without syncing
+}
+
+/// Stores the enabled/disabled state and OAuth tokens for each third-party plugin.
+/// One row per plugin per organization. Current plugin keys: "quickbooks"
+model PluginSetting {
+  id             String   @id @default(cuid())
+  organizationId String
+  /// Machine key identifying the plugin (e.g. "quickbooks")
+  pluginKey      String
+  /// Whether this plugin is active for the organization
+  enabled        Boolean  @default(false)
+  /// JSON blob storing OAuth tokens and plugin-specific config (encrypted at rest by the server layer)
+  config         Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, pluginKey])
+  @@index([organizationId])
+}
+
+/// A single donation queued for syncing to QuickBooks.
+/// Only NEW donations (created after plugin is enabled) appear here.
+/// Staff review and edit the queue before manually triggering the sync.
+model QBSyncQueueItem {
+  id             String       @id @default(cuid())
+  organizationId String
+  /// The donation being synced — null if donation was deleted before sync
+  donationId     String?
+  status         QBSyncStatus @default(PENDING)
+
+  // Editable snapshot of what will be sent to QB (can be adjusted before syncing)
+  /// QB Customer name override (defaults to donor full name)
+  customerName   String?
+  /// QB account/class mapping for this donation
+  qbAccount      String?
+  /// QB memo line (defaults to campaign + designation info)
+  memo           String?
+  /// Amount to sync — can differ from donation amount if org wants to override
+  amount         Decimal?     @db.Decimal(12, 2)
+
+  /// QuickBooks Sales Receipt or Donation ID returned on success
+  qbEntityId     String?
+  /// Raw error message if sync failed
+  errorMessage   String?      @db.Text
+  /// When this item was successfully synced
+  syncedAt       DateTime?
+  /// Number of sync attempts made
+  attemptCount   Int          @default(0)
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  donation     Donation?    @relation(fields: [donationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([donationId])
 }
 
 enum CompassionAppointmentStatus {

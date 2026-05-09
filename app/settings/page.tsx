@@ -53,6 +53,11 @@ const CARDS = [
     href: "/settings/project-status",
   },
   {
+    title: "Plugins",
+    description: "Enable third-party integrations like QuickBooks. Control what features are available to staff.",
+    href: "/settings/plugins",
+  },
+  {
     title: "Security",
     description: "Authentication controls plus verified setup-reset recovery for the CRM installation.",
     href: "/settings/security",

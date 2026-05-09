@@ -38,6 +38,7 @@ import customFieldRoutes from "./routes/custom-fields.js";
 import grantRoutes from "./routes/grants.js";
 import meetingRoutes from "./routes/meetings.js";
 import compassionRoutes from "./routes/compassion.js";
+import quickbooksRoutes from "./routes/quickbooks.js";
 import { prisma } from "./lib/prisma.js";
 import { getAppInfo } from "./lib/app-info.js";
 
@@ -139,6 +140,7 @@ app.use("/api/custom-fields", customFieldRoutes);
 app.use("/api/grants", grantRoutes);
 app.use("/api/meetings", meetingRoutes);
 app.use("/api/compassion", compassionRoutes);
+app.use("/api/quickbooks", quickbooksRoutes);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 

@@ -25,6 +25,7 @@ const SETTINGS_NAV: SettingsNavItem[] = [
   { label: "Forms", href: "/settings/forms" },
   { label: "Email & Messaging", href: "/settings/email" },
   { label: "Integrations", href: "/settings/integrations" },
+  { label: "Plugins", href: "/settings/plugins" },
   { label: "Security", href: "/settings/security" },
   { label: "Import / Export", href: "/settings/import-export" },
   { label: "Audit Logs", href: "/settings/audit" },

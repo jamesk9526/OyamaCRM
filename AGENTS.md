@@ -296,3 +296,76 @@ Keep these three documents current as the Compassion CRM evolves:
 - `CLIENT_CRM_IMPORTER_PLAN.md` — the multi-batch importer plan.
 - `CLIENT_CRM_TASKS.md` — live checklist; never delete completed entries.
 <!-- END:compassion-crm-rules -->
+
+<!-- BEGIN:quickbooks-plugin-rules -->
+## QuickBooks Integration Rules
+
+OyamaCRM integrates with QuickBooks Online via the `intuit-oauth` npm package (v4.2.3). This integration is **DonorCRM-only** — it must never appear in Compassion CRM UI.
+
+### Architecture
+
+| Layer | Location | Notes |
+|-------|----------|-------|
+| npm package | root `package.json` | `intuit-oauth` installed at workspace root |
+| Server service | `server/src/services/quickbooksService.ts` | OAuth client wrapper, `pushDonationToQB()` |
+| API routes | `server/src/routes/quickbooks.ts` | Registered at `/api/quickbooks` in `server/src/index.ts` |
+| Plugin context | `app/components/plugins/PluginProvider.tsx` | `usePlugins()` hook |
+| Layout wrapping | `app/layout.tsx` | `<PluginProvider>` wraps `<AppShell>` |
+| Sidebar item | `app/components/layout/Sidebar.tsx` | "QB Sync" injected when `qbEnabled` is true |
+| Settings UI | `app/components/settings/plugins/PluginsSettingsPage.tsx` | Enable/disable toggle + connect/disconnect |
+| Settings page | `app/settings/plugins/page.tsx` | Thin wrapper |
+| Queue page | `app/quickbooks-sync/page.tsx` | Full queue management dashboard |
+| Queue table | `app/components/quickbooks/QBSyncQueueTable.tsx` | Table + inline edit |
+| Status banner | `app/components/quickbooks/QBConnectionStatus.tsx` | Connection state indicator |
+| Donation form | `app/components/donations/DonationForm.tsx` | "Add to QuickBooks Queue" checkbox |
+| Prisma models | `prisma/schema.prisma` | `PluginSetting`, `QBSyncQueueItem`, `QBSyncStatus` |
+
+### Non-negotiable design constraints
+
+1. **NEVER auto-sync.** Donations must only reach QuickBooks when a staff member manually triggers a sync (individual item or "Sync All"). Remove any auto-sync logic if found.
+2. **Queue is opt-in per donation.** The "Add to QuickBooks Queue" checkbox appears in DonationForm only when the plugin is enabled. Existing donations are never added automatically.
+3. **SYNCED items are immutable.** Once a queue item reaches `SYNCED` status, it cannot be deleted or edited (soft-deletes are blocked server-side). This preserves the audit trail.
+4. **FAILED items reset to PENDING on edit.** Editing a FAILED item resets its status and clears `errorMessage` so it can be retried cleanly.
+5. **Duplicate prevention.** `POST /api/quickbooks/sync-queue` returns 409 if the donation already has a non-SKIPPED queue entry.
+6. **Rate limit awareness.** `sync-all` sends items sequentially with a 400ms delay between requests (≤150 req/min).
+
+### Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `QB_CLIENT_ID` | Yes (for OAuth) | Intuit Developer app client ID |
+| `QB_CLIENT_SECRET` | Yes (for OAuth) | Intuit Developer app client secret |
+| `QB_REDIRECT_URI` | Optional | Defaults to `http://localhost:4000/api/quickbooks/callback` |
+| `QB_ENVIRONMENT` | Optional | `sandbox` (default) or `production` |
+
+Without `QB_CLIENT_ID` + `QB_CLIENT_SECRET`, the plugin UI shows a "not configured" warning. OAuth buttons are disabled. The plugin may still be "enabled" in the DB but connection is impossible.
+
+### Prisma models
+
+**`PluginSetting`** — per-org plugin state. Unique on `(organizationId, pluginKey)`. `config` JSON stores OAuth tokens when connected. `pluginKey = "quickbooks"` is the only key currently used.
+
+**`QBSyncQueueItem`** — one row per donation queued for sync. Fields: `customerName`, `memo`, `qbAccount`, `amount` (all editable before sync), `status` (PENDING/SYNCED/FAILED/SKIPPED), `attemptCount`, `errorMessage`, `qbEntityId`, `syncedAt`.
+
+**`QBSyncStatus`** enum — `PENDING | SYNCED | FAILED | SKIPPED`.
+
+### logAudit and resolveOrganizationId patterns
+
+In QuickBooks routes, always use:
+```ts
+// CORRECT
+const organizationId = await resolveOrganizationId({ req }); // object wrapper
+await logAudit({ action: "...", organizationId, userId: req.user?.id, metadata: {} });
+
+// WRONG — these will not compile
+const organizationId = await resolveOrganizationId(req);
+await logAudit(req, { action: "..." });
+```
+
+### Adding new QB features
+
+- New QB API routes go in `server/src/routes/quickbooks.ts`
+- New QB UI components go in `app/components/quickbooks/`
+- QB settings UI components go in `app/components/settings/plugins/`
+- QB plugin state (enabled, connected, etc.) is always read from `usePlugins()` — never fetched independently in components
+- The `PluginProvider` refetches on `refresh()` — call it after any enable/disable/connect/disconnect action
+<!-- END:quickbooks-plugin-rules -->

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PAYMENT_METHODS, DONATION_STATUSES, methodLabel } from "./donation-utils";
 import { apiFetch } from "@/app/lib/auth-client";
+import { usePlugins } from "@/app/components/plugins/PluginProvider";
 
 type Props = {
   mode?: "create" | "edit";
@@ -40,6 +41,8 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
   const [isPending, startTransition] = useTransition();
   const [form, setForm] = useState<FormData>({ ...EMPTY, ...defaultValues });
   const [error, setError] = useState<string | null>(null);
+  const [addToQB, setAddToQB] = useState(false);
+  const { qbEnabled } = usePlugins();
 
   function update(field: keyof FormData, value: string | boolean) {
     setForm(p => ({ ...p, [field]: value }));
@@ -56,7 +59,7 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
       const method = mode === "edit" ? "PUT" : "POST";
 
       try {
-        await apiFetch(path, {
+        const savedRes = await apiFetch(path, {
           method,
           body: JSON.stringify({
             ...form,
@@ -66,7 +69,20 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
             frequency:     form.isRecurring ? form.frequency : null,
             notes:         form.notes || null,
           }),
-        });
+        }) as { id?: string };
+
+        // After a new donation is created, optionally add it to the QB sync queue
+        if (mode === "create" && addToQB && savedRes?.id) {
+          try {
+            await apiFetch("/api/quickbooks/sync-queue", {
+              method: "POST",
+              body: JSON.stringify({ donationId: savedRes.id }),
+            });
+          } catch {
+            // QB queue add failure is non-fatal — donation was saved successfully
+          }
+        }
+
         router.push("/donations");
         router.refresh();
       } catch (err) {
@@ -200,6 +216,18 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
           className="px-6 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
           Cancel
         </button>
+        {/* QB sync checkbox — only shows on create when the QB plugin is enabled */}
+        {mode === "create" && qbEnabled && (
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none ml-auto">
+            <input
+              type="checkbox"
+              checked={addToQB}
+              onChange={(e) => setAddToQB(e.target.checked)}
+              className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+            />
+            <span>Add to QuickBooks Queue</span>
+          </label>
+        )}
       </div>
     </form>
   );
