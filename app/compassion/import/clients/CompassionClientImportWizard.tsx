@@ -78,6 +78,14 @@ const STATUS_MAP_DISPLAY = [
 
 // ─── Helper functions ─────────────────────────────────────────────────────────
 
+/** Module-level constant — avoids recreating on every render of Step 1. */
+const DELIMITER_LABELS: Record<Exclude<Delimiter, "auto">, string> = {
+  ",": "Comma",
+  "\t": "Tab",
+  ";": "Semicolon",
+  "|": "Pipe",
+};
+
 /**
  * autoMap: generates an initial FieldMapping by looking up each CSV header in
  * COMPASSION_AUTO_MAP_ALIASES. Headers not found default to "skip".
@@ -530,13 +538,6 @@ export default function CompassionClientImportWizard() {
 
   /** Step 1: drag-drop file upload zone with SSN warning banner and data quality notes */
   function renderStep1() {
-    const delimiterLabel: Record<Exclude<Delimiter, "auto">, string> = {
-      ",": "Comma",
-      "\t": "Tab",
-      ";": "Semicolon",
-      "|": "Pipe",
-    };
-
     return (
       <div className="flex flex-col gap-6">
         <div>
@@ -572,7 +573,7 @@ export default function CompassionClientImportWizard() {
               <p className="font-semibold text-gray-800">{file?.name ?? "Pasted text"}</p>
               <p className="text-sm text-gray-500 mt-1">
                 {parseResult
-                  ? `${parseResult.rows.length.toLocaleString()} records · ${parseResult.headers.length} columns · headers on row ${parseResult.detectedHeaderRow} · ${delimiterLabel[parseResult.delimiter]}-delimited`
+                  ? `${parseResult.rows.length.toLocaleString()} records · ${parseResult.headers.length} columns · headers on row ${parseResult.detectedHeaderRow} · ${DELIMITER_LABELS[parseResult.delimiter]}-delimited`
                   : "Parsing…"}
               </p>
             </div>

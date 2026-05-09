@@ -1328,6 +1328,11 @@ router.post("/clients/import", async (req, res) => {
         // the client-side validator in app/compassion/import/clients/clientImportValidator.ts.
         // This is defense-in-depth: the wizard already filters these out, but a misbehaving
         // client (or curl) must not be able to inject garbage rows directly into the DB.
+        //
+        // ⚠ KEEP IN SYNC with GARBAGE_NAME_PATTERNS / RESERVED_NAME_TOKENS in
+        // clientImportValidator.ts. The AGENTS.md "Compassion CRM Rules" section spells out
+        // this requirement. If you change one heuristic, change the other and add a unit test
+        // in tests/unit/compassion-client-import-validator.test.ts.
         const looksLikeGarbage = (s: string) => {
           const t = (s ?? "").trim();
           if (!t) return false;

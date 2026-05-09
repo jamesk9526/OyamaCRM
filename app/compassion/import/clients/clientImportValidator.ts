@@ -88,6 +88,9 @@ const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]{2,}$/;
 /** CRM field keys that contain phone numbers. */
 const PHONE_FIELDS = new Set(["phone", "mobilePhone", "workPhone"]);
 
+/** CRM field keys that contain dates — kept in sync with the Prisma schema. */
+const DATE_FIELDS = ["dateOfBirth", "intakeDate", "sourceCreatedDate", "sourceModifiedDate"] as const;
+
 /** Recognised CompassionClientStatus enum values (after normalization). */
 const RECOGNISED_STATUSES = new Set(["ACTIVE", "INACTIVE", "ARCHIVED", "PENDING", "GRADUATED"]);
 
@@ -352,7 +355,7 @@ export function validateAndTransformClients(
     }
 
     // Date validations — warn and drop if invalid.
-    for (const df of ["dateOfBirth", "intakeDate", "sourceCreatedDate", "sourceModifiedDate"] as const) {
+    for (const df of DATE_FIELDS) {
       const v = mapped[df];
       if (v && !isValidDate(v)) {
         issues.push({
