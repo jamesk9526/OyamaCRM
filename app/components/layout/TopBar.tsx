@@ -1,4 +1,5 @@
-// TopBar: global navigation header with module switcher, search, and user controls.
+// TopBar: full-width global navigation header with module switcher, search, and user controls.
+// Spans the entire width of the viewport — brand/logo lives in the Sidebar instead.
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
@@ -105,7 +106,6 @@ function GlobalSearch() {
 
   const typeLabel: Record<string, string> = { constituent: "Constituent", campaign: "Campaign", donation: "Donation" };
 
-  /** SVG icons keyed by result type */
   function TypeIcon({ type }: { type: string }) {
     if (type === "constituent") return (
       <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -125,7 +125,7 @@ function GlobalSearch() {
   }
 
   return (
-    <div className="relative w-full max-w-xl">
+    <div className="relative w-full max-w-lg">
       <div className="relative">
         <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
@@ -138,9 +138,9 @@ function GlobalSearch() {
           onFocus={() => results.length > 0 && setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           placeholder="Search constituents, campaigns… (⌘K)"
-          className="w-full pl-9 pr-16 py-2 text-sm bg-white/10 text-white placeholder:text-gray-400 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 focus:bg-white/15 transition-all"
+          className="w-full pl-9 pr-14 py-2 text-sm bg-white/10 text-white placeholder:text-gray-400 border border-white/15 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-400/60 focus:bg-white/15 transition-all"
         />
-        <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-gray-400 bg-white/10 px-1.5 py-0.5 rounded border border-white/20 hidden sm:block">
+        <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-gray-500 bg-white/10 px-1.5 py-0.5 rounded border border-white/15 hidden sm:block">
           ⌘K
         </kbd>
         {loading && (
@@ -178,36 +178,29 @@ function GlobalSearch() {
   );
 }
 
+/** Full-width top navigation bar — spans the entire viewport width. */
 export default function TopBar() {
   const pathname = usePathname();
-  /** Detect which module is active based on the current path */
   const isCompassion = pathname.startsWith("/compassion");
 
   return (
-    <header className="h-14 shrink-0 flex items-center z-10" style={{ background: "linear-gradient(to right, #ffffff 208px, #1a2332 208px)" }}>
+    <header className="h-14 shrink-0 w-full flex items-center gap-4 px-4 bg-[#1a2332] border-b border-[#0f1924] z-20">
 
-      {/* ── Brand (white section, matches sidebar w-52 = 208px) ── */}
-      <div className="w-52 shrink-0 flex items-center gap-2 px-4 bg-white h-full border-b border-gray-200">
-        <span className={`w-7 h-7 rounded-md flex items-center justify-center text-white font-bold text-sm select-none ${isCompassion ? "bg-blue-600" : "bg-green-600"}`}>
-          O
-        </span>
-        <span className="font-semibold text-gray-900 text-base tracking-tight">
-          Oyama<span className={isCompassion ? "text-blue-600" : "text-green-600"}>CRM</span>
-        </span>
+      {/* ── Module switcher (left anchor) ── */}
+      <ModuleSwitcher isCompassion={isCompassion} />
+
+      {/* ── Divider ── */}
+      <div className="w-px h-5 bg-white/10 shrink-0" />
+
+      {/* ── Search (grows to fill available space) ── */}
+      <div className="flex-1">
+        <GlobalSearch />
       </div>
 
-      {/* ── Dark right section ── */}
-      <div className="flex flex-1 items-center px-5 bg-[#1a2332] h-full border-b border-[#0f1924]">
-        <div className="ml-auto flex items-center gap-3 w-full max-w-[980px] justify-end">
-          {/* Module switcher — sits before search */}
-          <ModuleSwitcher isCompassion={isCompassion} />
+      {/* ── Right-side icon controls ── */}
+      <div className="flex items-center gap-1 shrink-0">
 
-          <GlobalSearch />
-
-          {/* Divider */}
-          <div className="w-px h-6 bg-white/10 mx-1 shrink-0" />
-
-        {/* Icon slot: AI Chat (future) */}
+        {/* AI Assistant (future) */}
         <button
           title="AI Assistant (coming soon)"
           className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors relative group"
@@ -220,17 +213,17 @@ export default function TopBar() {
           </span>
         </button>
 
-        {/* Icon slot: Help */}
+        {/* Help */}
         <button
           title="Help & Documentation"
-          className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors relative group"
+          className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0zm-9 5.25h.008v.008H12v-.008z" />
           </svg>
         </button>
 
-        {/* Icon slot: Notifications */}
+        {/* Notifications */}
         <button
           title="Notifications"
           className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors relative"
@@ -238,11 +231,12 @@ export default function TopBar() {
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
           </svg>
-          {/* Unread dot — color matches module */}
           <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full border-2 border-[#1a2332] ${isCompassion ? "bg-blue-400" : "bg-green-500"}`} />
         </button>
 
-        {/* Icon slot: Quick Add */}
+        <div className="w-px h-5 bg-white/10 mx-1 shrink-0" />
+
+        {/* Quick Add */}
         <button
           title="Quick Add"
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-sm font-medium transition-colors shrink-0 ${isCompassion ? "bg-blue-600 hover:bg-blue-500" : "bg-green-600 hover:bg-green-500"}`}
@@ -253,17 +247,15 @@ export default function TopBar() {
           <span className="hidden sm:inline">New</span>
         </button>
 
-          {/* User avatar + menu */}
-          <UserMenu isCompassion={isCompassion} />
-        </div>
+        {/* User avatar */}
+        <UserMenu isCompassion={isCompassion} />
       </div>
     </header>
   );
 }
 
 /**
- * ModuleSwitcher: pill/dropdown letting users switch between DonorCRM and Compassion CRM.
- * Renders green for DonorCRM, blue for Compassion CRM.
+ * ModuleSwitcher: lets users switch between DonorCRM and Compassion CRM.
  */
 function ModuleSwitcher({ isCompassion }: { isCompassion: boolean }) {
   const router = useRouter();
@@ -282,20 +274,17 @@ function ModuleSwitcher({ isCompassion }: { isCompassion: boolean }) {
 
   return (
     <div className="relative shrink-0">
-      {/* Current module pill */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors border border-white/20"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors border border-white/15"
       >
         <span className={`w-2 h-2 rounded-full ${current.color}`} />
         <span>{current.label}</span>
-        {/* Chevron down */}
         <svg className="w-3 h-3 text-gray-300 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
 
-      {/* Dropdown */}
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
@@ -323,26 +312,20 @@ function ModuleSwitcher({ isCompassion }: { isCompassion: boolean }) {
   );
 }
 
-
-/** UserMenu: avatar button with dropdown for profile info and sign-out. Tints avatar by module. */
+/** UserMenu: avatar with sign-out dropdown. */
 function UserMenu({ isCompassion }: { isCompassion: boolean }) {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
-  const initials = user
-    ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
-    : "?";
+  const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : "?";
 
   async function handleSignOut() {
     await signOut();
     router.replace("/login");
   }
 
-  /** Avatar ring color follows module: green for DonorCRM, blue for Compassion CRM */
-  const avatarCls = isCompassion
-    ? "bg-blue-700 border-blue-500"
-    : "bg-green-700 border-green-500";
+  const avatarCls = isCompassion ? "bg-blue-700 border-blue-500" : "bg-green-700 border-green-500";
 
   return (
     <div className="relative shrink-0">
