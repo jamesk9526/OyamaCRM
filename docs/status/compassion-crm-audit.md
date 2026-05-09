@@ -117,3 +117,25 @@ All routes require JWT authentication (`requireAuth`) and are scoped to the auth
 - [ ] **Compassion reporting** — caseload by type, service delivery summary, staff workload
 - [ ] **Permission enforcement** — replace `// TODO: enforce Compassion workspace permission` comments with real role checks
 - [ ] **Shared-person linking** — intentional link between a DonorCRM constituent and a Compassion client (requires explicit staff action and permission gate)
+
+---
+
+## Client CSV Importer Status
+
+| Feature | Status | Notes |
+|---|---|---|
+| CSV Parsing | ✅ Done | Reuses pp/data-tools/import/csvParser.ts (generic, not donor-specific) |
+| Header Detection | ✅ Done | Auto-maps 37 eKYROS column names via COMPASSION_AUTO_MAP_ALIASES |
+| Field Mapping | ✅ Done | 5-step wizard, 15 importable client fields defined in compassionFieldMap.ts |
+| SSN Blocking | ✅ Done | Blocked at alias level (mapped to "skip"), warning banner in Step 1, stripped on server |
+| Validation | ✅ Done | Requires firstName or lastName; skips empty rows; phone/state normalization |
+| Dry-Run Mode | ✅ Done | Defaults to dryRun: true; wizard shows preview tallies before committing |
+| Import Execution | ✅ Done | POST /api/compassion/clients/import; create_only / upsert / update_only modes |
+| Activity Logging | ✅ Done | Creates compassionActivity with CLIENT_IMPORTED for each new client |
+| Donor CRM Safety | ✅ Done | Route only writes CompassionClient records; does NOT touch Constituent table |
+| Compassion Safety | ✅ Done | Client records are org-scoped; SSN never stored |
+| Duplicate Detection | 🔶 Partial | Matches on DirID (stored in privateNotes as [EXT:xxx]) and email; no fuzzy name match |
+| Import History | ❌ Not Started | UI card placeholder exists; backend not implemented |
+| Export Clients | ❌ Not Started | UI card placeholder exists; backend not implemented |
+| Audit Logging | ✅ Done | logAudit called with COMPASSION_CLIENT_IMPORT or COMPASSION_CLIENT_IMPORT_DRYRUN |
+| eKYROS Source | ✅ Done | All 37 eKYROS column aliases mapped; Status values normalized (InActive → INACTIVE, Closed → ARCHIVED) |

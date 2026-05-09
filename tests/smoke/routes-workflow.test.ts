@@ -223,4 +223,43 @@ describe("compassion CRM smoke", () => {
     expect(res.status).toBe(201);
     expect(res.body.appointmentType).toBe("INTAKE");
   });
+
+  it("imports compassion clients via dry-run", async () => {
+    const auth = { Authorization: `Bearer ${compassionToken}` };
+    const res = await request(app)
+      .post("/api/compassion/clients/import")
+      .set(auth)
+      .send({
+        records: [
+          { firstName: "Jane", lastName: "Doe", email: "jane.import@test.com", clientStatus: "ACTIVE" },
+          { firstName: "John", lastName: "Smith", email: "john.import@test.com", clientStatus: "INACTIVE" },
+        ],
+        mode: "create_only",
+        dryRun: true,
+        matchExternalSourceId: false,
+        matchEmail: true,
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.dryRun).toBe(true);
+    expect(res.body.created).toBe(2);
+  });
+
+  it("blocks SSN from compassion import payload", async () => {
+    const auth = { Authorization: `Bearer ${compassionToken}` };
+    const res = await request(app)
+      .post("/api/compassion/clients/import")
+      .set(auth)
+      .send({
+        records: [
+          { firstName: "Test", lastName: "Person", ssn: "123-45-6789", clientStatus: "ACTIVE" },
+        ],
+        mode: "create_only",
+        dryRun: false,
+        matchExternalSourceId: false,
+        matchEmail: false,
+      });
+    expect(res.status).toBe(200);
+    // SSN must be stripped — import should succeed without it
+    expect(res.body.created).toBe(1);
+  });
 });

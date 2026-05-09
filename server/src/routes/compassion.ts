@@ -1181,4 +1181,226 @@ router.delete("/services/:id", requireRole("admin"), async (req, res) => {
   }
 });
 
+// ─── Client Import ────────────────────────────────────────────────────────────
+
+/**
+ * POST /api/compassion/clients/import
+ * Batch-import CompassionClient records from a mapped CSV.
+ *
+ * Body:
+ *   records              - Array of mapped row objects (CRM field keys to string values)
+ *   mode                 - "create_only" | "upsert" | "update_only"
+ *   dryRun               - When true, tallies what would happen without writing data
+ *   matchExternalSourceId - When true, match on DirID stored in privateNotes as [EXT:xxx]
+ *   matchEmail           - When true, match on email address
+ *
+ * Response: { created, updated, skipped, errors, dryRun, errorMessages }
+ *
+ * Safety guarantees:
+ * - SSN is stripped server-side even if somehow included in the payload.
+ * - This endpoint only creates/updates CompassionClient records.
+ * - It does NOT create or modify Constituent (Donor CRM) records.
+ * - It does NOT modify EventGuest or any other module records.
+ * - All records are scoped to the authenticated organization.
+ */
+router.post("/clients/import", async (req, res) => {
+  try {
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found." } });
+      return;
+    }
+
+    const {
+      records,
+      mode = "create_only",
+      dryRun = true,
+      matchExternalSourceId = true,
+      matchEmail = true,
+    } = req.body as {
+      records: Array<Record<string, string>>;
+      mode: "create_only" | "upsert" | "update_only";
+      dryRun: boolean;
+      matchExternalSourceId: boolean;
+      matchEmail: boolean;
+    };
+
+    if (!Array.isArray(records) || records.length === 0) {
+      res.status(400).json({ error: { code: "NO_RECORDS", message: "No records to import." } });
+      return;
+    }
+
+    // Safety: blocked sensitive fields that must never be stored
+    const BLOCKED_FIELDS = new Set(["ssn", "socialSecurityNumber", "sin", "taxId"]);
+
+    // Status normalization: eKYROS values → Prisma enum
+    const statusNormalize = (raw: string): CompassionClientStatus => {
+      const statusMap: Record<string, CompassionClientStatus> = {
+        "active":    "ACTIVE",
+        "inactive":  "INACTIVE",
+        "inactiv":   "INACTIVE",
+        "closed":    "ARCHIVED",
+        "archived":  "ARCHIVED",
+        "pending":   "PENDING",
+        "graduated": "GRADUATED",
+        "":          "ACTIVE",
+      };
+      return statusMap[(raw || "").trim().toLowerCase()] ?? "ACTIVE";
+    };
+
+    /** Parse a date string to a Date, returning undefined if invalid or empty */
+    const parseDateOrUndefined = (raw: string | undefined): Date | undefined => {
+      if (!raw?.trim()) return undefined;
+      const d = new Date(raw.trim());
+      return isNaN(d.getTime()) ? undefined : d;
+    };
+
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    for (const rec of records) {
+      try {
+        // Strip blocked sensitive fields from every incoming record
+        for (const blocked of BLOCKED_FIELDS) {
+          delete rec[blocked];
+        }
+
+        // Require at least a first name or last name
+        const firstName = rec.firstName?.trim() || "";
+        const lastName = rec.lastName?.trim() || "";
+        if (!firstName && !lastName) {
+          skipped++;
+          continue;
+        }
+
+        const clientStatus = statusNormalize(rec.clientStatus ?? "");
+        const intakeDate = parseDateOrUndefined(rec.sourceCreatedDate || rec.intakeDate) ?? new Date();
+
+        const clientData = {
+          organizationId,
+          firstName,
+          lastName,
+          preferredName:  rec.preferredName?.trim()  || undefined,
+          email:          rec.email?.trim()           || undefined,
+          phone:          rec.phone?.trim()           || undefined,
+          addressLine1:   rec.addressLine1?.trim()    || undefined,
+          city:           rec.city?.trim()            || undefined,
+          state:          rec.state?.toUpperCase().slice(0, 2) || undefined,
+          zip:            rec.zip?.trim()             || undefined,
+          dateOfBirth:    parseDateOrUndefined(rec.dateOfBirth),
+          referralSource: rec.referralSource?.trim()  || undefined,
+          clientStatus,
+          intakeDate,
+        };
+
+        // Find potential duplicate: prefer External Source ID, fall back to email
+        const existingByExtId = matchExternalSourceId && rec.externalSourceId
+          ? await prisma.compassionClient.findFirst({
+              where: { organizationId, privateNotes: { contains: `[EXT:${rec.externalSourceId}]` } },
+              select: { id: true },
+            })
+          : null;
+
+        const existingByEmail = !existingByExtId && matchEmail && clientData.email
+          ? await prisma.compassionClient.findFirst({
+              where: { organizationId, email: clientData.email },
+              select: { id: true },
+            })
+          : null;
+
+        const existing = existingByExtId ?? existingByEmail;
+
+        if (dryRun) {
+          // Dry-run: tally what would happen without writing any data
+          if (existing) {
+            mode === "create_only" ? skipped++ : updated++;
+          } else {
+            mode === "update_only" ? skipped++ : created++;
+          }
+          continue;
+        }
+
+        // Real import path
+        if (existing) {
+          if (mode === "create_only") {
+            skipped++;
+            continue;
+          }
+          // Update existing client (upsert or update_only mode)
+          await prisma.compassionClient.update({
+            where: { id: existing.id },
+            data: {
+              firstName:      clientData.firstName || undefined,
+              lastName:       clientData.lastName  || undefined,
+              email:          clientData.email,
+              phone:          clientData.phone,
+              addressLine1:   clientData.addressLine1,
+              city:           clientData.city,
+              state:          clientData.state,
+              zip:            clientData.zip,
+              clientStatus,
+            },
+          });
+          updated++;
+        } else {
+          if (mode === "update_only") {
+            skipped++;
+            continue;
+          }
+          // Store external source ID in privateNotes as a structured annotation
+          // TODO: add a dedicated externalSourceId field to CompassionClient schema
+          const extNote = rec.externalSourceId ? `[EXT:${rec.externalSourceId}]` : undefined;
+          const newClient = await prisma.compassionClient.create({
+            data: { ...clientData, privateNotes: extNote },
+          });
+
+          // Log an activity for each newly created client
+          await prisma.compassionActivity.create({
+            data: {
+              organizationId,
+              clientId: newClient.id,
+              activityType: "CLIENT_IMPORTED",
+              description: `Client imported from CSV${rec.externalSourceId ? ` (DirID: ${rec.externalSourceId})` : ""}`,
+              performedById: req.user?.sub ?? null,
+            },
+          });
+          created++;
+        }
+      } catch (rowErr) {
+        errors.push(`Row error: ${rowErr instanceof Error ? rowErr.message : "Unknown error"}`);
+      }
+    }
+
+    await logAudit({
+      action: dryRun ? "COMPASSION_CLIENT_IMPORT_DRYRUN" : "COMPASSION_CLIENT_IMPORT",
+      entity: "CompassionClient",
+      userId: req.user?.sub,
+      organizationId,
+      ipAddress: req.ip,
+      metadata: {
+        created,
+        updated,
+        skipped,
+        errors: errors.length,
+        dryRun,
+        recordCount: records.length,
+      },
+    });
+
+    res.json({
+      created,
+      updated,
+      skipped,
+      errors: errors.length,
+      dryRun,
+      errorMessages: errors.slice(0, 20),
+    });
+  } catch (err) {
+    console.error("[compassion/clients/import]", err instanceof Error ? err.message : err);
+    res.status(500).json({ error: { code: "IMPORT_ERROR", message: "Import failed." } });
+  }
+});
+
 export default router;
