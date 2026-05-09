@@ -6,7 +6,7 @@ OyamaCRM is a **meaningful internal MVP** with real donor CRM foundations. Route
 
 ## Audit Date
 
-- **Audit Date:** 2026-05-08 (remediation applied 2026-05-09)
+- **Audit Date:** 2026-05-08 (remediation and deep status audit updated 2026-05-09)
 - **Repo Branch:** `copilot/improve-test-coverage-and-plan`
 - **Git Commit (baseline before this audit patch):** `a7e4b31`
 - **App Version:** `0.1.0`
@@ -101,7 +101,7 @@ The following items from the original 52% audit have been addressed:
 
 ## Data / Database Concerns
 
-- Prisma schema is substantial and usable, but **no migrations directory** was found.
+- Prisma schema is substantial and usable, and migrations are present under `prisma/migrations`.
 - Seed script exists, but smoke coverage depends on an external MySQL database and configured `DATABASE_URL`.
 - Planned compassion/client data models do not exist yet.
 

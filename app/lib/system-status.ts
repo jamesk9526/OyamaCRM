@@ -42,8 +42,8 @@ export interface ReadinessChecklistItem {
   note: string;
 }
 
-export const AUDIT_DATE = "2026-05-08";
-export const OVERALL_READINESS_SCORE = 52;
+export const AUDIT_DATE = "2026-05-09";
+export const OVERALL_READINESS_SCORE = 68;
 
 /**
  * Returns safe build metadata for UI display.
@@ -102,12 +102,12 @@ export const SYSTEM_STATUS_SECTIONS: SystemStatusSection[] = [
   {
     title: "Permission / RBAC Status",
     status: "Partial",
-    summary: "Middleware exists, but route-level enforcement and scope-based authorization are incomplete.",
+    summary: "Auth and admin protections are broadly in place, but granular scope/workspace authorization is still incomplete.",
   },
   {
     title: "Audit Log Status",
-    status: "Partial",
-    summary: "Audit persistence exists for selected actions, but coverage and viewer UI are incomplete.",
+    status: "Working",
+    summary: "Audit persistence and settings viewer are implemented; coverage depth still needs expansion.",
   },
   {
     title: "Donor CRM Feature Status",
@@ -116,8 +116,8 @@ export const SYSTEM_STATUS_SECTIONS: SystemStatusSection[] = [
   },
   {
     title: "Compassion Workspace Feature Status",
-    status: "Not Started",
-    summary: "Compassion planning is extensive, but no separate workspace routes or models are implemented.",
+    status: "Partial",
+    summary: "Compassion module shell and placeholder routes exist, but production data models and APIs are not implemented.",
   },
   {
     title: "Communication / Email Builder Status",
@@ -142,7 +142,7 @@ export const SYSTEM_STATUS_SECTIONS: SystemStatusSection[] = [
   {
     title: "Events / Gala Status",
     status: "Partial",
-    summary: "Event CRUD exists, while registration, sponsorship, seating, and check-in remain unbuilt.",
+    summary: "Core event operations (orders, guests, tables, check-in, reports) are live; ticketing/sponsor/public registration remain partial.",
   },
   {
     title: "Integrations Status",
@@ -242,9 +242,9 @@ export const FEATURE_READINESS: FeatureReadinessItem[] = [
     workspace: "OyamaCRM",
     status: "Partial",
     lastVerified: AUDIT_DATE,
-    workingPieces: "Event schema, list endpoint, create/update endpoints, page scaffold.",
-    missingPieces: "Registration, ticketing, sponsorship, seating, check-in, gala revenue workflows.",
-    nextAction: "Implement registration and attendance workflows before gala-specific tooling.",
+    workingPieces: "Event CRUD plus orders, guests, tables, check-in, dashboard summary, and report endpoints.",
+    missingPieces: "Public ticket registration pages, ticket type management, sponsor workflows, and several scaffold-only module pages.",
+    nextAction: "Implement ticket type CRUD and public registration flows, then replace scaffolded Events workspace pages.",
     linkedPlanFile: "PLAN_FILES/phase-07-events-and-gala.md",
   },
   {
@@ -260,21 +260,21 @@ export const FEATURE_READINESS: FeatureReadinessItem[] = [
   {
     feature: "User Management & Scopes",
     workspace: "Core",
-    status: "Placeholder",
+    status: "Partial",
     lastVerified: AUDIT_DATE,
-    workingPieces: "User model, roles field, requireRole middleware, settings placeholder pages.",
-    missingPieces: "User CRUD UI, reset password, workspace access assignment, permission scopes, audit review.",
-    nextAction: "Ship real user administration APIs and settings pages.",
+    workingPieces: "Users API and settings user-management UI with create/update/status/password reset.",
+    missingPieces: "Granular scopes matrix editor and workspace assignment controls.",
+    nextAction: "Implement roles/scopes matrix editor and workspace-level permission assignments.",
     linkedPlanFile: "PLAN_FILES/oyamacrm-onboarding-and-settings-setup-plan.md",
   },
   {
     feature: "Compassion Workspace",
     workspace: "Compassion",
-    status: "Not Started",
+    status: "Partial",
     lastVerified: AUDIT_DATE,
-    workingPieces: "Planning packets only.",
-    missingPieces: "Workspace switcher, models, routes, permissions, client data, scheduling, files, referrals, reports.",
-    nextAction: "Start Phase C0 with workspace-scoped routing and permission boundaries.",
+    workingPieces: "Compassion route group, module shell, and placeholder dashboard/routes.",
+    missingPieces: "Client-care models, API routes, real dashboard data, and workspace-specific authorization.",
+    nextAction: "Build core Compassion schema and CRUD APIs, then replace placeholder routes incrementally.",
     linkedPlanFile: "PLAN_FILES/phase-09-compassion-workspace.md",
   },
   {
@@ -291,12 +291,12 @@ export const FEATURE_READINESS: FeatureReadinessItem[] = [
 
 export const PRODUCTION_READINESS_CHECKLIST: ReadinessChecklistItem[] = [
   { item: "Authentication is stable", status: "Working", note: "JWT login, refresh rotation, logout, and /me are implemented." },
-  { item: "RBAC is enforced server-side", status: "Partial", note: "Middleware exists, but many routes still lack feature-specific enforcement." },
+  { item: "RBAC is enforced server-side", status: "Partial", note: "Auth/admin enforcement is broadly applied, but granular scopes/workspace policy checks are still incomplete." },
   { item: "Workspace permissions are enforced", status: "Not Started", note: "No donor/compassion workspace enforcement exists yet." },
   { item: "API response envelope is consistent", status: "Partial", note: "Some routes return `{ data }`, while others return raw payloads." },
   { item: "Input validation exists on all write endpoints", status: "Partial", note: "Some write routes validate basics; many rely on Prisma errors." },
-  { item: "Audit logs cover sensitive actions", status: "Partial", note: "Coverage exists for selected auth/settings/communication actions only." },
-  { item: "Database migrations are clean", status: "Needs Review", note: "Schema and seed exist, but no migrations directory was found." },
+  { item: "Audit logs cover sensitive actions", status: "Working", note: "Audit log route/viewer are live; continue broadening entity coverage as new modules ship." },
+  { item: "Database migrations are clean", status: "Partial", note: "Migrations directory is present; consistency and rollback verification still need expansion." },
   { item: "Seed data is reliable", status: "Partial", note: "Seed script exists, but smoke tests depend on DATABASE_URL being configured." },
   { item: "Error handling is consistent", status: "Partial", note: "Global handlers exist, though many routes still return mixed response shapes." },
   { item: "Frontend loading/error states exist", status: "Partial", note: "Core forms/pages include loading states, but many placeholders remain." },

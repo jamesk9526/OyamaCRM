@@ -1,65 +1,34 @@
-# Compassion CRM — Status
+# Compassion CRM Status
 
-_Last updated: 2025-07-14_
+_Last deep audit: 2026-05-09_
 
-## What Exists
+## Summary
 
-### Shell & Navigation
+Compassion CRM is currently **module-shell complete but workflow incomplete**. The shell, navigation, and visual system are in place, but core client-care entities are not yet implemented with production data models and APIs.
 
-| Component | File | Status | Notes |
-|-----------|------|--------|-------|
-| Blue sidebar | `app/components/layout/CompassionSidebar.tsx` | ✅ Working | Blue-600 active state, all nav sections |
-| Compassion layout | `app/compassion/layout.tsx` | ✅ Working | Auth-gated; uses TopBar + CompassionSidebar |
-| AppShell bypass | `app/components/layout/AppShell.tsx` | ✅ Working | `/compassion` in PUBLIC_PATHS; no double shell |
-| Module switcher | `app/components/layout/TopBar.tsx` | ✅ Working | Green/blue pill; route switch dropdown |
+## Status Matrix
 
-### Routes
+| Area | Feature | Status | Data Source | Notes | Next Step |
+|---|---|---|---|---|---|
+| Compassion CRM | Module shell + sidebar + topbar switcher | Working | Static Demo UI | `app/compassion/layout.tsx` and `CompassionSidebar.tsx` provide blue module shell and nav. | Keep shell and replace route placeholders with real pages incrementally. |
+| Compassion CRM | Dashboard metrics/charts | Placeholder Data | Hardcoded Placeholder | `app/compassion/dashboard/page.tsx` explicitly uses static arrays and TODO markers for API replacement. | Build `/api/compassion/dashboard-summary` and replace static data. |
+| Compassion CRM | Clients CRUD | UI Only | Static Demo UI | `/compassion/clients` route exists but is still placeholder content. | Add `Client` model + `/api/compassion/clients` routes + real table/form UI. |
+| Compassion CRM | Cases + services + timelines | UI Only | Static Demo UI | `/compassion/cases`, `/compassion/activities`, `/compassion/care-plans` are placeholder flows. | Add case and activity schema with timeline events. |
+| Compassion CRM | Appointments/scheduling | UI Only | Static Demo UI | `/compassion/appointments` exists as placeholder route only. | Build appointment model, availability, and scheduling endpoints. |
+| Compassion CRM | Reports | UI Only | Static Demo UI | `/compassion/reports` and `/compassion/dashboards` are not connected to data. | Add care-outcome and caseload report APIs and pages. |
+| Compassion CRM | Intake/import tools | Not Started | Unknown / Needs Verification | No Compassion-specific import flow is wired. | Extend import mapper for client/case datasets once schema exists. |
+| Compassion CRM | Permission boundaries | Partial | Unknown / Needs Verification | Layout contains TODO for module permission enforcement. | Implement workspace-scoped RBAC checks on Compassion routes/API. |
 
-| Route | Status | Notes |
-|-------|--------|-------|
-| `/compassion/dashboard` | ✅ Working | Static placeholder data; donut charts, schedule, tasks, alerts |
-| `/compassion/clients` | 🟡 Placeholder | Shell page only |
-| `/compassion/families` | 🟡 Placeholder | Shell page only |
-| `/compassion/cases` | 🟡 Placeholder | Shell page only |
-| `/compassion/assessments` | 🟡 Placeholder | Shell page only |
-| `/compassion/care-plans` | 🟡 Placeholder | Shell page only |
-| `/compassion/appointments` | 🟡 Placeholder | Shell page only |
-| `/compassion/activities` | 🟡 Placeholder | Shell page only |
-| `/compassion/communications` | 🟡 Placeholder | Shell page only |
-| `/compassion/tasks` | 🟡 Placeholder | Shell page only |
-| `/compassion/follow-ups` | 🟡 Placeholder | Shell page only |
-| `/compassion/reports` | 🟡 Placeholder | Shell page only |
-| `/compassion/dashboards` | 🟡 Placeholder | Shell page only |
-| `/compassion/data-tools` | 🟡 Placeholder | Shell page only; DonorCRM tools not ported |
-| `/compassion/settings` | 🟡 Placeholder | Shell page only |
+## Real Data vs Demo Data Audit
 
-## What Is Missing
+- **Real:** module shell and auth guard baseline.
+- **Demo/UI-only:** nearly all operational Compassion routes and dashboard metrics.
+- **Missing:** underlying client-care models, CRUD APIs, and production user workflows.
 
-| Item | Priority |
-|------|----------|
-| All Prisma/DB models for Client, Case, Assessment, CarePlan, Appointment | Critical |
-| Backend REST API for all Compassion CRM entities | Critical |
-| Compassion workspace/permission checks (`TODO` comments in place) | High |
-| Client CRUD UI | High |
-| Case management UI | High |
-| Appointment scheduling | Medium |
-| Care plan builder | Medium |
-| Compassion-specific reports | Medium |
-| Linking donor ↔ client records (shared person layer) | Low |
-| Role-based access for Compassion module | High |
+## Production-Readiness Gaps
 
-## Design Decisions
-
-- Compassion CRM uses **blue-600** (`#2563eb`) as its accent color (vs green-600 for DonorCRM)
-- Content area background is `bg-blue-50/30` for subtle visual separation
-- Sensitive client data is intentionally siloed from DonorCRM views
-- All Compassion routes are under the `/compassion/` prefix for clean separation
-
-## Next Steps
-
-1. Define Prisma schema: `Client`, `Case`, `CaseNote`, `Assessment`, `CarePlan`, `Appointment`
-2. Implement REST endpoints: `GET/POST /api/compassion/clients`, etc.
-3. Build Clients CRUD page with the same table/form pattern as Constituents
-4. Wire the dashboard to live API data
-5. Implement workspace permissions (staff should only see their assigned clients)
-6. Add `useCompassionPermission()` hook and enforce in the layout
+1. No `Client`, `Case`, `Appointment`, `Assessment`, `CarePlan` database entities.
+2. No Compassion API route set under `/api/compassion/*`.
+3. No workspace-permission enforcement beyond high-level auth gate.
+4. No real dashboard/reporting data sources.
+5. No intake/import pipeline for Compassion records.

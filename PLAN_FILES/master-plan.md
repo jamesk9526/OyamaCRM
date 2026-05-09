@@ -1,5 +1,11 @@
 # OyamaCRM Remaining Implementation Backlog
 
+> Canonical reality/status audit is now maintained in `MASTER_PLAN.md` at repo root.
+> Keep this file focused on execution backlog items and keep status claims synchronized with:
+> - `MASTER_PLAN.md`
+> - `docs/status/features.md`
+> - `/settings/project-status`
+
 > **Active source of truth.** This file is the consolidated backlog for work
 > that still needs to be implemented. Shipped work has been removed from the
 > active checklist so the planning set stays focused on what is left.

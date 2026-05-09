@@ -33,6 +33,11 @@ const CARDS = [
     href: "/settings/system-status",
   },
   {
+    title: "Project Status",
+    description: "Real-data vs demo-data audit matrix with concrete next-step remediation.",
+    href: "/settings/project-status",
+  },
+  {
     title: "Security",
     description: "Authentication controls plus verified setup-reset recovery for the CRM installation.",
     href: "/settings/security",

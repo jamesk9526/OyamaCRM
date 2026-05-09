@@ -27,6 +27,7 @@ const SETTINGS_NAV: SettingsNavItem[] = [
   { label: "Audit Logs", href: "/settings/audit" },
   { label: "System", href: "/settings/system" },
   { label: "System Status", href: "/settings/system-status" },
+  { label: "Project Status", href: "/settings/project-status" },
 ];
 
 /** SettingsSidebar highlights the current settings route and groups config pages. */

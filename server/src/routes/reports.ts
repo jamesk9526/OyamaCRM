@@ -14,6 +14,12 @@ import { Router } from "express";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import {
+  getYearRange,
+  getStartOfWeek,
+  calcRetentionRate,
+  calcYoYPercent,
+} from "../lib/dateRanges.js";
 
 const router = Router();
 
@@ -56,11 +62,9 @@ router.get("/summary", async (req, res) => {
   const now = new Date();
   const startOfYear = new Date(now.getFullYear(), 0, 1);
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
-  startOfWeek.setHours(0, 0, 0, 0);
+  const startOfWeek = getStartOfWeek();
 
   const [
     totalConstituents,
@@ -93,9 +97,9 @@ router.get("/summary", async (req, res) => {
       _sum: { amount: true },
       _count: true,
     }),
-    // Last month's donations (for MoM trend)
+    // Last month's donations (for MoM trend) — exclusive end = start of current month
     prisma.donation.aggregate({
-      where: { status: "COMPLETED", date: { gte: startOfLastMonth, lte: endOfLastMonth }, constituent: { organizationId } },
+      where: { status: "COMPLETED", date: { gte: startOfLastMonth, lt: startOfMonth }, constituent: { organizationId } },
       _sum: { amount: true },
       _count: true,
     }),
@@ -117,8 +121,8 @@ router.get("/summary", async (req, res) => {
   const weekCount = weekDonations._count;
   const monthAmt = Number(monthDonations._sum.amount ?? 0);
   const lastMonthAmt = Number(lastMonthDonations._sum.amount ?? 0);
-  // Month-over-month trend: positive = up, negative = down
-  const momTrend = lastMonthAmt > 0 ? Math.round(((monthAmt - lastMonthAmt) / lastMonthAmt) * 100) : null;
+  // Month-over-month trend using safe division (null when no prior-month data)
+  const momTrend = calcYoYPercent(monthAmt, lastMonthAmt);
 
   res.json({
     totalConstituents,
@@ -151,12 +155,12 @@ router.get("/giving-by-month", async (req, res) => {
   }
 
   const { year = new Date().getFullYear().toString() } = req.query as Record<string, string>;
-  const startDate = new Date(`${year}-01-01`);
-  const endDate = new Date(`${year}-12-31`);
+  const yearNum = parseInt(year, 10);
+  const dateFilter = getYearRange(yearNum);
 
   const donations = await prisma.donation.findMany({
     where: {
-      date: { gte: startDate, lte: endDate },
+      date: dateFilter,
       status: "COMPLETED",
       constituent: { organizationId },
     },
@@ -191,13 +195,15 @@ router.get("/donor-retention", async (req, res) => {
 
   const thisYear = new Date().getFullYear();
   const lastYear = thisYear - 1;
+  const lastYearRange = getYearRange(lastYear);
+  const thisYearRange = getYearRange(thisYear);
 
   const [lastYearDonors, thisYearDonors] = await Promise.all([
     // Unique constituent IDs who donated last year (base cohort for retention rate)
     prisma.donation.findMany({
       where: {
         status: "COMPLETED",
-        date: { gte: new Date(`${lastYear}-01-01`), lte: new Date(`${lastYear}-12-31`) },
+        date: lastYearRange,
         constituent: { organizationId },
       },
       select: { constituentId: true },
@@ -206,7 +212,7 @@ router.get("/donor-retention", async (req, res) => {
     prisma.donation.findMany({
       where: {
         status: "COMPLETED",
-        date: { gte: new Date(`${thisYear}-01-01`), lte: new Date(`${thisYear}-12-31`) },
+        date: thisYearRange,
         constituent: { organizationId },
       },
       select: { constituentId: true },
@@ -217,7 +223,8 @@ router.get("/donor-retention", async (req, res) => {
   const total = lastYearDonors.length;
   const thisYearSet = new Set(thisYearDonors.map((donor) => donor.constituentId));
   const retained = lastYearDonors.filter((donor) => thisYearSet.has(donor.constituentId)).length;
-  const rate = total > 0 ? Math.round((retained / total) * 100) : 0;
+  // Use shared helper — returns 0 (not NaN) when total is 0
+  const rate = calcRetentionRate(retained, total);
 
   res.json({ total, retained, rate, year: thisYear });
 });
@@ -310,16 +317,14 @@ router.get("/board-summary", async (req, res) => {
   const majorGiftCount = ytdDonations.filter((d) => Number(d.amount) >= 1000).length;
   const averageGift = ytdDonations.length > 0 ? ytdRevenue / ytdDonations.length : 0;
 
-  // Simple retention: if prior-year donors count > 0, use placeholder retention logic
-  // A full cohort analysis requires a more expensive query — simplified here for the board view.
-  const lastYearStart = new Date(year - 1, 0, 1);
-  const lastYearEnd = new Date(year, 0, 1);
+  // Full cohort retention using the shared helper
+  const lastYearRange = getYearRange(year - 1);
   const [lastYearDonorIds, thisYearDonorIds] = await Promise.all([
     prisma.donation.findMany({
       where: {
         constituent: { organizationId },
         status: "COMPLETED",
-        date: { gte: lastYearStart, lt: lastYearEnd },
+        date: lastYearRange,
       },
       select: { constituentId: true },
       distinct: ["constituentId"],
@@ -338,8 +343,7 @@ router.get("/board-summary", async (req, res) => {
   const lastYearSet = new Set(lastYearDonorIds.map((d) => d.constituentId));
   const thisYearSet = new Set(thisYearDonorIds.map((d) => d.constituentId));
   const retained = [...lastYearSet].filter((id) => thisYearSet.has(id)).length;
-  const donorRetentionRate =
-    lastYearSet.size > 0 ? Math.round((retained / lastYearSet.size) * 100) : 0;
+  const donorRetentionRate = calcRetentionRate(retained, lastYearSet.size);
 
   // Build monthly trend: sum donations for each month Jan–current
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -382,20 +386,16 @@ router.get("/lybunt", async (req, res) => {
 
   const thisYear = new Date().getFullYear();
   const lastYear = thisYear - 1;
-  const lastYearStart = new Date(`${lastYear}-01-01`);
-  const lastYearEnd = new Date(`${lastYear}-12-31`);
-  const thisYearStart = new Date(`${thisYear}-01-01`);
-  const thisYearEnd = new Date(`${thisYear}-12-31`);
 
   // Fetch distinct constituent IDs from both years in parallel
   const [lastYearDonors, thisYearDonors] = await Promise.all([
     prisma.donation.findMany({
-      where: { status: "COMPLETED", date: { gte: lastYearStart, lte: lastYearEnd }, constituent: { organizationId } },
+      where: { status: "COMPLETED", date: getYearRange(lastYear), constituent: { organizationId } },
       select: { constituentId: true },
       distinct: ["constituentId"],
     }),
     prisma.donation.findMany({
-      where: { status: "COMPLETED", date: { gte: thisYearStart, lte: thisYearEnd }, constituent: { organizationId } },
+      where: { status: "COMPLETED", date: getYearRange(thisYear), constituent: { organizationId } },
       select: { constituentId: true },
       distinct: ["constituentId"],
     }),
@@ -445,27 +445,26 @@ router.get("/sybunt", async (req, res) => {
 
   const thisYear = new Date().getFullYear();
   const lastYear = thisYear - 1;
-  const lastYearStart = new Date(`${lastYear}-01-01`);
-  const thisYearStart = new Date(`${thisYear}-01-01`);
-  const thisYearEnd = new Date(`${thisYear}-12-31`);
+  const lastYearRange = getYearRange(lastYear);
+  const thisYearRange = getYearRange(thisYear);
 
   // Fetch donors who gave before lastYear, in lastYear, and in thisYear
   const [beforeLastYear, lastYearDonors, thisYearDonors] = await Promise.all([
     // Anyone who gave before lastYear (the SYBUNT pool)
     prisma.donation.findMany({
-      where: { status: "COMPLETED", date: { lt: lastYearStart }, constituent: { organizationId } },
+      where: { status: "COMPLETED", date: { lt: lastYearRange.gte }, constituent: { organizationId } },
       select: { constituentId: true },
       distinct: ["constituentId"],
     }),
     // Exclude those who gave in lastYear
     prisma.donation.findMany({
-      where: { status: "COMPLETED", date: { gte: lastYearStart, lt: thisYearStart }, constituent: { organizationId } },
+      where: { status: "COMPLETED", date: lastYearRange, constituent: { organizationId } },
       select: { constituentId: true },
       distinct: ["constituentId"],
     }),
     // Exclude those who gave in thisYear
     prisma.donation.findMany({
-      where: { status: "COMPLETED", date: { gte: thisYearStart, lte: thisYearEnd }, constituent: { organizationId } },
+      where: { status: "COMPLETED", date: thisYearRange, constituent: { organizationId } },
       select: { constituentId: true },
       distinct: ["constituentId"],
     }),
@@ -522,11 +521,11 @@ router.get("/year-comparison", async (req, res) => {
 
   const [thisYearDonations, lastYearDonations] = await Promise.all([
     prisma.donation.findMany({
-      where: { status: "COMPLETED", date: { gte: new Date(`${thisYear}-01-01`), lte: new Date(`${thisYear}-12-31`) }, constituent: { organizationId } },
+      where: { status: "COMPLETED", date: getYearRange(thisYear), constituent: { organizationId } },
       select: { date: true, amount: true },
     }),
     prisma.donation.findMany({
-      where: { status: "COMPLETED", date: { gte: new Date(`${lastYear}-01-01`), lte: new Date(`${lastYear}-12-31`) }, constituent: { organizationId } },
+      where: { status: "COMPLETED", date: getYearRange(lastYear), constituent: { organizationId } },
       select: { date: true, amount: true },
     }),
   ]);
@@ -617,7 +616,7 @@ router.get("/giving-by-tier", async (req, res) => {
   const donations = await prisma.donation.findMany({
     where: {
       status: "COMPLETED",
-      date: { gte: new Date(`${thisYear}-01-01`), lte: new Date(`${thisYear}-12-31`) },
+      date: getYearRange(thisYear),
       constituent: { organizationId },
     },
     select: { amount: true },
@@ -667,7 +666,7 @@ router.get("/payment-breakdown", async (req, res) => {
   const donations = await prisma.donation.findMany({
     where: {
       status: "COMPLETED",
-      date: { gte: new Date(`${thisYear}-01-01`), lte: new Date(`${thisYear}-12-31`) },
+      date: getYearRange(thisYear),
       constituent: { organizationId },
     },
     select: { paymentMethod: true, amount: true },
@@ -743,17 +742,17 @@ router.get("/new-vs-returning", async (req, res) => {
 
   const yearParam = String(req.query.year ?? new Date().getFullYear());
   const year = parseInt(yearParam, 10);
-  const yearStart = new Date(`${year}-01-01`);
-  const yearEnd = new Date(`${year}-12-31`);
+  const yearRange = getYearRange(year);
+  const yearStart = yearRange.gte;
 
   // Fetch new donors (firstGiftDate in this year) and all donations this year in parallel
   const [newDonors, donations] = await Promise.all([
     prisma.constituent.findMany({
-      where: { organizationId, firstGiftDate: { gte: yearStart, lte: yearEnd } },
+      where: { organizationId, firstGiftDate: yearRange },
       select: { id: true, firstGiftDate: true },
     }),
     prisma.donation.findMany({
-      where: { status: "COMPLETED", date: { gte: yearStart, lte: yearEnd }, constituent: { organizationId } },
+      where: { status: "COMPLETED", date: yearRange, constituent: { organizationId } },
       select: { constituentId: true, date: true, constituent: { select: { firstGiftDate: true } } },
     }),
   ]);

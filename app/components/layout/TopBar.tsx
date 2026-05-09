@@ -182,7 +182,11 @@ function GlobalSearch() {
 /** Full-width top navigation bar — spans the entire viewport width. */
 export default function TopBar() {
   const pathname = usePathname();
-  const isCompassion = pathname.startsWith("/compassion");
+  const moduleKey = pathname.startsWith("/compassion")
+    ? "compassion"
+    : pathname.startsWith("/events")
+      ? "events"
+      : "donor";
   const [appsOpen, setAppsOpen] = useState(false);
 
   return (
@@ -191,7 +195,7 @@ export default function TopBar() {
       <header className="h-14 shrink-0 w-full flex items-center gap-4 px-4 bg-[#1a2332] border-b border-[#0f1924] z-20">
 
         {/* ── Module switcher (left anchor) ── */}
-        <ModuleSwitcher isCompassion={isCompassion} />
+        <ModuleSwitcher moduleKey={moduleKey} />
 
         {/* ── Divider ── */}
         <div className="w-px h-5 bg-white/10 shrink-0" />
@@ -245,7 +249,7 @@ export default function TopBar() {
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
           </svg>
-          <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full border-2 border-[#1a2332] ${isCompassion ? "bg-blue-400" : "bg-green-500"}`} />
+          <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full border-2 border-[#1a2332] ${moduleKey === "compassion" ? "bg-blue-400" : moduleKey === "events" ? "bg-amber-400" : "bg-green-500"}`} />
         </button>
 
         <div className="w-px h-5 bg-white/10 mx-1 shrink-0" />
@@ -253,7 +257,7 @@ export default function TopBar() {
         {/* Quick Add */}
         <button
           title="Quick Add"
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-sm font-medium transition-colors shrink-0 ${isCompassion ? "bg-blue-600 hover:bg-blue-500" : "bg-green-600 hover:bg-green-500"}`}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-sm font-medium transition-colors shrink-0 ${moduleKey === "compassion" ? "bg-blue-600 hover:bg-blue-500" : moduleKey === "events" ? "bg-amber-600 hover:bg-amber-500" : "bg-green-600 hover:bg-green-500"}`}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
@@ -262,7 +266,7 @@ export default function TopBar() {
         </button>
 
         {/* User avatar */}
-        <UserMenu isCompassion={isCompassion} />
+        <UserMenu moduleKey={moduleKey} />
       </div>
     </header>
     </>
@@ -270,15 +274,16 @@ export default function TopBar() {
 }
 
 /**
- * ModuleSwitcher: lets users switch between DonorCRM and Compassion CRM.
+ * ModuleSwitcher: lets users switch between DonorCRM, Compassion CRM, and Events CRM.
  */
-function ModuleSwitcher({ isCompassion }: { isCompassion: boolean }) {
+function ModuleSwitcher({ moduleKey }: { moduleKey: "donor" | "compassion" | "events" }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
   const modules = [
-    { key: "donor", label: "DonorCRM", href: "/", color: "bg-green-500", active: !isCompassion },
-    { key: "compassion", label: "Compassion CRM", href: "/compassion/dashboard", color: "bg-blue-500", active: isCompassion },
+    { key: "donor", label: "DonorCRM", href: "/", color: "bg-green-500", active: moduleKey === "donor" },
+    { key: "compassion", label: "Compassion CRM", href: "/compassion/dashboard", color: "bg-blue-500", active: moduleKey === "compassion" },
+    { key: "events", label: "Events CRM", href: "/events", color: "bg-amber-500", active: moduleKey === "events" },
   ];
   const current = modules.find((m) => m.active) ?? modules[0];
 
@@ -328,7 +333,7 @@ function ModuleSwitcher({ isCompassion }: { isCompassion: boolean }) {
 }
 
 /** UserMenu: avatar with sign-out dropdown. */
-function UserMenu({ isCompassion }: { isCompassion: boolean }) {
+function UserMenu({ moduleKey }: { moduleKey: "donor" | "compassion" | "events" }) {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -340,7 +345,11 @@ function UserMenu({ isCompassion }: { isCompassion: boolean }) {
     router.replace("/login");
   }
 
-  const avatarCls = isCompassion ? "bg-blue-700 border-blue-500" : "bg-green-700 border-green-500";
+  const avatarCls = moduleKey === "compassion"
+    ? "bg-blue-700 border-blue-500"
+    : moduleKey === "events"
+      ? "bg-amber-700 border-amber-500"
+      : "bg-green-700 border-green-500";
 
   return (
     <div className="relative shrink-0">

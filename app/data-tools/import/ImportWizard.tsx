@@ -567,7 +567,7 @@ export default function ImportWizard({ existingConstituents }: ImportWizardProps
     setImporting(true);
     setImportError(null);
     try {
-      // TODO: backend API needed — POST /api/constituents/import not yet implemented
+      // TODO: add import history + rollback endpoint integration before production.
       const res = await apiFetch<{ created: number; updated: number; skipped: number; errors: number }>(
         "/api/constituents/import",
         {

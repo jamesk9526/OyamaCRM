@@ -105,6 +105,39 @@ enum EventType {
   OTHER
 }
 
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum EventVisibility {
+  PUBLIC
+  PRIVATE
+  INVITE_ONLY
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  REFUNDED
+}
+
+enum SponsorshipLevel {
+  TITLE
+  PLATINUM
+  GOLD
+  SILVER
+  BRONZE
+  PARTNER
+  IN_KIND
+}
+
 enum CommunicationChannel {
   EMAIL
   PHONE
@@ -129,6 +162,7 @@ enum ActivityType {
   CALL
   MEETING
   NOTE
+  EVENT_REGISTRATION
   EVENT_ATTENDANCE
   VOLUNTEER_HOURS
   PLEDGE_MADE
@@ -154,47 +188,48 @@ model Organization {
 }
 
 model OrganizationSettings {
-  id             String       @id @default(cuid())
-  organizationId String       @unique
-  fiscalYearStart Int         @default(1) // Month 1-12
-  currency       String       @default("USD")
-  timezone       String       @default("America/Chicago")
-  smtpHost       String?
-  smtpPort       Int?
-  smtpSecure     Boolean      @default(true)
-  smtpUser       String?
-  smtpPass       String?
-  smtpFromName   String?
-  smtpFromEmail  String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id              String   @id @default(cuid())
+  organizationId  String   @unique
+  fiscalYearStart Int      @default(1) // Month 1-12
+  currency        String   @default("USD")
+  timezone        String   @default("America/Chicago")
+  smtpHost        String?
+  smtpPort        Int?
+  smtpSecure      Boolean  @default(true)
+  smtpUser        String?
+  smtpPass        String?
+  smtpFromName    String?
+  smtpFromEmail   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
 }
 
 model User {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
-  email          String   @unique
+  email          String    @unique
   firstName      String
   lastName       String
-  role           String   @default("staff") // admin | manager | staff | readonly | report_viewer
+  role           String    @default("staff") // admin | manager | staff | readonly | report_viewer
   avatarUrl      String?
-  active         Boolean  @default(true)
+  active         Boolean   @default(true)
   passwordHash   String?
   lastLoginAt    DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  organization   Organization     @relation(fields: [organizationId], references: [id])
-  assignedTasks  Task[]           @relation("TaskAssignee")
-  createdTasks   Task[]           @relation("TaskCreator")
-  activities     Activity[]
-  refreshTokens  RefreshToken[]
-  auditLogs      AuditLog[]
-  permissions    UserPermission[]
-  assignedGrants Grant[]          @relation("GrantAssignee")
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  assignedTasks   Task[]           @relation("TaskAssignee")
+  createdTasks    Task[]           @relation("TaskCreator")
+  activities      Activity[]
+  refreshTokens   RefreshToken[]
+  auditLogs       AuditLog[]
+  permissions     UserPermission[]
+  assignedGrants  Grant[]          @relation("GrantAssignee")
   grantActivities GrantActivity[]
+  ownedEvents     Event[]
 }
 
 // ─── Constituent (Donor/Volunteer/Member) ─────────────────────────────────────
@@ -206,89 +241,92 @@ model Constituent {
   donorStatus    DonorStatus     @default(NEW)
 
   // Contact info
-  prefix         String?
-  firstName      String
-  lastName       String
-  email          String?
-  email2         String?
-  phone          String?
-  phone2         String?
-  mobile         String?
+  prefix    String?
+  firstName String
+  lastName  String
+  email     String?
+  email2    String?
+  phone     String?
+  phone2    String?
+  mobile    String?
 
   // Address
-  addressLine1   String?
-  addressLine2   String?
-  city           String?
-  state          String?
-  zip            String?
-  country        String          @default("US")
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  zip          String?
+  country      String  @default("US")
 
   // Profile
-  birthDate      DateTime?
-  employer       String?
-  occupation     String?
-  notes          String?         @db.Text
-  avatarUrl      String?
-  externalId     String?         @db.VarChar(100) // Source system ID (e.g. DirID from eKYROS) for dedup on re-import
+  birthDate  DateTime?
+  employer   String?
+  occupation String?
+  notes      String?   @db.Text
+  avatarUrl  String?
+  externalId String?   @db.VarChar(100) // Source system ID (e.g. DirID from eKYROS) for dedup on re-import
 
   // Household
-  householdId    String?
-  isPrimaryContact Boolean       @default(true)
+  householdId      String?
+  isPrimaryContact Boolean @default(true)
 
   // Communication preferences
-  doNotEmail     Boolean         @default(false)
-  doNotCall      Boolean         @default(false)
-  doNotMail      Boolean         @default(false)
-  doNotContact   Boolean         @default(false)
-  emailOptOut    Boolean         @default(false)
+  doNotEmail   Boolean @default(false)
+  doNotCall    Boolean @default(false)
+  doNotMail    Boolean @default(false)
+  doNotContact Boolean @default(false)
+  emailOptOut  Boolean @default(false)
 
   // Giving summary (denormalized for performance)
-  totalLifetimeGiving  Decimal   @default(0) @db.Decimal(12, 2)
-  totalYtdGiving       Decimal   @default(0) @db.Decimal(12, 2)
-  firstGiftDate        DateTime?
-  lastGiftDate         DateTime?
-  lastGiftAmount       Decimal?  @db.Decimal(10, 2)
-  giftCount            Int       @default(0)
-  engagementScore      Int       @default(0) // 0-100
+  totalLifetimeGiving Decimal   @default(0) @db.Decimal(12, 2)
+  totalYtdGiving      Decimal   @default(0) @db.Decimal(12, 2)
+  firstGiftDate       DateTime?
+  lastGiftDate        DateTime?
+  lastGiftAmount      Decimal?  @db.Decimal(10, 2)
+  giftCount           Int       @default(0)
+  engagementScore     Int       @default(0) // 0-100
 
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  organization   Organization    @relation(fields: [organizationId], references: [id])
-  household      Household?      @relation("HouseholdMembers", fields: [householdId], references: [id])
-  headOf         Household?      @relation("HouseholdHead")
-  donations      Donation[]
-  tasks          Task[]
-  tags           ConstituentTag[]
-  activities     Activity[]
+  organization     Organization      @relation(fields: [organizationId], references: [id])
+  household        Household?        @relation("HouseholdMembers", fields: [householdId], references: [id])
+  headOf           Household?        @relation("HouseholdHead")
+  donations        Donation[]
+  tasks            Task[]
+  tags             ConstituentTag[]
+  activities       Activity[]
   eventAttendances EventAttendance[]
-  volunteerHours VolunteerHour[]
-  pledges        Pledge[]
+  eventOrders      EventOrder[]
+  eventGuests      EventGuest[]
+  eventSponsors    EventSponsor[]
+  volunteerHours   VolunteerHour[]
+  pledges          Pledge[]
 }
 
 model Household {
-  id                   String        @id @default(cuid())
-  name                 String
-  headConstituentId    String?       @unique
-  addressLine1         String?
-  addressLine2         String?
-  city                 String?
-  state                String?
-  zip                  String?
-  country              String        @default("US")
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
+  id                String   @id @default(cuid())
+  name              String
+  headConstituentId String?  @unique
+  addressLine1      String?
+  addressLine2      String?
+  city              String?
+  state             String?
+  zip               String?
+  country           String   @default("US")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  head        Constituent?  @relation("HouseholdHead", fields: [headConstituentId], references: [id])
-  members     Constituent[] @relation("HouseholdMembers")
+  head    Constituent?  @relation("HouseholdHead", fields: [headConstituentId], references: [id])
+  members Constituent[] @relation("HouseholdMembers")
 }
 
 model Tag {
-  id          String          @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
-  color       String          @default("#16a34a")
+  color       String   @default("#16a34a")
   description String?
-  createdAt   DateTime        @default(now())
+  createdAt   DateTime @default(now())
 
   constituents ConstituentTag[]
 }
@@ -307,73 +345,75 @@ model ConstituentTag {
 // ─── Donations & Pledges ─────────────────────────────────────────────────────
 
 model Donation {
-  id             String         @id @default(cuid())
-  constituentId  String
-  campaignId     String?
-  designationId  String?
-  pledgeId       String?
+  id            String  @id @default(cuid())
+  constituentId String
+  campaignId    String?
+  designationId String?
+  pledgeId      String?
+  eventId       String?
 
-  amount         Decimal        @db.Decimal(10, 2)
-  feeAmount      Decimal        @default(0) @db.Decimal(8, 2)
-  date           DateTime       @default(now())
-  paymentMethod  PaymentMethod  @default(ONLINE)
-  status         DonationStatus @default(COMPLETED)
-  checkNumber    String?
-  transactionId  String?
+  amount        Decimal        @db.Decimal(10, 2)
+  feeAmount     Decimal        @default(0) @db.Decimal(8, 2)
+  date          DateTime       @default(now())
+  paymentMethod PaymentMethod  @default(ONLINE)
+  status        DonationStatus @default(COMPLETED)
+  checkNumber   String?
+  transactionId String?
 
-  isRecurring    Boolean        @default(false)
-  frequency      RecurringFrequency?
-  nextGiftDate   DateTime?
+  isRecurring  Boolean             @default(false)
+  frequency    RecurringFrequency?
+  nextGiftDate DateTime?
 
-  receiptNumber  String?        @unique
-  receiptSentAt  DateTime?
+  receiptNumber        String?   @unique
+  receiptSentAt        DateTime?
   acknowledgmentSentAt DateTime?
-  taxDeductible  Boolean        @default(true)
+  taxDeductible        Boolean   @default(true)
 
   inKindDescription String?
-  notes          String?
+  notes             String?
 
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  constituent    Constituent    @relation(fields: [constituentId], references: [id])
-  campaign       Campaign?      @relation(fields: [campaignId], references: [id])
-  designation    Designation?   @relation(fields: [designationId], references: [id])
-  pledge         Pledge?        @relation(fields: [pledgeId], references: [id])
-  activities     Activity[]
+  constituent Constituent  @relation(fields: [constituentId], references: [id])
+  campaign    Campaign?    @relation(fields: [campaignId], references: [id])
+  designation Designation? @relation(fields: [designationId], references: [id])
+  pledge      Pledge?      @relation(fields: [pledgeId], references: [id])
+  event       Event?       @relation(fields: [eventId], references: [id])
+  activities  Activity[]
 }
 
 model Pledge {
-  id             String    @id @default(cuid())
-  constituentId  String
-  campaignId     String?
-  designationId  String?
+  id            String  @id @default(cuid())
+  constituentId String
+  campaignId    String?
+  designationId String?
 
-  totalAmount    Decimal   @db.Decimal(10, 2)
-  paidAmount     Decimal   @default(0) @db.Decimal(10, 2)
-  startDate      DateTime
-  endDate        DateTime?
-  frequency      RecurringFrequency?
-  notes          String?
-  active         Boolean   @default(true)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  totalAmount Decimal             @db.Decimal(10, 2)
+  paidAmount  Decimal             @default(0) @db.Decimal(10, 2)
+  startDate   DateTime
+  endDate     DateTime?
+  frequency   RecurringFrequency?
+  notes       String?
+  active      Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
-  constituent    Constituent  @relation(fields: [constituentId], references: [id])
-  campaign       Campaign?    @relation(fields: [campaignId], references: [id])
-  designation    Designation? @relation(fields: [designationId], references: [id])
-  payments       Donation[]
+  constituent Constituent  @relation(fields: [constituentId], references: [id])
+  campaign    Campaign?    @relation(fields: [campaignId], references: [id])
+  designation Designation? @relation(fields: [designationId], references: [id])
+  payments    Donation[]
 }
 
 model Designation {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
   description String?
-  active      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
 
-  donations   Donation[]
-  pledges     Pledge[]
+  donations Donation[]
+  pledges   Pledge[]
 }
 
 // ─── Campaigns ───────────────────────────────────────────────────────────────
@@ -391,70 +431,221 @@ model Campaign {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  organization   Organization     @relation(fields: [organizationId], references: [id])
-  donations      Donation[]
-  pledges        Pledge[]
+  organization Organization @relation(fields: [organizationId], references: [id])
+  donations    Donation[]
+  pledges      Pledge[]
 }
 
 // ─── Tasks ───────────────────────────────────────────────────────────────────
 
 model Task {
-  id             String       @id @default(cuid())
-  constituentId  String?
-  assigneeId     String?
-  createdById    String?
+  id            String  @id @default(cuid())
+  constituentId String?
+  assigneeId    String?
+  createdById   String?
 
-  title          String
-  description    String?      @db.Text
-  type           TaskType     @default(FOLLOW_UP)
-  status         TaskStatus   @default(PENDING)
-  priority       TaskPriority @default(MEDIUM)
-  dueDate        DateTime?
-  completedAt    DateTime?
+  title       String
+  description String?      @db.Text
+  type        TaskType     @default(FOLLOW_UP)
+  status      TaskStatus   @default(PENDING)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  completedAt DateTime?
 
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  constituent    Constituent? @relation(fields: [constituentId], references: [id])
-  assignee       User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
-  createdBy      User?        @relation("TaskCreator", fields: [createdById], references: [id])
-  activities     Activity[]
+  constituent Constituent? @relation(fields: [constituentId], references: [id])
+  assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdBy   User?        @relation("TaskCreator", fields: [createdById], references: [id])
+  activities  Activity[]
 }
 
 // ─── Events ──────────────────────────────────────────────────────────────────
 
 model Event {
-  id             String    @id @default(cuid())
+  id             String          @id @default(cuid())
   organizationId String
   name           String
-  description    String?   @db.Text
-  type           EventType @default(OTHER)
-  location       String?
-  startDate      DateTime
-  endDate        DateTime?
-  registrationGoal Int?
-  revenueGoal    Decimal?  @db.Decimal(10, 2)
-  active         Boolean   @default(true)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  description    String?         @db.Text
+  type           EventType       @default(OTHER)
+  status         EventStatus     @default(DRAFT)
+  visibility     EventVisibility @default(PUBLIC)
 
-  organization   Organization    @relation(fields: [organizationId], references: [id])
-  attendances    EventAttendance[]
+  // Location details
+  location   String?
+  address    String?
+  city       String?
+  state      String?
+  zip        String?
+  virtualUrl String?
+
+  // Date & time
+  startDate            DateTime
+  endDate              DateTime?
+  registrationDeadline DateTime?
+
+  // Capacity & goals
+  capacity         Int?
+  registrationGoal Int?
+  revenueGoal      Decimal? @db.Decimal(10, 2)
+
+  // Ownership & management
+  ownerId       String?
+  internalNotes String? @db.Text
+
+  // Legacy active field (consider deprecating in favor of status)
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization   Organization      @relation(fields: [organizationId], references: [id])
+  owner          User?             @relation(fields: [ownerId], references: [id])
+  ticketTypes    TicketType[]
+  orders         EventOrder[]
+  guests         EventGuest[]
+  tables         EventTable[]
+  sponsors       EventSponsor[]
+  donations      Donation[]
+  activities     Activity[]
   volunteerHours VolunteerHour[]
+  // Legacy - kept for backward compatibility during migration
+  attendances    EventAttendance[]
 }
 
-model EventAttendance {
-  id            String   @id @default(cuid())
+model TicketType {
+  id          String   @id @default(cuid())
+  eventId     String
+  name        String
+  description String?  @db.Text
+  price       Decimal  @db.Decimal(8, 2)
+  capacity    Int?
+  available   Int?
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  event      Event            @relation(fields: [eventId], references: [id])
+  orderItems EventOrderItem[]
+  guests     EventGuest[]
+}
+
+model EventOrder {
+  id            String      @id @default(cuid())
   eventId       String
   constituentId String
-  checkedIn     Boolean  @default(false)
+  orderNumber   String      @unique
+  status        OrderStatus @default(PENDING)
+
+  totalAmount Decimal @db.Decimal(10, 2)
+  feeAmount   Decimal @default(0) @db.Decimal(8, 2)
+
+  paymentMethod PaymentMethod?
+  transactionId String?
+  paidAt        DateTime?
+
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event       Event            @relation(fields: [eventId], references: [id])
+  constituent Constituent      @relation(fields: [constituentId], references: [id])
+  items       EventOrderItem[]
+  guests      EventGuest[]
+}
+
+model EventOrderItem {
+  id           String   @id @default(cuid())
+  orderId      String
+  ticketTypeId String
+  quantity     Int      @default(1)
+  unitPrice    Decimal  @db.Decimal(8, 2)
+  totalPrice   Decimal  @db.Decimal(8, 2)
+  createdAt    DateTime @default(now())
+
+  order      EventOrder @relation(fields: [orderId], references: [id])
+  ticketType TicketType @relation(fields: [ticketTypeId], references: [id])
+}
+
+model EventGuest {
+  id            String  @id @default(cuid())
+  eventId       String
+  orderId       String?
+  constituentId String?
+  ticketTypeId  String?
+  tableId       String?
+
+  // Guest details (can be independent of constituent)
+  firstName String?
+  lastName  String?
+  email     String?
+  phone     String?
+
+  // Check-in
+  checkedIn   Boolean   @default(false)
+  checkedInAt DateTime?
+
+  // Dietary & accessibility
+  dietaryRestrictions String?
+  specialNeeds        String?
+  notes               String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event       Event        @relation(fields: [eventId], references: [id])
+  order       EventOrder?  @relation(fields: [orderId], references: [id])
+  constituent Constituent? @relation(fields: [constituentId], references: [id])
+  ticketType  TicketType?  @relation(fields: [ticketTypeId], references: [id])
+  table       EventTable?  @relation(fields: [tableId], references: [id])
+}
+
+model EventTable {
+  id        String   @id @default(cuid())
+  eventId   String
+  name      String
+  capacity  Int      @default(10)
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event  Event        @relation(fields: [eventId], references: [id])
+  guests EventGuest[]
+}
+
+model EventSponsor {
+  id            String           @id @default(cuid())
+  eventId       String
+  constituentId String
+  level         SponsorshipLevel
+  amount        Decimal          @db.Decimal(10, 2)
+  benefits      String?          @db.Text
+  logoUrl       String?
+  websiteUrl    String?
+  notes         String?          @db.Text
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  event       Event       @relation(fields: [eventId], references: [id])
+  constituent Constituent @relation(fields: [constituentId], references: [id])
+}
+
+// Legacy EventAttendance - kept for backward compatibility during migration
+// TODO: Migrate data to EventGuest and deprecate
+model EventAttendance {
+  id            String    @id @default(cuid())
+  eventId       String
+  constituentId String
+  checkedIn     Boolean   @default(false)
   checkedInAt   DateTime?
   ticketType    String?
-  amountPaid    Decimal? @db.Decimal(8, 2)
-  createdAt     DateTime @default(now())
+  amountPaid    Decimal?  @db.Decimal(8, 2)
+  createdAt     DateTime  @default(now())
 
-  event         Event        @relation(fields: [eventId], references: [id])
-  constituent   Constituent  @relation(fields: [constituentId], references: [id])
+  event       Event       @relation(fields: [eventId], references: [id])
+  constituent Constituent @relation(fields: [constituentId], references: [id])
 }
 
 // ─── Volunteers ──────────────────────────────────────────────────────────────
@@ -468,28 +659,30 @@ model VolunteerHour {
   date          DateTime
   createdAt     DateTime @default(now())
 
-  constituent   Constituent @relation(fields: [constituentId], references: [id])
-  event         Event?      @relation(fields: [eventId], references: [id])
+  constituent Constituent @relation(fields: [constituentId], references: [id])
+  event       Event?      @relation(fields: [eventId], references: [id])
 }
 
 // ─── Activity Timeline ────────────────────────────────────────────────────────
 
 model Activity {
-  id            String       @id @default(cuid())
+  id            String  @id @default(cuid())
   constituentId String?
   donationId    String?
   taskId        String?
   userId        String?
+  eventId       String?
 
-  type          ActivityType
-  description   String       @db.Text
-  metadata      Json?
-  createdAt     DateTime     @default(now())
+  type        ActivityType
+  description String       @db.Text
+  metadata    Json?
+  createdAt   DateTime     @default(now())
 
-  constituent   Constituent? @relation(fields: [constituentId], references: [id])
-  donation      Donation?    @relation(fields: [donationId], references: [id])
-  task          Task?        @relation(fields: [taskId], references: [id])
-  user          User?        @relation(fields: [userId], references: [id])
+  constituent Constituent? @relation(fields: [constituentId], references: [id])
+  donation    Donation?    @relation(fields: [donationId], references: [id])
+  task        Task?        @relation(fields: [taskId], references: [id])
+  user        User?        @relation(fields: [userId], references: [id])
+  event       Event?       @relation(fields: [eventId], references: [id])
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -501,22 +694,22 @@ model RefreshToken {
   expiresAt DateTime
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model AuditLog {
   id             String   @id @default(cuid())
   organizationId String?
   userId         String?
-  action         String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, etc.
-  entity         String?  // Constituent, Donation, User, etc.
+  action         String // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, etc.
+  entity         String? // Constituent, Donation, User, etc.
   entityId       String?
   metadata       Json?
   ipAddress      String?
   userAgent      String?
   createdAt      DateTime @default(now())
 
-  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 }
 
 enum AutomationTrigger {
@@ -546,14 +739,14 @@ model Automation {
   name           String
   description    String?
   trigger        AutomationTrigger
-  triggerConfig  Json?             // Optional filter conditions on the trigger event
+  triggerConfig  Json? // Optional filter conditions on the trigger event
   enabled        Boolean           @default(true)
   runCount       Int               @default(0)
   lastRunAt      DateTime?
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
-  actions        AutomationAction[]
+  actions AutomationAction[]
 }
 
 // A single action step within an automation workflow.
@@ -561,46 +754,45 @@ model AutomationAction {
   id           String               @id @default(cuid())
   automationId String
   type         AutomationActionType
-  config       Json?                // Action-specific config (e.g. email template ID, tag name)
+  config       Json? // Action-specific config (e.g. email template ID, tag name)
   order        Int                  @default(0)
   createdAt    DateTime             @default(now())
 
-  automation   Automation           @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  automation Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
 }
 
 // ─── Email Campaigns(Communications Hub) ─────────────────────────────────────
 
 model EmailCampaign {
-  id              String              @id @default(cuid())
-  organizationId  String
-  name            String
-  subject         String
-  previewText     String?
-  fromName        String              @default("OyamaCRM")
-  fromEmail       String              @default("noreply@oyamacrm.org")
-  replyToEmail    String?
-  bodyHtml        String?             @db.LongText
-  bodyText        String?             @db.Text
-  templateJson    String?             @db.LongText
-  status          EmailCampaignStatus @default(DRAFT)
-  scheduledAt     DateTime?
-  sentAt          DateTime?
-  audienceFilter  String?             @db.Text // JSON: { type, donorStatus, tags, etc. }
+  id             String              @id @default(cuid())
+  organizationId String
+  name           String
+  subject        String
+  previewText    String?
+  fromName       String              @default("OyamaCRM")
+  fromEmail      String              @default("noreply@oyamacrm.org")
+  replyToEmail   String?
+  bodyHtml       String?             @db.LongText
+  bodyText       String?             @db.Text
+  templateJson   String?             @db.LongText
+  status         EmailCampaignStatus @default(DRAFT)
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  audienceFilter String?             @db.Text // JSON: { type, donorStatus, tags, etc. }
 
   // Post-send stats
-  totalRecipients Int                 @default(0)
-  delivered       Int                 @default(0)
-  opened          Int                 @default(0)
-  clicked         Int                 @default(0)
-  bounced         Int                 @default(0)
-  unsubscribed    Int                 @default(0)
+  totalRecipients Int @default(0)
+  delivered       Int @default(0)
+  opened          Int @default(0)
+  clicked         Int @default(0)
+  bounced         Int @default(0)
+  unsubscribed    Int @default(0)
 
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  organization    Organization        @relation(fields: [organizationId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
 }
-
 
 // ─── Custom Fields ────────────────────────────────────────────────────────────
 
@@ -608,30 +800,30 @@ model EmailCampaign {
 // Supports text, number, boolean, date, select, and multiselect field types.
 // Values are stored separately in CustomFieldValue per entity instance.
 model CustomField {
-  id             String   @id @default(cuid())
+  id             String @id @default(cuid())
   organizationId String
 
   /// Which entity this field belongs to: "constituent" | "donation" | "campaign" | "event"
-  entityType     String
+  entityType   String
   /// Human-readable label shown in the UI
-  name           String
+  name         String
   /// Camelcase key used in API payloads (must be unique per org + entityType)
-  key            String
+  key          String
   /// One of: text | number | boolean | date | select | multiselect | url | email | phone | textarea
-  fieldType      String
+  fieldType    String
   /// JSON-encoded string[] of allowed values (for select / multiselect)
-  options        String?  @db.Text
-  required       Boolean  @default(false)
-  description    String?
-  placeholder    String?
-  defaultValue   String?
-  sortOrder      Int      @default(0)
-  active         Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  options      String?  @db.Text
+  required     Boolean  @default(false)
+  description  String?
+  placeholder  String?
+  defaultValue String?
+  sortOrder    Int      @default(0)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  organization   Organization       @relation(fields: [organizationId], references: [id])
-  values         CustomFieldValue[]
+  organization Organization       @relation(fields: [organizationId], references: [id])
+  values       CustomFieldValue[]
 
   @@unique([organizationId, entityType, key])
   @@index([organizationId, entityType])
@@ -652,7 +844,7 @@ model CustomFieldValue {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  field      CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  field CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
 
   @@unique([fieldId, entityId])
   @@index([entityId, entityType])
@@ -674,7 +866,7 @@ model UserPermission {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, permission])
   @@index([userId])
@@ -699,17 +891,17 @@ model SetupSnapshot {
 
 /// Current stage of a grant application in the pipeline.
 enum GrantStatus {
-  IDEA               // Initial idea / not yet researched
-  RESEARCH           // Researching funder requirements
-  LOI_DRAFT          // Drafting letter of intent
-  LOI_SUBMITTED      // LOI sent to funder
-  PROPOSAL_DRAFT     // Writing the full proposal
+  IDEA // Initial idea / not yet researched
+  RESEARCH // Researching funder requirements
+  LOI_DRAFT // Drafting letter of intent
+  LOI_SUBMITTED // LOI sent to funder
+  PROPOSAL_DRAFT // Writing the full proposal
   PROPOSAL_SUBMITTED // Full proposal submitted
-  UNDER_REVIEW       // Funder is reviewing the proposal
-  AWARDED            // Grant awarded!
-  REJECTED           // Grant denied
-  WITHDRAWN          // Application withdrawn by us
-  CLOSED             // Closed for any other reason
+  UNDER_REVIEW // Funder is reviewing the proposal
+  AWARDED // Grant awarded!
+  REJECTED // Grant denied
+  WITHDRAWN // Application withdrawn by us
+  CLOSED // Closed for any other reason
 }
 
 /// Category of the grant-making organization.
@@ -753,57 +945,57 @@ model GrantFunder {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
-  organization   Organization    @relation(fields: [organizationId], references: [id])
-  grants         Grant[]
+  organization Organization @relation(fields: [organizationId], references: [id])
+  grants       Grant[]
 }
 
 /// A single grant opportunity tracked through the application pipeline.
 model Grant {
-  id             String      @id @default(cuid())
+  id             String  @id @default(cuid())
   organizationId String
   funderId       String
   /// Staff member responsible for writing / managing this grant.
   assigneeId     String?
 
   /// Name of the grant program or opportunity.
-  title          String
+  title       String
   /// Program area / focus area (e.g., Youth Services, Housing, Education).
-  programArea    String?
-  status         GrantStatus @default(IDEA)
+  programArea String?
+  status      GrantStatus @default(IDEA)
 
-  amountRequested Decimal?   @db.Decimal(12, 2)
-  amountAwarded   Decimal?   @db.Decimal(12, 2)
+  amountRequested Decimal? @db.Decimal(12, 2)
+  amountAwarded   Decimal? @db.Decimal(12, 2)
 
   /// Whether this funder requires a letter of intent before the full proposal.
-  requiresLOI    Boolean     @default(false)
+  requiresLOI    Boolean   @default(false)
   loiDeadline    DateTime?
   loiSubmittedAt DateTime?
 
-  applicationDeadline  DateTime?
-  submittedAt          DateTime?
-  awardedAt            DateTime?
-  rejectedAt           DateTime?
+  applicationDeadline DateTime?
+  submittedAt         DateTime?
+  awardedAt           DateTime?
+  rejectedAt          DateTime?
 
   /// Grant period start (when funded work begins).
-  grantPeriodStart     DateTime?
+  grantPeriodStart DateTime?
   /// Grant period end (when funded work must be completed).
-  grantPeriodEnd       DateTime?
+  grantPeriodEnd   DateTime?
 
   /// Next reporting deadline (for awarded grants).
   reportingDeadline    DateTime?
   reportingSubmittedAt DateTime?
 
-  notes         String?     @db.Text
-  internalNotes String?     @db.Text
+  notes         String? @db.Text
+  internalNotes String? @db.Text
 
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  organization  Organization   @relation(fields: [organizationId], references: [id])
-  funder        GrantFunder    @relation(fields: [funderId], references: [id])
-  assignee      User?          @relation("GrantAssignee", fields: [assigneeId], references: [id])
-  sections      GrantSection[]
-  activities    GrantActivity[]
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  funder       GrantFunder     @relation(fields: [funderId], references: [id])
+  assignee     User?           @relation("GrantAssignee", fields: [assigneeId], references: [id])
+  sections     GrantSection[]
+  activities   GrantActivity[]
 }
 
 /// A single writing section within a grant proposal (e.g., need statement, budget narrative).
@@ -822,7 +1014,7 @@ model GrantSection {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  grant     Grant    @relation(fields: [grantId], references: [id], onDelete: Cascade)
+  grant Grant @relation(fields: [grantId], references: [id], onDelete: Cascade)
 
   @@unique([grantId, key])
 }
@@ -837,6 +1029,6 @@ model GrantActivity {
   metadata    Json?
   createdAt   DateTime          @default(now())
 
-  grant       Grant  @relation(fields: [grantId], references: [id], onDelete: Cascade)
-  user        User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  grant Grant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 }

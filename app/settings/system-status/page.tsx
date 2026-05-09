@@ -1,5 +1,6 @@
 /** System Status & Feature Readiness page for audit-backed production-readiness reporting. */
 
+import Link from "next/link";
 import FeatureReadinessTable from "@/app/components/settings/FeatureReadinessTable";
 import ProductionReadinessChecklist from "@/app/components/settings/ProductionReadinessChecklist";
 import SystemStatusOverview from "@/app/components/settings/SystemStatusOverview";
@@ -23,6 +24,13 @@ export default function SystemStatusPage() {
         <h1 className="text-xl font-semibold text-gray-900">System Status &amp; Feature Readiness</h1>
         <p className="mt-0.5 text-sm text-gray-500">
           Evidence-based readiness view for what is working, partially working, placeholder-only, or still not started.
+        </p>
+        <p className="mt-1 text-xs text-gray-500">
+          Need row-level real-vs-demo evidence?{" "}
+          <Link href="/settings/project-status" className="text-green-700 hover:underline">
+            Open Project Status Audit
+          </Link>
+          .
         </p>
       </div>
 

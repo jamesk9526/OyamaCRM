@@ -1,6 +1,6 @@
 # Merge Workflow — Status
 
-_Last updated: 2025-07-14_
+_Last deep audit: 2026-05-09_
 
 ## What Exists
 

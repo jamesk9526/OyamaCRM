@@ -24,14 +24,15 @@ describe("route workflow smoke", () => {
   });
 
   it("reads core list endpoints", async () => {
+    const auth = { Authorization: `Bearer ${accessToken}` };
     const [constituents, campaigns, donations, tasks, reports, automations, emailStats] = await Promise.all([
-      request(app).get("/api/constituents"),
-      request(app).get("/api/campaigns"),
-      request(app).get("/api/donations"),
-      request(app).get("/api/tasks"),
-      request(app).get("/api/reports/summary"),
-      request(app).get("/api/automations"),
-      request(app).get("/api/email-campaigns/stats"),
+      request(app).get("/api/constituents").set(auth),
+      request(app).get("/api/campaigns").set(auth),
+      request(app).get("/api/donations").set(auth),
+      request(app).get("/api/tasks").set(auth),
+      request(app).get("/api/reports/summary").set(auth),
+      request(app).get("/api/automations").set(auth),
+      request(app).get("/api/email-campaigns/stats").set(auth),
     ]);
     expect(constituents.status).toBe(200);
     expect(campaigns.status).toBe(200);
@@ -43,7 +44,8 @@ describe("route workflow smoke", () => {
   });
 
   it("creates and updates campaign/task/event entities", async () => {
-    const campaign = await request(app).post("/api/campaigns").send({
+    const auth = { Authorization: `Bearer ${accessToken}` };
+    const campaign = await request(app).post("/api/campaigns").set(auth).send({
       organizationId: "org_demo",
       name: "Smoke Test Campaign",
       category: "GENERAL",
@@ -54,7 +56,7 @@ describe("route workflow smoke", () => {
     expect(campaign.status).toBe(201);
     campaignId = campaign.body.id;
 
-    const task = await request(app).post("/api/tasks").send({
+    const task = await request(app).post("/api/tasks").set(auth).send({
       title: "Smoke follow-up task",
       type: "FOLLOW_UP",
       status: "PENDING",
@@ -64,10 +66,10 @@ describe("route workflow smoke", () => {
     expect(task.status).toBe(201);
     taskId = task.body.id;
 
-    const taskDone = await request(app).patch(`/api/tasks/${taskId}`).send({ status: "COMPLETED" });
+    const taskDone = await request(app).patch(`/api/tasks/${taskId}`).set(auth).send({ status: "COMPLETED" });
     expect(taskDone.status).toBe(200);
 
-    const event = await request(app).post("/api/events").send({
+    const event = await request(app).post("/api/events").set(auth).send({
       name: "Smoke Event",
       type: "WORKSHOP",
       startDate: new Date().toISOString(),
@@ -77,7 +79,8 @@ describe("route workflow smoke", () => {
   });
 
   it("creates email campaign and automation preset install", async () => {
-    const emailCampaign = await request(app).post("/api/email-campaigns").send({
+    const auth = { Authorization: `Bearer ${accessToken}` };
+    const emailCampaign = await request(app).post("/api/email-campaigns").set(auth).send({
       name: "Smoke Email",
       subject: "Smoke",
       fromName: "Hope Community Foundation",
@@ -88,28 +91,30 @@ describe("route workflow smoke", () => {
     expect(emailCampaign.status).toBe(201);
     expect(emailCampaign.body.id).toBeTruthy();
 
-    const presets = await request(app).get("/api/automations/presets");
+    const presets = await request(app).get("/api/automations/presets").set(auth);
     expect(presets.status).toBe(200);
     const presetId = presets.body[0]?.id;
     expect(presetId).toBeTruthy();
 
-    const install = await request(app).post("/api/automations/from-preset").send({ presetId });
+    const install = await request(app).post("/api/automations/from-preset").set(auth).send({ presetId });
     expect(install.status).toBe(201);
   });
 
   it("reads constituent detail timeline (phase 2 starter)", async () => {
-    const res = await request(app).get("/api/constituents/con_01");
+    const auth = { Authorization: `Bearer ${accessToken}` };
+    const res = await request(app).get("/api/constituents/con_01").set(auth);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.activities)).toBe(true);
   });
 
   it("cleans up smoke-created task and campaign", async () => {
+    const auth = { Authorization: `Bearer ${accessToken}` };
     if (taskId) {
-      const delTask = await request(app).delete(`/api/tasks/${taskId}`);
+      const delTask = await request(app).delete(`/api/tasks/${taskId}`).set(auth);
       expect(delTask.status).toBe(204);
     }
     if (campaignId) {
-      const upd = await request(app).patch(`/api/campaigns/${campaignId}`).send({ active: false });
+      const upd = await request(app).patch(`/api/campaigns/${campaignId}`).set(auth).send({ active: false });
       expect(upd.status).toBe(200);
     }
     expect(accessToken).toBeTruthy();

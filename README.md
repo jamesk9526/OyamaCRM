@@ -56,15 +56,15 @@
 
 | Area | What's Included |
 |------|----------------|
-| **Dashboard** | Caseload overview donut, cases-by-status chart, today's schedule, recent activity feed, alerts & reminders |
-| **Clients** | Full client profiles, family relationships, contact info, communication preferences, service history |
-| **Cases** | Open/in-progress/closed case tracking, case notes, status management, assigned workers |
-| **Assessments** | Structured assessment forms, scoring, progress tracking, review history |
-| **Care Plans** | Goal-based care plans, service assignments, expiry tracking, review reminders |
-| **Appointments** | Calendar scheduling, home visits, internal meetings, confirmation workflows |
-| **Activities** | Activity logging, interaction history, worker notes, time tracking |
-| **Follow Ups** | Automated follow-up reminders, overdue alerts, worker assignment |
-| **Reports** | Caseload reports, service utilization, outcomes dashboards |
+| **Dashboard** | Blue-themed dashboard shell with static placeholder metrics/charts (not fully API-backed yet) |
+| **Clients** | Route scaffold exists; CRUD workflow not yet implemented |
+| **Cases** | Route scaffold exists; case model/API not yet implemented |
+| **Assessments** | Planned; UI scaffold only |
+| **Care Plans** | Planned; UI scaffold only |
+| **Appointments** | Planned; UI scaffold only |
+| **Activities** | Planned; UI scaffold only |
+| **Follow Ups** | Planned; UI scaffold only |
+| **Reports** | Planned; UI scaffold only |
 
 </details>
 
@@ -169,12 +169,12 @@ Cloud-hosted deployment, managed infrastructure, premium SLAs, and commercial su
 - [x] Constituents, donations, campaigns, tasks
 - [x] Communications & automations (foundation)
 - [x] Settings workspace with system status
-- [x] Compassion CRM module (dashboard, clients, cases, care plans)
+- [~] Compassion CRM module shell (operational workflows still pending)
 - [x] CSV import wizard with field mapping & duplicate detection
 - [ ] Full users + roles/RBAC enforcement
 - [ ] Email provider integration (SendGrid / Mailgun)
 - [ ] AI-assisted donor insights (self-hosted LLM support)
-- [ ] Events & gala management
+- [~] Events CRM core operations (ticketing/sponsors/public registration still pending)
 - [ ] Mobile-responsive layouts
 - [ ] Public giving pages / donation forms
 - [ ] Advanced reporting & data exports

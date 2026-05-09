@@ -7,8 +7,8 @@ import Sidebar from "./Sidebar";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
 
-// /compassion routes render their own CompassionShell — bypass AppShell wrapper
-const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/compassion"];
+// /compassion and /events routes render their own module shells — bypass AppShell wrapper
+const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/compassion", "/events"];
 
 // Routes that the report_viewer role may access (board dashboard + its own sub-routes)
 const BOARD_PATHS = ["/board"];

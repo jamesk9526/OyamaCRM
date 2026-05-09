@@ -71,7 +71,8 @@ router.post("/login", async (req: Request, res: Response) => {
 
   const refreshToken = signRefreshToken(user.id);
 
-  // Persist refresh token so it can be validated and rotated on /refresh
+  // Persist refresh token so it can be validated and rotated on /refresh.
+  // The token includes a random jti claim so it is always unique even under concurrent logins.
   await prisma.refreshToken.create({
     data: {
       userId: user.id,

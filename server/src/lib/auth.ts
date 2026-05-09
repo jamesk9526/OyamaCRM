@@ -49,13 +49,16 @@ export function verifyAccessToken(token: string): JwtPayload {
 /**
  * Signs a long-lived JWT refresh token containing only the user ID.
  * Expiry is controlled by the `REFRESH_EXPIRES_IN` env var (default: 7d).
+ * A random `jti` (JWT ID) is included to guarantee uniqueness even when
+ * multiple tokens are issued within the same second (e.g. concurrent test runs).
  * The token is also persisted to the database for rotation/revocation tracking.
  *
  * @param userId - The user's database ID to embed as the `sub` claim
  * @returns Signed JWT refresh token string
  */
 export function signRefreshToken(userId: string): string {
-  return jwt.sign({ sub: userId }, REFRESH_SECRET, { expiresIn: REFRESH_EXPIRES_IN } as jwt.SignOptions);
+  const jti = crypto.randomUUID();
+  return jwt.sign({ sub: userId, jti }, REFRESH_SECRET, { expiresIn: REFRESH_EXPIRES_IN } as jwt.SignOptions);
 }
 
 /**
