@@ -4,7 +4,7 @@
 // Sub-components: CircularProgress, StatCard, StepperSidebar, FieldDetailsPanel.
 
 import { useState, useRef, useCallback, useMemo, Fragment } from "react";
-import { CRM_CONSTITUENT_FIELDS, AUTO_MAP_ALIASES, FIELD_GROUPS } from "./fieldMap";
+import { CRM_CONSTITUENT_FIELDS, AUTO_MAP_ALIASES, FIELD_GROUPS, detectChurchValues } from "./fieldMap";
 import type { CrmField } from "./fieldMap";
 import { parseCSV, computeColumnStats } from "./csvParser";
 import type { CsvParseResult, ColumnStats, RawRow } from "./csvParser";
@@ -418,13 +418,15 @@ export default function ImportWizard({ existingConstituents }: ImportWizardProps
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
 
   // ── Step 4: Import settings ──────────────────────────────────────────────
-  const [importMode, setImportMode] = useState<ImportMode>("create_only");
+  const [importMode, setImportMode] = useState<ImportMode>("upsert");
   const [recordType, setRecordType] = useState<RecordType>("individual");
   const [dryRun, setDryRun] = useState(false);
   const [matchExtId, setMatchExtId] = useState(true);
   const [matchEmail, setMatchEmail] = useState(true);
   /** Import records with no first/last name as ORGANIZATION constituents when org name is available */
   const [allowOrgImport, setAllowOrgImport] = useState(true);
+  /** When true, sample values in each column are scanned for church/ministry name patterns */
+  const [churchDetectionMode, setChurchDetectionMode] = useState(true);
 
   // ── Step 5: Import result ────────────────────────────────────────────────
   const [importing, setImporting] = useState(false);
@@ -512,7 +514,24 @@ export default function ImportWizard({ existingConstituents }: ImportWizardProps
       const stats = computeColumnStats(result.headers, result.rows);
       setParseResult(result);
       setColumnStats(stats);
-      setMapping(autoMap(result.headers));
+
+      // Build initial auto-mapping from column name aliases
+      const initialMapping = autoMap(result.headers);
+
+      // Smart church/ministry detection: when enabled, scan sample values of any
+      // currently-unmapped column for denomination keywords, then suggest churchAffiliation
+      if (churchDetectionMode) {
+        for (const header of result.headers) {
+          if (initialMapping[header] === "skip") {
+            const samples = stats[header]?.sampleValues ?? [];
+            if (detectChurchValues(samples)) {
+              initialMapping[header] = "churchAffiliation";
+            }
+          }
+        }
+      }
+
+      setMapping(initialMapping);
       setSelectedCol(result.headers[0] ?? null);
       // Reset downstream state when a new file is loaded
       setValidationResult(null);
@@ -520,7 +539,7 @@ export default function ImportWizard({ existingConstituents }: ImportWizardProps
       setImportError(null);
     };
     reader.readAsText(f);
-  }, []);
+  }, [churchDetectionMode]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -1122,6 +1141,30 @@ export default function ImportWizard({ existingConstituents }: ImportWizardProps
             <span
               className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform mt-0.5 ${
                 dryRun ? "translate-x-5" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Smart detection toggle */}
+        <div className="flex items-center justify-between border border-purple-200 bg-purple-50 rounded-lg px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold text-purple-800">⛪ Smart Church/Ministry Detection</p>
+            <p className="text-xs text-purple-600 mt-0.5">
+              When re-uploading a file, scan column values for church and denomination names and
+              automatically suggest the <strong>Church Affiliation</strong> field.
+            </p>
+          </div>
+          <button
+            onClick={() => setChurchDetectionMode((v) => !v)}
+            aria-pressed={churchDetectionMode}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors ${
+              churchDetectionMode ? "bg-purple-600" : "bg-gray-200"
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform mt-0.5 ${
+                churchDetectionMode ? "translate-x-5" : "translate-x-0.5"
               }`}
             />
           </button>

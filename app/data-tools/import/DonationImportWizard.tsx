@@ -234,6 +234,7 @@ export default function DonationImportWizard() {
   const [matchName, setMatchName] = useState(true);
   const [skipUnmatched, setSkipUnmatched] = useState(false);
   const [dedupByReceipt, setDedupByReceipt] = useState(true);
+  const [updateExisting, setUpdateExisting] = useState(true);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [selectedCol, setSelectedCol] = useState<string | null>(null);
@@ -303,6 +304,7 @@ export default function DonationImportWizard() {
           matchName,
           skipUnmatched,
           dedupByReceipt,
+          updateExisting,
         }),
       });
       setResult(res);
@@ -316,7 +318,7 @@ export default function DonationImportWizard() {
     } finally {
       setImporting(false);
     }
-  }, [validation, dryRun, matchEmail, matchExternalId, matchName, skipUnmatched, dedupByReceipt]);
+  }, [validation, dryRun, matchEmail, matchExternalId, matchName, skipUnmatched, dedupByReceipt, updateExisting]);
 
   const reset = useCallback(() => {
     setStep(1); setParsed(null); setFileName(""); setColumnStats({});
@@ -692,6 +694,12 @@ export default function DonationImportWizard() {
                   <input type="checkbox" checked={dedupByReceipt} onChange={(e) => setDedupByReceipt(e.target.checked)} className="rounded accent-green-600" />
                   <span className="text-sm text-gray-700">Skip if receipt number already exists in CRM</span>
                 </label>
+                {dedupByReceipt && (
+                  <label className="flex items-center gap-2.5 cursor-pointer ml-6">
+                    <input type="checkbox" checked={updateExisting} onChange={(e) => setUpdateExisting(e.target.checked)} className="rounded accent-green-600" />
+                    <span className="text-sm text-gray-700">Update existing donation with new data <span className="text-xs text-green-700">(recommended)</span></span>
+                  </label>
+                )}
                 <p className="text-xs text-gray-400">Receipt number must be mapped in Step 2 for this to apply.</p>
               </div>
 

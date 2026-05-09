@@ -205,6 +205,7 @@ router.post("/import", requireRole("manager"), async (req, res) => {
     matchName      = true,
     skipUnmatched  = false,
     dedupByReceipt = true,
+    updateExisting = true,
   } = req.body as {
     records: Array<Record<string, string>>;
     dryRun: boolean;
@@ -213,6 +214,8 @@ router.post("/import", requireRole("manager"), async (req, res) => {
     matchName: boolean;
     skipUnmatched: boolean;
     dedupByReceipt: boolean;
+    /** When true, re-importing a CSV with the same receipt number updates the donation instead of skipping it. */
+    updateExisting: boolean;
   };
 
   if (!Array.isArray(records) || records.length === 0) {
@@ -419,9 +422,30 @@ router.post("/import", requireRole("manager"), async (req, res) => {
       if (dedupByReceipt && rec.receiptNumber?.trim()) {
         const exists = await prisma.donation.findFirst({
           where: { receiptNumber: rec.receiptNumber.trim() },
-          select: { id: true },
+          select: { id: true, constituentId: true },
         });
-        if (exists) { skipped++; continue; }
+        if (exists) {
+          if (updateExisting && !dryRun) {
+            // Update the existing donation record with any new field values
+            await prisma.donation.update({
+              where: { id: exists.id },
+              data: {
+                amount:        amount!,
+                date,
+                paymentMethod: normalizePaymentMethod(rec.paymentMethod ?? ""),
+                checkNumber:   rec.checkNumber?.trim()  || undefined,
+                transactionId: rec.transactionId?.trim() || undefined,
+                status:        normalizeStatus(rec.status ?? ""),
+                notes:         rec.notes?.trim()        || undefined,
+              },
+            });
+            await updateConstituentStats(exists.constituentId);
+            created++; // count updated records as "created" for display clarity (shows activity)
+          } else {
+            skipped++;
+          }
+          continue;
+        }
       }
 
       // ── Constituent matching ────────────────────────────────────────────────

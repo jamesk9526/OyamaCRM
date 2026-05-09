@@ -142,12 +142,13 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  constituents  Constituent[]
-  campaigns     Campaign[]
-  events        Event[]
-  users         User[]
-  settings      OrganizationSettings?
+  constituents   Constituent[]
+  campaigns      Campaign[]
+  events         Event[]
+  users          User[]
+  settings       OrganizationSettings?
   emailCampaigns EmailCampaign[]
+  customFields   CustomField[]
 }
 
 model OrganizationSettings {
@@ -593,4 +594,61 @@ model EmailCampaign {
   updatedAt       DateTime            @updatedAt
 
   organization    Organization        @relation(fields: [organizationId], references: [id])
+}
+
+
+// ─── Custom Fields ────────────────────────────────────────────────────────────
+
+// CustomField: organization-defined fields extending the built-in data model.
+// Supports text, number, boolean, date, select, and multiselect field types.
+// Values are stored separately in CustomFieldValue per entity instance.
+model CustomField {
+  id             String   @id @default(cuid())
+  organizationId String
+
+  /// Which entity this field belongs to: "constituent" | "donation" | "campaign" | "event"
+  entityType     String
+  /// Human-readable label shown in the UI
+  name           String
+  /// Camelcase key used in API payloads (must be unique per org + entityType)
+  key            String
+  /// One of: text | number | boolean | date | select | multiselect | url | email | phone | textarea
+  fieldType      String
+  /// JSON-encoded string[] of allowed values (for select / multiselect)
+  options        String?  @db.Text
+  required       Boolean  @default(false)
+  description    String?
+  placeholder    String?
+  defaultValue   String?
+  sortOrder      Int      @default(0)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization       @relation(fields: [organizationId], references: [id])
+  values         CustomFieldValue[]
+
+  @@unique([organizationId, entityType, key])
+  @@index([organizationId, entityType])
+}
+
+// CustomFieldValue: stores the actual value of a custom field for a specific entity instance.
+// entityId points to a constituent ID, donation ID, campaign ID, etc.
+// value is JSON-encoded (handles strings, numbers, booleans, dates, arrays).
+model CustomFieldValue {
+  id         String   @id @default(cuid())
+  fieldId    String
+  /// ID of the entity (constituentId, donationId, campaignId, etc.)
+  entityId   String
+  /// Mirrors CustomField.entityType for efficient queries without a join
+  entityType String
+  /// JSON-encoded value (string, number, boolean, date ISO string, or string[] for multiselect)
+  value      String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  field      CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([fieldId, entityId])
+  @@index([entityId, entityType])
 }

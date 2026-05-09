@@ -191,6 +191,22 @@ export const AUTO_MAP_ALIASES: Record<string, string> = {
   "date created":              "sourceCreatedDate",
   "modified":                  "sourceModifiedDate",
   "date modified":             "sourceModifiedDate",
+  // -- Church / ministry aliases (expanded for smart detection) --
+  "church affiliation":        "churchAffiliation",
+  "church name":               "churchAffiliation",
+  "congregation":              "churchAffiliation",
+  "congregation name":         "churchAffiliation",
+  "ministry":                  "churchAffiliation",
+  "parish":                    "churchAffiliation",
+  "faith community":           "churchAffiliation",
+  "worship center":            "churchAffiliation",
+  "fellowship":                "churchAffiliation",
+  "denomination":              "churchAffiliation",
+  "place of worship":          "churchAffiliation",
+  "home church":               "churchAffiliation",
+  "faith":                     "churchAffiliation",
+  "religious affiliation":     "churchAffiliation",
+  "religious organization":    "churchAffiliation",
 };
 
 /**
@@ -221,3 +237,36 @@ export const ALWAYS_SKIP_DEFAULTS: Record<string, string> = {
 export const CONSTANT_VALUE_NOTES: Record<string, string> = {
   "location": "Always 'Aurora' in this source — can be set as an import default",
 };
+
+/**
+ * CHURCH_DENOMINATION_KEYWORDS: words and patterns commonly found in church/ministry names.
+ * Used by detectChurchValues() to identify church-affiliation columns by scanning sample data.
+ */
+export const CHURCH_DENOMINATION_KEYWORDS = [
+  "church", "chapel", "parish", "cathedral", "basilica", "ministry", "ministries",
+  "baptist", "methodist", "lutheran", "presbyterian", "episcopal", "catholic",
+  "evangelical", "pentecostal", "assemblies", "assembly of god", "seventh-day",
+  "adventist", "nazarene", "reformed", "mennonite", "quaker", "unitarian",
+  "congregational", "disciples of christ", "church of christ", "church of god",
+  "salvation army", "fellowship", "covenant", "brethren", "wesleyan", "calvary",
+  "first", "grace", "trinity", "redeemer", "resurrection", "cornerstone",
+  "harvest", "crossroads", "living water", "new life", "community church",
+  "christian", "alliance", "bethel", "immanuel", "emmanuel", "victory",
+];
+
+/**
+ * detectChurchValues: returns true if any of the sample values look like church/ministry names.
+ * Used when Smart Church Detection mode is enabled to suggest the churchAffiliation CRM field
+ * for columns whose values match denominational or ministry patterns.
+ *
+ * @param sampleValues - up to ~10 sample values from a CSV column
+ * @returns true if the majority of non-empty values match church patterns
+ */
+export function detectChurchValues(sampleValues: string[]): boolean {
+  const nonEmpty = sampleValues.filter((v) => v?.trim());
+  if (nonEmpty.length === 0) return false;
+  const pattern = new RegExp(CHURCH_DENOMINATION_KEYWORDS.join("|"), "i");
+  const matches = nonEmpty.filter((v) => pattern.test(v));
+  // At least half of sample values must match to avoid false positives
+  return matches.length / nonEmpty.length >= 0.5;
+}
