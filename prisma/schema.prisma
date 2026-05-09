@@ -176,7 +176,7 @@ model User {
   email          String   @unique
   firstName      String
   lastName       String
-  role           String   @default("staff") // admin | manager | staff | readonly
+  role           String   @default("staff") // admin | manager | staff | readonly | report_viewer
   avatarUrl      String?
   active         Boolean  @default(true)
   passwordHash   String?
@@ -184,12 +184,13 @@ model User {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization   Organization  @relation(fields: [organizationId], references: [id])
-  assignedTasks  Task[]        @relation("TaskAssignee")
-  createdTasks   Task[]        @relation("TaskCreator")
+  organization   Organization     @relation(fields: [organizationId], references: [id])
+  assignedTasks  Task[]           @relation("TaskAssignee")
+  createdTasks   Task[]           @relation("TaskCreator")
   activities     Activity[]
   refreshTokens  RefreshToken[]
   auditLogs      AuditLog[]
+  permissions    UserPermission[]
 }
 
 // ─── Constituent (Donor/Volunteer/Member) ─────────────────────────────────────
@@ -651,4 +652,41 @@ model CustomFieldValue {
 
   @@unique([fieldId, entityId])
   @@index([entityId, entityType])
+}
+
+// ─── Fine-grained Permissions ─────────────────────────────────────────────────
+
+// UserPermission: per-user feature flags that refine the role-based access defaults.
+// A missing row means the role default applies.
+// granted=true grants access even if the role would normally deny.
+// granted=false explicitly denies access even if the role would normally allow.
+model UserPermission {
+  id         String   @id @default(cuid())
+  userId     String
+  // Feature key, e.g. "view:constituents", "edit:donations", "import:data"
+  permission String
+  // true = explicitly granted, false = explicitly denied
+  granted    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permission])
+  @@index([userId])
+}
+
+// ─── Setup Snapshots (Recovery) ───────────────────────────────────────────────
+
+// SetupSnapshot: serialized backup of org data created before a reset.
+// Allows admins to restore the CRM to a known-good state after an accidental wipe.
+model SetupSnapshot {
+  id           String    @id @default(cuid())
+  // Short description shown in the recovery UI
+  label        String
+  // JSON blob: { organization, settings, users[] } snapshot
+  snapshotData String    @db.LongText
+  createdAt    DateTime  @default(now())
+  // When this snapshot was last restored (null = never restored)
+  restoredAt   DateTime?
 }

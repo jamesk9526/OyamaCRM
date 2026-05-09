@@ -94,7 +94,8 @@ export default function SettingsResetPanel() {
             This wipes the current CRM installation, clears organization data, and sends you back to the first-run setup wizard.
           </p>
           <p className="text-xs text-red-700">
-            Use this only when you intentionally want to start over. The reset clears the current installation history and cannot be undone.
+            Use this only when you intentionally want to start over. The reset clears the current installation history.
+            A recovery snapshot is automatically created before the wipe so you can restore data from Settings → Recovery.
           </p>
         </div>
 

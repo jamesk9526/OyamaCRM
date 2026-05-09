@@ -20,6 +20,21 @@ import { resetCrmInstallation } from "../services/reset-crm.js";
 
 const router = Router();
 
+/** Serializes current org+settings+users for a recovery snapshot. */
+async function buildSnapshot(): Promise<string> {
+  const [organization, settings, users] = await Promise.all([
+    prisma.organization.findFirst({ orderBy: { createdAt: "asc" } }),
+    prisma.organizationSettings.findFirst(),
+    prisma.user.findMany({
+      select: {
+        id: true, email: true, firstName: true, lastName: true,
+        role: true, active: true, lastLoginAt: true, createdAt: true,
+      },
+    }),
+  ]);
+  return JSON.stringify({ organization, settings, users, capturedAt: new Date().toISOString() });
+}
+
 interface SettingsPayload {
   orgName?: string;
   fiscalYearStart?: number;
@@ -244,6 +259,20 @@ router.post("/reset", requireAuth, requireRole("admin"), async (req: Request, re
           message: "The verification code is invalid or expired. Generate a new code and try again.",
         },
       });
+    }
+
+    // Auto-create a recovery snapshot before wiping data so the admin can restore if needed.
+    try {
+      const [org, users] = await Promise.all([
+        prisma.organization.findFirst({ orderBy: { createdAt: "asc" } }),
+        prisma.user.count(),
+      ]);
+      const label = `Pre-reset backup — ${org?.name ?? "unknown org"}, ${users} user${users !== 1 ? "s" : ""}, ${new Date().toLocaleString()}`;
+      const snapshotData = await buildSnapshot();
+      await prisma.setupSnapshot.create({ data: { label, snapshotData } });
+    } catch (snapErr) {
+      // Snapshot failure is non-fatal — log but don't block the reset
+      console.error("[settings/reset] Snapshot failed (non-fatal):", snapErr);
     }
 
     await resetCrmInstallation();

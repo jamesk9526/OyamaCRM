@@ -253,4 +253,162 @@ router.patch("/:id/password", requireRole("admin"), async (req: Request, res: Re
   res.json({ success: true });
 });
 
+// ─── Fine-grained Permission Overrides ────────────────────────────────────────
+
+/**
+ * All available fine-grained permission keys.
+ * These can be explicitly granted or denied per user, overriding role defaults.
+ */
+export const PERMISSION_KEYS = [
+  "view:constituents",
+  "edit:constituents",
+  "delete:constituents",
+  "view:donations",
+  "edit:donations",
+  "delete:donations",
+  "view:campaigns",
+  "edit:campaigns",
+  "view:reports",
+  "view:communications",
+  "edit:communications",
+  "view:events",
+  "edit:events",
+  "view:tasks",
+  "edit:tasks",
+  "import:data",
+  "export:data",
+  "view:custom_fields",
+  "edit:custom_fields",
+  "view:audit_logs",
+] as const;
+
+export type PermissionKey = typeof PERMISSION_KEYS[number];
+
+/**
+ * GET /api/users/:id/permissions
+ * Returns all explicit permission overrides for a specific user.
+ * Admin-only. Returns { permissions: Array<{ permission, granted }> }
+ */
+router.get("/:id/permissions", requireRole("admin"), async (req: Request, res: Response) => {
+  const id = req.params.id as string;
+
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: { organizationId: true },
+  });
+
+  if (!target || target.organizationId !== req.user!.orgId) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "User not found" } });
+    return;
+  }
+
+  const perms = await prisma.userPermission.findMany({
+    where: { userId: id },
+    select: { permission: true, granted: true, updatedAt: true },
+    orderBy: { permission: "asc" },
+  });
+
+  res.json({ permissions: perms });
+});
+
+/**
+ * PUT /api/users/:id/permissions
+ * Upserts the full set of fine-grained permission overrides for a user.
+ * Send only the permissions you want to explicitly set; omitted permissions revert to role defaults.
+ * Admin-only.
+ *
+ * Body: { permissions: Array<{ permission: string, granted: boolean }> }
+ */
+router.put("/:id/permissions", requireRole("admin"), async (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const { permissions } = req.body as {
+    permissions: Array<{ permission: string; granted: boolean }>;
+  };
+
+  if (!Array.isArray(permissions)) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "permissions must be an array" } });
+    return;
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: { organizationId: true },
+  });
+
+  if (!target || target.organizationId !== req.user!.orgId) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "User not found" } });
+    return;
+  }
+
+  // Validate permission keys
+  const validKeys = new Set(PERMISSION_KEYS);
+  const invalid = permissions.filter((p) => !validKeys.has(p.permission as PermissionKey));
+  if (invalid.length > 0) {
+    res.status(400).json({
+      error: {
+        code: "INVALID_PERMISSION_KEY",
+        message: `Invalid permission keys: ${invalid.map((p) => p.permission).join(", ")}`,
+      },
+    });
+    return;
+  }
+
+  // Upsert all provided permissions in a transaction
+  await prisma.$transaction(
+    permissions.map((p) =>
+      prisma.userPermission.upsert({
+        where: { userId_permission: { userId: id, permission: p.permission } },
+        create: { userId: id, permission: p.permission, granted: p.granted },
+        update: { granted: p.granted },
+      })
+    )
+  );
+
+  logAudit({
+    action: "USER_PERMISSIONS_UPDATED",
+    entity: "User",
+    entityId: id,
+    userId: req.user!.sub,
+    organizationId: req.user!.orgId,
+    metadata: { permissionCount: permissions.length },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  // Return updated permissions
+  const updated = await prisma.userPermission.findMany({
+    where: { userId: id },
+    select: { permission: true, granted: true, updatedAt: true },
+    orderBy: { permission: "asc" },
+  });
+
+  res.json({ permissions: updated });
+});
+
+/**
+ * DELETE /api/users/:id/permissions/:permission
+ * Removes an explicit permission override, reverting to role default.
+ * Admin-only.
+ */
+router.delete("/:id/permissions/:permission", requireRole("admin"), async (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const perm = req.params.permission as string;
+
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: { organizationId: true },
+  });
+
+  if (!target || target.organizationId !== req.user!.orgId) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "User not found" } });
+    return;
+  }
+
+  await prisma.userPermission.deleteMany({
+    where: { userId: id, permission: perm },
+  });
+
+  res.json({ success: true });
+});
+
 export default router;

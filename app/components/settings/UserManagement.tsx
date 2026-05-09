@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 
@@ -21,26 +21,30 @@ interface UserRecord {
   createdAt: string;
 }
 
-/** Available roles and their display labels */
 /** Available roles in privilege order, with display labels */
 const ROLES: { value: string; label: string; desc: string }[] = [
-  { value: "admin",    label: "Admin",     desc: "Full access: user management, org settings, all deletes" },
-  { value: "manager",  label: "Manager",   desc: "Bulk import/export, reports, create & edit all records" },
-  { value: "staff",    label: "Staff",     desc: "Create and edit individual records, view all data" },
-  { value: "readonly", label: "Read Only", desc: "View-only access across the application" },
+  { value: "admin",         label: "Admin",          desc: "Full access: user management, org settings, all deletes" },
+  { value: "manager",       label: "Manager",        desc: "Bulk import/export, reports, create & edit all records" },
+  { value: "staff",         label: "Staff",          desc: "Create and edit individual records, view all data" },
+  { value: "readonly",      label: "Read Only",      desc: "View-only access across the application" },
+  { value: "report_viewer", label: "Report Viewer",  desc: "Board member access: simplified dashboard and reports only" },
 ];
 
-/** Role badge colors: admin = green, manager = purple, staff = blue, readonly = gray */
+/** Role badge colors: admin = green, manager = purple, staff = blue, readonly = gray, report_viewer = amber */
 function RoleBadge({ role }: { role: string }) {
   const colors: Record<string, string> = {
-    admin:    "bg-green-100 text-green-800",
-    manager:  "bg-purple-100 text-purple-800",
-    staff:    "bg-blue-100 text-blue-800",
-    readonly: "bg-gray-100 text-gray-700",
+    admin:         "bg-green-100 text-green-800",
+    manager:       "bg-purple-100 text-purple-800",
+    staff:         "bg-blue-100 text-blue-800",
+    readonly:      "bg-gray-100 text-gray-700",
+    report_viewer: "bg-amber-100 text-amber-800",
+  };
+  const labels: Record<string, string> = {
+    report_viewer: "Report Viewer",
   };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize ${colors[role] ?? "bg-gray-100 text-gray-700"}`}>
-      {role}
+      {labels[role] ?? role}
     </span>
   );
 }
@@ -364,6 +368,220 @@ function ResetPasswordModal({ user, onClose, onSaved }: ResetPasswordModalProps)
   );
 }
 
+// ─── Fine-grained Permissions Panel ──────────────────────────────────────────
+
+/** All permission keys the admin can toggle, grouped by feature area. */
+const PERMISSION_GROUPS: { label: string; keys: string[] }[] = [
+  {
+    label: "Constituents",
+    keys: ["view:constituents", "edit:constituents", "delete:constituents"],
+  },
+  {
+    label: "Donations",
+    keys: ["view:donations", "edit:donations", "delete:donations"],
+  },
+  {
+    label: "Campaigns & Events",
+    keys: ["view:campaigns", "edit:campaigns", "view:events", "edit:events"],
+  },
+  {
+    label: "Reports & Communications",
+    keys: ["view:reports", "view:communications", "edit:communications"],
+  },
+  {
+    label: "Tasks",
+    keys: ["view:tasks", "edit:tasks"],
+  },
+  {
+    label: "Data & Settings",
+    keys: ["import:data", "export:data", "view:custom_fields", "edit:custom_fields", "view:audit_logs"],
+  },
+];
+
+/** Human-readable labels for individual permission keys. */
+const PERM_LABELS: Record<string, string> = {
+  "view:constituents":   "View Constituents",
+  "edit:constituents":   "Edit Constituents",
+  "delete:constituents": "Delete Constituents",
+  "view:donations":      "View Donations",
+  "edit:donations":      "Edit Donations",
+  "delete:donations":    "Delete Donations",
+  "view:campaigns":      "View Campaigns",
+  "edit:campaigns":      "Edit Campaigns",
+  "view:events":         "View Events",
+  "edit:events":         "Edit Events",
+  "view:reports":        "View Reports",
+  "view:communications": "View Communications",
+  "edit:communications": "Edit Communications",
+  "view:tasks":          "View Tasks",
+  "edit:tasks":          "Edit Tasks",
+  "import:data":         "Import Data",
+  "export:data":         "Export Data",
+  "view:custom_fields":  "View Custom Fields",
+  "edit:custom_fields":  "Edit Custom Fields",
+  "view:audit_logs":     "View Audit Logs",
+};
+
+interface PermRecord { permission: string; granted: boolean }
+
+interface PermissionsPanelProps {
+  userId: string;
+  onClose: () => void;
+}
+
+/**
+ * PermissionsPanel shows all fine-grained permission toggles for a specific user.
+ * Fetches existing overrides from the API, shows group-based toggle grid, and saves on commit.
+ */
+function PermissionsPanel({ userId, onClose }: PermissionsPanelProps) {
+  const [perms, setPerms] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  // Load existing explicit overrides on mount
+  useEffect(() => {
+    apiFetch<{ permissions: PermRecord[] }>(`/api/users/${userId}/permissions`)
+      .then((data) => {
+        const map: Record<string, boolean> = {};
+        for (const p of data.permissions) map[p.permission] = p.granted;
+        setPerms(map);
+      })
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to load permissions"))
+      .finally(() => setLoading(false));
+  }, [userId]);
+
+  /** Toggle a single permission key in local state. */
+  function toggle(key: string) {
+    setPerms((prev) => {
+      const current = prev[key];
+      if (current === undefined) {
+        // No override yet — explicitly grant
+        return { ...prev, [key]: true };
+      } else if (current === true) {
+        // Explicitly granted → explicitly denied
+        return { ...prev, [key]: false };
+      } else {
+        // Explicitly denied → remove override (revert to role default)
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      }
+    });
+  }
+
+  /** Save all explicit overrides to the API. */
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const permissions = Object.entries(perms).map(([permission, granted]) => ({ permission, granted }));
+      await apiFetch(`/api/users/${userId}/permissions`, {
+        method: "PUT",
+        body: JSON.stringify({ permissions }),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to save permissions");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <tr>
+      <td colSpan={6} className="px-4 pb-4 pt-0 bg-blue-50 border-b border-blue-100">
+        <div className="rounded-lg border border-blue-200 bg-white p-4 mt-2 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-gray-900">Fine-grained Permission Overrides</p>
+            <button type="button" onClick={onClose} className="text-xs text-gray-400 hover:text-gray-600">
+              ✕ Close
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mb-4">
+            Set explicit grants or denials that override the user&apos;s role defaults.
+            A cell with no toggle means the role default applies.
+          </p>
+
+          {/* Legend */}
+          <div className="flex gap-4 mb-4 flex-wrap">
+            {[
+              { cls: "bg-green-100 text-green-700", label: "✓ Granted" },
+              { cls: "bg-red-100 text-red-700",   label: "✗ Denied" },
+              { cls: "bg-gray-100 text-gray-500",  label: "— Role default" },
+            ].map(({ cls, label }) => (
+              <span key={label} className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded ${cls}`}>
+                {label}
+              </span>
+            ))}
+          </div>
+
+          {loading ? (
+            <p className="text-sm text-gray-400 py-4 text-center">Loading…</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {PERMISSION_GROUPS.map((group) => (
+                <div key={group.label}>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{group.label}</p>
+                  <div className="space-y-1">
+                    {group.keys.map((key) => {
+                      const val = perms[key];
+                      const isGranted = val === true;
+                      const isDenied = val === false;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => toggle(key)}
+                          className={`w-full flex items-center justify-between px-3 py-1.5 rounded text-xs border transition-colors ${
+                            isGranted
+                              ? "bg-green-50 border-green-200 text-green-800"
+                              : isDenied
+                              ? "bg-red-50 border-red-200 text-red-700"
+                              : "bg-gray-50 border-gray-200 text-gray-500"
+                          }`}
+                        >
+                          <span>{PERM_LABELS[key] ?? key}</span>
+                          <span className="font-bold">
+                            {isGranted ? "✓" : isDenied ? "✗" : "—"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+          {saved && <p className="mt-3 text-xs text-green-600">Permissions saved.</p>}
+
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-1.5 text-xs text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
+            >
+              Close
+            </button>
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving || loading}
+              className="px-3 py-1.5 text-xs text-white bg-green-600 rounded hover:bg-green-700 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save Permissions"}
+            </button>
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 // ─── Main UserManagement Component ────────────────────────────────────────
 
 /**
@@ -383,6 +601,8 @@ export default function UserManagement() {
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<UserRecord | null>(null);
   const [resetTarget, setResetTarget] = useState<UserRecord | null>(null);
+  /** Which user's permission panel is open (by user id) */
+  const [permTarget, setPermTarget] = useState<string | null>(null);
 
   /** Success banner after an action completes. */
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -468,36 +688,49 @@ export default function UserManagement() {
               {users.map((u) => {
                 const isSelf = me?.id === u.id;
                 return (
-                  <tr key={u.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
-                      {u.firstName} {u.lastName}
-                      {isSelf && <span className="ml-2 text-xs text-gray-400">(you)</span>}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{u.email}</td>
-                    <td className="px-4 py-3"><RoleBadge role={u.role} /></td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${u.active ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                        {u.active ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">{formatDate(u.lastLoginAt)}</td>
-                    <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
-                      {/* Edit user */}
-                      <button
-                        onClick={() => setEditTarget(u)}
-                        className="text-xs text-blue-600 hover:underline"
-                      >
-                        Edit
-                      </button>
-                      {/* Reset password */}
-                      <button
-                        onClick={() => setResetTarget(u)}
-                        className="text-xs text-amber-600 hover:underline"
-                      >
-                        Reset PW
-                      </button>
-                    </td>
-                  </tr>
+                  <React.Fragment key={u.id}>
+                    <tr className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
+                        {u.firstName} {u.lastName}
+                        {isSelf && <span className="ml-2 text-xs text-gray-400">(you)</span>}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">{u.email}</td>
+                      <td className="px-4 py-3"><RoleBadge role={u.role} /></td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${u.active ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                          {u.active ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">{formatDate(u.lastLoginAt)}</td>
+                      <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
+                        {/* Edit user */}
+                        <button
+                          onClick={() => setEditTarget(u)}
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          Edit
+                        </button>
+                        {/* Reset password */}
+                        <button
+                          onClick={() => setResetTarget(u)}
+                          className="text-xs text-amber-600 hover:underline"
+                        >
+                          Reset PW
+                        </button>
+                        {/* Fine-grained permissions panel toggle */}
+                        <button
+                          onClick={() => setPermTarget(permTarget === u.id ? null : u.id)}
+                          className="text-xs text-purple-600 hover:underline"
+                        >
+                          {permTarget === u.id ? "Close Perms" : "Permissions"}
+                        </button>
+                      </td>
+                    </tr>
+                    {/* Inline permissions panel rendered as a sibling <tr> */}
+                    {permTarget === u.id && (
+                      <PermissionsPanel userId={u.id} onClose={() => setPermTarget(null)} />
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>

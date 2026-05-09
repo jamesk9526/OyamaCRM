@@ -1,5 +1,6 @@
 /** Security settings page surfaces auth hardening work plus destructive recovery controls. */
 import SettingsResetPanel from "@/app/components/settings/SettingsResetPanel";
+import SettingsRecoveryPanel from "@/app/components/settings/SettingsRecoveryPanel";
 
 /** SecuritySettingsPage defines the security tab backlog and the verified reset flow. */
 export default function SecuritySettingsPage() {
@@ -28,6 +29,9 @@ export default function SecuritySettingsPage() {
       </section>
 
       <SettingsResetPanel />
+
+      {/* Recovery snapshots — restore from pre-reset backups */}
+      <SettingsRecoveryPanel />
     </div>
   );
 }

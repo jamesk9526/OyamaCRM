@@ -10,20 +10,39 @@ import ErrorBoundary from "@/app/components/ErrorBoundary";
 // /compassion routes render their own CompassionShell — bypass AppShell wrapper
 const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/compassion"];
 
+// Routes that the report_viewer role may access (board dashboard + its own sub-routes)
+const BOARD_PATHS = ["/board"];
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  const isBoard = BOARD_PATHS.some((p) => pathname.startsWith(p));
 
   useEffect(() => {
-    if (!loading && !user && !isPublic) {
-      router.replace("/login");
-    }
-  }, [loading, user, isPublic, router]);
+    if (loading) return;
 
-  // Login page — no shell
+    // Redirect unauthenticated visitors to login
+    if (!user && !isPublic) {
+      router.replace("/login");
+      return;
+    }
+
+    // Redirect report_viewer users away from full CRM to board dashboard
+    if (user?.role === "report_viewer" && !isBoard && !isPublic) {
+      router.replace("/board");
+      return;
+    }
+
+    // Prevent non-report_viewer users from accidentally landing on the board route
+    if (user && user.role !== "report_viewer" && isBoard) {
+      router.replace("/");
+    }
+  }, [loading, user, isPublic, isBoard, router]);
+
+  // Public pages — no shell
   if (isPublic) return <>{children}</>;
 
   // Loading splash — prevent flash of unauthenticated content

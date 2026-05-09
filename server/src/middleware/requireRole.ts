@@ -5,10 +5,11 @@
  * Must be used **after** `requireAuth` so that `req.user` is already populated.
  *
  * Role hierarchy (highest to lowest):
- *   admin    — full system access; user management, org settings, all deletes
- *   manager  — bulk import/export, advanced reports, all create/edit operations
- *   staff    — create and edit individual records, view all data
- *   readonly — view-only access across the application
+ *   admin          — full system access; user management, org settings, all deletes
+ *   manager        — bulk import/export, advanced reports, all create/edit operations
+ *   staff          — create and edit individual records, view all data
+ *   readonly       — view-only access across the application
+ *   report_viewer  — board member access: simplified dashboard + reports only; no data editing
  *
  * A higher role always satisfies a lower-role requirement. For example,
  * requireRole("staff") will pass for admin, manager, and staff users.
@@ -21,7 +22,7 @@ import { Request, Response, NextFunction } from "express";
  * All valid role values in priority order (highest → lowest).
  * Used for hierarchy comparison — index 0 = highest privilege.
  */
-export const ROLE_HIERARCHY = ["admin", "manager", "staff", "readonly"] as const;
+export const ROLE_HIERARCHY = ["admin", "manager", "staff", "readonly", "report_viewer"] as const;
 
 /** Union type of all valid role strings. */
 export type UserRole = typeof ROLE_HIERARCHY[number];

@@ -223,5 +223,119 @@ router.get("/top-donors", async (req, res) => {
   res.json(donors);
 });
 
-export default router;
+/**
+ * GET /api/reports/board-summary
+ * Simplified KPI summary for the board member dashboard (report_viewer role).
+ * Returns ytdRevenue, goal, donorRetentionRate, totalDonors, newDonorsYtd, totalGiftsYtd,
+ * averageGift, majorGiftCount, and monthlyTrend[].
+ * Accessible to all authenticated users including report_viewer.
+ */
+router.get("/board-summary", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  const empty = {
+    summary: {
+      ytdRevenue: 0,
+      ytdGoal: 0,
+      donorRetentionRate: 0,
+      totalDonors: 0,
+      newDonorsYtd: 0,
+      totalGiftsYtd: 0,
+      averageGift: 0,
+      majorGiftCount: 0,
+    },
+    monthlyTrend: [] as { label: string; amount: number }[],
+  };
 
+  if (!organizationId) {
+    res.json(empty);
+    return;
+  }
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const startOfYear = new Date(year, 0, 1);
+
+  // Fetch all YTD donations and all constituents concurrently
+  const [ytdDonations, totalDonors, newDonorsYtd, activeCampaigns] = await Promise.all([
+    prisma.donation.findMany({
+      where: {
+        constituent: { organizationId },
+        status: "COMPLETED",
+        date: { gte: startOfYear },
+      },
+      select: { amount: true, date: true },
+    }),
+    prisma.constituent.count({ where: { organizationId } }),
+    prisma.constituent.count({
+      where: { organizationId, firstGiftDate: { gte: startOfYear } },
+    }),
+    prisma.campaign.findMany({
+      where: { organizationId, active: true },
+      select: { goal: true },
+    }),
+  ]);
+
+  const ytdRevenue = ytdDonations.reduce((sum, d) => sum + Number(d.amount), 0);
+  const ytdGoal = activeCampaigns.reduce((sum, c) => sum + Number(c.goal ?? 0), 0);
+  const majorGiftCount = ytdDonations.filter((d) => Number(d.amount) >= 1000).length;
+  const averageGift = ytdDonations.length > 0 ? ytdRevenue / ytdDonations.length : 0;
+
+  // Simple retention: if prior-year donors count > 0, use placeholder retention logic
+  // A full cohort analysis requires a more expensive query — simplified here for the board view.
+  const lastYearStart = new Date(year - 1, 0, 1);
+  const lastYearEnd = new Date(year, 0, 1);
+  const [lastYearDonorIds, thisYearDonorIds] = await Promise.all([
+    prisma.donation.findMany({
+      where: {
+        constituent: { organizationId },
+        status: "COMPLETED",
+        date: { gte: lastYearStart, lt: lastYearEnd },
+      },
+      select: { constituentId: true },
+      distinct: ["constituentId"],
+    }),
+    prisma.donation.findMany({
+      where: {
+        constituent: { organizationId },
+        status: "COMPLETED",
+        date: { gte: startOfYear },
+      },
+      select: { constituentId: true },
+      distinct: ["constituentId"],
+    }),
+  ]);
+
+  const lastYearSet = new Set(lastYearDonorIds.map((d) => d.constituentId));
+  const thisYearSet = new Set(thisYearDonorIds.map((d) => d.constituentId));
+  const retained = [...lastYearSet].filter((id) => thisYearSet.has(id)).length;
+  const donorRetentionRate =
+    lastYearSet.size > 0 ? Math.round((retained / lastYearSet.size) * 100) : 0;
+
+  // Build monthly trend: sum donations for each month Jan–current
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const trendMap: Record<number, number> = {};
+  for (const d of ytdDonations) {
+    const m = new Date(d.date).getMonth();
+    trendMap[m] = (trendMap[m] ?? 0) + Number(d.amount);
+  }
+  const monthlyTrend = MONTHS.slice(0, now.getMonth() + 1).map((label, i) => ({
+    label,
+    amount: Math.round(trendMap[i] ?? 0),
+  }));
+
+  res.json({
+    summary: {
+      ytdRevenue: Math.round(ytdRevenue),
+      ytdGoal: Math.round(ytdGoal),
+      donorRetentionRate,
+      totalDonors,
+      newDonorsYtd,
+      totalGiftsYtd: ytdDonations.length,
+      averageGift: Math.round(averageGift),
+      majorGiftCount,
+    },
+    monthlyTrend,
+  });
+});
+
+export default router;
