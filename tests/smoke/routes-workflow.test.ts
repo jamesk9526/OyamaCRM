@@ -7,7 +7,7 @@ let campaignId = "";
 let taskId = "";
 
 beforeAll(async () => {
-  process.env.NODE_ENV = "test";
+  // NODE_ENV is set to "test" automatically by Vitest
   const mod = await import("@/server/src/index");
   app = mod.default;
 });

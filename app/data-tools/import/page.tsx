@@ -8,7 +8,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import VisualImportMapper from "./VisualImportMapper";
+import ImportWizard from "./ImportWizard";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface Constituent {
@@ -55,7 +55,7 @@ export default function ImportPage() {
           Loading CRM data…
         </div>
       ) : (
-        <VisualImportMapper existingConstituents={constituents} />
+        <ImportWizard existingConstituents={constituents} />
       )}
     </div>
   );

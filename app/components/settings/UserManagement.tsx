@@ -22,17 +22,20 @@ interface UserRecord {
 }
 
 /** Available roles and their display labels */
-const ROLES: { value: string; label: string }[] = [
-  { value: "admin", label: "Admin" },
-  { value: "staff", label: "Staff" },
-  { value: "readonly", label: "Read Only" },
+/** Available roles in privilege order, with display labels */
+const ROLES: { value: string; label: string; desc: string }[] = [
+  { value: "admin",    label: "Admin",     desc: "Full access: user management, org settings, all deletes" },
+  { value: "manager",  label: "Manager",   desc: "Bulk import/export, reports, create & edit all records" },
+  { value: "staff",    label: "Staff",     desc: "Create and edit individual records, view all data" },
+  { value: "readonly", label: "Read Only", desc: "View-only access across the application" },
 ];
 
-/** Role badge colors: admin = green, staff = blue, readonly = gray */
+/** Role badge colors: admin = green, manager = purple, staff = blue, readonly = gray */
 function RoleBadge({ role }: { role: string }) {
   const colors: Record<string, string> = {
-    admin: "bg-green-100 text-green-800",
-    staff: "bg-blue-100 text-blue-800",
+    admin:    "bg-green-100 text-green-800",
+    manager:  "bg-purple-100 text-purple-800",
+    staff:    "bg-blue-100 text-blue-800",
     readonly: "bg-gray-100 text-gray-700",
   };
   return (

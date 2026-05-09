@@ -6,11 +6,12 @@
  * HOUSEHOLD is created or updated.
  *
  * Routes:
- *   GET    /api/constituents       — list/search constituents
- *   GET    /api/constituents/:id   — full constituent profile with donations, tasks, tags, household
- *   POST   /api/constituents       — create a new constituent
- *   PUT    /api/constituents/:id   — update an existing constituent
- *   DELETE /api/constituents/:id   — delete a constituent
+ *   GET    /api/constituents         — list/search constituents
+ *   GET    /api/constituents/:id     — full constituent profile with donations, tasks, tags, household
+ *   POST   /api/constituents         — create a new constituent
+ *   POST   /api/constituents/import  — batch-import from mapped CSV (dry-run supported)
+ *   PUT    /api/constituents/:id     — update an existing constituent
+ *   DELETE /api/constituents/:id     — delete a constituent
  *
  * @module routes/constituents
  */
@@ -20,6 +21,7 @@ import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
+import type { DonorStatus, ConstituentType } from "@prisma/client";
 
 const router = Router();
 
@@ -277,7 +279,178 @@ router.put("/:id", async (req, res) => {
   res.json(constituent);
 });
 
-/** DELETE /api/constituents/:id — Permanently delete a constituent record. Admin-only. */
+/**
+ * POST /api/constituents/import — Batch-import constituent records from a mapped CSV.
+ *
+ * Accepts an array of mapped records (CRM field keys as object keys) plus
+ * import-mode options sent by the VisualImportMapper wizard.
+ *
+ * Behaviour:
+ *   dryRun = true  → validate + count without writing to the database; returns a preview summary.
+ *   dryRun = false → insert/upsert records according to importMode.
+ *
+ * Supported importMode values:
+ *   "create_only"  — skip any record that would match an existing one
+ *   "upsert"       — insert new, update matching records
+ *   "update_only"  — only update records that already exist; skip new ones
+ *
+ * Duplicate matching uses (in priority order):
+ *   1. externalId (DirID) when matchExtId = true
+ *   2. email when matchEmail = true
+ *
+ * Response: { created, updated, skipped, errors, dryRun }
+ */
+router.post("/import", requireRole("manager"), async (req, res) => {
+  const {
+    records,
+    mode = "create_only",
+    dryRun = true,
+    matchExtId = true,
+    matchEmail = true,
+    allowOrgImport = true,
+  } = req.body as {
+    records: Array<Record<string, string>>;
+    mode: "create_only" | "upsert" | "update_only";
+    dryRun: boolean;
+    matchExtId: boolean;
+    matchEmail: boolean;
+    /** When true, records tagged _isOrg="true" by the wizard are imported as ORGANIZATION constituents */
+    allowOrgImport: boolean;
+  };
+
+  if (!Array.isArray(records) || records.length === 0) {
+    res.status(400).json({ error: { code: "NO_RECORDS", message: "No records to import." } });
+    return;
+  }
+
+  const resolvedOrgId = await resolveOrganizationId({ req, requestedOrganizationId: undefined });
+  if (!resolvedOrgId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (const rec of records) {
+    try {
+      // Map imported CRM field keys → Prisma Constituent fields
+      // _isOrg is set by the wizard when a record had no firstName/lastName but had an org name
+      const isOrg = allowOrgImport && rec["_isOrg"] === "true";
+
+      const data = {
+        firstName:    rec.firstName    || "",
+        lastName:     rec.lastName     || "",
+        prefix:       rec.prefix       || undefined,
+        email:        rec.email        || undefined,
+        email2:       rec.spouseEmail  || undefined,
+        phone:        rec.phone        || undefined,
+        mobile:       rec.mobilePhone  || undefined,
+        phone2:       rec.workPhone    || undefined,
+        addressLine1: rec.address1     || undefined,
+        city:         rec.city         || undefined,
+        state:        rec.state        || undefined,
+        zip:          rec.zip          || undefined,
+        employer:     rec.organizationName || undefined,
+        occupation:   rec.occupation   || undefined,
+        // Map "HoldMail" boolean string → doNotMail
+        doNotMail:    rec.holdMail === "true",
+        // Map DeceasedDesc boolean string → notes annotation if deceased
+        notes:        rec.deceased === "true" ? "DECEASED" : undefined,
+        donorStatus:  (rec.constituentStatus === "InActive" ? "LAPSED" : "ACTIVE") as DonorStatus,
+        externalId:   rec.externalId   || undefined,
+        // Set constituent type: org-flagged records → ORGANIZATION, others → DONOR
+        type:         (isOrg ? "ORGANIZATION" : "DONOR") as ConstituentType,
+        organizationId: resolvedOrgId,
+      };
+
+      // Skip records that are truly nameless (wizard should have caught these, but guard here)
+      if (!data.firstName && !data.lastName) { skipped++; continue; }
+
+      /** Shared scalar fields (no relation keys) — safe for both create and update */
+      const scalars = {
+        firstName:    data.firstName,
+        lastName:     data.lastName,
+        prefix:       data.prefix,
+        email:        data.email,
+        email2:       data.email2,
+        phone:        data.phone,
+        mobile:       data.mobile,
+        phone2:       data.phone2,
+        addressLine1: data.addressLine1,
+        city:         data.city,
+        state:        data.state,
+        zip:          data.zip,
+        employer:     data.employer,
+        occupation:   data.occupation,
+        doNotMail:    data.doNotMail,
+        notes:        data.notes,
+        donorStatus:  data.donorStatus,
+        externalId:   data.externalId,
+        type:         data.type,
+      };
+
+      if (dryRun) {
+        // Dry-run: just tally what would happen without writing
+        const existingByExtId = matchExtId && data.externalId
+          ? await prisma.constituent.findFirst({ where: { externalId: data.externalId, organizationId: resolvedOrgId }, select: { id: true } })
+          : null;
+        const existingByEmail = !existingByExtId && matchEmail && data.email
+          ? await prisma.constituent.findFirst({ where: { email: data.email, organizationId: resolvedOrgId }, select: { id: true } })
+          : null;
+
+        const exists = existingByExtId ?? existingByEmail;
+        if (exists) {
+          mode === "create_only" ? skipped++ : updated++;
+        } else {
+          mode === "update_only" ? skipped++ : created++;
+        }
+        continue;
+      }
+
+      // Real import — find potential duplicate
+      const existingByExtId = matchExtId && data.externalId
+        ? await prisma.constituent.findFirst({ where: { externalId: data.externalId, organizationId: resolvedOrgId }, select: { id: true } })
+        : null;
+      const existingByEmail = !existingByExtId && matchEmail && data.email
+        ? await prisma.constituent.findFirst({ where: { email: data.email, organizationId: resolvedOrgId }, select: { id: true } })
+        : null;
+      const existing = existingByExtId ?? existingByEmail;
+
+      if (existing) {
+        if (mode === "create_only") { skipped++; continue; }
+        // upsert / update_only — update the existing record (do not change organizationId)
+        await prisma.constituent.update({ where: { id: existing.id }, data: scalars });
+        updated++;
+      } else {
+        if (mode === "update_only") { skipped++; continue; }
+        // Create new constituent — include organizationId relation key
+        await prisma.constituent.create({ data: { ...scalars, organizationId: resolvedOrgId } });
+        created++;
+      }
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  if (!dryRun) {
+    logAudit({
+      action: "CONSTITUENT_IMPORTED",
+      entity: "Constituent",
+      userId: req.user?.sub,
+      organizationId: resolvedOrgId,
+      metadata: { created, updated, skipped, errorCount: errors.length, mode },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+  }
+
+  res.json({ created, updated, skipped, errors: errors.length, dryRun });
+});
+
+
 router.delete("/:id", requireRole("admin"), async (req, res) => {
   const id = req.params.id as string;
   await prisma.constituent.delete({ where: { id } });

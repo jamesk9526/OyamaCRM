@@ -175,7 +175,7 @@ model User {
   email          String   @unique
   firstName      String
   lastName       String
-  role           String   @default("staff") // admin, staff, readonly
+  role           String   @default("staff") // admin | manager | staff | readonly
   avatarUrl      String?
   active         Boolean  @default(true)
   passwordHash   String?
@@ -223,6 +223,7 @@ model Constituent {
   occupation     String?
   notes          String?         @db.Text
   avatarUrl      String?
+  externalId     String?         @db.VarChar(100) // Source system ID (e.g. DirID from eKYROS) for dedup on re-import
 
   // Household
   householdId    String?

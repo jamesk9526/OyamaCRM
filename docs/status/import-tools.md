@@ -1,112 +1,83 @@
 # Import Tools — Status
 
-_Last updated: 2026-05-09_
+_Last updated: 2026-05-13 · Donation Import added_
 
 ## What Is Implemented
 
-### Visual Import Mapper (`app/data-tools/import/VisualImportMapper.tsx`) ✅ NEW
+### Constituent Import Wizard (`app/data-tools/import/ImportWizard.tsx`) ✅
 
-Full-page, 3-column visual CSV-to-CRM mapping tool. Replaces the inline ImportWizard on the Data Tools page.
-Route: `/data-tools/import`
+Full 5-step visual import wizard. Route: `/data-tools/import`.
+Handles file upload, smart header detection, field mapping, validation, and import confirmation.
 
 | Step | Status | Notes |
 |------|--------|-------|
-| 1. Upload CSV | ✅ Working | Drag-and-drop or click; client-side parse; report-title row auto-detection |
-| Header detection | ✅ Working | Detects real header by scanning for row with ≥5 non-empty non-numeric cells; shows "Detected header row: N"; user can override |
-| 2. Map Fields | ✅ Working | Left sidebar stepper, top summary cards (cols / mapped / unmapped / required / % complete), per-column confidence badges (High/Med/—), grouped target field dropdown, search + filter bar, right-panel field details |
-| Auto-mapping | ✅ Working | All 37 eKYROS File Address List columns pre-mapped with HIGH confidence via exact alias match |
-| Sensitive field blocking | ✅ Working | SSN blocked by default; user must click "Enable" to opt in |
-| Column warnings | ✅ Working | Empty columns, constant-value columns, sensitive fields all flagged with issues |
-| 3. Review & Validate | ✅ Working | Data quality warnings list, stat cards, sample mapped records preview |
-| 4. Import Settings | ✅ Working | Record type mode (Auto/Person/Org/Household), import mode (Dry Run/Real), preset save |
-| 5. Confirm & Import | ✅ Working | Summary cards, duplicate warning, preview table, dry-run CSV download |
-| Preset saving | ✅ Working | Saves mapping to `localStorage` as named preset; loadable in future sessions |
+| 1. Upload File | ✅ Working | Drag-and-drop; auto-detects eKYROS title rows; shows file stats + data quality notes |
+| Header detection | ✅ Working | `detectHeaderRow()` in csvParser.ts skips title/blank rows; supports eKYROS row-4 headers |
+| 2. Map Fields | ✅ Working | 3-panel layout: stepper sidebar + scrollable mapping table + column details panel |
+| Auto-mapping | ✅ Working | All 37 eKYROS columns pre-mapped via `AUTO_MAP_ALIASES`; SSN/Age default to skip |
+| 3. Review & Validate | ✅ Working | Runs `validateAndTransform`; shows valid/error/warning counts; row error table; 5-row preview |
+| 4. Import Settings | ✅ Working | Import mode, record type, dedup options, dry-run toggle |
+| 5. Confirm & Import | ✅ Working | POST to `/api/constituents/import`; result display |
 
-### Legacy ImportWizard (`app/data-tools/import/ImportWizard.tsx`)
+### Donation Import Wizard (`app/data-tools/import/DonationImportWizard.tsx`) ✅ NEW
 
-Still present as a reference implementation. Not rendered from any page (replaced by VisualImportMapper).
-Can be removed in a future cleanup pass.
+Full 5-step visual donation CSV import wizard. Route: `/data-tools/import/donation`.
+Imports historical gift data; links to existing constituents; creates campaigns/designations on-the-fly.
 
-### Field Map (`app/data-tools/import/fieldMap.ts`) — **Extended 2026-05-09**
+| Step | Status | Notes |
+|------|--------|-------|
+| 1. Upload File | ✅ Working | CSV drag-and-drop; header auto-detection |
+| 2. Map Fields | ✅ Working | 24 donation fields; 100+ aliases for Bloomerang/NeonCRM/eKYROS/DonorPerfect |
+| 3. Review & Validate | ✅ Working | Amount validation, date parsing, required-field warnings |
+| 4. Import Settings | ✅ Working | Constituent matching (externalId/email/name), dedup by receipt#, dry-run, skip-unmatched |
+| 5. Confirm & Import | ✅ Working | POST to `/api/donations/import`; dry-run or live; result summary |
 
-- `CRM_CONSTITUENT_FIELDS` — 37 constituent fields across 8 groups (Identity, Organization, Address, Phone, Email, Household, Status, Metadata, Tags)
-- `AUTO_MAP_ALIASES` — 60+ case-insensitive header aliases including all eKYROS column names
-- `SENSITIVE_FIELD_KEYS` — set of source column names that require explicit opt-in (SSN, etc.)
-- `ALWAYS_SKIP_DEFAULTS` — columns known to be empty/useless in this source (Age, BirthDate, Keywords, etc.)
-- `CONSTANT_VALUE_NOTES` — columns with constant values (Location = "Aurora")
-- **Must be updated** whenever a new importable field is added to the Constituent model
+Backend (`POST /api/donations/import`):
+- Resolves constituent by externalId → email → name
+- Auto-creates Campaign and Designation records if missing
+- Deduplicates by receiptNumber
+- Updates constituent lifetime giving stats after import
+- Audit logs every write
+- TODO: rollback/undo not yet implemented
 
-### Dry-Run Mode
+### Visual Import Mapper (`app/data-tools/import/VisualImportMapper.tsx`) ✅
 
-- Always available as a mode toggle in Import Settings step
-- Downloads first 20 mapped records as CSV for review
-- Must never be removed; real-import path requires backend wiring (see TODO below)
+Full-page 3-column advanced CSV-to-CRM mapping tool. Route: `/data-tools/import`.
+Features: HIGH/MEDIUM/LOW confidence badges, SSN opt-in, preset save/load, dry-run CSV download.
+
+### CSV Parser (`app/data-tools/import/csvParser.ts`) ✅
+
+Pure utility module (no React dependency). Provides:
+- `parseCSV(text)` — RFC 4180 parser with smart header detection
+- `detectHeaderRow(lines)` — scans first 10 lines; skips title/blank rows
+- `computeColumnStats(headers, rows)` — fill rate, unique count, sample values, inferred type
+
+### Field Maps
+
+| File | Status | Notes |
+|------|--------|-------|
+| `fieldMap.ts` | ✅ Complete | 37 constituent fields, 80+ aliases, sensitive field flags |
+| `donationFieldMap.ts` | ✅ Complete | 24 donation fields, 100+ aliases (Bloomerang, NeonCRM, eKYROS, DonorPerfect) |
 
 ## What Is Missing
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| `POST /api/constituents/bulk` backend endpoint | High | `// TODO: backend API needed` in VisualImportMapper.tsx Step 4 confirm handler — currently downloads CSV instead of writing to DB |
-| Import history log | Medium | Show a log of past imports with undo support |
-| Rollback / undo import | Medium | Allow reverting a bulk import within N hours |
-| Merge on duplicate (import-time) | Medium | UI exists to flag dupes; actual merge/update/skip logic needs backend |
-| Progress indicator for large files | Low | Client-side pagination or streaming for files > 10,000 rows |
+| Donation import rollback / undo | Medium | Allow reverting a bulk donation import within N hours |
+| Import history log | Medium | Show a log of past imports with record counts and timestamps |
+| Constituent import rollback | Medium | Same as donations |
+| Progress bar for large files | Low | Client-side pagination or streaming for files > 10,000 rows |
 | Compassion CRM import | Low | Port wizard to `app/compassion/data-tools/` when client model is ready |
-| Server-side field validation | High | Phone normalize, email validate, ZIP format — currently display-only transforms |
-| Load saved presets | Medium | Preset save works; preset load UI not yet implemented |
-| Remove legacy ImportWizard | Low | Safe to delete once team confirms VisualImportMapper covers all use cases |
-
-## eKYROS File Address List — Field Mapping Reference
-
-The VisualImportMapper auto-maps all 37 eKYROS columns at HIGH confidence:
-
-| eKYROS Column | CRM Field | Notes |
-|---|---|---|
-| DirID | External Source ID | Used as dedup key on re-imports |
-| FullName | Display Name | |
-| Title | Prefix / Title | |
-| FirstName | First Name | |
-| LastName | Last Name | |
-| DearName | Greeting / Dear Name | |
-| ProperName | Formal Name | |
-| Address | Mailing Address Line 1 | |
-| City | Mailing City | |
-| State | Mailing State | |
-| Zip | Mailing ZIP | |
-| SpouseName | Spouse / Household Member | |
-| Organization | Organization Name | |
-| Occupation | Occupation | ⚠ Empty in source |
-| JobTitle | Job Title | ⚠ Empty in source |
-| Church | Church Affiliation | |
-| HomePhone | Primary Phone | |
-| CellPhone | Mobile Phone | |
-| WorkPhone | Work Phone | |
-| SpousePhone | Spouse Phone | |
-| Email | Primary Email | |
-| SpouseEmail | Spouse Email | |
-| Website | Website | |
-| SSN | 🔒 BLOCKED | Requires explicit opt-in |
-| BirthDate | — Do Not Import — | ⚠ Empty in source |
-| Age | — Do Not Import — | ⚠ Always 0 |
-| Gender | Gender | |
-| DateCreated | Source Created Date | |
-| DateModified | Source Modified Date | |
-| LastUpdatedBy | Source Last Updated By | |
-| IsOKToContact | Communication Preferences | |
-| Location | Location / Center | ℹ Always "Aurora" |
-| HoldMail | Do Not Mail / Hold Mail | |
-| Status | Constituent Status | |
-| DeceasedDesc | Deceased Flag | |
-| SpouseDeceasedDesc | Spouse Deceased Flag | |
-| Keywords | Tags / Keywords | ⚠ Empty in source |
+| Load saved presets in VisualImportMapper | Medium | Preset save works; preset load UI not yet implemented |
+| `POST /api/constituents/import` dry-run accuracy | Medium | Constituent import dry-run skips DB checks; donation import dry-run checks receipt dedup |
 
 ## Next Steps
 
-1. Implement `POST /api/constituents/bulk` with dry-run flag, upsert-by-externalId, and per-row result reporting.
-2. Wire the VisualImportMapper confirm step to call the endpoint.
-3. Add import history table to the data-tools page.
-4. Build preset-load UI (read from localStorage presets array).
-5. When the Constituent model gains new fields, update `CRM_CONSTITUENT_FIELDS` and `AUTO_MAP_ALIASES` in `fieldMap.ts`.
+1. Add import history table to the data-tools page (track past import sessions with row counts).
+2. Build rollback/undo for both constituent and donation imports.
+3. Build preset-load UI for VisualImportMapper.
+4. When the Constituent or Donation model gains new fields, update the respective `fieldMap.ts` / `donationFieldMap.ts`.
+5. Port import tools to Compassion CRM module when client model is ready.
 
 ## How to Test the Import Tool
 

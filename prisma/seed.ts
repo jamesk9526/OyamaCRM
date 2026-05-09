@@ -63,12 +63,41 @@ async function main() {
 
   const staffUser = await prisma.user.upsert({
     where: { email: "james@hopefoundation.org" },
-    update: { passwordHash: staffHash },
+    update: { passwordHash: staffHash, role: "manager" },
     create: {
       organizationId: org.id,
       email: "james@hopefoundation.org",
       firstName: "James",
       lastName: "Oyama",
+      role: "manager",
+      passwordHash: staffHash,
+    },
+  });
+
+  // Read-only staff member for testing role restrictions
+  const readonlyHash = await bcrypt.hash("readonly123!", 12);
+  await prisma.user.upsert({
+    where: { email: "viewer@hopefoundation.org" },
+    update: { passwordHash: readonlyHash },
+    create: {
+      organizationId: org.id,
+      email: "viewer@hopefoundation.org",
+      firstName: "Viewer",
+      lastName: "User",
+      role: "readonly",
+      passwordHash: readonlyHash,
+    },
+  });
+
+  // Staff-level user for testing
+  await prisma.user.upsert({
+    where: { email: "staff@hopefoundation.org" },
+    update: { passwordHash: staffHash },
+    create: {
+      organizationId: org.id,
+      email: "staff@hopefoundation.org",
+      firstName: "Staff",
+      lastName: "Member",
       role: "staff",
       passwordHash: staffHash,
     },

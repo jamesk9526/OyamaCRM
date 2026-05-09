@@ -1,6 +1,7 @@
 // Compassion CRM dashboard — shows caseload overview, schedule, tasks, alerts, and quick actions.
 "use client";
 
+import { type ReactNode } from "react";
 import { useState } from "react";
 
 // TODO: replace all static placeholder data with live API calls
@@ -20,8 +21,20 @@ function formatTime(d: Date): string {
 
 // ─── Static placeholder data ──────────────────────────────────────────────────
 
+/** Type for each stat card — subRed highlights the subtitle in red when true */
+type StatCardData = {
+  title: string;
+  value: number;
+  sub: string;
+  subRed?: boolean;
+  link: string;
+  href: string;
+  iconColor: string;
+  icon: ReactNode;
+};
+
 /** Stat card config — each item renders a metric tile */
-const STAT_CARDS = [
+const STAT_CARDS: StatCardData[] = [
   {
     title: "Total Clients",
     value: 42,
@@ -200,7 +213,7 @@ function DonutChart({ segments, total, centerLabel }: {
 /**
  * StatCard: renders a single metric tile with icon, value, subtitle, and link.
  */
-function StatCard({ card }: { card: typeof STAT_CARDS[number] }) {
+function StatCard({ card }: { card: StatCardData }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-col gap-2">
       <div className="flex items-center justify-between">

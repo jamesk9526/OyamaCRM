@@ -1,185 +1,213 @@
-/**
- * Field mapping definitions for the CSV import wizard.
- * Keep in sync with the Constituent data model.
- * Extended with full eKYROS File Address List field set (37 columns).
- */
+// Field mapping definitions for the CSV import wizard.
+// Expanded to cover the full Constituent data model including eKYROS export columns.
+// Keep in sync with: docs/status/import-tools.md and the Constituent Prisma schema.
 
 /**
  * A single importable CRM field definition.
- * @property key      — Internal model field name used in API payloads
- * @property label    — Human-readable label shown in the mapping UI
- * @property required — Whether this field must be mapped before import can proceed
- * @property group    — Logical grouping for the field selector dropdown
+ * @property key       - Internal model field name (matches Prisma Constituent field)
+ * @property label     - Human-readable label shown in the mapping UI
+ * @property required  - Whether this field must be mapped before import can proceed
+ * @property group     - Display group for the optgroup select (Identity, Contact, Address, etc.)
+ * @property sensitive - Whether this field contains sensitive PII (SSN, DOB, etc.)
  */
 export interface CrmField {
   readonly key: string;
   readonly label: string;
   readonly required: boolean;
   readonly group: string;
+  readonly sensitive: boolean;
 }
 
 /**
- * CRM_CONSTITUENT_FIELDS: all constituent fields that CSV data can be mapped to.
- * Organized by group. Add fields here whenever the Constituent model expands.
- * "skip" is the sentinel value meaning "do not import this column."
+ * CRM_CONSTITUENT_FIELDS: every constituent field that CSV data can be mapped to.
+ * Add new fields here whenever the Constituent model gains a new importable field.
+ * Must stay in sync with AUTO_MAP_ALIASES and the import-tools.md status doc.
  */
 export const CRM_CONSTITUENT_FIELDS: readonly CrmField[] = [
-  // ── Core Identity ────────────────────────────────────────────────────────
-  { key: "externalId",        label: "External Source ID",           required: false, group: "Identity" },
-  { key: "displayName",       label: "Display Name",                 required: false, group: "Identity" },
-  { key: "prefix",            label: "Prefix / Title",               required: false, group: "Identity" },
-  { key: "firstName",         label: "First Name",                   required: false, group: "Identity" },
-  { key: "lastName",          label: "Last Name",                    required: false, group: "Identity" },
-  { key: "greetingName",      label: "Greeting / Dear Name",         required: false, group: "Identity" },
-  { key: "formalName",        label: "Formal Name",                  required: false, group: "Identity" },
-  { key: "gender",            label: "Gender",                       required: false, group: "Identity" },
-
-  // ── Organization ─────────────────────────────────────────────────────────
-  { key: "organizationName",  label: "Organization Name",            required: false, group: "Organization" },
-  { key: "constituentType",   label: "Constituent Type",             required: false, group: "Organization" },
-  { key: "occupation",        label: "Occupation",                   required: false, group: "Organization" },
-  { key: "jobTitle",          label: "Job Title",                    required: false, group: "Organization" },
-  { key: "churchAffiliation", label: "Church Affiliation",           required: false, group: "Organization" },
-
-  // ── Address ───────────────────────────────────────────────────────────────
-  { key: "address1",          label: "Mailing Address Line 1",       required: false, group: "Address" },
-  { key: "address2",          label: "Mailing Address Line 2",       required: false, group: "Address" },
-  { key: "city",              label: "Mailing City",                 required: false, group: "Address" },
-  { key: "state",             label: "Mailing State",                required: false, group: "Address" },
-  { key: "zip",               label: "Mailing ZIP",                  required: false, group: "Address" },
-
-  // ── Phone ─────────────────────────────────────────────────────────────────
-  { key: "phone",             label: "Primary Phone",                required: false, group: "Phone" },
-  { key: "mobilePhone",       label: "Mobile Phone",                 required: false, group: "Phone" },
-  { key: "workPhone",         label: "Work Phone",                   required: false, group: "Phone" },
-  { key: "spousePhone",       label: "Spouse Phone",                 required: false, group: "Phone" },
-
-  // ── Email & Web ───────────────────────────────────────────────────────────
-  { key: "email",             label: "Primary Email",                required: false, group: "Email" },
-  { key: "spouseEmail",       label: "Spouse Email",                 required: false, group: "Email" },
-  { key: "website",           label: "Website",                      required: false, group: "Email" },
-
-  // ── Household ─────────────────────────────────────────────────────────────
-  { key: "spouseName",        label: "Spouse / Household Member",    required: false, group: "Household" },
-
-  // ── Status & Preferences ──────────────────────────────────────────────────
-  { key: "constituentStatus", label: "Constituent Status",           required: false, group: "Status" },
-  { key: "donorStatus",       label: "Donor Status",                 required: false, group: "Status" },
-  { key: "communicationPrefs",label: "Communication Preferences",    required: false, group: "Status" },
-  { key: "holdMail",          label: "Do Not Mail / Hold Mail",      required: false, group: "Status" },
-  { key: "isDeceased",        label: "Deceased Flag",                required: false, group: "Status" },
-  { key: "spouseDeceased",    label: "Spouse Deceased Flag",         required: false, group: "Status" },
-  { key: "location",          label: "Location / Center",            required: false, group: "Status" },
-
-  // ── Source Metadata ───────────────────────────────────────────────────────
-  { key: "sourceCreatedDate", label: "Source Created Date",          required: false, group: "Metadata" },
-  { key: "sourceModifiedDate",label: "Source Modified Date",         required: false, group: "Metadata" },
-  { key: "sourceUpdatedBy",   label: "Source Last Updated By",       required: false, group: "Metadata" },
-
-  // ── Tags & Notes ──────────────────────────────────────────────────────────
-  { key: "tags",              label: "Tags / Keywords",              required: false, group: "Tags" },
-  { key: "notes",             label: "Notes",                        required: false, group: "Tags" },
-
-  // ── Sentinel ──────────────────────────────────────────────────────────────
-  { key: "skip",              label: "— Do Not Import —",            required: false, group: "Other" },
-] as const;
+  // -- Identity --
+  { key: "externalId",               label: "External Source ID",           required: false, group: "Identity",     sensitive: false },
+  { key: "firstName",                label: "First Name",                    required: true,  group: "Identity",     sensitive: false },
+  { key: "lastName",                 label: "Last Name",                     required: true,  group: "Identity",     sensitive: false },
+  { key: "displayName",              label: "Display Name",                  required: false, group: "Identity",     sensitive: false },
+  { key: "prefix",                   label: "Prefix / Title",                required: false, group: "Identity",     sensitive: false },
+  { key: "greetingName",             label: "Greeting / Dear Name",          required: false, group: "Identity",     sensitive: false },
+  { key: "formalName",               label: "Formal / Proper Name",          required: false, group: "Identity",     sensitive: false },
+  { key: "gender",                   label: "Gender",                        required: false, group: "Identity",     sensitive: false },
+  { key: "birthDate",                label: "Birth Date",                    required: false, group: "Identity",     sensitive: true  },
+  { key: "ssn",                      label: "SSN (Sensitive)",               required: false, group: "Identity",     sensitive: true  },
+  // -- Contact --
+  { key: "email",                    label: "Primary Email",                 required: false, group: "Contact",      sensitive: false },
+  { key: "spouseEmail",              label: "Spouse Email",                  required: false, group: "Contact",      sensitive: false },
+  { key: "phone",                    label: "Primary Phone",                 required: false, group: "Contact",      sensitive: false },
+  { key: "mobilePhone",              label: "Mobile Phone",                  required: false, group: "Contact",      sensitive: false },
+  { key: "workPhone",                label: "Work Phone",                    required: false, group: "Contact",      sensitive: false },
+  { key: "spousePhone",              label: "Spouse Phone",                  required: false, group: "Contact",      sensitive: false },
+  { key: "website",                  label: "Website",                       required: false, group: "Contact",      sensitive: false },
+  // -- Address --
+  { key: "address1",                 label: "Mailing Address Line 1",        required: false, group: "Address",      sensitive: false },
+  { key: "address2",                 label: "Mailing Address Line 2",        required: false, group: "Address",      sensitive: false },
+  { key: "city",                     label: "Mailing City",                  required: false, group: "Address",      sensitive: false },
+  { key: "state",                    label: "Mailing State",                 required: false, group: "Address",      sensitive: false },
+  { key: "zip",                      label: "Mailing ZIP",                   required: false, group: "Address",      sensitive: false },
+  // -- Organization / Household --
+  { key: "organizationName",         label: "Organization Name",             required: false, group: "Organization", sensitive: false },
+  { key: "churchAffiliation",        label: "Church Affiliation",            required: false, group: "Organization", sensitive: false },
+  { key: "occupation",               label: "Occupation",                    required: false, group: "Organization", sensitive: false },
+  { key: "jobTitle",                 label: "Job Title",                     required: false, group: "Organization", sensitive: false },
+  { key: "spouseName",               label: "Spouse / Household Member",     required: false, group: "Household",    sensitive: false },
+  // -- Preferences & Status --
+  { key: "communicationPreferences", label: "Communication Prefs (raw)",     required: false, group: "Preferences",  sensitive: false },
+  { key: "holdMail",                 label: "Do Not Mail / Hold Mail",       required: false, group: "Preferences",  sensitive: false },
+  { key: "constituentStatus",        label: "Constituent Status",            required: false, group: "Status",       sensitive: false },
+  { key: "deceased",                 label: "Deceased Flag",                 required: false, group: "Status",       sensitive: false },
+  { key: "spouseDeceased",           label: "Spouse Deceased Flag",          required: false, group: "Status",       sensitive: false },
+  { key: "tags",                     label: "Tags / Keywords",               required: false, group: "Tags",         sensitive: false },
+  // -- Source Metadata --
+  { key: "location",                 label: "Location / Center",             required: false, group: "Metadata",     sensitive: false },
+  { key: "sourceCreatedDate",        label: "Source Created Date",           required: false, group: "Metadata",     sensitive: false },
+  { key: "sourceModifiedDate",       label: "Source Modified Date",          required: false, group: "Metadata",     sensitive: false },
+  { key: "sourceLastUpdatedBy",      label: "Source Last Updated By",        required: false, group: "Metadata",     sensitive: false },
+  // -- Skip (always available) --
+  { key: "skip",                     label: "— Do Not Import —",             required: false, group: "Skip",         sensitive: false },
+];
 
 /**
- * AUTO_MAP_ALIASES: maps lowercased CSV column names to CRM field keys.
- * Includes eKYROS File Address List field names, generic aliases, and common variations.
- * Confidence is computed separately based on whether the match was exact (high) or partial (medium).
+ * FIELD_GROUPS: CRM_CONSTITUENT_FIELDS organized by group property (excludes "Skip").
+ * Used to populate optgroup elements in the destination field dropdown.
+ * Computed once at module load; effectively read-only after initialization.
+ */
+export const FIELD_GROUPS: Record<string, CrmField[]> = (() => {
+  const groups: Record<string, CrmField[]> = {};
+  for (const f of CRM_CONSTITUENT_FIELDS) {
+    if (f.group === "Skip") continue;
+    if (!groups[f.group]) groups[f.group] = [];
+    groups[f.group].push(f);
+  }
+  return groups;
+})();
+
+/**
+ * AUTO_MAP_ALIASES: maps CSV column header names (lowercased + trimmed) to CRM field keys.
+ * Covers all 37 eKYROS "Donor File Address List" columns plus common header variations.
+ *
+ * Special rules enforced here:
+ * - "ssn"  -> "skip"  (sensitive data; user must explicitly opt in to import)
+ * - "age"  -> "skip"  (always 0 in eKYROS exports; not worth importing)
  */
 export const AUTO_MAP_ALIASES: Record<string, string> = {
-  // ── eKYROS-specific column names (exact matches → HIGH confidence) ────────
-  "dirid":              "externalId",
-  "fullname":           "displayName",
-  "title":              "prefix",
-  "firstname":          "firstName",
-  "lastname":           "lastName",
-  "dearname":           "greetingName",
-  "propername":         "formalName",
-  "address":            "address1",
-  "city":               "city",
-  "state":              "state",
-  "zip":                "zip",
-  "spousename":         "spouseName",
-  "organization":       "organizationName",
-  "occupation":         "occupation",
-  "jobtitle":           "jobTitle",
-  "church":             "churchAffiliation",
-  "homephone":          "phone",
-  "cellphone":          "mobilePhone",
-  "workphone":          "workPhone",
-  "spousephone":        "spousePhone",
-  "email":              "email",
-  "spouseemail":        "spouseEmail",
-  "website":            "website",
-  "ssn":                "SENSITIVE",          // blocked unless opt-in
-  "birthdate":          "skip",               // empty in this file
-  "age":                "skip",               // always 0 in this file
-  "gender":             "gender",
-  "datecreated":        "sourceCreatedDate",
-  "datemodified":       "sourceModifiedDate",
-  "lastupdatedby":      "sourceUpdatedBy",
-  "isoktocontact":      "communicationPrefs",
-  "location":           "location",
-  "holdmail":           "holdMail",
-  "status":             "constituentStatus",
-  "deceaseddesc":       "isDeceased",
-  "spousedeceaseddesc": "spouseDeceased",
-  "keywords":           "tags",
-
-  // ── Generic aliases ───────────────────────────────────────────────────────
-  "first name":         "firstName",
-  "first":              "firstName",
-  "fname":              "firstName",
-  "given name":         "firstName",
-  "last name":          "lastName",
-  "last":               "lastName",
-  "lname":              "lastName",
-  "surname":            "lastName",
-  "family name":        "lastName",
-  "email address":      "email",
-  "e-mail":             "email",
-  "phone":              "phone",
-  "phone number":       "phone",
-  "telephone":          "phone",
-  "tel":                "phone",
-  "mobile":             "mobilePhone",
-  "cell":               "mobilePhone",
-  "cell phone":         "mobilePhone",
-  "mobile phone":       "mobilePhone",
-  "street":             "address1",
-  "street address":     "address1",
-  "address 1":          "address1",
-  "address line 1":     "address1",
-  "address 2":          "address2",
-  "address line 2":     "address2",
-  "apt":                "address2",
-  "province":           "state",
-  "zip code":           "zip",
-  "postal code":        "zip",
-  "postcode":           "zip",
-  "constituent type":   "constituentType",
-  "donor status":       "donorStatus",
-  "note":               "notes",
-  "comments":           "notes",
-  "comment":            "notes",
+  // -- eKYROS Donor File Address List (all 37 columns) --
+  "dirid":                     "externalId",
+  "fullname":                  "displayName",
+  "title":                     "prefix",
+  "firstname":                 "firstName",
+  "lastname":                  "lastName",
+  "dearname":                  "greetingName",
+  "propername":                "formalName",
+  "address":                   "address1",
+  "city":                      "city",
+  "state":                     "state",
+  "zip":                       "zip",
+  "spousename":                "spouseName",
+  "organization":              "organizationName",
+  "occupation":                "occupation",
+  "jobtitle":                  "jobTitle",
+  "church":                    "churchAffiliation",
+  "homephone":                 "phone",
+  "cellphone":                 "mobilePhone",
+  "workphone":                 "workPhone",
+  "spousephone":               "spousePhone",
+  "email":                     "email",
+  "spouseemail":               "spouseEmail",
+  "website":                   "website",
+  "ssn":                       "skip",
+  "birthdate":                 "birthDate",
+  "age":                       "skip",
+  "gender":                    "gender",
+  "datecreated":               "sourceCreatedDate",
+  "datemodified":              "sourceModifiedDate",
+  "lastupdatedby":             "sourceLastUpdatedBy",
+  "isoktocontact":             "communicationPreferences",
+  "location":                  "location",
+  "holdmail":                  "holdMail",
+  "status":                    "constituentStatus",
+  "deceaseddesc":              "deceased",
+  "spousedeceaseddesc":        "spouseDeceased",
+  "keywords":                  "tags",
+  // -- Common CSV header variations --
+  "first name":                "firstName",
+  "first":                     "firstName",
+  "fname":                     "firstName",
+  "given name":                "firstName",
+  "last name":                 "lastName",
+  "last":                      "lastName",
+  "lname":                     "lastName",
+  "surname":                   "lastName",
+  "family name":               "lastName",
+  "full name":                 "displayName",
+  "name":                      "displayName",
+  "display name":              "displayName",
+  "email address":             "email",
+  "e-mail":                    "email",
+  "primary email":             "email",
+  "phone":                     "phone",
+  "phone number":              "phone",
+  "telephone":                 "phone",
+  "tel":                       "phone",
+  "home phone":                "phone",
+  "mobile":                    "mobilePhone",
+  "cell":                      "mobilePhone",
+  "cell phone":                "mobilePhone",
+  "mobile phone":              "mobilePhone",
+  "work phone":                "workPhone",
+  "street":                    "address1",
+  "street address":            "address1",
+  "address 1":                 "address1",
+  "address line 1":            "address1",
+  "address 2":                 "address2",
+  "address line 2":            "address2",
+  "apt":                       "address2",
+  "postal code":               "zip",
+  "zip code":                  "zip",
+  "postcode":                  "zip",
+  "province":                  "state",
+  "org":                       "organizationName",
+  "company":                   "organizationName",
+  "employer":                  "organizationName",
+  "job title":                 "jobTitle",
+  "spouse":                    "spouseName",
+  "spouse name":               "spouseName",
+  "birth date":                "birthDate",
+  "dob":                       "birthDate",
+  "date of birth":             "birthDate",
+  "source id":                 "externalId",
+  "external id":               "externalId",
+  "constituent status":        "constituentStatus",
+  "donor status":              "constituentStatus",
+  "note":                      "tags",
+  "notes":                     "tags",
+  "comment":                   "tags",
+  "comments":                  "tags",
+  "created":                   "sourceCreatedDate",
+  "date created":              "sourceCreatedDate",
+  "modified":                  "sourceModifiedDate",
+  "date modified":             "sourceModifiedDate",
 };
 
 /**
- * SENSITIVE_FIELD_KEYS: source column names (lowercased) that contain PII.
- * These are flagged in the mapping UI and require explicit opt-in before import.
+ * SENSITIVE_FIELD_KEYS: source column names (lowercased) that contain sensitive PII.
+ * Used by VisualImportMapper to block import unless the user explicitly opts in.
  */
-export const SENSITIVE_FIELD_KEYS = new Set(["ssn", "social security", "sin", "tax id", "passport"]);
+export const SENSITIVE_FIELD_KEYS = new Set([
+  "ssn", "social security", "sin", "tax id", "passport", "social security number",
+]);
 
 /**
- * ALWAYS_SKIP_DEFAULTS: source column names that auto-map to "skip" with a warning.
+ * ALWAYS_SKIP_DEFAULTS: column names (lowercased) that auto-map to "skip" with a reason.
  * These are columns known to be empty or semantically useless in the eKYROS export.
  */
 export const ALWAYS_SKIP_DEFAULTS: Record<string, string> = {
   "age":       "Column is always 0 in this source — skipped by default",
-  "ssn":       "Sensitive field (SSN) — blocked by default, enable below if needed",
+  "ssn":       "Sensitive field (SSN) — blocked by default; enable below if needed",
   "birthdate": "Column appears empty in this source",
   "keywords":  "Column appears empty in this source",
   "occupation":"Column appears empty in this source",
@@ -188,8 +216,8 @@ export const ALWAYS_SKIP_DEFAULTS: Record<string, string> = {
 
 /**
  * CONSTANT_VALUE_NOTES: columns known to always have the same value in this source.
- * Shown as informational warnings in the mapping UI.
+ * Shown as informational notes in the mapping UI.
  */
 export const CONSTANT_VALUE_NOTES: Record<string, string> = {
-  "location": "Always 'Aurora' in this source — can be set as import default",
+  "location": "Always 'Aurora' in this source — can be set as an import default",
 };

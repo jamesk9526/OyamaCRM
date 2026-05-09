@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 let app: Awaited<typeof import("@/server/src/index")>["default"];
 
 beforeAll(async () => {
-  process.env.NODE_ENV = "test";
+  // NODE_ENV is set to "test" automatically by Vitest
   const mod = await import("@/server/src/index");
   app = mod.default;
 });

@@ -169,7 +169,7 @@ function MergeEditor({
   function buildMerged(): MergeConstituent {
     const result: Partial<MergeConstituent> = { id: pair.a.id };
     for (const { key } of COMPARE_FIELDS) {
-      // @ts-expect-error — dynamic key assignment
+      // Dynamic key assignment into a Partial — safe since key comes from COMPARE_FIELDS
       result[key] = selections[key] === "a" ? pair.a[key] : pair.b[key];
     }
     return result as MergeConstituent;

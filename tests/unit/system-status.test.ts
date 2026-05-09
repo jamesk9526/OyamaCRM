@@ -31,7 +31,7 @@ describe("system-status metadata", () => {
         NEXT_PUBLIC_RELEASE_CHANNEL: "staging",
         NEXT_PUBLIC_APP_ENV: "test",
         NEXT_PUBLIC_LAST_AUDIT_DATE: "2026-05-10",
-      } as NodeJS.ProcessEnv)
+      } as unknown as NodeJS.ProcessEnv)
     ).toMatchObject({
       appName: "Custom OyamaCRM",
       version: "1.2.3",
