@@ -338,4 +338,424 @@ router.get("/board-summary", async (req, res) => {
   });
 });
 
+/**
+ * GET /api/reports/lybunt
+ * LYBUNT: Donors who gave last year but NOT this year.
+ * Returns up to 100 constituents ordered by lastGiftAmount desc.
+ */
+router.get("/lybunt", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json([]);
+    return;
+  }
+
+  const thisYear = new Date().getFullYear();
+  const lastYear = thisYear - 1;
+  const lastYearStart = new Date(`${lastYear}-01-01`);
+  const lastYearEnd = new Date(`${lastYear}-12-31`);
+  const thisYearStart = new Date(`${thisYear}-01-01`);
+  const thisYearEnd = new Date(`${thisYear}-12-31`);
+
+  // Fetch distinct constituent IDs from both years in parallel
+  const [lastYearDonors, thisYearDonors] = await Promise.all([
+    prisma.donation.findMany({
+      where: { status: "COMPLETED", date: { gte: lastYearStart, lte: lastYearEnd }, constituent: { organizationId } },
+      select: { constituentId: true },
+      distinct: ["constituentId"],
+    }),
+    prisma.donation.findMany({
+      where: { status: "COMPLETED", date: { gte: thisYearStart, lte: thisYearEnd }, constituent: { organizationId } },
+      select: { constituentId: true },
+      distinct: ["constituentId"],
+    }),
+  ]);
+
+  // Set-difference in JS: gave last year AND NOT this year
+  const thisYearSet = new Set(thisYearDonors.map((d) => d.constituentId));
+  const lybuntIds = lastYearDonors
+    .filter((d) => !thisYearSet.has(d.constituentId))
+    .map((d) => d.constituentId);
+
+  if (lybuntIds.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  const donors = await prisma.constituent.findMany({
+    where: { id: { in: lybuntIds } },
+    orderBy: { lastGiftAmount: "desc" },
+    take: 100,
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      lastGiftDate: true,
+      lastGiftAmount: true,
+      totalLifetimeGiving: true,
+      donorStatus: true,
+    },
+  });
+
+  res.json(donors);
+});
+
+/**
+ * GET /api/reports/sybunt
+ * SYBUNT: Donors who gave before last year but NOT last year or this year.
+ * Returns up to 100 constituents ordered by lastGiftAmount desc.
+ */
+router.get("/sybunt", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json([]);
+    return;
+  }
+
+  const thisYear = new Date().getFullYear();
+  const lastYear = thisYear - 1;
+  const lastYearStart = new Date(`${lastYear}-01-01`);
+  const thisYearStart = new Date(`${thisYear}-01-01`);
+  const thisYearEnd = new Date(`${thisYear}-12-31`);
+
+  // Fetch donors who gave before lastYear, in lastYear, and in thisYear
+  const [beforeLastYear, lastYearDonors, thisYearDonors] = await Promise.all([
+    // Anyone who gave before lastYear (the SYBUNT pool)
+    prisma.donation.findMany({
+      where: { status: "COMPLETED", date: { lt: lastYearStart }, constituent: { organizationId } },
+      select: { constituentId: true },
+      distinct: ["constituentId"],
+    }),
+    // Exclude those who gave in lastYear
+    prisma.donation.findMany({
+      where: { status: "COMPLETED", date: { gte: lastYearStart, lt: thisYearStart }, constituent: { organizationId } },
+      select: { constituentId: true },
+      distinct: ["constituentId"],
+    }),
+    // Exclude those who gave in thisYear
+    prisma.donation.findMany({
+      where: { status: "COMPLETED", date: { gte: thisYearStart, lte: thisYearEnd }, constituent: { organizationId } },
+      select: { constituentId: true },
+      distinct: ["constituentId"],
+    }),
+  ]);
+
+  // Set difference: gave before lastYear AND not in lastYear AND not in thisYear
+  const excludeSet = new Set([
+    ...lastYearDonors.map((d) => d.constituentId),
+    ...thisYearDonors.map((d) => d.constituentId),
+  ]);
+  const sybuntIds = beforeLastYear
+    .filter((d) => !excludeSet.has(d.constituentId))
+    .map((d) => d.constituentId);
+
+  if (sybuntIds.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  const donors = await prisma.constituent.findMany({
+    where: { id: { in: sybuntIds } },
+    orderBy: { lastGiftAmount: "desc" },
+    take: 100,
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      lastGiftDate: true,
+      lastGiftAmount: true,
+      totalLifetimeGiving: true,
+      donorStatus: true,
+    },
+  });
+
+  res.json(donors);
+});
+
+/**
+ * GET /api/reports/year-comparison?year=YYYY
+ * Month-by-month revenue comparison: thisYear vs lastYear.
+ * Returns 12 objects { month, thisYear, lastYear }.
+ */
+router.get("/year-comparison", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json(Array.from({ length: 12 }, (_, i) => ({ month: i + 1, thisYear: 0, lastYear: 0 })));
+    return;
+  }
+
+  const yearParam = String(req.query.year ?? new Date().getFullYear());
+  const thisYear = parseInt(yearParam, 10);
+  const lastYear = thisYear - 1;
+
+  const [thisYearDonations, lastYearDonations] = await Promise.all([
+    prisma.donation.findMany({
+      where: { status: "COMPLETED", date: { gte: new Date(`${thisYear}-01-01`), lte: new Date(`${thisYear}-12-31`) }, constituent: { organizationId } },
+      select: { date: true, amount: true },
+    }),
+    prisma.donation.findMany({
+      where: { status: "COMPLETED", date: { gte: new Date(`${lastYear}-01-01`), lte: new Date(`${lastYear}-12-31`) }, constituent: { organizationId } },
+      select: { date: true, amount: true },
+    }),
+  ]);
+
+  // Aggregate by month in application code to stay DB-agnostic
+  const thisYearByMonth: Record<number, number> = {};
+  const lastYearByMonth: Record<number, number> = {};
+
+  thisYearDonations.forEach((d) => {
+    const m = new Date(d.date).getMonth() + 1;
+    thisYearByMonth[m] = (thisYearByMonth[m] ?? 0) + Number(d.amount);
+  });
+  lastYearDonations.forEach((d) => {
+    const m = new Date(d.date).getMonth() + 1;
+    lastYearByMonth[m] = (lastYearByMonth[m] ?? 0) + Number(d.amount);
+  });
+
+  const result = Array.from({ length: 12 }, (_, i) => ({
+    month: i + 1,
+    thisYear: Math.round((thisYearByMonth[i + 1] ?? 0) * 100) / 100,
+    lastYear: Math.round((lastYearByMonth[i + 1] ?? 0) * 100) / 100,
+  }));
+
+  res.json(result);
+});
+
+/**
+ * GET /api/reports/campaign-performance
+ * Stats for all campaigns in the org (raised, giftCount, uniqueDonors, avgGift).
+ * Aggregated in JS to stay DB-agnostic. Ordered by raised desc.
+ */
+router.get("/campaign-performance", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json([]);
+    return;
+  }
+
+  const campaigns = await prisma.campaign.findMany({
+    where: { organizationId },
+    include: {
+      donations: {
+        where: { status: "COMPLETED" },
+        select: { amount: true, constituentId: true },
+      },
+    },
+  });
+
+  const result = campaigns
+    .map((c) => {
+      const raised = c.donations.reduce((sum, d) => sum + Number(d.amount), 0);
+      const giftCount = c.donations.length;
+      const uniqueDonors = new Set(c.donations.map((d) => d.constituentId)).size;
+      const avgGift = giftCount > 0 ? raised / giftCount : 0;
+      return {
+        id: c.id,
+        name: c.name,
+        goal: c.goal != null ? Number(c.goal) : null,
+        active: c.active,
+        startDate: c.startDate.toISOString(),
+        endDate: c.endDate?.toISOString() ?? null,
+        raised: Math.round(raised * 100) / 100,
+        giftCount,
+        uniqueDonors,
+        avgGift: Math.round(avgGift * 100) / 100,
+      };
+    })
+    .sort((a, b) => b.raised - a.raised);
+
+  res.json(result);
+});
+
+/**
+ * GET /api/reports/giving-by-tier
+ * Breakdown of current-year COMPLETED gifts into:
+ *   micro (<$50), small ($50–$249.99), mid ($250–$999.99), major ($1000+)
+ * Returns counts and totals per tier.
+ */
+router.get("/giving-by-tier", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  const empty = { micro: { count: 0, amount: 0 }, small: { count: 0, amount: 0 }, mid: { count: 0, amount: 0 }, major: { count: 0, amount: 0 } };
+  if (!organizationId) {
+    res.json(empty);
+    return;
+  }
+
+  const thisYear = new Date().getFullYear();
+  const donations = await prisma.donation.findMany({
+    where: {
+      status: "COMPLETED",
+      date: { gte: new Date(`${thisYear}-01-01`), lte: new Date(`${thisYear}-12-31`) },
+      constituent: { organizationId },
+    },
+    select: { amount: true },
+  });
+
+  const tiers = { micro: { count: 0, amount: 0 }, small: { count: 0, amount: 0 }, mid: { count: 0, amount: 0 }, major: { count: 0, amount: 0 } };
+
+  donations.forEach((d) => {
+    const amt = Number(d.amount);
+    if (amt < 50) {
+      tiers.micro.count++;
+      tiers.micro.amount += amt;
+    } else if (amt < 250) {
+      tiers.small.count++;
+      tiers.small.amount += amt;
+    } else if (amt < 1000) {
+      tiers.mid.count++;
+      tiers.mid.amount += amt;
+    } else {
+      tiers.major.count++;
+      tiers.major.amount += amt;
+    }
+  });
+
+  // Round amounts to 2 dp
+  tiers.micro.amount = Math.round(tiers.micro.amount * 100) / 100;
+  tiers.small.amount = Math.round(tiers.small.amount * 100) / 100;
+  tiers.mid.amount = Math.round(tiers.mid.amount * 100) / 100;
+  tiers.major.amount = Math.round(tiers.major.amount * 100) / 100;
+
+  res.json(tiers);
+});
+
+/**
+ * GET /api/reports/payment-breakdown
+ * Count and total amount of current-year COMPLETED donations by paymentMethod.
+ * Returns array of { paymentMethod, count, amount } ordered by amount desc.
+ */
+router.get("/payment-breakdown", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json([]);
+    return;
+  }
+
+  const thisYear = new Date().getFullYear();
+  const donations = await prisma.donation.findMany({
+    where: {
+      status: "COMPLETED",
+      date: { gte: new Date(`${thisYear}-01-01`), lte: new Date(`${thisYear}-12-31`) },
+      constituent: { organizationId },
+    },
+    select: { paymentMethod: true, amount: true },
+  });
+
+  // Aggregate by paymentMethod in JS
+  const breakdown: Record<string, { count: number; amount: number }> = {};
+  donations.forEach((d) => {
+    const m = d.paymentMethod;
+    if (!breakdown[m]) breakdown[m] = { count: 0, amount: 0 };
+    breakdown[m].count++;
+    breakdown[m].amount += Number(d.amount);
+  });
+
+  const result = Object.entries(breakdown)
+    .map(([paymentMethod, { count, amount }]) => ({
+      paymentMethod,
+      count,
+      amount: Math.round(amount * 100) / 100,
+    }))
+    .sort((a, b) => b.amount - a.amount);
+
+  res.json(result);
+});
+
+/**
+ * GET /api/reports/donor-segments
+ * Count of constituents grouped by donorStatus for the org.
+ * Returns { ACTIVE, LAPSED, NEW, MAJOR_DONOR, PROSPECT, DECEASED, OTHER }.
+ */
+router.get("/donor-segments", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json({ ACTIVE: 0, LAPSED: 0, NEW: 0, MAJOR_DONOR: 0, PROSPECT: 0, DECEASED: 0, OTHER: 0 });
+    return;
+  }
+
+  const groups = await prisma.constituent.groupBy({
+    by: ["donorStatus"],
+    where: { organizationId },
+    _count: { id: true },
+  });
+
+  // Build result with defaults for every possible status value
+  const result: Record<string, number> = {
+    ACTIVE: 0,
+    LAPSED: 0,
+    NEW: 0,
+    MAJOR_DONOR: 0,
+    PROSPECT: 0,
+    DECEASED: 0,
+    OTHER: 0,
+  };
+  groups.forEach((g) => {
+    result[g.donorStatus] = g._count.id;
+  });
+
+  res.json(result);
+});
+
+/**
+ * GET /api/reports/new-vs-returning?year=YYYY
+ * Month-by-month: new donors (firstGiftDate in that month) vs returning donors
+ * (donated that month AND firstGiftDate before the start of that year).
+ * Returns 12 objects { month, newCount, returningCount }.
+ */
+router.get("/new-vs-returning", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json(Array.from({ length: 12 }, (_, i) => ({ month: i + 1, newCount: 0, returningCount: 0 })));
+    return;
+  }
+
+  const yearParam = String(req.query.year ?? new Date().getFullYear());
+  const year = parseInt(yearParam, 10);
+  const yearStart = new Date(`${year}-01-01`);
+  const yearEnd = new Date(`${year}-12-31`);
+
+  // Fetch new donors (firstGiftDate in this year) and all donations this year in parallel
+  const [newDonors, donations] = await Promise.all([
+    prisma.constituent.findMany({
+      where: { organizationId, firstGiftDate: { gte: yearStart, lte: yearEnd } },
+      select: { id: true, firstGiftDate: true },
+    }),
+    prisma.donation.findMany({
+      where: { status: "COMPLETED", date: { gte: yearStart, lte: yearEnd }, constituent: { organizationId } },
+      select: { constituentId: true, date: true, constituent: { select: { firstGiftDate: true } } },
+    }),
+  ]);
+
+  // Aggregate new donors per month
+  const newByMonth: Record<number, Set<string>> = {};
+  for (const c of newDonors) {
+    if (c.firstGiftDate) {
+      const m = new Date(c.firstGiftDate).getMonth() + 1;
+      if (!newByMonth[m]) newByMonth[m] = new Set();
+      newByMonth[m].add(c.id);
+    }
+  }
+
+  // Aggregate returning donors per month: gave this year AND firstGiftDate before yearStart
+  const returningByMonth: Record<number, Set<string>> = {};
+  for (const d of donations) {
+    const firstGift = d.constituent.firstGiftDate;
+    if (firstGift && new Date(firstGift) < yearStart) {
+      const m = new Date(d.date).getMonth() + 1;
+      if (!returningByMonth[m]) returningByMonth[m] = new Set();
+      returningByMonth[m].add(d.constituentId);
+    }
+  }
+
+  const result = Array.from({ length: 12 }, (_, i) => ({
+    month: i + 1,
+    newCount: newByMonth[i + 1]?.size ?? 0,
+    returningCount: returningByMonth[i + 1]?.size ?? 0,
+  }));
+
+  res.json(result);
+});
+
 export default router;
