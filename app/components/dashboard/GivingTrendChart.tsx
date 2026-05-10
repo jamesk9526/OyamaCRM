@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { apiFetch } from "@/app/lib/auth-client";
 
 interface MonthData {
   month: number;       // 1-12
@@ -24,39 +25,61 @@ interface GivingTrendChartProps {
 
 const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-/** Format currency compactly: 1500 → "$1.5k", 15000 → "$15k" */
-function formatCompact(n: number): string {
-  if (n === 0) return "$0";
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}k`;
-  return `$${n}`;
+/** Exact currency formatting for trend tooltips (no K/M shorthand). */
+function formatCurrencyExact(n: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(n);
 }
 
 export default function GivingTrendChart({ includeGrants = false }: GivingTrendChartProps) {
   const [data, setData] = useState<MonthData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [hoveredMonth, setHoveredMonth] = useState<number | null>(null);
 
   const year = new Date().getFullYear();
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
-    fetch(`/api/reports/giving-by-month?year=${year}`)
-      .then((r) => r.json())
-      .then((rows: MonthData[]) => {
-        // Ensure all 12 months are present (fill zeros), pick up the new grantAmount field
+    setError(null);
+
+    async function loadTrend() {
+      try {
+        const rows = await apiFetch<MonthData[]>(`/api/reports/giving-by-month?year=${year}`);
+        if (cancelled) return;
+
+        const source = Array.isArray(rows) ? rows : [];
+        // Ensure all 12 months are present (fill zeros), pick up the new grantAmount field.
         const filled = Array.from({ length: 12 }, (_, i) => {
-          const found = rows.find((r) => r.month === i + 1);
+          const found = source.find((row) => row.month === i + 1);
           return {
             month: i + 1,
-            amount: found?.amount ?? 0,
-            grantAmount: found?.grantAmount ?? 0,
+            amount: Number(found?.amount ?? 0),
+            grantAmount: Number(found?.grantAmount ?? 0),
           };
         });
         setData(filled);
-      })
-      .catch(() => setData([]))
-      .finally(() => setLoading(false));
+      } catch (requestError) {
+        if (cancelled) return;
+        setData([]);
+        setError(requestError instanceof Error ? requestError.message : "Failed to load giving trend.");
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadTrend();
+
+    return () => {
+      cancelled = true;
+    };
   }, [year]);
 
   /** Bar total = donations + grants (when includeGrants is on) */
@@ -93,6 +116,11 @@ export default function GivingTrendChart({ includeGrants = false }: GivingTrendC
         <div className="flex-1 flex items-center justify-center">
           <div className="animate-pulse text-gray-300 text-sm">Loading chart…</div>
         </div>
+      ) : error ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+          <p className="text-sm text-amber-700">Could not load trend data.</p>
+          <p className="text-xs text-gray-500 mt-1">{error}</p>
+        </div>
       ) : (
         <div className="flex-1 flex items-end gap-1 px-1 relative">
           {data.map((d) => {
@@ -115,13 +143,16 @@ export default function GivingTrendChart({ includeGrants = false }: GivingTrendC
                 {isHovered && (
                   <div className="absolute -top-10 bg-gray-900 text-white text-xs px-2 py-1 rounded-lg shadow-lg whitespace-nowrap z-10 pointer-events-none"
                     style={{ left: "50%", transform: "translateX(-50%)" }}>
-                    {MONTH_LABELS[d.month - 1]}: {formatCompact(d.amount)}
-                    {includeGrants && d.grantAmount > 0 && ` + ${formatCompact(d.grantAmount)} grants`}
+                    {MONTH_LABELS[d.month - 1]}: {formatCurrencyExact(d.amount)}
+                    {includeGrants && d.grantAmount > 0 && ` + ${formatCurrencyExact(d.grantAmount)} grants`}
                   </div>
                 )}
 
-                {/* Bar container — fixed height with bar growing from bottom */}
-                <div className="w-full flex-1 flex items-end" style={{ minHeight: "100px" }}>
+                {/*
+                  Bar container must have an explicit height (not just min-height),
+                  otherwise child percentage heights can resolve to 0px in flex layouts.
+                */}
+                <div className="w-full h-28 flex items-end">
                   {isEmpty ? (
                     /* Empty bar */
                     <div className="w-full rounded-t-sm bg-gray-100" style={{ height: "4%" }} />

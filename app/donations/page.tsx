@@ -6,47 +6,99 @@ import DonationTable from "@/app/components/donations/DonationTable";
 import { DonationRow, formatCurrency } from "@/app/components/donations/donation-utils";
 import { apiFetch } from "@/app/lib/auth-client";
 
+const PAGE_SIZE = 100;
+
+interface DonationStats {
+  totalRaised: number;
+  totalGifts: number;
+  completed: number;
+  recurring: number;
+}
+
+/** Returns YYYY-MM-DD strings for Jan 1 of current year through today's date. */
+function getCurrentYearDateInputs(): { from: string; to: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return {
+    from: `${y}-01-01`,
+    to: `${y}-${m}-${d}`,
+  };
+}
+
 export default function DonationsPage() {
+  const defaultRange = getCurrentYearDateInputs();
   const [donations, setDonations] = useState<DonationRow[]>([]);
   const [total, setTotal] = useState(0);
+  const [stats, setStats] = useState<DonationStats>({ totalRaised: 0, totalGifts: 0, completed: 0, recurring: 0 });
   const [loading, setLoading] = useState(true);
   const [apiDown, setApiDown] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  const [page, setPage] = useState(1);
+  const [allYears, setAllYears] = useState(false);
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
-  const [from,   setFrom]   = useState("");
-  const [to,     setTo]     = useState("");
+  const [from,   setFrom]   = useState(defaultRange.from);
+  const [to,     setTo]     = useState(defaultRange.to);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ limit: "100" });
-      if (search) params.set("search", search);
-      if (status) params.set("status", status);
-      if (from)   params.set("from", from);
-      if (to)     params.set("to", to);
-      const data = await apiFetch<{ items?: DonationRow[]; total?: number }>(`/api/donations?${params}`);
-      setDonations(data.items ?? []);
-      setTotal(data.total ?? (data.items ?? []).length);
+      const filterParams = new URLSearchParams();
+      if (search) filterParams.set("search", search);
+      if (status) filterParams.set("status", status);
+      // "Include all years" explicitly disables date-range filtering.
+      if (!allYears) {
+        if (from) filterParams.set("from", from);
+        if (to) filterParams.set("to", to);
+      }
+
+      const listParams = new URLSearchParams(filterParams);
+      listParams.set("limit", String(PAGE_SIZE));
+      listParams.set("page", String(page));
+
+      const [listData, statsData] = await Promise.all([
+        apiFetch<{ items?: DonationRow[]; total?: number }>(`/api/donations?${listParams.toString()}`),
+        apiFetch<DonationStats>(`/api/donations/stats?${filterParams.toString()}`),
+      ]);
+
+      setDonations(listData.items ?? []);
+      setTotal(listData.total ?? (listData.items ?? []).length);
+      setStats({
+        totalRaised: Number(statsData.totalRaised ?? 0),
+        totalGifts: Number(statsData.totalGifts ?? 0),
+        completed: Number(statsData.completed ?? 0),
+        recurring: Number(statsData.recurring ?? 0),
+      });
       setApiDown(false);
-    } catch {
+      setApiError(null);
+    } catch (err) {
       setApiDown(true);
+      setApiError(err instanceof Error ? err.message : "Failed to load donations data.");
     } finally {
       setLoading(false);
     }
-  }, [search, status, from, to]);
+  }, [allYears, from, page, search, status, to]);
 
   useEffect(() => { load(); }, [load]);
 
-  const totalAmount = donations.reduce((sum, d) => sum + parseFloat(d.amount || "0"), 0);
-  const completed   = donations.filter(d => d.status === "COMPLETED").length;
-  const recurring   = donations.filter(d => d.isRecurring).length;
+  // Filters always jump back to page 1 to avoid empty pages after narrowing.
+  useEffect(() => {
+    setPage(1);
+  }, [search, status, from, to, allYears]);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(page * PAGE_SIZE, total);
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this donation record? This cannot be undone.")) return;
     try {
       await apiFetch(`/api/donations/${id}`, { method: "DELETE" });
-      setDonations((prev) => prev.filter((d) => d.id !== id));
+      await load();
     } catch {
       alert("Failed to delete donation. Please try again.");
     }
@@ -71,17 +123,17 @@ export default function DonationsPage() {
           <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
           </svg>
-          API server not running — showing cached/empty data. Start with <code className="font-mono">pnpm start:server</code>.
+          Could not load live donations data{apiError ? ` (${apiError})` : ""}. Start with <code className="font-mono">pnpm start:server</code> if the API is offline.
         </div>
       )}
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4">
         {[
-          { label: "Total Raised",  value: formatCurrency(totalAmount), color: "text-green-600" },
-          { label: "Total Gifts",   value: total.toString(),            color: "text-gray-800"  },
-          { label: "Completed",     value: completed.toString(),        color: "text-gray-800"  },
-          { label: "Recurring",     value: recurring.toString(),        color: "text-blue-600"  },
+          { label: "Total Raised",  value: formatCurrency(stats.totalRaised), color: "text-green-600" },
+          { label: "Total Gifts",   value: stats.totalGifts.toString(),        color: "text-gray-800"  },
+          { label: "Completed",     value: stats.completed.toString(),         color: "text-gray-800"  },
+          { label: "Recurring",     value: stats.recurring.toString(),         color: "text-blue-600"  },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4">
             <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
@@ -106,10 +158,26 @@ export default function DonationsPage() {
           </select>
           <div className="flex gap-2">
             <input type="date" value={from} onChange={e => setFrom(e.target.value)} title="From date"
+              disabled={allYears}
               className="flex-1 rounded-lg border border-gray-200 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
             <input type="date" value={to} onChange={e => setTo(e.target.value)} title="To date"
+              disabled={allYears}
               className="flex-1 rounded-lg border border-gray-200 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
           </div>
+        </div>
+        <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+          <label className="inline-flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={allYears}
+              onChange={(e) => setAllYears(e.target.checked)}
+              className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+            />
+            Include all years
+          </label>
+          {!allYears && (
+            <span>Default scope: Jan 1 to today (YTD)</span>
+          )}
         </div>
       </div>
 
@@ -120,6 +188,33 @@ export default function DonationsPage() {
         ) : (
           <DonationTable donations={donations} onDelete={handleDelete} />
         )}
+      </div>
+
+      <div className="flex items-center justify-between text-sm text-gray-500">
+        <p>
+          Showing {rangeStart.toLocaleString()}-{rangeEnd.toLocaleString()} of {total.toLocaleString()} donations
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1 || loading}
+            className="px-3 py-1.5 border border-gray-200 rounded-md text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+          >
+            Previous
+          </button>
+          <span>
+            Page {page} of {totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages || loading}
+            className="px-3 py-1.5 border border-gray-200 rounded-md text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+          >
+            Next
+          </button>
+        </div>
       </div>
     </div>
   );

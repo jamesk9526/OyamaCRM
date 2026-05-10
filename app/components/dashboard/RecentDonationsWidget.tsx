@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch } from "@/app/lib/auth-client";
 
 interface RecentDonation {
   id: string;
@@ -21,6 +22,11 @@ interface RecentDonation {
 /** Convert a date string to a human-readable relative string */
 function relativeDate(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
+  if (diff < 0) {
+    const daysUntil = Math.ceil(Math.abs(diff) / 86_400_000);
+    if (daysUntil <= 1) return "Tomorrow";
+    return `in ${daysUntil}d`;
+  }
   const days = Math.floor(diff / 86_400_000);
   if (days === 0) return "Today";
   if (days === 1) return "Yesterday";
@@ -62,13 +68,32 @@ function methodColor(method: string | null): string {
 export default function RecentDonationsWidget() {
   const [donations, setDonations] = useState<RecentDonation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/reports/recent-donations?limit=8")
-      .then((r) => r.json())
-      .then(setDonations)
-      .catch(() => setDonations([]))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+
+    async function loadRecentDonations() {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await apiFetch<RecentDonation[]>("/api/reports/recent-donations?limit=8");
+        if (cancelled) return;
+        setDonations(Array.isArray(data) ? data : []);
+      } catch (requestError) {
+        if (cancelled) return;
+        setDonations([]);
+        setError(requestError instanceof Error ? requestError.message : "Failed to load recent donations.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void loadRecentDonations();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (loading) {
@@ -94,7 +119,7 @@ export default function RecentDonationsWidget() {
           <circle cx="12" cy="12" r="10" />
           <path d="M12 8v4l3 3" />
         </svg>
-        <p className="text-sm">No recent donations</p>
+        <p className="text-sm">{error ? "Could not load recent donations" : "No recent donations"}</p>
       </div>
     );
   }

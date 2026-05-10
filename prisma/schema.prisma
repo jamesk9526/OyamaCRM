@@ -153,6 +153,19 @@ enum EventGuestRsvpStatus {
   WAITLIST
 }
 
+enum WebmasterSiteStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum WebmasterPageStatus {
+  DRAFT
+  REVIEW_READY
+  PUBLISHED
+  ARCHIVED
+}
+
 enum CommunicationChannel {
   EMAIL
   PHONE
@@ -167,6 +180,14 @@ enum EmailCampaignStatus {
   SENDING
   SENT
   CANCELLED
+}
+
+enum EmailDeliveryEventType {
+  QUEUED
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
 }
 
 enum ActivityType {
@@ -241,6 +262,8 @@ model Organization {
   customFields   CustomField[]
   grantFunders   GrantFunder[]
   grants         Grant[]
+  webmasterSites WebmasterSite[]
+  webmasterPages WebmasterPage[]
 
   // ─── Compassion CRM back-relations ───────────────────────────────────────
   compassionClients      CompassionClient[]
@@ -253,6 +276,8 @@ model Organization {
   // ─── Plugin / Integration back-relations ────────────────────────────────
   pluginSettings  PluginSetting[]
   qbSyncQueueItems QBSyncQueueItem[]
+  emailRecipientLists EmailRecipientList[]
+  emailDeliveryEvents EmailCampaignDeliveryEvent[]
 }
 
 model OrganizationSettings {
@@ -308,6 +333,10 @@ model User {
   compassionServicesProvided CompassionService[]     @relation("CompassionServiceProvider")
   compassionFollowUpsAssigned CompassionFollowUp[]   @relation("CompassionFollowUpStaff")
   compassionActivitiesPerformed CompassionActivity[] @relation("CompassionActivityUser")
+  emailRecipientListsCreated EmailRecipientList[]    @relation("EmailRecipientListCreator")
+  webmasterSitesCreated WebmasterSite[]              @relation("WebmasterSiteCreator")
+  webmasterPagesCreated WebmasterPage[]              @relation("WebmasterPageCreator")
+  webmasterPagesUpdated WebmasterPage[]              @relation("WebmasterPageUpdater")
 }
 
 // ─── Constituent (Donor/Volunteer/Member) ─────────────────────────────────────
@@ -797,6 +826,59 @@ model EventAttendance {
   constituent Constituent @relation(fields: [constituentId], references: [id])
 }
 
+// ─── OyamaWebMaster ──────────────────────────────────────────────────────────
+
+model WebmasterSite {
+  id             String             @id @default(cuid())
+  organizationId String
+  createdById    String?
+
+  name        String
+  slug        String
+  domain      String?
+  description String?            @db.Text
+  status      WebmasterSiteStatus @default(DRAFT)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  createdBy    User?          @relation("WebmasterSiteCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  pages        WebmasterPage[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, status])
+}
+
+model WebmasterPage {
+  id             String             @id @default(cuid())
+  organizationId String
+  siteId         String
+  createdById    String?
+  updatedById    String?
+
+  title          String
+  slug           String
+  path           String
+  status         WebmasterPageStatus @default(DRAFT)
+  contentJson    Json?
+  seoTitle       String?
+  seoDescription String?
+  publishedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  site         WebmasterSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  createdBy    User?         @relation("WebmasterPageCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy    User?         @relation("WebmasterPageUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([siteId, slug])
+  @@unique([siteId, path])
+  @@index([organizationId, status, updatedAt])
+}
+
 // ─── Volunteers ──────────────────────────────────────────────────────────────
 
 model VolunteerHour {
@@ -942,7 +1024,58 @@ model EmailCampaign {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  organization Organization                @relation(fields: [organizationId], references: [id])
+  deliveryEvents EmailCampaignDeliveryEvent[]
+}
+
+model EmailRecipientList {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization              @relation(fields: [organizationId], references: [id])
+  createdBy    User?                    @relation("EmailRecipientListCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  recipients   EmailRecipientListMember[]
+
+  @@index([organizationId])
+  @@index([organizationId, name])
+}
+
+model EmailRecipientListMember {
+  id        String   @id @default(cuid())
+  listId    String
+  email     String
+  firstName String?
+  lastName  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  list EmailRecipientList @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@index([listId])
+  @@unique([listId, email])
+}
+
+model EmailCampaignDeliveryEvent {
+  id             String                 @id @default(cuid())
+  organizationId String
+  campaignId     String
+  recipientEmail String
+  eventType      EmailDeliveryEventType
+  eventAt        DateTime               @default(now())
+  metadata       Json?
+  createdAt      DateTime               @default(now())
+
   organization Organization @relation(fields: [organizationId], references: [id])
+  campaign     EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, eventType, eventAt])
+  @@index([campaignId, recipientEmail])
+  @@unique([campaignId, recipientEmail, eventType])
 }
 
 // ─── Custom Fields ────────────────────────────────────────────────────────────

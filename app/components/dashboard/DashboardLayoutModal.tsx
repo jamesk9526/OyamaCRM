@@ -14,15 +14,33 @@ export interface WidgetMeta {
   description: string;
 }
 
+export type RevenueProgressSource = "YTD_DONATIONS" | "ACTIVE_CAMPAIGNS";
+export type RevenueGoalMode = "AUTO" | "MANUAL";
+
+interface DashboardWidgetSettings {
+  revenueProgressSource: RevenueProgressSource;
+  includeGrants: boolean;
+  revenueGoalMode: RevenueGoalMode;
+  manualRevenueGoalAmount: number;
+}
+
 interface Props {
   /** Current widget order (from parent dashboard) */
   order: string[];
   /** Metadata (label, description) for each widget ID */
   widgetMeta: WidgetMeta[];
   /** Called when the user confirms a new order */
-  onApply: (newOrder: string[]) => void;
+  onApply: (newOrder: string[], settings: DashboardWidgetSettings) => void;
   /** Called when the user cancels or clicks backdrop */
   onClose: () => void;
+  /** Initial source for Revenue Progress totals. */
+  initialRevenueProgressSource: RevenueProgressSource;
+  /** Initial include-grants preference for the Revenue Progress widget. */
+  initialIncludeGrants: boolean;
+  /** Initial goal mode for Revenue Progress. */
+  initialRevenueGoalMode: RevenueGoalMode;
+  /** Initial manual goal amount for Revenue Progress. */
+  initialManualRevenueGoalAmount: number;
 }
 
 /**
@@ -30,8 +48,21 @@ interface Props {
  * Dragging a row or clicking the arrow buttons updates the local staging order.
  * "Apply Changes" commits to the parent; "Cancel" discards edits.
  */
-export default function DashboardLayoutModal({ order, widgetMeta, onApply, onClose }: Props) {
+export default function DashboardLayoutModal({
+  order,
+  widgetMeta,
+  onApply,
+  onClose,
+  initialRevenueProgressSource,
+  initialIncludeGrants,
+  initialRevenueGoalMode,
+  initialManualRevenueGoalAmount,
+}: Props) {
   const [localOrder, setLocalOrder] = useState<string[]>(order);
+  const [localRevenueProgressSource, setLocalRevenueProgressSource] = useState<RevenueProgressSource>(initialRevenueProgressSource);
+  const [localIncludeGrants, setLocalIncludeGrants] = useState<boolean>(initialIncludeGrants);
+  const [localRevenueGoalMode, setLocalRevenueGoalMode] = useState<RevenueGoalMode>(initialRevenueGoalMode);
+  const [localManualRevenueGoalAmount, setLocalManualRevenueGoalAmount] = useState<string>(String(initialManualRevenueGoalAmount || 0));
   const dragFrom = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
@@ -188,6 +219,78 @@ export default function DashboardLayoutModal({ order, widgetMeta, onApply, onClo
           })}
         </div>
 
+        {/* ── Widget settings ── */}
+        <div className="px-6 pt-2 pb-3 border-t border-gray-100 bg-white">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Revenue Progress Settings</h3>
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="radio"
+                name="revenue-progress-source"
+                checked={localRevenueProgressSource === "YTD_DONATIONS"}
+                onChange={() => setLocalRevenueProgressSource("YTD_DONATIONS")}
+                className="text-green-600 focus:ring-green-500"
+              />
+              Use YTD Donations (Jan 1 to now)
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="radio"
+                name="revenue-progress-source"
+                checked={localRevenueProgressSource === "ACTIVE_CAMPAIGNS"}
+                onChange={() => setLocalRevenueProgressSource("ACTIVE_CAMPAIGNS")}
+                className="text-green-600 focus:ring-green-500"
+              />
+              Use Active Campaign Raised Amount
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700 pt-1">
+              <input
+                type="checkbox"
+                checked={localIncludeGrants}
+                onChange={(event) => setLocalIncludeGrants(event.target.checked)}
+                className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+              />
+              Include awarded grants in Revenue Progress
+            </label>
+
+            <div className="pt-2 border-t border-gray-100">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Revenue Goal</p>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="radio"
+                  name="revenue-goal-mode"
+                  checked={localRevenueGoalMode === "AUTO"}
+                  onChange={() => setLocalRevenueGoalMode("AUTO")}
+                  className="text-green-600 focus:ring-green-500"
+                />
+                Use active campaign goal total (automatic)
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 mt-1">
+                <input
+                  type="radio"
+                  name="revenue-goal-mode"
+                  checked={localRevenueGoalMode === "MANUAL"}
+                  onChange={() => setLocalRevenueGoalMode("MANUAL")}
+                  className="text-green-600 focus:ring-green-500"
+                />
+                Set manual goal amount
+              </label>
+              <div className="mt-2 pl-6">
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={localManualRevenueGoalAmount}
+                  onChange={(event) => setLocalManualRevenueGoalAmount(event.target.value)}
+                  disabled={localRevenueGoalMode !== "MANUAL"}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="250000"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* ── Modal footer ── */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
           <button
@@ -197,7 +300,15 @@ export default function DashboardLayoutModal({ order, widgetMeta, onApply, onClo
             Cancel
           </button>
           <button
-            onClick={() => { onApply(localOrder); onClose(); }}
+            onClick={() => {
+              onApply(localOrder, {
+                revenueProgressSource: localRevenueProgressSource,
+                includeGrants: localIncludeGrants,
+                revenueGoalMode: localRevenueGoalMode,
+                manualRevenueGoalAmount: Math.max(0, Number(localManualRevenueGoalAmount || 0)),
+              });
+              onClose();
+            }}
             className="bg-green-600 hover:bg-green-700 active:bg-green-800 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
           >
             Apply Changes

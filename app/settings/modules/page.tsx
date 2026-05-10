@@ -175,6 +175,32 @@ const MODULES: Module[] = [
     dataSource: "—",
     notes: "Check-in UI shell exists. No real check-in backend yet.",
   },
+  // ─── OyamaWatchdog ───
+  {
+    name: "Security Command Dashboard",
+    area: "OyamaWatchdog",
+    status: "Partial",
+    dataSource: "External DB + encrypted vault",
+    notes: "Admin-only dark module with status cards, security feed, and encrypted password vault foundation.",
+    configLink: "/watchdog",
+  },
+  {
+    name: "Fine-Grained Watchdog Permissions",
+    area: "OyamaWatchdog",
+    status: "Partial",
+    dataSource: "Real DB (UserPermission)",
+    notes: "Permission keys (watchdog:*) are enforced; full UI permission matrix still pending.",
+    configLink: "/settings/users",
+  },
+  // ─── OyamaWebMaster ───
+  {
+    name: "Website Builder Workspace",
+    area: "OyamaWebMaster",
+    status: "In Progress",
+    dataSource: "UI shell",
+    notes: "Starter dashboard and module shell are live. Full website editor and publishing backend are not yet implemented.",
+    configLink: "/webmaster",
+  },
   // ─── System ───
   {
     name: "User Management",

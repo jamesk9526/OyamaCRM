@@ -39,6 +39,82 @@ const INCLUDE = {
   designation: { select: { id: true, name: true } },
 };
 
+type DonationFilterQuery = {
+  constituentId?: string;
+  campaignId?: string;
+  designationId?: string;
+  status?: string;
+  from?: string;
+  to?: string;
+  search?: string;
+  scope?: string;
+};
+
+/** Parses a YYYY-MM-DD-like date string into start-of-day local time. */
+function parseDateStart(raw?: string): Date | undefined {
+  if (!raw) return undefined;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  parsed.setHours(0, 0, 0, 0);
+  return parsed;
+}
+
+/** Parses a YYYY-MM-DD-like date string into end-of-day local time. */
+function parseDateEnd(raw?: string): Date | undefined {
+  if (!raw) return undefined;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  parsed.setHours(23, 59, 59, 999);
+  return parsed;
+}
+
+/**
+ * Builds the canonical donation filters used by list + stats routes.
+ * `scope=CURRENT_YEAR` applies Jan 1 → now when from/to are not provided.
+ */
+function buildDonationWhere(
+  organizationId: string,
+  query: DonationFilterQuery
+): Prisma.DonationWhereInput {
+  const keyword = query.search?.trim();
+  const start = parseDateStart(query.from);
+  const end = parseDateEnd(query.to);
+
+  let dateFilter: Prisma.DateTimeFilter | undefined;
+  if (start || end) {
+    dateFilter = {
+      ...(start ? { gte: start } : {}),
+      ...(end ? { lte: end } : {}),
+    };
+  } else if (query.scope?.toUpperCase() === "CURRENT_YEAR") {
+    dateFilter = { gte: new Date(new Date().getFullYear(), 0, 1) };
+  }
+
+  return {
+    AND: [
+      donationOrgWhere(organizationId),
+      ...(query.constituentId ? [{ constituentId: query.constituentId }] : []),
+      ...(query.campaignId ? [{ campaignId: query.campaignId }] : []),
+      ...(query.designationId ? [{ designationId: query.designationId }] : []),
+      ...(query.status ? [{ status: query.status as DonationStatus }] : []),
+      ...(dateFilter ? [{ date: dateFilter }] : []),
+      ...(keyword
+        ? [
+            {
+              constituent: {
+                OR: [
+                  { firstName: { contains: keyword, mode: "insensitive" } },
+                  { lastName: { contains: keyword, mode: "insensitive" } },
+                  { email: { contains: keyword, mode: "insensitive" } },
+                ],
+              },
+            },
+          ]
+        : []),
+    ],
+  };
+}
+
 /** GET /api/donations — Paginated donation list with optional filters for constituent, campaign, date range, and status. */
 router.get("/", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
@@ -47,49 +123,82 @@ router.get("/", async (req, res) => {
     return;
   }
 
-  const { constituentId, campaignId, designationId, status, from, to, search, page = "1", limit = "50" } = req.query as Record<string, string>;
-  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const {
+    constituentId,
+    campaignId,
+    designationId,
+    status,
+    from,
+    to,
+    search,
+    scope,
+    page = "1",
+    limit = "50",
+  } = req.query as Record<string, string>;
 
-  const where: Prisma.DonationWhereInput = {
-    AND: [
-      donationOrgWhere(organizationId),
-      ...(constituentId ? [{ constituentId }] : []),
-      ...(campaignId ? [{ campaignId }] : []),
-      ...(designationId ? [{ designationId }] : []),
-      ...(status ? [{ status: status as DonationStatus }] : []),
-      ...(from || to
-        ? [
-            {
-              date: {
-                ...(from ? { gte: new Date(from) } : {}),
-                ...(to ? { lte: new Date(to) } : {}),
-              },
-            },
-          ]
-        : []),
-      ...(search
-        ? [
-            {
-              constituent: {
-                OR: [
-                  { firstName: { contains: search } },
-                  { lastName: { contains: search } },
-                  { email: { contains: search } },
-                ],
-              },
-            },
-          ]
-        : []),
-    ],
-  };
+  const parsedPage = Math.max(Number.parseInt(page, 10) || 1, 1);
+  const parsedLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 50, 1), 500);
+  const skip = (parsedPage - 1) * parsedLimit;
+
+  const where = buildDonationWhere(organizationId, {
+    constituentId,
+    campaignId,
+    designationId,
+    status,
+    from,
+    to,
+    search,
+    scope,
+  });
 
   // Run the list query and count in parallel to avoid two sequential round-trips
   const [items, total] = await Promise.all([
-    prisma.donation.findMany({ where, skip, take: parseInt(limit), orderBy: { date: "desc" }, include: INCLUDE }),
+    prisma.donation.findMany({ where, skip, take: parsedLimit, orderBy: { date: "desc" }, include: INCLUDE }),
     prisma.donation.count({ where }),
   ]);
 
-  res.json({ items, total, page: parseInt(page), limit: parseInt(limit) });
+  res.json({ items, total, page: parsedPage, limit: parsedLimit });
+});
+
+/**
+ * GET /api/donations/stats — Aggregate metrics for the full filtered dataset.
+ * Returns totals across all matching rows (not just the current page).
+ */
+router.get("/stats", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json({ totalRaised: 0, totalGifts: 0, completed: 0, recurring: 0 });
+    return;
+  }
+
+  const { constituentId, campaignId, designationId, status, from, to, search, scope } = req.query as Record<string, string>;
+  const where = buildDonationWhere(organizationId, {
+    constituentId,
+    campaignId,
+    designationId,
+    status,
+    from,
+    to,
+    search,
+    scope,
+  });
+
+  const [raisedSum, totalGifts, completed, recurring] = await Promise.all([
+    prisma.donation.aggregate({
+      where: { AND: [where, { status: "COMPLETED" satisfies DonationStatus }] },
+      _sum: { amount: true },
+    }),
+    prisma.donation.count({ where }),
+    prisma.donation.count({ where: { AND: [where, { status: "COMPLETED" satisfies DonationStatus }] } }),
+    prisma.donation.count({ where: { AND: [where, { isRecurring: true }] } }),
+  ]);
+
+  res.json({
+    totalRaised: Number(raisedSum._sum.amount ?? 0),
+    totalGifts,
+    completed,
+    recurring,
+  });
 });
 
 /** GET /api/donations/:id — Fetch a single donation including its linked pledge if present. */

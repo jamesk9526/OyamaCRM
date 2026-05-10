@@ -123,6 +123,7 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
           scheduledAt: form.scheduledAt || null,
           audienceFilter: { type: form.audienceId },
           sharedWithOrganization,
+          preparationStatus: "NOT_STARTED",
         }),
       });
       onCreated(campaign.id);

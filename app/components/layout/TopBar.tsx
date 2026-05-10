@@ -11,7 +11,7 @@ import { apiFetch } from "@/app/lib/auth-client";
 
 interface SearchResult {
   id: string;
-  type: "tool" | "constituent" | "donation" | "campaign" | "client" | "case" | "event" | "guest";
+  type: "tool" | "constituent" | "donation" | "campaign" | "client" | "case" | "event" | "guest" | "site" | "page";
   label: string;
   sublabel?: string;
   href: string;
@@ -19,7 +19,7 @@ interface SearchResult {
 }
 
 interface SearchResponse {
-  module: "donor" | "compassion" | "events";
+  module: "donor" | "compassion" | "events" | "watchdog" | "webmaster";
   query: string;
   results: SearchResult[];
 }
@@ -34,7 +34,7 @@ interface TopBarNotification {
   priority: "low" | "medium" | "high";
 }
 
-function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "events" }) {
+function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "events" | "watchdog" | "webmaster" }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -119,6 +119,8 @@ function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "even
     case: "Case",
     event: "Event",
     guest: "Guest",
+    site: "Site",
+    page: "Page",
   };
 
   function TypeIcon({ type }: { type: string }) {
@@ -157,6 +159,18 @@ function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "even
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
       </svg>
     );
+    if (type === "site") return (
+      <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 5h18v14H3z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 9h18" />
+      </svg>
+    );
+    if (type === "page") return (
+      <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M7 3h8l4 4v14H7z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 3v4h4" />
+      </svg>
+    );
     return (
       <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -168,22 +182,38 @@ function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "even
     ? "focus:ring-blue-400/60"
     : moduleKey === "events"
       ? "focus:ring-amber-400/60"
-      : "focus:ring-green-400/60";
+      : moduleKey === "watchdog"
+        ? "focus:ring-red-400/60"
+        : moduleKey === "webmaster"
+          ? "focus:ring-indigo-400/60"
+          : "focus:ring-green-400/60";
   const activeResultBg = moduleKey === "compassion"
     ? "bg-blue-50"
     : moduleKey === "events"
       ? "bg-amber-50"
-      : "bg-green-50";
+      : moduleKey === "watchdog"
+        ? "bg-red-50"
+        : moduleKey === "webmaster"
+          ? "bg-indigo-50"
+          : "bg-green-50";
   const spinnerColor = moduleKey === "compassion"
     ? "border-blue-400"
     : moduleKey === "events"
       ? "border-amber-400"
-      : "border-green-400";
+      : moduleKey === "watchdog"
+        ? "border-red-400"
+        : moduleKey === "webmaster"
+          ? "border-indigo-400"
+          : "border-green-400";
   const placeholder = moduleKey === "compassion"
     ? "Search tools, clients, and cases (Ctrl+K)"
     : moduleKey === "events"
       ? "Search tools, events, and guests (Ctrl+K)"
-      : "Search tools, constituents, campaigns... (Ctrl+K)";
+      : moduleKey === "watchdog"
+        ? "Search security tools and vault items (Ctrl+K)"
+        : moduleKey === "webmaster"
+          ? "Search templates, pages, and website tools (Ctrl+K)"
+          : "Search tools, constituents, campaigns... (Ctrl+K)";
 
   return (
     <div className="relative w-full max-w-3xl">
@@ -253,7 +283,11 @@ export default function TopBar() {
     ? "compassion"
     : pathname.startsWith("/events")
       ? "events"
-      : "donor";
+      : pathname.startsWith("/watchdog")
+        ? "watchdog"
+        : pathname.startsWith("/webmaster")
+          ? "webmaster"
+          : "donor";
   const [appsOpen, setAppsOpen] = useState(false);
   const [stewardOpen, setStewardOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -359,7 +393,17 @@ export default function TopBar() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
             </svg>
             {unreadCount > 0 && (
-              <span className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold text-white flex items-center justify-center ${moduleKey === "compassion" ? "bg-blue-500" : moduleKey === "events" ? "bg-amber-500" : "bg-green-600"}`}>
+              <span className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold text-white flex items-center justify-center ${
+                moduleKey === "compassion"
+                  ? "bg-blue-500"
+                  : moduleKey === "events"
+                    ? "bg-amber-500"
+                    : moduleKey === "watchdog"
+                      ? "bg-red-600"
+                      : moduleKey === "webmaster"
+                        ? "bg-indigo-600"
+                        : "bg-green-600"
+              }`}>
                 {Math.min(unreadCount, 99)}
               </span>
             )}
@@ -426,7 +470,7 @@ export default function TopBar() {
 /**
  * ModuleSwitcher: lets users switch between DonorCRM, Compassion CRM, and Events CRM.
  */
-function ModuleSwitcher({ moduleKey }: { moduleKey: "donor" | "compassion" | "events" }) {
+function ModuleSwitcher({ moduleKey }: { moduleKey: "donor" | "compassion" | "events" | "watchdog" | "webmaster" }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
@@ -434,6 +478,8 @@ function ModuleSwitcher({ moduleKey }: { moduleKey: "donor" | "compassion" | "ev
     { key: "donor", label: "DonorCRM", href: "/", color: "bg-green-500", active: moduleKey === "donor" },
     { key: "compassion", label: "Compassion CRM", href: "/compassion/dashboard", color: "bg-blue-500", active: moduleKey === "compassion" },
     { key: "events", label: "Events CRM", href: "/events", color: "bg-amber-500", active: moduleKey === "events" },
+    { key: "watchdog", label: "OyamaWatchdog", href: "/watchdog", color: "bg-red-500", active: moduleKey === "watchdog" },
+    { key: "webmaster", label: "OyamaWebMaster", href: "/webmaster", color: "bg-indigo-500", active: moduleKey === "webmaster" },
   ];
   const current = modules.find((m) => m.active) ?? modules[0];
 
@@ -483,7 +529,7 @@ function ModuleSwitcher({ moduleKey }: { moduleKey: "donor" | "compassion" | "ev
 }
 
 /** UserMenu: avatar with sign-out dropdown. */
-function UserMenu({ moduleKey }: { moduleKey: "donor" | "compassion" | "events" }) {
+function UserMenu({ moduleKey }: { moduleKey: "donor" | "compassion" | "events" | "watchdog" | "webmaster" }) {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -499,7 +545,11 @@ function UserMenu({ moduleKey }: { moduleKey: "donor" | "compassion" | "events" 
     ? "bg-blue-700 border-blue-500"
     : moduleKey === "events"
       ? "bg-amber-700 border-amber-500"
-      : "bg-green-700 border-green-500";
+      : moduleKey === "watchdog"
+        ? "bg-red-700 border-red-500"
+        : moduleKey === "webmaster"
+          ? "bg-indigo-700 border-indigo-500"
+          : "bg-green-700 border-green-500";
 
   return (
     <div className="relative shrink-0">

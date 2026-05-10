@@ -32,6 +32,8 @@ This document treats a feature as complete only when it uses real data, saves co
 | Events CRM | Event reports + donor activity sync | Working | Real API Data | `/events/reports` uses `/api/events/reports/*`; event actions write `Activity` entries in `events.ts`. | Add sponsor, ticket-type, and export reporting slices. |
 | Events CRM | Tickets, sponsors, communications, tasks, volunteers, files, settings | UI Only | Static Demo UI | These routes use `app/components/events/EventsWorkspacePage.tsx` with static metrics/text only. | Build dedicated APIs and replace each scaffold with live data pages. |
 | Events CRM | Public ticketing page + hosted checkout | Not Started | Unknown / Needs Verification | No public ticket storefront route/API is currently wired. | Implement event ticket type CRUD + public registration page generation. |
+| OyamaWatchdog | Security feed + encrypted vault + admin controls | Partial | External DB + Real API Data | `/watchdog` module and `/api/watchdog/*` routes are scaffolded with encrypted secret storage and permission key checks. | Add full permission matrix UI, runbook actions, and production-ready health/alert wiring. |
+| OyamaWebMaster | Section-first website builder dashboard + shell | Partial | Real API Data + Builder Shell | `/webmaster` now includes real website management actions, quick page creation, and a visual builder shell with persisted section content save/load via `/api/webmaster`. | Expand templates, CMS/forms, export, preflight, and publish targets/rollback. |
 | Platform | Authentication + session | Working | Real API Data | JWT auth, refresh, logout, and `/api/auth/me` are active. | Add MFA, session list, and revocation UI. |
 | Platform | Users management | Working | Real API Data | Settings users page is wired to `/api/users` CRUD + password reset. | Add invite flow and user onboarding emails. |
 | Platform | Audit logs | Working | Real API Data | Settings audit page reads `/api/audit-logs` with filter/pagination. | Add exports and saved filter presets. |
@@ -61,6 +63,16 @@ This document treats a feature as complete only when it uses real data, saves co
 - **Real data confirmed:** event CRUD, orders, guests, tables, check-in, reports, and donor timeline sync (`server/src/routes/events.ts`; `app/events/orders`, `app/events/guests`, `app/events/tables`, `app/events/check-in`, `app/events/reports`).
 - **Mixed:** dashboard/registry combine real API responses with static narrative/status cards (`app/events/dashboard/page.tsx`, `app/events/list/page.tsx`).
 - **UI-only:** tickets/sponsors/communications/tasks/volunteers/files/settings/fundraising scaffolds are static workspace pages (`app/events/*/page.tsx` using `app/components/events/EventsWorkspacePage.tsx`).
+
+### OyamaWatchdog
+
+- **Real data confirmed:** module status, feed, and vault APIs are wired through `server/src/routes/watchdog.ts` and `server/src/services/watchdog-store.ts` (with external DB + encryption key requirements).
+- **Partial:** dashboard actions and access matrix management are foundational; broader response workflows and automated alerting still need implementation.
+
+### OyamaWebMaster
+
+- **UI shell confirmed:** route shell and starter dashboard are active (`app/webmaster/*`, `app/components/webmaster/WebmasterStarterDashboard.tsx`).
+- **Not yet implemented:** no persisted website templates/pages/publishing APIs currently exist.
 
 ## Major Planned TODOs (Requested Additions)
 

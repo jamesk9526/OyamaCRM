@@ -520,6 +520,7 @@ export default function ReportsPage() {
   // ── Global UI state ───────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [year, setYear] = useState<number>(CURRENT_YEAR);
+  const [allYears, setAllYears] = useState(false);
 
   /**
    * Whether to include awarded grants in YTD revenue figures.
@@ -568,32 +569,49 @@ export default function ReportsPage() {
   const [loadingRetention, setLoadingRetention] = useState(false);
 
   /**
-   * Tracks which "tab:year" combos have already been fetched.
-   * Campaigns are year-independent so they use key "campaigns:0".
+   * Tracks which "tab:scope" combos have already been fetched.
+   * Scope key includes both selected year and all-years mode.
    */
   const loadedRef = useRef<Record<string, boolean>>({});
 
-  function isLoaded(tab: string, y: number): boolean {
-    return !!loadedRef.current[`${tab}:${y}`];
+  function scopeQueryString(y: number): string {
+    const params = new URLSearchParams();
+    if (allYears) {
+      params.set("scope", "ALL_YEARS");
+      params.set("year", String(y));
+    } else {
+      params.set("year", String(y));
+    }
+    return params.toString();
   }
-  function markLoaded(tab: string, y: number): void {
-    loadedRef.current[`${tab}:${y}`] = true;
+
+  function scopeCacheKey(y: number): string {
+    return `${y}:${allYears ? "ALL_YEARS" : "YEAR"}`;
+  }
+
+  function isLoaded(tab: string, key: string): boolean {
+    return !!loadedRef.current[`${tab}:${key}`];
+  }
+  function markLoaded(tab: string, key: string): void {
+    loadedRef.current[`${tab}:${key}`] = true;
   }
 
   // ── Data loaders ──────────────────────────────────────────────────────────
 
   /** Fetch all data needed by the Overview tab in a single parallel batch. */
   async function loadOverview(y: number) {
-    if (isLoaded("overview", y)) return;
-    markLoaded("overview", y);
+    const scope = scopeQueryString(y);
+    const key = scopeCacheKey(y);
+    if (isLoaded("overview", key)) return;
+    markLoaded("overview", key);
     setLoadingOverview(true);
     try {
       const [s, bs, m, r, td, ds] = await Promise.all([
-        apiFetch<Summary>("/api/reports/summary"),
-        apiFetch<BoardSummaryResponse>("/api/reports/board-summary"),
-        apiFetch<MonthlyDatum[]>(`/api/reports/giving-by-month?year=${y}`),
-        apiFetch<Retention>("/api/reports/donor-retention"),
-        apiFetch<TopDonor[]>("/api/reports/top-donors?limit=5"),
+        apiFetch<Summary>(`/api/reports/summary?${scope}`),
+        apiFetch<BoardSummaryResponse>(`/api/reports/board-summary?${scope}`),
+        apiFetch<MonthlyDatum[]>(`/api/reports/giving-by-month?${scope}`),
+        apiFetch<Retention>(`/api/reports/donor-retention?year=${y}`),
+        apiFetch<TopDonor[]>(`/api/reports/top-donors?limit=5&${scope}`),
         apiFetch<DonorSegments>("/api/reports/donor-segments"),
       ]);
       setSummary(s);
@@ -611,13 +629,14 @@ export default function ReportsPage() {
 
   /** Fetch LYBUNT, SYBUNT, and new-vs-returning data for the Donors tab. */
   async function loadDonors(y: number) {
-    if (isLoaded("donors", y)) return;
-    markLoaded("donors", y);
+    const key = scopeCacheKey(y);
+    if (isLoaded("donors", key)) return;
+    markLoaded("donors", key);
     setLoadingDonors(true);
     try {
       const [l, sy, nvr] = await Promise.all([
-        apiFetch<LybuntDonor[]>("/api/reports/lybunt"),
-        apiFetch<LybuntDonor[]>("/api/reports/sybunt"),
+        apiFetch<LybuntDonor[]>(`/api/reports/lybunt?year=${y}`),
+        apiFetch<LybuntDonor[]>(`/api/reports/sybunt?year=${y}`),
         apiFetch<NewVsReturningDatum[]>(`/api/reports/new-vs-returning?year=${y}`),
       ]);
       setLybunt(Array.isArray(l) ? l : []);
@@ -632,14 +651,16 @@ export default function ReportsPage() {
 
   /** Fetch YoY comparison, tier breakdown, and payment breakdown for the Giving tab. */
   async function loadGiving(y: number) {
-    if (isLoaded("giving", y)) return;
-    markLoaded("giving", y);
+    const scope = scopeQueryString(y);
+    const key = scopeCacheKey(y);
+    if (isLoaded("giving", key)) return;
+    markLoaded("giving", key);
     setLoadingGiving(true);
     try {
       const [yc, tier, pay] = await Promise.all([
         apiFetch<YearComparisonDatum[]>(`/api/reports/year-comparison?year=${y}`),
-        apiFetch<GivingByTier>("/api/reports/giving-by-tier"),
-        apiFetch<PaymentBreakdownItem[]>("/api/reports/payment-breakdown"),
+        apiFetch<GivingByTier>(`/api/reports/giving-by-tier?${scope}`),
+        apiFetch<PaymentBreakdownItem[]>(`/api/reports/payment-breakdown?${scope}`),
       ]);
       setYearComparison(Array.isArray(yc) ? yc : []);
       setGivingByTier(tier);
@@ -651,13 +672,15 @@ export default function ReportsPage() {
     }
   }
 
-  /** Fetch campaign performance data (not year-dependent; uses key "campaigns:0"). */
-  async function loadCampaigns() {
-    if (isLoaded("campaigns", 0)) return;
-    markLoaded("campaigns", 0);
+  /** Fetch campaign performance data for the selected report scope. */
+  async function loadCampaigns(y: number) {
+    const scope = scopeQueryString(y);
+    const key = scopeCacheKey(y);
+    if (isLoaded("campaigns", key)) return;
+    markLoaded("campaigns", key);
     setLoadingCampaigns(true);
     try {
-      const data = await apiFetch<CampaignPerformance[]>("/api/reports/campaign-performance");
+      const data = await apiFetch<CampaignPerformance[]>(`/api/reports/campaign-performance?${scope}`);
       setCampaigns(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Failed to load campaign data:", err);
@@ -671,8 +694,9 @@ export default function ReportsPage() {
    * Kick off donors load if not already loaded so the count is available.
    */
   async function loadRetention(y: number) {
-    if (isLoaded("retention", y)) return;
-    markLoaded("retention", y);
+    const key = scopeCacheKey(y);
+    if (isLoaded("retention", key)) return;
+    markLoaded("retention", key);
     setLoadingRetention(true);
     try {
       await loadDonors(y);
@@ -684,16 +708,13 @@ export default function ReportsPage() {
   // ── Effects ───────────────────────────────────────────────────────────────
 
   /**
-   * When the year changes, clear all year-dependent tab caches so data
-   * is re-fetched with the new year parameter, then reload overview.
+   * When year/scope changes, clear report caches and reload overview.
    */
   useEffect(() => {
-    ["overview", "donors", "giving", "retention"].forEach((t) => {
-      delete loadedRef.current[`${t}:${year}`];
-    });
+    loadedRef.current = {};
     loadOverview(year);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [year]);
+  }, [year, allYears]);
 
   /** Load tab-specific data the first time each non-overview tab is opened. */
   useEffect(() => {
@@ -705,14 +726,16 @@ export default function ReportsPage() {
         loadGiving(year);
         break;
       case "campaigns":
-        loadCampaigns();
+        loadCampaigns(year);
         break;
       case "retention":
         loadRetention(year);
         break;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, year]);
+  }, [activeTab, year, allYears]);
+
+  const scopeLabel = allYears ? "All years" : `${year}`;
 
   // ── Export ────────────────────────────────────────────────────────────────
 
@@ -828,6 +851,7 @@ export default function ReportsPage() {
           <select
             value={year}
             onChange={(e) => setYear(parseInt(e.target.value, 10))}
+            disabled={allYears}
             className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
           >
             {YEAR_OPTIONS.map((y) => (
@@ -836,6 +860,16 @@ export default function ReportsPage() {
               </option>
             ))}
           </select>
+
+          <label className="inline-flex items-center gap-2 text-xs text-gray-600 whitespace-nowrap">
+            <input
+              type="checkbox"
+              checked={allYears}
+              onChange={(e) => setAllYears(e.target.checked)}
+              className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+            />
+            Include all years
+          </label>
 
           {/* Export CSV — exports primary data for the active tab */}
           <button
@@ -846,6 +880,12 @@ export default function ReportsPage() {
           </button>
         </div>
       </div>
+
+      <p className="text-xs text-gray-500 -mt-3">
+        {!allYears
+          ? `Report totals are scoped to ${year}.`
+          : "Report totals are scoped to all years. Retention and LYBUNT/SYBUNT remain year-based."}
+      </p>
 
       {/* ── Tab Navigation ── */}
       <div className="flex border-b border-gray-200">
@@ -873,7 +913,7 @@ export default function ReportsPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
               {
-                label: "YTD Revenue",
+                label: allYears ? "Total Revenue (All years)" : `Revenue (${year})`,
                 value: summary
                   ? `$${fmtCurrency(summary.ytdAmount + (includeGrants ? (summary.ytdGrantAmount ?? 0) : 0))}`
                   : null,
@@ -890,11 +930,11 @@ export default function ReportsPage() {
                 value: retention ? `${retention.rate}%` : null,
               },
               {
-                label: "Active Campaigns",
+                label: allYears ? "Campaigns (All years)" : `Campaigns (${year})`,
                 value: summary?.activeCampaigns?.toLocaleString() ?? null,
               },
               {
-                label: "Total Gifts YTD",
+                label: allYears ? "Total Gifts (All years)" : `Total Gifts (${year})`,
                 value: summary?.ytdCount?.toLocaleString() ?? null,
               },
               {
@@ -905,11 +945,11 @@ export default function ReportsPage() {
                     : null,
               },
               {
-                label: "New Donors YTD",
+                label: allYears ? "New Donors (All years)" : `New Donors (${year})`,
                 value: boardSummary?.newDonorsYtd?.toLocaleString() ?? null,
               },
               {
-                label: "Major Gifts (≥$1k)",
+                label: allYears ? "Major Gifts (All years)" : `Major Gifts (≥$1k, ${year})`,
                 value: boardSummary?.majorGiftCount?.toLocaleString() ?? null,
               },
             ].map((card) => (
@@ -935,7 +975,7 @@ export default function ReportsPage() {
           {/* Monthly giving bar chart */}
           <div className="bg-white rounded-lg border border-gray-200 p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-gray-900">Monthly Giving — {year}</h2>
+              <h2 className="text-sm font-semibold text-gray-900">Monthly Giving — {scopeLabel}</h2>
               {/* Grants-included badge mirrors the global toggle state */}
               {includeGrants && (
                 <span className="text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-full px-2 py-0.5">
@@ -1268,7 +1308,7 @@ export default function ReportsPage() {
           {/* Giving by Tier — 4 cards with colored left border */}
           <div>
             <h2 className="text-sm font-semibold text-gray-900 mb-3">
-              Giving by Tier — {year}
+              Giving by Tier — {scopeLabel}
             </h2>
             {loadingGiving ? (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -1346,7 +1386,7 @@ export default function ReportsPage() {
           {/* Payment Method breakdown — horizontal CSS bars */}
           <div className="bg-white rounded-lg border border-gray-200 p-5">
             <h2 className="text-sm font-semibold text-gray-900 mb-4">
-              Payment Methods — {year}
+              Payment Methods — {scopeLabel}
             </h2>
             {loadingGiving ? (
               <div className="space-y-3">
@@ -1395,7 +1435,7 @@ export default function ReportsPage() {
       {activeTab === "campaigns" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-900">Campaign Performance</h2>
+            <h2 className="text-sm font-semibold text-gray-900">Campaign Performance — {scopeLabel}</h2>
             <span className="text-xs text-gray-500">
               {loadingCampaigns
                 ? "Loading…"

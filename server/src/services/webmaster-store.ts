@@ -1,0 +1,469 @@
+/**
+ * Webmaster persistent store service.
+ * Uses raw SQL via Prisma to avoid generated-client model drift during bootstrap phases.
+ */
+import { randomUUID } from "crypto";
+import { prisma } from "../lib/prisma.js";
+
+export type WebmasterSiteStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
+export type WebmasterPageStatus = "DRAFT" | "REVIEW_READY" | "PUBLISHED" | "ARCHIVED";
+
+export interface WebmasterSiteRecord {
+  id: string;
+  organizationId: string;
+  createdById: string | null;
+  name: string;
+  slug: string;
+  domain: string | null;
+  description: string | null;
+  status: WebmasterSiteStatus;
+  pageCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WebmasterPageRecord {
+  id: string;
+  organizationId: string;
+  siteId: string;
+  siteName: string;
+  createdById: string | null;
+  updatedById: string | null;
+  title: string;
+  slug: string;
+  path: string;
+  status: WebmasterPageStatus;
+  contentJson: Record<string, unknown> | null;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+let schemaReady = false;
+
+/** Safely converts DB timestamps to ISO strings. */
+function toIso(value: unknown): string {
+  return new Date(String(value)).toISOString();
+}
+
+/** Ensures Webmaster site/page tables exist in the primary database. */
+export async function ensureWebmasterSchema(): Promise<void> {
+  if (schemaReady) return;
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS webmaster_sites (
+      id VARCHAR(64) NOT NULL PRIMARY KEY,
+      organization_id VARCHAR(64) NOT NULL,
+      created_by_id VARCHAR(64) NULL,
+      site_name VARCHAR(255) NOT NULL,
+      site_slug VARCHAR(180) NOT NULL,
+      domain VARCHAR(255) NULL,
+      description TEXT NULL,
+      site_status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_webmaster_site_slug (organization_id, site_slug),
+      INDEX idx_webmaster_site_status (organization_id, site_status, updated_at)
+    )
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS webmaster_pages (
+      id VARCHAR(64) NOT NULL PRIMARY KEY,
+      organization_id VARCHAR(64) NOT NULL,
+      site_id VARCHAR(64) NOT NULL,
+      created_by_id VARCHAR(64) NULL,
+      updated_by_id VARCHAR(64) NULL,
+      page_title VARCHAR(255) NOT NULL,
+      page_slug VARCHAR(180) NOT NULL,
+      page_path VARCHAR(255) NOT NULL,
+      page_status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+      content_json LONGTEXT NULL,
+      seo_title VARCHAR(255) NULL,
+      seo_description TEXT NULL,
+      published_at DATETIME NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_webmaster_page_slug (site_id, page_slug),
+      UNIQUE KEY uniq_webmaster_page_path (site_id, page_path),
+      INDEX idx_webmaster_page_status (organization_id, page_status, updated_at),
+      CONSTRAINT fk_webmaster_pages_site FOREIGN KEY (site_id) REFERENCES webmaster_sites(id) ON DELETE CASCADE
+    )
+  `);
+
+  schemaReady = true;
+}
+
+/** Maps one raw site row into the typed API shape. */
+function mapSiteRow(row: Record<string, unknown>): WebmasterSiteRecord {
+  return {
+    id: String(row.id),
+    organizationId: String(row.organization_id),
+    createdById: row.created_by_id ? String(row.created_by_id) : null,
+    name: String(row.site_name),
+    slug: String(row.site_slug),
+    domain: row.domain ? String(row.domain) : null,
+    description: row.description ? String(row.description) : null,
+    status: String(row.site_status) as WebmasterSiteStatus,
+    pageCount: Number(row.page_count ?? 0),
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  };
+}
+
+/** Maps one raw page row into the typed API shape. */
+function mapPageRow(row: Record<string, unknown>): WebmasterPageRecord {
+  return {
+    id: String(row.id),
+    organizationId: String(row.organization_id),
+    siteId: String(row.site_id),
+    siteName: String(row.site_name ?? ""),
+    createdById: row.created_by_id ? String(row.created_by_id) : null,
+    updatedById: row.updated_by_id ? String(row.updated_by_id) : null,
+    title: String(row.page_title),
+    slug: String(row.page_slug),
+    path: String(row.page_path),
+    status: String(row.page_status) as WebmasterPageStatus,
+    contentJson: row.content_json ? (JSON.parse(String(row.content_json)) as Record<string, unknown>) : null,
+    seoTitle: row.seo_title ? String(row.seo_title) : null,
+    seoDescription: row.seo_description ? String(row.seo_description) : null,
+    publishedAt: row.published_at ? toIso(row.published_at) : null,
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  };
+}
+
+/** Lists sites for one organization with page counts. */
+export async function listWebmasterSites(params: {
+  organizationId: string;
+  query?: string;
+  status?: WebmasterSiteStatus;
+  limit?: number;
+}): Promise<WebmasterSiteRecord[]> {
+  await ensureWebmasterSchema();
+  const limit = Math.min(Math.max(params.limit ?? 100, 1), 300);
+
+  const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+    `
+      SELECT s.id, s.organization_id, s.created_by_id, s.site_name, s.site_slug, s.domain, s.description,
+             s.site_status, s.created_at, s.updated_at, COUNT(p.id) AS page_count
+      FROM webmaster_sites s
+      LEFT JOIN webmaster_pages p ON p.site_id = s.id
+      WHERE s.organization_id = ?
+        AND (? = '' OR s.site_status = ?)
+        AND (
+          ? = '' OR s.site_name LIKE CONCAT('%', ?, '%') OR s.site_slug LIKE CONCAT('%', ?, '%') OR IFNULL(s.domain, '') LIKE CONCAT('%', ?, '%')
+        )
+      GROUP BY s.id, s.organization_id, s.created_by_id, s.site_name, s.site_slug, s.domain, s.description, s.site_status, s.created_at, s.updated_at
+      ORDER BY s.updated_at DESC, s.site_name ASC
+      LIMIT ?
+    `,
+    params.organizationId,
+    params.status ?? "",
+    params.status ?? "",
+    params.query ?? "",
+    params.query ?? "",
+    params.query ?? "",
+    params.query ?? "",
+    limit,
+  );
+
+  return rows.map(mapSiteRow);
+}
+
+/** Gets one site scoped to organization ownership. */
+export async function getWebmasterSiteById(params: {
+  organizationId: string;
+  siteId: string;
+}): Promise<WebmasterSiteRecord | null> {
+  const items = await listWebmasterSites({ organizationId: params.organizationId, limit: 300 });
+  return items.find((site) => site.id === params.siteId) ?? null;
+}
+
+/** Creates one persisted site row. */
+export async function createWebmasterSite(params: {
+  organizationId: string;
+  createdById?: string;
+  name: string;
+  slug: string;
+  domain?: string;
+  description?: string;
+  status?: WebmasterSiteStatus;
+}): Promise<WebmasterSiteRecord> {
+  await ensureWebmasterSchema();
+  const id = randomUUID();
+
+  await prisma.$executeRawUnsafe(
+    `
+      INSERT INTO webmaster_sites
+      (id, organization_id, created_by_id, site_name, site_slug, domain, description, site_status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    id,
+    params.organizationId,
+    params.createdById ?? null,
+    params.name,
+    params.slug,
+    params.domain?.trim() || null,
+    params.description?.trim() || null,
+    params.status ?? "DRAFT",
+  );
+
+  const created = await getWebmasterSiteById({ organizationId: params.organizationId, siteId: id });
+  if (!created) {
+    throw new Error("Created site could not be reloaded.");
+  }
+  return created;
+}
+
+/** Lists pages under one site. */
+export async function listWebmasterPages(params: {
+  organizationId: string;
+  siteId: string;
+  query?: string;
+  status?: WebmasterPageStatus;
+  limit?: number;
+}): Promise<WebmasterPageRecord[]> {
+  await ensureWebmasterSchema();
+  const limit = Math.min(Math.max(params.limit ?? 200, 1), 500);
+
+  const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+    `
+      SELECT p.id, p.organization_id, p.site_id, s.site_name, p.created_by_id, p.updated_by_id,
+             p.page_title, p.page_slug, p.page_path, p.page_status, p.content_json, p.seo_title,
+             p.seo_description, p.published_at, p.created_at, p.updated_at
+      FROM webmaster_pages p
+      INNER JOIN webmaster_sites s ON s.id = p.site_id
+      WHERE p.organization_id = ?
+        AND p.site_id = ?
+        AND (? = '' OR p.page_status = ?)
+        AND (
+          ? = '' OR p.page_title LIKE CONCAT('%', ?, '%') OR p.page_slug LIKE CONCAT('%', ?, '%') OR p.page_path LIKE CONCAT('%', ?, '%')
+        )
+      ORDER BY p.updated_at DESC, p.page_title ASC
+      LIMIT ?
+    `,
+    params.organizationId,
+    params.siteId,
+    params.status ?? "",
+    params.status ?? "",
+    params.query ?? "",
+    params.query ?? "",
+    params.query ?? "",
+    params.query ?? "",
+    limit,
+  );
+
+  return rows.map(mapPageRow);
+}
+
+/** Gets one page scoped to organization ownership. */
+export async function getWebmasterPageById(params: {
+  organizationId: string;
+  pageId: string;
+}): Promise<WebmasterPageRecord | null> {
+  await ensureWebmasterSchema();
+  const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+    `
+      SELECT p.id, p.organization_id, p.site_id, s.site_name, p.created_by_id, p.updated_by_id,
+             p.page_title, p.page_slug, p.page_path, p.page_status, p.content_json, p.seo_title,
+             p.seo_description, p.published_at, p.created_at, p.updated_at
+      FROM webmaster_pages p
+      INNER JOIN webmaster_sites s ON s.id = p.site_id
+      WHERE p.organization_id = ? AND p.id = ?
+      LIMIT 1
+    `,
+    params.organizationId,
+    params.pageId,
+  );
+
+  if (rows.length === 0) return null;
+  return mapPageRow(rows[0]);
+}
+
+/** Creates one persisted page record under a site. */
+export async function createWebmasterPage(params: {
+  organizationId: string;
+  siteId: string;
+  createdById?: string;
+  updatedById?: string;
+  title: string;
+  slug: string;
+  path: string;
+  status?: WebmasterPageStatus;
+  seoTitle?: string;
+  seoDescription?: string;
+  contentJson?: Record<string, unknown>;
+}): Promise<WebmasterPageRecord> {
+  await ensureWebmasterSchema();
+  const id = randomUUID();
+
+  await prisma.$executeRawUnsafe(
+    `
+      INSERT INTO webmaster_pages
+      (id, organization_id, site_id, created_by_id, updated_by_id, page_title, page_slug, page_path, page_status, content_json, seo_title, seo_description, published_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    id,
+    params.organizationId,
+    params.siteId,
+    params.createdById ?? null,
+    params.updatedById ?? null,
+    params.title,
+    params.slug,
+    params.path,
+    params.status ?? "DRAFT",
+    params.contentJson ? JSON.stringify(params.contentJson) : null,
+    params.seoTitle?.trim() || null,
+    params.seoDescription?.trim() || null,
+    params.status === "PUBLISHED" ? new Date() : null,
+  );
+
+  const created = await getWebmasterPageById({ organizationId: params.organizationId, pageId: id });
+  if (!created) {
+    throw new Error("Created page could not be reloaded.");
+  }
+  return created;
+}
+
+/** Updates mutable page metadata for one persisted record. */
+export async function updateWebmasterPage(params: {
+  organizationId: string;
+  pageId: string;
+  updatedById?: string;
+  title?: string;
+  slug?: string;
+  path?: string;
+  status?: WebmasterPageStatus;
+  seoTitle?: string;
+  seoDescription?: string;
+  contentJson?: Record<string, unknown>;
+}): Promise<WebmasterPageRecord> {
+  await ensureWebmasterSchema();
+
+  await prisma.$executeRawUnsafe(
+    `
+      UPDATE webmaster_pages
+      SET page_title = COALESCE(?, page_title),
+          page_slug = COALESCE(?, page_slug),
+          page_path = COALESCE(?, page_path),
+          page_status = COALESCE(?, page_status),
+          seo_title = COALESCE(?, seo_title),
+          seo_description = COALESCE(?, seo_description),
+          content_json = COALESCE(?, content_json),
+          updated_by_id = ?,
+          published_at = CASE
+            WHEN ? = 'PUBLISHED' THEN CURRENT_TIMESTAMP
+            WHEN ? = 'DRAFT' THEN NULL
+            ELSE published_at
+          END,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE organization_id = ? AND id = ?
+    `,
+    params.title ?? null,
+    params.slug ?? null,
+    params.path ?? null,
+    params.status ?? null,
+    params.seoTitle ?? null,
+    params.seoDescription ?? null,
+    params.contentJson ? JSON.stringify(params.contentJson) : null,
+    params.updatedById ?? null,
+    params.status ?? null,
+    params.status ?? null,
+    params.organizationId,
+    params.pageId,
+  );
+
+  const updated = await getWebmasterPageById({ organizationId: params.organizationId, pageId: params.pageId });
+  if (!updated) {
+    throw new Error("Updated page could not be reloaded.");
+  }
+  return updated;
+}
+
+/** Searches persisted sites for module search. */
+export async function searchWebmasterSites(params: {
+  organizationId: string;
+  query: string;
+  limit: number;
+}): Promise<WebmasterSiteRecord[]> {
+  return listWebmasterSites({ organizationId: params.organizationId, query: params.query, limit: params.limit });
+}
+
+/** Searches persisted pages for module search. */
+export async function searchWebmasterPages(params: {
+  organizationId: string;
+  query: string;
+  limit: number;
+}): Promise<WebmasterPageRecord[]> {
+  await ensureWebmasterSchema();
+
+  const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+    `
+      SELECT p.id, p.organization_id, p.site_id, s.site_name, p.created_by_id, p.updated_by_id,
+             p.page_title, p.page_slug, p.page_path, p.page_status, p.content_json, p.seo_title,
+             p.seo_description, p.published_at, p.created_at, p.updated_at
+      FROM webmaster_pages p
+      INNER JOIN webmaster_sites s ON s.id = p.site_id
+      WHERE p.organization_id = ?
+        AND (
+          p.page_title LIKE CONCAT('%', ?, '%')
+          OR p.page_slug LIKE CONCAT('%', ?, '%')
+          OR p.page_path LIKE CONCAT('%', ?, '%')
+          OR s.site_name LIKE CONCAT('%', ?, '%')
+        )
+      ORDER BY p.updated_at DESC
+      LIMIT ?
+    `,
+    params.organizationId,
+    params.query,
+    params.query,
+    params.query,
+    params.query,
+    params.limit,
+  );
+
+  return rows.map(mapPageRow);
+}
+
+/** Lists pages in one status for Webmaster notifications. */
+export async function listWebmasterPagesByStatus(params: {
+  organizationId: string;
+  status: WebmasterPageStatus;
+  limit: number;
+}): Promise<WebmasterPageRecord[]> {
+  await ensureWebmasterSchema();
+
+  const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+    `
+      SELECT p.id, p.organization_id, p.site_id, s.site_name, p.created_by_id, p.updated_by_id,
+             p.page_title, p.page_slug, p.page_path, p.page_status, p.content_json, p.seo_title,
+             p.seo_description, p.published_at, p.created_at, p.updated_at
+      FROM webmaster_pages p
+      INNER JOIN webmaster_sites s ON s.id = p.site_id
+      WHERE p.organization_id = ? AND p.page_status = ?
+      ORDER BY p.updated_at DESC
+      LIMIT ?
+    `,
+    params.organizationId,
+    params.status,
+    params.limit,
+  );
+
+  return rows.map(mapPageRow);
+}
+
+/** Lists sites in one status for Webmaster notifications. */
+export async function listWebmasterSitesByStatus(params: {
+  organizationId: string;
+  status: WebmasterSiteStatus;
+  limit: number;
+}): Promise<WebmasterSiteRecord[]> {
+  return listWebmasterSites({
+    organizationId: params.organizationId,
+    status: params.status,
+    limit: params.limit,
+  });
+}

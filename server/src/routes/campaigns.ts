@@ -12,7 +12,7 @@
  * @module routes/campaigns
  */
 import { Router } from "express";
-import type { CampaignCategory } from "@prisma/client";
+import type { CampaignCategory, Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { requireAuth } from "../middleware/requireAuth.js";
@@ -23,9 +23,22 @@ const router = Router();
 // All campaign routes require authentication.
 router.use(requireAuth);
 
+/**
+ * Returns campaign date-overlap filters for a given calendar year.
+ * A campaign is included if it overlaps any day in the selected year.
+ */
+function campaignOverlapYearFilter(year: number) {
+  const yearStart = new Date(year, 0, 1);
+  const nextYearStart = new Date(year + 1, 0, 1);
+  return {
+    startDate: { lt: nextYearStart },
+    OR: [{ endDate: null }, { endDate: { gte: yearStart } }],
+  };
+}
+
 /** GET /api/campaigns — List campaigns with optional filters and include computed totalRaised. */
 router.get("/", async (req, res) => {
-  const { limit = "100", active, category, q, search } = req.query as Record<string, string>;
+  const { limit = "100", active, category, q, search, year, scope } = req.query as Record<string, string>;
 
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
@@ -35,23 +48,32 @@ router.get("/", async (req, res) => {
 
   const searchText = (search ?? q ?? "").trim();
 
-  const where = {
+  const parsedLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 100, 1), 500);
+  const parsedYear = Number.parseInt(year ?? `${new Date().getFullYear()}`, 10);
+  const useAllYears = scope?.toUpperCase() === "ALL_YEARS";
+
+  const where: Prisma.CampaignWhereInput = {
     organizationId,
     ...(active !== undefined ? { active: active === "true" } : {}),
     ...(category ? { category: category as CampaignCategory } : {}),
-    ...(searchText
-      ? {
-          OR: [
-            { name: { contains: searchText } },
-            { description: { contains: searchText } },
-          ],
-        }
-      : {}),
+    AND: [
+      ...(!useAllYears && Number.isFinite(parsedYear) ? [campaignOverlapYearFilter(parsedYear)] : []),
+      ...(searchText
+        ? [
+            {
+              OR: [
+                { name: { contains: searchText } },
+                { description: { contains: searchText } },
+              ],
+            },
+          ]
+        : []),
+    ],
   };
 
   const items = await prisma.campaign.findMany({
     where,
-    take: parseInt(limit, 10),
+    take: parsedLimit,
     orderBy: { createdAt: "desc" },
     include: {
       _count: {
@@ -63,21 +85,42 @@ router.get("/", async (req, res) => {
     },
   });
 
+  const campaignIds = items.map((item) => item.id);
+  if (campaignIds.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  const yearDateFilter =
+    !useAllYears && Number.isFinite(parsedYear)
+      ? {
+          gte: new Date(parsedYear, 0, 1),
+          lt: new Date(parsedYear + 1, 0, 1),
+        }
+      : undefined;
+
   const donationSums = await prisma.donation.groupBy({
     by: ["campaignId"],
     where: {
-      campaignId: { not: null },
+      campaignId: { in: campaignIds },
       status: "COMPLETED",
       campaign: { organizationId },
+      ...(yearDateFilter ? { date: yearDateFilter } : {}),
     },
     _sum: { amount: true },
+    _count: { _all: true },
   });
 
   const sumMap = new Map(donationSums.map((row) => [row.campaignId, Number(row._sum.amount ?? 0)]));
+  const donationCountMap = new Map(donationSums.map((row) => [row.campaignId, Number(row._count._all ?? 0)]));
 
   const campaigns = items.map((item) => ({
     ...item,
     totalRaised: sumMap.get(item.id) ?? 0,
+    _count: {
+      ...item._count,
+      donations: donationCountMap.get(item.id) ?? 0,
+    },
   }));
 
   res.json(campaigns);

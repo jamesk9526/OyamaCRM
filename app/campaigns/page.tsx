@@ -25,10 +25,13 @@ export interface Campaign {
 
 /** Campaigns page — card grid with filtering, new campaign modal, edit and delete */
 export default function CampaignsPage() {
+  const currentYear = new Date().getFullYear();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
+  const [year, setYear] = useState<number>(currentYear);
+  const [allYears, setAllYears] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
 
@@ -37,14 +40,20 @@ export default function CampaignsPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiFetch<Campaign[]>("/api/campaigns");
+      const params = new URLSearchParams();
+      if (allYears) {
+        params.set("scope", "ALL_YEARS");
+      } else {
+        params.set("year", String(year));
+      }
+      const data = await apiFetch<Campaign[]>(`/api/campaigns?${params.toString()}`);
       setCampaigns(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [allYears, year]);
 
   useEffect(() => { loadCampaigns(); }, [loadCampaigns]);
 
@@ -81,6 +90,9 @@ export default function CampaignsPage() {
   const totalGoal = campaigns.reduce((s, c) => s + Number(c.goal ?? 0), 0);
   const totalRaised = campaigns.reduce((s, c) => s + (c.totalRaised ?? 0), 0);
 
+  const yearOptions = Array.from({ length: 6 }, (_, i) => currentYear - i);
+  const scopeLabel = allYears ? "All years" : `${year}`;
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -100,10 +112,10 @@ export default function CampaignsPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: "Total Campaigns", value: campaigns.length },
+          { label: `Total Campaigns (${scopeLabel})`, value: campaigns.length },
           { label: "Active", value: campaigns.filter((c) => c.active).length, color: "text-green-600" },
-          { label: "Total Goal", value: `$${totalGoal.toLocaleString()}` },
-          { label: "Total Raised", value: `$${totalRaised.toLocaleString()}`, color: "text-green-600" },
+          { label: `Total Goal (${scopeLabel})`, value: `$${totalGoal.toLocaleString()}` },
+          { label: `Total Raised (${scopeLabel})`, value: `$${totalRaised.toLocaleString()}`, color: "text-green-600" },
         ].map((s) => (
           <div key={s.label} className="bg-white rounded-lg border border-gray-200 p-4">
             <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{s.label}</p>
@@ -113,19 +125,52 @@ export default function CampaignsPage() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-2">
-        {(["all", "active", "inactive"] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-              filter === f ? "bg-green-600 text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-            }`}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex gap-2">
+          {(["all", "active", "inactive"] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                filter === f ? "bg-green-600 text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              {f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-3 text-sm">
+          <label className="inline-flex items-center gap-2 text-gray-600">
+            <input
+              type="checkbox"
+              checked={allYears}
+              onChange={(e) => setAllYears(e.target.checked)}
+              className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+            />
+            Include all years
+          </label>
+
+          <select
+            value={year}
+            onChange={(e) => setYear(Number.parseInt(e.target.value, 10))}
+            disabled={allYears}
+            className="rounded-lg border border-gray-200 px-3 py-2 bg-white text-gray-700 disabled:opacity-50"
           >
-            {f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
+            {yearOptions.map((optionYear) => (
+              <option key={optionYear} value={optionYear}>
+                {optionYear}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
+
+      <p className="text-xs text-gray-500 -mt-1">
+        {!allYears
+          ? `Campaign totals and raised amounts are scoped to ${year}.`
+          : "Campaign totals and raised amounts include all years."}
+      </p>
 
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">

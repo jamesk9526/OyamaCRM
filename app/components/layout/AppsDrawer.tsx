@@ -92,6 +92,37 @@ const APPS: AppTile[] = [
     available: true,
   },
   {
+    id: "watchdog",
+    label: "OyamaWatchdog",
+    description: "Admin security watch + vault",
+    href: "/watchdog",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-7 h-7">
+        <path d="M12 2l8 4v6c0 5.5-3.5 9.74-8 10-4.5-.26-8-4.5-8-10V6l8-4z" />
+        <path d="M12 9v4m0 4h.01" />
+      </svg>
+    ),
+    color: "text-red-600",
+    bgColor: "bg-red-50",
+    available: true,
+  },
+  {
+    id: "webmaster",
+    label: "OyamaWebMaster",
+    description: "Nonprofit website creator",
+    href: "/webmaster",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-7 h-7">
+        <path d="M3 5h18v14H3z" />
+        <path d="M3 9h18" />
+        <path d="M8 3v4" />
+      </svg>
+    ),
+    color: "text-indigo-600",
+    bgColor: "bg-indigo-50",
+    available: true,
+  },
+  {
     id: "grants",
     label: "Grant Manager",
     description: "Track grants & write proposals",

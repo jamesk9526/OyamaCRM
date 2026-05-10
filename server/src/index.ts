@@ -6,7 +6,8 @@
  *
  * Environment variables:
  *   API_PORT            — port to listen on (default: 4000)
- *   NEXT_PUBLIC_API_URL — additional CORS origin allowed alongside localhost:3000
+ *   FRONTEND_ORIGIN     — explicit frontend origin allowed for CORS
+ *   NEXT_PUBLIC_APP_URL — optional frontend app URL mirror for CORS
  *   NODE_ENV            — controls logging verbosity and secure cookie flag
  *
  * @module index
@@ -44,6 +45,8 @@ import searchRoutes from "./routes/search.js";
 import notificationsRoutes from "./routes/notifications.js";
 import stewardSignalsRoutes from "./routes/steward-signals.js";
 import stewardAiRoutes from "./routes/steward-ai.js";
+import watchdogRoutes from "./routes/watchdog.js";
+import webmasterRoutes from "./routes/webmaster.js";
 import { prisma } from "./lib/prisma.js";
 import { getAppInfo } from "./lib/app-info.js";
 import { getEmailQueueWorkerStatus, startEmailQueueWorker } from "./services/email-queue-worker.js";
@@ -52,6 +55,23 @@ import { getStewardPathsWorkerStatus, startStewardPathsWorker } from "./services
 const app = express();
 const PORT = process.env.API_PORT ? parseInt(process.env.API_PORT) : 4000;
 const startTime = Date.now();
+
+const explicitCorsOrigins = new Set(
+  [process.env.FRONTEND_ORIGIN, process.env.NEXT_PUBLIC_APP_URL]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value)),
+);
+
+/** Checks whether one request origin is allowed for CORS. */
+function isCorsOriginAllowed(origin: string): boolean {
+  if (explicitCorsOrigins.has(origin)) return true;
+
+  if (process.env.NODE_ENV !== "production") {
+    return /^http:\/\/(localhost|127\.0\.0\.1):(3000|3001)$/.test(origin);
+  }
+
+  return false;
+}
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
@@ -80,11 +100,17 @@ app.use(globalLimiter);
 
 app.use(
   cors({
-    origin: process.env.NEXT_PUBLIC_API_URL
-      ? [process.env.NEXT_PUBLIC_API_URL, "http://localhost:3000"]
-      : "http://localhost:3000",
+    origin: (origin, callback) => {
+      // Allow requests without an Origin header (e.g., server-to-server, curl).
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      callback(null, isCorsOriginAllowed(origin));
+    },
     credentials: true,
-  })
+  }),
 );
 
 // Import endpoint can receive 800+ records as JSON — raise the limit to 20 MB.
@@ -157,6 +183,8 @@ app.use("/api/search", searchRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/steward-signals", stewardSignalsRoutes);
 app.use("/api/steward-ai", stewardAiRoutes);
+app.use("/api/watchdog", watchdogRoutes);
+app.use("/api/webmaster", webmasterRoutes);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 

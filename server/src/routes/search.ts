@@ -5,20 +5,21 @@
  * only surfaces relevant pages and entities.
  *
  * Route:
- *   GET /api/search?module=donor|compassion|events&q=<query>&limit=<n>
+ *   GET /api/search?module=donor|compassion|events|watchdog|webmaster&q=<query>&limit=<n>
  */
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { donationOrgWhere } from "../lib/donationScope.js";
+import { searchWebmasterPages, searchWebmasterSites } from "../services/webmaster-store.js";
 
 const router = Router();
 
 // All global search requests require authentication.
 router.use(requireAuth);
 
-type SearchModule = "donor" | "compassion" | "events";
+type SearchModule = "donor" | "compassion" | "events" | "watchdog" | "webmaster";
 
 type SearchResultType =
   | "tool"
@@ -28,7 +29,9 @@ type SearchResultType =
   | "client"
   | "case"
   | "event"
-  | "guest";
+  | "guest"
+  | "site"
+  | "page";
 
 interface GlobalSearchResult {
   id: string;
@@ -80,6 +83,19 @@ const EVENTS_TOOLS: ToolItem[] = [
   { id: "tool-events-check-in", label: "Check-In", href: "/events/check-in", keywords: ["scan", "arrival", "qr"] },
   { id: "tool-events-tables", label: "Tables", href: "/events/tables", keywords: ["seating", "layout", "assign"] },
   { id: "tool-events-reports", label: "Reports", href: "/events/reports", keywords: ["analytics", "revenue", "attendance"] },
+];
+
+const WATCHDOG_TOOLS: ToolItem[] = [
+  { id: "tool-watchdog-dashboard", label: "Security Dashboard", href: "/watchdog", keywords: ["security", "alerts", "telemetry"] },
+  { id: "tool-watchdog-feed", label: "Security Feed", href: "/watchdog#feed", keywords: ["logs", "audit", "events"] },
+  { id: "tool-watchdog-vault", label: "Password Vault", href: "/watchdog#vault", keywords: ["passwords", "credentials", "encrypted"] },
+  { id: "tool-watchdog-access", label: "Access Matrix", href: "/watchdog#access", keywords: ["permissions", "admin", "rbac"] },
+];
+
+const WEBMASTER_TOOLS: ToolItem[] = [
+  { id: "tool-webmaster-dashboard", label: "WebMaster Dashboard", href: "/webmaster", keywords: ["website", "builder", "nonprofit"] },
+  { id: "tool-webmaster-templates", label: "Template Planning", href: "/webmaster", keywords: ["templates", "pages", "themes"] },
+  { id: "tool-webmaster-publishing", label: "Publishing Workflow", href: "/webmaster", keywords: ["publish", "approval", "domain"] },
 ];
 
 /**
@@ -139,7 +155,12 @@ router.get("/", async (req, res) => {
   const guestNamePairClauses = buildNamePairClauses("firstName", "lastName", terms);
 
   const normalizedModule: SearchModule =
-    moduleKey === "compassion" || moduleKey === "events" ? moduleKey : "donor";
+    moduleKey === "compassion"
+    || moduleKey === "events"
+    || moduleKey === "watchdog"
+    || moduleKey === "webmaster"
+      ? moduleKey
+      : "donor";
 
   if (!query.trim()) {
     res.json({ module: normalizedModule, query: "", results: [] });
@@ -367,6 +388,43 @@ router.get("/", async (req, res) => {
         label: guestLabel,
         sublabel: `${guest.event.name}${guest.checkinCode ? ` • ${guest.checkinCode}` : ""}`,
         href: `/events/${guest.event.id}/guests`,
+        group: "records",
+      });
+    }
+  }
+
+  if (normalizedModule === "watchdog") {
+    const tools = matchTools(WATCHDOG_TOOLS, query, Math.max(limit, 6));
+    searchResults.push(...tools);
+  }
+
+  if (normalizedModule === "webmaster") {
+    const [tools, sites, pages] = await Promise.all([
+      Promise.resolve(matchTools(WEBMASTER_TOOLS, query, toolLimit)),
+      searchWebmasterSites({ organizationId, query, limit: recordLimit }),
+      searchWebmasterPages({ organizationId, query, limit: Math.max(4, Math.floor(recordLimit / 2)) }),
+    ]);
+
+    searchResults.push(...tools);
+
+    for (const site of sites) {
+      searchResults.push({
+        id: site.id,
+        type: "site",
+        label: site.name,
+        sublabel: `${site.status.replace(/_/g, " ")} • ${site.slug}`,
+        href: `/webmaster?site=${site.id}`,
+        group: "records",
+      });
+    }
+
+    for (const page of pages) {
+      searchResults.push({
+        id: page.id,
+        type: "page",
+        label: page.title,
+        sublabel: `${page.siteName} • ${page.status.replace(/_/g, " ")} • ${page.path}`,
+        href: `/webmaster?site=${page.siteId}&page=${page.id}`,
         group: "records",
       });
     }

@@ -280,6 +280,16 @@ export const PERMISSION_KEYS = [
   "view:custom_fields",
   "edit:custom_fields",
   "view:audit_logs",
+  "watchdog:view_dashboard",
+  "watchdog:view_logs",
+  "watchdog:vault:read",
+  "watchdog:vault:read_secret",
+  "watchdog:vault:write",
+  "watchdog:vault:delete",
+  "watchdog:incident:acknowledge",
+  "watchdog:incident:escalate",
+  "watchdog:incident:resolve",
+  "watchdog:manage",
 ] as const;
 
 export type PermissionKey = typeof PERMISSION_KEYS[number];

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 
-type ModuleKey = "donor" | "compassion" | "events";
+type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster";
 type ChatMode = "ask" | "analyze" | "draft" | "action" | "help";
 
 interface StewardChatPanelProps {
@@ -102,6 +102,22 @@ function promptsForModule(moduleKey: ModuleKey): string[] {
       "Summarize event operations status.",
       "What check-in risks should staff watch today?",
       "Draft a post-event thank-you message.",
+    ];
+  }
+
+  if (moduleKey === "watchdog") {
+    return [
+      "Summarize high-risk security events in this view.",
+      "Draft an incident response checklist for this alert.",
+      "What access controls should I verify first?",
+    ];
+  }
+
+  if (moduleKey === "webmaster") {
+    return [
+      "Propose a nonprofit website information architecture.",
+      "Draft homepage copy for donor conversion.",
+      "What pages should we launch first and why?",
     ];
   }
 

@@ -8,6 +8,7 @@
 
 import Card from "@/app/components/ui/Card";
 import CircularProgress from "@/app/components/ui/CircularProgress";
+import { useState } from "react";
 
 interface RevenueProgressProps {
   /** Donation-only YTD amount */
@@ -23,11 +24,14 @@ interface RevenueProgressProps {
   loading?: boolean;
 }
 
-/** Compact USD formatter: 12500 → "$12.5k", 1250000 → "$1.3M" */
+/** Exact USD formatter for dashboard amounts (no compact K/M shorthand). */
 function fmtCurrency(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}k`;
-  return `$${n.toLocaleString()}`;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(n);
 }
 
 export default function RevenueProgress({
@@ -38,9 +42,18 @@ export default function RevenueProgress({
   onToggleGrants,
   loading,
 }: RevenueProgressProps) {
+  const [displayMode, setDisplayMode] = useState<"revenue" | "raised">("revenue");
   // Total displayed is donations + grants when the toggle is on
   const displayedTotal = current + (includeGrants ? grantAmount : 0);
   const percentage = goal > 0 ? Math.min(100, Math.round((displayedTotal / goal) * 100)) : 0;
+  const breakdown = includeGrants && grantAmount > 0
+    ? `${fmtCurrency(current)} donations + ${fmtCurrency(grantAmount)} grants`
+    : `${fmtCurrency(current)} donations`;
+
+  const headlineValue = displayMode === "revenue" ? fmtCurrency(displayedTotal) : `${percentage}%`;
+  const headlineSubtext = displayMode === "revenue"
+    ? `of ${fmtCurrency(goal)} goal`
+    : `${fmtCurrency(displayedTotal)} raised`;
 
   return (
     <Card>
@@ -75,7 +88,22 @@ export default function RevenueProgress({
         {loading ? (
           <div className="w-36 h-36 rounded-full bg-gray-200 animate-pulse" />
         ) : (
-          <CircularProgress percentage={percentage} />
+          <div className="relative group">
+            <button
+              type="button"
+              onClick={() => setDisplayMode((mode) => (mode === "revenue" ? "raised" : "revenue"))}
+              className="rounded-full transition-transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-green-300"
+              title="Click to switch between amount and percent views"
+            >
+              <CircularProgress percentage={percentage} />
+            </button>
+            <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="bg-gray-900 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap shadow">
+                <div>{breakdown}</div>
+                <div>Goal {fmtCurrency(goal)}</div>
+              </div>
+            </div>
+          </div>
         )}
 
         <div className="mt-4 text-center">
@@ -84,7 +112,7 @@ export default function RevenueProgress({
           ) : (
             <>
               <p className="text-3xl font-bold text-gray-900">
-                {fmtCurrency(displayedTotal)}
+                {headlineValue}
               </p>
               {/* Grant breakdown line — visible only when grants are included */}
               {includeGrants && grantAmount > 0 && (
@@ -95,15 +123,31 @@ export default function RevenueProgress({
             </>
           )}
           <p className="text-sm text-gray-500 mt-1">
-            of {fmtCurrency(goal)} goal
+            {headlineSubtext}
           </p>
         </div>
 
         <div className="flex gap-2 mt-4">
-          <button className="px-3 py-1 text-xs font-medium border border-gray-300 rounded hover:bg-gray-50">
+          <button
+            type="button"
+            onClick={() => setDisplayMode("revenue")}
+            className={`px-3 py-1 text-xs font-medium rounded border transition-colors ${
+              displayMode === "revenue"
+                ? "border-green-300 bg-green-50 text-green-700"
+                : "border-gray-300 text-gray-700 hover:bg-gray-50"
+            }`}
+          >
             Revenue
           </button>
-          <button className="px-3 py-1 text-xs font-medium text-gray-500 hover:bg-gray-50 rounded">
+          <button
+            type="button"
+            onClick={() => setDisplayMode("raised")}
+            className={`px-3 py-1 text-xs font-medium rounded border transition-colors ${
+              displayMode === "raised"
+                ? "border-green-300 bg-green-50 text-green-700"
+                : "border-gray-200 text-gray-500 hover:bg-gray-50"
+            }`}
+          >
             Raised
           </button>
         </div>

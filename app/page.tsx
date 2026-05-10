@@ -24,7 +24,7 @@ import GivingTrendChart from "./components/dashboard/GivingTrendChart";
 import RecentDonationsWidget from "./components/dashboard/RecentDonationsWidget";
 import TopDonorsWidget from "./components/dashboard/TopDonorsWidget";
 import MeetingsWidget from "./components/dashboard/MeetingsWidget";
-import DashboardLayoutModal from "./components/dashboard/DashboardLayoutModal";
+import DashboardLayoutModal, { type RevenueGoalMode, type RevenueProgressSource } from "./components/dashboard/DashboardLayoutModal";
 import { apiFetch } from "@/app/lib/auth-client";
 
 /** Shape returned by /api/reports/summary (extended) */
@@ -34,6 +34,8 @@ interface Summary {
   ytdCount: number;
   /** YTD awarded grant total — always returned; added to ytdAmount when includeGrants=true */
   ytdGrantAmount: number;
+  /** YTD completed donations linked to active campaigns only. */
+  activeCampaignRaisedAmount: number;
   weekAmount: number;
   weekCount: number;
   weekAvg: number;
@@ -53,8 +55,8 @@ interface RetentionData {
   rate: number;
 }
 
-/** Ordered list of widget IDs */
-const DEFAULT_WIDGET_ORDER = [
+/** Previous shipped default order (kept to support one-time migration logic). */
+const PREVIOUS_DEFAULT_WIDGET_ORDER = [
   "giving-trend",
   "recent-donations",
   "revenue",
@@ -65,24 +67,47 @@ const DEFAULT_WIDGET_ORDER = [
   "weekly-stats",
 ] as const;
 
+/** Ordered list of widget IDs (CRM default). */
+const DEFAULT_WIDGET_ORDER = [
+  "revenue",
+  "retention",
+  "top-donors",
+  "weekly-stats",
+  "giving-trend",
+  "recent-donations",
+  "tasks",
+  "meetings",
+] as const;
+
 type WidgetId = (typeof DEFAULT_WIDGET_ORDER)[number];
 
 /** Human-readable label + description for each widget (used in the layout modal) */
 const WIDGET_META = [
-  { id: "giving-trend", label: "Giving Trend", description: "Monthly giving totals chart" },
-  { id: "recent-donations", label: "Recent Donations", description: "Last 8 gifts received" },
   { id: "revenue", label: "Revenue Progress", description: "Active campaign goal tracking" },
   { id: "retention", label: "Donor Retention", description: "Year-over-year retention rate" },
   { id: "top-donors", label: "Top Donors", description: "By lifetime giving amount" },
+  { id: "weekly-stats", label: "This Week", description: "Weekly donation activity summary" },
+  { id: "giving-trend", label: "Giving Trend", description: "Monthly giving totals chart" },
+  { id: "recent-donations", label: "Recent Donations", description: "Last 8 gifts received" },
   { id: "tasks", label: "Tasks", description: "Open & upcoming staff tasks" },
   { id: "meetings", label: "Upcoming Meetings", description: "Scheduled donor meetings" },
-  { id: "weekly-stats", label: "This Week", description: "Weekly donation activity summary" },
 ];
 
 const LS_ORDER_KEY = "dashboard-widget-order";
 const LS_LOCK_KEY = "dashboard-locked";
 /** Persists the "Include Grants in revenue" preference */
 const LS_GRANTS_KEY = "dashboard-include-grants";
+/** Persists which data source Revenue Progress should display. */
+const LS_REVENUE_SOURCE_KEY = "dashboard-revenue-progress-source";
+/** Persists whether Revenue Progress goal is automatic or manually overridden. */
+const LS_REVENUE_GOAL_MODE_KEY = "dashboard-revenue-goal-mode";
+/** Persists manual Revenue Progress goal amount when override mode is enabled. */
+const LS_MANUAL_REVENUE_GOAL_KEY = "dashboard-manual-revenue-goal";
+
+function sameOrder(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
+}
 
 /** Load widget order from localStorage, falling back to defaults */
 function loadOrder(): WidgetId[] {
@@ -91,6 +116,10 @@ function loadOrder(): WidgetId[] {
     const raw = localStorage.getItem(LS_ORDER_KEY);
     if (!raw) return [...DEFAULT_WIDGET_ORDER];
     const parsed: WidgetId[] = JSON.parse(raw);
+    // If the user still has the old out-of-box order, migrate to the new CRM default.
+    if (sameOrder(parsed, PREVIOUS_DEFAULT_WIDGET_ORDER)) {
+      return [...DEFAULT_WIDGET_ORDER];
+    }
     // Merge: keep saved order, but append any new widgets not yet in the saved list
     const existing = new Set(parsed);
     return [...parsed, ...DEFAULT_WIDGET_ORDER.filter((w) => !existing.has(w))];
@@ -111,12 +140,34 @@ function loadIncludeGrants(): boolean {
   return localStorage.getItem(LS_GRANTS_KEY) === "true";
 }
 
+/** Load Revenue Progress source preference from localStorage. */
+function loadRevenueProgressSource(): RevenueProgressSource {
+  if (typeof window === "undefined") return "YTD_DONATIONS";
+  const stored = localStorage.getItem(LS_REVENUE_SOURCE_KEY);
+  return stored === "ACTIVE_CAMPAIGNS" ? "ACTIVE_CAMPAIGNS" : "YTD_DONATIONS";
+}
+
+/** Load Revenue Progress goal mode preference from localStorage. */
+function loadRevenueGoalMode(): RevenueGoalMode {
+  if (typeof window === "undefined") return "AUTO";
+  const stored = localStorage.getItem(LS_REVENUE_GOAL_MODE_KEY);
+  return stored === "MANUAL" ? "MANUAL" : "AUTO";
+}
+
+/** Load manual Revenue Progress goal override from localStorage. */
+function loadManualRevenueGoalAmount(): number {
+  if (typeof window === "undefined") return 0;
+  const stored = Number(localStorage.getItem(LS_MANUAL_REVENUE_GOAL_KEY) ?? "0");
+  return Number.isFinite(stored) && stored > 0 ? stored : 0;
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [retention, setRetention] = useState<RetentionData | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // ── Layout state ──
   const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(loadOrder);
@@ -127,6 +178,9 @@ export default function DashboardPage() {
   // ── Grant toggle — persisted to localStorage ──
   const [includeGrants, setIncludeGrants] = useState(loadIncludeGrants);
   const toggleGrants = () => setIncludeGrants((v) => !v);
+  const [revenueProgressSource, setRevenueProgressSource] = useState<RevenueProgressSource>(loadRevenueProgressSource);
+  const [revenueGoalMode, setRevenueGoalMode] = useState<RevenueGoalMode>(loadRevenueGoalMode);
+  const [manualRevenueGoalAmount, setManualRevenueGoalAmount] = useState<number>(loadManualRevenueGoalAmount);
 
   // ── Drag state (only active in edit mode) ──
   const dragFrom = useRef<number | null>(null);
@@ -140,6 +194,7 @@ export default function DashboardPage() {
   /** Fetch all dashboard data in parallel */
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [s, r] = await Promise.all([
         apiFetch<Summary>("/api/reports/summary"),
@@ -148,8 +203,8 @@ export default function DashboardPage() {
       setSummary(s);
       setRetention(r);
       setLastRefreshed(new Date());
-    } catch {
-      // Silently fail — widgets handle empty data gracefully
+    } catch (requestError) {
+      setLoadError(requestError instanceof Error ? requestError.message : "Failed to load dashboard metrics.");
     } finally {
       setLoading(false);
     }
@@ -173,6 +228,25 @@ export default function DashboardPage() {
   useEffect(() => {
     localStorage.setItem(LS_GRANTS_KEY, includeGrants ? "true" : "false");
   }, [includeGrants]);
+
+  // Persist Revenue Progress source preference to localStorage
+  useEffect(() => {
+    localStorage.setItem(LS_REVENUE_SOURCE_KEY, revenueProgressSource);
+  }, [revenueProgressSource]);
+
+  // Persist Revenue Progress goal mode preference to localStorage
+  useEffect(() => {
+    localStorage.setItem(LS_REVENUE_GOAL_MODE_KEY, revenueGoalMode);
+  }, [revenueGoalMode]);
+
+  // Persist manual Revenue Progress goal override to localStorage
+  useEffect(() => {
+    localStorage.setItem(LS_MANUAL_REVENUE_GOAL_KEY, String(manualRevenueGoalAmount));
+  }, [manualRevenueGoalAmount]);
+
+  const revenueGoal = revenueGoalMode === "MANUAL"
+    ? manualRevenueGoalAmount
+    : (summary?.activeGoalTotal ?? 0);
 
   /** Swap widget at `from` index to `to` index */
   function moveWidget(from: number, to: number) {
@@ -239,10 +313,22 @@ export default function DashboardPage() {
         );
       case "revenue":
         return (
-          <DashboardWidget key={id} id={id} title="Revenue Progress" subtitle="Active campaign goals" {...editProps}>
+          <DashboardWidget
+            key={id}
+            id={id}
+            title="Revenue Progress"
+            subtitle={revenueGoalMode === "MANUAL"
+              ? "Custom goal target"
+              : (revenueProgressSource === "YTD_DONATIONS"
+                ? "Org YTD raised vs active campaign goals"
+                : "Active campaign raised vs active campaign goals")}
+            {...editProps}
+          >
             <RevenueProgress
-              current={summary?.ytdAmount ?? 0}
-              goal={summary?.activeGoalTotal ?? 0}
+              current={revenueProgressSource === "ACTIVE_CAMPAIGNS"
+                ? (summary?.activeCampaignRaisedAmount ?? 0)
+                : (summary?.ytdAmount ?? 0)}
+              goal={revenueGoal}
               grantAmount={summary?.ytdGrantAmount ?? 0}
               includeGrants={includeGrants}
               onToggleGrants={toggleGrants}
@@ -297,6 +383,12 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4">
+      {loadError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Dashboard data is partially unavailable. {loadError}
+        </div>
+      )}
+
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4">
         {/* Left: greeting */}
@@ -416,7 +508,17 @@ export default function DashboardPage() {
         <DashboardLayoutModal
           order={widgetOrder}
           widgetMeta={WIDGET_META}
-          onApply={(newOrder) => setWidgetOrder(newOrder as WidgetId[])}
+          initialRevenueProgressSource={revenueProgressSource}
+          initialIncludeGrants={includeGrants}
+          initialRevenueGoalMode={revenueGoalMode}
+          initialManualRevenueGoalAmount={manualRevenueGoalAmount}
+          onApply={(newOrder, settings) => {
+            setWidgetOrder(newOrder as WidgetId[]);
+            setRevenueProgressSource(settings.revenueProgressSource);
+            setIncludeGrants(settings.includeGrants);
+            setRevenueGoalMode(settings.revenueGoalMode);
+            setManualRevenueGoalAmount(settings.manualRevenueGoalAmount);
+          }}
           onClose={() => setShowCustomizeModal(false)}
         />
       )}

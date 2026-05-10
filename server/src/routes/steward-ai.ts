@@ -49,7 +49,7 @@ interface StewardAiUpdatePayload {
 interface StewardAiChatPayload {
   messages?: StewardAiChatMessage[];
   mode?: "ask" | "analyze" | "draft" | "action" | "help";
-  moduleKey?: "donor" | "compassion" | "events";
+  moduleKey?: "donor" | "compassion" | "events" | "watchdog" | "webmaster";
   scopePath?: string;
 }
 
@@ -99,6 +99,10 @@ function buildRuntimeSystemPrompt(options: {
     ? "Use client-care terminology (client, case, appointment, follow-up). Avoid donor fundraising terms unless explicitly requested."
     : options.moduleKey === "events"
       ? "Use event-operations terminology (event, guest, check-in, sponsor, seating, registration)."
+      : options.moduleKey === "watchdog"
+        ? "Use security operations terminology (incident, severity, alert, audit, access control, encrypted vault)."
+        : options.moduleKey === "webmaster"
+          ? "Use website operations terminology (templates, pages, publishing, domain, SEO, approvals)."
       : "Use donor stewardship terminology (constituent, donation, campaign, stewardship, retention).";
 
   return [
@@ -365,6 +369,50 @@ async function buildRetrievalContext(params: {
       tokens,
       scopePath: params.scopePath,
     });
+  }
+
+  if (params.moduleKey === "watchdog") {
+    const recentSecurityAudits = await prisma.auditLog.findMany({
+      where: {
+        organizationId: params.organizationId,
+        OR: [
+          { action: { contains: "UNAUTHORIZED", mode: "insensitive" } },
+          { action: { contains: "FORBIDDEN", mode: "insensitive" } },
+          { action: { contains: "LOGIN", mode: "insensitive" } },
+          { action: { contains: "DELETE", mode: "insensitive" } },
+          { action: { contains: "RESET", mode: "insensitive" } },
+        ],
+      },
+      select: {
+        id: true,
+        action: true,
+        entity: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+    });
+
+    return {
+      toolsUsed: ["watchdog.auditSnapshot", "watchdog.accessRiskSummary"],
+      contextText: [
+        `Watchdog scope path: ${params.scopePath}`,
+        `Recent critical/secure audit events: ${recentSecurityAudits.length}`,
+        ...recentSecurityAudits.map((entry) => `- ${entry.action}${entry.entity ? ` on ${entry.entity}` : ""} at ${entry.createdAt.toISOString()}`),
+      ].join("\n"),
+    };
+  }
+
+  if (params.moduleKey === "webmaster") {
+    return {
+      toolsUsed: ["webmaster.planningContext"],
+      contextText: [
+        `WebMaster scope path: ${params.scopePath}`,
+        "Current module status: starter dashboard is active.",
+        "No persisted website/page database records are available yet.",
+        "Focus guidance on planning, IA, and staged implementation steps.",
+      ].join("\n"),
+    };
   }
 
   return buildDonorContext({

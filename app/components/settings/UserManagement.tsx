@@ -396,6 +396,21 @@ const PERMISSION_GROUPS: { label: string; keys: string[] }[] = [
     label: "Data & Settings",
     keys: ["import:data", "export:data", "view:custom_fields", "edit:custom_fields", "view:audit_logs"],
   },
+  {
+    label: "OyamaWatchdog",
+    keys: [
+      "watchdog:view_dashboard",
+      "watchdog:view_logs",
+      "watchdog:vault:read",
+      "watchdog:vault:read_secret",
+      "watchdog:vault:write",
+      "watchdog:vault:delete",
+      "watchdog:incident:acknowledge",
+      "watchdog:incident:escalate",
+      "watchdog:incident:resolve",
+      "watchdog:manage",
+    ],
+  },
 ];
 
 /** Human-readable labels for individual permission keys. */
@@ -420,6 +435,16 @@ const PERM_LABELS: Record<string, string> = {
   "view:custom_fields":  "View Custom Fields",
   "edit:custom_fields":  "Edit Custom Fields",
   "view:audit_logs":     "View Audit Logs",
+  "watchdog:view_dashboard": "Watchdog: View Dashboard",
+  "watchdog:view_logs": "Watchdog: View Security Logs",
+  "watchdog:vault:read": "Watchdog: Read Vault Metadata",
+  "watchdog:vault:read_secret": "Watchdog: Reveal Vault Secrets",
+  "watchdog:vault:write": "Watchdog: Create/Update Vault Entries",
+  "watchdog:vault:delete": "Watchdog: Delete Vault Entries",
+  "watchdog:incident:acknowledge": "Watchdog: Acknowledge Incidents",
+  "watchdog:incident:escalate": "Watchdog: Escalate Incidents",
+  "watchdog:incident:resolve": "Watchdog: Resolve Incidents",
+  "watchdog:manage": "Watchdog: Full Manage Scope",
 };
 
 interface PermRecord { permission: string; granted: boolean }
@@ -503,6 +528,9 @@ function PermissionsPanel({ userId, onClose }: PermissionsPanelProps) {
           <p className="text-xs text-gray-500 mb-4">
             Set explicit grants or denials that override the user&apos;s role defaults.
             A cell with no toggle means the role default applies.
+          </p>
+          <p className="text-xs text-indigo-700 mb-4">
+            OyamaWatchdog scopes are module-specific controls for security feed actions, vault secret access, and admin incident workflow operations.
           </p>
 
           {/* Legend */}

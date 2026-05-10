@@ -6,6 +6,8 @@ import { Router } from "express";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { listWatchdogSecurityEvents } from "../services/watchdog-store.js";
+import { listWebmasterPagesByStatus, listWebmasterSitesByStatus } from "../services/webmaster-store.js";
 
 const router = Router();
 
@@ -23,7 +25,7 @@ interface NotificationItem {
 }
 
 /**
- * GET /api/notifications?module=donor|compassion|events
+ * GET /api/notifications?module=donor|compassion|events|watchdog|webmaster
  * Returns user-scoped notification items for the selected module.
  */
 router.get("/", async (req, res) => {
@@ -95,6 +97,90 @@ router.get("/", async (req, res) => {
           href: "/compassion/appointments",
           createdAt: appointment.createdAt.toISOString(),
           priority: "medium",
+        });
+      }
+    } else if (moduleKey === "watchdog") {
+      const [criticalAudit, externalEvents] = await Promise.all([
+        prisma.auditLog.findMany({
+          where: {
+            organizationId,
+            OR: [
+              { action: { contains: "UNAUTHORIZED" } },
+              { action: { contains: "FORBIDDEN" } },
+              { action: { contains: "LOGIN_FAILED" } },
+              { action: { contains: "RESET" } },
+              { action: { contains: "DELETE" } },
+            ],
+          },
+          orderBy: { createdAt: "desc" },
+          take: 8,
+        }),
+        listWatchdogSecurityEvents({ organizationId, limit: 8 }).catch(() => []),
+      ]);
+
+      for (const entry of criticalAudit) {
+        items.push({
+          id: `watchdog-audit:${entry.id}`,
+          type: "task",
+          title: entry.action,
+          message: entry.entity ? `${entry.action} on ${entry.entity}` : "Critical security event",
+          href: "/watchdog#feed",
+          createdAt: entry.createdAt.toISOString(),
+          priority: "high",
+        });
+      }
+
+      for (const event of externalEvents) {
+        items.push({
+          id: `watchdog-external:${event.id}`,
+          type: "task",
+          title: event.eventType,
+          message: event.message,
+          href: "/watchdog#feed",
+          createdAt: event.createdAt,
+          priority: event.severity === "critical" || event.severity === "high" ? "high" : "medium",
+        });
+      }
+    } else if (moduleKey === "webmaster") {
+      const [draftPages, reviewPages, sites] = await Promise.all([
+        listWebmasterPagesByStatus({ organizationId, status: "DRAFT", limit: 6 }),
+        listWebmasterPagesByStatus({ organizationId, status: "REVIEW_READY", limit: 6 }),
+        listWebmasterSitesByStatus({ organizationId, status: "DRAFT", limit: 4 }),
+      ]);
+
+      for (const page of reviewPages) {
+        items.push({
+          id: `webmaster-review:${page.id}`,
+          type: "task",
+          title: "Page ready for review",
+          message: `${page.title} in ${page.siteName}`,
+          href: `/webmaster?site=${page.siteId}&page=${page.id}`,
+          createdAt: page.updatedAt,
+          priority: "high",
+        });
+      }
+
+      for (const page of draftPages) {
+        items.push({
+          id: `webmaster-draft:${page.id}`,
+          type: "task",
+          title: "Draft page needs publishing",
+          message: `${page.title} in ${page.siteName}`,
+          href: `/webmaster?site=${page.siteId}&page=${page.id}`,
+          createdAt: page.updatedAt,
+          priority: "medium",
+        });
+      }
+
+      for (const site of sites) {
+        items.push({
+          id: `webmaster-site:${site.id}`,
+          type: "task",
+          title: "Draft website pending activation",
+          message: `${site.name} is still in draft status`,
+          href: `/webmaster?site=${site.id}`,
+          createdAt: site.updatedAt,
+          priority: "low",
         });
       }
     } else {

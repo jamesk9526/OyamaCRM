@@ -4,12 +4,15 @@ import { useState, useEffect, useCallback } from "react";
 import NewCampaignModal from "@/app/components/communications/NewCampaignModal";
 import { apiFetch } from "@/app/lib/auth-client";
 
+type CampaignPreparationStatus = "NOT_STARTED" | "DRAFT" | "READY";
+
 interface EmailCampaign {
   id: string;
   name: string;
   subject: string;
   ownerId?: string | null;
   sharedWithOrganization?: boolean;
+  preparationStatus?: CampaignPreparationStatus;
   status: string;
   sentAt?: string;
   scheduledAt?: string;
@@ -42,6 +45,12 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   CANCELLED: { label: "Cancelled", color: "bg-red-100 text-red-600" },
 };
 
+const PREPARATION_STATUS_CONFIG: Record<CampaignPreparationStatus, { label: string; color: string }> = {
+  NOT_STARTED: { label: "Not Started", color: "bg-slate-100 text-slate-700" },
+  DRAFT: { label: "Draft", color: "bg-amber-100 text-amber-700" },
+  READY: { label: "Ready", color: "bg-emerald-100 text-emerald-700" },
+};
+
 function formatDate(v?: string) {
   if (!v) return "—";
   return new Date(v).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -60,6 +69,7 @@ export default function CommunicationsPage() {
   const [showModal, setShowModal] = useState(false);
   const [sending, setSending] = useState<string | null>(null);
   const [sharingUpdateId, setSharingUpdateId] = useState<string | null>(null);
+  const [preparationUpdateId, setPreparationUpdateId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,9 +118,28 @@ export default function CommunicationsPage() {
     }
   }
 
+  /** Updates a campaign preparation attribute used for list tags and workflow readiness tracking. */
+  async function setPreparationStatus(campaign: EmailCampaign, preparationStatus: CampaignPreparationStatus) {
+    setPreparationUpdateId(campaign.id);
+    try {
+      await apiFetch(`/api/email-campaigns/${campaign.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ preparationStatus }),
+      });
+      await load();
+    } finally {
+      setPreparationUpdateId(null);
+    }
+  }
+
   /** Opens the drag-and-drop email builder in a new tab for the given campaign. */
   function openEditor(id: string) {
     window.open(`/email-builder?campaign=${id}`, "_blank");
+  }
+
+  /** Opens the campaign operations workspace in the current tab. */
+  function openWorkspace(id: string) {
+    window.location.href = `/communications/${id}`;
   }
 
   const filtered = statusFilter === "all" ? campaigns : campaigns.filter((c) => c.status === statusFilter);
@@ -176,8 +205,11 @@ export default function CommunicationsPage() {
               sharingUpdating={sharingUpdateId === c.id}
               onSend={() => sendNow(c.id)}
               onEdit={() => openEditor(c.id)}
+              onWorkspace={() => openWorkspace(c.id)}
               onToggleSharing={() => toggleCampaignVisibility(c)}
+              onPreparationStatusChange={(nextStatus) => setPreparationStatus(c, nextStatus)}
               onDelete={() => deleteCampaign(c.id)}
+              preparationUpdating={preparationUpdateId === c.id}
             />
           ))}
         </div>
@@ -193,17 +225,33 @@ export default function CommunicationsPage() {
   );
 }
 
-function CampaignCard({ campaign: c, sending, sharingUpdating, onSend, onEdit, onToggleSharing, onDelete }: {
+function CampaignCard({
+  campaign: c,
+  sending,
+  sharingUpdating,
+  preparationUpdating,
+  onSend,
+  onEdit,
+  onWorkspace,
+  onToggleSharing,
+  onPreparationStatusChange,
+  onDelete,
+}: {
   campaign: EmailCampaign;
   sending: boolean;
   sharingUpdating: boolean;
+  preparationUpdating: boolean;
   onSend: () => void;
   /** Opens the email builder in a new tab for this campaign. */
   onEdit: () => void;
+  /** Opens this campaign's delivery workspace in the current tab. */
+  onWorkspace: () => void;
   onToggleSharing: () => void;
+  onPreparationStatusChange: (status: CampaignPreparationStatus) => void;
   onDelete: () => void;
 }){
   const cfg = STATUS_CONFIG[c.status] ?? STATUS_CONFIG.DRAFT;
+  const preparation = PREPARATION_STATUS_CONFIG[c.preparationStatus ?? "DRAFT"];
   const isSent = c.status === "SENT";
 
   return (
@@ -214,6 +262,9 @@ function CampaignCard({ campaign: c, sending, sharingUpdating, onSend, onEdit, o
             <h3 className="text-sm font-semibold text-gray-900 truncate">{c.name}</h3>
             <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${cfg.color}`}>
               {cfg.label}
+            </span>
+            <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${preparation.color}`}>
+              {preparation.label}
             </span>
             <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${c.sharedWithOrganization ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-600"}`}>
               {c.sharedWithOrganization ? "Shared" : "Private"}
@@ -248,6 +299,23 @@ function CampaignCard({ campaign: c, sending, sharingUpdating, onSend, onEdit, o
               Edit
             </button>
           )}
+          <button
+            onClick={onWorkspace}
+            className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors"
+          >
+            Workspace
+          </button>
+          <select
+            value={c.preparationStatus ?? "DRAFT"}
+            onChange={(event) => onPreparationStatusChange(event.target.value as CampaignPreparationStatus)}
+            disabled={preparationUpdating}
+            className="px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg transition-colors disabled:opacity-50"
+            title="Set campaign preparation attribute"
+          >
+            <option value="NOT_STARTED">Not Started</option>
+            <option value="DRAFT">Draft</option>
+            <option value="READY">Ready</option>
+          </select>
           <button
             onClick={onToggleSharing}
             disabled={sharingUpdating}

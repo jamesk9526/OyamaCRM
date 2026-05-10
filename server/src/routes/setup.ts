@@ -32,11 +32,36 @@ interface SetupCompletePayload {
   workspaces?: {
     oyamacrm?: boolean;
     oyamacrmCompassion?: boolean;
+    defaultWorkspace?: "donor" | "compassion";
   };
+  defaults?: {
+    fiscalYearStart?: number;
+    currency?: string;
+    timezone?: string;
+    smtpHost?: string;
+    smtpPort?: number;
+    smtpFromName?: string;
+    smtpFromEmail?: string;
+  };
+  goals?: {
+    annualRevenueGoal?: number | null;
+    donorRetentionGoal?: number | null;
+    averageGiftGoal?: number | null;
+  };
+  teamUsers?: Array<{
+    firstName: string;
+    lastName: string;
+    email: string;
+    role?: string;
+    password: string;
+  }>;
 }
 
 const ADMIN_ROLE = "admin";
+const DEFAULT_TEAM_ROLE = "staff";
 const DEFAULT_TIMEZONE = "America/Chicago";
+const DEFAULT_CURRENCY = "USD";
+const DEFAULT_FISCAL_YEAR_START = 1;
 const BCRYPT_ROUNDS = Number.parseInt(process.env.BCRYPT_ROUNDS ?? "12", 10) || 12;
 
 /**
@@ -113,11 +138,27 @@ router.post("/complete", async (req: Request, res: Response) => {
 
     const body = req.body as SetupCompletePayload;
     const orgName = body?.organization?.name?.trim();
-    const timezone = body?.organization?.timezone?.trim() || DEFAULT_TIMEZONE;
+    const timezone = body?.defaults?.timezone?.trim() || body?.organization?.timezone?.trim() || DEFAULT_TIMEZONE;
+    const fiscalYearStart = body?.defaults?.fiscalYearStart ?? DEFAULT_FISCAL_YEAR_START;
+    const currency = body?.defaults?.currency?.trim() || DEFAULT_CURRENCY;
     const adminFirstName = body?.adminUser?.firstName?.trim();
     const adminLastName = body?.adminUser?.lastName?.trim();
     const adminEmail = body?.adminUser?.email?.trim().toLowerCase();
     const adminPassword = body?.adminUser?.password ?? "";
+    const smtpHost = body?.defaults?.smtpHost?.trim() ?? "";
+    const smtpPort = body?.defaults?.smtpPort ?? 587;
+    const smtpFromName = body?.defaults?.smtpFromName?.trim() || orgName;
+    const smtpFromEmail = body?.defaults?.smtpFromEmail?.trim() || body?.organization?.primaryContactEmail?.trim() || "";
+    const teamUsersInput = Array.isArray(body?.teamUsers) ? body.teamUsers : [];
+
+    const allowedTeamRoles = new Set(["manager", "staff", "readonly", "report_viewer"]);
+    const normalizedTeamUsers = teamUsersInput.map((user) => ({
+      firstName: user.firstName?.trim() ?? "",
+      lastName: user.lastName?.trim() ?? "",
+      email: user.email?.trim().toLowerCase() ?? "",
+      role: allowedTeamRoles.has(user.role ?? "") ? user.role! : DEFAULT_TEAM_ROLE,
+      password: user.password ?? "",
+    }));
 
     if (!orgName || !adminFirstName || !adminLastName || !adminEmail || !adminPassword) {
       return res.status(400).json({
@@ -137,6 +178,26 @@ router.post("/complete", async (req: Request, res: Response) => {
         error: {
           code: "INVALID_TIMEZONE",
           message: "Timezone must be a valid IANA timezone string.",
+        },
+      });
+    }
+
+    if (fiscalYearStart < 1 || fiscalYearStart > 12) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "INVALID_FISCAL_YEAR_START",
+          message: "fiscalYearStart must be between 1 and 12.",
+        },
+      });
+    }
+
+    if (!currency) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "INVALID_CURRENCY",
+          message: "currency is required when defaults are provided.",
         },
       });
     }
@@ -161,6 +222,38 @@ router.post("/complete", async (req: Request, res: Response) => {
       });
     }
 
+    const teamEmailSet = new Set<string>();
+    for (const user of normalizedTeamUsers) {
+      if (!user.firstName || !user.lastName || !user.email || user.password.length < 8) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "TEAM_USER_VALIDATION_FAILED",
+            message: "Each team user requires firstName, lastName, email, and password (min 8 chars).",
+          },
+        });
+      }
+      if (user.email === adminEmail) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "TEAM_USER_EMAIL_CONFLICT",
+            message: "Team user email cannot match the admin email.",
+          },
+        });
+      }
+      if (teamEmailSet.has(user.email)) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "TEAM_USER_DUPLICATE_EMAIL",
+            message: "Team user emails must be unique.",
+          },
+        });
+      }
+      teamEmailSet.add(user.email);
+    }
+
     const existingUser = await prisma.user.findUnique({ where: { email: adminEmail } });
     if (existingUser) {
       return res.status(409).json({
@@ -172,7 +265,25 @@ router.post("/complete", async (req: Request, res: Response) => {
       });
     }
 
+    const existingTeamUsers = normalizedTeamUsers.length
+      ? await prisma.user.findMany({
+          where: { email: { in: normalizedTeamUsers.map((u) => u.email) } },
+          select: { email: true },
+        })
+      : [];
+
+    if (existingTeamUsers.length > 0) {
+      return res.status(409).json({
+        success: false,
+        error: {
+          code: "TEAM_EMAIL_ALREADY_EXISTS",
+          message: `A user already exists with email ${existingTeamUsers[0].email}.`,
+        },
+      });
+    }
+
     const passwordHash = await bcrypt.hash(adminPassword, BCRYPT_ROUNDS);
+    const teamPasswordHashes = await Promise.all(normalizedTeamUsers.map((user) => bcrypt.hash(user.password, BCRYPT_ROUNDS)));
 
     const result = await prisma.$transaction(async (tx) => {
       const organization = await tx.organization.create({
@@ -183,12 +294,13 @@ router.post("/complete", async (req: Request, res: Response) => {
         data: {
           organizationId: organization.id,
           timezone,
-          currency: "USD",
-          fiscalYearStart: 1,
+          currency,
+          fiscalYearStart,
           smtpSecure: false,
-          smtpPort: 587,
-          smtpFromName: orgName,
-          smtpFromEmail: body?.organization?.primaryContactEmail?.trim() || "",
+          smtpHost,
+          smtpPort,
+          smtpFromName,
+          smtpFromEmail,
         },
       });
 
@@ -204,6 +316,22 @@ router.post("/complete", async (req: Request, res: Response) => {
         },
       });
 
+      const createdTeamUsers = normalizedTeamUsers.length > 0
+        ? await Promise.all(
+            normalizedTeamUsers.map((user, index) => tx.user.create({
+              data: {
+                organizationId: organization.id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                role: user.role,
+                active: true,
+                passwordHash: teamPasswordHashes[index],
+              },
+            })),
+          )
+        : [];
+
       await tx.auditLog.create({
         data: {
           organizationId: organization.id,
@@ -214,13 +342,17 @@ router.post("/complete", async (req: Request, res: Response) => {
           metadata: {
             organizationType: body?.organization?.organizationType ?? null,
             timezone,
+            fiscalYearStart,
+            currency,
             branding: body?.branding ?? null,
             workspaces: body?.workspaces ?? null,
+            goals: body?.goals ?? null,
+            teamUsersCreated: createdTeamUsers.length,
           },
         },
       });
 
-      return { organization, adminUser };
+      return { organization, adminUser, createdTeamUsers };
     });
 
     return res.status(201).json({
@@ -229,6 +361,7 @@ router.post("/complete", async (req: Request, res: Response) => {
         setupCompleted: true,
         organizationId: result.organization.id,
         adminUserId: result.adminUser.id,
+        teamUsersCreated: result.createdTeamUsers.length,
       },
       meta: {},
     });

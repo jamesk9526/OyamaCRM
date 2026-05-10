@@ -1,6 +1,6 @@
 {
   "name": "agents-create-oyamam-crm-workspace",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "packageManager": "pnpm@10.11.0",
   "scripts": {
@@ -74,6 +74,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.5",
     "mysql2": "^3.22.3",
+    "playwright": "1.59.1",
     "pm2": "^5",
     "prisma": "^5.22.0",
     "supertest": "^7.2.2",

@@ -8,46 +8,65 @@
 import Card from "@/app/components/ui/Card";
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import { useAuth } from "@/app/components/auth/AuthProvider";
 
 /** Minimal task shape we need from the API */
 interface TaskItem {
   id: string;
   title: string;
-  taskType: string;
+  type?: string;
+  taskType?: string;
   status: string;
   dueDate: string | null;
+  assigneeId?: string | null;
+  createdById?: string | null;
   assignee: { firstName: string; lastName: string } | null;
   constituent: { firstName: string; lastName: string } | null;
 }
 
 export default function TasksWidget() {
+  const { user } = useAuth();
   const [filter, setFilter] = useState<"all" | "my">("all");
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   /** Fetch tasks from the API */
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const data = await apiFetch<{ items?: TaskItem[] } | TaskItem[]>("/api/tasks?status=PENDING&limit=20");
+      const scope = filter === "my" ? "personal" : "all";
+      const data = await apiFetch<{ items?: TaskItem[] } | TaskItem[]>(`/api/tasks?status=PENDING&limit=20&scope=${scope}`);
       // Tasks API returns { items: [...], total }
-      setTasks(Array.isArray(data) ? data : ((data as { items?: TaskItem[] }).items ?? []));
-    } catch {
+      const nextTasks = Array.isArray(data) ? data : ((data as { items?: TaskItem[] }).items ?? []);
+      // Defensive local guard so MY view remains truthful even if backend ignores scope.
+      if (filter === "my" && user?.id) {
+        setTasks(nextTasks.filter((task) => task.assigneeId === user.id || task.createdById === user.id));
+      } else {
+        setTasks(nextTasks);
+      }
+    } catch (requestError) {
       setTasks([]);
+      setError(requestError instanceof Error ? requestError.message : "Failed to load tasks.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filter, user?.id]);
 
   useEffect(() => { load(); }, [load]);
 
   /** Mark a task as complete and refresh */
   async function complete(id: string) {
-    await apiFetch(`/api/tasks/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ status: "COMPLETED" }),
-    });
-    load();
+    try {
+      await apiFetch(`/api/tasks/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "COMPLETED" }),
+      });
+      load();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to complete task.");
+    }
   }
 
   const now = new Date();
@@ -97,6 +116,11 @@ export default function TasksWidget() {
 
       {/* Task list */}
       <div className="flex-1 overflow-y-auto space-y-4 min-h-0">
+        {error && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            {error}
+          </div>
+        )}
         {loading ? (
           // Skeleton rows
           Array.from({ length: 4 }).map((_, i) => (
@@ -147,6 +171,7 @@ export default function TasksWidget() {
  */
 function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: (id: string) => void }) {
   const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
+  const taskType = task.type ?? task.taskType ?? "FOLLOW_UP";
 
   return (
     <div className="p-3 border border-gray-200 rounded-lg hover:border-green-200 hover:bg-green-50/30 transition-colors group">
@@ -177,7 +202,7 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: (id: strin
       <div className="flex items-center gap-2 mt-1.5">
         {/* Task type badge */}
         <span className="px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-600 rounded">
-          {task.taskType}
+          {taskType}
         </span>
         {/* Due date */}
         {task.dueDate && (

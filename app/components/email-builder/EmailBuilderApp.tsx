@@ -12,7 +12,7 @@
 
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -41,6 +41,15 @@ import BlockEditor   from './BlockEditor';
 import EmailPreview  from './EmailPreview';
 import { apiFetch } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
+
+const MERGE_TOKENS = [
+  "{{constituent.firstName}}",
+  "{{constituent.lastName}}",
+  "{{constituent.email}}",
+  "{{organization.name}}",
+  "{{donation.lastAmount}}",
+  "{{unsubscribeUrl}}",
+] as const;
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -80,6 +89,14 @@ export default function EmailBuilderApp({ campaignId }: Props) {
   const [campaignName,   setCampaignName]    = useState('Email Campaign');
   const [preset,         setPreset]          = useState<TemplatePreset>('blank');
   const [dirty,          setDirty]           = useState(false);
+  const [copiedToken,    setCopiedToken]     = useState<string | null>(null);
+  const dirtyRef = useRef(false);
+
+  /** Marks the template as having unsaved local edits and updates the dirty ref synchronously. */
+  const markDirty = useCallback(() => {
+    dirtyRef.current = true;
+    setDirty(true);
+  }, []);
 
   // ── Drag state (for DragOverlay label) ────────────────────────────────────
   const [activeLabel, setActiveLabel] = useState<string | null>(null);
@@ -99,8 +116,8 @@ export default function EmailBuilderApp({ campaignId }: Props) {
     apiFetch<{ name?: string; templateJson?: string }>(`/api/email-campaigns/${campaignId}`)
       .then((data) => {
         if (data.name)     setCampaignName(data.name);
-        /* If the API returns a stored template JSON, restore the full editor state. */
-        if (data.templateJson) {
+        // Avoid clobbering in-progress local edits if the initial load resolves late.
+        if (!dirtyRef.current && data.templateJson) {
           try {
             setTemplate(JSON.parse(data.templateJson) as EmailTemplate);
             setPreset('blank');
@@ -108,7 +125,9 @@ export default function EmailBuilderApp({ campaignId }: Props) {
             /* ignore parse errors */
           }
         }
-        setDirty(false);
+        if (!dirtyRef.current) {
+          setDirty(false);
+        }
       })
       .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
@@ -127,21 +146,21 @@ export default function EmailBuilderApp({ campaignId }: Props) {
         b.id === id ? ({ ...b, ...partial } as EmailBlock) : b
       ),
     }));
-    setDirty(true);
-  }, []);
+    markDirty();
+  }, [markDirty]);
 
   /** Remove a block by id. Also clears selection if that block was selected. */
   const deleteBlock = useCallback((id: string) => {
     setTemplate((prev) => ({ ...prev, blocks: prev.blocks.filter((b) => b.id !== id) }));
     setSelectedId((prev) => (prev === id ? null : prev));
-    setDirty(true);
-  }, []);
+    markDirty();
+  }, [markDirty]);
 
   /** Update top-level template properties (background, font, width). */
   const updateTemplate = useCallback((partial: Partial<EmailTemplate>) => {
     setTemplate((prev) => ({ ...prev, ...partial }));
-    setDirty(true);
-  }, []);
+    markDirty();
+  }, [markDirty]);
 
   // ── DnD sensors ───────────────────────────────────────────────────────────
 
@@ -198,7 +217,7 @@ export default function EmailBuilderApp({ campaignId }: Props) {
         return { ...prev, blocks };
       });
       setSelectedId(newBlock.id);
-      setDirty(true);
+      markDirty();
 
     } else if (origin === 'canvas') {
       /* ── Canvas reorder ── */
@@ -210,7 +229,7 @@ export default function EmailBuilderApp({ campaignId }: Props) {
           if (oldIndex === -1 || newIndex === -1) return prev;
           return { ...prev, blocks: arrayMove(prev.blocks, oldIndex, newIndex) };
         });
-        setDirty(true);
+        markDirty();
       }
     }
   };
@@ -228,7 +247,7 @@ export default function EmailBuilderApp({ campaignId }: Props) {
       blocks.splice(index + 1, 0, duplicated);
       return { ...prev, blocks };
     });
-    setDirty(true);
+    markDirty();
   };
 
   /** Replaces the current canvas with a starter preset template. */
@@ -236,10 +255,23 @@ export default function EmailBuilderApp({ campaignId }: Props) {
     const next = createTemplateFromPreset(preset);
     setTemplate(next);
     setSelectedId(next.blocks[0]?.id ?? null);
-    setDirty(true);
+    markDirty();
   };
 
   // ── Save ───────────────────────────────────────────────────────────────────
+
+  /** Copies one merge token so staff can quickly personalize content blocks. */
+  const copyMergeToken = useCallback(async (token: string) => {
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(token);
+        setCopiedToken(token);
+        setTimeout(() => setCopiedToken(null), 1800);
+      }
+    } catch {
+      // Ignore clipboard failures in browsers that disallow async clipboard calls.
+    }
+  }, []);
 
   const handleSave = async () => {
     if (!campaignId) {
@@ -254,9 +286,15 @@ export default function EmailBuilderApp({ campaignId }: Props) {
       const bodyText = generatePlainText(template);
       await apiFetch(`/api/email-campaigns/${campaignId}`, {
         method:      'PUT',
-        body:        JSON.stringify({ bodyHtml, bodyText, templateJson: JSON.stringify(template) }),
+        body:        JSON.stringify({
+          bodyHtml,
+          bodyText,
+          templateJson: JSON.stringify(template),
+          preparationStatus: 'DRAFT',
+        }),
       });
       setSaveSuccess(true);
+      dirtyRef.current = false;
       setDirty(false);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: unknown) {
@@ -335,6 +373,15 @@ export default function EmailBuilderApp({ campaignId }: Props) {
             {campaignId && (
               <span className="text-xs text-gray-400 font-mono">#{campaignId}</span>
             )}
+            {campaignId && (
+              <a
+                href={`/communications/${campaignId}`}
+                target="_self"
+                className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50"
+              >
+                Campaign Workspace
+              </a>
+            )}
           </div>
 
           {/* Right: status + actions */}
@@ -387,6 +434,25 @@ export default function EmailBuilderApp({ campaignId }: Props) {
               </button>
             )}
 
+            <div className="hidden items-center gap-1 xl:flex">
+              {MERGE_TOKENS.map((token) => (
+                <button
+                  key={token}
+                  onClick={() => void copyMergeToken(token)}
+                  className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-100"
+                  title="Copy merge token"
+                >
+                  {token.replace(/[{}]/g, "")}
+                </button>
+              ))}
+            </div>
+
+            {copiedToken && (
+              <span className="hidden text-xs text-green-700 xl:inline">
+                Copied {copiedToken}
+              </span>
+            )}
+
             {/* Preview */}
             <button
               onClick={() => setShowPreview(true)}
@@ -398,7 +464,7 @@ export default function EmailBuilderApp({ campaignId }: Props) {
             {/* Save */}
             <button
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || !campaignId || authLoading || loading}
               className={[
                 'text-sm px-4 py-1.5 rounded-lg font-medium transition-colors',
                 saving

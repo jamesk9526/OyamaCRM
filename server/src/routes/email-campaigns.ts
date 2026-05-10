@@ -59,6 +59,42 @@ interface CampaignSharingSettings {
   sharedWithOrganization: boolean;
 }
 
+type CampaignPreparationStatus = "NOT_STARTED" | "DRAFT" | "READY";
+
+interface CampaignWorkflowSettings {
+  preparationStatus: CampaignPreparationStatus;
+}
+
+const CAMPAIGN_PREPARATION_STATUSES: CampaignPreparationStatus[] = ["NOT_STARTED", "DRAFT", "READY"];
+
+type CampaignSendMode = "CAMPAIGN_AUDIENCE" | "SEGMENT" | "SAVED_LIST" | "LIST" | "INDIVIDUAL";
+
+interface CampaignSendOptions {
+  sendMode?: CampaignSendMode;
+  audienceFilter?: AudienceFilter;
+  recipientListId?: string;
+  recipientEmails?: string[];
+}
+
+interface ResolvedRecipientPlan {
+  sendMode: CampaignSendMode;
+  recipients: string[];
+  audience: Omit<AudiencePreview, "recipients">;
+  audienceType: string;
+  recipientListId?: string;
+}
+
+type DeliveryEventType = "QUEUED" | "DELIVERED" | "OPENED" | "CLICKED" | "BOUNCED";
+
+const DELIVERY_EVENT_TYPES: DeliveryEventType[] = ["QUEUED", "DELIVERED", "OPENED", "CLICKED", "BOUNCED"];
+
+/** Validates and normalizes delivery event type strings from request payloads. */
+function parseDeliveryEventType(raw: unknown): DeliveryEventType | null {
+  if (typeof raw !== "string") return null;
+  const normalized = raw.trim().toUpperCase() as DeliveryEventType;
+  return DELIVERY_EVENT_TYPES.includes(normalized) ? normalized : null;
+}
+
 // RFC 5322-inspired practical pattern for application-level email validation.
 const EMAIL_PATTERN =
   /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
@@ -157,6 +193,133 @@ function parseEnvBool(value: string | undefined): boolean {
   return /^(1|true|yes|on)$/i.test((value ?? "").trim());
 }
 
+/** Normalizes and validates recipient emails from manual list payloads. */
+function normalizeRecipientEmails(raw: string[] | undefined): string[] {
+  if (!raw || raw.length === 0) return [];
+
+  const flattened = raw
+    .flatMap((value) => String(value).split(/[\n,;]+/))
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const email of flattened) {
+    if (!isValidEmail(email)) {
+      throw new CampaignSendError(`Invalid recipient email: ${email}`, 400);
+    }
+    if (!seen.has(email)) {
+      seen.add(email);
+      unique.push(email);
+    }
+  }
+
+  return unique;
+}
+
+/** Loads one saved recipient list and normalizes member emails for sending. */
+async function resolveSavedListRecipients(
+  listId: string | undefined,
+  organizationId: string,
+): Promise<{ listId: string; recipients: string[]; name: string }> {
+  if (!listId) {
+    throw new CampaignSendError("recipientListId is required for saved-list sends.", 400);
+  }
+
+  const list = await prisma.emailRecipientList.findFirst({
+    where: {
+      id: listId,
+      organizationId,
+    },
+    include: {
+      recipients: {
+        select: { email: true },
+      },
+    },
+  });
+
+  if (!list) {
+    throw new CampaignSendError("Saved recipient list not found.", 404);
+  }
+
+  const recipients = normalizeRecipientEmails(list.recipients.map((row) => row.email));
+  return {
+    listId: list.id,
+    name: list.name,
+    recipients,
+  };
+}
+
+/** Resolves recipients for one send operation from campaign audience, segment, list, or individual modes. */
+async function resolveRecipientPlan(
+  campaign: { organizationId: string; audienceFilter: string | null },
+  options?: CampaignSendOptions,
+): Promise<ResolvedRecipientPlan> {
+  const sendMode = options?.sendMode ?? "CAMPAIGN_AUDIENCE";
+
+  if (sendMode === "SAVED_LIST") {
+    const saved = await resolveSavedListRecipients(options?.recipientListId, campaign.organizationId);
+    return {
+      sendMode,
+      recipients: saved.recipients,
+      audience: {
+        totalMatched: saved.recipients.length,
+        validEmail: saved.recipients.length,
+        missingEmail: 0,
+        optedOut: 0,
+        duplicateEmails: 0,
+        suppressionCount: 0,
+        finalSendCount: saved.recipients.length,
+      },
+      audienceType: `saved-list:${saved.name}`,
+      recipientListId: saved.listId,
+    };
+  }
+
+  if (sendMode === "LIST" || sendMode === "INDIVIDUAL") {
+    const recipients = normalizeRecipientEmails(options?.recipientEmails);
+    return {
+      sendMode,
+      recipients,
+      audience: {
+        totalMatched: recipients.length,
+        validEmail: recipients.length,
+        missingEmail: 0,
+        optedOut: 0,
+        duplicateEmails: 0,
+        suppressionCount: 0,
+        finalSendCount: recipients.length,
+      },
+      audienceType: sendMode === "INDIVIDUAL" ? "individual" : "manual-list",
+    };
+  }
+
+  const stored = parseCampaignAudienceFilter(campaign.audienceFilter);
+  const effectiveFilter = sendMode === "SEGMENT"
+    ? (options?.audienceFilter ?? stored.filter)
+    : stored.filter;
+
+  const rows = await getAudienceConstituents(effectiveFilter, campaign.organizationId);
+  const preview = computeAudiencePreview(rows);
+  return {
+    sendMode,
+    recipients: preview.recipients,
+    audience: {
+      totalMatched: preview.totalMatched,
+      validEmail: preview.validEmail,
+      missingEmail: preview.missingEmail,
+      optedOut: preview.optedOut,
+      duplicateEmails: preview.duplicateEmails,
+      suppressionCount: preview.suppressionCount,
+      finalSendCount: preview.finalSendCount,
+    },
+    audienceType:
+      effectiveFilter && typeof effectiveFilter === "object" && typeof effectiveFilter.type === "string"
+        ? effectiveFilter.type
+        : "all",
+  };
+}
+
 /** Coerces environment SMTP values into one effective settings snapshot. */
 function resolveSmtpSettings(settings: SmtpSettingsSnapshot | null): SmtpSettingsSnapshot {
   const envPortRaw = (process.env.SMTP_PORT ?? "").trim();
@@ -174,12 +337,25 @@ function resolveSmtpSettings(settings: SmtpSettingsSnapshot | null): SmtpSetting
   };
 }
 
-/** Parse audienceFilter JSON into filter + sharing settings with safe defaults. */
-function parseCampaignAudienceFilter(raw: string | null): { filter: AudienceFilter; sharing: CampaignSharingSettings } {
+/** Validates preparation status values and returns a safe fallback for unknown inputs. */
+function normalizePreparationStatus(
+  raw: unknown,
+  fallback: CampaignPreparationStatus = "DRAFT",
+): CampaignPreparationStatus {
+  if (typeof raw !== "string") return fallback;
+  const normalized = raw.trim().toUpperCase() as CampaignPreparationStatus;
+  return CAMPAIGN_PREPARATION_STATUSES.includes(normalized) ? normalized : fallback;
+}
+
+/** Parse audienceFilter JSON into filter + sharing/workflow settings with safe defaults. */
+function parseCampaignAudienceFilter(
+  raw: string | null,
+): { filter: AudienceFilter; sharing: CampaignSharingSettings; workflow: CampaignWorkflowSettings } {
   if (!raw) {
     return {
       filter: null,
       sharing: { ownerId: null, sharedWithOrganization: true },
+      workflow: { preparationStatus: "DRAFT" },
     };
   }
 
@@ -188,6 +364,10 @@ function parseCampaignAudienceFilter(raw: string | null): { filter: AudienceFilt
     const sharing = parsed._sharing;
     const sharingObj = sharing && typeof sharing === "object" && !Array.isArray(sharing)
       ? (sharing as Record<string, unknown>)
+      : null;
+    const workflow = parsed._workflow;
+    const workflowObj = workflow && typeof workflow === "object" && !Array.isArray(workflow)
+      ? (workflow as Record<string, unknown>)
       : null;
 
     return {
@@ -199,23 +379,84 @@ function parseCampaignAudienceFilter(raw: string | null): { filter: AudienceFilt
             ? sharingObj.sharedWithOrganization
             : true,
       },
+      workflow: {
+        preparationStatus: normalizePreparationStatus(
+          workflowObj?.preparationStatus,
+          "DRAFT",
+        ),
+      },
     };
   } catch {
     return {
       filter: null,
       sharing: { ownerId: null, sharedWithOrganization: true },
+      workflow: { preparationStatus: "DRAFT" },
     };
   }
 }
 
 /** Serialize filter payload back into audienceFilter JSON while preserving sharing metadata. */
-function serializeCampaignAudienceFilter(filter: AudienceFilter, ownerId: string, sharedWithOrganization: boolean): string {
+function serializeCampaignAudienceFilter(
+  filter: AudienceFilter,
+  ownerId: string,
+  sharedWithOrganization: boolean,
+  preparationStatus: CampaignPreparationStatus,
+): string {
   const safeFilter = filter && typeof filter === "object" ? { ...filter } : {};
   return JSON.stringify({
     ...safeFilter,
     _sharing: {
       ownerId,
       sharedWithOrganization,
+    },
+    _workflow: {
+      preparationStatus,
+    },
+  });
+}
+
+/** Writes one event row per recipient for delivery analytics and send forensics. */
+async function createDeliveryEvents(params: {
+  organizationId: string;
+  campaignId: string;
+  recipients: string[];
+  eventType: DeliveryEventType;
+  metadata?: Record<string, unknown>;
+}) {
+  const uniqueRecipients = Array.from(new Set(params.recipients.map((email) => email.trim().toLowerCase())));
+  if (uniqueRecipients.length === 0) return;
+
+  await prisma.emailCampaignDeliveryEvent.createMany({
+    data: uniqueRecipients.map((recipientEmail) => ({
+      organizationId: params.organizationId,
+      campaignId: params.campaignId,
+      recipientEmail,
+      eventType: params.eventType,
+      eventAt: new Date(),
+      metadata: params.metadata,
+    })),
+    skipDuplicates: true,
+  });
+}
+
+/** Rebuilds campaign-level delivery counters from event rows. */
+async function recalculateCampaignDeliveryStats(campaignId: string) {
+  const [queued, delivered, opened, clicked, bounced] = await Promise.all([
+    prisma.emailCampaignDeliveryEvent.count({ where: { campaignId, eventType: "QUEUED" } }),
+    prisma.emailCampaignDeliveryEvent.count({ where: { campaignId, eventType: "DELIVERED" } }),
+    prisma.emailCampaignDeliveryEvent.count({ where: { campaignId, eventType: "OPENED" } }),
+    prisma.emailCampaignDeliveryEvent.count({ where: { campaignId, eventType: "CLICKED" } }),
+    prisma.emailCampaignDeliveryEvent.count({ where: { campaignId, eventType: "BOUNCED" } }),
+  ]);
+
+  await prisma.emailCampaign.update({
+    where: { id: campaignId },
+    data: {
+      totalRecipients: queued > 0 ? queued : delivered,
+      delivered,
+      opened,
+      clicked,
+      bounced,
     },
   });
 }
@@ -250,7 +491,11 @@ class CampaignSendError extends Error {
  * Sends one email campaign immediately and writes send metrics/audit.
  * Used by both manual send route and the scheduled queue worker.
  */
-export async function sendCampaignNow(campaignId: string, trigger: "MANUAL" | "QUEUE" = "MANUAL") {
+export async function sendCampaignNow(
+  campaignId: string,
+  trigger: "MANUAL" | "QUEUE" = "MANUAL",
+  options?: CampaignSendOptions,
+) {
   const campaign = await prisma.emailCampaign.findUnique({
     where: { id: campaignId },
   });
@@ -279,6 +524,8 @@ export async function sendCampaignNow(campaignId: string, trigger: "MANUAL" | "Q
     throw new CampaignSendError("Campaign is currently being processed.", 409);
   }
 
+  let resolvedPlan: ResolvedRecipientPlan | null = null;
+
   try {
     const settingsRaw = await prisma.organizationSettings.findUnique({
       where: { organizationId: campaign.organizationId },
@@ -300,9 +547,9 @@ export async function sendCampaignNow(campaignId: string, trigger: "MANUAL" | "Q
       );
     }
 
-    const filter = parseCampaignAudienceFilter(campaign.audienceFilter).filter;
-    const preview = computeAudiencePreview(await getAudienceConstituents(filter, campaign.organizationId));
-    const to = preview.recipients;
+    const recipientPlan = await resolveRecipientPlan(campaign, options);
+    resolvedPlan = recipientPlan;
+    const to = recipientPlan.recipients;
     const recipientCount = to.length;
 
     if (recipientCount === 0) {
@@ -314,6 +561,18 @@ export async function sendCampaignNow(campaignId: string, trigger: "MANUAL" | "Q
       throw new CampaignSendError("SMTP host/port are required before sending campaigns.", 400);
     }
 
+    await createDeliveryEvents({
+      organizationId: campaign.organizationId,
+      campaignId: campaign.id,
+      recipients: to,
+      eventType: "QUEUED",
+      metadata: {
+        trigger,
+        sendMode: recipientPlan.sendMode,
+        audienceType: recipientPlan.audienceType,
+      },
+    });
+
     await transporter.sendMail({
       from: `"${settings.smtpFromName || campaign.fromName}" <${settings.smtpFromEmail}>`,
       to: settings.smtpFromEmail,
@@ -323,19 +582,27 @@ export async function sendCampaignNow(campaignId: string, trigger: "MANUAL" | "Q
       html: campaign.bodyHtml || `<p>${campaign.bodyText || "No content"}</p>`,
     });
 
+    await createDeliveryEvents({
+      organizationId: campaign.organizationId,
+      campaignId: campaign.id,
+      recipients: to,
+      eventType: "DELIVERED",
+      metadata: {
+        trigger,
+        sendMode: recipientPlan.sendMode,
+      },
+    });
+
     const updated = await prisma.emailCampaign.update({
       where: { id: campaign.id },
       data: {
         status: "SENT",
         sentAt: new Date(),
-        totalRecipients: recipientCount,
-        delivered: recipientCount,
-        opened: 0,
-        clicked: 0,
-        bounced: 0,
         unsubscribed: 0,
       },
     });
+
+    await recalculateCampaignDeliveryStats(campaign.id);
 
     await prisma.auditLog.create({
       data: {
@@ -345,11 +612,14 @@ export async function sendCampaignNow(campaignId: string, trigger: "MANUAL" | "Q
         entityId: campaign.id,
         metadata: {
           trigger,
-          totalMatched: preview.totalMatched,
-          missingEmail: preview.missingEmail,
-          optedOut: preview.optedOut,
-          duplicateEmails: preview.duplicateEmails,
-          finalSendCount: preview.finalSendCount,
+          sendMode: recipientPlan.sendMode,
+          audienceType: recipientPlan.audienceType,
+          totalMatched: recipientPlan.audience.totalMatched,
+          missingEmail: recipientPlan.audience.missingEmail,
+          optedOut: recipientPlan.audience.optedOut,
+          duplicateEmails: recipientPlan.audience.duplicateEmails,
+          finalSendCount: recipientPlan.audience.finalSendCount,
+          recipientListId: recipientPlan.recipientListId,
         },
       },
     });
@@ -361,9 +631,270 @@ export async function sendCampaignNow(campaignId: string, trigger: "MANUAL" | "Q
       where: { id: campaign.id, status: "SENDING" },
       data: { status: previousStatus },
     });
+
+    if (resolvedPlan && resolvedPlan.recipients.length > 0) {
+      await createDeliveryEvents({
+        organizationId: campaign.organizationId,
+        campaignId: campaign.id,
+        recipients: resolvedPlan.recipients,
+        eventType: "BOUNCED",
+        metadata: {
+          trigger,
+          reason: err instanceof Error ? err.message : String(err),
+        },
+      }).catch(() => {
+        // Best-effort event write for failed sends.
+      });
+
+      await recalculateCampaignDeliveryStats(campaign.id).catch(() => {
+        // Best-effort stat rebuild for failed sends.
+      });
+    }
+
+    await prisma.auditLog.create({
+      data: {
+        organizationId: campaign.organizationId,
+        action: "EMAIL_CAMPAIGN_SEND_FAILED",
+        entity: "EmailCampaign",
+        entityId: campaign.id,
+        metadata: {
+          trigger,
+          message: err instanceof Error ? err.message : String(err),
+        },
+      },
+    }).catch(() => {
+      // Best-effort logging only.
+    });
+
     throw err;
   }
 }
+
+/**
+ * GET /api/email-campaigns/:id/send-log
+ * Description: Returns send/test/schedule/cancel activity entries for one campaign.
+ */
+router.get("/:id/send-log", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({
+    where: {
+      id: req.params.id,
+      organizationId,
+    },
+    select: { id: true, audienceFilter: true },
+  });
+  if (!campaign) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  if (!canAccessCampaign(parseCampaignAudienceFilter(campaign.audienceFilter).sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this campaign" } });
+    return;
+  }
+
+  const parsedLimit = Number.parseInt((req.query.limit as string) ?? "50", 10);
+  const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 200) : 50;
+
+  const items = await prisma.auditLog.findMany({
+    where: {
+      organizationId,
+      entity: "EmailCampaign",
+      entityId: campaign.id,
+      action: {
+        in: [
+          "EMAIL_CAMPAIGN_SENT",
+          "EMAIL_CAMPAIGN_SEND_FAILED",
+          "EMAIL_CAMPAIGN_TEST_SENT",
+          "EMAIL_CAMPAIGN_SCHEDULED",
+          "EMAIL_CAMPAIGN_CANCELLED",
+        ],
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    include: {
+      user: {
+        select: { id: true, firstName: true, lastName: true, email: true },
+      },
+    },
+  });
+
+  res.json(items.map((entry) => ({
+    id: entry.id,
+    action: entry.action,
+    createdAt: entry.createdAt,
+    metadata: entry.metadata,
+    user: entry.user
+      ? {
+          id: entry.user.id,
+          name: `${entry.user.firstName ?? ""} ${entry.user.lastName ?? ""}`.trim() || entry.user.email,
+          email: entry.user.email,
+        }
+      : null,
+  })));
+});
+
+/**
+ * GET /api/email-campaigns/:id/delivery-events
+ * Description: Returns delivery analytics summary and recent per-recipient events.
+ */
+router.get("/:id/delivery-events", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({
+    where: {
+      id: req.params.id,
+      organizationId,
+    },
+    select: { id: true, audienceFilter: true },
+  });
+  if (!campaign) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  if (!canAccessCampaign(parseCampaignAudienceFilter(campaign.audienceFilter).sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this campaign" } });
+    return;
+  }
+
+  const parsedLimit = Number.parseInt((req.query.limit as string) ?? "200", 10);
+  const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 1000) : 200;
+
+  const [events, grouped] = await Promise.all([
+    prisma.emailCampaignDeliveryEvent.findMany({
+      where: {
+        organizationId,
+        campaignId: campaign.id,
+      },
+      orderBy: { eventAt: "desc" },
+      take: limit,
+    }),
+    prisma.emailCampaignDeliveryEvent.groupBy({
+      by: ["eventType"],
+      where: {
+        organizationId,
+        campaignId: campaign.id,
+      },
+      _count: { eventType: true },
+    }),
+  ]);
+
+  const byType = Object.fromEntries(grouped.map((row) => [row.eventType, row._count.eventType])) as Record<string, number>;
+  const delivered = byType.DELIVERED ?? 0;
+  const opened = byType.OPENED ?? 0;
+  const clicked = byType.CLICKED ?? 0;
+  const bounced = byType.BOUNCED ?? 0;
+
+  res.json({
+    summary: {
+      queued: byType.QUEUED ?? 0,
+      delivered,
+      opened,
+      clicked,
+      bounced,
+      openRate: delivered > 0 ? Math.round((opened / delivered) * 100) : 0,
+      clickRate: delivered > 0 ? Math.round((clicked / delivered) * 100) : 0,
+      bounceRate: delivered > 0 ? Math.round((bounced / delivered) * 100) : 0,
+    },
+    events,
+  });
+});
+
+/**
+ * POST /api/email-campaigns/:id/delivery-events
+ * Description: Records one per-recipient delivery event for provider webhooks or manual reconciliation.
+ */
+router.post("/:id/delivery-events", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({
+    where: {
+      id: req.params.id,
+      organizationId,
+    },
+    select: { id: true, audienceFilter: true },
+  });
+  if (!campaign) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  if (!canManageCampaign(parseCampaignAudienceFilter(campaign.audienceFilter).sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only the owner can write delivery events" } });
+    return;
+  }
+
+  const { recipientEmail, eventType, metadata, eventAt } = req.body as {
+    recipientEmail?: string;
+    eventType?: string;
+    metadata?: Record<string, unknown>;
+    eventAt?: string;
+  };
+
+  if (!recipientEmail || !isValidEmail(recipientEmail)) {
+    res.status(400).json({ error: { code: "INVALID_RECIPIENT", message: "recipientEmail must be a valid email." } });
+    return;
+  }
+
+  const safeType = parseDeliveryEventType(eventType);
+  if (!safeType) {
+    res.status(400).json({ error: { code: "INVALID_EVENT_TYPE", message: "eventType must be one of QUEUED, DELIVERED, OPENED, CLICKED, BOUNCED." } });
+    return;
+  }
+
+  const safeEventAt = eventAt ? new Date(eventAt) : new Date();
+  if (Number.isNaN(safeEventAt.getTime())) {
+    res.status(400).json({ error: { code: "INVALID_EVENT_AT", message: "eventAt must be a valid ISO datetime." } });
+    return;
+  }
+
+  const event = await prisma.emailCampaignDeliveryEvent.upsert({
+    where: {
+      campaignId_recipientEmail_eventType: {
+        campaignId: campaign.id,
+        recipientEmail: recipientEmail.trim().toLowerCase(),
+        eventType: safeType,
+      },
+    },
+    update: {
+      eventAt: safeEventAt,
+      metadata: metadata ?? undefined,
+    },
+    create: {
+      organizationId,
+      campaignId: campaign.id,
+      recipientEmail: recipientEmail.trim().toLowerCase(),
+      eventType: safeType,
+      eventAt: safeEventAt,
+      metadata: metadata ?? undefined,
+    },
+  });
+
+  await recalculateCampaignDeliveryStats(campaign.id);
+
+  res.status(201).json(event);
+});
 
 /**
  * POST /api/email-campaigns/audience-preview
@@ -441,6 +972,7 @@ router.get("/", async (req, res) => {
         ...campaign,
         ownerId: parsed.sharing.ownerId,
         sharedWithOrganization: parsed.sharing.sharedWithOrganization,
+        preparationStatus: parsed.workflow.preparationStatus,
       };
     });
 
@@ -504,6 +1036,248 @@ router.get("/stats", async (req, res) => {
   });
 });
 
+/** GET /api/email-campaigns/lists — List saved recipient lists with recipient counts. */
+router.get("/lists", async (req, res) => {
+  const userId = req.user?.sub;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json([]);
+    return;
+  }
+
+  const lists = await prisma.emailRecipientList.findMany({
+    where: { organizationId },
+    orderBy: { updatedAt: "desc" },
+    include: {
+      _count: {
+        select: { recipients: true },
+      },
+    },
+  });
+
+  res.json(lists.map((list) => ({
+    id: list.id,
+    name: list.name,
+    description: list.description,
+    createdById: list.createdById,
+    createdAt: list.createdAt,
+    updatedAt: list.updatedAt,
+    recipientsCount: list._count.recipients,
+  })));
+});
+
+/** GET /api/email-campaigns/lists/:listId — One saved list including recipient emails. */
+router.get("/lists/:listId", async (req, res) => {
+  const userId = req.user?.sub;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const list = await prisma.emailRecipientList.findFirst({
+    where: {
+      id: req.params.listId,
+      organizationId,
+    },
+    include: {
+      recipients: {
+        orderBy: { createdAt: "asc" },
+      },
+    },
+  });
+
+  if (!list) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Saved recipient list not found." } });
+    return;
+  }
+
+  res.json(list);
+});
+
+/** POST /api/email-campaigns/lists — Create a saved list with recipient emails. */
+router.post("/lists", async (req, res) => {
+  const userId = req.user?.sub;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const { name, description, recipientEmails } = req.body as {
+    name?: string;
+    description?: string;
+    recipientEmails?: string[];
+  };
+
+  const safeName = (name ?? "").trim();
+  if (!safeName) {
+    res.status(400).json({ error: { code: "INVALID_NAME", message: "List name is required." } });
+    return;
+  }
+
+  const recipients = normalizeRecipientEmails(recipientEmails);
+
+  const created = await prisma.emailRecipientList.create({
+    data: {
+      organizationId,
+      name: safeName,
+      description: description?.trim() || null,
+      createdById: userId,
+      recipients: {
+        createMany: {
+          data: recipients.map((email) => ({ email })),
+          skipDuplicates: true,
+        },
+      },
+    },
+    include: {
+      _count: {
+        select: { recipients: true },
+      },
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      organizationId,
+      userId,
+      action: "EMAIL_RECIPIENT_LIST_CREATED",
+      entity: "EmailRecipientList",
+      entityId: created.id,
+      metadata: { recipientsCount: created._count.recipients },
+    },
+  }).catch(() => {
+    // Best-effort audit write.
+  });
+
+  res.status(201).json({
+    id: created.id,
+    name: created.name,
+    description: created.description,
+    createdById: created.createdById,
+    recipientsCount: created._count.recipients,
+    createdAt: created.createdAt,
+    updatedAt: created.updatedAt,
+  });
+});
+
+/** PUT /api/email-campaigns/lists/:listId — Rename/update a saved list and optionally replace recipients. */
+router.put("/lists/:listId", async (req, res) => {
+  const userId = req.user?.sub;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const existing = await prisma.emailRecipientList.findFirst({
+    where: {
+      id: req.params.listId,
+      organizationId,
+    },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Saved recipient list not found." } });
+    return;
+  }
+
+  const { name, description, recipientEmails } = req.body as {
+    name?: string;
+    description?: string;
+    recipientEmails?: string[];
+  };
+
+  const safeName = typeof name === "string" ? name.trim() : undefined;
+  if (safeName !== undefined && !safeName) {
+    res.status(400).json({ error: { code: "INVALID_NAME", message: "List name cannot be empty." } });
+    return;
+  }
+
+  if (recipientEmails) {
+    const normalized = normalizeRecipientEmails(recipientEmails);
+    await prisma.emailRecipientListMember.deleteMany({ where: { listId: existing.id } });
+    if (normalized.length > 0) {
+      await prisma.emailRecipientListMember.createMany({
+        data: normalized.map((email) => ({ listId: existing.id, email })),
+        skipDuplicates: true,
+      });
+    }
+  }
+
+  const updated = await prisma.emailRecipientList.update({
+    where: { id: existing.id },
+    data: {
+      ...(safeName !== undefined ? { name: safeName } : {}),
+      ...(description !== undefined ? { description: description?.trim() || null } : {}),
+    },
+    include: {
+      _count: {
+        select: { recipients: true },
+      },
+    },
+  });
+
+  res.json({
+    id: updated.id,
+    name: updated.name,
+    description: updated.description,
+    createdById: updated.createdById,
+    recipientsCount: updated._count.recipients,
+    createdAt: updated.createdAt,
+    updatedAt: updated.updatedAt,
+  });
+});
+
+/** DELETE /api/email-campaigns/lists/:listId — Remove a saved recipient list and all members. */
+router.delete("/lists/:listId", async (req, res) => {
+  const userId = req.user?.sub;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const existing = await prisma.emailRecipientList.findFirst({
+    where: {
+      id: req.params.listId,
+      organizationId,
+    },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Saved recipient list not found." } });
+    return;
+  }
+
+  await prisma.emailRecipientList.delete({ where: { id: existing.id } });
+  res.status(204).send();
+});
+
 /** GET /api/email-campaigns/:id — Fetch a single email campaign by ID. */
 router.get("/:id", async (req, res) => {
   const userId = req.user?.sub;
@@ -540,6 +1314,7 @@ router.get("/:id", async (req, res) => {
     ...campaign,
     ownerId: parsed.sharing.ownerId,
     sharedWithOrganization: parsed.sharing.sharedWithOrganization,
+    preparationStatus: parsed.workflow.preparationStatus,
   });
 });
 
@@ -556,7 +1331,7 @@ router.post("/", async (req, res) => {
 
   const {
     name, subject, previewText, fromName, fromEmail, replyToEmail,
-    bodyHtml, bodyText, templateJson, scheduledAt, audienceFilter, sharedWithOrganization = false,
+    bodyHtml, bodyText, templateJson, scheduledAt, audienceFilter, sharedWithOrganization = false, preparationStatus,
   } = req.body;
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
@@ -573,6 +1348,8 @@ router.post("/", async (req, res) => {
     return;
   }
 
+  const defaultPreparationStatus = bodyHtml || bodyText || templateJson ? "DRAFT" : "NOT_STARTED";
+
   const campaign = await prisma.emailCampaign.create({
     data: {
       organizationId,
@@ -587,6 +1364,7 @@ router.post("/", async (req, res) => {
         (audienceFilter ?? null) as AudienceFilter,
         userId,
         Boolean(sharedWithOrganization),
+        normalizePreparationStatus(preparationStatus, defaultPreparationStatus),
       ),
       status: scheduledAt ? "SCHEDULED" : "DRAFT",
     },
@@ -612,7 +1390,7 @@ router.put("/:id", async (req, res) => {
 
   const {
     name, subject, previewText, fromName, fromEmail, replyToEmail,
-    bodyHtml, bodyText, templateJson, scheduledAt, audienceFilter, status, sharedWithOrganization,
+    bodyHtml, bodyText, templateJson, scheduledAt, audienceFilter, status, sharedWithOrganization, preparationStatus,
   } = req.body;
 
   const existing = await prisma.emailCampaign.findFirst({
@@ -636,6 +1414,7 @@ router.put("/:id", async (req, res) => {
   const nextSharing = typeof sharedWithOrganization === "boolean"
     ? sharedWithOrganization
     : parsedExisting.sharing.sharedWithOrganization;
+  const nextPreparationStatus = normalizePreparationStatus(preparationStatus, parsedExisting.workflow.preparationStatus);
   const nextFilter = audienceFilter !== undefined
     ? (audienceFilter as AudienceFilter)
     : parsedExisting.filter;
@@ -646,7 +1425,7 @@ router.put("/:id", async (req, res) => {
       name, subject, previewText, fromName, fromEmail, replyToEmail,
       bodyHtml, bodyText, templateJson,
       scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
-      audienceFilter: serializeCampaignAudienceFilter(nextFilter, ownerId, nextSharing),
+      audienceFilter: serializeCampaignAudienceFilter(nextFilter, ownerId, nextSharing, nextPreparationStatus),
       status,
     },
   });
@@ -655,6 +1434,7 @@ router.put("/:id", async (req, res) => {
     ...campaign,
     ownerId,
     sharedWithOrganization: nextSharing,
+    preparationStatus: nextPreparationStatus,
   });
 });
 
@@ -935,7 +1715,21 @@ router.post("/:id/send", async (req, res) => {
       return;
     }
 
-    const updated = await sendCampaignNow(req.params.id as string, "MANUAL");
+    const body = (req.body ?? {}) as {
+      sendMode?: CampaignSendMode;
+      audienceFilter?: AudienceFilter;
+      recipientListId?: string;
+      recipientEmails?: string[];
+    };
+
+    const sendOptions: CampaignSendOptions = {
+      sendMode: body.sendMode,
+      audienceFilter: body.audienceFilter,
+      recipientListId: typeof body.recipientListId === "string" ? body.recipientListId : undefined,
+      recipientEmails: Array.isArray(body.recipientEmails) ? body.recipientEmails : undefined,
+    };
+
+    const updated = await sendCampaignNow(req.params.id as string, "MANUAL", sendOptions);
     res.json(updated);
   } catch (err) {
     if (err instanceof CampaignSendError) {
