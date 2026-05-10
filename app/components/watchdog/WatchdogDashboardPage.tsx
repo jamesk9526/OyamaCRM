@@ -6,13 +6,15 @@ import { apiFetch } from "@/app/lib/auth-client";
 import WatchdogStatusCards from "@/app/components/watchdog/WatchdogStatusCards";
 import WatchdogSecurityFeed from "@/app/components/watchdog/WatchdogSecurityFeed";
 import WatchdogVaultPanel from "@/app/components/watchdog/WatchdogVaultPanel";
-import { WatchdogSecurityFeedItem, WatchdogStatusData, WatchdogVaultItem } from "@/app/components/watchdog/types";
+import WatchdogBackupPanel from "@/app/components/watchdog/WatchdogBackupPanel";
+import { WatchdogBackupItem, WatchdogSecurityFeedItem, WatchdogStatusData, WatchdogVaultItem } from "@/app/components/watchdog/types";
 
 /** WatchdogDashboardPage loads and renders the OyamaWatchdog module starter dashboard. */
 export default function WatchdogDashboardPage() {
   const [status, setStatus] = useState<WatchdogStatusData | null>(null);
   const [feedItems, setFeedItems] = useState<WatchdogSecurityFeedItem[]>([]);
   const [vaultItems, setVaultItems] = useState<WatchdogVaultItem[]>([]);
+  const [backupItems, setBackupItems] = useState<WatchdogBackupItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actingKey, setActingKey] = useState<string | null>(null);
@@ -22,15 +24,17 @@ export default function WatchdogDashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const [statusData, feedData, vaultData] = await Promise.all([
+      const [statusData, feedData, vaultData, backupData] = await Promise.all([
         apiFetch<WatchdogStatusData>("/api/watchdog/status"),
         apiFetch<{ items: WatchdogSecurityFeedItem[] }>("/api/watchdog/security-feed?limit=40"),
         apiFetch<{ items: WatchdogVaultItem[] }>("/api/watchdog/vault"),
+        apiFetch<{ items: WatchdogBackupItem[] }>("/api/watchdog/backups?limit=25"),
       ]);
 
       setStatus(statusData);
       setFeedItems(Array.isArray(feedData.items) ? feedData.items : []);
       setVaultItems(Array.isArray(vaultData.items) ? vaultData.items : []);
+      setBackupItems(Array.isArray(backupData.items) ? backupData.items : []);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to load OyamaWatchdog dashboard.");
     } finally {
@@ -101,6 +105,7 @@ export default function WatchdogDashboardPage() {
           <WatchdogStatusCards data={status} />
           <WatchdogSecurityFeed items={feedItems} onAction={applyIncidentAction} actingKey={actingKey} />
           <WatchdogVaultPanel items={vaultItems} onRefresh={load} />
+          <WatchdogBackupPanel items={backupItems} onRefresh={load} />
 
           <section id="access" className="rounded-xl border border-slate-700 bg-slate-900/70 p-4">
             <h2 className="text-sm font-semibold text-slate-100">Fine-Grained Access</h2>

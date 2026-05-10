@@ -14,6 +14,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Security Dashboard", href: "/watchdog", description: "Cross-CRM security monitor" },
   { label: "Password Vault", href: "/watchdog#vault", description: "Encrypted credential storage" },
   { label: "Security Feed", href: "/watchdog#feed", description: "High-risk events and alerts" },
+  { label: "Backup & Restore", href: "/watchdog#backup", description: "Full CRM export/import controls" },
   { label: "Access Matrix", href: "/watchdog#access", description: "Fine-grained Watchdog controls" },
 ];
 

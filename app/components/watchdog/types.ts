@@ -44,3 +44,18 @@ export interface WatchdogVaultItem {
   notes?: string;
   metadata?: Record<string, unknown>;
 }
+
+export interface WatchdogBackupItem {
+  id: string;
+  label: string;
+  organizationId: string;
+  sourceVersion: string;
+  primaryTableCount: number;
+  primaryRowCount: number;
+  watchdogTableCount: number;
+  watchdogRowCount: number;
+  checksumSha256: string;
+  createdBy: string;
+  createdAt: string;
+  restoredAt: string | null;
+}

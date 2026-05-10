@@ -47,6 +47,25 @@ export interface WatchdogSecurityEvent {
   payload?: Record<string, unknown>;
 }
 
+export interface WatchdogCrmBackupListItem {
+  id: string;
+  label: string;
+  organizationId: string;
+  sourceVersion: string;
+  primaryTableCount: number;
+  primaryRowCount: number;
+  watchdogTableCount: number;
+  watchdogRowCount: number;
+  checksumSha256: string;
+  createdBy: string;
+  createdAt: string;
+  restoredAt: string | null;
+}
+
+export interface WatchdogCrmBackupRecord extends WatchdogCrmBackupListItem {
+  backupJson: string;
+}
+
 export type WatchdogIncidentStatus = "new" | "acknowledged" | "escalated" | "resolved";
 
 export type WatchdogIncidentSource = "audit" | "watchdog";
@@ -66,9 +85,21 @@ export interface WatchdogIncidentState {
 let watchdogPool: mysql.Pool | null = null;
 let schemaReady = false;
 
+/** Resolves the effective Watchdog DB URL with a safe non-production fallback. */
+function getEffectiveWatchdogDatabaseUrl(): string | undefined {
+  const explicit = process.env.WATCHDOG_DATABASE_URL?.trim();
+  if (explicit) return explicit;
+
+  if (process.env.NODE_ENV !== "production") {
+    return process.env.DATABASE_URL?.trim();
+  }
+
+  return undefined;
+}
+
 /** Checks whether the Watchdog secondary database is configured. */
 export function isWatchdogDbConfigured(): boolean {
-  return Boolean(process.env.WATCHDOG_DATABASE_URL?.trim());
+  return Boolean(getEffectiveWatchdogDatabaseUrl());
 }
 
 /** Checks whether the Watchdog encryption key is configured. */
@@ -92,9 +123,9 @@ function getCipherKey(): Buffer {
 
 /** Gets or creates the pooled MySQL connection for the Watchdog database. */
 function getWatchdogPool(): mysql.Pool {
-  const databaseUrl = process.env.WATCHDOG_DATABASE_URL?.trim();
+  const databaseUrl = getEffectiveWatchdogDatabaseUrl();
   if (!databaseUrl) {
-    throw new Error("WATCHDOG_DATABASE_URL is missing.");
+    throw new Error("WATCHDOG_DATABASE_URL is missing (and no non-production DATABASE_URL fallback is available).");
   }
 
   if (!watchdogPool) {
@@ -102,6 +133,30 @@ function getWatchdogPool(): mysql.Pool {
   }
 
   return watchdogPool;
+}
+
+/** Adds one column only when it is currently missing from the table schema. */
+async function ensureColumnExists(params: {
+  pool: mysql.Pool;
+  tableName: string;
+  columnName: string;
+  addColumnSql: string;
+}): Promise<void> {
+  const [rows] = await params.pool.query<mysql.RowDataPacket[]>(
+    `
+      SELECT 1
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = ?
+        AND COLUMN_NAME = ?
+      LIMIT 1
+    `,
+    [params.tableName, params.columnName],
+  );
+
+  if (rows.length === 0) {
+    await params.pool.query(params.addColumnSql);
+  }
 }
 
 /**
@@ -169,10 +224,45 @@ async function ensureWatchdogSchema(): Promise<void> {
     )
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS watchdog_crm_backups (
+      id VARCHAR(64) NOT NULL PRIMARY KEY,
+      organization_id VARCHAR(64) NOT NULL,
+      backup_label VARCHAR(180) NOT NULL,
+      source_version VARCHAR(80) NOT NULL,
+      primary_table_count INT NOT NULL DEFAULT 0,
+      primary_row_count BIGINT NOT NULL DEFAULT 0,
+      watchdog_table_count INT NOT NULL DEFAULT 0,
+      watchdog_row_count BIGINT NOT NULL DEFAULT 0,
+      checksum_sha256 VARCHAR(64) NOT NULL,
+      backup_json LONGTEXT NOT NULL,
+      created_by VARCHAR(64) NOT NULL,
+      restored_at DATETIME NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_watchdog_backup_org_created (organization_id, created_at),
+      INDEX idx_watchdog_backup_org_restored (organization_id, restored_at)
+    )
+  `);
+
   // Backfill newer incident columns when the table was created before the workflow upgrade.
-  await pool.query(`ALTER TABLE watchdog_security_events ADD COLUMN IF NOT EXISTS incident_status VARCHAR(24) NOT NULL DEFAULT 'new'`);
-  await pool.query(`ALTER TABLE watchdog_security_events ADD COLUMN IF NOT EXISTS incident_updated_at DATETIME NULL`);
-  await pool.query(`ALTER TABLE watchdog_security_events ADD COLUMN IF NOT EXISTS incident_updated_by VARCHAR(64) NULL`);
+  await ensureColumnExists({
+    pool,
+    tableName: "watchdog_security_events",
+    columnName: "incident_status",
+    addColumnSql: "ALTER TABLE watchdog_security_events ADD COLUMN incident_status VARCHAR(24) NOT NULL DEFAULT 'new'",
+  });
+  await ensureColumnExists({
+    pool,
+    tableName: "watchdog_security_events",
+    columnName: "incident_updated_at",
+    addColumnSql: "ALTER TABLE watchdog_security_events ADD COLUMN incident_updated_at DATETIME NULL",
+  });
+  await ensureColumnExists({
+    pool,
+    tableName: "watchdog_security_events",
+    columnName: "incident_updated_by",
+    addColumnSql: "ALTER TABLE watchdog_security_events ADD COLUMN incident_updated_by VARCHAR(64) NULL",
+  });
 
   schemaReady = true;
 }
@@ -603,4 +693,153 @@ export async function getWatchdogSecurityEventById(params: {
     createdAt: new Date(row.created_at).toISOString(),
     payload: row.payload_json ? (JSON.parse(String(row.payload_json)) as Record<string, unknown>) : undefined,
   };
+}
+
+/** Persists a full CRM backup bundle in the Watchdog external database. */
+export async function createWatchdogCrmBackup(params: {
+  organizationId: string;
+  label: string;
+  sourceVersion: string;
+  primaryTableCount: number;
+  primaryRowCount: number;
+  watchdogTableCount: number;
+  watchdogRowCount: number;
+  backupJson: string;
+  createdBy: string;
+}): Promise<WatchdogCrmBackupListItem> {
+  await ensureWatchdogSchema();
+  const pool = getWatchdogPool();
+  const id = randomUUID();
+  const checksumSha256 = createHash("sha256").update(params.backupJson).digest("hex");
+
+  await pool.query(
+    `
+      INSERT INTO watchdog_crm_backups
+      (id, organization_id, backup_label, source_version, primary_table_count, primary_row_count,
+       watchdog_table_count, watchdog_row_count, checksum_sha256, backup_json, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    [
+      id,
+      params.organizationId,
+      params.label,
+      params.sourceVersion,
+      params.primaryTableCount,
+      params.primaryRowCount,
+      params.watchdogTableCount,
+      params.watchdogRowCount,
+      checksumSha256,
+      params.backupJson,
+      params.createdBy,
+    ],
+  );
+
+  return {
+    id,
+    label: params.label,
+    organizationId: params.organizationId,
+    sourceVersion: params.sourceVersion,
+    primaryTableCount: params.primaryTableCount,
+    primaryRowCount: params.primaryRowCount,
+    watchdogTableCount: params.watchdogTableCount,
+    watchdogRowCount: params.watchdogRowCount,
+    checksumSha256,
+    createdBy: params.createdBy,
+    createdAt: new Date().toISOString(),
+    restoredAt: null,
+  };
+}
+
+/** Lists recent CRM backup bundles saved from Watchdog. */
+export async function listWatchdogCrmBackups(params: {
+  organizationId: string;
+  limit?: number;
+}): Promise<WatchdogCrmBackupListItem[]> {
+  await ensureWatchdogSchema();
+  const pool = getWatchdogPool();
+  const limit = Math.min(Math.max(params.limit ?? 20, 1), 100);
+
+  const [rows] = await pool.query<mysql.RowDataPacket[]>(
+    `
+      SELECT id, organization_id, backup_label, source_version, primary_table_count, primary_row_count,
+             watchdog_table_count, watchdog_row_count, checksum_sha256, created_by, created_at, restored_at
+      FROM watchdog_crm_backups
+      WHERE organization_id = ?
+      ORDER BY created_at DESC
+      LIMIT ?
+    `,
+    [params.organizationId, limit],
+  );
+
+  return rows.map((row) => ({
+    id: String(row.id),
+    label: String(row.backup_label),
+    organizationId: String(row.organization_id),
+    sourceVersion: String(row.source_version),
+    primaryTableCount: Number(row.primary_table_count ?? 0),
+    primaryRowCount: Number(row.primary_row_count ?? 0),
+    watchdogTableCount: Number(row.watchdog_table_count ?? 0),
+    watchdogRowCount: Number(row.watchdog_row_count ?? 0),
+    checksumSha256: String(row.checksum_sha256),
+    createdBy: String(row.created_by),
+    createdAt: new Date(row.created_at).toISOString(),
+    restoredAt: row.restored_at ? new Date(row.restored_at).toISOString() : null,
+  }));
+}
+
+/** Loads one CRM backup bundle by ID for import/download workflows. */
+export async function getWatchdogCrmBackup(params: {
+  organizationId: string;
+  id: string;
+}): Promise<WatchdogCrmBackupRecord | null> {
+  await ensureWatchdogSchema();
+  const pool = getWatchdogPool();
+
+  const [rows] = await pool.query<mysql.RowDataPacket[]>(
+    `
+      SELECT id, organization_id, backup_label, source_version, primary_table_count, primary_row_count,
+             watchdog_table_count, watchdog_row_count, checksum_sha256, backup_json, created_by, created_at, restored_at
+      FROM watchdog_crm_backups
+      WHERE organization_id = ? AND id = ?
+      LIMIT 1
+    `,
+    [params.organizationId, params.id],
+  );
+
+  if (rows.length === 0) return null;
+  const row = rows[0];
+
+  return {
+    id: String(row.id),
+    label: String(row.backup_label),
+    organizationId: String(row.organization_id),
+    sourceVersion: String(row.source_version),
+    primaryTableCount: Number(row.primary_table_count ?? 0),
+    primaryRowCount: Number(row.primary_row_count ?? 0),
+    watchdogTableCount: Number(row.watchdog_table_count ?? 0),
+    watchdogRowCount: Number(row.watchdog_row_count ?? 0),
+    checksumSha256: String(row.checksum_sha256),
+    backupJson: String(row.backup_json),
+    createdBy: String(row.created_by),
+    createdAt: new Date(row.created_at).toISOString(),
+    restoredAt: row.restored_at ? new Date(row.restored_at).toISOString() : null,
+  };
+}
+
+/** Marks one backup bundle as restored after a successful import run. */
+export async function markWatchdogCrmBackupRestored(params: {
+  organizationId: string;
+  id: string;
+}): Promise<void> {
+  await ensureWatchdogSchema();
+  const pool = getWatchdogPool();
+
+  await pool.query(
+    `
+      UPDATE watchdog_crm_backups
+      SET restored_at = CURRENT_TIMESTAMP
+      WHERE organization_id = ? AND id = ?
+    `,
+    [params.organizationId, params.id],
+  );
 }

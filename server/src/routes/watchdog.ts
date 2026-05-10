@@ -7,16 +7,22 @@ import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { logAudit } from "../lib/audit.js";
+import { getAppInfo } from "../lib/app-info.js";
+import { CrmBackupBundle, exportFullCrmBackup, restoreFullCrmBackup } from "../services/crm-backup.js";
 import {
+  createWatchdogCrmBackup,
   createWatchdogVaultEntry,
+  getWatchdogCrmBackup,
   getWatchdogSecurityEventById,
   getWatchdogHealth,
   getWatchdogVaultEntry,
   isWatchdogDbConfigured,
   isWatchdogEncryptionConfigured,
+  listWatchdogCrmBackups,
   listWatchdogIncidentStates,
   listWatchdogSecurityEvents,
   listWatchdogVaultEntries,
+  markWatchdogCrmBackupRestored,
   recordWatchdogSecurityEvent,
   upsertWatchdogIncidentState,
 } from "../services/watchdog-store.js";
@@ -116,6 +122,20 @@ function watchdogStoreUnavailable(res: Response, error: unknown): void {
   });
 }
 
+/** Lightweight shape guard for full backup import payloads. */
+function isCrmBackupBundle(payload: unknown): payload is CrmBackupBundle {
+  if (!payload || typeof payload !== "object") return false;
+  const asRecord = payload as Record<string, unknown>;
+  return (
+    asRecord.backupSchemaVersion === "1" &&
+    typeof asRecord.generatedAt === "string" &&
+    typeof asRecord.organizationId === "string" &&
+    typeof asRecord.sqlDump === "string" &&
+    typeof asRecord.primaryDatabase === "object" &&
+    asRecord.primaryDatabase !== null
+  );
+}
+
 /**
  * GET /api/watchdog/permissions
  * Returns all Watchdog fine-grained permission states for the authenticated admin.
@@ -188,6 +208,354 @@ router.get("/status", requireWatchdogPermission("watchdog:view_dashboard"), asyn
       highSeverityEvents24h,
       recentAuthFailures,
     },
+  });
+});
+
+/**
+ * GET /api/watchdog/backups
+ * Lists full CRM backups captured through Watchdog.
+ */
+router.get("/backups", requireWatchdogPermission("watchdog:manage"), async (req, res) => {
+  const organizationId = req.user!.orgId;
+  const limit = Math.min(Math.max(Number(req.query.limit ?? 25), 1), 100);
+
+  try {
+    const items = await listWatchdogCrmBackups({ organizationId, limit });
+    res.json({ items });
+  } catch (error) {
+    watchdogStoreUnavailable(res, error);
+  }
+});
+
+/**
+ * POST /api/watchdog/backups/export
+ * Exports full CRM backup as SQL + JSON and persists it in Watchdog storage.
+ */
+router.post("/backups/export", requireWatchdogPermission("watchdog:manage"), async (req, res) => {
+  const organizationId = req.user!.orgId;
+  const userId = req.user!.sub;
+  const body = req.body as {
+    label?: string;
+    includeWatchdogDatabase?: boolean;
+  };
+
+  const includeWatchdogDatabase = body.includeWatchdogDatabase !== false;
+  const appInfo = getAppInfo();
+
+  let backupBundle: CrmBackupBundle;
+  try {
+    backupBundle = await exportFullCrmBackup({
+      organizationId,
+      generatedBy: userId,
+      appVersion: appInfo.version,
+      includeWatchdogDatabase,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: {
+        code: "WATCHDOG_BACKUP_EXPORT_FAILED",
+        message: error instanceof Error ? error.message : "Failed to export full CRM backup.",
+      },
+    });
+    return;
+  }
+
+  const backupLabel = body.label?.trim() || `full-crm-backup-${new Date().toISOString()}`;
+  const backupJson = JSON.stringify(backupBundle);
+
+  let item: Awaited<ReturnType<typeof createWatchdogCrmBackup>>;
+  try {
+    item = await createWatchdogCrmBackup({
+      organizationId,
+      label: backupLabel,
+      sourceVersion: backupBundle.appVersion,
+      primaryTableCount: backupBundle.primaryDatabase.tableCount,
+      primaryRowCount: backupBundle.primaryDatabase.rowCount,
+      watchdogTableCount: backupBundle.watchdogDatabase?.tableCount ?? 0,
+      watchdogRowCount: backupBundle.watchdogDatabase?.rowCount ?? 0,
+      backupJson,
+      createdBy: userId,
+    });
+  } catch (error) {
+    watchdogStoreUnavailable(res, error);
+    return;
+  }
+
+  await logAudit({
+    action: "WATCHDOG_CRM_BACKUP_EXPORTED",
+    entity: "WatchdogCrmBackup",
+    entityId: item.id,
+    userId,
+    organizationId,
+    metadata: {
+      label: item.label,
+      sourceVersion: item.sourceVersion,
+      primaryTableCount: item.primaryTableCount,
+      primaryRowCount: item.primaryRowCount,
+      watchdogTableCount: item.watchdogTableCount,
+      watchdogRowCount: item.watchdogRowCount,
+    },
+  });
+
+  try {
+    await recordWatchdogSecurityEvent({
+      organizationId,
+      severity: "medium",
+      eventType: "WATCHDOG_CRM_BACKUP_EXPORTED",
+      sourceModule: "watchdog",
+      message: `Full CRM backup exported (${item.id})`,
+      payload: {
+        backupId: item.id,
+        label: item.label,
+        rows: item.primaryRowCount,
+      },
+    });
+  } catch {
+    // No-op: backup succeeded even if external event write fails.
+  }
+
+  res.status(201).json({
+    item,
+    bundleSummary: {
+      generatedAt: backupBundle.generatedAt,
+      sqlBytes: Buffer.byteLength(backupBundle.sqlDump, "utf8"),
+      hasWatchdogDatabase: Boolean(backupBundle.watchdogDatabase),
+    },
+  });
+});
+
+/**
+ * GET /api/watchdog/backups/:id
+ * Returns full SQL + JSON backup payload for one saved backup.
+ */
+router.get("/backups/:id", requireWatchdogPermission("watchdog:manage"), async (req, res) => {
+  const organizationId = req.user!.orgId;
+  const id = req.params.id;
+
+  let record: Awaited<ReturnType<typeof getWatchdogCrmBackup>>;
+  try {
+    record = await getWatchdogCrmBackup({ organizationId, id });
+  } catch (error) {
+    watchdogStoreUnavailable(res, error);
+    return;
+  }
+
+  if (!record) {
+    res.status(404).json({
+      error: {
+        code: "WATCHDOG_BACKUP_NOT_FOUND",
+        message: "Backup not found.",
+      },
+    });
+    return;
+  }
+
+  let backup: unknown;
+  try {
+    backup = JSON.parse(record.backupJson);
+  } catch {
+    res.status(500).json({
+      error: {
+        code: "WATCHDOG_BACKUP_CORRUPT",
+        message: "Stored backup payload is not valid JSON.",
+      },
+    });
+    return;
+  }
+
+  const { backupJson: _ignoredBackupJson, ...item } = record;
+  res.json({ item, backup });
+});
+
+/**
+ * GET /api/watchdog/backups/:id/sql
+ * Returns the SQL dump text for one full backup as plain text.
+ */
+router.get("/backups/:id/sql", requireWatchdogPermission("watchdog:manage"), async (req, res) => {
+  const organizationId = req.user!.orgId;
+  const id = req.params.id;
+
+  let record: Awaited<ReturnType<typeof getWatchdogCrmBackup>>;
+  try {
+    record = await getWatchdogCrmBackup({ organizationId, id });
+  } catch (error) {
+    watchdogStoreUnavailable(res, error);
+    return;
+  }
+
+  if (!record) {
+    res.status(404).json({
+      error: {
+        code: "WATCHDOG_BACKUP_NOT_FOUND",
+        message: "Backup not found.",
+      },
+    });
+    return;
+  }
+
+  let backup: unknown;
+  try {
+    backup = JSON.parse(record.backupJson);
+  } catch {
+    res.status(500).json({
+      error: {
+        code: "WATCHDOG_BACKUP_CORRUPT",
+        message: "Stored backup payload is not valid JSON.",
+      },
+    });
+    return;
+  }
+
+  if (!isCrmBackupBundle(backup)) {
+    res.status(400).json({
+      error: {
+        code: "WATCHDOG_BACKUP_INVALID_SHAPE",
+        message: "Stored backup payload shape is invalid.",
+      },
+    });
+    return;
+  }
+
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename=watchdog-backup-${id}.sql`);
+  res.send(backup.sqlDump);
+});
+
+/**
+ * POST /api/watchdog/backups/import
+ * Restores full CRM state from a Watchdog backup ID or direct backup payload.
+ */
+router.post("/backups/import", requireWatchdogPermission("watchdog:manage"), async (req, res) => {
+  const organizationId = req.user!.orgId;
+  const userId = req.user!.sub;
+  const body = req.body as {
+    backupId?: string;
+    backup?: unknown;
+    includeWatchdogDatabase?: boolean;
+  };
+
+  const includeWatchdogDatabase = body.includeWatchdogDatabase !== false;
+  let sourceBackupId: string | null = null;
+  let bundle: CrmBackupBundle;
+
+  if (body.backupId) {
+    sourceBackupId = body.backupId;
+    let record: Awaited<ReturnType<typeof getWatchdogCrmBackup>>;
+    try {
+      record = await getWatchdogCrmBackup({ organizationId, id: body.backupId });
+    } catch (error) {
+      watchdogStoreUnavailable(res, error);
+      return;
+    }
+
+    if (!record) {
+      res.status(404).json({
+        error: {
+          code: "WATCHDOG_BACKUP_NOT_FOUND",
+          message: "Backup not found.",
+        },
+      });
+      return;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(record.backupJson);
+    } catch {
+      res.status(500).json({
+        error: {
+          code: "WATCHDOG_BACKUP_CORRUPT",
+          message: "Stored backup payload is not valid JSON.",
+        },
+      });
+      return;
+    }
+
+    if (!isCrmBackupBundle(parsed)) {
+      res.status(400).json({
+        error: {
+          code: "WATCHDOG_BACKUP_INVALID_SHAPE",
+          message: "Stored backup payload shape is invalid.",
+        },
+      });
+      return;
+    }
+
+    bundle = parsed;
+  } else if (isCrmBackupBundle(body.backup)) {
+    bundle = body.backup;
+  } else {
+    res.status(400).json({
+      error: {
+        code: "WATCHDOG_BACKUP_IMPORT_VALIDATION",
+        message: "Provide either backupId or a valid backup payload.",
+      },
+    });
+    return;
+  }
+
+  let report: Awaited<ReturnType<typeof restoreFullCrmBackup>>;
+  try {
+    report = await restoreFullCrmBackup({
+      bundle,
+      includeWatchdogDatabase,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: {
+        code: "WATCHDOG_BACKUP_IMPORT_FAILED",
+        message: error instanceof Error ? error.message : "Failed to restore full CRM backup.",
+      },
+    });
+    return;
+  }
+
+  if (sourceBackupId) {
+    try {
+      await markWatchdogCrmBackupRestored({ organizationId, id: sourceBackupId });
+    } catch (error) {
+      watchdogStoreUnavailable(res, error);
+      return;
+    }
+  }
+
+  await logAudit({
+    action: "WATCHDOG_CRM_BACKUP_IMPORTED",
+    entity: "WatchdogCrmBackup",
+    entityId: sourceBackupId ?? "direct-payload",
+    userId,
+    organizationId,
+    metadata: {
+      backupSchemaVersion: bundle.backupSchemaVersion,
+      sourceBackupId,
+      includeWatchdogDatabase,
+      primary: report.primary,
+      watchdog: report.watchdog ?? null,
+    },
+  });
+
+  try {
+    await recordWatchdogSecurityEvent({
+      organizationId,
+      severity: "high",
+      eventType: "WATCHDOG_CRM_BACKUP_IMPORTED",
+      sourceModule: "watchdog",
+      message: `Full CRM backup imported (${sourceBackupId ?? "direct-payload"})`,
+      payload: {
+        sourceBackupId,
+        includeWatchdogDatabase,
+        primary: report.primary,
+        watchdog: report.watchdog ?? null,
+      },
+    });
+  } catch {
+    // No-op: restore already succeeded.
+  }
+
+  res.json({
+    success: true,
+    sourceBackupId,
+    report,
   });
 });
 

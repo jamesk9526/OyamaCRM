@@ -54,12 +54,31 @@ Permission keys currently used include watchdog-prefixed scopes (for example `wa
 
 - `GET /api/watchdog/permissions`
 - `GET /api/watchdog/status`
+- `GET /api/watchdog/backups`
+- `POST /api/watchdog/backups/export`
+- `GET /api/watchdog/backups/:id`
+- `GET /api/watchdog/backups/:id/sql`
+- `POST /api/watchdog/backups/import`
 - `GET /api/watchdog/security-feed`
 - `POST /api/watchdog/security-feed/actions`
 - `POST /api/watchdog/security-events`
 - `GET /api/watchdog/vault`
 - `POST /api/watchdog/vault`
 - `GET /api/watchdog/vault/:id`
+
+## Full CRM Backup And Restore
+
+Watchdog now owns full CRM backup operations:
+
+- Export captures complete CRM data as both SQL dump text and JSON table payloads.
+- Backup bundles are stored in the Watchdog external store (`watchdog_crm_backups`).
+- SQL dump can be downloaded per backup (`/api/watchdog/backups/:id/sql`).
+- Import restores the CRM back to a selected backup ID to continue from that point.
+
+Operational details:
+
+- In non-production environments, Watchdog DB can fall back to `DATABASE_URL` when `WATCHDOG_DATABASE_URL` is not set.
+- For MySQL compatibility, schema backfills avoid `ADD COLUMN IF NOT EXISTS` and use `INFORMATION_SCHEMA` checks.
 
 ## Known Gaps
 

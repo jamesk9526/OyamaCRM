@@ -1,0 +1,122 @@
+<!-- Donor thank-you page for the static OyamaCRM website. -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Thank You | OyamaCRM</title>
+    <meta
+      name="description"
+      content="Thank you for supporting OyamaCRM. Your donation helps build affordable CRM tools for nonprofits."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../styles.css" />
+    <style>
+      .thankyou-wrap {
+        min-height: calc(100vh - 180px);
+        display: grid;
+        place-items: center;
+        padding: 36px 0 70px;
+      }
+
+      .thankyou-card {
+        width: min(860px, 92vw);
+        padding: 28px;
+      }
+
+      .thankyou-card h1 {
+        margin: 0;
+        font-family: "Fraunces", Georgia, serif;
+        font-size: clamp(2rem, 4vw, 2.8rem);
+      }
+
+      .thankyou-card p {
+        color: #5b6f60;
+      }
+
+      .funding-list {
+        margin: 14px 0 0;
+        padding-left: 18px;
+        color: #3d5848;
+      }
+
+      .funding-list li {
+        margin: 8px 0;
+      }
+
+      .thankyou-cta {
+        margin-top: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      @media (max-width: 760px) {
+        .thankyou-card {
+          padding: 22px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bg-orb orb-a" aria-hidden="true"></div>
+    <div class="bg-orb orb-b" aria-hidden="true"></div>
+
+    <header class="site-header">
+      <div class="container nav-wrap">
+        <a class="brand" href="../index.html#top">OyamaCRM</a>
+        <nav class="main-nav" id="mainNav">
+          <a href="../index.html#modules">Modules</a>
+          <a href="../index.html#benefits">Nonprofit Value</a>
+          <a href="../index.html#support">Support</a>
+          <a href="https://github.com/jamesk9526/OyamaCRM" target="_blank" rel="noreferrer">GitHub Repo</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="thankyou-wrap">
+      <section class="card thankyou-card">
+        <span class="badge">Donation Received</span>
+        <h1>Thank You For Supporting OyamaCRM</h1>
+        <p>
+          Your support means a lot. This is a project from the heart, built to help nonprofits access
+          powerful, affordable software without being trapped by expensive licensing.
+        </p>
+        <p>
+          OyamaCRM is currently geared toward pregnancy care centers, and your donation directly helps us
+          keep improving this experience while expanding to many additional nonprofit sectors over time.
+        </p>
+
+        <h2>What Your Donation Helps Fund</h2>
+        <ul class="funding-list">
+          <li>Faster delivery of donor, compassion, events, and security modules</li>
+          <li>More testing, reliability, and production deployment readiness</li>
+          <li>Better onboarding and simpler workflows for staff and volunteers</li>
+          <li>Expanded reporting, automation, and long-term multi-sector roadmap work</li>
+        </ul>
+
+        <div class="progress-meter" role="img" aria-label="OyamaCRM project completeness is 68 percent">
+          <div class="progress-fill" style="width: 68%">68% Complete</div>
+        </div>
+
+        <div class="thankyou-cta">
+          <a class="btn btn-primary" href="../index.html#top">Back to Homepage</a>
+          <a class="btn btn-outline" href="../index.html#support">Support Section</a>
+          <a class="btn btn-ghost" href="https://github.com/jamesk9526/OyamaCRM" target="_blank" rel="noreferrer">View GitHub</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-wrap">
+        <p>OyamaCRM | Mission-ready CRM for nonprofit teams</p>
+        <p>Built with heart. Growing with your support.</p>
+      </div>
+    </footer>
+  </body>
+</html>
