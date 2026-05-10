@@ -14,11 +14,23 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 
 const router = Router();
 
 // All designation routes require authentication.
 router.use(requireAuth);
+
+// Designation access follows donation read/write permissions.
+router.use((req, res, next) => {
+  if (req.method === "GET") {
+    return requirePermission("view:donations")(req, res, next);
+  }
+  if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH" || req.method === "DELETE") {
+    return requirePermission("edit:donations")(req, res, next);
+  }
+  return next();
+});
 
 /** GET /api/designations — List all designations sorted by name, including the number of linked donations. */
 router.get("/", async (_req, res) => {

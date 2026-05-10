@@ -21,13 +21,30 @@ import { logAudit } from "../lib/audit.js";
 import { executeStewardPathsForTrigger } from "../services/stewardPathsEngine.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { requireRole } from "../middleware/requireRole.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 import type { DonorStatus, ConstituentType, ActivityType, Prisma } from "@prisma/client";
 
 const router = Router();
 
 // All constituent routes require a valid JWT — applied once for the entire router.
 router.use(requireAuth);
+
+// Fine-grained permission checks by HTTP method keep role defaults + explicit overrides in sync.
+router.use((req, res, next) => {
+  if (req.method === "GET") {
+    return requirePermission("view:constituents")(req, res, next);
+  }
+  if (req.method === "POST" && req.path === "/import") {
+    return requirePermission("import:data")(req, res, next);
+  }
+  if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH") {
+    return requirePermission("edit:constituents")(req, res, next);
+  }
+  if (req.method === "DELETE") {
+    return requirePermission("delete:constituents")(req, res, next);
+  }
+  return next();
+});
 
 /**
  * Minimal field set returned in list responses and household member arrays.
@@ -72,8 +89,14 @@ const MEMBER_SELECT = {
 /** GET /api/constituents — List constituents with optional search, type, and status filters. */
 router.get("/", async (req, res) => {
   const { search, type, status, limit = "50" } = req.query as Record<string, string>;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json([]);
+    return;
+  }
 
   const where = {
+    organizationId,
     ...(search && {
       OR: [
         { firstName: { contains: search } },
@@ -98,8 +121,14 @@ router.get("/", async (req, res) => {
 
 /** GET /api/constituents/:id — Full constituent profile including donation history, tasks, tags, and household. */
 router.get("/:id", async (req, res) => {
-  const constituent = await prisma.constituent.findUnique({
-    where: { id: req.params.id },
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const constituent = await prisma.constituent.findFirst({
+    where: { id: req.params.id, organizationId },
     include: {
       donations: {
         orderBy: { date: "desc" },
@@ -235,6 +264,21 @@ router.put("/:id", async (req, res) => {
     doNotEmail, doNotCall, doNotMail,
   } = req.body;
 
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const existing = await prisma.constituent.findFirst({
+    where: { id: req.params.id, organizationId },
+    select: { id: true },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Constituent not found" } });
+    return;
+  }
+
   const constituent = await prisma.constituent.update({
     where: { id: req.params.id },
     data: {
@@ -310,7 +354,7 @@ router.put("/:id", async (req, res) => {
  *
  * Response: { created, updated, skipped, errors, dryRun }
  */
-router.post("/import", requireRole("manager"), async (req, res) => {
+router.post("/import", async (req, res) => {
   const {
     records,
     mode = "create_only",
@@ -461,8 +505,23 @@ router.post("/import", requireRole("manager"), async (req, res) => {
 });
 
 
-router.delete("/:id", requireRole("admin"), async (req, res) => {
+router.delete("/:id", async (req, res) => {
   const id = req.params.id as string;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const existing = await prisma.constituent.findFirst({
+    where: { id, organizationId },
+    select: { id: true },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Constituent not found" } });
+    return;
+  }
+
   await prisma.constituent.delete({ where: { id } });
   logAudit({
     action: "CONSTITUENT_DELETED",
@@ -484,6 +543,12 @@ router.delete("/:id", requireRole("admin"), async (req, res) => {
  */
 router.post("/:id/activities", async (req, res) => {
   const id = req.params.id as string;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
   const { type = "NOTE", description, metadata } = req.body as {
     type?: string;
     description: string;
@@ -496,7 +561,7 @@ router.post("/:id/activities", async (req, res) => {
   }
 
   // Verify the constituent exists before creating the activity
-  const exists = await prisma.constituent.findUnique({ where: { id }, select: { id: true } });
+  const exists = await prisma.constituent.findFirst({ where: { id, organizationId }, select: { id: true } });
   if (!exists) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Constituent not found" } });
     return;
@@ -524,9 +589,15 @@ router.post("/:id/activities", async (req, res) => {
  */
 router.patch("/:id/notes", async (req, res) => {
   const id = req.params.id as string;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
   const { notes } = req.body as { notes: string };
 
-  const exists = await prisma.constituent.findUnique({ where: { id }, select: { id: true } });
+  const exists = await prisma.constituent.findFirst({ where: { id, organizationId }, select: { id: true } });
   if (!exists) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Constituent not found" } });
     return;

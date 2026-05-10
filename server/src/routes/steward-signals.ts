@@ -23,6 +23,14 @@ import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
 
 const router = Router();
+const STEWARD_SIGNALS_INDEX_PLUGIN_KEY = "steward_signals_index";
+const STEWARD_SIGNAL_FIELD_KEYS = {
+  generosity: "demoStewardGenerosityScore",
+  lapseRisk: "demoStewardLapseRisk",
+  opportunity: "demoStewardOpportunityScore",
+  recommendation: "demoStewardOpportunityRecommendation",
+  indexedAt: "demoStewardIndexedAt",
+} as const;
 
 // All Steward Signals endpoints require authentication.
 router.use(requireAuth);
@@ -64,6 +72,21 @@ interface StewardWidgetResponse {
   inDevelopmentNote: string;
 }
 
+interface StewardIndexState {
+  fingerprint: string;
+  lastIndexedAt: string;
+  indexedConstituentCount: number;
+  autoRebuildCount: number;
+  manualRebuildCount: number;
+  lastTrigger: "auto" | "manual";
+}
+
+interface StewardRebuildResponse {
+  rebuilt: boolean;
+  reason: string;
+  state: StewardIndexState;
+}
+
 /** Returns days elapsed since a gift date; large sentinel value when missing. */
 function daysSince(date: Date | null | undefined): number {
   if (!date) return 9999;
@@ -92,12 +115,7 @@ async function loadStewardFieldIds(organizationId: string): Promise<Record<strin
       organizationId,
       entityType: "constituent",
       key: {
-        in: [
-          "demoStewardGenerosityScore",
-          "demoStewardLapseRisk",
-          "demoStewardOpportunityScore",
-          "demoStewardOpportunityRecommendation",
-        ],
+        in: Object.values(STEWARD_SIGNAL_FIELD_KEYS),
       },
     },
     select: { id: true, key: true },
@@ -212,6 +230,349 @@ function deriveGenerosityScore(params: {
   if (params.donorStatus === "LAPSED") score -= 14;
 
   return Math.max(0, Math.min(100, score));
+}
+
+/** Builds a deterministic next-step recommendation used by indexed signal values. */
+function deriveRecommendation(params: {
+  donorStatus: DonorStatus;
+  giftCount: number;
+  lapseRisk: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  doNotEmail: boolean;
+  doNotCall: boolean;
+}): string {
+  if (params.lapseRisk === "CRITICAL") {
+    return "Create reconnect task and schedule personal outreach call this week.";
+  }
+  if (params.giftCount <= 1) {
+    return params.doNotEmail
+      ? "Create second-gift invitation task with phone-first outreach."
+      : "Draft second-gift invitation with impact-focused thank-you message.";
+  }
+  if (params.donorStatus === "MAJOR_DONOR") {
+    return "Prepare personalized impact update and assign major-donor stewardship follow-up.";
+  }
+  if (params.lapseRisk === "HIGH" || params.lapseRisk === "MEDIUM") {
+    return params.doNotCall
+      ? "Queue stewardship letter and track follow-up completion."
+      : "Assign cadence-recovery follow-up task with personal check-in call.";
+  }
+  return "Assign stewardship check-in task and draft donor impact update.";
+}
+
+/** Returns a stable marker for optional date values used in index fingerprints. */
+function isoOrNone(value: Date | null | undefined): string {
+  return value ? value.toISOString() : "none";
+}
+
+/** Converts primitive values to JSON-encoded custom-field storage strings. */
+function encodeSignalValue(value: string | number): string {
+  return JSON.stringify(value);
+}
+
+/** Computes an organization fingerprint from core donor data timestamps. */
+async function computeSignalsFingerprint(organizationId: string): Promise<string> {
+  const [constituentMax, donationMax, taskMax] = await Promise.all([
+    prisma.constituent.aggregate({
+      where: { organizationId },
+      _max: { updatedAt: true },
+    }),
+    prisma.donation.aggregate({
+      where: {
+        constituent: { organizationId },
+      },
+      _max: { updatedAt: true },
+    }),
+    prisma.task.aggregate({
+      where: {
+        OR: [
+          { constituent: { organizationId } },
+          { meeting: { organizationId } },
+        ],
+      },
+      _max: { updatedAt: true },
+    }),
+  ]);
+
+  return [
+    isoOrNone(constituentMax._max.updatedAt),
+    isoOrNone(donationMax._max.updatedAt),
+    isoOrNone(taskMax._max.updatedAt),
+  ].join("|");
+}
+
+/** Returns a safe default index state when no persisted state exists. */
+function defaultStewardIndexState(fingerprint: string): StewardIndexState {
+  return {
+    fingerprint,
+    lastIndexedAt: new Date(0).toISOString(),
+    indexedConstituentCount: 0,
+    autoRebuildCount: 0,
+    manualRebuildCount: 0,
+    lastTrigger: "auto",
+  };
+}
+
+/** Parses persisted plugin config into a typed Steward index state object. */
+function parseStewardIndexState(raw: unknown, fallbackFingerprint: string): StewardIndexState {
+  const base = defaultStewardIndexState(fallbackFingerprint);
+  if (!raw || typeof raw !== "object") return base;
+
+  const config = raw as Record<string, unknown>;
+  const triggerRaw = asString(config.lastTrigger, "auto");
+  const lastTrigger = triggerRaw === "manual" ? "manual" : "auto";
+
+  return {
+    fingerprint: asString(config.fingerprint, base.fingerprint),
+    lastIndexedAt: asString(config.lastIndexedAt, base.lastIndexedAt),
+    indexedConstituentCount: Math.max(0, Math.round(asNumber(config.indexedConstituentCount, 0))),
+    autoRebuildCount: Math.max(0, Math.round(asNumber(config.autoRebuildCount, 0))),
+    manualRebuildCount: Math.max(0, Math.round(asNumber(config.manualRebuildCount, 0))),
+    lastTrigger,
+  };
+}
+
+/** Loads the persisted Steward index state from plugin settings. */
+async function readStewardIndexState(
+  organizationId: string,
+  fallbackFingerprint: string
+): Promise<{ exists: boolean; state: StewardIndexState }> {
+  const setting = await prisma.pluginSetting.findUnique({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: STEWARD_SIGNALS_INDEX_PLUGIN_KEY,
+      },
+    },
+    select: {
+      config: true,
+    },
+  });
+
+  return {
+    exists: Boolean(setting),
+    state: parseStewardIndexState(setting?.config, fallbackFingerprint),
+  };
+}
+
+/** Persists the latest Steward index state in plugin settings. */
+async function writeStewardIndexState(organizationId: string, state: StewardIndexState): Promise<void> {
+  await prisma.pluginSetting.upsert({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: STEWARD_SIGNALS_INDEX_PLUGIN_KEY,
+      },
+    },
+    create: {
+      organizationId,
+      pluginKey: STEWARD_SIGNALS_INDEX_PLUGIN_KEY,
+      enabled: true,
+      config: state as unknown as Prisma.InputJsonValue,
+    },
+    update: {
+      enabled: true,
+      config: state as unknown as Prisma.InputJsonValue,
+    },
+  });
+}
+
+/** Ensures steward signal custom fields exist before writing indexed analysis values. */
+async function ensureStewardFieldIds(organizationId: string): Promise<Record<string, string>> {
+  const definitions = [
+    {
+      key: STEWARD_SIGNAL_FIELD_KEYS.generosity,
+      name: "Steward Generosity Score",
+      fieldType: "number",
+    },
+    {
+      key: STEWARD_SIGNAL_FIELD_KEYS.lapseRisk,
+      name: "Steward Lapse Risk",
+      fieldType: "text",
+    },
+    {
+      key: STEWARD_SIGNAL_FIELD_KEYS.opportunity,
+      name: "Steward Opportunity Score",
+      fieldType: "number",
+    },
+    {
+      key: STEWARD_SIGNAL_FIELD_KEYS.recommendation,
+      name: "Steward Opportunity Recommendation",
+      fieldType: "textarea",
+    },
+    {
+      key: STEWARD_SIGNAL_FIELD_KEYS.indexedAt,
+      name: "Steward Indexed At",
+      fieldType: "date",
+    },
+  ] as const;
+
+  const fields = await Promise.all(definitions.map((definition) => prisma.customField.upsert({
+    where: {
+      organizationId_entityType_key: {
+        organizationId,
+        entityType: "constituent",
+        key: definition.key,
+      },
+    },
+    create: {
+      organizationId,
+      entityType: "constituent",
+      key: definition.key,
+      name: definition.name,
+      fieldType: definition.fieldType,
+      required: false,
+      sortOrder: 0,
+      active: true,
+    },
+    update: {
+      name: definition.name,
+      active: true,
+    },
+    select: {
+      id: true,
+      key: true,
+    },
+  })));
+
+  return Object.fromEntries(fields.map((field) => [field.key, field.id]));
+}
+
+/** Rebuilds indexed Steward Signals values and persists refreshed index state metadata. */
+async function rebuildStewardSignalsIndex(params: {
+  organizationId: string;
+  trigger: "auto" | "manual";
+  fingerprint?: string;
+}): Promise<StewardRebuildResponse> {
+  const fingerprint = params.fingerprint ?? await computeSignalsFingerprint(params.organizationId);
+  const indexedAtIso = new Date().toISOString();
+
+  const [fieldIds, constituents, previousState] = await Promise.all([
+    ensureStewardFieldIds(params.organizationId),
+    prisma.constituent.findMany({
+      where: {
+        organizationId: params.organizationId,
+      },
+      select: {
+        id: true,
+        donorStatus: true,
+        giftCount: true,
+        lastGiftDate: true,
+        lastGiftAmount: true,
+        totalLifetimeGiving: true,
+        engagementScore: true,
+        doNotEmail: true,
+        doNotCall: true,
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+      take: 4000,
+    }),
+    readStewardIndexState(params.organizationId, fingerprint),
+  ]);
+
+  const operations: Prisma.PrismaPromise<unknown>[] = [];
+  const pushValueUpsert = (fieldKey: string, entityId: string, value: string) => {
+    const fieldId = fieldIds[fieldKey];
+    if (!fieldId) return;
+    operations.push(
+      prisma.customFieldValue.upsert({
+        where: {
+          fieldId_entityId: {
+            fieldId,
+            entityId,
+          },
+        },
+        create: {
+          fieldId,
+          entityId,
+          entityType: "constituent",
+          value,
+        },
+        update: {
+          value,
+        },
+      })
+    );
+  };
+
+  for (const constituent of constituents) {
+    const lapseRisk = deriveLapseRisk(constituent.donorStatus, constituent.lastGiftDate);
+    const generosityScore = deriveGenerosityScore({
+      donorStatus: constituent.donorStatus,
+      totalLifetimeGiving: constituent.totalLifetimeGiving,
+      giftCount: constituent.giftCount,
+      engagementScore: constituent.engagementScore,
+    });
+    const opportunityScore = deriveOpportunityScore({
+      donorStatus: constituent.donorStatus,
+      giftCount: constituent.giftCount,
+      engagementScore: constituent.engagementScore,
+      lastGiftAmount: constituent.lastGiftAmount,
+      lastGiftDate: constituent.lastGiftDate,
+    });
+    const recommendation = deriveRecommendation({
+      donorStatus: constituent.donorStatus,
+      giftCount: constituent.giftCount,
+      lapseRisk,
+      doNotEmail: constituent.doNotEmail,
+      doNotCall: constituent.doNotCall,
+    });
+
+    pushValueUpsert(STEWARD_SIGNAL_FIELD_KEYS.generosity, constituent.id, encodeSignalValue(generosityScore));
+    pushValueUpsert(STEWARD_SIGNAL_FIELD_KEYS.lapseRisk, constituent.id, encodeSignalValue(lapseRisk));
+    pushValueUpsert(STEWARD_SIGNAL_FIELD_KEYS.opportunity, constituent.id, encodeSignalValue(opportunityScore));
+    pushValueUpsert(STEWARD_SIGNAL_FIELD_KEYS.recommendation, constituent.id, encodeSignalValue(recommendation));
+    pushValueUpsert(STEWARD_SIGNAL_FIELD_KEYS.indexedAt, constituent.id, encodeSignalValue(indexedAtIso));
+
+    if (operations.length >= 500) {
+      await prisma.$transaction(operations.splice(0, operations.length));
+    }
+  }
+
+  if (operations.length > 0) {
+    await prisma.$transaction(operations);
+  }
+
+  const nextState: StewardIndexState = {
+    fingerprint,
+    lastIndexedAt: indexedAtIso,
+    indexedConstituentCount: constituents.length,
+    autoRebuildCount: previousState.state.autoRebuildCount + (params.trigger === "auto" ? 1 : 0),
+    manualRebuildCount: previousState.state.manualRebuildCount + (params.trigger === "manual" ? 1 : 0),
+    lastTrigger: params.trigger,
+  };
+
+  await writeStewardIndexState(params.organizationId, nextState);
+
+  return {
+    rebuilt: true,
+    reason: params.trigger === "manual"
+      ? "Manual analysis rebuild completed."
+      : "Signals index auto-refreshed after data changes.",
+    state: nextState,
+  };
+}
+
+/** Ensures steward index data is current with recent donor/task/donation edits. */
+async function ensureStewardSignalsIndexCurrent(organizationId: string): Promise<StewardRebuildResponse> {
+  const fingerprint = await computeSignalsFingerprint(organizationId);
+  const currentState = await readStewardIndexState(organizationId, fingerprint);
+  const hasRealIndexedTimestamp = currentState.state.lastIndexedAt !== new Date(0).toISOString();
+
+  if (currentState.exists && hasRealIndexedTimestamp && currentState.state.fingerprint === fingerprint) {
+    return {
+      rebuilt: false,
+      reason: "Signals index is already current.",
+      state: currentState.state,
+    };
+  }
+
+  return rebuildStewardSignalsIndex({
+    organizationId,
+    trigger: "auto",
+    fingerprint,
+  });
 }
 
 /** Builds stable opportunity IDs that action endpoints can parse deterministically. */
@@ -417,6 +778,63 @@ async function loadOpportunityContext(organizationId: string, userId?: string): 
 }
 
 /**
+ * GET /api/steward-signals/index/state
+ * Returns persisted analysis index status for Steward Signals workspace.
+ */
+router.get("/index/state", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const fingerprint = await computeSignalsFingerprint(organizationId);
+  const state = await readStewardIndexState(organizationId, fingerprint);
+
+  res.json({
+    data: {
+      state: state.state,
+    },
+  });
+});
+
+/**
+ * POST /api/steward-signals/index/rebuild
+ * Manually rebuilds the Steward Signals analysis index.
+ */
+router.post("/index/rebuild", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const rebuild = await rebuildStewardSignalsIndex({
+    organizationId,
+    trigger: "manual",
+  });
+
+  await logAudit({
+    action: "STEWARD_SIGNALS_ANALYSIS_REBUILT",
+    entity: "PluginSetting",
+    entityId: STEWARD_SIGNALS_INDEX_PLUGIN_KEY,
+    userId: req.user?.sub,
+    organizationId,
+    metadata: {
+      trigger: "manual",
+      indexedConstituentCount: rebuild.state.indexedConstituentCount,
+      fingerprint: rebuild.state.fingerprint,
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({
+    data: rebuild,
+  });
+});
+
+/**
  * GET /api/steward-signals/summary
  * Returns dashboard summary cards:
  * { highOpportunityDonors, atRiskCadenceBroken, monthlyGivingCandidates, thankYousNeeded, updatedAt }
@@ -433,6 +851,8 @@ router.get("/summary", async (req, res) => {
     });
     return;
   }
+
+  const indexRefresh = await ensureStewardSignalsIndexCurrent(organizationId);
 
   const [opportunities, recentDonations, pendingThankYous] = await Promise.all([
     loadOpportunityContext(organizationId, req.user?.sub),
@@ -477,7 +897,7 @@ router.get("/summary", async (req, res) => {
     atRiskCadenceBroken,
     monthlyGivingCandidates,
     thankYousNeeded: pendingThankYous,
-    updatedAt: new Date().toISOString(),
+    updatedAt: indexRefresh.state.lastIndexedAt,
   });
 });
 
@@ -491,6 +911,8 @@ router.get("/opportunities", async (req, res) => {
     res.json([]);
     return;
   }
+
+  await ensureStewardSignalsIndexCurrent(organizationId);
 
   const parsedLimit = Number.parseInt((req.query.limit as string) ?? "50", 10);
   const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 250) : 50;
@@ -519,6 +941,8 @@ router.get("/lapse-radar", async (req, res) => {
     });
     return;
   }
+
+  const indexRefresh = await ensureStewardSignalsIndexCurrent(organizationId);
 
   const opportunities = await loadOpportunityContext(organizationId, req.user?.sub);
   const byDonor = new Map<string, OpportunityRecord>();
@@ -554,7 +978,7 @@ router.get("/lapse-radar", async (req, res) => {
   res.json({
     cohorts,
     sample,
-    updatedAt: new Date().toISOString(),
+    updatedAt: indexRefresh.state.lastIndexedAt,
   });
 });
 
@@ -569,6 +993,8 @@ router.get("/donors/:id/widget", async (req, res) => {
     res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
     return;
   }
+
+  await ensureStewardSignalsIndexCurrent(organizationId);
 
   const constituentId = req.params.id as string;
 
@@ -741,6 +1167,8 @@ router.post("/opportunities/:id/create-task", async (req, res) => {
     userAgent: req.headers["user-agent"],
   });
 
+  await ensureStewardSignalsIndexCurrent(organizationId);
+
   res.status(201).json({
     success: true,
     task,
@@ -823,6 +1251,8 @@ router.post("/opportunities/:id/draft-email", async (req, res) => {
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
   });
+
+  await ensureStewardSignalsIndexCurrent(organizationId);
 
   res.status(201).json({
     success: true,

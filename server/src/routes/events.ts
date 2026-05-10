@@ -8,12 +8,24 @@ import { Router } from "express";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 import type { Prisma } from "@prisma/client";
 
 const router = Router();
 
 // All event routes require authentication.
 router.use(requireAuth);
+
+// Event operations are mapped to view/edit permissions; deletes are treated as edit actions.
+router.use((req, res, next) => {
+  if (req.method === "GET") {
+    return requirePermission("view:events")(req, res, next);
+  }
+  if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH" || req.method === "DELETE") {
+    return requirePermission("edit:events")(req, res, next);
+  }
+  return next();
+});
 
 /** GET /api/events/dashboard-summary — high-level command-center metrics for Events CRM. */
 router.get("/dashboard-summary", async (req, res) => {

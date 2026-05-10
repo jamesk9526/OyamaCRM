@@ -1,12 +1,13 @@
 // Compassion CRM nested layout — provides the blue-themed CompassionShell for all /compassion/* routes.
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import TopBar from "@/app/components/layout/TopBar";
 import CompassionSidebar from "@/app/components/layout/CompassionSidebar";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
+import { DEFAULT_WORKSPACE_SETTINGS, fetchWorkspaceSettings, type WorkspaceSettings } from "@/app/lib/workspace-settings";
 
 // TODO: enforce Compassion workspace permission — currently only checks authentication, not module access
 
@@ -20,6 +21,23 @@ export default function CompassionLayout({ children }: { children: React.ReactNo
   const router = useRouter();
   const pathname = usePathname();
   const isPublicWidgetRoute = pathname.startsWith("/compassion/public");
+  const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
+
+  useEffect(() => {
+    if (isPublicWidgetRoute || loading || !user) return;
+    let active = true;
+
+    async function loadWorkspaceSettings() {
+      const settings = await fetchWorkspaceSettings();
+      if (!active) return;
+      setWorkspaceSettings(settings);
+    }
+
+    void loadWorkspaceSettings();
+    return () => {
+      active = false;
+    };
+  }, [isPublicWidgetRoute, loading, user]);
 
   // Redirect unauthenticated users to login
   useEffect(() => {
@@ -27,7 +45,10 @@ export default function CompassionLayout({ children }: { children: React.ReactNo
     if (!loading && !user) {
       router.replace("/login");
     }
-  }, [isPublicWidgetRoute, loading, user, router]);
+    if (!loading && user && !workspaceSettings.compassionEnabled) {
+      router.replace("/");
+    }
+  }, [isPublicWidgetRoute, loading, user, router, workspaceSettings.compassionEnabled]);
 
   if (isPublicWidgetRoute) {
     return <>{children}</>;

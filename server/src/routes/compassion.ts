@@ -35,6 +35,7 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
 import {
@@ -85,8 +86,9 @@ function computeFamilyKey(client: {
   return `client:${client.id}`;
 }
 
-// All Compassion CRM routes require a valid JWT — client care data is sensitive.
-router.use(requireAuth);
+// All Compassion CRM routes require auth and at least readonly role (blocks report_viewer from client-care data).
+// TODO: enforce Compassion workspace permission
+router.use(requireAuth, requireRole("readonly"));
 
 // ─── Widget Builder Settings ────────────────────────────────────────────────
 
@@ -1708,7 +1710,7 @@ router.delete("/services/:id", requireRole("admin"), async (req, res) => {
  * - It does NOT modify EventGuest or any other module records.
  * - All records are scoped to the authenticated organization.
  */
-router.post("/clients/import", async (req, res) => {
+router.post("/clients/import", requirePermission("import:data"), async (req, res) => {
   try {
     const organizationId = await resolveOrganizationId({ req });
     if (!organizationId) {

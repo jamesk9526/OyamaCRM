@@ -19,11 +19,23 @@ import nodemailer from "nodemailer";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 
 const router = Router();
 
 // All email-campaign routes require authentication.
 router.use(requireAuth);
+
+// Communications permissions: GET endpoints require view access; mutations require edit access.
+router.use((req, res, next) => {
+  if (req.method === "GET") {
+    return requirePermission("view:communications")(req, res, next);
+  }
+  if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH" || req.method === "DELETE") {
+    return requirePermission("edit:communications")(req, res, next);
+  }
+  return next();
+});
 
 type AudienceFilter = { type?: string } | null;
 type AudienceConstituent = {

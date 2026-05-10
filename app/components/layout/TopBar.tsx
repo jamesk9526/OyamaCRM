@@ -8,6 +8,11 @@ import { useAuth } from "@/app/components/auth/AuthProvider";
 import AppsDrawer, { AppsGridIcon } from "@/app/components/layout/AppsDrawer";
 import StewardChatPanel from "@/app/components/ai/StewardChatPanel";
 import { apiFetch } from "@/app/lib/auth-client";
+import {
+  DEFAULT_WORKSPACE_SETTINGS,
+  fetchWorkspaceSettings,
+  type WorkspaceSettings,
+} from "@/app/lib/workspace-settings";
 
 interface SearchResult {
   id: string;
@@ -32,6 +37,19 @@ interface TopBarNotification {
   href: string;
   createdAt: string;
   priority: "low" | "medium" | "high";
+}
+
+interface StewardSignalsRebuildResult {
+  rebuilt: boolean;
+  reason: string;
+  state: {
+    fingerprint: string;
+    lastIndexedAt: string;
+    indexedConstituentCount: number;
+    autoRebuildCount: number;
+    manualRebuildCount: number;
+    lastTrigger: "auto" | "manual";
+  };
 }
 
 function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "events" | "watchdog" | "webmaster" }) {
@@ -295,6 +313,25 @@ export default function TopBar() {
   const [notificationsError, setNotificationsError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<TopBarNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [analyzingSignals, setAnalyzingSignals] = useState(false);
+  const [signalsAnalyzeError, setSignalsAnalyzeError] = useState<string | null>(null);
+  const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
+  const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadWorkspaceSettings() {
+      const settings = await fetchWorkspaceSettings();
+      if (!active) return;
+      setWorkspaceSettings(settings);
+    }
+
+    void loadWorkspaceSettings();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const loadNotifications = useCallback(async () => {
     setNotificationsLoading(true);
@@ -323,6 +360,31 @@ export default function TopBar() {
     setNotificationsOpen(false);
   }, [pathname]);
 
+  /** Manually rebuilds Steward Signals analysis index and notifies workspace widgets to refresh. */
+  const runStewardSignalsAnalysis = useCallback(async () => {
+    if (!isStewardSignalsWorkspace || analyzingSignals) return;
+    setAnalyzingSignals(true);
+    setSignalsAnalyzeError(null);
+
+    try {
+      const result = await apiFetch<StewardSignalsRebuildResult>("/api/steward-signals/index/rebuild", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+
+      window.dispatchEvent(new CustomEvent("steward-signals:analysis-rebuilt", {
+        detail: {
+          source: "topbar-analyze",
+          rebuild: result,
+        },
+      }));
+    } catch (error) {
+      setSignalsAnalyzeError(error instanceof Error ? error.message : "Failed to rebuild Steward Signals analysis.");
+    } finally {
+      setAnalyzingSignals(false);
+    }
+  }, [isStewardSignalsWorkspace, analyzingSignals]);
+
   return (
     <>
       <AppsDrawer open={appsOpen} onClose={() => setAppsOpen(false)} />
@@ -335,10 +397,13 @@ export default function TopBar() {
       <header className="h-14 shrink-0 w-full flex items-center gap-4 px-4 bg-[#1a2332] border-b border-[#0f1924] z-20">
 
         {/* ── Module switcher (left anchor) ── */}
-        <ModuleSwitcher moduleKey={moduleKey} />
-
-        {/* ── Divider ── */}
-        <div className="w-px h-5 bg-white/10 shrink-0" />
+        {workspaceSettings.showModuleSwitcher && (
+          <>
+            <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} />
+            {/* ── Divider ── */}
+            <div className="w-px h-5 bg-white/10 shrink-0" />
+          </>
+        )}
 
         {/* ── Search (centered) ── */}
         <div className="flex-1 flex justify-center px-1 sm:px-3">
@@ -347,6 +412,17 @@ export default function TopBar() {
 
         {/* ── Right-side icon controls ── */}
         <div className="flex items-center gap-1 shrink-0">
+
+          {isStewardSignalsWorkspace && (
+            <button
+              title={signalsAnalyzeError ?? "Rebuild Steward Signals analysis index"}
+              onClick={() => void runStewardSignalsAnalysis()}
+              disabled={analyzingSignals}
+              className="h-9 px-3 rounded-lg border border-green-400/40 bg-green-500/20 text-green-100 text-xs font-semibold hover:bg-green-500/30 disabled:opacity-60"
+            >
+              {analyzingSignals ? "Analyzing..." : "Analyze"}
+            </button>
+          )}
 
           {/* Apps Drawer trigger */}
           <button
@@ -470,7 +546,13 @@ export default function TopBar() {
 /**
  * ModuleSwitcher: lets users switch between DonorCRM, Compassion CRM, and Events CRM.
  */
-function ModuleSwitcher({ moduleKey }: { moduleKey: "donor" | "compassion" | "events" | "watchdog" | "webmaster" }) {
+function ModuleSwitcher({
+  moduleKey,
+  settings,
+}: {
+  moduleKey: "donor" | "compassion" | "events" | "watchdog" | "webmaster";
+  settings: WorkspaceSettings;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
@@ -480,7 +562,14 @@ function ModuleSwitcher({ moduleKey }: { moduleKey: "donor" | "compassion" | "ev
     { key: "events", label: "Events CRM", href: "/events", color: "bg-amber-500", active: moduleKey === "events" },
     { key: "watchdog", label: "OyamaWatchdog", href: "/watchdog", color: "bg-red-500", active: moduleKey === "watchdog" },
     { key: "webmaster", label: "OyamaWebMaster", href: "/webmaster", color: "bg-indigo-500", active: moduleKey === "webmaster" },
-  ];
+  ].filter((module) => {
+    if (module.key === "donor") return settings.donorEnabled;
+    if (module.key === "compassion") return settings.compassionEnabled;
+    return true;
+  });
+
+  if (modules.length === 0) return null;
+
   const current = modules.find((m) => m.active) ?? modules[0];
 
   function switchTo(href: string) {

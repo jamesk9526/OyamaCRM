@@ -12,14 +12,15 @@
  *
  * @module routes/users
  */
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, type Router as ExpressRouter } from "express";
 import { hashPassword } from "../lib/auth.js";
 import { logAudit } from "../lib/audit.js";
+import { PERMISSION_KEYS, type PermissionKey } from "../lib/permissions.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
 
-const router = Router();
+const router: ExpressRouter = Router();
 
 // All user management routes require authentication.
 router.use(requireAuth);
@@ -254,45 +255,6 @@ router.patch("/:id/password", requireRole("admin"), async (req: Request, res: Re
 });
 
 // ─── Fine-grained Permission Overrides ────────────────────────────────────────
-
-/**
- * All available fine-grained permission keys.
- * These can be explicitly granted or denied per user, overriding role defaults.
- */
-export const PERMISSION_KEYS = [
-  "view:constituents",
-  "edit:constituents",
-  "delete:constituents",
-  "view:donations",
-  "edit:donations",
-  "delete:donations",
-  "view:campaigns",
-  "edit:campaigns",
-  "view:reports",
-  "view:communications",
-  "edit:communications",
-  "view:events",
-  "edit:events",
-  "view:tasks",
-  "edit:tasks",
-  "import:data",
-  "export:data",
-  "view:custom_fields",
-  "edit:custom_fields",
-  "view:audit_logs",
-  "watchdog:view_dashboard",
-  "watchdog:view_logs",
-  "watchdog:vault:read",
-  "watchdog:vault:read_secret",
-  "watchdog:vault:write",
-  "watchdog:vault:delete",
-  "watchdog:incident:acknowledge",
-  "watchdog:incident:escalate",
-  "watchdog:incident:resolve",
-  "watchdog:manage",
-] as const;
-
-export type PermissionKey = typeof PERMISSION_KEYS[number];
 
 /**
  * GET /api/users/:id/permissions

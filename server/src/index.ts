@@ -45,6 +45,7 @@ import searchRoutes from "./routes/search.js";
 import notificationsRoutes from "./routes/notifications.js";
 import stewardSignalsRoutes from "./routes/steward-signals.js";
 import stewardAiRoutes from "./routes/steward-ai.js";
+import communicationsAiRoutes from "./routes/communications-ai.js";
 import watchdogRoutes from "./routes/watchdog.js";
 import webmasterRoutes from "./routes/webmaster.js";
 import { prisma } from "./lib/prisma.js";
@@ -183,6 +184,7 @@ app.use("/api/search", searchRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/steward-signals", stewardSignalsRoutes);
 app.use("/api/steward-ai", stewardAiRoutes);
+app.use("/api/communications-ai", communicationsAiRoutes);
 app.use("/api/watchdog", watchdogRoutes);
 app.use("/api/webmaster", webmasterRoutes);
 

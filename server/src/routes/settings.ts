@@ -49,6 +49,15 @@ interface SettingsPayload {
   smtpFromEmail?: string | null;
 }
 
+type WorkspaceDefault = "donor" | "compassion";
+
+interface WorkspaceSettingsPayload {
+  donorEnabled?: boolean;
+  compassionEnabled?: boolean;
+  showModuleSwitcher?: boolean;
+  defaultWorkspace?: WorkspaceDefault;
+}
+
 interface ResetPayload {
   /** The 10-digit code currently displayed to the user. */
   verificationCode?: string;
@@ -87,6 +96,134 @@ async function getActiveOrganization() {
     select: { id: true, name: true },
   });
 }
+
+/** Resolves organizationId from auth context first, then falls back to the oldest installation org. */
+async function resolveSettingsOrganizationId(req: Request): Promise<string | null> {
+  const userOrgId = req.user?.orgId?.trim();
+  if (userOrgId) return userOrgId;
+  const org = await getActiveOrganization();
+  return org?.id ?? null;
+}
+
+/** Normalizes workspace settings and enforces at least one enabled workspace. */
+function normalizeWorkspacePayload(input: WorkspaceSettingsPayload) {
+  const donorEnabled = input.donorEnabled ?? true;
+  const compassionEnabled = input.compassionEnabled ?? true;
+  const showModuleSwitcher = input.showModuleSwitcher ?? true;
+  const requestedDefault: WorkspaceDefault = input.defaultWorkspace === "compassion" ? "compassion" : "donor";
+
+  if (!donorEnabled && !compassionEnabled) {
+    return {
+      ok: false as const,
+      error: { code: "WORKSPACE_REQUIRED", message: "At least one workspace must remain enabled." },
+    };
+  }
+
+  const defaultWorkspace: WorkspaceDefault = requestedDefault === "donor"
+    ? (donorEnabled ? "donor" : "compassion")
+    : (compassionEnabled ? "compassion" : "donor");
+
+  return {
+    ok: true as const,
+    value: {
+      donorEnabled,
+      compassionEnabled,
+      showModuleSwitcher,
+      defaultWorkspace,
+    },
+  };
+}
+
+/** GET /api/settings/workspaces — Return module enablement and startup defaults for the current organization. */
+router.get("/workspaces", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const organizationId = await resolveSettingsOrganizationId(req);
+    if (!organizationId) {
+      const defaults = normalizeWorkspacePayload({});
+      return res.json(defaults.ok ? defaults.value : {});
+    }
+
+    const settings = await prisma.organizationSettings.findUnique({
+      where: { organizationId },
+      select: {
+        donorWorkspaceEnabled: true,
+        compassionWorkspaceEnabled: true,
+        showModuleSwitcher: true,
+        defaultWorkspace: true,
+      },
+    });
+
+    const normalized = normalizeWorkspacePayload({
+      donorEnabled: settings?.donorWorkspaceEnabled,
+      compassionEnabled: settings?.compassionWorkspaceEnabled,
+      showModuleSwitcher: settings?.showModuleSwitcher,
+      defaultWorkspace: settings?.defaultWorkspace === "compassion" ? "compassion" : "donor",
+    });
+
+    return res.json(normalized.ok ? normalized.value : {});
+  } catch {
+    return res.status(500).json({ error: { code: "WORKSPACE_SETTINGS_READ_FAILED", message: "Failed to load workspace settings" } });
+  }
+});
+
+/** PUT /api/settings/workspaces — Persist module enablement and startup defaults. Admin-only. */
+router.put("/workspaces", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await resolveSettingsOrganizationId(req);
+    if (!organizationId) {
+      return res.status(404).json({ error: { code: "SETTINGS_NOT_READY", message: "No organization has been configured yet." } });
+    }
+
+    const body = req.body as WorkspaceSettingsPayload;
+    const normalized = normalizeWorkspacePayload(body);
+    if (!normalized.ok) {
+      return res.status(400).json({ error: normalized.error });
+    }
+
+    const saved = await prisma.organizationSettings.upsert({
+      where: { organizationId },
+      create: {
+        organizationId,
+        donorWorkspaceEnabled: normalized.value.donorEnabled,
+        compassionWorkspaceEnabled: normalized.value.compassionEnabled,
+        showModuleSwitcher: normalized.value.showModuleSwitcher,
+        defaultWorkspace: normalized.value.defaultWorkspace,
+      },
+      update: {
+        donorWorkspaceEnabled: normalized.value.donorEnabled,
+        compassionWorkspaceEnabled: normalized.value.compassionEnabled,
+        showModuleSwitcher: normalized.value.showModuleSwitcher,
+        defaultWorkspace: normalized.value.defaultWorkspace,
+      },
+      select: {
+        donorWorkspaceEnabled: true,
+        compassionWorkspaceEnabled: true,
+        showModuleSwitcher: true,
+        defaultWorkspace: true,
+      },
+    });
+
+    logAudit({
+      action: "WORKSPACE_SETTINGS_UPDATED",
+      entity: "OrganizationSettings",
+      entityId: organizationId,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: normalized.value,
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    return res.json({
+      donorEnabled: saved.donorWorkspaceEnabled,
+      compassionEnabled: saved.compassionWorkspaceEnabled,
+      showModuleSwitcher: saved.showModuleSwitcher,
+      defaultWorkspace: saved.defaultWorkspace === "compassion" ? "compassion" : "donor",
+    });
+  } catch {
+    return res.status(500).json({ error: { code: "WORKSPACE_SETTINGS_WRITE_FAILED", message: "Failed to save workspace settings" } });
+  }
+});
 
 /** GET /api/settings — Return merged organization and settings (regional + SMTP). Requires authentication. */
 router.get("/", requireAuth, async (_req: Request, res: Response) => {

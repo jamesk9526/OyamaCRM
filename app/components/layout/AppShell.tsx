@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import TopBar from "./TopBar";
 import Sidebar from "./Sidebar";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
+import { DEFAULT_WORKSPACE_SETTINGS, fetchWorkspaceSettings, type WorkspaceSettings } from "@/app/lib/workspace-settings";
 
 // Module routes render their own shells — bypass AppShell wrapper.
 const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/compassion", "/events", "/watchdog", "/webmaster"];
@@ -20,6 +21,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
   const isBoard = BOARD_PATHS.some((p) => pathname.startsWith(p));
+  const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
+
+  useEffect(() => {
+    if (loading || !user) return;
+    let active = true;
+
+    async function loadWorkspaceSettings() {
+      const settings = await fetchWorkspaceSettings();
+      if (!active) return;
+      setWorkspaceSettings(settings);
+    }
+
+    void loadWorkspaceSettings();
+    return () => {
+      active = false;
+    };
+  }, [loading, user]);
 
   useEffect(() => {
     if (loading) return;
@@ -39,8 +57,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     // Prevent non-report_viewer users from accidentally landing on the board route
     if (user && user.role !== "report_viewer" && isBoard) {
       router.replace("/");
+      return;
     }
-  }, [loading, user, isPublic, isBoard, router]);
+
+    // Redirect away from donor routes if DonorCRM is disabled at workspace settings level.
+    if (user && !isPublic && !isBoard && !workspaceSettings.donorEnabled && workspaceSettings.compassionEnabled) {
+      router.replace("/compassion/dashboard");
+    }
+  }, [loading, user, isPublic, isBoard, router, workspaceSettings]);
 
   // Public pages — no shell
   if (isPublic) return <>{children}</>;

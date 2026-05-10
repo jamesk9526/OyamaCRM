@@ -18,12 +18,23 @@ import { Router, Request, Response } from "express";
 import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { requireRole } from "../middleware/requireRole.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 
 const router = Router();
 
 // All custom field routes require authentication.
 router.use(requireAuth);
+
+// Custom field access is controlled by view/edit fine-grained permission keys.
+router.use((req, res, next) => {
+  if (req.method === "GET") {
+    return requirePermission("view:custom_fields")(req, res, next);
+  }
+  if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH" || req.method === "DELETE") {
+    return requirePermission("edit:custom_fields")(req, res, next);
+  }
+  return next();
+});
 
 /** Valid entity types that can have custom fields attached. */
 const VALID_ENTITY_TYPES = ["constituent", "donation", "campaign", "event"] as const;
@@ -89,7 +100,7 @@ router.get("/", async (req: Request, res: Response) => {
  *
  * Body: { entityType, name, key, fieldType, options?, required?, description?, placeholder?, defaultValue?, sortOrder? }
  */
-router.post("/", requireRole("manager"), async (req: Request, res: Response) => {
+router.post("/", async (req: Request, res: Response) => {
   try {
     const orgId = req.user?.orgId;
     const userId = req.user?.sub;
@@ -186,7 +197,7 @@ router.post("/", requireRole("manager"), async (req: Request, res: Response) => 
  * key and entityType cannot change after creation (would break stored values).
  * Requires manager or admin role.
  */
-router.put("/:id", requireRole("manager"), async (req: Request, res: Response) => {
+router.put("/:id", async (req: Request, res: Response) => {
   try {
     const orgId = req.user?.orgId;
     const userId = req.user?.sub;
@@ -257,7 +268,7 @@ router.put("/:id", requireRole("manager"), async (req: Request, res: Response) =
  * Cascaded delete of CustomFieldValue is handled by Prisma schema (onDelete: Cascade).
  * Admin-only.
  */
-router.delete("/:id", requireRole("admin"), async (req: Request, res: Response) => {
+router.delete("/:id", async (req: Request, res: Response) => {
   try {
     const orgId = req.user?.orgId;
     const userId = req.user?.sub;

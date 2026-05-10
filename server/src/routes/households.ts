@@ -14,13 +14,26 @@
  * @module routes/households
  */
 import { Router } from "express";
+import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 
 const router = Router();
 
 // All household routes require authentication.
 router.use(requireAuth);
+
+// Household operations are constituent operations for permission purposes.
+router.use((req, res, next) => {
+  if (req.method === "GET") {
+    return requirePermission("view:constituents")(req, res, next);
+  }
+  if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH" || req.method === "DELETE") {
+    return requirePermission("edit:constituents")(req, res, next);
+  }
+  return next();
+});
 
 /**
  * Field set used when returning household members.
@@ -41,8 +54,20 @@ const MEMBER_SELECT = {
 
 /** GET /api/households/:id — Fetch a household with its head constituent and all members. */
 router.get("/:id", async (req, res) => {
-  const household = await prisma.household.findUnique({
-    where: { id: req.params.id },
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const household = await prisma.household.findFirst({
+    where: {
+      id: req.params.id,
+      OR: [
+        { head: { organizationId } },
+        { members: { some: { organizationId } } },
+      ],
+    },
     include: {
       head: { select: { id: true, firstName: true, lastName: true, prefix: true } },
       members: { select: MEMBER_SELECT, orderBy: { lastName: "asc" } },
@@ -58,8 +83,17 @@ router.get("/:id", async (req, res) => {
 
 /** GET /api/households/by-head/:constituentId — Find the household for which this constituent is the head. */
 router.get("/by-head/:constituentId", async (req, res) => {
-  const household = await prisma.household.findUnique({
-    where: { headConstituentId: req.params.constituentId },
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const household = await prisma.household.findFirst({
+    where: {
+      headConstituentId: req.params.constituentId,
+      head: { organizationId },
+    },
     include: {
       members: { select: MEMBER_SELECT, orderBy: { lastName: "asc" } },
     },
@@ -74,6 +108,12 @@ router.get("/by-head/:constituentId", async (req, res) => {
 
 /** POST /api/households/:id/members — Add an existing constituent to this household as a member. */
 router.post("/:id/members", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
   const { constituentId } = req.body as { constituentId: string };
   if (!constituentId) {
     res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "constituentId is required" } });
@@ -81,9 +121,26 @@ router.post("/:id/members", async (req, res) => {
   }
 
   // Verify household exists
-  const household = await prisma.household.findUnique({ where: { id: req.params.id } });
+  const household = await prisma.household.findFirst({
+    where: {
+      id: req.params.id,
+      OR: [
+        { head: { organizationId } },
+        { members: { some: { organizationId } } },
+      ],
+    },
+  });
   if (!household) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Household not found" } });
+    return;
+  }
+
+  const member = await prisma.constituent.findFirst({
+    where: { id: constituentId, organizationId },
+    select: { id: true },
+  });
+  if (!member) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid constituentId for your organization" } });
     return;
   }
 
@@ -104,8 +161,14 @@ router.post("/:id/members", async (req, res) => {
 
 /** DELETE /api/households/:id/members/:constituentId — Remove a constituent from this household (sets householdId to null). */
 router.delete("/:id/members/:constituentId", async (req, res) => {
-  const constituent = await prisma.constituent.findUnique({
-    where: { id: req.params.constituentId },
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const constituent = await prisma.constituent.findFirst({
+    where: { id: req.params.constituentId, organizationId },
     select: { householdId: true },
   });
 
@@ -124,7 +187,28 @@ router.delete("/:id/members/:constituentId", async (req, res) => {
 
 /** PUT /api/households/:id — Update household name and/or address fields. */
 router.put("/:id", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
   const { name, addressLine1, addressLine2, city, state, zip, country } = req.body;
+
+  const existing = await prisma.household.findFirst({
+    where: {
+      id: req.params.id,
+      OR: [
+        { head: { organizationId } },
+        { members: { some: { organizationId } } },
+      ],
+    },
+    select: { id: true },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Household not found" } });
+    return;
+  }
 
   const household = await prisma.household.update({
     where: { id: req.params.id },

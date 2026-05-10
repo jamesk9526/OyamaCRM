@@ -98,33 +98,15 @@ export async function apiFetch<T = unknown>(
   path: string,
   init: RequestInit = {}
 ): Promise<T> {
-  let token = getAccessToken();
-
-  const makeRequest = async (t: string | null) => {
-    return fetch(`${API_BASE}${path}`, {
-      ...init,
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        ...(init.headers as Record<string, string> ?? {}),
-        ...(t ? { Authorization: `Bearer ${t}` } : {}),
-      },
-    });
-  };
-
-  let res = await makeRequest(token);
-
-  // Auto-refresh on 401
-  if (res.status === 401 && token) {
-    const newToken = await refreshAccessToken();
-    if (newToken) {
-      res = await makeRequest(newToken);
-    }
-  }
+  const res = await apiFetchResponse(path, init);
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body?.error?.message ?? `API error ${res.status}`);
+    const message = body?.error?.message ?? `API error ${res.status}`;
+    if (res.status === 401) {
+      throw new Error("Your session expired. Please sign in again.");
+    }
+    throw new Error(message);
   }
 
   // 204/205 and HEAD responses intentionally have no response body.
@@ -145,4 +127,36 @@ export async function apiFetch<T = unknown>(
 
   const body = JSON.parse(rawBody) as { data?: T } | T;
   return (body.data ?? body) as T;
+}
+
+/**
+ * Authenticated request helper that returns the raw Response object.
+ * Useful for streaming endpoints where callers need direct access to response.body.
+ */
+export async function apiFetchResponse(path: string, init: RequestInit = {}): Promise<Response> {
+  const token = getAccessToken();
+
+  const makeRequest = async (activeToken: string | null) => {
+    return fetch(`${API_BASE}${path}`, {
+      ...init,
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...(init.headers as Record<string, string> ?? {}),
+        ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
+      },
+    });
+  };
+
+  let response = await makeRequest(token);
+
+  // Auto-refresh once on 401, including first-load cases where access token is not yet hydrated.
+  if (response.status === 401 && path !== "/api/auth/refresh") {
+    const newToken = await refreshAccessToken();
+    if (newToken) {
+      response = await makeRequest(newToken);
+    }
+  }
+
+  return response;
 }

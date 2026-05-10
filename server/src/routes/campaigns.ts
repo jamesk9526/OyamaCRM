@@ -16,12 +16,23 @@ import type { CampaignCategory, Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { requireRole } from "../middleware/requireRole.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 
 const router = Router();
 
 // All campaign routes require authentication.
 router.use(requireAuth);
+
+// Campaign routes use view/edit fine-grained permissions; delete is treated as an edit capability.
+router.use((req, res, next) => {
+  if (req.method === "GET") {
+    return requirePermission("view:campaigns")(req, res, next);
+  }
+  if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH" || req.method === "DELETE") {
+    return requirePermission("edit:campaigns")(req, res, next);
+  }
+  return next();
+});
 
 /**
  * Returns campaign date-overlap filters for a given calendar year.
@@ -258,8 +269,8 @@ router.patch("/:id", async (req, res) => {
   return res.json(updated);
 });
 
-/** DELETE /api/campaigns/:id — Permanently delete a campaign. Admin-only. */
-router.delete("/:id", requireRole("admin"), async (req, res) => {
+/** DELETE /api/campaigns/:id — Permanently delete a campaign. */
+router.delete("/:id", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
     return res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });

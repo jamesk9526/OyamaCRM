@@ -14,6 +14,7 @@ import { Router } from "express";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 import { completedDonationWhere } from "../lib/donationScope.js";
 import {
   getYearRange,
@@ -26,6 +27,7 @@ const router = Router();
 
 // All report routes require authentication — report data is sensitive org information.
 router.use(requireAuth);
+router.use(requirePermission("view:reports"));
 
 /** Filters orphan-safe task counts to the active installation organization. */
 function taskOrganizationWhere(organizationId: string) {

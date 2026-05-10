@@ -15,9 +15,13 @@ import type {
   EmailBlock,
   EmailTemplate,
   TextBlock,
+  QuoteBlock,
+  ImpactStatBlock,
   ImageBlock,
   VideoBlock,
   ButtonBlock,
+  AiTextBlock,
+  AiButtonBlock,
   DividerBlock,
   SpacerBlock,
   SocialBlock,
@@ -106,6 +110,136 @@ function TextEditor({
           <option value="center">Center</option>
           <option value="right">Right</option>
         </select>
+      </Field>
+      <Field label="Padding (px)">
+        <input
+          type="number"
+          className={inputCls}
+          min={0}
+          max={100}
+          value={block.padding}
+          onChange={(e) => onUpdate({ padding: Number(e.target.value) })}
+        />
+      </Field>
+    </>
+  );
+}
+
+function QuoteEditor({
+  block,
+  onUpdate,
+}: {
+  block: QuoteBlock;
+  onUpdate: (partial: Partial<QuoteBlock>) => void;
+}) {
+  return (
+    <>
+      <Field label="Quote Text">
+        <textarea
+          className={inputCls}
+          rows={4}
+          value={block.quote}
+          onChange={(e) => onUpdate({ quote: e.target.value })}
+        />
+      </Field>
+      <Field label="Attribution">
+        <input
+          type="text"
+          className={inputCls}
+          placeholder="Donor Name, Family, or Group"
+          value={block.attribution}
+          onChange={(e) => onUpdate({ attribution: e.target.value })}
+        />
+      </Field>
+      <Field label="Alignment">
+        <select
+          className={selectCls}
+          value={block.align}
+          onChange={(e) => onUpdate({ align: e.target.value as QuoteBlock['align'] })}
+        >
+          <option value="left">Left</option>
+          <option value="center">Center</option>
+          <option value="right">Right</option>
+        </select>
+      </Field>
+      <Field label="Padding (px)">
+        <input
+          type="number"
+          className={inputCls}
+          min={0}
+          max={100}
+          value={block.padding}
+          onChange={(e) => onUpdate({ padding: Number(e.target.value) })}
+        />
+      </Field>
+    </>
+  );
+}
+
+function ImpactStatEditor({
+  block,
+  onUpdate,
+}: {
+  block: ImpactStatBlock;
+  onUpdate: (partial: Partial<ImpactStatBlock>) => void;
+}) {
+  return (
+    <>
+      <Field label="Impact Value">
+        <input
+          type="text"
+          className={inputCls}
+          value={block.value}
+          onChange={(e) => onUpdate({ value: e.target.value })}
+        />
+      </Field>
+      <Field label="Impact Label">
+        <input
+          type="text"
+          className={inputCls}
+          value={block.label}
+          onChange={(e) => onUpdate({ label: e.target.value })}
+        />
+      </Field>
+      <Field label="Sublabel" hint="Optional support text beneath the primary metric">
+        <input
+          type="text"
+          className={inputCls}
+          value={block.sublabel ?? ''}
+          onChange={(e) => onUpdate({ sublabel: e.target.value || undefined })}
+        />
+      </Field>
+      <Field label="Card Color">
+        <div className="flex gap-2">
+          <input
+            type="color"
+            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
+            value={block.bgColor}
+            onChange={(e) => onUpdate({ bgColor: e.target.value })}
+          />
+          <input
+            type="text"
+            className={`${inputCls} flex-1`}
+            value={block.bgColor}
+            onChange={(e) => onUpdate({ bgColor: e.target.value })}
+          />
+        </div>
+      </Field>
+      <Field label="Text Color">
+        <div className="flex gap-2">
+          <input
+            type="color"
+            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
+            value={block.textColor}
+            onChange={(e) => onUpdate({ textColor: e.target.value })}
+          />
+          <input
+            type="text"
+            className={`${inputCls} flex-1`}
+            value={block.textColor}
+            onChange={(e) => onUpdate({ textColor: e.target.value })}
+          />
+        </div>
       </Field>
       <Field label="Padding (px)">
         <input
@@ -323,6 +457,185 @@ function ButtonEditor({
           className={selectCls}
           value={block.align}
           onChange={(e) => onUpdate({ align: e.target.value as ButtonBlock['align'] })}
+        >
+          <option value="left">Left</option>
+          <option value="center">Center</option>
+          <option value="right">Right</option>
+        </select>
+      </Field>
+      <Field label="Border Radius (px)">
+        <input
+          type="number"
+          className={inputCls}
+          min={0}
+          max={50}
+          value={block.borderRadius}
+          onChange={(e) => onUpdate({ borderRadius: Number(e.target.value) })}
+        />
+      </Field>
+      <Field label="Padding (px)">
+        <input
+          type="number"
+          className={inputCls}
+          min={0}
+          max={100}
+          value={block.padding}
+          onChange={(e) => onUpdate({ padding: Number(e.target.value) })}
+        />
+      </Field>
+    </>
+  );
+}
+
+function AiTextEditor({
+  block,
+  onUpdate,
+  onGenerate,
+  generating,
+}: {
+  block: AiTextBlock;
+  onUpdate: (partial: Partial<AiTextBlock>) => void;
+  onGenerate?: () => void;
+  generating: boolean;
+}) {
+  return (
+    <>
+      <Field
+        label="AI Prompt"
+        hint="Describe what this section should communicate to your constituents."
+      >
+        <textarea
+          className={inputCls}
+          rows={3}
+          value={block.prompt}
+          onChange={(e) => onUpdate({ prompt: e.target.value })}
+        />
+      </Field>
+      <Field label="Tone">
+        <select
+          className={selectCls}
+          value={block.tone}
+          onChange={(e) => onUpdate({ tone: e.target.value as AiTextBlock['tone'] })}
+        >
+          <option value="warm">Warm</option>
+          <option value="informative">Informative</option>
+          <option value="celebratory">Celebratory</option>
+          <option value="urgent">Urgent</option>
+        </select>
+      </Field>
+      <button
+        type="button"
+        disabled={generating || !block.prompt.trim() || !onGenerate}
+        onClick={onGenerate}
+        className="w-full rounded-lg bg-green-600 text-white text-sm font-semibold py-2 hover:bg-green-700 disabled:opacity-60"
+      >
+        {generating ? 'Generating AI Text...' : 'Generate with AI'}
+      </button>
+      <Field label="Generated HTML Content">
+        <textarea
+          className={`${inputCls} font-mono text-xs`}
+          rows={7}
+          value={block.content}
+          onChange={(e) => onUpdate({ content: e.target.value })}
+        />
+      </Field>
+      <Field label="Padding (px)">
+        <input
+          type="number"
+          className={inputCls}
+          min={0}
+          max={100}
+          value={block.padding}
+          onChange={(e) => onUpdate({ padding: Number(e.target.value) })}
+        />
+      </Field>
+    </>
+  );
+}
+
+function AiButtonEditor({
+  block,
+  onUpdate,
+  onGenerate,
+  generating,
+}: {
+  block: AiButtonBlock;
+  onUpdate: (partial: Partial<AiButtonBlock>) => void;
+  onGenerate?: () => void;
+  generating: boolean;
+}) {
+  return (
+    <>
+      <Field label="AI Prompt" hint="Explain the action you want donors to take.">
+        <textarea
+          className={inputCls}
+          rows={3}
+          value={block.prompt}
+          onChange={(e) => onUpdate({ prompt: e.target.value })}
+        />
+      </Field>
+      <button
+        type="button"
+        disabled={generating || !block.prompt.trim() || !onGenerate}
+        onClick={onGenerate}
+        className="w-full rounded-lg bg-green-600 text-white text-sm font-semibold py-2 hover:bg-green-700 disabled:opacity-60"
+      >
+        {generating ? 'Generating AI CTA...' : 'Generate CTA with AI'}
+      </button>
+      <Field label="Button Label">
+        <input
+          type="text"
+          className={inputCls}
+          value={block.label}
+          onChange={(e) => onUpdate({ label: e.target.value })}
+        />
+      </Field>
+      <Field label="URL (href)">
+        <input
+          type="url"
+          className={inputCls}
+          placeholder="https://"
+          value={block.href}
+          onChange={(e) => onUpdate({ href: e.target.value })}
+        />
+      </Field>
+      <Field label="Background Color">
+        <div className="flex gap-2">
+          <input
+            type="color"
+            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
+            value={block.bgColor}
+            onChange={(e) => onUpdate({ bgColor: e.target.value })}
+          />
+          <input
+            type="text"
+            className={`${inputCls} flex-1`}
+            value={block.bgColor}
+            onChange={(e) => onUpdate({ bgColor: e.target.value })}
+          />
+        </div>
+      </Field>
+      <Field label="Text Color">
+        <div className="flex gap-2">
+          <input
+            type="color"
+            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
+            value={block.textColor}
+            onChange={(e) => onUpdate({ textColor: e.target.value })}
+          />
+          <input
+            type="text"
+            className={`${inputCls} flex-1`}
+            value={block.textColor}
+            onChange={(e) => onUpdate({ textColor: e.target.value })}
+          />
+        </div>
+      </Field>
+      <Field label="Alignment">
+        <select
+          className={selectCls}
+          value={block.align}
+          onChange={(e) => onUpdate({ align: e.target.value as AiButtonBlock['align'] })}
         >
           <option value="left">Left</option>
           <option value="center">Center</option>
@@ -670,6 +983,8 @@ interface Props {
   template:         EmailTemplate;
   onUpdateBlock:    (id: string, partial: Partial<EmailBlock>) => void;
   onUpdateTemplate: (partial: Partial<EmailTemplate>) => void;
+  onGenerateAiBlock?: (id: string) => void;
+  aiGeneratingBlockId?: string | null;
 }
 
 /**
@@ -681,6 +996,8 @@ export default function BlockEditor({
   template,
   onUpdateBlock,
   onUpdateTemplate,
+  onGenerateAiBlock,
+  aiGeneratingBlockId,
 }: Props) {
   /* Stable update helper so child editors don't need the block id. */
   const update = useCallback(
@@ -716,6 +1033,18 @@ export default function BlockEditor({
                 onUpdate={update as (p: Partial<TextBlock>) => void}
               />
             )}
+            {selectedBlock.type === 'quote' && (
+              <QuoteEditor
+                block={selectedBlock as QuoteBlock}
+                onUpdate={update as (p: Partial<QuoteBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'impactStat' && (
+              <ImpactStatEditor
+                block={selectedBlock as ImpactStatBlock}
+                onUpdate={update as (p: Partial<ImpactStatBlock>) => void}
+              />
+            )}
             {selectedBlock.type === 'image' && (
               <ImageEditor
                 block={selectedBlock as ImageBlock}
@@ -732,6 +1061,22 @@ export default function BlockEditor({
               <ButtonEditor
                 block={selectedBlock as ButtonBlock}
                 onUpdate={update as (p: Partial<ButtonBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'aiText' && (
+              <AiTextEditor
+                block={selectedBlock as AiTextBlock}
+                onUpdate={update as (p: Partial<AiTextBlock>) => void}
+                onGenerate={onGenerateAiBlock ? () => onGenerateAiBlock(selectedBlock.id) : undefined}
+                generating={aiGeneratingBlockId === selectedBlock.id}
+              />
+            )}
+            {selectedBlock.type === 'aiButton' && (
+              <AiButtonEditor
+                block={selectedBlock as AiButtonBlock}
+                onUpdate={update as (p: Partial<AiButtonBlock>) => void}
+                onGenerate={onGenerateAiBlock ? () => onGenerateAiBlock(selectedBlock.id) : undefined}
+                generating={aiGeneratingBlockId === selectedBlock.id}
               />
             )}
             {selectedBlock.type === 'divider' && (

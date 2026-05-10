@@ -101,6 +101,26 @@ OyamaCRM is **one platform with five integrated modules**, each purpose-built fo
 ### System Status Center
 ![System Status](README_SCREENSHOTS/18-system-status.png)
 
+### Steward AI Assistant — Donor Dashboard Drawer
+![Steward AI Drawer](README_SCREENSHOTS/19-ai-chat-drawer-response.png)
+
+### Steward AI Workspace — Analyze Mode
+![Steward AI Workspace Analyze](README_SCREENSHOTS/20-ai-chat-workspace-analyze.png)
+
+---
+
+## 🤖 Steward AI Chat Workflow Test (Browser)
+
+Tested in-browser on the DonorCRM dashboard and Steward workspace.
+
+- Opened AI Assistant from the DonorCRM top bar on the main dashboard.
+- Sent prompt in Ask mode: "Summarize donor dashboard priorities today in 3 bullets."
+- Verified structured response rendering with Summary, Evidence, and Next Steps sections.
+- Opened full Steward AI Workspace and switched to Analyze mode.
+- Sent second prompt: "Analyze the most urgent donor follow-up risks shown in this dashboard context."
+- Verified second response plus tool trace and records-used panel updates.
+- Observed console warnings during Analyze response rendering (duplicate React keys and maximum update depth warning).
+
 ---
 
 ## 🟢 DonorCRM — Fundraising & Donor Stewardship

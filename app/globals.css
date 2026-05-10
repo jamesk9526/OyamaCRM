@@ -18,3 +18,31 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+/* Chat scroll surfaces use a subtle custom scrollbar for a smoother docked experience. */
+.chat-scroll-smooth {
+  scrollbar-width: thin;
+  scrollbar-color: #30363d transparent;
+  scroll-behavior: smooth;
+}
+
+.chat-scroll-smooth::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.chat-scroll-smooth::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-scroll-smooth::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.chat-scroll-smooth::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+  background-clip: padding-box;
+}

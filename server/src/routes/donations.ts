@@ -18,7 +18,7 @@ import type { DonationStatus, Prisma } from "@prisma/client";
 import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { requireRole } from "../middleware/requireRole.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { donationOrgWhere } from "../lib/donationScope.js";
 import { executeStewardPathsForTrigger } from "../services/stewardPathsEngine.js";
@@ -27,6 +27,23 @@ const router = Router();
 
 // All donation routes require authentication.
 router.use(requireAuth);
+
+// Fine-grained permission checks for donation read/write/delete/import flows.
+router.use((req, res, next) => {
+  if (req.method === "GET") {
+    return requirePermission("view:donations")(req, res, next);
+  }
+  if (req.method === "POST" && req.path === "/import") {
+    return requirePermission("import:data")(req, res, next);
+  }
+  if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH") {
+    return requirePermission("edit:donations")(req, res, next);
+  }
+  if (req.method === "DELETE") {
+    return requirePermission("delete:donations")(req, res, next);
+  }
+  return next();
+});
 
 /**
  * Standard relations to include on every donation response.
@@ -203,8 +220,14 @@ router.get("/stats", async (req, res) => {
 
 /** GET /api/donations/:id — Fetch a single donation including its linked pledge if present. */
 router.get("/:id", async (req, res) => {
-  const donation = await prisma.donation.findUnique({
-    where: { id: req.params.id },
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const donation = await prisma.donation.findFirst({
+    where: { id: req.params.id, constituent: { organizationId } },
     include: { ...INCLUDE, pledge: true },
   });
   if (!donation) return res.status(404).json({ error: "Donation not found" });
@@ -218,6 +241,32 @@ router.post("/", async (req, res) => {
     amount, date, paymentMethod, checkNumber, isRecurring,
     frequency, status, taxDeductible, notes,
   } = req.body;
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const constituent = await prisma.constituent.findFirst({
+    where: { id: constituentId, organizationId },
+    select: { id: true },
+  });
+  if (!constituent) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid constituentId for your organization" } });
+    return;
+  }
+
+  if (campaignId) {
+    const campaign = await prisma.campaign.findFirst({
+      where: { id: campaignId, organizationId },
+      select: { id: true },
+    });
+    if (!campaign) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid campaignId for your organization" } });
+      return;
+    }
+  }
 
   const donation = await prisma.donation.create({
     data: {
@@ -237,8 +286,6 @@ router.post("/", async (req, res) => {
     },
     include: INCLUDE,
   });
-
-  const organizationId = await resolveOrganizationId({ req });
 
   await prisma.activity.create({
     data: {
@@ -282,6 +329,21 @@ router.put("/:id", async (req, res) => {
     campaignId, designationId, amount, date, paymentMethod,
     checkNumber, isRecurring, frequency, status, taxDeductible, notes,
   } = req.body;
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const existing = await prisma.donation.findFirst({
+    where: { id: req.params.id, constituent: { organizationId } },
+    select: { id: true },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Donation not found" } });
+    return;
+  }
 
   const donation = await prisma.donation.update({
     where: { id: req.params.id },
@@ -337,7 +399,7 @@ router.put("/:id", async (req, res) => {
  *
  * Requires: role manager or higher.
  */
-router.post("/import", requireRole("manager"), async (req, res) => {
+router.post("/import", async (req, res) => {
   const {
     records,
     dryRun         = true,
@@ -562,7 +624,7 @@ router.post("/import", requireRole("manager"), async (req, res) => {
       // ── Deduplication by receipt number ────────────────────────────────────
       if (dedupByReceipt && rec.receiptNumber?.trim()) {
         const exists = await prisma.donation.findFirst({
-          where: { receiptNumber: rec.receiptNumber.trim() },
+          where: { receiptNumber: rec.receiptNumber.trim(), constituent: { organizationId: orgId } },
           select: { id: true, constituentId: true },
         });
         if (exists) {
@@ -667,10 +729,16 @@ router.post("/import", requireRole("manager"), async (req, res) => {
  * Used for batch-entry corrections; logs a NOTE activity on the donor's timeline
  * before deletion so the gift removal is auditable.
  */
-router.delete("/:id", requireRole("admin"), async (req, res) => {
+router.delete("/:id", async (req, res) => {
   const id = req.params.id as string;
-  const existing = await prisma.donation.findUnique({
-    where: { id },
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const existing = await prisma.donation.findFirst({
+    where: { id, constituent: { organizationId } },
     select: { id: true, constituentId: true, amount: true },
   });
   if (!existing) {

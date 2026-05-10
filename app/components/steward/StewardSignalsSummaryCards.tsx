@@ -44,9 +44,21 @@ export default function StewardSignalsSummaryCards() {
       }
     }
 
-    loadSummary();
+    void loadSummary();
+
+    const handleRebuild = () => {
+      void loadSummary();
+    };
+
+    window.addEventListener("steward-signals:analysis-rebuilt", handleRebuild);
+    const intervalId = window.setInterval(() => {
+      void loadSummary();
+    }, 30000);
+
     return () => {
       cancelled = true;
+      window.removeEventListener("steward-signals:analysis-rebuilt", handleRebuild);
+      window.clearInterval(intervalId);
     };
   }, []);
 

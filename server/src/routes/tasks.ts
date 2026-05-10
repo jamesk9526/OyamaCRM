@@ -14,12 +14,25 @@
  */
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
+import { resolveOrganizationId } from "../lib/organization.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 
 const router = Router();
 
 // All task routes require authentication.
 router.use(requireAuth);
+
+// Task endpoints use view/edit fine-grained permissions.
+router.use((req, res, next) => {
+  if (req.method === "GET") {
+    return requirePermission("view:tasks")(req, res, next);
+  }
+  if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH" || req.method === "DELETE") {
+    return requirePermission("edit:tasks")(req, res, next);
+  }
+  return next();
+});
 
 /** True when a task should be visible/editable to the current user. */
 function canAccessTask(task: { createdById: string | null; assigneeId: string | null }, userId: string, role: string | undefined): boolean {
@@ -27,12 +40,29 @@ function canAccessTask(task: { createdById: string | null; assigneeId: string | 
   return task.createdById === userId || task.assigneeId === userId;
 }
 
+/** OR-scoped task visibility for records linked to the authenticated organization. */
+function taskOrganizationWhere(organizationId: string) {
+  return {
+    OR: [
+      { constituent: { organizationId } },
+      { assignee: { organizationId } },
+      { createdBy: { organizationId } },
+      { meeting: { organizationId } },
+    ],
+  };
+}
+
 /** GET /api/tasks — Paginated task list. Filterable by assigneeId, status, and constituentId. */
 router.get("/", async (req, res) => {
   const userId = req.user?.sub;
   const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
   if (!userId) {
     res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+  if (!organizationId) {
+    res.json({ items: [], total: 0, page: 1, limit: 25 });
     return;
   }
 
@@ -50,6 +80,7 @@ router.get("/", async (req, res) => {
   const personalScope = !(scope === "all" && role === "admin");
 
   const where = {
+    ...taskOrganizationWhere(organizationId),
     ...(assigneeId && { assigneeId }),
     ...(status && { status: status as never }),
     ...(constituentId && { constituentId }),
@@ -81,7 +112,7 @@ router.get("/", async (req, res) => {
 /** POST /api/tasks — Create a new task. Body is passed directly to Prisma; include constituentId and assigneeId. */
 router.post("/", async (req, res) => {
   const userId = req.user?.sub;
-  const organizationId = req.user?.orgId;
+  const organizationId = await resolveOrganizationId({ req });
   if (!userId || !organizationId) {
     res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
     return;
@@ -98,6 +129,17 @@ router.post("/", async (req, res) => {
     assigneeId,
     meetingId,
   } = req.body as Record<string, string>;
+
+  if (assigneeId) {
+    const assignee = await prisma.user.findFirst({
+      where: { id: assigneeId, organizationId },
+      select: { id: true },
+    });
+    if (!assignee) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid assigneeId for your organization" } });
+      return;
+    }
+  }
 
   if (!title || !String(title).trim()) {
     res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "title is required" } });
@@ -154,13 +196,18 @@ router.post("/", async (req, res) => {
 router.patch("/:id", async (req, res) => {
   const userId = req.user?.sub;
   const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
   if (!userId) {
     res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
     return;
   }
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
 
-  const existing = await prisma.task.findUnique({
-    where: { id: req.params.id },
+  const existing = await prisma.task.findFirst({
+    where: { id: req.params.id, ...taskOrganizationWhere(organizationId) },
     select: { id: true, createdById: true, assigneeId: true, constituentId: true, title: true },
   });
   if (!existing) {
@@ -202,14 +249,19 @@ router.patch("/:id", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   const userId = req.user?.sub;
   const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
   if (!userId) {
     res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
     return;
   }
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
 
   const id = req.params.id as string;
-  const task = await prisma.task.findUnique({
-    where: { id },
+  const task = await prisma.task.findFirst({
+    where: { id, ...taskOrganizationWhere(organizationId) },
     select: { id: true, createdById: true, assigneeId: true },
   });
   if (!task) {

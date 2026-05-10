@@ -9,9 +9,13 @@
 
 export type BlockType =
   | 'text'
+  | 'quote'
+  | 'impactStat'
   | 'image'
   | 'video'
   | 'button'
+  | 'aiText'
+  | 'aiButton'
   | 'divider'
   | 'spacer'
   | 'social'
@@ -35,6 +39,28 @@ export interface TextBlock extends BaseBlock {
   fontSize: number;
   color: string;
   align: 'left' | 'center' | 'right';
+  padding: number;
+}
+
+// ─── Quote ────────────────────────────────────────────────────────────────────
+
+export interface QuoteBlock extends BaseBlock {
+  type: 'quote';
+  quote: string;
+  attribution: string;
+  align: 'left' | 'center' | 'right';
+  padding: number;
+}
+
+// ─── Impact Stat ──────────────────────────────────────────────────────────────
+
+export interface ImpactStatBlock extends BaseBlock {
+  type: 'impactStat';
+  value: string;
+  label: string;
+  sublabel?: string;
+  bgColor: string;
+  textColor: string;
   padding: number;
 }
 
@@ -69,6 +95,33 @@ export interface VideoBlock extends BaseBlock {
 
 export interface ButtonBlock extends BaseBlock {
   type: 'button';
+  label: string;
+  href: string;
+  bgColor: string;
+  textColor: string;
+  align: 'left' | 'center' | 'right';
+  padding: number;
+  borderRadius: number;
+}
+
+// ─── AI Text ──────────────────────────────────────────────────────────────────
+
+export interface AiTextBlock extends BaseBlock {
+  type: 'aiText';
+  /** Prompt used to generate or regenerate this section. */
+  prompt: string;
+  /** Generated HTML content rendered like a regular text block. */
+  content: string;
+  tone: 'warm' | 'urgent' | 'celebratory' | 'informative';
+  padding: number;
+}
+
+// ─── AI Button ────────────────────────────────────────────────────────────────
+
+export interface AiButtonBlock extends BaseBlock {
+  type: 'aiButton';
+  /** Prompt used to generate CTA copy and destination guidance. */
+  prompt: string;
   label: string;
   href: string;
   bgColor: string;
@@ -129,9 +182,13 @@ export interface ColumnsBlock extends BaseBlock {
 
 export type EmailBlock =
   | TextBlock
+  | QuoteBlock
+  | ImpactStatBlock
   | ImageBlock
   | VideoBlock
   | ButtonBlock
+  | AiTextBlock
+  | AiButtonBlock
   | DividerBlock
   | SpacerBlock
   | SocialBlock
@@ -155,12 +212,14 @@ export interface PaletteItem {
   description: string;
   /** Emoji or character used as the icon. */
   icon: string;
-  section: 'Content' | 'Media' | 'Layout' | 'Elements';
+  section: 'Content' | 'Media' | 'Layout' | 'Elements' | 'AI';
 }
 
 export const PALETTE_ITEMS: PaletteItem[] = [
   // Content
   { blockType: 'text',    label: 'Text',    description: 'Add formatted text',        icon: 'T',  section: 'Content'  },
+  { blockType: 'quote',   label: 'Quote',   description: 'Donor quote or testimonial', icon: '"', section: 'Content'  },
+  { blockType: 'impactStat', label: 'Impact Stat', description: 'Highlight one metric', icon: '#', section: 'Content' },
   { blockType: 'image',   label: 'Image',   description: 'Upload or link an image',    icon: '🖼', section: 'Content'  },
   { blockType: 'button',  label: 'Button',  description: 'Call-to-action button',      icon: '🖱', section: 'Content'  },
   // Media
@@ -171,4 +230,7 @@ export const PALETTE_ITEMS: PaletteItem[] = [
   { blockType: 'spacer',  label: 'Spacer',  description: 'Vertical spacing',           icon: '↕', section: 'Layout'   },
   // Elements
   { blockType: 'social',  label: 'Social',  description: 'Social media links',         icon: '⇄', section: 'Elements' },
+  // AI
+  { blockType: 'aiText',   label: 'AI Text',   description: 'AI-generated narrative section', icon: 'AI', section: 'AI' },
+  { blockType: 'aiButton', label: 'AI CTA',    description: 'AI-generated call-to-action',    icon: 'A>', section: 'AI' },
 ];

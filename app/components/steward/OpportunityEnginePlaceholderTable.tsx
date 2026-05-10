@@ -47,7 +47,21 @@ export default function OpportunityEnginePlaceholderTable() {
   }
 
   useEffect(() => {
-    loadRows();
+    void loadRows();
+
+    const handleRebuild = () => {
+      void loadRows();
+    };
+
+    window.addEventListener("steward-signals:analysis-rebuilt", handleRebuild);
+    const intervalId = window.setInterval(() => {
+      void loadRows();
+    }, 30000);
+
+    return () => {
+      window.removeEventListener("steward-signals:analysis-rebuilt", handleRebuild);
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   const emptyMessage = useMemo(() => {

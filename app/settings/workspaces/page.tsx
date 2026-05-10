@@ -2,56 +2,69 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-const STORAGE_KEY = "settings-workspaces";
-
-type DefaultWorkspace = "donor" | "compassion";
-
-interface WorkspaceSettings {
-  donorEnabled: boolean;
-  compassionEnabled: boolean;
-  defaultWorkspace: DefaultWorkspace;
-  showModuleSwitcher: boolean;
-}
-
-const DEFAULT_SETTINGS: WorkspaceSettings = {
-  donorEnabled: true,
-  compassionEnabled: true,
-  defaultWorkspace: "donor",
-  showModuleSwitcher: true,
-};
+import { apiFetch } from "@/app/lib/auth-client";
+import {
+  DEFAULT_WORKSPACE_SETTINGS,
+  normalizeWorkspaceSettings,
+  type WorkspaceSettings,
+  type WorkspaceKey,
+} from "@/app/lib/workspace-settings";
 
 /** WorkspacesSettingsPage provides a complete workspace-controls surface for admins. */
 export default function WorkspacesSettingsPage() {
-  const [settings, setSettings] = useState<WorkspaceSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
   const [loaded, setLoaded] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<WorkspaceSettings>;
-        setSettings((prev) => ({ ...prev, ...parsed }));
+    let active = true;
+
+    async function loadSettings() {
+      try {
+        const payload = await apiFetch<WorkspaceSettings>("/api/settings/workspaces");
+        if (!active) return;
+        setSettings(normalizeWorkspaceSettings(payload));
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to load workspace settings");
+      } finally {
+        if (active) setLoaded(true);
       }
-    } catch {
-      // Ignore malformed local state and continue with defaults.
-    } finally {
-      setLoaded(true);
     }
+
+    void loadSettings();
+    return () => {
+      active = false;
+    };
   }, []);
 
   /** Updates one workspace setting field. */
   function setField<K extends keyof WorkspaceSettings>(key: K, value: WorkspaceSettings[K]) {
     setSettings((prev) => ({ ...prev, [key]: value }));
     setSaved(false);
+    setError(null);
   }
 
-  /** Saves workspace settings locally until backend settings API is finalized. */
-  function saveWorkspaceSettings() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+  /** Persists workspace settings for the whole organization through the backend API. */
+  async function saveWorkspaceSettings() {
+    setSaving(true);
+    setError(null);
+    try {
+      const payload = await apiFetch<WorkspaceSettings>("/api/settings/workspaces", {
+        method: "PUT",
+        body: JSON.stringify(settings),
+      });
+      setSettings(normalizeWorkspaceSettings(payload));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save workspace settings");
+      setSaved(false);
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (!loaded) {
@@ -72,11 +85,15 @@ export default function WorkspacesSettingsPage() {
         <p className="text-sm text-gray-500 mt-0.5">Control module availability and startup behavior for DonorCRM and Compassion CRM.</p>
       </div>
 
-      <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        Settings are currently persisted in the browser for fast rollout.
-        <br />
-        TODO: backend API needed for organization-wide workspace settings persistence.
+      <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+        Workspace settings are saved organization-wide and applied across login routing, module availability, and TopBar switcher visibility.
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {saved && (
         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -130,7 +147,7 @@ export default function WorkspacesSettingsPage() {
           Default workspace after login
           <select
             value={settings.defaultWorkspace}
-            onChange={(e) => setField("defaultWorkspace", e.target.value as DefaultWorkspace)}
+            onChange={(e) => setField("defaultWorkspace", e.target.value as WorkspaceKey)}
             className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
           >
             <option value="donor">DonorCRM</option>
@@ -143,10 +160,10 @@ export default function WorkspacesSettingsPage() {
         <button
           type="button"
           onClick={saveWorkspaceSettings}
-          disabled={blockedState}
+          disabled={blockedState || saving}
           className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
         >
-          Save Workspace Settings
+          {saving ? "Saving..." : "Save Workspace Settings"}
         </button>
       </div>
     </div>

@@ -5,12 +5,16 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 
 type StewardAiMode = "local" | "remote";
+type StewardAiReasoningMode = "standard" | "thinking";
 
 interface StewardAiConfigResponse {
   enabled: boolean;
   mode: StewardAiMode;
   endpointUrl: string;
   model: string;
+  thinkingModel: string;
+  reasoningMode: StewardAiReasoningMode;
+  agenticMultiStage: boolean;
   temperature: number;
   maxTokens: number;
   timeoutMs: number;
@@ -25,10 +29,18 @@ interface StewardAiTestResponse {
   firstModel: string | null;
 }
 
+interface StewardAiModelsResponse {
+  models: string[];
+}
+
 /** AISettingsPage provides admin controls for local and remote Ollama deployment modes. */
 export default function AISettingsPage() {
   const [config, setConfig] = useState<StewardAiConfigResponse | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState("");
+  const [localModels, setLocalModels] = useState<string[]>([]);
+  const [loadingLocalModels, setLoadingLocalModels] = useState(false);
+  const [localModelsError, setLocalModelsError] = useState<string | null>(null);
+  const [localModelRefreshTick, setLocalModelRefreshTick] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -56,12 +68,61 @@ export default function AISettingsPage() {
     void loadConfig();
   }, []);
 
+  useEffect(() => {
+    if (!config || config.mode !== "local") {
+      setLocalModels([]);
+      setLocalModelsError(null);
+      setLoadingLocalModels(false);
+      return;
+    }
+
+    let active = true;
+    const debounce = setTimeout(async () => {
+      setLoadingLocalModels(true);
+      setLocalModelsError(null);
+      try {
+        const params = new URLSearchParams();
+        const endpointUrl = config.endpointUrl.trim();
+        if (endpointUrl) params.set("endpointUrl", endpointUrl);
+        const query = params.toString();
+
+        const response = await apiFetch<StewardAiModelsResponse>(
+          `/api/steward-ai/models${query ? `?${query}` : ""}`
+        );
+        if (!active) return;
+        setLocalModels(response.models);
+      } catch (error) {
+        if (!active) return;
+        setLocalModels([]);
+        setLocalModelsError(error instanceof Error ? error.message : "Failed to load local models.");
+      } finally {
+        if (active) {
+          setLoadingLocalModels(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      active = false;
+      clearTimeout(debounce);
+    };
+  }, [config?.endpointUrl, config?.mode, localModelRefreshTick]);
+
   const endpointHint = useMemo(() => {
     if (config?.mode === "remote") {
       return "Remote Ollama URL (for hosted or LAN endpoint, e.g. https://ai.myorg.org)";
     }
     return "Local Ollama URL (default: http://127.0.0.1:11434)";
   }, [config?.mode]);
+
+  const localModelOptions = useMemo(() => {
+    if (!config) return [];
+    const unique = new Set(localModels);
+    if (config.model && !unique.has(config.model)) {
+      return [config.model, ...localModels];
+    }
+    return localModels;
+  }, [config, localModels]);
 
   /** Updates one config field in local component state. */
   function updateConfig<K extends keyof StewardAiConfigResponse>(key: K, value: StewardAiConfigResponse[K]) {
@@ -187,6 +248,48 @@ export default function AISettingsPage() {
           </label>
         </div>
 
+        <div className="rounded-lg border border-gray-200 p-3 space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Reasoning Strategy</h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Thinking mode uses a dedicated reasoning model (recommended: DeepSeek) for better grounded answers.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label className={`rounded-lg border p-3 text-sm cursor-pointer ${config.reasoningMode === "standard" ? "border-green-300 bg-green-50" : "border-gray-200"}`}>
+              <input
+                type="radio"
+                name="steward-ai-reasoning-mode"
+                checked={config.reasoningMode === "standard"}
+                onChange={() => updateConfig("reasoningMode", "standard")}
+                className="mr-2"
+              />
+              Standard
+              <p className="text-xs text-gray-500 mt-1">Single-pass answer generation using the primary model.</p>
+            </label>
+            <label className={`rounded-lg border p-3 text-sm cursor-pointer ${config.reasoningMode === "thinking" ? "border-green-300 bg-green-50" : "border-gray-200"}`}>
+              <input
+                type="radio"
+                name="steward-ai-reasoning-mode"
+                checked={config.reasoningMode === "thinking"}
+                onChange={() => updateConfig("reasoningMode", "thinking")}
+                className="mr-2"
+              />
+              Thinking (DeepSeek Recommended)
+              <p className="text-xs text-gray-500 mt-1">Runs planning + reasoning stages before final response.</p>
+            </label>
+          </div>
+          <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+            <input
+              type="checkbox"
+              checked={config.agenticMultiStage}
+              onChange={(event) => updateConfig("agenticMultiStage", event.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+            />
+            Enable multi-stage agentic pipeline (plan → reason → answer)
+          </label>
+        </div>
+
         <div className="grid sm:grid-cols-2 gap-3">
           <label className="text-sm text-gray-700">
             Endpoint URL
@@ -199,16 +302,91 @@ export default function AISettingsPage() {
             />
           </label>
 
-          <label className="text-sm text-gray-700">
-            Model
-            <input
-              type="text"
-              value={config.model}
-              onChange={(event) => updateConfig("model", event.target.value)}
-              placeholder="llama3.2:3b"
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-          </label>
+          {config.mode === "local" ? (
+            <label className="text-sm text-gray-700">
+              <span className="flex items-center justify-between gap-2">
+                <span>Local Model</span>
+                <button
+                  type="button"
+                  onClick={() => setLocalModelRefreshTick((current) => current + 1)}
+                  className="text-xs font-medium text-green-700 hover:text-green-800"
+                >
+                  Refresh models
+                </button>
+              </span>
+
+              {localModelOptions.length > 0 ? (
+                <select
+                  value={config.model}
+                  onChange={(event) => updateConfig("model", event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  {localModelOptions.map((modelName) => (
+                    <option key={modelName} value={modelName}>
+                      {modelName}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={config.model}
+                  onChange={(event) => updateConfig("model", event.target.value)}
+                  placeholder="llama3.2:3b"
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              )}
+
+              <p className="mt-1 text-xs text-gray-500">
+                {loadingLocalModels
+                  ? "Loading models from local Ollama..."
+                  : localModelsError
+                    ? localModelsError
+                    : localModelOptions.length > 0
+                      ? `${localModelOptions.length} local model(s) found.`
+                      : "No local models detected yet. You can still type a model name manually."}
+              </p>
+            </label>
+          ) : (
+            <label className="text-sm text-gray-700">
+              Model
+              <input
+                type="text"
+                value={config.model}
+                onChange={(event) => updateConfig("model", event.target.value)}
+                placeholder="llama3.2:3b"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </label>
+          )}
+
+          {config.mode === "local" && localModelOptions.length > 0 ? (
+            <label className="text-sm text-gray-700">
+              Thinking Model
+              <select
+                value={config.thinkingModel}
+                onChange={(event) => updateConfig("thinkingModel", event.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                {localModelOptions.map((modelName) => (
+                  <option key={`thinking-${modelName}`} value={modelName}>
+                    {modelName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <label className="text-sm text-gray-700">
+              Thinking Model
+              <input
+                type="text"
+                value={config.thinkingModel}
+                onChange={(event) => updateConfig("thinkingModel", event.target.value)}
+                placeholder="deepseek-r1:8b"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </label>
+          )}
 
           <label className="text-sm text-gray-700">
             Temperature

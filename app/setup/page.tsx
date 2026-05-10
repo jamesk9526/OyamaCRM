@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const SUCCESS_REDIRECT_DELAY_MS = 900;
-const WORKSPACE_SETTINGS_KEY = "settings-workspaces";
 const DASHBOARD_GOAL_MODE_KEY = "dashboard-revenue-goal-mode";
 const DASHBOARD_MANUAL_GOAL_KEY = "dashboard-manual-revenue-goal";
 
@@ -296,16 +295,6 @@ export default function SetupPage() {
       if (!response.ok) {
         throw new Error(payload?.error?.message || `HTTP ${response.status}`);
       }
-
-      // Keep setup-driven workspace defaults available in Settings until backend preference routes are finalized.
-      localStorage.setItem(
-        WORKSPACE_SETTINGS_KEY,
-        JSON.stringify({
-          donorEnabled: form.enableOyamaCRM,
-          compassionEnabled: form.enableCompassion,
-          defaultWorkspace: form.defaultWorkspace,
-        }),
-      );
 
       // Seed dashboard manual goal from onboarding goals when provided.
       if (!form.goalsLater && Number(form.annualRevenueGoal || 0) > 0) {

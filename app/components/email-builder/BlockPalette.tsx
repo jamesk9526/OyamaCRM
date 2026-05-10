@@ -62,7 +62,7 @@ function PaletteDragCard({ item }: CardProps) {
 // ─── BlockPalette ─────────────────────────────────────────────────────────────
 
 /** Section order determines display order in the left panel. */
-const SECTIONS: PaletteItem['section'][] = ['Content', 'Media', 'Layout', 'Elements'];
+const SECTIONS: PaletteItem['section'][] = ['Content', 'Media', 'Layout', 'Elements', 'AI'];
 
 /**
  * Left panel — shows all draggable block-type cards grouped by section.

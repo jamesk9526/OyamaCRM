@@ -7,11 +7,14 @@ import { prisma } from "../lib/prisma.js";
 import { logAudit } from "../lib/audit.js";
 import {
   defaultStewardAiConfig,
+  listStewardAiModels,
   parseStewardAiConfig,
   runStewardAiChat,
+  runStewardAiChatStream,
   testStewardAiConnection,
   type StewardAiChatMessage,
   type StewardAiMode,
+  type StewardAiReasoningMode,
 } from "../services/steward-ai-ollama.js";
 import type { Prisma } from "@prisma/client";
 import type { Router as ExpressRouter } from "express";
@@ -27,6 +30,9 @@ interface StewardAiConfigResponse {
   mode: StewardAiMode;
   endpointUrl: string;
   model: string;
+  thinkingModel: string;
+  reasoningMode: StewardAiReasoningMode;
+  agenticMultiStage: boolean;
   temperature: number;
   maxTokens: number;
   timeoutMs: number;
@@ -39,11 +45,18 @@ interface StewardAiUpdatePayload {
   mode?: StewardAiMode;
   endpointUrl?: string;
   model?: string;
+  thinkingModel?: string;
+  reasoningMode?: StewardAiReasoningMode;
+  agenticMultiStage?: boolean;
   temperature?: number;
   maxTokens?: number;
   timeoutMs?: number;
   systemPrompt?: string;
   apiKey?: string;
+}
+
+interface StewardAiModelsQuery {
+  endpointUrl?: string;
 }
 
 interface StewardAiChatPayload {
@@ -53,8 +66,23 @@ interface StewardAiChatPayload {
   scopePath?: string;
 }
 
+type StewardChatMode = NonNullable<StewardAiChatPayload["mode"]>;
+
 interface StewardContextResult {
   contextText: string;
+  toolsUsed: string[];
+  recordsUsed: string[];
+}
+
+interface TopDonorResult {
+  reply: string;
+  toolsUsed: string[];
+  recordsUsed: string[];
+}
+
+interface AgenticPreparationResult {
+  reasoningModel: string;
+  stageSummaries: string[];
   toolsUsed: string[];
 }
 
@@ -84,12 +112,286 @@ function parseScopeIdentifiers(scopePath: string): { clientId?: string; eventId?
   return {};
 }
 
+/** Returns true when a donor question clearly asks for top/major donor ranking. */
+function isTopDonorQuestion(input: string): boolean {
+  const normalized = input.toLowerCase();
+  return /(top\s+donors?|largest\s+donors?|major\s+donors?|highest\s+donors?)/.test(normalized);
+}
+
+/** Formats a numeric donation value for concise human-readable output. */
+function formatGivingAmount(value: unknown): string {
+  const parsed = Number.parseFloat(String(value ?? ""));
+  if (!Number.isFinite(parsed)) return String(value ?? "0");
+  return `$${parsed.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+}
+
+/** Builds a deterministic top-donor answer directly from CRM data. */
+async function buildTopDonorResult(organizationId: string): Promise<TopDonorResult> {
+  const topDonors = await prisma.constituent.findMany({
+    where: {
+      organizationId,
+      totalLifetimeGiving: { gt: 0 },
+    },
+    select: {
+      firstName: true,
+      lastName: true,
+      totalLifetimeGiving: true,
+      lastGiftDate: true,
+    },
+    orderBy: [
+      { totalLifetimeGiving: "desc" },
+      { lastGiftDate: "desc" },
+    ],
+    take: 5,
+  });
+
+  if (topDonors.length === 0) {
+    return {
+      reply: "I could not find any donors with lifetime giving greater than $0 yet.",
+      toolsUsed: ["donor.topDonorSnapshot"],
+      recordsUsed: [],
+    };
+  }
+
+  const lines = topDonors.map((donor, index) => {
+    const name = `${donor.firstName} ${donor.lastName}`.trim();
+    const amount = formatGivingAmount(donor.totalLifetimeGiving);
+    const lastGift = donor.lastGiftDate ? donor.lastGiftDate.toISOString().slice(0, 10) : "unknown";
+    return `${index + 1}. ${name} — ${amount} (last gift: ${lastGift})`;
+  });
+
+  return {
+    reply: [
+      "Your top donors by lifetime giving are:",
+      ...lines,
+    ].join("\n"),
+    toolsUsed: ["donor.topDonorSnapshot"],
+    recordsUsed: topDonors.map((donor, index) =>
+      `${index + 1}. ${donor.firstName} ${donor.lastName} (${formatGivingAmount(donor.totalLifetimeGiving)})`
+    ),
+  };
+}
+
+/** Returns mode-specific next-step defaults when the model does not provide explicit actions. */
+function defaultNextStepsByMode(mode: StewardChatMode): string[] {
+  if (mode === "analyze") {
+    return [
+      "Validate the top findings against your current filtered view.",
+      "Prioritize one high-impact segment for immediate follow-up.",
+      "Schedule a quick review of outliers before taking write actions.",
+    ];
+  }
+
+  if (mode === "draft") {
+    return [
+      "Edit names, tone, and timing for your audience before sending.",
+      "Confirm compliance and privacy language where required.",
+      "Save the draft to Communications or Tasks for team review.",
+    ];
+  }
+
+  if (mode === "action") {
+    return [
+      "Review the recommended action list and choose one to execute.",
+      "Confirm scope and impacted records before any write operation.",
+      "Capture an audit note once execution is complete.",
+    ];
+  }
+
+  if (mode === "help") {
+    return [
+      "Follow the steps in order from your current page context.",
+      "If expected options are missing, verify your role permissions.",
+      "Use AI Settings to test runtime connectivity if responses fail.",
+    ];
+  }
+
+  return [
+    "Choose one concrete follow-up and assign an owner.",
+    "Create a task or draft communication from the suggested steps.",
+    "Re-run this question after updates to compare changes.",
+  ];
+}
+
+/** Formats replies into consistent analyst-friendly sections. */
+function formatReplyByMode(options: {
+  mode: StewardChatMode;
+  reply: string;
+  toolsUsed: string[];
+  recordsUsed: string[];
+}): string {
+  const summary = options.reply.trim() || "No summary was returned.";
+  const evidenceItems = [
+    ...options.recordsUsed.slice(0, 6).map((record) => `Record: ${record}`),
+    ...options.toolsUsed.slice(0, 6).map((tool) => `Tool: ${tool}`),
+  ];
+  const nextSteps = defaultNextStepsByMode(options.mode);
+
+  const evidenceSection = evidenceItems.length > 0
+    ? evidenceItems.map((item, index) => `${index + 1}. ${item}`).join("\n")
+    : "1. No direct evidence records were retrieved for this response.";
+
+  return [
+    "## Summary",
+    summary,
+    "## Evidence",
+    evidenceSection,
+    "## Next Steps",
+    nextSteps.map((step, index) => `${index + 1}. ${step}`).join("\n"),
+  ].join("\n\n");
+}
+
+/** Picks the effective thinking model, falling back to the primary model when unset. */
+function resolveThinkingModel(config: ReturnType<typeof parseStewardAiConfig>): string {
+  return String(config.thinkingModel || config.model).trim() || config.model;
+}
+
+/** Builds the planner stage prompt for agentic multi-stage preparation. */
+function buildPlannerPrompt(options: {
+  mode: StewardChatMode;
+  moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>;
+  scopePath: string;
+  userQuery: string;
+  contextText: string;
+}): string {
+  return [
+    "You are Steward's planning engine. Produce concise planning notes only.",
+    "Do not answer the user yet.",
+    `Mode: ${options.mode}`,
+    `Module: ${options.moduleKey}`,
+    `Scope: ${options.scopePath}`,
+    "Return exactly three sections:",
+    "1) Key intent",
+    "2) Evidence to prioritize",
+    "3) Execution plan",
+    "Keep each section under 4 bullets and stay grounded in provided context.",
+    "User query:",
+    options.userQuery || "(empty query)",
+    "Retrieved context:",
+    options.contextText || "No retrieval context available.",
+  ].join("\n\n");
+}
+
+/** Builds the reasoning stage prompt that pressure-tests the planner output. */
+function buildReasoningPrompt(options: {
+  mode: StewardChatMode;
+  userQuery: string;
+  contextText: string;
+  plannerNotes: string;
+}): string {
+  return [
+    "You are Steward's reasoning verifier.",
+    "Do not answer the user directly.",
+    `Mode: ${options.mode}`,
+    "Validate the planner notes against evidence and identify any weak assumptions.",
+    "Return exactly three sections:",
+    "1) Validated evidence",
+    "2) Risks and unknowns",
+    "3) Final answer strategy",
+    "Keep output concise, factual, and retrieval-grounded.",
+    "User query:",
+    options.userQuery || "(empty query)",
+    "Planner notes:",
+    options.plannerNotes || "(no planner notes)",
+    "Retrieved context:",
+    options.contextText || "No retrieval context available.",
+  ].join("\n\n");
+}
+
+/** Runs agentic planning + reasoning stages when enabled and returns summary artifacts. */
+async function buildAgenticPreparation(options: {
+  config: ReturnType<typeof parseStewardAiConfig>;
+  mode: StewardChatMode;
+  moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>;
+  scopePath: string;
+  userQuery: string;
+  contextText: string;
+}): Promise<AgenticPreparationResult> {
+  if (!options.config.agenticMultiStage) {
+    return {
+      reasoningModel: options.config.model,
+      stageSummaries: [],
+      toolsUsed: [],
+    };
+  }
+
+  const reasoningModel = options.config.reasoningMode === "thinking"
+    ? resolveThinkingModel(options.config)
+    : options.config.model;
+
+  const stageSummaries: string[] = [];
+  const toolsUsed: string[] = [];
+
+  try {
+    const plannerResult = await runStewardAiChat(
+      options.config,
+      [
+        {
+          role: "system",
+          content: buildPlannerPrompt({
+            mode: options.mode,
+            moduleKey: options.moduleKey,
+            scopePath: options.scopePath,
+            userQuery: options.userQuery,
+            contextText: options.contextText,
+          }),
+        },
+      ],
+      {
+        model: reasoningModel,
+        temperature: 0.2,
+        maxTokens: 700,
+      }
+    );
+
+    stageSummaries.push(`Planner Notes:\n${plannerResult.content}`);
+    toolsUsed.push("agentic.plan");
+
+    const reasoningResult = await runStewardAiChat(
+      options.config,
+      [
+        {
+          role: "system",
+          content: buildReasoningPrompt({
+            mode: options.mode,
+            userQuery: options.userQuery,
+            contextText: options.contextText,
+            plannerNotes: plannerResult.content,
+          }),
+        },
+      ],
+      {
+        model: reasoningModel,
+        temperature: 0.15,
+        maxTokens: 900,
+      }
+    );
+
+    stageSummaries.push(`Reasoning Notes:\n${reasoningResult.content}`);
+    toolsUsed.push("agentic.reason");
+
+    return {
+      reasoningModel,
+      stageSummaries,
+      toolsUsed,
+    };
+  } catch {
+    // Graceful fallback keeps chat responsive when the configured thinking model is unavailable.
+    return {
+      reasoningModel: options.config.model,
+      stageSummaries,
+      toolsUsed,
+    };
+  }
+}
+
 /** Creates a runtime instruction block tailored to mode/module/context. */
 function buildRuntimeSystemPrompt(options: {
   mode: NonNullable<StewardAiChatPayload["mode"]>;
   moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>;
   scopePath: string;
   contextText: string;
+  agenticNotes?: string[];
 }): string {
   const actionPolicy = options.mode === "action"
     ? "Action mode policy: do not claim an action is executed. Propose explicit steps, required confirmations, and rollback considerations."
@@ -103,7 +405,7 @@ function buildRuntimeSystemPrompt(options: {
         ? "Use security operations terminology (incident, severity, alert, audit, access control, encrypted vault)."
         : options.moduleKey === "webmaster"
           ? "Use website operations terminology (templates, pages, publishing, domain, SEO, approvals)."
-      : "Use donor stewardship terminology (constituent, donation, campaign, stewardship, retention).";
+          : "Use donor stewardship terminology (constituent, donation, campaign, stewardship, retention). If the user asks for top donors and ranked donor context exists, answer directly from that ranked data with names plus lifetime values. Do not claim missing data for that question unless no ranked donor data exists.";
 
   return [
     "Runtime instruction: answer using the provided CRM context first.",
@@ -113,10 +415,17 @@ function buildRuntimeSystemPrompt(options: {
     moduleLexicon,
     "If context does not support a claim, clearly label it as unknown.",
     "Cite concrete records, counts, and names from context when possible.",
+    "Do not expose private chain-of-thought. Provide concise conclusions grounded in evidence.",
     "Finish with a short numbered next-step list when the user asks for guidance.",
+    options.agenticNotes && options.agenticNotes.length > 0
+      ? [
+          "Agentic preparation notes:",
+          ...options.agenticNotes,
+        ].join("\n\n")
+      : "",
     "Retrieved context follows:",
     options.contextText || "No retrieval context available.",
-  ].join("\n\n");
+  ].filter(Boolean).join("\n\n");
 }
 
 /** Builds donor module retrieval context from constituents, tasks, and meetings. */
@@ -125,16 +434,16 @@ async function buildDonorContext(params: {
   tokens: string[];
   scopePath: string;
 }): Promise<StewardContextResult> {
-  const toolsUsed: string[] = ["donor.constituentLookup", "donor.workQueueSnapshot"];
+  const toolsUsed: string[] = ["donor.constituentLookup", "donor.workQueueSnapshot", "donor.topDonorSnapshot"];
 
   const donorMatches = params.tokens.length > 0
     ? await prisma.constituent.findMany({
         where: {
           organizationId: params.organizationId,
           OR: params.tokens.flatMap((token) => ([
-            { firstName: { contains: token, mode: "insensitive" as const } },
-            { lastName: { contains: token, mode: "insensitive" as const } },
-            { email: { contains: token, mode: "insensitive" as const } },
+            { firstName: { contains: token } },
+            { lastName: { contains: token } },
+            { email: { contains: token } },
           ])),
         },
         select: {
@@ -175,11 +484,44 @@ async function buildDonorContext(params: {
     take: 5,
   });
 
+  const topDonors = await prisma.constituent.findMany({
+    where: {
+      organizationId: params.organizationId,
+      totalLifetimeGiving: { gt: 0 },
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      donorStatus: true,
+      totalLifetimeGiving: true,
+      lastGiftDate: true,
+    },
+    orderBy: [
+      { totalLifetimeGiving: "desc" },
+      { lastGiftDate: "desc" },
+    ],
+    take: 8,
+  });
+
+  const topDonorLeaderboard = topDonors.map((donor, index) => ({
+    rank: index + 1,
+    name: `${donor.firstName} ${donor.lastName}`,
+    donorStatus: donor.donorStatus,
+    lifetimeGiving: String(donor.totalLifetimeGiving),
+    lastGiftDate: donor.lastGiftDate?.toISOString() ?? null,
+  }));
+
   const lines = [
     `Donor scope path: ${params.scopePath}`,
     `Pending tasks in queue: ${pendingTaskCount}`,
     `Upcoming meetings: ${upcomingMeetings.length}`,
     ...upcomingMeetings.map((meeting) => `- Meeting: ${meeting.title} at ${meeting.startTime.toISOString()}`),
+    `Top donors by lifetime giving: ${topDonors.length}`,
+    `Top donor leaderboard (authoritative JSON): ${JSON.stringify(topDonorLeaderboard)}`,
+    ...topDonors.map((donor, index) =>
+      `${index + 1}. ${donor.firstName} ${donor.lastName} [${donor.donorStatus}] lifetime=${String(donor.totalLifetimeGiving)} lastGift=${donor.lastGiftDate?.toISOString() ?? "none"}`
+    ),
     `Matched constituents: ${donorMatches.length}`,
     ...donorMatches.map((constituent) =>
       `- ${constituent.firstName} ${constituent.lastName} [${constituent.donorStatus}] lastGift=${constituent.lastGiftDate?.toISOString() ?? "none"} lifetime=${String(constituent.totalLifetimeGiving)}`
@@ -189,6 +531,11 @@ async function buildDonorContext(params: {
   return {
     contextText: lines.join("\n"),
     toolsUsed,
+    recordsUsed: [
+      ...topDonors.slice(0, 5).map((donor) => `${donor.firstName} ${donor.lastName}`),
+      ...donorMatches.slice(0, 4).map((donor) => `${donor.firstName} ${donor.lastName}`),
+      ...upcomingMeetings.slice(0, 3).map((meeting) => `Meeting: ${meeting.title}`),
+    ],
   };
 }
 
@@ -220,9 +567,9 @@ async function buildCompassionContext(params: {
         where: {
           organizationId: params.organizationId,
           OR: params.tokens.flatMap((token) => ([
-            { firstName: { contains: token, mode: "insensitive" as const } },
-            { lastName: { contains: token, mode: "insensitive" as const } },
-            { email: { contains: token, mode: "insensitive" as const } },
+            { firstName: { contains: token } },
+            { lastName: { contains: token } },
+            { email: { contains: token } },
           ])),
         },
         select: {
@@ -275,6 +622,11 @@ async function buildCompassionContext(params: {
   return {
     contextText: lines.join("\n"),
     toolsUsed,
+    recordsUsed: [
+      ...(scopedClient ? [`Scoped client: ${scopedClient.firstName} ${scopedClient.lastName}`] : []),
+      ...matchedClients.slice(0, 5).map((client) => `${client.firstName} ${client.lastName}`),
+      ...openCases.slice(0, 4).map((item) => `Case ${item.caseNumber}`),
+    ],
   };
 }
 
@@ -304,7 +656,7 @@ async function buildEventsContext(params: {
     ? await prisma.event.findMany({
         where: {
           organizationId: params.organizationId,
-          OR: params.tokens.map((token) => ({ name: { contains: token, mode: "insensitive" as const } })),
+          OR: params.tokens.map((token) => ({ name: { contains: token } })),
         },
         select: {
           id: true,
@@ -343,6 +695,12 @@ async function buildEventsContext(params: {
   return {
     contextText: lines.join("\n"),
     toolsUsed,
+    recordsUsed: [
+      ...(scopedEvent ? [`Scoped event: ${scopedEvent.name}`] : []),
+      ...matchedEvents.slice(0, 5).map((event) => event.name),
+      `Guests: ${guestCount}`,
+      `Checked in: ${checkInCount}`,
+    ],
   };
 }
 
@@ -376,11 +734,11 @@ async function buildRetrievalContext(params: {
       where: {
         organizationId: params.organizationId,
         OR: [
-          { action: { contains: "UNAUTHORIZED", mode: "insensitive" } },
-          { action: { contains: "FORBIDDEN", mode: "insensitive" } },
-          { action: { contains: "LOGIN", mode: "insensitive" } },
-          { action: { contains: "DELETE", mode: "insensitive" } },
-          { action: { contains: "RESET", mode: "insensitive" } },
+          { action: { contains: "UNAUTHORIZED" } },
+          { action: { contains: "FORBIDDEN" } },
+          { action: { contains: "LOGIN" } },
+          { action: { contains: "DELETE" } },
+          { action: { contains: "RESET" } },
         ],
       },
       select: {
@@ -400,6 +758,9 @@ async function buildRetrievalContext(params: {
         `Recent critical/secure audit events: ${recentSecurityAudits.length}`,
         ...recentSecurityAudits.map((entry) => `- ${entry.action}${entry.entity ? ` on ${entry.entity}` : ""} at ${entry.createdAt.toISOString()}`),
       ].join("\n"),
+      recordsUsed: recentSecurityAudits.slice(0, 8).map((entry) =>
+        `${entry.action}${entry.entity ? ` (${entry.entity})` : ""}`
+      ),
     };
   }
 
@@ -412,6 +773,10 @@ async function buildRetrievalContext(params: {
         "No persisted website/page database records are available yet.",
         "Focus guidance on planning, IA, and staged implementation steps.",
       ].join("\n"),
+      recordsUsed: [
+        `Scope: ${params.scopePath}`,
+        "WebMaster starter dashboard context",
+      ],
     };
   }
 
@@ -446,6 +811,9 @@ function toPublicConfig(enabled: boolean, config: ReturnType<typeof parseSteward
     mode: config.mode,
     endpointUrl: config.endpointUrl,
     model: config.model,
+    thinkingModel: config.thinkingModel,
+    reasoningMode: config.reasoningMode,
+    agenticMultiStage: config.agenticMultiStage,
     temperature: config.temperature,
     maxTokens: config.maxTokens,
     timeoutMs: config.timeoutMs,
@@ -487,6 +855,9 @@ router.put("/config", requireRole("admin"), async (req, res) => {
     mode: payload.mode ?? existingConfig.mode,
     endpointUrl: payload.endpointUrl ?? existingConfig.endpointUrl,
     model: payload.model ?? existingConfig.model,
+    thinkingModel: payload.thinkingModel ?? existingConfig.thinkingModel,
+    reasoningMode: payload.reasoningMode ?? existingConfig.reasoningMode,
+    agenticMultiStage: payload.agenticMultiStage ?? existingConfig.agenticMultiStage,
     temperature: payload.temperature ?? existingConfig.temperature,
     maxTokens: payload.maxTokens ?? existingConfig.maxTokens,
     timeoutMs: payload.timeoutMs ?? existingConfig.timeoutMs,
@@ -528,6 +899,9 @@ router.put("/config", requireRole("admin"), async (req, res) => {
       mode: nextConfig.mode,
       endpointUrl: nextConfig.endpointUrl,
       model: nextConfig.model,
+      thinkingModel: nextConfig.thinkingModel,
+      reasoningMode: nextConfig.reasoningMode,
+      agenticMultiStage: nextConfig.agenticMultiStage,
       hasApiKey: Boolean(nextConfig.apiKey),
     },
     ipAddress: req.ip,
@@ -568,6 +942,211 @@ router.post("/test", requireRole("admin"), async (req, res) => {
         message: error instanceof Error ? error.message : "Steward AI connection failed.",
       },
     });
+  }
+});
+
+/** GET /api/steward-ai/models — Lists models from the configured local Ollama endpoint. Admin-only. */
+router.get("/models", requireRole("admin"), async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const query = req.query as StewardAiModelsQuery;
+  const endpointOverride = typeof query.endpointUrl === "string" ? query.endpointUrl : "";
+
+  const setting = await getStewardAiSetting(organizationId);
+  const savedConfig = parseStewardAiConfig(setting?.config ?? defaultStewardAiConfig());
+  const localConfig = parseStewardAiConfig({
+    ...savedConfig,
+    mode: "local",
+    endpointUrl: endpointOverride || savedConfig.endpointUrl,
+  });
+
+  try {
+    const models = await listStewardAiModels(localConfig);
+    res.json({
+      data: {
+        models,
+      },
+    });
+  } catch (error) {
+    res.status(502).json({
+      error: {
+        code: "AI_MODELS_FETCH_FAILED",
+        message: error instanceof Error ? error.message : "Failed to load local Ollama models.",
+      },
+    });
+  }
+});
+
+/** POST /api/steward-ai/chat — Produces a chat response using configured local/remote Ollama. */
+router.post("/chat/stream", async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const setting = await getStewardAiSetting(organizationId);
+  if (!setting?.enabled) {
+    res.status(412).json({
+      error: {
+        code: "AI_NOT_ENABLED",
+        message: "Steward AI is not enabled. Configure it in Settings > AI Assistant.",
+      },
+    });
+    return;
+  }
+
+  const payload = req.body as StewardAiChatPayload;
+  const normalizedMessages = (payload.messages ?? [])
+    .filter((message) => message && typeof message.content === "string")
+    .map((message): StewardAiChatMessage => ({
+      role: message.role === "assistant" || message.role === "system" ? message.role : "user",
+      content: message.content.slice(0, 3500),
+    }))
+    .slice(-20);
+
+  if (normalizedMessages.length === 0) {
+    res.status(400).json({
+      error: {
+        code: "EMPTY_MESSAGES",
+        message: "At least one chat message is required.",
+      },
+    });
+    return;
+  }
+
+  const config = parseStewardAiConfig(setting.config);
+  const mode = payload.mode ?? "ask";
+  const moduleKey = payload.moduleKey ?? "donor";
+  const scopePath = payload.scopePath ?? "/";
+  const latestUserMessage = [...normalizedMessages].reverse().find((message) => message.role === "user")?.content ?? "";
+
+  res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+
+  try {
+    if (moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
+      const topDonorResult = await buildTopDonorResult(organizationId);
+      const templatedReply = formatReplyByMode({
+        mode,
+        reply: topDonorResult.reply,
+        toolsUsed: topDonorResult.toolsUsed,
+        recordsUsed: topDonorResult.recordsUsed,
+      });
+      res.write(`${JSON.stringify({ type: "chunk", delta: templatedReply })}\n`);
+      res.write(`${JSON.stringify({
+        type: "done",
+        reply: templatedReply,
+        model: config.model,
+        mode,
+        runtimeMode: config.mode,
+        provider: "crm-data",
+        toolsUsed: topDonorResult.toolsUsed,
+        recordsUsed: topDonorResult.recordsUsed,
+        moduleKey,
+        scopePath,
+      })}\n`);
+      res.end();
+      return;
+    }
+
+    const retrieval = await buildRetrievalContext({
+      organizationId,
+      moduleKey,
+      scopePath,
+      userQuery: latestUserMessage,
+    });
+
+    const agenticPreparation = await buildAgenticPreparation({
+      config,
+      mode,
+      moduleKey,
+      scopePath,
+      userQuery: latestUserMessage,
+      contextText: retrieval.contextText,
+    });
+
+    const runtimeSystemPrompt = buildRuntimeSystemPrompt({
+      mode,
+      moduleKey,
+      scopePath,
+      contextText: retrieval.contextText,
+      agenticNotes: agenticPreparation.stageSummaries,
+    });
+
+    const toolsUsed = [...retrieval.toolsUsed, ...agenticPreparation.toolsUsed];
+    const provider = agenticPreparation.stageSummaries.length > 0 ? "ollama-agentic" : "ollama";
+
+    const completion = await runStewardAiChatStream(
+      config,
+      [
+        { role: "system", content: runtimeSystemPrompt },
+        ...normalizedMessages,
+      ],
+      {
+        onDelta: (delta) => {
+          res.write(`${JSON.stringify({ type: "chunk", delta })}\n`);
+        },
+      }
+    );
+
+    const templatedReply = formatReplyByMode({
+      mode,
+      reply: completion.content,
+      toolsUsed: retrieval.toolsUsed,
+      recordsUsed: retrieval.recordsUsed,
+    });
+
+    await logAudit({
+      action: "STEWARD_AI_CHAT",
+      entity: "PluginSetting",
+      entityId: setting.id,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: {
+        provider: "ollama",
+        aiMode: config.mode,
+        model: completion.model,
+        thinkingModel: config.thinkingModel,
+        reasoningMode: config.reasoningMode,
+        reasoningModelUsed: agenticPreparation.reasoningModel,
+        agenticMultiStage: config.agenticMultiStage,
+        agenticStageCount: agenticPreparation.stageSummaries.length,
+        chatMode: mode,
+        moduleKey,
+        scopePath,
+        messageCount: normalizedMessages.length,
+        toolsUsed,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.write(`${JSON.stringify({
+      type: "done",
+      reply: templatedReply,
+      model: completion.model,
+      mode,
+      runtimeMode: config.mode,
+      provider,
+      toolsUsed,
+      recordsUsed: retrieval.recordsUsed,
+      moduleKey,
+      scopePath,
+    })}\n`);
+    res.end();
+  } catch (error) {
+    res.write(`${JSON.stringify({
+      type: "error",
+      message: error instanceof Error ? error.message : "Steward AI request failed.",
+    })}\n`);
+    res.end();
   }
 });
 
@@ -616,6 +1195,30 @@ router.post("/chat", async (req, res) => {
   const latestUserMessage = [...normalizedMessages].reverse().find((message) => message.role === "user")?.content ?? "";
 
   try {
+    if (moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
+      const topDonorResult = await buildTopDonorResult(organizationId);
+      const templatedReply = formatReplyByMode({
+        mode,
+        reply: topDonorResult.reply,
+        toolsUsed: topDonorResult.toolsUsed,
+        recordsUsed: topDonorResult.recordsUsed,
+      });
+      res.json({
+        data: {
+          reply: templatedReply,
+          model: config.model,
+          mode,
+          runtimeMode: config.mode,
+          provider: "crm-data",
+          toolsUsed: topDonorResult.toolsUsed,
+          recordsUsed: topDonorResult.recordsUsed,
+          moduleKey,
+          scopePath,
+        },
+      });
+      return;
+    }
+
     const retrieval = await buildRetrievalContext({
       organizationId,
       moduleKey,
@@ -623,17 +1226,37 @@ router.post("/chat", async (req, res) => {
       userQuery: latestUserMessage,
     });
 
+    const agenticPreparation = await buildAgenticPreparation({
+      config,
+      mode,
+      moduleKey,
+      scopePath,
+      userQuery: latestUserMessage,
+      contextText: retrieval.contextText,
+    });
+
     const runtimeSystemPrompt = buildRuntimeSystemPrompt({
       mode,
       moduleKey,
       scopePath,
       contextText: retrieval.contextText,
+      agenticNotes: agenticPreparation.stageSummaries,
     });
+
+    const toolsUsed = [...retrieval.toolsUsed, ...agenticPreparation.toolsUsed];
+    const provider = agenticPreparation.stageSummaries.length > 0 ? "ollama-agentic" : "ollama";
 
     const completion = await runStewardAiChat(config, [
       { role: "system", content: runtimeSystemPrompt },
       ...normalizedMessages,
     ]);
+
+    const templatedReply = formatReplyByMode({
+      mode,
+      reply: completion.content,
+      toolsUsed: retrieval.toolsUsed,
+      recordsUsed: retrieval.recordsUsed,
+    });
 
     await logAudit({
       action: "STEWARD_AI_CHAT",
@@ -645,11 +1268,16 @@ router.post("/chat", async (req, res) => {
         provider: "ollama",
         aiMode: config.mode,
         model: completion.model,
+        thinkingModel: config.thinkingModel,
+        reasoningMode: config.reasoningMode,
+        reasoningModelUsed: agenticPreparation.reasoningModel,
+        agenticMultiStage: config.agenticMultiStage,
+        agenticStageCount: agenticPreparation.stageSummaries.length,
         chatMode: mode,
         moduleKey,
         scopePath,
         messageCount: normalizedMessages.length,
-        toolsUsed: retrieval.toolsUsed,
+        toolsUsed,
       },
       ipAddress: req.ip,
       userAgent: req.headers["user-agent"],
@@ -657,11 +1285,15 @@ router.post("/chat", async (req, res) => {
 
     res.json({
       data: {
-        reply: completion.content,
+        reply: templatedReply,
         model: completion.model,
-        mode: config.mode,
-        provider: "ollama",
-        toolsUsed: retrieval.toolsUsed,
+        mode,
+        runtimeMode: config.mode,
+        provider,
+        toolsUsed,
+        recordsUsed: retrieval.recordsUsed,
+        moduleKey,
+        scopePath,
       },
     });
   } catch (error) {

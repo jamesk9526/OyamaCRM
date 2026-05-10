@@ -59,6 +59,13 @@ describe("createDefaultBlock", () => {
     expect(createDefaultBlock("spacer").type).toBe("spacer");
     expect(createDefaultBlock("button").type).toBe("button");
   });
+
+  it("creates quote, impact stat, and AI blocks", () => {
+    expect(createDefaultBlock("quote").type).toBe("quote");
+    expect(createDefaultBlock("impactStat").type).toBe("impactStat");
+    expect(createDefaultBlock("aiText").type).toBe("aiText");
+    expect(createDefaultBlock("aiButton").type).toBe("aiButton");
+  });
 });
 
 describe("createTemplateFromPreset", () => {

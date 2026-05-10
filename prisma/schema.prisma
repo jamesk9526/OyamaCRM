@@ -286,6 +286,10 @@ model OrganizationSettings {
   fiscalYearStart Int      @default(1) // Month 1-12
   currency        String   @default("USD")
   timezone        String   @default("America/Chicago")
+  donorWorkspaceEnabled      Boolean  @default(true)
+  compassionWorkspaceEnabled Boolean  @default(true)
+  showModuleSwitcher         Boolean  @default(true)
+  defaultWorkspace           String   @default("donor")
   smtpHost        String?
   smtpPort        Int?
   smtpSecure      Boolean  @default(true)

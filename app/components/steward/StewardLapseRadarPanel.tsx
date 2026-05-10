@@ -46,9 +46,21 @@ export default function StewardLapseRadarPanel() {
       }
     }
 
-    loadLapseRadar();
+    void loadLapseRadar();
+
+    const handleRebuild = () => {
+      void loadLapseRadar();
+    };
+
+    window.addEventListener("steward-signals:analysis-rebuilt", handleRebuild);
+    const intervalId = window.setInterval(() => {
+      void loadLapseRadar();
+    }, 30000);
+
     return () => {
       cancelled = true;
+      window.removeEventListener("steward-signals:analysis-rebuilt", handleRebuild);
+      window.clearInterval(intervalId);
     };
   }, []);
 

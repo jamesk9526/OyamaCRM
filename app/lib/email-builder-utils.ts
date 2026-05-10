@@ -13,9 +13,13 @@ import type {
   EmailBlock,
   EmailTemplate,
   TextBlock,
+  QuoteBlock,
+  ImpactStatBlock,
   ImageBlock,
   VideoBlock,
   ButtonBlock,
+  AiTextBlock,
+  AiButtonBlock,
   DividerBlock,
   SpacerBlock,
   SocialBlock,
@@ -42,6 +46,28 @@ export function createDefaultBlock(type: BlockType): EmailBlock {
         align: 'left',
         padding: 16,
       } satisfies TextBlock;
+
+    case 'quote':
+      return {
+        id,
+        type: 'quote',
+        quote: 'Your support changed what was possible for our family.',
+        attribution: 'Community Member',
+        align: 'center',
+        padding: 16,
+      } satisfies QuoteBlock;
+
+    case 'impactStat':
+      return {
+        id,
+        type: 'impactStat',
+        value: '327',
+        label: 'Families Served This Quarter',
+        sublabel: 'Because of generous donors like you',
+        bgColor: '#ecfdf3',
+        textColor: '#14532d',
+        padding: 16,
+      } satisfies ImpactStatBlock;
 
     case 'image':
       return {
@@ -75,6 +101,30 @@ export function createDefaultBlock(type: BlockType): EmailBlock {
         padding: 16,
         borderRadius: 6,
       } satisfies ButtonBlock;
+
+    case 'aiText':
+      return {
+        id,
+        type: 'aiText',
+        prompt: 'Write a concise donor update about this month\'s impact.',
+        content: '<p>Use AI tools to generate a personalized donor update here.</p>',
+        tone: 'warm',
+        padding: 16,
+      } satisfies AiTextBlock;
+
+    case 'aiButton':
+      return {
+        id,
+        type: 'aiButton',
+        prompt: 'Generate a compelling call-to-action for recurring monthly giving.',
+        label: 'Support This Work',
+        href: 'https://',
+        bgColor: '#16a34a',
+        textColor: '#ffffff',
+        align: 'center',
+        padding: 16,
+        borderRadius: 6,
+      } satisfies AiButtonBlock;
 
     case 'divider':
       return {
@@ -206,6 +256,35 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
   </td>
 </tr>`;
 
+    case 'quote':
+      return `<tr>
+  <td style="padding:${block.padding}px;text-align:${block.align};font-family:${fontFamily};">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-left:4px solid #16a34a;background:#f8fafc;">
+      <tr>
+        <td style="padding:14px 16px;font-size:16px;line-height:1.5;color:#1f2937;font-style:italic;">
+          &ldquo;${block.quote}&rdquo;
+        </td>
+      </tr>
+      ${block.attribution ? `<tr><td style="padding:0 16px 14px;font-size:12px;color:#6b7280;">- ${block.attribution}</td></tr>` : ""}
+    </table>
+  </td>
+</tr>`;
+
+    case 'impactStat':
+      return `<tr>
+  <td style="padding:${block.padding}px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${block.bgColor};border-radius:8px;">
+      <tr>
+        <td style="padding:18px 16px;text-align:center;font-family:${fontFamily};color:${block.textColor};">
+          <div style="font-size:30px;line-height:1.15;font-weight:700;">${block.value}</div>
+          <div style="font-size:14px;line-height:1.4;margin-top:4px;font-weight:600;">${block.label}</div>
+          ${block.sublabel ? `<div style="font-size:12px;line-height:1.4;margin-top:4px;opacity:0.9;">${block.sublabel}</div>` : ""}
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>`;
+
     case 'image': {
       const img = `<img src="${block.src}" alt="${block.alt}" width="${block.width}%" style="display:block;max-width:${block.width}%;height:auto;border:0;" />`;
       const inner = block.link
@@ -233,6 +312,20 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
     }
 
     case 'button':
+      return `<tr>
+  <td style="padding:${block.padding}px;text-align:${block.align};">
+    <a href="${block.href}" style="display:inline-block;background-color:${block.bgColor};color:${block.textColor};font-family:${fontFamily};font-size:14px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:${block.borderRadius}px;line-height:1;">${block.label}</a>
+  </td>
+</tr>`;
+
+    case 'aiText':
+      return `<tr>
+  <td style="padding:${block.padding}px;font-family:${fontFamily};font-size:16px;color:#1f2937;line-height:1.5;">
+    ${block.content}
+  </td>
+</tr>`;
+
+    case 'aiButton':
       return `<tr>
   <td style="padding:${block.padding}px;text-align:${block.align};">
     <a href="${block.href}" style="display:inline-block;background-color:${block.bgColor};color:${block.textColor};font-family:${fontFamily};font-size:14px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:${block.borderRadius}px;line-height:1;">${block.label}</a>
@@ -345,9 +438,13 @@ export function generatePlainText(template: EmailTemplate): string {
     .map((block) => {
       switch (block.type) {
         case 'text':    return stripHtml(block.content);
+        case 'quote':   return `"${block.quote}"${block.attribution ? ` - ${block.attribution}` : ''}`;
+        case 'impactStat': return `${block.value} - ${block.label}${block.sublabel ? ` - ${block.sublabel}` : ''}`;
         case 'image':   return `[Image: ${block.alt}]${block.link ? ` (${block.link})` : ''}`;
         case 'video':   return `[Video: ${block.url}]${block.caption ? ` — ${block.caption}` : ''}`;
         case 'button':  return `[${block.label}] → ${block.href}`;
+        case 'aiText':  return stripHtml(block.content);
+        case 'aiButton': return `[${block.label}] → ${block.href}`;
         case 'divider': return '─'.repeat(40);
         case 'spacer':  return '';
         case 'social':  return block.links.map((l) => `${l.platform}: ${l.url}`).join('  ');

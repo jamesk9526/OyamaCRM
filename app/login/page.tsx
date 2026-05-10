@@ -4,6 +4,7 @@
 import { useState, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import { fetchWorkspaceSettings, resolveWorkspaceLandingPath } from "@/app/lib/workspace-settings";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -56,7 +57,8 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await signIn(email, password);
-      router.replace("/");
+      const workspaceSettings = await fetchWorkspaceSettings();
+      router.replace(resolveWorkspaceLandingPath(workspaceSettings));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {

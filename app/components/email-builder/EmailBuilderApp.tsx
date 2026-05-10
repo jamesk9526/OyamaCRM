@@ -25,7 +25,7 @@ import {
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 
-import type { EmailBlock, EmailTemplate, BlockType } from '@/app/lib/email-builder-types';
+import type { AiButtonBlock, AiTextBlock, EmailBlock, EmailTemplate, BlockType } from '@/app/lib/email-builder-types';
 import {
   createDefaultBlock,
   createDefaultTemplate,
@@ -56,6 +56,141 @@ const MERGE_TOKENS = [
 interface Props {
   /** Campaign ID from the `?campaign=` query param. */
   campaignId?: string;
+}
+
+interface CommunicationsAiTemplateResponse {
+  template: {
+    backgroundColor?: string;
+    contentWidth?: number;
+    fontFamily?: string;
+    blocks?: Array<Record<string, unknown>>;
+  };
+  sourceModel: string;
+}
+
+interface CommunicationsAiBlockResponse {
+  block: Record<string, unknown>;
+  sourceModel: string;
+}
+
+/** Safely converts unknown values to bounded numbers used in block hydration. */
+function toBoundedNumber(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+/** Hydrates one API-generated block draft into a strongly typed EmailBlock with a fresh id. */
+function hydrateGeneratedBlock(raw: Record<string, unknown>): EmailBlock {
+  const candidateType = String(raw.type ?? "text");
+  const allowedTypes: BlockType[] = [
+    "text",
+    "quote",
+    "impactStat",
+    "image",
+    "video",
+    "button",
+    "aiText",
+    "aiButton",
+    "divider",
+    "spacer",
+    "social",
+    "columns",
+  ];
+  const type = allowedTypes.includes(candidateType as BlockType) ? (candidateType as BlockType) : "text";
+  const base = createDefaultBlock(type);
+
+  if (type === "quote") {
+    return {
+      ...base,
+      type,
+      quote: String(raw.quote ?? "Your support made this possible."),
+      attribution: String(raw.attribution ?? "Community Member"),
+      align: raw.align === "center" || raw.align === "right" ? raw.align : "left",
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+    } as EmailBlock;
+  }
+
+  if (type === "impactStat") {
+    return {
+      ...base,
+      type,
+      value: String(raw.value ?? "0"),
+      label: String(raw.label ?? "Impact"),
+      sublabel: raw.sublabel ? String(raw.sublabel) : undefined,
+      bgColor: String(raw.bgColor ?? "#ecfdf3"),
+      textColor: String(raw.textColor ?? "#14532d"),
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+    } as EmailBlock;
+  }
+
+  if (type === "button") {
+    return {
+      ...base,
+      type,
+      label: String(raw.label ?? "Learn More"),
+      href: String(raw.href ?? "https://"),
+      bgColor: String(raw.bgColor ?? "#16a34a"),
+      textColor: String(raw.textColor ?? "#ffffff"),
+      align: raw.align === "left" || raw.align === "right" ? raw.align : "center",
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+      borderRadius: toBoundedNumber(raw.borderRadius, 6, 0, 40),
+    } as EmailBlock;
+  }
+
+  if (type === "aiText") {
+    return {
+      ...base,
+      type,
+      prompt: String(raw.prompt ?? "Generate donor update copy."),
+      content: String(raw.content ?? "<p>Generated content.</p>"),
+      tone: raw.tone === "urgent" || raw.tone === "celebratory" || raw.tone === "informative" ? raw.tone : "warm",
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+    } as EmailBlock;
+  }
+
+  if (type === "aiButton") {
+    return {
+      ...base,
+      type,
+      prompt: String(raw.prompt ?? "Generate donor CTA."),
+      label: String(raw.label ?? "Take Action"),
+      href: String(raw.href ?? "https://"),
+      bgColor: String(raw.bgColor ?? "#16a34a"),
+      textColor: String(raw.textColor ?? "#ffffff"),
+      align: raw.align === "left" || raw.align === "right" ? raw.align : "center",
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+      borderRadius: toBoundedNumber(raw.borderRadius, 6, 0, 40),
+    } as EmailBlock;
+  }
+
+  if (type === "divider") {
+    return {
+      ...base,
+      type,
+      color: String(raw.color ?? "#e5e7eb"),
+      thickness: toBoundedNumber(raw.thickness, 1, 1, 12),
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+    } as EmailBlock;
+  }
+
+  if (type === "spacer") {
+    return {
+      ...base,
+      type,
+      height: toBoundedNumber(raw.height, 28, 4, 200),
+    } as EmailBlock;
+  }
+
+  return {
+    ...base,
+    type: "text",
+    content: String(raw.content ?? "<p>Generated content.</p>"),
+    fontSize: toBoundedNumber(raw.fontSize, 16, 10, 32),
+    color: String(raw.color ?? "#333333"),
+    align: raw.align === "center" || raw.align === "right" ? raw.align : "left",
+    padding: toBoundedNumber(raw.padding, 16, 0, 100),
+  } as EmailBlock;
 }
 
 // ─── DragOverlay ghost ────────────────────────────────────────────────────────
@@ -90,6 +225,13 @@ export default function EmailBuilderApp({ campaignId }: Props) {
   const [preset,         setPreset]          = useState<TemplatePreset>('blank');
   const [dirty,          setDirty]           = useState(false);
   const [copiedToken,    setCopiedToken]     = useState<string | null>(null);
+  const [aiBrief,        setAiBrief]         = useState('Draft a donor stewardship email highlighting recent impact and one clear next step.');
+  const [aiAudience,     setAiAudience]      = useState('Active Donors');
+  const [aiTone,         setAiTone]          = useState<'warm' | 'informative' | 'celebratory' | 'urgent'>('warm');
+  const [aiBusy,         setAiBusy]          = useState(false);
+  const [aiError,        setAiError]         = useState<string | null>(null);
+  const [aiModelUsed,    setAiModelUsed]     = useState<string | null>(null);
+  const [aiGeneratingBlockId, setAiGeneratingBlockId] = useState<string | null>(null);
   const dirtyRef = useRef(false);
 
   /** Marks the template as having unsaved local edits and updates the dirty ref synchronously. */
@@ -102,7 +244,7 @@ export default function EmailBuilderApp({ campaignId }: Props) {
   const [activeLabel, setActiveLabel] = useState<string | null>(null);
 
   // ── Load campaign from API ─────────────────────────────────────────────────
-  const { loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [loadError, setLoadError] = useState<string | null>(null);
   /* Start in loading state when a campaignId is present so the first render
      shows the spinner without a synchronous setState call in the effect. */
@@ -258,6 +400,103 @@ export default function EmailBuilderApp({ campaignId }: Props) {
     markDirty();
   };
 
+  /** Generates a full email template draft from Communications AI and replaces the current canvas. */
+  const generateFullTemplateWithAi = useCallback(async () => {
+    if (aiBusy) return;
+
+    setAiBusy(true);
+    setAiError(null);
+    try {
+      const response = await apiFetch<CommunicationsAiTemplateResponse>("/api/communications-ai/email-builder/generate-template", {
+        method: "POST",
+        body: JSON.stringify({
+          goal: aiBrief,
+          audience: aiAudience,
+          tone: aiTone,
+          campaignName,
+        }),
+      });
+
+      const draftTemplate = response.template;
+      const generatedBlocks = Array.isArray(draftTemplate.blocks)
+        ? draftTemplate.blocks.map((block) => hydrateGeneratedBlock(block)).slice(0, 24)
+        : [];
+
+      if (generatedBlocks.length === 0) {
+        throw new Error("AI returned no blocks. Try a more specific brief.");
+      }
+
+      setTemplate({
+        backgroundColor: String(draftTemplate.backgroundColor ?? "#f5f5f5"),
+        contentWidth: toBoundedNumber(draftTemplate.contentWidth, 600, 420, 760),
+        fontFamily: String(draftTemplate.fontFamily ?? "Arial, Helvetica, sans-serif"),
+        blocks: generatedBlocks,
+      });
+      setSelectedId(generatedBlocks[0]?.id ?? null);
+      setAiModelUsed(response.sourceModel);
+      markDirty();
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : "AI template generation failed.");
+    } finally {
+      setAiBusy(false);
+    }
+  }, [aiAudience, aiBrief, aiBusy, aiTone, campaignName, markDirty]);
+
+  /** Regenerates one selected AI block payload based on the block's own stored prompt. */
+  const generateSelectedAiBlock = useCallback(async (blockId: string) => {
+    const selected = template.blocks.find((block) => block.id === blockId);
+    if (!selected) return;
+    if (selected.type !== "aiText" && selected.type !== "aiButton") return;
+
+    const blockPrompt = selected.prompt.trim();
+    if (!blockPrompt) {
+      setAiError("Add an AI prompt before generating this block.");
+      return;
+    }
+
+    setAiError(null);
+    setAiGeneratingBlockId(blockId);
+    try {
+      const response = await apiFetch<CommunicationsAiBlockResponse>("/api/communications-ai/email-builder/generate-block", {
+        method: "POST",
+        body: JSON.stringify({
+          blockKind: selected.type,
+          prompt: blockPrompt,
+          tone: selected.type === "aiText" ? selected.tone : aiTone,
+        }),
+      });
+
+      const hydrated = hydrateGeneratedBlock(response.block);
+      if (hydrated.type === "aiText") {
+        const partial: Partial<AiTextBlock> = {
+          prompt: hydrated.prompt,
+          content: hydrated.content,
+          tone: hydrated.tone,
+          padding: hydrated.padding,
+        };
+        updateBlock(blockId, partial as Partial<EmailBlock>);
+      } else if (hydrated.type === "aiButton") {
+        const partial: Partial<AiButtonBlock> = {
+          prompt: hydrated.prompt,
+          label: hydrated.label,
+          href: hydrated.href,
+          bgColor: hydrated.bgColor,
+          textColor: hydrated.textColor,
+          align: hydrated.align,
+          borderRadius: hydrated.borderRadius,
+          padding: hydrated.padding,
+        };
+        updateBlock(blockId, partial as Partial<EmailBlock>);
+      }
+
+      setAiModelUsed(response.sourceModel);
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : "AI block generation failed.");
+    } finally {
+      setAiGeneratingBlockId(null);
+    }
+  }, [aiTone, template.blocks, updateBlock]);
+
   // ── Save ───────────────────────────────────────────────────────────────────
 
   /** Copies one merge token so staff can quickly personalize content blocks. */
@@ -344,6 +583,7 @@ export default function EmailBuilderApp({ campaignId }: Props) {
 
   return (
     <DndContext
+      id="email-builder-dnd"
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
@@ -477,6 +717,54 @@ export default function EmailBuilderApp({ campaignId }: Props) {
           </div>
         </header>
 
+        <div className="shrink-0 border-b border-gray-200 bg-gray-50 px-4 py-3 space-y-2">
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <span className="font-semibold text-gray-700">Communications AI</span>
+            <span>Generate complete donor emails and AI blocks from a brief.</span>
+            {aiModelUsed && <span className="text-gray-400">Model: {aiModelUsed}</span>}
+          </div>
+          <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_180px_160px_auto]">
+            <input
+              value={aiBrief}
+              onChange={(event) => setAiBrief(event.target.value)}
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+              placeholder="Describe the email goal, key message, and action you want donors to take."
+            />
+            <input
+              value={aiAudience}
+              onChange={(event) => setAiAudience(event.target.value)}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+              placeholder="Audience"
+            />
+            <select
+              value={aiTone}
+              onChange={(event) => setAiTone(event.target.value as 'warm' | 'informative' | 'celebratory' | 'urgent')}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+            >
+              <option value="warm">Warm Tone</option>
+              <option value="informative">Informative Tone</option>
+              <option value="celebratory">Celebratory Tone</option>
+              <option value="urgent">Urgent Tone</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => void generateFullTemplateWithAi()}
+              disabled={aiBusy || loading || authLoading || !user || !aiBrief.trim()}
+              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60"
+            >
+              {aiBusy ? 'Generating Full Email...' : 'Generate Full Email'}
+            </button>
+          </div>
+          {!authLoading && !user && (
+            <p className="text-xs text-amber-700">
+              Sign in again to use Communications AI generation.
+            </p>
+          )}
+          {aiError && (
+            <p className="text-xs text-red-600">{aiError}</p>
+          )}
+        </div>
+
         {/* ── Three-panel body ── */}
         <div className="flex flex-1 overflow-hidden">
           {/* Left: block palette */}
@@ -496,6 +784,10 @@ export default function EmailBuilderApp({ campaignId }: Props) {
             template={template}
             onUpdateBlock={updateBlock}
             onUpdateTemplate={updateTemplate}
+            onGenerateAiBlock={(id) => {
+              void generateSelectedAiBlock(id);
+            }}
+            aiGeneratingBlockId={aiGeneratingBlockId}
           />
         </div>
       </div>

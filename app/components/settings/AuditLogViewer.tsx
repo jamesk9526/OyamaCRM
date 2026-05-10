@@ -6,7 +6,7 @@
  */
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Fragment, useEffect, useState, useCallback } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 
 /** Shape of a single audit log entry from the API (includes joined user). */
@@ -262,8 +262,8 @@ export default function AuditLogViewer() {
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
               {logs.map((log) => (
-                <>
-                  <tr key={log.id} className="hover:bg-gray-50">
+                <Fragment key={log.id}>
+                  <tr className="hover:bg-gray-50">
                     {/* Action badge */}
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium font-mono ${actionColor(log.action)}`}>
@@ -311,7 +311,7 @@ export default function AuditLogViewer() {
                   </tr>
                   {/* Expanded metadata row */}
                   {expandedId === log.id && log.metadata && (
-                    <tr key={`${log.id}-meta`} className="bg-gray-50">
+                    <tr className="bg-gray-50">
                       <td colSpan={6} className="px-4 py-2">
                         <pre className="text-xs text-gray-600 overflow-x-auto whitespace-pre-wrap max-w-full">
                           {JSON.stringify(log.metadata, null, 2)}
@@ -319,7 +319,7 @@ export default function AuditLogViewer() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

@@ -12,12 +12,12 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { requireRole } from "../middleware/requireRole.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 
 const router = Router();
 
-// Audit log routes require authentication and admin role — sensitive compliance data.
-router.use(requireAuth, requireRole("admin"));
+// Audit log routes require authentication and explicit audit-log read permission.
+router.use(requireAuth, requirePermission("view:audit_logs"));
 
 /**
  * GET /api/audit-logs — Paginated, filtered audit log entries for the authenticated admin's organization.
