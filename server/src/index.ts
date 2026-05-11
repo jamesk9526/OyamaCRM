@@ -47,8 +47,11 @@ import stewardSignalsRoutes from "./routes/steward-signals.js";
 import stewardAiRoutes from "./routes/steward-ai.js";
 import communicationsAiRoutes from "./routes/communications-ai.js";
 import watchdogRoutes from "./routes/watchdog.js";
+import feedbackRoutes from "./routes/feedback.js";
+import watchdogFeedbackTicketRoutes from "./routes/watchdog-feedback-tickets.js";
 import webmasterRoutes from "./routes/webmaster.js";
 import liveComRoutes from "./routes/livecom.js";
+import siteEmbedsRoutes from "./routes/site-embeds.js";
 import { prisma } from "./lib/prisma.js";
 import { getAppInfo } from "./lib/app-info.js";
 import { getEmailQueueWorkerStatus, startEmailQueueWorker } from "./services/email-queue-worker.js";
@@ -159,8 +162,9 @@ app.get("/api/health", healthHandler);
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
-// Auth routes get a stricter rate limit to prevent brute-force
-app.use("/api/auth", authLimiter, authRoutes);
+// Apply strict brute-force protection to login only; keep refresh/me stable during normal navigation.
+app.use("/api/auth/login", authLimiter);
+app.use("/api/auth", authRoutes);
 app.use("/api/constituents", constituentRoutes);
 app.use("/api/donations", donationRoutes);
 app.use("/api/campaigns", campaignRoutes);
@@ -186,9 +190,12 @@ app.use("/api/notifications", notificationsRoutes);
 app.use("/api/steward-signals", stewardSignalsRoutes);
 app.use("/api/steward-ai", stewardAiRoutes);
 app.use("/api/communications-ai", communicationsAiRoutes);
+app.use("/api/feedback", feedbackRoutes);
+app.use("/api/watchdog/feedback-tickets", watchdogFeedbackTicketRoutes);
 app.use("/api/watchdog", watchdogRoutes);
 app.use("/api/webmaster", webmasterRoutes);
 app.use("/api/livecom", liveComRoutes);
+app.use("/api/site-embeds", siteEmbedsRoutes);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 

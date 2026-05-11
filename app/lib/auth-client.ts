@@ -19,6 +19,9 @@ export interface AuthUser {
 
 let _accessToken: string | null = null;
 
+// Deduplicate refresh calls so concurrent 401 retries do not race token rotation.
+let _refreshInFlight: Promise<string | null> | null = null;
+
 export function setAccessToken(token: string | null) {
   _accessToken = token;
 }
@@ -49,24 +52,35 @@ export async function login(email: string, password: string): Promise<AuthUser> 
 // ─── Refresh ───────────────────────────────────────────────────────────────
 
 export async function refreshAccessToken(): Promise<string | null> {
-  try {
-    const res = await fetch(`${API_BASE}/api/auth/refresh`, {
-      method: "POST",
-      credentials: "include",
-    });
+  if (_refreshInFlight) {
+    return _refreshInFlight;
+  }
 
-    if (!res.ok) {
+  _refreshInFlight = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        setAccessToken(null);
+        return null;
+      }
+
+      const body = await res.json();
+      const token = body.data.accessToken as string;
+      setAccessToken(token);
+      return token;
+    } catch {
       setAccessToken(null);
       return null;
+    } finally {
+      _refreshInFlight = null;
     }
+  })();
 
-    const body = await res.json();
-    setAccessToken(body.data.accessToken);
-    return body.data.accessToken as string;
-  } catch {
-    setAccessToken(null);
-    return null;
-  }
+  return _refreshInFlight;
 }
 
 // ─── Logout ────────────────────────────────────────────────────────────────

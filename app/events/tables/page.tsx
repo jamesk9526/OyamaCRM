@@ -4,6 +4,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 
@@ -219,6 +220,12 @@ export default function EventTablesPage() {
         <p className="text-sm text-gray-500 mt-1">
           Manage table assignments, capacity, and guest seating for events
         </p>
+        <Link
+          href="/help?scope=events&scopePath=/events/tables"
+          className="mt-2 inline-flex rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+        >
+          Need help with seating?
+        </Link>
       </div>
 
       {/* Event Selector */}

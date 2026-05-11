@@ -59,6 +59,7 @@ const BASE_NAV_SECTIONS: NavSection[] = [
       { label: "Event Page Builder", href: "/events/page-builder", icon: <OyamaGradientIcon name="growth-analytics" /> },
       { label: "Event Templates", href: "/events/templates", icon: <OyamaGradientIcon name="contact-checklist" /> },
       { label: "Overall Management", href: "/events/events", icon: <OyamaGradientIcon name="goal-target" /> },
+      { label: "Help", href: "/help?scope=events&scopePath=/events/workspace", icon: <OyamaGradientIcon name="messaging-chat" /> },
     ],
   },
 ];

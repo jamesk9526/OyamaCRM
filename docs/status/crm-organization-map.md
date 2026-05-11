@@ -43,6 +43,19 @@ Guardrails:
 - Keep donor and client records separated unless intentionally linked.
 - Keep client workflows out of Donor CRM navigation.
 
+### OyamaHRM (Teal)
+
+Primary home for:
+- Internal people records (staff, employees, board members, internal volunteers)
+- Departments, roles, and location assignments
+- Internal scheduling and availability controls
+- Internal announcements and interoffice communication scaffolding
+
+Guardrails:
+- Do not surface donor giving data in HRM by default.
+- Do not surface compassion client/case sensitive data in HRM by default.
+- Provide safe staff/schedule references to other CRMs via IDs, not direct record merges.
+
 ### Communications (Shared)
 
 Primary home for:

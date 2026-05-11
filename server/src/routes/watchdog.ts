@@ -40,6 +40,11 @@ const WATCHDOG_PERMISSION_KEYS = [
   "watchdog:incident:escalate",
   "watchdog:incident:resolve",
   "watchdog:manage",
+  "watchdog.tickets.view",
+  "watchdog.tickets.manage",
+  "watchdog.tickets.assign",
+  "watchdog.tickets.resolve",
+  "watchdog.tickets.delete",
 ] as const;
 
 type WatchdogPermissionKey = (typeof WATCHDOG_PERMISSION_KEYS)[number];

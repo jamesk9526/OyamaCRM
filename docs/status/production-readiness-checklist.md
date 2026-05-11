@@ -22,7 +22,7 @@ Use only these status labels:
 | README_SCREENSHOTS/ | Refreshed | All 19 screenshots updated 2026-05-10, organized by module |
 | Static website HTML | Updated | Screenshot references updated to match new filenames |
 | Static website assets | Refreshed | Fresh screenshots copied to easy_prep_tools/Static_site_demo_website/assets/screenshots/ |
-| Module feature lists | Current | DonorCRM, Compassion CRM, Events CRM, Watchdog, WebMaster documented |
+| Module feature lists | Current | DonorCRM, Compassion CRM, Events CRM, Watchdog, WebMaster, OyamaHRM documented |
 | Defect documentation | Current | Known issues tracked in Defect Ledger below |
 
 ## UI Audit Summary (2026-05-10)
@@ -79,6 +79,9 @@ Use only these status labels:
 | Events CRM | Event reports page data loading | Broken | app/events/reports/EventReportsContent.tsx |
 | Events CRM | Ticket/sponsor/communications/tasks/volunteers/files/settings completeness | Demo Only | app/events/[eventId]/* scaffold pages and workspace stubs |
 | Events CRM | QR check-in and walk-in registration flows | Not Implemented | docs/status/events-crm-status.md |
+| Watchdog | Cross-CRM feedback submission and ticket triage workspace | Partially Working | app/components/feedback/*, app/watchdog/feedback-tickets/page.tsx, server/src/routes/feedback.ts, server/src/routes/watchdog-feedback-tickets.ts |
+| OyamaHRM | Module shell, dashboard, sidebar, and starter routes | Partially Working | app/hrm/layout.tsx, app/hrm/page.tsx, app/components/layout/HrmSidebar.tsx |
+| OyamaHRM | Backend HRM entities and cross-module assignment integration | Not Implemented | docs/OYAMA_HRM.md |
 | Data Tools | Import mapper + dry-run foundation | Partially Working | app/data-tools/import/* |
 | Data Tools | Merge finalization backend and safe conflict resolution | Not Implemented | app/data-tools/merge/MergeWorkflow.tsx |
 

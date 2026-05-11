@@ -131,6 +131,28 @@ describe("auth-client", () => {
       expect(tok).toBeNull();
       expect(getAccessToken()).toBeNull();
     });
+
+    it("reuses one in-flight refresh call across concurrent callers", async () => {
+      let resolveFetch: ((value: Response) => void) | null = null;
+      const fetchPromise = new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      });
+      const fetchMock = vi.fn().mockReturnValue(fetchPromise);
+      vi.stubGlobal("fetch", fetchMock);
+
+      const first = refreshAccessToken();
+      const second = refreshAccessToken();
+
+      // Both callers should share the same network refresh.
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      resolveFetch!(jsonResponse({ data: { accessToken: "tok-shared" } }));
+      const [firstToken, secondToken] = await Promise.all([first, second]);
+
+      expect(firstToken).toBe("tok-shared");
+      expect(secondToken).toBe("tok-shared");
+      expect(getAccessToken()).toBe("tok-shared");
+    });
   });
 
   describe("logout", () => {

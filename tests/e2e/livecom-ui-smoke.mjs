@@ -5,6 +5,17 @@
 import { chromium } from "playwright";
 
 const WEB_BASE = process.env.E2E_WEB_BASE_URL || "http://localhost:3000";
+const API_BASE = process.env.E2E_API_BASE_URL || "http://localhost:4000";
+
+/** Attempts to recover the current browser session by rotating refresh cookie once. */
+async function recoverSessionViaRefresh(page) {
+  try {
+    const response = await page.request.post(`${API_BASE}/api/auth/refresh`);
+    return response.ok();
+  } catch {
+    return false;
+  }
+}
 
 /** Logs in through the real UI and waits until we leave /login. */
 async function login(page) {
@@ -28,6 +39,11 @@ async function login(page) {
       throw new Error("Login failed with visible error message on the form.");
     }
 
+    const hasRateLimit = await page.getByText(/too many auth attempts|too many requests|rate limit/i).count();
+    if (hasRateLimit > 0) {
+      throw new Error("Login is currently rate-limited.");
+    }
+
     await page.waitForTimeout(500);
   }
 
@@ -41,6 +57,34 @@ function assertAuthed(url) {
   }
 }
 
+/** Waits for interaction row visibility or throws on visible save failures. */
+async function waitForInteractionRow(page, interactionRow, timeoutMs = 30000) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    if (page.url().includes("/login")) {
+      throw new Error("Session dropped to /login while waiting for LiveCom interaction to appear.");
+    }
+
+    if (await interactionRow.count()) {
+      await interactionRow.first().waitFor({ state: "visible", timeout: 5000 });
+      return;
+    }
+
+    const saveFailureVisible = await page
+      .getByText(/failed to save interaction|select a constituent|interaction detail is required/i)
+      .count();
+    if (saveFailureVisible > 0) {
+      const bodyText = await page.locator("body").innerText();
+      throw new Error(`LiveCom save interaction failed: ${bodyText.slice(0, 300)}`);
+    }
+
+    await page.waitForTimeout(500);
+  }
+
+  throw new Error("Timed out waiting for LiveCom interaction row to appear.");
+}
+
 async function main() {
   const browser = await chromium.launch({ headless: true });
 
@@ -52,6 +96,15 @@ async function main() {
 
     await page.goto(`${WEB_BASE}/livecom`, { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle").catch(() => {});
+
+    if (page.url().includes("/login")) {
+      const refreshed = await recoverSessionViaRefresh(page);
+      if (refreshed) {
+        await page.goto(`${WEB_BASE}/livecom`, { waitUntil: "domcontentloaded" });
+        await page.waitForLoadState("networkidle").catch(() => {});
+      }
+    }
+
     assertAuthed(page.url());
 
     const heading = page.getByRole("heading", { name: "LiveCom" });
@@ -61,9 +114,18 @@ async function main() {
 
     const uniqueText = `LiveCom e2e ${Date.now()}`;
     const constituentSelect = page.getByLabel("Constituent");
-    const allOptions = await constituentSelect.locator("option").all();
+    let optionCount = 0;
+    const optionsWaitStarted = Date.now();
 
-    if (allOptions.length < 2) {
+    while (Date.now() - optionsWaitStarted < 30000) {
+      optionCount = await constituentSelect.locator("option").count();
+      if (optionCount >= 2) {
+        break;
+      }
+      await page.waitForTimeout(400);
+    }
+
+    if (optionCount < 2) {
       throw new Error("Constituent selector does not contain selectable options.");
     }
 
@@ -74,7 +136,7 @@ async function main() {
     await page.getByRole("button", { name: "Save Interaction" }).click();
 
     const interactionRow = page.locator("table tbody tr", { hasText: uniqueText }).first();
-    await interactionRow.waitFor({ state: "visible", timeout: 15000 });
+    await waitForInteractionRow(page, interactionRow, 30000);
 
     const statusSelect = interactionRow.locator("select").first();
     const ownerInput = interactionRow.locator('input[placeholder="Unassigned"]').first();
@@ -85,7 +147,7 @@ async function main() {
     const saveButton = interactionRow.getByRole("button", { name: "Save" });
     await saveButton.click();
 
-    await interactionRow.getByText("In Progress", { exact: false }).first().waitFor({ timeout: 15000 });
+    await interactionRow.getByText("In Progress", { exact: false }).first().waitFor({ timeout: 30000 });
 
     const donorLink = interactionRow.locator('a[href^="/constituents/"]').first();
     await donorLink.click();

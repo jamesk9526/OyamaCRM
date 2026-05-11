@@ -47,6 +47,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: "Data Tools",     href: "/compassion/data-tools",         icon: <OyamaGradientIcon name="contact-checklist" /> },
       { label: "Settings",       href: "/compassion/settings",           icon: <OyamaGradientIcon name="client-profile-sync" /> },
+      { label: "Help",           href: "/help?scope=compassion&scopePath=/compassion/dashboard", icon: <OyamaGradientIcon name="messaging-chat" /> },
     ],
   },
 ];

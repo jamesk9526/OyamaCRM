@@ -59,3 +59,31 @@ export interface WatchdogBackupItem {
   createdAt: string;
   restoredAt: string | null;
 }
+
+export interface WatchdogFeedbackTicketItem {
+  id: string;
+  ticketNumber: string;
+  type: "bug_report" | "feature_request" | "feature_change" | "confusing_ui" | "data_issue" | "general_feedback";
+  status: "new" | "in_review" | "in_progress" | "waiting_on_user" | "resolved" | "closed";
+  priority: "low" | "normal" | "high" | "urgent";
+  crmScope: "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "hrm" | "reportit" | "other" | "unknown";
+  pageUrl: string;
+  routePath: string | null;
+  pageTitle: string | null;
+  submittedByDisplayName: string | null;
+  assignedDeveloperDisplayName: string | null;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt: string | null;
+}
+
+export interface WatchdogFeedbackSummaryData {
+  totals: {
+    total: number;
+    unresolved: number;
+    unassigned: number;
+    urgent: number;
+    high: number;
+    openOver72h: number;
+  };
+}

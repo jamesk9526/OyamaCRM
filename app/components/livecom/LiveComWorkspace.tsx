@@ -146,12 +146,12 @@ export default function LiveComWorkspace() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
+          <Link
+            href="/settings/site-embeds"
             className="rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700"
           >
             Install Website Widget
-          </button>
+          </Link>
           <Link
             href="/communications"
             className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -167,7 +167,7 @@ export default function LiveComWorkspace() {
           LiveCom now persists tracked interactions and attaches them to constituent timelines for cross-workspace visibility.
         </p>
         <p className="mt-1 text-xs text-amber-800">
-          TODO: backend API needed for real-time website chat ingestion, survey response webhooks, contact form sync, and conversation threading.
+          Public website chat ingestion is available through Site Embeds. Survey response webhooks, contact form sync, and conversation threading are still in development.
         </p>
       </section>
 
@@ -213,9 +213,15 @@ export default function LiveComWorkspace() {
 
       <section className="rounded-xl border border-gray-200 bg-white px-5 py-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Website Embed Starter</p>
-        <pre className="mt-2 overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
-{`<script src="https://your-domain.com/embed/livecom.js" data-org="oyama-demo" defer></script>`}
-        </pre>
+        <p className="mt-2 text-sm text-gray-600">
+          Use the
+          {" "}
+          <Link href="/settings/site-embeds" className="font-semibold text-green-700 hover:text-green-800">
+            Site Embeds manager
+          </Link>
+          {" "}
+          to generate tokenized snippets and validate domain-safe installs.
+        </p>
       </section>
     </div>
   );

@@ -33,6 +33,13 @@ export const PERMISSION_KEYS = [
   "watchdog:incident:escalate",
   "watchdog:incident:resolve",
   "watchdog:manage",
+  "feedback.submit",
+  "feedback.view_own",
+  "watchdog.tickets.view",
+  "watchdog.tickets.manage",
+  "watchdog.tickets.assign",
+  "watchdog.tickets.resolve",
+  "watchdog.tickets.delete",
 ] as const;
 
 /** Union type for one permission key. */
@@ -80,6 +87,13 @@ const PERMISSION_DEFAULTS: Record<PermissionKey, PermissionDefault> = {
   "watchdog:incident:escalate": { minRole: "admin" },
   "watchdog:incident:resolve": { minRole: "admin" },
   "watchdog:manage": { minRole: "admin" },
+  "feedback.submit": { minRole: "readonly" },
+  "feedback.view_own": { minRole: "readonly" },
+  "watchdog.tickets.view": { minRole: "admin" },
+  "watchdog.tickets.manage": { minRole: "admin" },
+  "watchdog.tickets.assign": { minRole: "admin" },
+  "watchdog.tickets.resolve": { minRole: "admin" },
+  "watchdog.tickets.delete": { minRole: "admin" },
 };
 
 /**

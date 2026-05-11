@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import StewardChatPanel from "@/app/components/ai/StewardChatPanel";
 
-type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster";
+type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "hrm";
 
 /** Resolves module query string into a safe module key with donor fallback. */
 function resolveModuleKey(raw: string | null): ModuleKey {
@@ -13,6 +13,7 @@ function resolveModuleKey(raw: string | null): ModuleKey {
   if (raw === "events") return "events";
   if (raw === "watchdog") return "watchdog";
   if (raw === "webmaster") return "webmaster";
+  if (raw === "hrm") return "hrm";
   return "donor";
 }
 

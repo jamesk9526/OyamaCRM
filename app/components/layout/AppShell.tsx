@@ -9,7 +9,7 @@ import ErrorBoundary from "@/app/components/ErrorBoundary";
 import { DEFAULT_WORKSPACE_SETTINGS, fetchWorkspaceSettings, type WorkspaceSettings } from "@/app/lib/workspace-settings";
 
 // Module routes render their own shells — bypass AppShell wrapper.
-const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/compassion", "/events", "/watchdog", "/webmaster", "/apps"];
+const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/compassion", "/events", "/watchdog", "/webmaster", "/hrm", "/apps"];
 
 // Routes that the report_viewer role may access (board dashboard + its own sub-routes)
 const BOARD_PATHS = ["/board"];

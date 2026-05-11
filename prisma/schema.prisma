@@ -343,6 +343,8 @@ model User {
   webmasterSitesCreated         WebmasterSite[]         @relation("WebmasterSiteCreator")
   webmasterPagesCreated         WebmasterPage[]         @relation("WebmasterPageCreator")
   webmasterPagesUpdated         WebmasterPage[]         @relation("WebmasterPageUpdater")
+  submittedFeedbackTickets      WatchdogFeedbackTicket[] @relation("FeedbackSubmittedBy")
+  assignedFeedbackTickets       WatchdogFeedbackTicket[] @relation("FeedbackAssignedDeveloper")
 }
 
 // ─── Constituent (Donor/Volunteer/Member) ─────────────────────────────────────
@@ -949,6 +951,62 @@ model AuditLog {
   createdAt      DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model WatchdogFeedbackTicket {
+  id                  String   @id @default(cuid())
+  organizationId      String
+  ticketNumber        String   @unique
+
+  type                String   @db.VarChar(40)
+  status              String   @default("new") @db.VarChar(40)
+  priority            String   @default("normal") @db.VarChar(20)
+  crmScope            String   @default("unknown") @db.VarChar(20)
+
+  pageUrl             String
+  routePath           String?
+  pageTitle           String?
+
+  submittedByUserId   String?
+  submittedByName     String?
+  submittedByEmail    String?
+
+  whatTryingToDo      String?  @db.Text
+  whatHappened        String?  @db.Text
+  expectedResult      String?  @db.Text
+  extraComments       String?  @db.Text
+
+  featureTitle        String?
+  featureProblem      String?  @db.Text
+  featureAudience     String?
+  featureRequestedChange String? @db.Text
+  importance          String?  @db.VarChar(20)
+
+  browserInfo         String?
+  deviceInfo          String?
+  appVersion          String?
+  environment         String?  @db.VarChar(20)
+
+  assignedDeveloperId String?
+  assignedToPersonId  String?
+
+  developerNotes      String?  @db.Text
+  resolutionNotes     String?  @db.Text
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  resolvedAt          DateTime?
+
+  submittedByUser     User?    @relation("FeedbackSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: SetNull)
+  assignedDeveloper   User?    @relation("FeedbackAssignedDeveloper", fields: [assignedDeveloperId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status])
+  @@index([organizationId, type])
+  @@index([organizationId, priority])
+  @@index([organizationId, crmScope])
+  @@index([organizationId, submittedByUserId])
+  @@index([organizationId, assignedDeveloperId])
 }
 
 enum AutomationTrigger {

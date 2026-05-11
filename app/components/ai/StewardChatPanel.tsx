@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import StewardMessageRenderer from "@/app/components/ai/StewardMessageRenderer";
 
-type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "reportit";
+type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "reportit" | "hrm";
 type ChatMode = "ask" | "analyze" | "draft" | "action" | "help";
 export type StewardPanelMode = "collapsed" | "dock-right" | "popout" | "maximized";
 type StewardChatDisplayMode = "dock" | "dock-right" | "popout" | "maximized" | "workspace";
@@ -262,6 +262,14 @@ function promptsForModule(moduleKey: ModuleKey): string[] {
       "Summarize the most important reporting KPI changes.",
       "Which report tab should I review first this week?",
       "Draft a board-ready reporting summary.",
+    ];
+  }
+
+  if (moduleKey === "hrm") {
+    return [
+      "Summarize internal staffing priorities for today.",
+      "Draft an internal announcement for all staff locations.",
+      "What schedule conflicts should HRM resolve this week?",
     ];
   }
 

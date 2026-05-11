@@ -53,6 +53,11 @@ const CARDS = [
     href: "/settings/plugins",
   },
   {
+    title: "Site Embeds",
+    description: "Generate secure website snippets, configure domain allow-lists, and manage LiveCom public widget installs.",
+    href: "/settings/site-embeds",
+  },
+  {
     title: "Security",
     description: "Authentication controls plus verified setup-reset recovery for the CRM installation.",
     href: "/settings/security",

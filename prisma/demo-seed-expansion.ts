@@ -70,6 +70,7 @@ export interface DemoSeedExpansionSummary {
   additionalActivities: number;
   additionalEmailCampaigns: number;
   additionalStewardRuns: number;
+  additionalFeedbackTickets: number;
   importFixturesDir: string;
 }
 
@@ -252,6 +253,7 @@ export async function seedDemoExpansion(
 
   const automations = await seedDemoAutomations(prisma, options);
   const steward = await seedStewardSignalsAndRuns(prisma, options, demoConstituents, automations, tagMap, profile, rng);
+  const feedbackTickets = await seedWatchdogFeedbackTickets(prisma, options, rng);
 
   const importFixturesDir = await writeImportFixtures(profile, demoConstituents, compassion.clients, rng);
   await seedImportBatchAuditLogs(prisma, options, importFixturesDir, rng);
@@ -272,6 +274,7 @@ export async function seedDemoExpansion(
     additionalActivities: operational.activities.length,
     additionalEmailCampaigns: communications.length,
     additionalStewardRuns: steward.runCount,
+    additionalFeedbackTickets: feedbackTickets,
     importFixturesDir,
   };
 }
@@ -2033,6 +2036,114 @@ async function seedImportBatchAuditLogs(
   ];
 
   await createManyInChunks(prisma.auditLog, logs, 200);
+}
+
+/** Seeds a small set of cross-CRM feedback tickets for Watchdog triage demonstrations. */
+async function seedWatchdogFeedbackTickets(
+  prisma: PrismaClient,
+  options: DemoSeedExpansionOptions,
+  rng: Rng
+): Promise<number> {
+  const demoTickets = [
+    {
+      id: "demo_wd_ticket_000001",
+      organizationId: options.organizationId,
+      ticketNumber: "WD-900001",
+      type: "bug_report",
+      status: "new",
+      priority: "high",
+      crmScope: "donor",
+      pageUrl: "https://demo.oyamacrm.invalid/donations",
+      routePath: "/donations",
+      pageTitle: "Donations",
+      submittedByUserId: options.staffUserId,
+      submittedByName: "Demo Staff User",
+      submittedByEmail: "staff@demo.oyamacrm.invalid",
+      whatTryingToDo: `${DEMO_MARKER} Trying to create a donation and attach a designation.`,
+      whatHappened: `${DEMO_MARKER} Form validation flagged amount incorrectly when designation changed.`,
+      expectedResult: `${DEMO_MARKER} Amount should persist and save without re-entry.`,
+      extraComments: `${DEMO_MARKER} Reproduced on Chrome and Edge in synthetic demo workspace.`,
+      browserInfo: "DemoBrowser/1.0",
+      deviceInfo: "Windows Demo VM",
+      appVersion: "demo-seed",
+      environment: "development",
+      assignedDeveloperId: options.adminUserId,
+      assignedToPersonId: null,
+      developerNotes: `${DEMO_MARKER} Triage seeded for dashboard visibility.`,
+      resolutionNotes: null,
+      resolvedAt: null,
+      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+    },
+    {
+      id: "demo_wd_ticket_000002",
+      organizationId: options.organizationId,
+      ticketNumber: "WD-900002",
+      type: "feature_request",
+      status: "in_review",
+      priority: "normal",
+      crmScope: "compassion",
+      pageUrl: "https://demo.oyamacrm.invalid/compassion/clients",
+      routePath: "/compassion/clients",
+      pageTitle: "Compassion Clients",
+      submittedByUserId: options.staffUserId,
+      submittedByName: "Demo Staff User",
+      submittedByEmail: "staff@demo.oyamacrm.invalid",
+      whatTryingToDo: null,
+      whatHappened: null,
+      expectedResult: null,
+      extraComments: `${DEMO_MARKER} Include column preference persistence for caseworkers.`,
+      featureTitle: "Client list column presets",
+      featureProblem: `${DEMO_MARKER} Staff reset visible columns every shift.`,
+      featureAudience: "Compassion caseworkers",
+      featureRequestedChange: `${DEMO_MARKER} Save and apply named column presets per user.`,
+      importance: "important",
+      browserInfo: "DemoBrowser/1.0",
+      deviceInfo: "Windows Demo VM",
+      appVersion: "demo-seed",
+      environment: "development",
+      assignedDeveloperId: options.adminUserId,
+      assignedToPersonId: null,
+      developerNotes: `${DEMO_MARKER} Product review queued in planning.`,
+      resolutionNotes: null,
+      resolvedAt: null,
+      createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+    },
+    {
+      id: "demo_wd_ticket_000003",
+      organizationId: options.organizationId,
+      ticketNumber: "WD-900003",
+      type: "data_issue",
+      status: "resolved",
+      priority: "urgent",
+      crmScope: "events",
+      pageUrl: "https://demo.oyamacrm.invalid/events/reports",
+      routePath: "/events/reports",
+      pageTitle: "Events Reports",
+      submittedByUserId: options.adminUserId,
+      submittedByName: "Demo Admin User",
+      submittedByEmail: "admin@demo.oyamacrm.invalid",
+      whatTryingToDo: `${DEMO_MARKER} Comparing ticket revenue totals across event reports.`,
+      whatHappened: `${DEMO_MARKER} One chart lagged by one day due to stale cache in demo mode.`,
+      expectedResult: `${DEMO_MARKER} Dashboard and export totals should match instantly.`,
+      extraComments: `${DEMO_MARKER} Synthetic resolved issue for triage status examples.`,
+      browserInfo: "DemoBrowser/1.0",
+      deviceInfo: "Windows Demo VM",
+      appVersion: "demo-seed",
+      environment: "development",
+      assignedDeveloperId: options.adminUserId,
+      assignedToPersonId: null,
+      developerNotes: `${DEMO_MARKER} Cache warm-up now runs before report render.`,
+      resolutionNotes: `${DEMO_MARKER} Fixed by invalidating stale aggregate cache before query.`,
+      resolvedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
+    },
+  ].map((ticket) => ({
+    ...ticket,
+    updatedAt: new Date(ticket.createdAt.getTime() + rng.int(1, 72) * 60 * 60 * 1000),
+  }));
+
+  await createManyInChunks(prisma.watchdogFeedbackTicket, demoTickets, 200);
+  return demoTickets.length;
 }
 
 /** Escapes CSV values for deterministic fixture generation. */

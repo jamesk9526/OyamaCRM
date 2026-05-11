@@ -1,6 +1,7 @@
 // Main dashboard composition for OyamaWatchdog module.
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import WatchdogStatusCards from "@/app/components/watchdog/WatchdogStatusCards";
@@ -103,6 +104,22 @@ export default function WatchdogDashboardPage() {
       ) : (
         <>
           <WatchdogStatusCards data={status} />
+
+          <section className="rounded-xl border border-slate-700 bg-slate-900/70 p-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-100">Cross-CRM Feedback Ticketing</h2>
+              <p className="text-xs text-slate-400 mt-1">
+                Triage user-submitted product feedback from all CRM modules in the dedicated ticket command center.
+              </p>
+            </div>
+            <Link
+              href="/watchdog/feedback-tickets"
+              className="px-3 py-1.5 rounded-lg border border-red-500/40 bg-red-600/15 text-red-200 text-sm font-medium hover:bg-red-600/25"
+            >
+              Open Ticketing
+            </Link>
+          </section>
+
           <WatchdogSecurityFeed items={feedItems} onAction={applyIncidentAction} actingKey={actingKey} />
           <WatchdogVaultPanel items={vaultItems} onRefresh={load} />
           <WatchdogBackupPanel items={backupItems} onRefresh={load} />

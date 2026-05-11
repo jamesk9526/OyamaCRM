@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
@@ -371,6 +372,12 @@ export default function AppointmentsWorkspace() {
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Appointments</h1>
           <p className="text-sm text-gray-500 mt-0.5">Production scheduling workspace for staff calendar and appointment operations.</p>
+          <Link
+            href="/help?scope=compassion&scopePath=/compassion/appointments"
+            className="mt-2 inline-flex rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+          >
+            Need help with appointments?
+          </Link>
         </div>
         <div className="flex items-center gap-2">
           <button

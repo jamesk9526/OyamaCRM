@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import OyamaGradientIcon from "@/app/components/ui/OyamaGradientIcon";
 
 interface NavItem {
@@ -14,6 +15,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: "Security Dashboard", href: "/watchdog", description: "Cross-CRM security monitor", icon: <OyamaGradientIcon name="growth-analytics" size={16} /> },
+  { label: "Feedback Tickets", href: "/watchdog/feedback-tickets", description: "Cross-CRM product feedback triage", icon: <OyamaGradientIcon name="reporting-dashboard" size={16} /> },
   { label: "Password Vault", href: "/watchdog#vault", description: "Encrypted credential storage", icon: <OyamaGradientIcon name="client-profile-sync" size={16} /> },
   { label: "Security Feed", href: "/watchdog#feed", description: "High-risk events and alerts", icon: <OyamaGradientIcon name="task-checklist" size={16} /> },
   { label: "Backup & Restore", href: "/watchdog#backup", description: "Full CRM export/import controls", icon: <OyamaGradientIcon name="contact-checklist" size={16} /> },
@@ -23,6 +25,29 @@ const NAV_ITEMS: NavItem[] = [
 /** WatchdogSidebar renders navigation for the dark OyamaWatchdog module shell. */
 export default function WatchdogSidebar() {
   const pathname = usePathname();
+  const [hash, setHash] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const updateHash = () => setHash(window.location.hash || "");
+    updateHash();
+    window.addEventListener("hashchange", updateHash);
+    return () => window.removeEventListener("hashchange", updateHash);
+  }, []);
+
+  function isNavItemActive(href: string): boolean {
+    if (href.includes("#")) {
+      const [pathOnly, hashOnly] = href.split("#");
+      return pathname === pathOnly && hash === `#${hashOnly}`;
+    }
+
+    if (href === "/watchdog") {
+      return pathname === "/watchdog" && !hash;
+    }
+
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
 
   return (
     <aside className="w-64 shrink-0 bg-[#0a0f19] border-r border-[#1f2937] flex flex-col h-full select-none">
@@ -40,7 +65,7 @@ export default function WatchdogSidebar() {
 
       <nav className="flex-1 overflow-y-auto py-3 space-y-1">
         {NAV_ITEMS.map((item) => {
-          const active = pathname === "/watchdog" && item.href.startsWith("/watchdog");
+          const active = isNavItemActive(item.href);
           return (
             <Link
               key={item.label}
