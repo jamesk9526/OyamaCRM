@@ -461,6 +461,19 @@ export default function CompassionSettingsPage() {
         </div>
       </div>
 
+      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <p className="text-sm font-semibold text-blue-800">Need to add Compassion staff or accounts?</p>
+          <p className="text-sm text-blue-700 mt-1">Use the staff directory to add names for scheduling and optionally create linked Compassion accounts.</p>
+        </div>
+        <a
+          href="/compassion/settings/staff"
+          className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+        >
+          Open Staff Directory
+        </a>
+      </div>
+
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
         Public booking is in active development. Use this builder to configure and deploy a beta appointment intake flow.
       </div>

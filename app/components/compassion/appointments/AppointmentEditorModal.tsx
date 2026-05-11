@@ -2,6 +2,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useEffect } from "react";
 import { apiFetchResponse } from "@/app/lib/auth-client";
 import {
   APPOINTMENT_STATUS_OPTIONS,
@@ -52,6 +53,10 @@ export default function AppointmentEditorModal({
   onClose,
   onSaved,
 }: AppointmentEditorModalProps) {
+  const clientLabelById = useMemo(() => {
+    return new Map(clientOptions.map((client) => [client.id, `${client.firstName} ${client.lastName}`.trim()]));
+  }, [clientOptions]);
+
   const initialForm = useMemo(() => ({
     clientId: appointment?.clientId ?? "",
     appointmentType: appointment?.appointmentType ?? "INTAKE",
@@ -65,9 +70,28 @@ export default function AppointmentEditorModal({
   }), [appointment, initialStartTime]);
 
   const [form, setForm] = useState(initialForm);
+  const [clientSearch, setClientSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<ConflictPayload[]>([]);
+
+  // Keep modal state aligned when switching between create/edit or opening another appointment.
+  useEffect(() => {
+    if (!open) return;
+    setForm(initialForm);
+    setClientSearch(initialForm.clientId ? (clientLabelById.get(initialForm.clientId) ?? "") : "");
+  }, [open, initialForm, clientLabelById]);
+
+  const filteredClientOptions = useMemo(() => {
+    const needle = clientSearch.trim().toLowerCase();
+    if (!needle) return clientOptions;
+    return clientOptions.filter((client) => {
+      const name = `${client.firstName} ${client.lastName}`.toLowerCase();
+      const email = (client.email ?? "").toLowerCase();
+      const phone = (client.phone ?? "").toLowerCase();
+      return name.includes(needle) || email.includes(needle) || phone.includes(needle);
+    });
+  }, [clientOptions, clientSearch]);
 
   if (!open) return null;
 
@@ -220,14 +244,27 @@ export default function AppointmentEditorModal({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Client *</label>
+              <input
+                type="text"
+                value={clientSearch}
+                onChange={(event) => setClientSearch(event.target.value)}
+                placeholder="Search client by name, email, or phone"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2"
+              />
               <select
                 required
                 value={form.clientId}
-                onChange={(event) => setForm((current) => ({ ...current, clientId: event.target.value }))}
+                onChange={(event) => {
+                  const nextClientId = event.target.value;
+                  setForm((current) => ({ ...current, clientId: nextClientId }));
+                  if (nextClientId) {
+                    setClientSearch(clientLabelById.get(nextClientId) ?? "");
+                  }
+                }}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
               >
                 <option value="">Select client…</option>
-                {clientOptions.map((client) => (
+                {filteredClientOptions.map((client) => (
                   <option key={client.id} value={client.id}>{client.firstName} {client.lastName}</option>
                 ))}
               </select>

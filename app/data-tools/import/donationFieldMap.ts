@@ -70,6 +70,22 @@ export const DONATION_FIELD_GROUPS: Record<string, DonationField[]> = (() => {
  * Covers Bloomerang, NeonCRM, eKYROS, and generic gift export column names.
  */
 export const DONATION_AUTO_MAP_ALIASES: Record<string, string> = {
+  // ─── eKYROS Donations_List export headers ───────────────────────────
+  "fileid":                 "constituentExternalId",
+  "fullname1":              "constituentName",
+  "formdate1":              "date",
+  "paymenttypedesc":        "paymentMethod",
+  "amountreceived":         "amount",
+  "taxdeductibleamount":    "skip",
+  "checkno":                "checkNumber",
+  "depositno":              "receiptNumber",
+  "eventname":              "campaignName",
+  "groupname":              "designationName",
+  "pledgenumber":           "transactionId",
+  "comment":                "notes",
+  "iscompany":              "skip",
+  "churchname":             "skip",
+
   // ─── Generic gift columns ───────────────────────────────────────────
   "amount":                 "amount",
   "gift amount":            "amount",

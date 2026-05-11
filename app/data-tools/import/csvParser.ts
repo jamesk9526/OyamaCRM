@@ -61,6 +61,38 @@ function splitCsvLine(line: string, delimiter: string = ","): string[] {
 }
 
 /**
+ * coalesceMultilineRows: joins physical lines into logical CSV rows when quoted
+ * fields span multiple lines (common in address/note columns exported from legacy CRMs).
+ */
+function coalesceMultilineRows(lines: string[]): string[] {
+  const rows: string[] = [];
+  let buffer = "";
+  let inQuotes = false;
+
+  for (const line of lines) {
+    buffer = buffer ? `${buffer}\n${line}` : line;
+
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] !== '"') continue;
+      // Escaped quote inside quoted field: ""
+      if (line[i + 1] === '"') {
+        i++;
+        continue;
+      }
+      inQuotes = !inQuotes;
+    }
+
+    if (!inQuotes) {
+      rows.push(buffer);
+      buffer = "";
+    }
+  }
+
+  if (buffer) rows.push(buffer);
+  return rows;
+}
+
+/**
  * detectDelimiter: choose the most likely column delimiter from the first ~20 non-empty lines
  * by counting occurrences of `,`, `\t`, `;`, and `|` outside of quoted regions and picking the
  * delimiter whose per-line count is the most consistent and largest.
@@ -144,13 +176,16 @@ export function detectHeaderRow(lines: string[], delimiter: string = ","): numbe
 export function parseCSV(text: string, delimiter: Delimiter = "auto"): CsvParseResult {
   // Strip UTF-8 BOM if present (common in Windows / Excel exports)
   const cleaned = text.replace(/^\uFEFF/, "");
-  const lines = cleaned.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
-  if (lines.length === 0) {
+  const physicalLines = cleaned.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  if (physicalLines.length === 0) {
     return { headers: [], rows: [], detectedHeaderRow: 1, delimiter: "," };
   }
 
   const resolvedDelimiter: Exclude<Delimiter, "auto"> =
-    delimiter === "auto" ? detectDelimiter(lines) : delimiter;
+    delimiter === "auto" ? detectDelimiter(physicalLines) : delimiter;
+
+  // Merge wrapped quoted rows so downstream header/row parsing stays column-aligned.
+  const lines = coalesceMultilineRows(physicalLines);
 
   const headerIdx = detectHeaderRow(lines, resolvedDelimiter);
   // Filter empty trailing header cells (from trailing delimiters)

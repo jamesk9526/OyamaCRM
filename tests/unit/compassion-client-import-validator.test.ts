@@ -310,4 +310,21 @@ describe("parseCSV with auto-delimiter", () => {
     expect(result.delimiter).toBe(";");
     expect(result.headers).toEqual(["a", "b"]);
   });
+
+  it("parses quoted multiline cells without shifting columns", () => {
+    const csv = [
+      "DirID,Address,City,State",
+      '1,"300 8th Street',
+      'Apt. A",Monett,MO',
+    ].join("\n");
+    const result = parseCSV(csv);
+    expect(result.headers).toEqual(["DirID", "Address", "City", "State"]);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]).toEqual({
+      DirID: "1",
+      Address: "300 8th Street\nApt. A",
+      City: "Monett",
+      State: "MO",
+    });
+  });
 });

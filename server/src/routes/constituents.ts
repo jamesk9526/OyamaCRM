@@ -388,11 +388,75 @@ router.post("/import", async (req, res) => {
   let skipped = 0;
   const errors: string[] = [];
 
+  /** Parse common CSV booleans like True/False, Yes/No, 1/0. */
+  const parseBool = (raw?: string): boolean | undefined => {
+    if (raw == null) return undefined;
+    const v = raw.trim().toLowerCase();
+    if (!v) return undefined;
+    if (["true", "yes", "y", "1"].includes(v)) return true;
+    if (["false", "no", "n", "0"].includes(v)) return false;
+    return undefined;
+  };
+
+  /** Parse common date strings; undefined when blank/invalid. */
+  const parseDateOrUndefined = (raw?: string): Date | undefined => {
+    if (!raw?.trim()) return undefined;
+    const d = new Date(raw.trim());
+    return Number.isNaN(d.getTime()) ? undefined : d;
+  };
+
+  /** Map source status strings into DonorStatus enum values. */
+  const normalizeDonorStatus = (raw?: string): DonorStatus => {
+    const v = (raw ?? "").trim().toLowerCase();
+    if (!v) return "ACTIVE";
+    if (v === "new") return "NEW";
+    if (v === "active") return "ACTIVE";
+    if (v === "inactive" || v === "inactiv" || v === "lapsed") return "LAPSED";
+    if (v === "major_donor" || v === "majordonor" || v === "major donor") return "MAJOR_DONOR";
+    if (v === "deceased") return "DECEASED";
+    return "ACTIVE";
+  };
+
+  /** Build an import metadata note so non-modeled source fields are not silently dropped. */
+  const buildImportNotes = (rec: Record<string, string>): string | undefined => {
+    const parts: string[] = [];
+    if (rec.website?.trim()) parts.push(`Website: ${rec.website.trim()}`);
+    if (rec.spouseName?.trim()) parts.push(`Spouse: ${rec.spouseName.trim()}`);
+    if (rec.formalName?.trim()) parts.push(`Formal Name: ${rec.formalName.trim()}`);
+    if (rec.greetingName?.trim()) parts.push(`Greeting Name: ${rec.greetingName.trim()}`);
+    if (rec.gender?.trim()) parts.push(`Gender: ${rec.gender.trim()}`);
+    if (rec.sourceCreatedDate?.trim()) parts.push(`Source Created: ${rec.sourceCreatedDate.trim()}`);
+    if (rec.sourceModifiedDate?.trim()) parts.push(`Source Modified: ${rec.sourceModifiedDate.trim()}`);
+    if (rec.sourceLastUpdatedBy?.trim()) parts.push(`Source Last Updated By: ${rec.sourceLastUpdatedBy.trim()}`);
+    if (rec.tags?.trim()) parts.push(`Source Tags: ${rec.tags.trim()}`);
+    if (rec.deceased?.trim() && parseBool(rec.deceased)) parts.push("Source Deceased Flag: true");
+    if (rec.spouseDeceased?.trim() && parseBool(rec.spouseDeceased)) parts.push("Source Spouse Deceased Flag: true");
+    return parts.length > 0 ? parts.join("\n") : undefined;
+  };
+
   for (const rec of records) {
     try {
       // Map imported CRM field keys → Prisma Constituent fields
       // _isOrg is set by the wizard when a record had no firstName/lastName but had an org name
       const isOrg = allowOrgImport && rec["_isOrg"] === "true";
+
+      const communicationRaw = rec.communicationPreferences?.trim() || "";
+      const communicationTokens = communicationRaw
+        ? communicationRaw.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean)
+        : [];
+      const hasExplicitPrefs = communicationTokens.length > 0;
+      const allowsEmail = communicationTokens.some((t) => t.includes("email"));
+      const allowsPhone = communicationTokens.some((t) => t.includes("phone") || t.includes("call") || t.includes("voice"));
+      const allowsMail = communicationTokens.some((t) => t.includes("mail") || t.includes("postal"));
+
+      const sourceDoNotMail = parseBool(rec.holdMail);
+      const doNotMail = sourceDoNotMail ?? (hasExplicitPrefs ? !allowsMail : false);
+      const doNotEmail = hasExplicitPrefs ? !allowsEmail : false;
+      const doNotCall = hasExplicitPrefs ? !allowsPhone : false;
+
+      const birthDate = parseDateOrUndefined(rec.birthDate);
+      const importNotes = buildImportNotes(rec);
+      const deceasedFlag = parseBool(rec.deceased) === true;
 
       const data = {
         firstName:    rec.firstName    || "",
@@ -404,16 +468,21 @@ router.post("/import", async (req, res) => {
         mobile:       rec.mobilePhone  || undefined,
         phone2:       rec.workPhone    || undefined,
         addressLine1: rec.address1     || undefined,
+        addressLine2: rec.address2     || undefined,
         city:         rec.city         || undefined,
         state:        rec.state        || undefined,
         zip:          rec.zip          || undefined,
+        country:      "US",
+        birthDate,
         employer:     rec.organizationName || undefined,
         occupation:   rec.occupation   || undefined,
-        // Map "HoldMail" boolean string → doNotMail
-        doNotMail:    rec.holdMail === "true",
-        // Map DeceasedDesc boolean string → notes annotation if deceased
-        notes:        rec.deceased === "true" ? "DECEASED" : undefined,
-        donorStatus:  (rec.constituentStatus === "InActive" ? "LAPSED" : "ACTIVE") as DonorStatus,
+        doNotMail,
+        doNotEmail,
+        doNotCall,
+        doNotContact: doNotMail && doNotEmail && doNotCall,
+        emailOptOut:  doNotEmail,
+        notes:        [deceasedFlag ? "DECEASED" : undefined, importNotes].filter(Boolean).join("\n") || undefined,
+        donorStatus:  normalizeDonorStatus(rec.constituentStatus),
         externalId:   rec.externalId   || undefined,
         // Set constituent type: org-flagged records → ORGANIZATION, others → DONOR
         type:         (isOrg ? "ORGANIZATION" : "DONOR") as ConstituentType,
@@ -434,12 +503,19 @@ router.post("/import", async (req, res) => {
         mobile:       data.mobile,
         phone2:       data.phone2,
         addressLine1: data.addressLine1,
+        addressLine2: data.addressLine2,
         city:         data.city,
         state:        data.state,
         zip:          data.zip,
+        country:      data.country,
+        birthDate:    data.birthDate,
         employer:     data.employer,
         occupation:   data.occupation,
+        doNotEmail:   data.doNotEmail,
+        doNotCall:    data.doNotCall,
         doNotMail:    data.doNotMail,
+        doNotContact: data.doNotContact,
+        emailOptOut:  data.emailOptOut,
         notes:        data.notes,
         donorStatus:  data.donorStatus,
         externalId:   data.externalId,

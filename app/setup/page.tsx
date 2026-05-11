@@ -673,7 +673,7 @@ export default function SetupPage() {
                     onChange={(e) => setField("inviteTeamLater", e.target.checked)}
                     className="rounded border-gray-300 text-green-600 focus:ring-green-500"
                   />
-                  Invite team members later in Settings > Users
+                  Invite team members later in Settings {">"} Users
                 </label>
 
                 {!form.inviteTeamLater && (

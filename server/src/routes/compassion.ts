@@ -6,6 +6,11 @@
  *
  * Routes:
  *   GET  /api/compassion/dashboard-summary   — aggregated metrics for dashboard
+ *   GET  /api/compassion/staff               — list compassion staff directory
+ *   GET  /api/compassion/staff/user-options  — list existing users for linking
+ *   POST /api/compassion/staff               — create compassion staff profile
+ *   PATCH /api/compassion/staff/:id          — update compassion staff profile
+ *   POST /api/compassion/staff/:id/create-account — create optional linked account
  *   GET  /api/compassion/clients             — list clients
  *   POST /api/compassion/clients             — create client
  *   GET  /api/compassion/clients/:id         — client profile with relations
@@ -36,7 +41,7 @@
  *
  * @module routes/compassion
  */
-import { Router } from "express";
+import { Router, type NextFunction, type Request, type Response } from "express";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
@@ -235,7 +240,66 @@ function computeFamilyKey(client: {
 
 // All Compassion CRM routes require auth and at least readonly role (blocks report_viewer from client-care data).
 // TODO: enforce Compassion workspace permission
-router.use(requireAuth, requireRole("readonly"));
+const COMPASSION_BASE_ROLES = new Set(["admin", "manager", "staff", "readonly"]);
+
+/**
+ * Allows normal office roles directly and grants report_viewer access only when
+ * the user is explicitly linked to an active Compassion staff profile.
+ */
+async function requireCompassionAccess(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  if (!req.user) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  if (COMPASSION_BASE_ROLES.has(req.user.role)) {
+    next();
+    return;
+  }
+
+  if (req.user.role !== "report_viewer") {
+    res.status(403).json({
+      error: {
+        code: "FORBIDDEN",
+        message: "Compassion workspace access requires an approved role or a linked Compassion staff account.",
+      },
+    });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+    return;
+  }
+
+  const linkedProfile = await prisma.compassionStaff.findFirst({
+    where: {
+      organizationId,
+      linkedUserId: req.user.sub,
+      isActive: true,
+    },
+    select: { id: true },
+  });
+
+  if (!linkedProfile) {
+    res.status(403).json({
+      error: {
+        code: "FORBIDDEN",
+        message: "This account is not linked to an active Compassion staff profile.",
+      },
+    });
+    return;
+  }
+
+  next();
+}
+
+router.use(requireAuth, requireCompassionAccess);
 
 // ─── Widget Builder Settings ────────────────────────────────────────────────
 
@@ -868,6 +932,40 @@ router.get("/staff", async (req, res) => {
 });
 
 /**
+ * GET /api/compassion/staff/user-options
+ * Lists active platform users in-org so a Compassion staff record can link to an existing account.
+ */
+router.get("/staff/user-options", requireRole("manager"), async (req, res) => {
+  try {
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+
+    const users = await prisma.user.findMany({
+      where: {
+        organizationId,
+        active: true,
+      },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: true,
+      },
+    });
+
+    res.json(users);
+  } catch (err) {
+    console.error("[compassion] GET /staff/user-options error:", err);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load user options" } });
+  }
+});
+
+/**
  * POST /api/compassion/staff
  * Creates a Compassion staff directory entry. Accounts remain optional via linkedUserId.
  */
@@ -1044,6 +1142,139 @@ router.patch("/staff/:id", requireRole("manager"), async (req, res) => {
   } catch (err) {
     console.error("[compassion] PATCH /staff/:id error:", err);
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to update compassion staff" } });
+  }
+});
+
+/**
+ * POST /api/compassion/staff/:id/create-account
+ * Creates an optional linked platform account for a Compassion staff profile.
+ * Default role is report_viewer so account access can be limited to Compassion when linked.
+ */
+router.post("/staff/:id/create-account", requireRole("admin"), async (req, res) => {
+  try {
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+
+    const staffId = String(req.params.id ?? "").trim();
+    if (!staffId) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid staff id" } });
+      return;
+    }
+
+    const staff = await prisma.compassionStaff.findFirst({
+      where: { id: staffId, organizationId },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        linkedUserId: true,
+      },
+    });
+
+    if (!staff) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Compassion staff not found" } });
+      return;
+    }
+
+    if (staff.linkedUserId) {
+      res.status(409).json({ error: { code: "CONFLICT", message: "This staff profile already has a linked account" } });
+      return;
+    }
+
+    const email = String(req.body?.email ?? "").trim().toLowerCase();
+    const password = String(req.body?.password ?? "");
+    const requestedRole = String(req.body?.role ?? "report_viewer").trim() || "report_viewer";
+    const role = requestedRole === "readonly" ? "readonly" : "report_viewer";
+
+    if (!email || !password) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "email and password are required" } });
+      return;
+    }
+
+    if (password.length < 8) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "password must be at least 8 characters" } });
+      return;
+    }
+
+    const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+    if (existing) {
+      res.status(409).json({ error: { code: "CONFLICT", message: "A user with that email already exists" } });
+      return;
+    }
+
+    const passwordHash = await hashPassword(password);
+    const createdUser = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          organizationId,
+          email,
+          firstName: String(req.body?.firstName ?? "").trim() || staff.firstName,
+          lastName: String(req.body?.lastName ?? "").trim() || staff.lastName,
+          role,
+          active: true,
+          passwordHash,
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          active: true,
+        },
+      });
+
+      await tx.compassionStaff.update({
+        where: { id: staff.id },
+        data: { linkedUserId: user.id },
+      });
+
+      return user;
+    });
+
+    const refreshedStaff = await prisma.compassionStaff.findFirst({
+      where: { id: staff.id, organizationId },
+      include: {
+        linkedUser: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            role: true,
+            active: true,
+          },
+        },
+      },
+    });
+
+    if (!refreshedStaff) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Compassion staff not found" } });
+      return;
+    }
+
+    await logAudit({
+      action: "COMPASSION_STAFF_ACCOUNT_CREATED",
+      entity: "CompassionStaff",
+      entityId: refreshedStaff.id,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: {
+        linkedUserId: refreshedStaff.linkedUserId,
+        createdRole: createdUser.role,
+      },
+    });
+
+    res.status(201).json({
+      staff: mapCompassionStaffRow(refreshedStaff),
+      account: createdUser,
+    });
+  } catch (err) {
+    console.error("[compassion] POST /staff/:id/create-account error:", err);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to create linked staff account" } });
   }
 });
 
@@ -3522,6 +3753,38 @@ router.post("/clients/import", requirePermission("import:data"), async (req, res
       return isNaN(d.getTime()) ? undefined : d;
     };
 
+    /** Merge import-note lines without duplicating existing lines. */
+    const mergePrivateNotes = (existing: string | null | undefined, incoming: string | undefined): string | undefined => {
+      if (!incoming?.trim()) return existing ?? undefined;
+      const existingLines = (existing ?? "").split("\n").map((l) => l.trim()).filter(Boolean);
+      const incomingLines = incoming.split("\n").map((l) => l.trim()).filter(Boolean);
+      const merged = [...existingLines];
+      for (const line of incomingLines) {
+        if (!merged.includes(line)) merged.push(line);
+      }
+      return merged.length > 0 ? merged.join("\n") : undefined;
+    };
+
+    /** Preserve non-modeled source fields as private notes so imports do not silently discard real data. */
+    const buildPrivateImportNotes = (rec: Record<string, string>): string | undefined => {
+      const parts: string[] = [];
+      if (rec.externalSourceId?.trim()) parts.push(`[EXT:${rec.externalSourceId.trim()}]`);
+      if (rec.honorific?.trim()) parts.push(`Title: ${rec.honorific.trim()}`);
+      if (rec.formalName?.trim()) parts.push(`Formal Name: ${rec.formalName.trim()}`);
+      if (rec.mobilePhone?.trim()) parts.push(`Mobile Phone: ${rec.mobilePhone.trim()}`);
+      if (rec.workPhone?.trim()) parts.push(`Work Phone: ${rec.workPhone.trim()}`);
+      if (rec.keywords?.trim()) parts.push(`Keywords: ${rec.keywords.trim()}`);
+      if (rec.maritalStatus?.trim()) parts.push(`Marital Status: ${rec.maritalStatus.trim()}`);
+      if (rec.religion?.trim()) parts.push(`Religion: ${rec.religion.trim()}`);
+      if (rec.educationLevel?.trim()) parts.push(`Education Level: ${rec.educationLevel.trim()}`);
+      if (rec.incomeLevel?.trim()) parts.push(`Income Level: ${rec.incomeLevel.trim()}`);
+      if (rec.studentStatus?.trim()) parts.push(`Student Status: ${rec.studentStatus.trim()}`);
+      if (rec.race?.trim()) parts.push(`Race: ${rec.race.trim()}`);
+      if (rec.sourceModifiedDate?.trim()) parts.push(`Source Modified: ${rec.sourceModifiedDate.trim()}`);
+      if (rec.sourceLastUpdatedBy?.trim()) parts.push(`Source Last Updated By: ${rec.sourceLastUpdatedBy.trim()}`);
+      return parts.length > 0 ? parts.join("\n") : undefined;
+    };
+
     let created = 0;
     let updated = 0;
     let skipped = 0;
@@ -3581,6 +3844,7 @@ router.post("/clients/import", requirePermission("import:data"), async (req, res
 
         const clientStatus = statusNormalize(rec.clientStatus ?? "");
         const intakeDate = parseDateOrUndefined(rec.sourceCreatedDate || rec.intakeDate) ?? new Date();
+        const importNotes = buildPrivateImportNotes(rec);
 
         const clientData = {
           organizationId,
@@ -3590,6 +3854,7 @@ router.post("/clients/import", requirePermission("import:data"), async (req, res
           email:          rec.email?.trim()           || undefined,
           phone:          rec.phone?.trim()           || undefined,
           addressLine1:   rec.addressLine1?.trim()    || undefined,
+          addressLine2:   rec.addressLine2?.trim()    || undefined,
           city:           rec.city?.trim()            || undefined,
           state:          rec.state?.toUpperCase().slice(0, 2) || undefined,
           zip:            rec.zip?.trim()             || undefined,
@@ -3603,14 +3868,14 @@ router.post("/clients/import", requirePermission("import:data"), async (req, res
         const existingByExtId = matchExternalSourceId && rec.externalSourceId
           ? await prisma.compassionClient.findFirst({
               where: { organizationId, privateNotes: { contains: `[EXT:${rec.externalSourceId}]` } },
-              select: { id: true },
+              select: { id: true, privateNotes: true },
             })
           : null;
 
         const existingByEmail = !existingByExtId && matchEmail && clientData.email
           ? await prisma.compassionClient.findFirst({
               where: { organizationId, email: clientData.email },
-              select: { id: true },
+              select: { id: true, privateNotes: true },
             })
           : null;
 
@@ -3646,13 +3911,19 @@ router.post("/clients/import", requirePermission("import:data"), async (req, res
             data: {
               firstName:      clientData.firstName || undefined,
               lastName:       clientData.lastName  || undefined,
+              preferredName:  clientData.preferredName,
               email:          clientData.email,
               phone:          clientData.phone,
               addressLine1:   clientData.addressLine1,
+              addressLine2:   clientData.addressLine2,
               city:           clientData.city,
               state:          clientData.state,
               zip:            clientData.zip,
+              dateOfBirth:    clientData.dateOfBirth,
+              referralSource: clientData.referralSource,
+              intakeDate:     clientData.intakeDate,
               clientStatus,
+              privateNotes:   mergePrivateNotes(existing.privateNotes, importNotes),
             },
           });
           updated++;
@@ -3663,9 +3934,8 @@ router.post("/clients/import", requirePermission("import:data"), async (req, res
           }
           // Store external source ID in privateNotes as a structured annotation
           // TODO: add a dedicated externalSourceId field to CompassionClient schema
-          const extNote = rec.externalSourceId ? `[EXT:${rec.externalSourceId}]` : undefined;
           const newClient = await prisma.compassionClient.create({
-            data: { ...clientData, privateNotes: extNote },
+            data: { ...clientData, privateNotes: importNotes },
           });
 
           // Log an activity for each newly created client

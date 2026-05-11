@@ -46,7 +46,7 @@ CREATE TABLE `EmailCampaignDeliveryEvent` (
 
     INDEX `EmailCampaignDeliveryEvent_campaignId_eventType_eventAt_idx`(`campaignId`, `eventType`, `eventAt`),
     INDEX `EmailCampaignDeliveryEvent_campaignId_recipientEmail_idx`(`campaignId`, `recipientEmail`),
-    UNIQUE INDEX `EmailCampaignDeliveryEvent_campaignId_recipientEmail_eventType_key`(`campaignId`, `recipientEmail`, `eventType`),
+    UNIQUE INDEX `ecd_campaign_recipient_event_uk`(`campaignId`, `recipientEmail`, `eventType`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
