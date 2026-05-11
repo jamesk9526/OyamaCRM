@@ -2,6 +2,30 @@
 
 _Last deep audit: 2026-05-09_
 
+## 2026-05-10 Reality Correction
+
+This document is still useful for feature-level context, but release readiness now uses:
+`docs/status/production-readiness-checklist.md`
+
+Centralized status labels are now locked to:
+
+- Working
+- Partially Working
+- Demo Only
+- Broken
+- Not Implemented
+
+Current release-gate snapshot from full validation pass:
+
+- Test lane: Broken
+- Smoke lane: Broken
+- E2E lane: Broken
+- Lint lane: Broken
+- Typecheck lane: Broken
+- Build lane: Broken
+
+Do not use this file alone to declare production readiness.
+
 ## Audit Rules
 
 This document treats a feature as complete only when it uses real data, saves correctly, handles error/empty/loading states, and supports the intended user workflow.
@@ -14,7 +38,7 @@ This document treats a feature as complete only when it uses real data, saves co
 | Donor CRM | Constituent list + search/filter | Working | Real API Data | `app/constituents/page.tsx` reads `/api/constituents` with query filters. | Add pagination + saved filters/segments. |
 | Donor CRM | Constituent profile + notes + timeline | Working | Real API Data | `app/constituents/[id]/page.tsx` reads `/api/constituents/:id`; notes saved through `POST /api/constituents/:id/notes`. | Add richer timeline grouping and event filtering. |
 | Donor CRM | Donations CRUD + donation import | Working | Real API Data | `app/donations/page.tsx`, `server/src/routes/donations.ts`, `/api/donations/import` are wired. | Add rollback support and receipt automation. |
-| Donor CRM | Campaign management | Working | Real API Data | `app/campaigns/page.tsx` is backed by `/api/campaigns` CRUD. | Add campaign attribution reporting from events + communications. |
+| Donor CRM | Campaign management | Working | Real API Data | `app/campaigns/page.tsx` now links to `app/campaigns/[id]/page.tsx` for campaign info, full edit, recent donations, and delete workflows backed by `/api/campaigns` CRUD. | Add campaign attribution reporting from events + communications and multi-campaign comparison analytics. |
 | Donor CRM | Tasks | Working | Real API Data | `app/tasks/page.tsx` is backed by `/api/tasks` CRUD. | Add task templates and bulk assignment from segment results. |
 | Donor CRM | Communications campaign CRUD | Partial | Mixed Real/Demo Data | Email campaign records are persisted via `/api/email-campaigns`; delivery analytics are simulated in current flow. | Add provider webhook ingestion for delivery/open/click metrics and unsubscribe events. |
 | Donor CRM | Steward Paths (automation workflows) | Partial | Real API Data | `/api/automations` rules execute action steps with triggerConfig guardrails; run history is available in UI/API and the in-process worker handles task-due + pledge timeline triggers. | Add retries/backoff, worker controls, and advanced run-history filtering/export. |
@@ -83,3 +107,63 @@ This document treats a feature as complete only when it uses real data, saves co
 5. **Email/Newsletter Builder Completion:** richer blocks/media support, merge fields, audience segments, scheduling, test sends, delivery/open/click metrics, profile history, unsubscribe compliance.
 6. **Shared Constituent Timeline Completion:** donation, event attendance/orders, sponsorships, communications, tasks, imports, and Compassion interactions in one timeline model.
 7. **Versioning + Production Readiness Visibility:** explicit app version/build/changelog page plus status labels showing complete/partial/demo-only features.
+
+## Donor CRM Completion Plan (2026-05-10)
+
+This plan targets donor-side partial features in delivery order and keeps campaign improvements as the first completed step.
+
+### Step 0 (Started)
+
+- Campaign detail and edit/remove completion:
+	- Added dedicated campaign info route (`app/campaigns/[id]/page.tsx`).
+	- Added list-to-detail navigation from campaign cards.
+	- Added full campaign edit fields (name/category/goal/dates/description/active) and delete action in detail page.
+
+### Step 1 (Next)
+
+- Communications telemetry hardening:
+	- Persist provider send lifecycle webhooks (delivered/open/click/bounce/unsubscribe).
+	- Show campaign-level delivery diagnostics in communications workspace.
+
+### Step 2
+
+- Merge workflow completion:
+	- Wire backend merge endpoint for constituent conflict resolution.
+	- Replace preview-only merge actions with explicit write + audit events.
+
+### Step 3
+
+- Reports and export readiness:
+	- Add permission-gated export endpoints and queued export jobs.
+	- Add saved report presets and report freshness indicators.
+
+### Step 4
+
+- Task and stewardship acceleration:
+	- Add task templates and segment-driven bulk task assignment.
+	- Add stewardship template automation hooks and run diagnostics.
+
+### Step 5
+
+- Volunteer/auth consistency cleanup:
+	- Move volunteer route calls to `apiFetch` pattern everywhere.
+	- Validate auth/session behavior parity with donor pages.
+
+## CRM Organization And Usability Audit (2026-05-10)
+
+Audit objective: reduce duplicated paths, clarify module boundaries, and make unfinished surfaces visibly in development.
+
+Completed in this pass:
+
+- Added Event Workspace Selector route (`app/events/workspace/page.tsx`) as the clear event-first entry path.
+- Rewired Events dashboard quick actions to event-scoped workflow entry instead of ambiguous global paths.
+- Updated event overview quick actions to scoped routes (`/events/[eventId]/...`).
+- Added compatibility warning banner for legacy global events tool routes in `app/events/layout.tsx`.
+- Added explicit in-development warning banner to scaffolded Events workspace pages (`app/components/events/EventsWorkspacePage.tsx`).
+- Simplified Apps launcher to core modules/shared workspaces and removed overlapping duplicate app tiles (`app/components/layout/AppsDrawer.tsx`).
+- Reduced Settings sidebar overlap by removing duplicate/low-signal entries from primary navigation (`app/components/settings/SettingsSidebar.tsx`).
+- Clarified StewardAI vs OGentic roles in workspace headers (`app/components/ai/StewardAIWorkspace.tsx`, `app/components/ogentic/OGenticWorkspace.tsx`).
+
+Source-of-truth organization map:
+
+- `docs/status/crm-organization-map.md`

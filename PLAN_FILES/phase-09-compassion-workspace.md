@@ -128,6 +128,12 @@ Profiles, timeline, notes, and search for the people the center serves.
 Internal calendar engine that backs both staff bookings and the public pages
 in C3.
 
+### Current implementation note (2026-05-11)
+
+- Office scheduling hub is now live at `/compassion/appointments` with shared source-of-truth calendar/list views, drag-drop and resize rescheduling, conflict-aware create/edit/status updates, and full-screen calendar mode.
+- Public scheduling still flows through tokenized slot APIs and creates real `CompassionAppointment` records visible in the office scheduler.
+- Existing-client matching and staff triage queue for public submissions remain planned work.
+
 ### Manageable steps
 
 1. Models: `AppointmentType`, `Location`, `Room`, `StaffAvailability`,

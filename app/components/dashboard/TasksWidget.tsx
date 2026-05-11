@@ -78,8 +78,8 @@ export default function TasksWidget() {
   const dueLater = tasks.filter((t) => t.dueDate && new Date(t.dueDate) > tomorrow);
 
   return (
-    <Card className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-3">
+    <Card className="h-full flex flex-col" padding="small">
+      <div className="flex items-center justify-between mb-2">
         <h3 className="font-semibold text-gray-900 flex items-center gap-2">
           Tasks
           {!loading && tasks.length > 0 && (
@@ -98,12 +98,12 @@ export default function TasksWidget() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex border-b border-gray-200 mb-3">
+      <div className="flex border-b border-gray-200 mb-2">
         {(["all", "my"] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors ${
+            className={`pb-1.5 px-3 text-xs font-medium border-b-2 transition-colors ${
               filter === f
                 ? "border-green-600 text-green-600"
                 : "border-transparent text-gray-500 hover:text-gray-700"
@@ -115,7 +115,7 @@ export default function TasksWidget() {
       </div>
 
       {/* Task list */}
-      <div className="flex-1 overflow-y-auto space-y-4 min-h-0">
+      <div className="flex-1 overflow-y-auto space-y-3 min-h-0">
         {error && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
             {error}
@@ -124,10 +124,10 @@ export default function TasksWidget() {
         {loading ? (
           // Skeleton rows
           Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-16 bg-gray-100 rounded animate-pulse" />
+            <div key={i} className="h-14 bg-gray-100 rounded animate-pulse" />
           ))
         ) : tasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 text-center">
+          <div className="flex flex-col items-center justify-center py-8 text-center">
             <svg className="w-8 h-8 text-green-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -174,7 +174,7 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: (id: strin
   const taskType = task.type ?? task.taskType ?? "FOLLOW_UP";
 
   return (
-    <div className="p-3 border border-gray-200 rounded-lg hover:border-green-200 hover:bg-green-50/30 transition-colors group">
+    <div className="p-2.5 border border-gray-200 rounded-lg hover:border-green-200 hover:bg-green-50/30 transition-colors group">
       <div className="flex items-start justify-between gap-2 mb-1">
         <p className="text-sm font-medium text-gray-900 group-hover:text-green-700 flex-1">
           {task.title}
@@ -199,7 +199,7 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: (id: strin
         </p>
       )}
 
-      <div className="flex items-center gap-2 mt-1.5">
+      <div className="flex items-center gap-2 mt-1">
         {/* Task type badge */}
         <span className="px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-600 rounded">
           {taskType}

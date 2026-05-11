@@ -2,6 +2,8 @@
 
 > Last updated: 2025-01-09
 
+> Note: This file is a legacy baseline. Current implementation status is tracked in `CLIENT_CRM_AUDIT.md` and `docs/status/compassion-crm.md` (updated 2026-05-10).
+
 ## Overview
 
 Compassion CRM is the client/case-management module of OyamaCRM. It shares authentication, organization scoping, and the Next.js shell with DonorCRM but uses **blue** (`#2563eb`) accent colors and lives under `app/compassion/` (pages) and the `/api/compassion/` API prefix.

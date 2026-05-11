@@ -26,6 +26,24 @@ interface AppointmentWidgetCustomQuestion {
   options: string[];
 }
 
+interface AppointmentWidgetAvailabilityBlock {
+  id: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  location: string;
+  appointmentType: string;
+  capacity: number;
+  isActive: boolean;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+}
+
+interface AppointmentWidgetBlackoutDate {
+  date: string;
+  reason?: string;
+}
+
 interface AppointmentWidgetConfig {
   enabled: boolean;
   token: string;
@@ -48,6 +66,12 @@ interface AppointmentWidgetConfig {
   textColor: string;
   enabledFields: AppointmentWidgetFieldConfig[];
   customQuestions: AppointmentWidgetCustomQuestion[];
+  slotIntervalMinutes: number;
+  appointmentDurationMinutes: number;
+  minLeadHours: number;
+  maxAdvanceDays: number;
+  availabilityBlocks: AppointmentWidgetAvailabilityBlock[];
+  blackoutDates: AppointmentWidgetBlackoutDate[];
 }
 
 interface WidgetSettingsResponse {
@@ -55,6 +79,7 @@ interface WidgetSettingsResponse {
   config: AppointmentWidgetConfig;
   publicUrl: string;
   iframeSnippet: string;
+  scriptSnippet: string;
 }
 
 const APPOINTMENT_TYPES = [
@@ -69,6 +94,16 @@ const APPOINTMENT_TYPES = [
   "CASE_REVIEW",
   "HOME_VISIT",
   "OTHER",
+];
+
+const DAYS_OF_WEEK: Array<{ value: number; label: string }> = [
+  { value: 0, label: "Sunday" },
+  { value: 1, label: "Monday" },
+  { value: 2, label: "Tuesday" },
+  { value: 3, label: "Wednesday" },
+  { value: 4, label: "Thursday" },
+  { value: 5, label: "Friday" },
+  { value: 6, label: "Saturday" },
 ];
 
 /** Converts enum values into user-facing labels. */
@@ -93,6 +128,22 @@ function createEmptyCustomQuestion(index: number): AppointmentWidgetCustomQuesti
   };
 }
 
+/** Creates a new recurring office-hour block for slot generation. */
+function createEmptyAvailabilityBlock(index: number): AppointmentWidgetAvailabilityBlock {
+  return {
+    id: `block_${index}_${Date.now()}`,
+    dayOfWeek: 1,
+    startTime: "09:00",
+    endTime: "17:00",
+    location: "Main Office",
+    appointmentType: "ANY",
+    capacity: 1,
+    isActive: true,
+    effectiveFrom: "",
+    effectiveTo: "",
+  };
+}
+
 /**
  * CompassionSettingsPage hosts the public appointment widget builder.
  * TODO: enforce Compassion workspace permission
@@ -106,6 +157,7 @@ export default function CompassionSettingsPage() {
   const [enabled, setEnabled] = useState(false);
   const [publicUrl, setPublicUrl] = useState("");
   const [iframeSnippet, setIframeSnippet] = useState("");
+  const [scriptSnippet, setScriptSnippet] = useState("");
   const [locationsInput, setLocationsInput] = useState("");
 
   const enabledFieldMap = useMemo(() => {
@@ -125,6 +177,7 @@ export default function CompassionSettingsPage() {
       setForm(data.config);
       setPublicUrl(data.publicUrl);
       setIframeSnippet(data.iframeSnippet);
+      setScriptSnippet(data.scriptSnippet);
       setLocationsInput((data.config.locationOptions || []).join(", "));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load widget settings");
@@ -134,7 +187,10 @@ export default function CompassionSettingsPage() {
   }, []);
 
   useEffect(() => {
-    load();
+    const timeoutId = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [load]);
 
   const previewTitle = useMemo(() => form?.title || "Request an Appointment", [form]);
@@ -215,6 +271,79 @@ export default function CompassionSettingsPage() {
     });
   }
 
+  /** Adds one recurring office-hours block for public slot generation. */
+  function addAvailabilityBlock() {
+    setForm((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        availabilityBlocks: [
+          ...(current.availabilityBlocks ?? []),
+          createEmptyAvailabilityBlock((current.availabilityBlocks?.length ?? 0) + 1),
+        ],
+      };
+    });
+  }
+
+  /** Updates one availability block by id. */
+  function updateAvailabilityBlock(id: string, patch: Partial<AppointmentWidgetAvailabilityBlock>) {
+    setForm((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        availabilityBlocks: (current.availabilityBlocks ?? []).map((block) =>
+          block.id === id ? { ...block, ...patch } : block
+        ),
+      };
+    });
+  }
+
+  /** Removes one availability block from slot policy settings. */
+  function removeAvailabilityBlock(id: string) {
+    setForm((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        availabilityBlocks: (current.availabilityBlocks ?? []).filter((block) => block.id !== id),
+      };
+    });
+  }
+
+  /** Adds one blackout date row. */
+  function addBlackoutDate() {
+    setForm((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        blackoutDates: [...(current.blackoutDates ?? []), { date: "", reason: "" }],
+      };
+    });
+  }
+
+  /** Updates blackout date values by row index. */
+  function updateBlackoutDate(index: number, patch: Partial<AppointmentWidgetBlackoutDate>) {
+    setForm((current) => {
+      if (!current) return current;
+      const next = [...(current.blackoutDates ?? [])];
+      next[index] = { ...(next[index] ?? { date: "", reason: "" }), ...patch };
+      return {
+        ...current,
+        blackoutDates: next,
+      };
+    });
+  }
+
+  /** Removes one blackout date row by index. */
+  function removeBlackoutDate(index: number) {
+    setForm((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        blackoutDates: (current.blackoutDates ?? []).filter((_, rowIndex) => rowIndex !== index),
+      };
+    });
+  }
+
   /** Toggles one appointment type option in the selectable list. */
   function toggleAppointmentType(type: string) {
     setForm((current) => {
@@ -257,6 +386,27 @@ export default function CompassionSettingsPage() {
         ? form.appointmentTypeOptions
         : [form.defaultAppointmentType];
 
+      const availabilityBlocks = (form.availabilityBlocks ?? [])
+        .map((block) => ({
+          ...block,
+          dayOfWeek: Number.isFinite(block.dayOfWeek) ? Math.max(0, Math.min(6, Number(block.dayOfWeek))) : 1,
+          startTime: String(block.startTime ?? "").trim(),
+          endTime: String(block.endTime ?? "").trim(),
+          location: String(block.location ?? "").trim(),
+          appointmentType: String(block.appointmentType ?? "ANY").trim() || "ANY",
+          capacity: Math.max(1, Math.min(20, Number.parseInt(String(block.capacity ?? 1), 10) || 1)),
+          effectiveFrom: String(block.effectiveFrom ?? "").trim(),
+          effectiveTo: String(block.effectiveTo ?? "").trim(),
+        }))
+        .filter((block) => block.startTime.length > 0 && block.endTime.length > 0);
+
+      const blackoutDates = (form.blackoutDates ?? [])
+        .map((item) => ({
+          date: String(item.date ?? "").trim(),
+          reason: String(item.reason ?? "").trim(),
+        }))
+        .filter((item) => item.date.length > 0);
+
       const normalizedEmailField = enabledFieldMap.get("email");
       const normalizedPhoneField = enabledFieldMap.get("phone");
 
@@ -273,6 +423,12 @@ export default function CompassionSettingsPage() {
             appointmentTypeOptions,
             locationOptions: locationOptions.length > 0 ? locationOptions : ["Main Office"],
             customQuestions,
+            slotIntervalMinutes: Math.max(5, Math.min(180, Number(form.slotIntervalMinutes) || 30)),
+            appointmentDurationMinutes: Math.max(5, Math.min(240, Number(form.appointmentDurationMinutes) || 60)),
+            minLeadHours: Math.max(0, Math.min(336, Number(form.minLeadHours) || 0)),
+            maxAdvanceDays: Math.max(1, Math.min(365, Number(form.maxAdvanceDays) || 90)),
+            availabilityBlocks,
+            blackoutDates,
           },
         }),
       });
@@ -494,6 +650,209 @@ export default function CompassionSettingsPage() {
               </div>
             </div>
 
+            <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 space-y-3">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-xs font-semibold text-blue-800">Scheduling Availability (Source Of Truth)</p>
+                <span className="text-[11px] text-blue-700">Used by public page and embed widget slot picker</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
+                <div>
+                  <label className="block text-[11px] font-medium text-blue-800 mb-1">Slot Interval (minutes)</label>
+                  <input
+                    type="number"
+                    min={5}
+                    max={180}
+                    step={5}
+                    value={form.slotIntervalMinutes}
+                    onChange={(e) => setForm((f) => (f ? { ...f, slotIntervalMinutes: Number.parseInt(e.target.value, 10) || 30 } : f))}
+                    className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-blue-800 mb-1">Appointment Duration (minutes)</label>
+                  <input
+                    type="number"
+                    min={5}
+                    max={240}
+                    step={5}
+                    value={form.appointmentDurationMinutes}
+                    onChange={(e) => setForm((f) => (f ? { ...f, appointmentDurationMinutes: Number.parseInt(e.target.value, 10) || 60 } : f))}
+                    className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-blue-800 mb-1">Lead Time (hours)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={336}
+                    step={1}
+                    value={form.minLeadHours}
+                    onChange={(e) => setForm((f) => (f ? { ...f, minLeadHours: Number.parseInt(e.target.value, 10) || 0 } : f))}
+                    className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-blue-800 mb-1">Max Advance (days)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    step={1}
+                    value={form.maxAdvanceDays}
+                    onChange={(e) => setForm((f) => (f ? { ...f, maxAdvanceDays: Number.parseInt(e.target.value, 10) || 90 } : f))}
+                    className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-blue-200 bg-white p-3 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-gray-700">Recurring Availability Blocks</p>
+                  <button
+                    type="button"
+                    onClick={addAvailabilityBlock}
+                    className="text-xs font-medium text-blue-700 hover:underline"
+                  >
+                    + Add Block
+                  </button>
+                </div>
+
+                {(form.availabilityBlocks ?? []).length === 0 ? (
+                  <p className="text-xs text-gray-500">No office-hour blocks yet. Add a block to expose client-facing slots.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {(form.availabilityBlocks ?? []).map((block) => (
+                      <div key={block.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
+                          <select
+                            value={block.dayOfWeek}
+                            onChange={(e) => updateAvailabilityBlock(block.id, { dayOfWeek: Number.parseInt(e.target.value, 10) || 0 })}
+                            className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white"
+                          >
+                            {DAYS_OF_WEEK.map((day) => (
+                              <option key={day.value} value={day.value}>{day.label}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="time"
+                            value={block.startTime}
+                            onChange={(e) => updateAvailabilityBlock(block.id, { startTime: e.target.value })}
+                            className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white"
+                          />
+                          <input
+                            type="time"
+                            value={block.endTime}
+                            onChange={(e) => updateAvailabilityBlock(block.id, { endTime: e.target.value })}
+                            className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white"
+                          />
+                          <input
+                            type="number"
+                            min={1}
+                            max={20}
+                            value={block.capacity}
+                            onChange={(e) => updateAvailabilityBlock(block.id, { capacity: Number.parseInt(e.target.value, 10) || 1 })}
+                            className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white"
+                            placeholder="Capacity"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
+                          <input
+                            value={block.location}
+                            onChange={(e) => updateAvailabilityBlock(block.id, { location: e.target.value })}
+                            className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white"
+                            placeholder="Location"
+                          />
+                          <select
+                            value={block.appointmentType}
+                            onChange={(e) => updateAvailabilityBlock(block.id, { appointmentType: e.target.value })}
+                            className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white"
+                          >
+                            <option value="ANY">Any appointment type</option>
+                            {APPOINTMENT_TYPES.map((type) => (
+                              <option key={type} value={type}>{humanize(type)}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="date"
+                            value={block.effectiveFrom ?? ""}
+                            onChange={(e) => updateAvailabilityBlock(block.id, { effectiveFrom: e.target.value })}
+                            className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white"
+                          />
+                          <input
+                            type="date"
+                            value={block.effectiveTo ?? ""}
+                            onChange={(e) => updateAvailabilityBlock(block.id, { effectiveTo: e.target.value })}
+                            className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <label className="inline-flex items-center gap-2 text-xs text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={block.isActive}
+                              onChange={(e) => updateAvailabilityBlock(block.id, { isActive: e.target.checked })}
+                              className="h-4 w-4"
+                            />
+                            Active block
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => removeAvailabilityBlock(block.id)}
+                            className="text-xs text-red-600 hover:underline"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-blue-200 bg-white p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-gray-700">Blackout Dates</p>
+                  <button type="button" onClick={addBlackoutDate} className="text-xs font-medium text-blue-700 hover:underline">
+                    + Add Blackout Date
+                  </button>
+                </div>
+
+                {(form.blackoutDates ?? []).length === 0 ? (
+                  <p className="text-xs text-gray-500">No blackout dates configured.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {(form.blackoutDates ?? []).map((blackout, index) => (
+                      <div key={`${blackout.date}-${index}`} className="grid grid-cols-1 md:grid-cols-[200px_1fr_auto] gap-2 items-center">
+                        <input
+                          type="date"
+                          value={blackout.date}
+                          onChange={(e) => updateBlackoutDate(index, { date: e.target.value })}
+                          className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white"
+                        />
+                        <input
+                          value={blackout.reason ?? ""}
+                          onChange={(e) => updateBlackoutDate(index, { reason: e.target.value })}
+                          className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white"
+                          placeholder="Reason (holiday, staff retreat, etc.)"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeBlackoutDate(index)}
+                          className="text-xs text-red-600 hover:underline"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Confirmation message</label>
               <textarea
@@ -658,6 +1017,11 @@ export default function CompassionSettingsPage() {
               <p className="text-xs text-gray-500 mb-1">Embed snippet</p>
               <pre className="text-[11px] leading-relaxed text-gray-700 whitespace-pre-wrap">{iframeSnippet}</pre>
               <button onClick={() => copy(iframeSnippet)} className="mt-2 text-xs text-blue-600 hover:underline">Copy embed code</button>
+            </div>
+            <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+              <p className="text-xs text-gray-500 mb-1">Script embed snippet</p>
+              <pre className="text-[11px] leading-relaxed text-gray-700 whitespace-pre-wrap">{scriptSnippet}</pre>
+              <button onClick={() => copy(scriptSnippet)} className="mt-2 text-xs text-blue-600 hover:underline">Copy script snippet</button>
             </div>
             <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
               <p className="text-xs text-blue-700 font-medium mb-1">Preview label</p>

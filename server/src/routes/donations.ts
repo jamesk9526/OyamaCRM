@@ -118,11 +118,13 @@ function buildDonationWhere(
       ...(keyword
         ? [
             {
+              // Keep search provider-compatible: some Prisma providers in this repo
+              // do not support `mode: "insensitive"` on string filters.
               constituent: {
                 OR: [
-                  { firstName: { contains: keyword, mode: "insensitive" } },
-                  { lastName: { contains: keyword, mode: "insensitive" } },
-                  { email: { contains: keyword, mode: "insensitive" } },
+                  { firstName: { contains: keyword } },
+                  { lastName: { contains: keyword } },
+                  { email: { contains: keyword } },
                 ],
               },
             },

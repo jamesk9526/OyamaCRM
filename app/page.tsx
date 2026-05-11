@@ -301,7 +301,7 @@ export default function DashboardPage() {
     switch (id) {
       case "giving-trend":
         return (
-          <DashboardWidget key={id} id={id} title="Giving Trend" subtitle={`${new Date().getFullYear()} monthly totals`} className="lg:col-span-2 min-h-[280px]" {...editProps}>
+          <DashboardWidget key={id} id={id} title="Giving Trend" subtitle={`${new Date().getFullYear()} monthly totals`} className="lg:col-span-2 min-h-[250px]" {...editProps}>
             <GivingTrendChart includeGrants={includeGrants} />
           </DashboardWidget>
         );
@@ -382,7 +382,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {loadError && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Dashboard data is partially unavailable. {loadError}
@@ -390,19 +390,19 @@ export default function DashboardPage() {
       )}
 
       {/* ── Header ── */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-3">
         {/* Left: greeting */}
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">
+          <h1 className="text-lg sm:text-xl font-semibold text-gray-900 leading-tight">
             {greeting}, {name}!
           </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
             Here&apos;s what&apos;s happening today
           </p>
         </div>
 
         {/* Right: refresh + layout controls */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {/* Refresh info */}
           <div className="text-right mr-1">
             <p className="text-xs text-gray-400">
@@ -445,7 +445,7 @@ export default function DashboardPage() {
               onClick={() => { if (!locked) setEditMode(true); }}
               disabled={locked}
               title={locked ? "Unlock to edit layout" : "Edit dashboard layout"}
-              className="flex items-center gap-1.5 text-xs font-medium border rounded-lg px-3 py-2 transition-colors border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 text-xs font-medium border rounded-lg px-2.5 py-1.5 transition-colors border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -455,7 +455,7 @@ export default function DashboardPage() {
           ) : (
             <button
               onClick={() => setEditMode(false)}
-              className="flex items-center gap-1.5 text-xs font-medium border rounded-lg px-3 py-2 transition-colors bg-green-600 border-green-600 text-white hover:bg-green-700"
+              className="flex items-center gap-1.5 text-xs font-medium border rounded-lg px-2.5 py-1.5 transition-colors bg-green-600 border-green-600 text-white hover:bg-green-700"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
@@ -468,12 +468,12 @@ export default function DashboardPage() {
 
       {/* ── Edit mode banner ── */}
       {editMode && (
-        <div className="flex items-center gap-3 px-4 py-2.5 bg-green-50 border border-green-200 rounded-xl">
+        <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-xl">
           {/* Info text */}
           <svg className="w-4 h-4 text-green-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
           </svg>
-          <span className="text-sm text-green-700 font-medium">
+          <span className="text-xs sm:text-sm text-green-700 font-medium">
             Editing layout — drag cards or use ↑↓ arrows to rearrange
           </span>
 
@@ -481,7 +481,7 @@ export default function DashboardPage() {
           <div className="ml-auto flex items-center gap-2">
             <button
               onClick={() => setShowCustomizeModal(true)}
-              className="flex items-center gap-1.5 text-xs font-medium text-green-700 hover:text-green-900 border border-green-300 rounded-lg px-3 py-1.5 hover:bg-green-100 transition-colors"
+              className="flex items-center gap-1.5 text-xs font-medium text-green-700 hover:text-green-900 border border-green-300 rounded-lg px-2.5 py-1 hover:bg-green-100 transition-colors"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5h16M4 9h16M4 13h16M4 17h16" />
@@ -490,7 +490,7 @@ export default function DashboardPage() {
             </button>
             <button
               onClick={() => setWidgetOrder([...DEFAULT_WIDGET_ORDER])}
-              className="text-xs text-green-600 hover:text-green-800 font-medium px-2 py-1.5 rounded-lg hover:bg-green-100 transition-colors"
+              className="text-xs text-green-600 hover:text-green-800 font-medium px-2 py-1 rounded-lg hover:bg-green-100 transition-colors"
             >
               Reset
             </button>
@@ -499,7 +499,7 @@ export default function DashboardPage() {
       )}
 
       {/* ── Widget grid ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {widgetOrder.map((id, idx) => renderWidget(id, idx))}
       </div>
 

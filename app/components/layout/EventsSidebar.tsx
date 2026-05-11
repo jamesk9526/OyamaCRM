@@ -47,7 +47,17 @@ const BASE_NAV_SECTIONS: NavSection[] = [
     items: [
       { label: "Dashboard", href: "/events", icon: <Ico d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" /> },
       { label: "Events", href: "/events/events", icon: <Ico d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
+      { label: "Workspace Selector", href: "/events/workspace", icon: <Ico d="M4 7h16M4 12h16M4 17h10" /> },
       { label: "Setup", href: "/events/setup", icon: <Ico d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /> },
+    ],
+  },
+  {
+    label: "Global Tools",
+    items: [
+      { label: "Global Reports", href: "/events/reports", icon: <Ico d="M4 19V9m8 10V5m8 14v-7" /> },
+      { label: "Event Page Builder", href: "/events/page-builder", icon: <Ico d="M3 5h18v14H3zM3 9h18" /> },
+      { label: "Event Templates", href: "/events/templates", icon: <Ico d="M9 3h6M4 7h16M6 11h12M6 15h8" /> },
+      { label: "Overall Management", href: "/events/events", icon: <Ico d="M5 13l4 4L19 7" /> },
     ],
   },
 ];
@@ -162,7 +172,10 @@ export default function EventsSidebar() {
     const third = parts[1];
     const reserved = new Set([
       "events",
+      "workspace",
       "setup",
+      "page-builder",
+      "templates",
       "tickets",
       "orders",
       "guests",

@@ -40,8 +40,8 @@ export default function TotalsByLevel({ weekTotal, transactions, avgTransaction,
   const maxMetric = Math.max(...levels.map((_, index) => metricForLevel(index)), 1);
 
   return (
-    <Card>
-      <div className="flex items-center justify-between mb-4">
+    <Card padding="small">
+      <div className="flex items-center justify-between mb-3">
         <h3 className="font-semibold text-gray-900">Totals by Level</h3>
         <div className="flex gap-2">
           <button
@@ -69,7 +69,7 @@ export default function TotalsByLevel({ weekTotal, transactions, avgTransaction,
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         <div>
           <p className="text-xs text-gray-500 mb-1">This week</p>
           <div className="flex items-baseline gap-4">
@@ -88,12 +88,12 @@ export default function TotalsByLevel({ weekTotal, transactions, avgTransaction,
         </div>
 
         {/* Interactive level bars */}
-        <div className="rounded bg-gradient-to-r from-green-50 to-green-100 px-2 py-2">
+        <div className="rounded bg-gradient-to-r from-green-50 to-green-100 px-2 py-1.5">
           <div className="mb-2 text-[11px] text-gray-600">
             <span className="font-semibold text-gray-700">{selected?.label}</span>
             {view === "revenue" ? `: $${selected?.amount.toLocaleString()}` : `: ${selected?.count.toLocaleString()} gifts`}
           </div>
-          <div className="h-20 flex items-end gap-1.5">
+          <div className="h-[4.5rem] flex items-end gap-1.5">
             {levels.map((level, index) => {
               const barHeight = Math.max(20, Math.round((metricForLevel(index) / maxMetric) * 100));
               const active = index === activeIndex;

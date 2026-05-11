@@ -1,6 +1,7 @@
 /** EventsWorkspacePage renders a reusable workspace scaffold for non-dashboard Events CRM pages. */
 
 import EventsMetricCard from "@/app/components/events/EventsMetricCard";
+import FeatureStatusWarning from "@/app/components/ui/FeatureStatusWarning";
 
 interface Metric {
   label: string;
@@ -43,6 +44,12 @@ export default function EventsWorkspacePage({
 }: EventsWorkspacePageProps) {
   return (
     <div className="space-y-6">
+      <FeatureStatusWarning
+        status="In Development"
+        title="This Events tool is still being wired"
+        description="Core layout and context are in place, but this tool still uses scaffold metrics or placeholder actions. Use it for workflow orientation until backend persistence is fully connected."
+      />
+
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">{title}</h1>

@@ -54,11 +54,16 @@ A client importer that:
 
 ## Batch 4 — Public appointment scheduling + embeddable widget
 
-- [ ] Public route `app/(public)/schedule/[orgSlug]/page.tsx` with a single-page booking form. No auth required. Only safe fields exposed.
-- [ ] API `POST /api/public/compassion/appointment-request` accepting `{orgSlug, name, email, phone, preferredSlot, appointmentType, location?}`. Tokenised submissions, rate-limited.
-- [ ] Embeddable widget `public/embed/compassion-schedule.js` loadable via `<script src=…>` on a partner site.
-- [ ] Submissions run through the duplicate matcher: existing client → attach appointment after staff review; no match → create a `pending intake` record that staff can convert.
-- [ ] Public form never reveals private client data; never returns client IDs in error messages.
+- [x] Public route `app/compassion/public/appointments/[token]/page.tsx` with single-page booking form and slot selection. No auth required.
+- [x] APIs:
+	- `GET /api/compassion-public/widget/:token/config`
+	- `GET /api/compassion-public/widget/:token/slots`
+	- `POST /api/compassion-public/widget/:token/appointments`
+	Tokenised submissions are live; rate limiting is still pending.
+- [x] Embeddable widget script `public/embed/compassion-schedule.js` loadable via `<script src=...>` on partner sites.
+- [ ] Submissions run through existing-client matcher and staff review queue before final conversion.
+- [ ] Add rate-limiting/anti-abuse controls for public endpoints.
+- [x] Public form and slot APIs expose booking-safe fields only and do not return private client identifiers.
 
 ## Batch 5 — Client-profile scoping audit + "not yet implemented" popups
 

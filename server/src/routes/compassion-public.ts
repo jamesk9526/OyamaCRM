@@ -9,13 +9,30 @@ import { logAudit } from "../lib/audit.js";
 import {
   APPOINTMENT_WIDGET_PLUGIN_KEY,
   APPOINTMENT_TYPE_OPTIONS,
+  buildWidgetAvailableSlots,
   parseWidgetConfig,
+  type AppointmentSlotReservation,
   type AppointmentWidgetCustomQuestion,
   type AppointmentWidgetFieldConfig,
 } from "../services/compassion-appointment-widget.js";
 
 const router = Router();
 const ALLOWED_APPOINTMENT_TYPES = new Set<CompassionAppointmentType>(APPOINTMENT_TYPE_OPTIONS);
+const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Builds a local Date from YYYY-MM-DD used by slot lookups. */
+function fromDateKey(dateKey: string): Date {
+  const [year, month, day] = dateKey.split("-").map((value) => Number.parseInt(value, 10));
+  return new Date(year, month - 1, day, 0, 0, 0, 0);
+}
+
+/** Converts Date to local YYYY-MM-DD key. */
+function toDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 /** Returns one field config by key, with a safe fallback. */
 function fieldByKey(fields: AppointmentWidgetFieldConfig[], key: AppointmentWidgetFieldConfig["key"]): AppointmentWidgetFieldConfig {
@@ -106,10 +123,93 @@ router.get("/widget/:token/config", async (req, res) => {
       textColor: hit.config.textColor,
       enabledFields: hit.config.enabledFields,
       customQuestions: hit.config.customQuestions,
+      slotIntervalMinutes: hit.config.slotIntervalMinutes,
+      appointmentDurationMinutes: hit.config.appointmentDurationMinutes,
+      minLeadHours: hit.config.minLeadHours,
+      maxAdvanceDays: hit.config.maxAdvanceDays,
+      availabilityBlocks: hit.config.availabilityBlocks,
+      blackoutDates: hit.config.blackoutDates,
     });
   } catch (err) {
     console.error("[compassion-public] GET /widget/:token/config error:", err);
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load widget" } });
+  }
+});
+
+/**
+ * GET /api/compassion-public/widget/:token/slots
+ * Returns available booking slots from configured recurring availability + existing appointment load.
+ */
+router.get("/widget/:token/slots", async (req, res) => {
+  try {
+    const token = String(req.params.token || "").trim();
+    if (!token) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Missing widget token" } });
+      return;
+    }
+
+    const hit = await findWidgetByToken(token);
+    if (!hit || !hit.config.enabled) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Widget not found" } });
+      return;
+    }
+
+    const requestedDate = String(req.query.date || "").trim() || toDateKey(new Date());
+    if (!DATE_KEY_PATTERN.test(requestedDate)) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "date must be YYYY-MM-DD" } });
+      return;
+    }
+
+    const date = fromDateKey(requestedDate);
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(date);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const requestedLocation = String(req.query.location || "").trim();
+    const requestedTypeRaw = String(req.query.appointmentType || "").trim();
+    const requestedAppointmentType = ALLOWED_APPOINTMENT_TYPES.has(requestedTypeRaw as CompassionAppointmentType)
+      ? (requestedTypeRaw as CompassionAppointmentType)
+      : undefined;
+
+    const appointments = await prisma.compassionAppointment.findMany({
+      where: {
+        organizationId: hit.setting.organizationId,
+        startTime: { gte: dayStart, lte: dayEnd },
+      },
+      select: {
+        startTime: true,
+        location: true,
+        appointmentType: true,
+        status: true,
+      },
+    });
+
+    const reservations: AppointmentSlotReservation[] = appointments.map((appointment) => ({
+      startTime: appointment.startTime,
+      location: appointment.location,
+      appointmentType: appointment.appointmentType,
+      status: appointment.status,
+    }));
+
+    const slots = buildWidgetAvailableSlots({
+      config: hit.config,
+      date,
+      appointments: reservations,
+      requestedLocation: requestedLocation || undefined,
+      requestedAppointmentType,
+    });
+
+    res.json({
+      date: requestedDate,
+      timezone: "America/Chicago",
+      slotIntervalMinutes: hit.config.slotIntervalMinutes,
+      appointmentDurationMinutes: hit.config.appointmentDurationMinutes,
+      slots,
+    });
+  } catch (err) {
+    console.error("[compassion-public] GET /widget/:token/slots error:", err);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load available slots" } });
   }
 });
 
@@ -157,6 +257,7 @@ router.post("/widget/:token/appointments", async (req, res) => {
       ? hit.config.appointmentTypeOptions
       : [hit.config.defaultAppointmentType];
     const parsedStart = new Date(String(startTime || ""));
+    parsedStart.setSeconds(0, 0);
     const customQuestionResponses = parseCustomResponses(customResponses, hit.config.customQuestions);
     const emailField = fieldByKey(hit.config.enabledFields, "email");
     const phoneField = fieldByKey(hit.config.enabledFields, "phone");
@@ -178,6 +279,48 @@ router.post("/widget/:token/appointments", async (req, res) => {
         error: {
           code: "VALIDATION_ERROR",
           message: "firstName, lastName, and a valid startTime are required",
+        },
+      });
+      return;
+    }
+
+    const requestedDate = toDateKey(parsedStart);
+    const dayStart = fromDateKey(requestedDate);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const existingDayAppointments = await prisma.compassionAppointment.findMany({
+      where: {
+        organizationId: hit.setting.organizationId,
+        startTime: { gte: dayStart, lte: dayEnd },
+      },
+      select: {
+        startTime: true,
+        location: true,
+        appointmentType: true,
+        status: true,
+      },
+    });
+
+    const availableSlots = buildWidgetAvailableSlots({
+      config: hit.config,
+      date: dayStart,
+      appointments: existingDayAppointments.map((appointment) => ({
+        startTime: appointment.startTime,
+        location: appointment.location,
+        appointmentType: appointment.appointmentType,
+        status: appointment.status,
+      })),
+      requestedLocation: effectiveLocation || undefined,
+      requestedAppointmentType: effectiveAppointmentType,
+    });
+
+    const matchedSlot = availableSlots.find((slot) => slot.startTime === parsedStart.toISOString());
+    if (!matchedSlot) {
+      res.status(409).json({
+        error: {
+          code: "SLOT_UNAVAILABLE",
+          message: "That appointment slot is no longer available. Please choose another available time.",
         },
       });
       return;
@@ -279,7 +422,8 @@ router.post("/widget/:token/appointments", async (req, res) => {
         appointmentType: effectiveAppointmentType,
         status: "SCHEDULED",
         startTime: parsedStart,
-        location: effectiveLocation || null,
+        endTime: new Date(matchedSlot.endTime),
+        location: matchedSlot.location || effectiveLocation || null,
         notes: noteBlocks.join("\n\n").slice(0, 5000),
         timezone: "America/Chicago",
       },

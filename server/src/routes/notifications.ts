@@ -192,6 +192,11 @@ router.get("/", async (req, res) => {
           },
           orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
           take: 8,
+          include: {
+            createdBy: { select: { firstName: true, lastName: true } },
+            assignee: { select: { firstName: true, lastName: true } },
+            constituent: { select: { firstName: true, lastName: true } },
+          },
         }),
         prisma.meeting.findMany({
           where: {
@@ -207,16 +212,36 @@ router.get("/", async (req, res) => {
 
       for (const task of tasks) {
         const overdue = task.dueDate ? task.dueDate < now : false;
+        const assignedToViewer = task.assigneeId === userId;
+        const assignedByAnotherUser = assignedToViewer && task.createdById && task.createdById !== userId;
+        const dueLabel = task.dueDate
+          ? `${overdue ? "Overdue" : "Due"} ${new Date(task.dueDate).toLocaleDateString()}`
+          : "No due date";
+        const creatorLabel = task.createdBy
+          ? `Assigned by ${task.createdBy.firstName} ${task.createdBy.lastName}`
+          : "Assigned task";
+        const constituentLabel = task.constituent
+          ? `${task.constituent.firstName} ${task.constituent.lastName}`
+          : null;
+
+        const messageParts = [
+          assignedByAnotherUser ? creatorLabel : dueLabel,
+          constituentLabel,
+          assignedByAnotherUser ? dueLabel : null,
+        ].filter((part): part is string => Boolean(part));
+
+        const focusMode = assignedToViewer ? "my" : "team";
+
         items.push({
           id: `task:${task.id}`,
           type: "task",
-          title: task.title,
-          message: task.dueDate
-            ? `${overdue ? "Overdue" : "Due"} ${new Date(task.dueDate).toLocaleDateString()}`
-            : "No due date",
-          href: "/tasks",
+          title: assignedByAnotherUser ? `New assignment: ${task.title}` : task.title,
+          message: messageParts.join(" · "),
+          href: `/tasks?taskId=${task.id}&focus=${focusMode}`,
           createdAt: task.createdAt.toISOString(),
-          priority: overdue || task.priority === "URGENT" || task.priority === "HIGH" ? "high" : "medium",
+          priority: assignedByAnotherUser || overdue || task.priority === "URGENT" || task.priority === "HIGH"
+            ? "high"
+            : "medium",
         });
       }
 

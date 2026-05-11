@@ -47,79 +47,65 @@ OyamaCRM is **one platform with five integrated modules**, each purpose-built fo
 
 ## 📸 Screenshots
 
-### Login Page
+### Authentication
 ![Login](README_SCREENSHOTS/01-login.png)
 
-### DonorCRM — Fundraising Dashboard
+### DonorCRM Module
+
+#### Dashboard — Fundraising & Stewardship Overview
 ![DonorCRM Dashboard](README_SCREENSHOTS/02-donor-dashboard.png)
 
-### Constituents — Donor Management
+#### Constituents — Donor Management & Profiles
 ![Constituents](README_SCREENSHOTS/03-constituents.png)
 
-### Donations — Gift Entry & Ledger
+#### Donations — Gift Entry, Ledger & Receipt Generation
 ![Donations](README_SCREENSHOTS/04-donations.png)
 
-### Campaigns — Fundraising Campaigns
+#### Campaigns — Fundraising Campaigns & Goal Tracking
 ![Campaigns](README_SCREENSHOTS/05-campaigns.png)
 
-### Tasks — Stewardship Workflows
-![Tasks](README_SCREENSHOTS/06-tasks.png)
+#### Grants — Grant Pipeline & Funder Management
+![Grants](README_SCREENSHOTS/06-grants.png)
 
-### Reports — Analytics & Exports
-![Reports](README_SCREENSHOTS/07-reports.png)
+#### Tasks — Stewardship Workflow & Due Dates
+![Tasks](README_SCREENSHOTS/07-tasks.png)
 
-### Communications — Email & Outreach
-![Communications](README_SCREENSHOTS/08-communications.png)
+#### Meetings — Donor Engagement & Meeting Tracking
+![Meetings](README_SCREENSHOTS/08-meetings.png)
 
-### Events — Gala & Event Management
-![Events](README_SCREENSHOTS/09-events.png)
+#### Communications — Email Campaigns & Outreach
+![Communications](README_SCREENSHOTS/09-communications.png)
 
-### Data Tools — CSV Import Wizard
-![Data Import](README_SCREENSHOTS/10-data-import.png)
+#### Steward Signals — Intelligent Donor Alerts
+![Steward Signals](README_SCREENSHOTS/10-steward-signals.png)
 
-### OyamaCompassion — Case Management Dashboard
-![Compassion Dashboard](README_SCREENSHOTS/11-compassion-dashboard.png)
+#### Volunteers — Volunteer Management & Engagement
+![Volunteers](README_SCREENSHOTS/11-volunteers.png)
 
-### OyamaCompassion — Client Profiles
-![Compassion Clients](README_SCREENSHOTS/12-compassion-clients.png)
+#### Reports — Analytics, Dashboards & Exports
+![Reports](README_SCREENSHOTS/12-reports.png)
 
-### OyamaCompassion — Cases
-![Compassion Cases](README_SCREENSHOTS/13-compassion-cases.png)
+### Data Tools
+#### CSV Import Wizard — Bulk Donor & Donation Import
+![Data Import](README_SCREENSHOTS/13-data-import.png)
 
-### OyamaWebMaster — Site Management Dashboard
-![WebMaster](README_SCREENSHOTS/14-webmaster.png)
+### OyamaEvents Module — Gala & Event Management
+![Events](README_SCREENSHOTS/14-events.png)
 
-### OyamaWebMaster — Visual Page Builder
-![WebMaster Builder](README_SCREENSHOTS/15-webmaster-builder.png)
+### OyamaCompassion Module — Client Care Management
+![Compassion Dashboard](README_SCREENSHOTS/15-compassion-dashboard.png)
 
-### OyamaWatchdog — Security Feed
-![Watchdog](README_SCREENSHOTS/16-watchdog.png)
+#### Client Profiles & Care Records
+![Compassion Clients](README_SCREENSHOTS/16-compassion-clients.png)
 
-### Settings & Administration
-![Settings](README_SCREENSHOTS/17-settings.png)
+### OyamaWatchdog Module — Security & Compliance
+![Watchdog Security Feed](README_SCREENSHOTS/17-watchdog.png)
 
-### System Status Center
-![System Status](README_SCREENSHOTS/18-system-status.png)
+### OyamaWebMaster Module — Visual Website Builder
+![WebMaster Dashboard](README_SCREENSHOTS/18-webmaster.png)
 
-### Steward AI Assistant — Donor Dashboard Drawer
-![Steward AI Drawer](README_SCREENSHOTS/19-ai-chat-drawer-response.png)
-
-### Steward AI Workspace — Analyze Mode
-![Steward AI Workspace Analyze](README_SCREENSHOTS/20-ai-chat-workspace-analyze.png)
-
----
-
-## 🤖 Steward AI Chat Workflow Test (Browser)
-
-Tested in-browser on the DonorCRM dashboard and Steward workspace.
-
-- Opened AI Assistant from the DonorCRM top bar on the main dashboard.
-- Sent prompt in Ask mode: "Summarize donor dashboard priorities today in 3 bullets."
-- Verified structured response rendering with Summary, Evidence, and Next Steps sections.
-- Opened full Steward AI Workspace and switched to Analyze mode.
-- Sent second prompt: "Analyze the most urgent donor follow-up risks shown in this dashboard context."
-- Verified second response plus tool trace and records-used panel updates.
-- Observed console warnings during Analyze response rendering (duplicate React keys and maximum update depth warning).
+### Administration
+![Settings & User Management](README_SCREENSHOTS/19-settings.png)
 
 ---
 
@@ -239,10 +225,11 @@ Tested in-browser on the DonorCRM dashboard and Steward workspace.
 - Progress tracking and milestone notes
 
 ### Appointments
-- Appointment scheduling per client
-- Staff calendar views
-- Reminder generation
-- Appointment notes and outcome recording
+- Shared source-of-truth scheduling across staff workspace and public booking widget
+- Calendar workspace with Day, Week, Month, and Agenda views
+- List workspace with search, sorting, filters, and quick status actions
+- Drag-and-drop and resize rescheduling with conflict checks
+- Appointment notes, outcomes, and follow-up flags
 
 ### Activities & Follow-Ups
 - Activity log per case (call, visit, referral, service delivery)
@@ -535,7 +522,7 @@ node scripts/take-screenshots.mjs   # Regenerate README screenshots
 ### ✅ Completed
 - App shell, auth, JWT refresh flow, onboarding wizard
 - DonorCRM: constituents, donations, campaigns, communications, tasks, reports, data tools
-- OyamaCompassion: dashboard, clients, cases, care plans, appointments scaffolding
+- OyamaCompassion: dashboard, clients, cases, client profile workspace, and production appointment scheduling hub
 - OyamaEvents: command center, guests, check-in, ticketing, gala tables
 - OyamaWatchdog: security feed, audit logs, encrypted vault, incident workflow, permission management
 - OyamaWebMaster Phase 1–3: real dashboard, visual builder, section registry, persistent storage
@@ -592,7 +579,7 @@ If you're a developer, this project needs you.
 - RBAC enforcement improvements
 - Email provider integrations (SendGrid, Mailgun, Postmark)
 - Mobile-responsive layout passes
-- Compassion CRM CRUD workflows (cases, care plans, appointments)
+- Compassion CRM remaining care-domain workflows (care plans, assessments, medical/referrals)
 - Test coverage improvements
 
 **How to contribute:**

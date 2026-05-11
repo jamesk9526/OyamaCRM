@@ -7,6 +7,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import ReportsModuleToolbar, {
+  getDefaultReportsTool,
+  type ReportsToolId,
+  type ReportsWorkspaceModule,
+} from "@/app/components/reports/ReportsModuleToolbar";
 import { apiFetch } from "@/app/lib/auth-client";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -24,6 +30,20 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "campaigns", label: "Campaigns" },
   { id: "retention", label: "Retention" },
 ];
+
+/** Resolves a safe report tab id from URL query input. */
+function parseTabId(rawTab: string | null): TabId {
+  if (!rawTab) return "overview";
+  const match = TABS.find((tab) => tab.id === rawTab);
+  return match ? match.id : "overview";
+}
+
+/** Resolves a safe reports workspace module id from URL query input. */
+function parseReportsModule(rawModule: string | null): ReportsWorkspaceModule {
+  if (!rawModule) return "donor";
+  const validModules: ReportsWorkspaceModule[] = ["donor", "events", "compassion", "ogentic"];
+  return validModules.includes(rawModule as ReportsWorkspaceModule) ? (rawModule as ReportsWorkspaceModule) : "donor";
+}
 
 // ─── Type Definitions ──────────────────────────────────────────────────────────
 
@@ -160,6 +180,38 @@ interface NewVsReturningDatum {
   month: number;
   newCount: number;
   returningCount: number;
+}
+
+/** Events CRM reporting summary payload from GET /api/events/reports/summary. */
+interface EventsSummaryReport {
+  totalEvents: number;
+  totalRevenue: number;
+  totalAttendees: number;
+  topEvents: Array<{
+    id: string;
+    name: string;
+    type: string;
+    startDate: string;
+    revenue: number;
+    guests: number;
+    checkedIn: number;
+  }>;
+}
+
+/** Compassion CRM reporting summary payload from GET /api/compassion/reports/summary. */
+interface CompassionSummaryReport {
+  generatedAt: string;
+  kpis: {
+    totalClients: number;
+    activeCases: number;
+    newClientsThisMonth: number;
+    appointmentsThisMonth: number;
+    completedAppointmentsThisMonth: number;
+    completionRate: number;
+  };
+  casesByType: Array<{ label: string; value: number }>;
+  casesByStatus: Array<{ label: string; value: number }>;
+  appointmentsByType: Array<{ label: string; value: number }>;
 }
 
 // ─── Helper Functions ──────────────────────────────────────────────────────────
@@ -517,8 +569,13 @@ function LybuntTable({ donors, loading }: { donors: LybuntDonor[]; loading: bool
  * duplicate fetches without needing a dependency array for every loader.
  */
 export default function ReportsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   // ── Global UI state ───────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [activeModule, setActiveModule] = useState<ReportsWorkspaceModule>(() => parseReportsModule(searchParams.get("module")));
+  const [activeTool, setActiveTool] = useState<ReportsToolId>(() => getDefaultReportsTool(parseReportsModule(searchParams.get("module"))));
+  const [activeTab, setActiveTab] = useState<TabId>(() => parseTabId(searchParams.get("tab")));
   const [year, setYear] = useState<number>(CURRENT_YEAR);
   const [allYears, setAllYears] = useState(false);
 
@@ -567,6 +624,17 @@ export default function ReportsPage() {
 
   // ── Retention tab ─────────────────────────────────────────────────────────
   const [loadingRetention, setLoadingRetention] = useState(false);
+
+  // ── Cross-module reporting data (inside OyamaREPORTIT) ───────────────────
+  const [eventsSummary, setEventsSummary] = useState<EventsSummaryReport | null>(null);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventsError, setEventsError] = useState<string | null>(null);
+
+  const [compassionSummary, setCompassionSummary] = useState<CompassionSummaryReport | null>(null);
+  const [compassionLoading, setCompassionLoading] = useState(false);
+  const [compassionError, setCompassionError] = useState<string | null>(null);
+
+  const [ogenticArtifactsCount, setOGenticArtifactsCount] = useState({ drafts: 0, reports: 0, analyses: 0 });
 
   /**
    * Tracks which "tab:scope" combos have already been fetched.
@@ -705,6 +773,36 @@ export default function ReportsPage() {
     }
   }
 
+  /** Fetches Events CRM report summary for in-page reporting tools. */
+  async function loadEventsModuleSummary() {
+    if (eventsSummary || eventsLoading) return;
+    setEventsLoading(true);
+    setEventsError(null);
+    try {
+      const data = await apiFetch<EventsSummaryReport>("/api/events/reports/summary");
+      setEventsSummary(data);
+    } catch (err) {
+      setEventsError(err instanceof Error ? err.message : "Failed to load Events reports");
+    } finally {
+      setEventsLoading(false);
+    }
+  }
+
+  /** Fetches Compassion CRM report summary for in-page reporting tools. */
+  async function loadCompassionModuleSummary() {
+    if (compassionSummary || compassionLoading) return;
+    setCompassionLoading(true);
+    setCompassionError(null);
+    try {
+      const data = await apiFetch<CompassionSummaryReport>("/api/compassion/reports/summary");
+      setCompassionSummary(data);
+    } catch (err) {
+      setCompassionError(err instanceof Error ? err.message : "Failed to load Compassion reports");
+    } finally {
+      setCompassionLoading(false);
+    }
+  }
+
   // ── Effects ───────────────────────────────────────────────────────────────
 
   /**
@@ -712,28 +810,181 @@ export default function ReportsPage() {
    */
   useEffect(() => {
     loadedRef.current = {};
-    loadOverview(year);
+    const timer = window.setTimeout(() => {
+      void loadOverview(year);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year, allYears]);
 
   /** Load tab-specific data the first time each non-overview tab is opened. */
   useEffect(() => {
-    switch (activeTab) {
-      case "donors":
-        loadDonors(year);
-        break;
-      case "giving":
-        loadGiving(year);
-        break;
-      case "campaigns":
-        loadCampaigns(year);
-        break;
-      case "retention":
-        loadRetention(year);
-        break;
-    }
+    const timer = window.setTimeout(() => {
+      switch (activeTab) {
+        case "donors":
+          void loadDonors(year);
+          break;
+        case "giving":
+          void loadGiving(year);
+          break;
+        case "campaigns":
+          void loadCampaigns(year);
+          break;
+        case "retention":
+          void loadRetention(year);
+          break;
+      }
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, year, allYears]);
+
+  /** Syncs active tab when users deep-link to /reports?tab=... from module navigation. */
+  useEffect(() => {
+    const nextTab = parseTabId(searchParams.get("tab"));
+    if (nextTab === activeTab) return;
+
+    const timer = window.setTimeout(() => {
+      setActiveTab(nextTab);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [searchParams, activeTab]);
+
+  /** Syncs active module when users deep-link to /reports?module=... from module navigation. */
+  useEffect(() => {
+    const nextModule = parseReportsModule(searchParams.get("module"));
+    if (nextModule === activeModule) return;
+
+    const timer = window.setTimeout(() => {
+      setActiveModule(nextModule);
+      setActiveTool(getDefaultReportsTool(nextModule));
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [searchParams, activeModule]);
+
+  /** Ensures active tool selection always matches the selected module context. */
+  useEffect(() => {
+    const expectedPrefix = `${activeModule}-`;
+    if (activeTool.startsWith(expectedPrefix)) return;
+
+    const timer = window.setTimeout(() => {
+      setActiveTool(getDefaultReportsTool(activeModule));
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [activeModule, activeTool]);
+
+  /** Loads module-specific report data so all reporting tools run inside OyamaREPORTIT CRM. */
+  useEffect(() => {
+    if (activeModule === "events") {
+      const timer = window.setTimeout(() => {
+        void loadEventsModuleSummary();
+      }, 0);
+      return () => {
+        window.clearTimeout(timer);
+      };
+    }
+
+    if (activeModule === "compassion") {
+      const timer = window.setTimeout(() => {
+        void loadCompassionModuleSummary();
+      }, 0);
+      return () => {
+        window.clearTimeout(timer);
+      };
+    }
+
+    if (activeModule === "ogentic") {
+      const timer = window.setTimeout(() => {
+        try {
+          const raw = window.localStorage.getItem("ogentic-artifacts:v1");
+          const parsed = raw ? JSON.parse(raw) : [];
+          const artifacts = Array.isArray(parsed) ? parsed : [];
+          setOGenticArtifactsCount({
+            drafts: artifacts.filter((artifact: { type?: string }) => artifact.type === "email_draft" || artifact.type === "letter_draft").length,
+            reports: artifacts.filter((artifact: { type?: string }) => artifact.type === "report").length,
+            analyses: artifacts.filter((artifact: { type?: string }) => artifact.type === "analysis").length,
+          });
+        } catch {
+          setOGenticArtifactsCount({ drafts: 0, reports: 0, analyses: 0 });
+        }
+      }, 0);
+      return () => {
+        window.clearTimeout(timer);
+      };
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeModule]);
+
+  /** Updates local state and URL query so sidebar report links map to the visible tab. */
+  function handleTabChange(tabId: TabId) {
+    setActiveTab(tabId);
+
+    const params = new URLSearchParams(searchParams.toString());
+    if (tabId === "overview") {
+      params.delete("tab");
+    } else {
+      params.set("tab", tabId);
+    }
+
+    const query = params.toString();
+    router.replace(query ? `/reports?${query}` : "/reports");
+  }
+
+  /** Updates module tab state and URL query for module-scoped report tool routing. */
+  function handleModuleChange(moduleId: ReportsWorkspaceModule) {
+    setActiveModule(moduleId);
+    setActiveTool(getDefaultReportsTool(moduleId));
+
+    const params = new URLSearchParams(searchParams.toString());
+    if (moduleId === "donor") {
+      params.delete("module");
+    } else {
+      params.set("module", moduleId);
+    }
+
+    const query = params.toString();
+    router.replace(query ? `/reports?${query}` : "/reports");
+  }
+
+  /** Updates active in-page reporting tool. Donor tools map directly to donor analytics tabs. */
+  function handleToolChange(toolId: ReportsToolId) {
+    setActiveTool(toolId);
+
+    if (toolId === "donor-overview") {
+      handleTabChange("overview");
+      return;
+    }
+    if (toolId === "donor-donors") {
+      handleTabChange("donors");
+      return;
+    }
+    if (toolId === "donor-giving") {
+      handleTabChange("giving");
+      return;
+    }
+    if (toolId === "donor-campaigns") {
+      handleTabChange("campaigns");
+      return;
+    }
+    if (toolId === "donor-retention") {
+      handleTabChange("retention");
+    }
+  }
 
   const scopeLabel = allYears ? "All years" : `${year}`;
 
@@ -741,6 +992,45 @@ export default function ReportsPage() {
 
   /** Export the primary data for the currently active tab as a CSV download. */
   function handleExport() {
+    if (activeModule === "events") {
+      exportCSV(
+        (eventsSummary?.topEvents ?? []).map((event) => ({
+          Event: event.name,
+          Type: event.type,
+          Revenue: event.revenue,
+          Guests: event.guests,
+          CheckedIn: event.checkedIn,
+        })),
+        "events-reporting.csv"
+      );
+      return;
+    }
+
+    if (activeModule === "compassion") {
+      exportCSV(
+        (compassionSummary?.appointmentsByType ?? []).map((row) => ({
+          AppointmentType: row.label,
+          Count: row.value,
+        })),
+        "compassion-reporting.csv"
+      );
+      return;
+    }
+
+    if (activeModule === "ogentic") {
+      exportCSV(
+        [
+          {
+            Drafts: ogenticArtifactsCount.drafts,
+            Reports: ogenticArtifactsCount.reports,
+            Analyses: ogenticArtifactsCount.analyses,
+          },
+        ],
+        "ogentic-reporting-queue.csv"
+      );
+      return;
+    }
+
     switch (activeTab) {
       case "overview":
         exportCSV(
@@ -826,7 +1116,7 @@ export default function ReportsPage() {
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Reports &amp; Analytics</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Giving trends, donor retention, and fundraising performance
+            OyamaREPORTIT CRM for donor, events, compassion, and OGentic reporting workflows
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -881,28 +1171,37 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <p className="text-xs text-gray-500 -mt-3">
-        {!allYears
-          ? `Report totals are scoped to ${year}.`
-          : "Report totals are scoped to all years. Retention and LYBUNT/SYBUNT remain year-based."}
-      </p>
+      <ReportsModuleToolbar
+        activeModule={activeModule}
+        activeTool={activeTool}
+        onModuleChange={handleModuleChange}
+        onToolChange={handleToolChange}
+      />
 
-      {/* ── Tab Navigation ── */}
-      <div className="flex border-b border-gray-200">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.id
-                ? "border-green-600 text-green-700"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {activeModule === "donor" ? (
+        <>
+          <p className="text-xs text-gray-500 -mt-3">
+            {!allYears
+              ? `Report totals are scoped to ${year}.`
+              : "Report totals are scoped to all years. Retention and LYBUNT/SYBUNT remain year-based."}
+          </p>
+
+          {/* ── Tab Navigation ── */}
+          <div className="flex border-b border-gray-200">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id)}
+                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === tab.id
+                    ? "border-green-600 text-green-700"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
           OVERVIEW TAB
@@ -1640,6 +1939,199 @@ export default function ReportsPage() {
               recorded.
             </p>
           </div>
+        </div>
+      )}
+        </>
+      ) : (
+        <div className="space-y-4">
+          {activeModule === "events" && (
+            <section className="bg-white rounded-lg border border-gray-200 p-4">
+              <h2 className="text-sm font-semibold text-gray-900">Events CRM Reporting</h2>
+              {eventsLoading ? (
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <Sk className="h-16" />
+                  <Sk className="h-16" />
+                  <Sk className="h-16" />
+                </div>
+              ) : eventsError ? (
+                <p className="mt-3 text-sm text-red-600">{eventsError}</p>
+              ) : !eventsSummary ? (
+                <p className="mt-3 text-sm text-gray-500">No events report data available.</p>
+              ) : (
+                <>
+                  {activeTool === "events-summary" && (
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-500">Total Events</p>
+                        <p className="text-xl font-semibold text-gray-900 mt-1">{eventsSummary.totalEvents}</p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-500">Total Revenue</p>
+                        <p className="text-xl font-semibold text-gray-900 mt-1">${fmtCurrency(eventsSummary.totalRevenue)}</p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-500">Total Attendees</p>
+                        <p className="text-xl font-semibold text-gray-900 mt-1">{eventsSummary.totalAttendees.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTool === "events-top-events" && (
+                    <div className="mt-3 overflow-x-auto rounded-lg border border-gray-200">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                          <tr>
+                            <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wide">Event</th>
+                            <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wide">Revenue</th>
+                            <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wide">Guests</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {eventsSummary.topEvents.slice(0, 6).map((event) => (
+                            <tr key={event.id} className="border-b border-gray-100">
+                              <td className="px-3 py-2 text-gray-800">{event.name}</td>
+                              <td className="px-3 py-2 text-gray-700">${fmtCurrency(event.revenue)}</td>
+                              <td className="px-3 py-2 text-gray-700">{event.guests}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {activeTool === "events-attendance" && (
+                    <div className="mt-3 space-y-2">
+                      {eventsSummary.topEvents.slice(0, 5).map((event) => {
+                        const pct = event.guests > 0 ? Math.round((event.checkedIn / event.guests) * 100) : 0;
+                        return (
+                          <div key={`${event.id}-attendance`} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                            <div className="flex items-center justify-between text-xs text-gray-600">
+                              <span className="font-medium text-gray-800">{event.name}</span>
+                              <span>{event.checkedIn}/{event.guests} checked in</span>
+                            </div>
+                            <div className="mt-1.5 h-2 rounded-full bg-gray-200 overflow-hidden">
+                              <div className="h-2 bg-amber-500 rounded-full" style={{ width: `${Math.min(100, pct)}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+          )}
+
+          {activeModule === "compassion" && (
+            <section className="bg-white rounded-lg border border-gray-200 p-4">
+              <h2 className="text-sm font-semibold text-gray-900">Compassion CRM Reporting</h2>
+              {compassionLoading ? (
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <Sk className="h-16" />
+                  <Sk className="h-16" />
+                  <Sk className="h-16" />
+                </div>
+              ) : compassionError ? (
+                <p className="mt-3 text-sm text-red-600">{compassionError}</p>
+              ) : !compassionSummary ? (
+                <p className="mt-3 text-sm text-gray-500">No compassion report data available.</p>
+              ) : (
+                <>
+                  {activeTool === "compassion-kpis" && (
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-500">Total Clients</p>
+                        <p className="text-xl font-semibold text-gray-900 mt-1">{compassionSummary.kpis.totalClients}</p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-500">Active Cases</p>
+                        <p className="text-xl font-semibold text-gray-900 mt-1">{compassionSummary.kpis.activeCases}</p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-500">Completion Rate</p>
+                        <p className="text-xl font-semibold text-gray-900 mt-1">{Math.round(compassionSummary.kpis.completionRate)}%</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTool === "compassion-cases" && (
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                        <p className="text-xs font-semibold text-gray-800">Cases by Type</p>
+                        <div className="mt-2 space-y-1.5 text-xs text-gray-600">
+                          {compassionSummary.casesByType.slice(0, 6).map((row) => (
+                            <div key={`type-${row.label}`} className="flex justify-between">
+                              <span>{row.label}</span>
+                              <span className="font-medium">{row.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                        <p className="text-xs font-semibold text-gray-800">Cases by Status</p>
+                        <div className="mt-2 space-y-1.5 text-xs text-gray-600">
+                          {compassionSummary.casesByStatus.slice(0, 6).map((row) => (
+                            <div key={`status-${row.label}`} className="flex justify-between">
+                              <span>{row.label}</span>
+                              <span className="font-medium">{row.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTool === "compassion-appointments" && (
+                    <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                      <p className="text-xs font-semibold text-gray-800">Appointments by Type</p>
+                      <div className="mt-2 space-y-1.5 text-xs text-gray-600">
+                        {compassionSummary.appointmentsByType.slice(0, 8).map((row) => (
+                          <div key={`appt-${row.label}`} className="flex justify-between">
+                            <span>{row.label}</span>
+                            <span className="font-medium">{row.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+          )}
+
+          {activeModule === "ogentic" && (
+            <section className="bg-white rounded-lg border border-gray-200 p-4">
+              <h2 className="text-sm font-semibold text-gray-900">OGentic Reporting</h2>
+              {activeTool === "ogentic-queue" && (
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-500">Drafts</p>
+                    <p className="text-xl font-semibold text-gray-900 mt-1">{ogenticArtifactsCount.drafts}</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-500">Reports</p>
+                    <p className="text-xl font-semibold text-gray-900 mt-1">{ogenticArtifactsCount.reports}</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-500">Analyses</p>
+                    <p className="text-xl font-semibold text-gray-900 mt-1">{ogenticArtifactsCount.analyses}</p>
+                  </div>
+                </div>
+              )}
+
+              {activeTool === "ogentic-drafts" && (
+                <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
+                  Draft review tools are now centered in OyamaREPORTIT CRM. Use this view to validate report drafts before sharing.
+                </div>
+              )}
+
+              {activeTool === "ogentic-board-pack" && (
+                <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
+                  Board pack assembly is in progress. This tool will combine donor, events, and compassion report slices into one export.
+                </div>
+              )}
+            </section>
+          )}
         </div>
       )}
     </div>

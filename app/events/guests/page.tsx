@@ -29,7 +29,7 @@ interface Guest {
   paymentStatus?: string;
   /** RSVP status from the EventGuestRsvpStatus enum: PENDING | CONFIRMED | DECLINED | WAITLIST */
   rsvpStatus?: string;
-  event: { id: string; name: string; startDate: string };
+  event?: { id: string; name: string; startDate: string };
   constituent?: { id: string; firstName: string; lastName: string; email?: string };
   ticketType?: { id: string; name: string };
   order?: { id: string; orderNumber: string; status: string };
@@ -90,7 +90,7 @@ export default function EventGuestsPage() {
 
   /** Filter guests by all active filter criteria */
   const filteredGuests = guests.filter((guest) => {
-    if (selectedEventId && guest.event.id !== selectedEventId) return false;
+    if (selectedEventId && guest.event?.id && guest.event.id !== selectedEventId) return false;
     if (checkedInFilter === "true" && !guest.checkedIn) return false;
     if (checkedInFilter === "false" && guest.checkedIn) return false;
     if (linkedFilter === "true" && !guest.constituent) return false;
@@ -118,6 +118,8 @@ export default function EventGuestsPage() {
     /** Guests who confirmed their RSVP */
     confirmedRsvp: filteredGuests.filter((g) => g.rsvpStatus === "CONFIRMED").length,
   };
+
+  const selectedEventName = events.find((event) => event.id === selectedEventId)?.name;
 
   /** Reload data helper for mutations */
   const reloadData = useCallback(async () => {
@@ -320,7 +322,7 @@ export default function EventGuestsPage() {
                     {guest.email && <p className="text-xs text-gray-500">{guest.email}</p>}
                   </td>
                   <td className="px-4 py-3">
-                    <p className="text-sm text-gray-900">{guest.event.name}</p>
+                    <p className="text-sm text-gray-900">{guest.event?.name ?? selectedEventName ?? "Unknown Event"}</p>
                   </td>
                   <td className="px-4 py-3">
                     {guest.constituent ? (

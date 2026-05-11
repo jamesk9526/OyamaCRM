@@ -4,6 +4,7 @@
  * progress bar, dates, active/inactive status, and Edit/Delete actions.
  */
 
+import Link from "next/link";
 import { Campaign } from "@/app/campaigns/page";
 
 /** Map CampaignCategory enum values to display labels */
@@ -31,12 +32,13 @@ function fmtDate(d?: string | null) {
 
 interface Props {
   campaign: Campaign;
+  onInfo?: () => void;
   onEdit?: (campaign: Campaign) => void;
   onDelete?: (id: string) => void;
 }
 
 /** CampaignCard: card view of a single fundraising campaign with actions */
-export default function CampaignCard({ campaign, onEdit, onDelete }: Props) {
+export default function CampaignCard({ campaign, onInfo, onEdit, onDelete }: Props) {
   const goal = Number(campaign.goal ?? 0);
   const raised = campaign.totalRaised ?? 0;
   const pct = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
@@ -80,7 +82,18 @@ export default function CampaignCard({ campaign, onEdit, onDelete }: Props) {
         {campaign._count ? (
           <p className="text-xs text-gray-400">{campaign._count.donations} donation{campaign._count.donations !== 1 ? "s" : ""}</p>
         ) : <span />}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
+          <Link
+            href={`/campaigns/${campaign.id}`}
+            onClick={(event) => {
+              if (!onInfo) return;
+              event.preventDefault();
+              onInfo();
+            }}
+            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+          >
+            Info
+          </Link>
           {onEdit && (
             <button
               onClick={() => onEdit(campaign)}

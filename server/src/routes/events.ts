@@ -808,6 +808,7 @@ router.get("/:eventId/guests", async (req, res) => {
   const guests = await prisma.eventGuest.findMany({
     where: { eventId: req.params.eventId },
     include: {
+      event: { select: { id: true, name: true, startDate: true } },
       constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
       ticketType: { select: { id: true, name: true } },
       order: { select: { id: true, orderNumber: true, status: true } },

@@ -209,6 +209,37 @@ OyamaCRM is **one platform with two modules**: DonorCRM and Compassion CRM.
 - Compassion CRM routes must be permission-aware. Add `// TODO: enforce Compassion workspace permission` comments wherever role checks are not yet implemented.
 <!-- END:module-rules -->
 
+<!-- BEGIN:standalone-app-boundary-rules -->
+## Standalone App Boundary Rules
+
+OyamaCRM supports standalone product apps under `app/apps/` that are distinct from CRM modules.
+
+- Standalone apps are **apps, not CRMs**. Do not label them as DonorCRM/Compassion/Events workspaces.
+- App routes must live under `/apps/*` and use a basic app shell (for example `AppProductShell`) instead of CRM shells.
+- Default app shell behavior must exclude CRM top-search and CRM AI controls.
+- Standalone apps must not read/write donor/client/case/donation CRM data unless a specific, permission-reviewed integration is implemented.
+- Use explicit in-app language when data is isolated: "standalone app data" or "app workspace data".
+- Keep visual consistency with platform styling (cards, spacing, typography), but avoid CRM-specific labels, nav structure, and analytics widgets unless intentionally integrated.
+- Initial reference implementation: Trivia Software route at `/apps/trivia` using the basic app shell.
+<!-- END:standalone-app-boundary-rules -->
+
+<!-- BEGIN:events-crm-boundary-rules -->
+## Events CRM Scope Boundary Rules
+
+Events CRM uses an **event-first workspace model** with explicit global tools.
+
+- Event-scoped tools must live under `/events/[eventId]/[tool]` and only operate on that selected event context.
+- The selector page (`/events/workspace`) is the entry point for choosing an event before opening scoped tools.
+- Global tools that intentionally operate outside selected-event scope must remain available and clearly labeled:
+  - `/events/reports` (cross-event reporting)
+  - `/events/page-builder` (event page creation workflows)
+  - `/events/templates` (template management)
+  - `/events/events` (overall event registry management)
+- Never treat known static route segments (for example `workspace`, `reports`, `page-builder`, `templates`, `events`) as `eventId` values.
+- Any Events tool that is not fully wired must show a clear in-development warning and must not pretend data is real.
+
+<!-- END:events-crm-boundary-rules -->
+
 <!-- BEGIN:reference-software-rules -->
 ## Reference Software Folder Rules
 
@@ -278,6 +309,13 @@ The Compassion CRM is **privacy-first** and contains sensitive client data (inta
 3. SSN / SIN / tax-ID columns are **always** stripped server-side, even if a payload includes them.
 4. Public-facing forms (scheduling widget, intake forms) must never expose private staff-only fields, internal IDs, or other clients' data.
 5. Imports must run through `app/compassion/import/clients/clientImportValidator.ts` (the single source of truth for "is this row real?"). Any new validation rule should land there, with a unit test.
+
+### Public scheduling source-of-truth rules
+- Widget scheduling policy lives in the appointment-widget config and is office-managed (interval, duration, lead time, advance window, availability blocks, blackout dates).
+- Public booking UIs must never rely on freeform datetime entry as source of truth. They must consume server-generated slot availability.
+- Slot generation and conflict checks must happen server-side, and submissions must be revalidated against current slot availability at submit time.
+- Use `/api/compassion-public/widget/:token/slots` for slot display and `/api/compassion-public/widget/:token/appointments` for submit-time validation.
+- Embeddable scheduling is supported with script embedding (`/embed/compassion-schedule.js`) and iframe embedding; both must enforce the same backend validation rules.
 
 ### Importer source of truth
 - Heuristics for rejecting metadata/garbage/widget rows live in `clientImportValidator.ts` (`GARBAGE_NAME_PATTERNS`, `RESERVED_NAME_TOKENS`).
@@ -410,3 +448,22 @@ await logAudit(req, { action: "..." });
 - QB plugin state (enabled, connected, etc.) is always read from `usePlugins()` — never fetched independently in components
 - The `PluginProvider` refetches on `refresh()` — call it after any enable/disable/connect/disconnect action
 <!-- END:quickbooks-plugin-rules -->
+
+<!-- BEGIN:production-readiness-tracking-rules -->
+## Production Readiness Tracking Rules
+
+When updating project status, audits, or release claims, use:
+
+- `docs/status/production-readiness-checklist.md` as the single release-gate source of truth.
+- `HOWTO/HOW_TO_USE.md` for office-facing operational guidance.
+
+Status labels for release tracking must be exactly:
+
+- Working
+- Partially Working
+- Demo Only
+- Broken
+- Not Implemented
+
+If a route or workflow is scaffolded, unstable, or only suitable for demos, do not mark it as Working in release-readiness summaries.
+<!-- END:production-readiness-tracking-rules -->

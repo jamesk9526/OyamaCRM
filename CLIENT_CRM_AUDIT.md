@@ -1,8 +1,36 @@
-# Client / Compassion CRM — Audit (Batch 1)
+# Client / Compassion CRM — Audit (Batch 1 + Scheduling Hardening)
 
-_Audit completed: 2026-05-09 — first pass focused on **importer + client list/search**._
+_Audit updated: 2026-05-11 — expanded to include **office scheduling hub hardening**._
 
 This document captures the state of the Compassion CRM client tooling **before and after** Batch 1 of the production-readiness work, plus a backlog for subsequent batches. Pair it with `CLIENT_CRM_IMPORTER_PLAN.md` and `CLIENT_CRM_TASKS.md`.
+
+## 0. 2026-05-10 Verification Update
+
+Release-gate status labels in use:
+
+- Working
+- Partially Working
+- Demo Only
+- Broken
+- Not Implemented
+
+Current Compassion reality from full pass:
+
+| Surface | Status | Notes |
+|---|---|---|
+| Client create/list/case baseline flows | Partially Working | Core routes exist and mostly work, but workflow smoke has a failing list-inclusion assertion after create. |
+| Appointments workspace (calendar + list + drag/resize) | Working | `/compassion/appointments` now runs on real appointment records with conflict-safe create/edit/reschedule/status workflows and full-screen calendar mode. |
+| Public scheduling slot policy and submit-time validation | Working | Slot generation and stale-slot rejection are functioning in dedicated unit/smoke coverage. |
+| Full-name search reliability | Partially Working | Current search behavior is single-string OR matching and can miss expected full-name patterns in practice. |
+| Client profile extended care tabs | Partially Working | Core CRUD/service logging is now live for Notes, Follow Ups, Documents, Medical, Assessments, Pregnancy Tests, Sonograms, Referrals, Classes, Boutique, Communication, and Portal; advanced workflow depth and happy-path tests are still in progress. |
+
+Newly confirmed issues from this pass:
+
+1. `tests/smoke/routes-workflow.test.ts` fails at "lists clients and includes the newly created one" assertion.
+2. `GET /api/compassion/clients` search logic currently uses direct `contains: search` clauses without tokenized full-name matching.
+3. Browser audit observed console/API instability around Compassion settings loads in some sessions.
+
+Source of truth for release gating and defect IDs: `docs/status/production-readiness-checklist.md`.
 
 ---
 
@@ -19,8 +47,11 @@ This document captures the state of the Compassion CRM client tooling **before a
 | CSV parser | `app/data-tools/import/csvParser.ts` | ✅ Auto-delimiter, BOM, paste |
 | List API | `GET /api/compassion/clients` | ✅ New filters added |
 | Import API | `POST /api/compassion/clients/import` | ✅ Hardened garbage filter |
-| Public scheduling | _none_ | ❌ Not implemented |
-| Embeddable widget | _none_ | ❌ Not implemented |
+| Public scheduling | `app/compassion/public/appointments/[token]/page.tsx` | ✅ Slot-based booking is live |
+| Office scheduling hub | `app/compassion/appointments/page.tsx` + `app/components/compassion/appointments/*` | ✅ Day/Week/Month/Agenda calendar + list workspace on real data |
+| Public scheduling API | `GET/POST /api/compassion-public/widget/:token/*` | ✅ Config + slots + submit-time slot validation |
+| Embeddable widget (iframe) | `GET /api/compassion/appointment-widget` | ✅ Live snippet generated from token |
+| Embeddable widget (script) | `public/embed/compassion-schedule.js` | ✅ Live script embed (inline + popup modes) |
 | Duplicate review center | _none_ | ❌ Not implemented |
 | Import history | _none_ | ❌ Not implemented (audit log captures import events) |
 
@@ -93,7 +124,31 @@ Batch 1 closes all four gaps.
 - Families, Care Plans, Activities, and Communications were removed from top-level sidebar navigation.
 - Client profile route (`/compassion/clients/[id]`) was expanded into a client-scoped workspace with tabs for detailed service areas.
 - Existing data-backed tabs remain active (Overview, Details, Cases, Activity, Appointments, Resources, Audit Log).
-- Planned tabs now show explicit in-development notices with criteria for removal (Notes, Follow Ups, Documents, Medical, Assessments, Pregnancy Tests, Sonograms, Referrals, Classes, Boutique, Communication, Portal).
+- Previously planned tabs now use API-backed client-scoped workflows:
+	- Custom activity-entry CRUD: Notes, Assessments, Documents, Communication, Portal.
+	- Follow-up queue actions: Follow Ups.
+	- Service-log entry views: Resources, Medical, Pregnancy Tests, Sonograms, Referrals, Classes, Boutique.
+- In-tab development notices remain for advanced workflow depth (for example secure uploads, stricter role-aware controls, and expanded happy-path testing).
+
+### 3.8 Public scheduling + embed hardening (new)
+
+- Added office-managed scheduling policy fields in widget config:
+	- `slotIntervalMinutes`
+	- `appointmentDurationMinutes`
+	- `minLeadHours`
+	- `maxAdvanceDays`
+	- `availabilityBlocks`
+	- `blackoutDates`
+- Added server-side slot generation utility (`buildWidgetAvailableSlots`) and public slot endpoint:
+	- `GET /api/compassion-public/widget/:token/slots`
+- Booking submit now revalidates selected slot and capacity before creating records:
+	- `POST /api/compassion-public/widget/:token/appointments`
+	- Returns `SLOT_UNAVAILABLE` when stale/invalid.
+- Public booking UI moved from freeform datetime to date + slot selection.
+- Settings page now includes source-of-truth scheduling controls for recurring availability blocks and blackout dates.
+- Added script embed support and snippet output:
+	- Script file: `public/embed/compassion-schedule.js`
+	- Snippet exposed in widget settings response for copy/paste install.
 
 ---
 
@@ -104,7 +159,7 @@ Tracked in `CLIENT_CRM_TASKS.md`. High-priority items not in Batch 1:
 - **Client profile scoping audit.** Verify every tab on the client profile filters by `clientId` and never leaks data across clients.
 - **Import history page.** Surface the audit-log `COMPASSION_CLIENT_IMPORT*` entries in a real UI with "view results" + "rollback" affordances.
 - **Duplicate review center.** Promote the in-file duplicate warnings into a global queue showing cross-org duplicate suggestions with merge/skip/keep-both controls.
-- **Public appointment scheduling + embeddable widget.** Add a public route, a tokenised submission endpoint, and a script-tag-installable widget. Public submissions must run through a name/email/phone matcher and create review tasks rather than auto-creating clients.
+- **Public appointment scheduling + embeddable widget (phase 2).** Core route/API/script are live; still needed: rate limiting, anti-abuse telemetry, existing-client matcher, and staff review queue before final conversion workflows.
 - **Privacy-safe audit log surface.** Internal audit log already captures import events; a dedicated read-only viewer is needed.
 - **"Not yet implemented" warnings.** Add a small popup component used by stub tabs/buttons; record each in `AGENTS.md` until the feature is real.
 
@@ -116,3 +171,4 @@ Tracked in `CLIENT_CRM_TASKS.md`. High-priority items not in Batch 1:
 - SSN / tax-ID / SIN fields are **stripped server-side** even if a payload still includes them.
 - Records are scoped to the authenticated user's `organizationId` on every read and write.
 - Search queries always include `organizationId` in the `WHERE` clause; the new defensive filter runs **after** the org-scoped query.
+- Public scheduling slot responses return only booking-safe data (time/location/capacity) and do not expose internal client or donor records.

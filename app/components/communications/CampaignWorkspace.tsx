@@ -119,9 +119,7 @@ export default function CampaignWorkspace({ campaignId }: Props) {
             Back to Communications
           </Link>
           <a
-            href={`/email-builder?campaign=${campaign.id}`}
-            target="_blank"
-            rel="noreferrer"
+            href={`/email-builder?campaign=${campaign.id}&returnTo=${encodeURIComponent(`/communications/${campaign.id}`)}`}
             className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
           >
             Open Builder

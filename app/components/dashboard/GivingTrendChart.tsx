@@ -91,9 +91,9 @@ export default function GivingTrendChart({ includeGrants = false }: GivingTrendC
   const currentMonth = new Date().getMonth() + 1;
 
   return (
-    <div className="flex flex-col h-full min-h-[220px]">
+    <div className="flex flex-col h-full min-h-[200px]">
       {/* Sub-header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <div>
           <span className="text-xs text-gray-500 uppercase tracking-wider">YTD Total</span>
           <p className="text-2xl font-bold text-gray-900 mt-0.5">
@@ -152,7 +152,7 @@ export default function GivingTrendChart({ includeGrants = false }: GivingTrendC
                   Bar container must have an explicit height (not just min-height),
                   otherwise child percentage heights can resolve to 0px in flex layouts.
                 */}
-                <div className="w-full h-28 flex items-end">
+                <div className="w-full h-24 flex items-end">
                   {isEmpty ? (
                     /* Empty bar */
                     <div className="w-full rounded-t-sm bg-gray-100" style={{ height: "4%" }} />
@@ -197,7 +197,7 @@ export default function GivingTrendChart({ includeGrants = false }: GivingTrendC
 
       {/* Grant legend — only shown when grants are stacked */}
       {includeGrants && (
-        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100">
+        <div className="flex items-center gap-3 mt-2 pt-2 border-t border-gray-100">
           <span className="flex items-center gap-1.5 text-[10px] text-gray-500">
             <span className="inline-block w-2.5 h-2.5 rounded-sm bg-green-400" />
             Donations

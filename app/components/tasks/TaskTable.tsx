@@ -1,10 +1,11 @@
 /**
  * TaskTable component.
- * Renders a sortable table of tasks with quick-complete and delete actions.
- * Highlights overdue tasks in red.
+ * Renders a task workspace table with quick-complete and delete actions.
+ * Highlights overdue and notification-targeted tasks for faster triage.
  */
 "use client";
 
+import Link from "next/link";
 import { Task } from "@/app/tasks/page";
 
 /** Format a date string as a short locale date */
@@ -28,9 +29,20 @@ function typeLabel(type: string) {
   return type.replace("_", " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
 }
 
+/** Return Tailwind classes for task priority badges. */
+function priorityColor(priority: string) {
+  switch (priority) {
+    case "URGENT": return "bg-red-100 text-red-700";
+    case "HIGH": return "bg-orange-100 text-orange-700";
+    case "LOW": return "bg-gray-100 text-gray-600";
+    default: return "bg-blue-100 text-blue-700";
+  }
+}
+
 interface Props {
   tasks: Task[];
   loading?: boolean;
+  highlightTaskId?: string | null;
   onComplete: (id: string) => void;
   onDelete: (id: string) => void;
 }
@@ -39,7 +51,7 @@ interface Props {
 function SkeletonRow() {
   return (
     <tr className="border-b border-gray-100">
-      {Array.from({ length: 7 }).map((_, i) => (
+      {Array.from({ length: 8 }).map((_, i) => (
         <td key={i} className="px-4 py-3">
           <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4" />
         </td>
@@ -49,14 +61,14 @@ function SkeletonRow() {
 }
 
 /** TaskTable: displays tasks in a table with complete/delete actions */
-export default function TaskTable({ tasks, loading, onComplete, onDelete }: Props) {
+export default function TaskTable({ tasks, loading, highlightTaskId, onComplete, onDelete }: Props) {
   if (loading) {
     return (
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
-              {["Title", "Type", "Assignee", "Constituent", "Due Date", "Status", "Actions"].map((h) => (
+              {["Title", "Type", "Assignee", "Constituent", "Due Date", "Priority", "Status", "Actions"].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
               ))}
             </tr>
@@ -80,7 +92,7 @@ export default function TaskTable({ tasks, loading, onComplete, onDelete }: Prop
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50">
-            {["Title", "Type", "Assignee", "Constituent", "Due Date", "Status", "Actions"].map((h) => (
+            {["Title", "Type", "Assignee", "Constituent", "Due Date", "Priority", "Status", "Actions"].map((h) => (
               <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
             ))}
           </tr>
@@ -88,22 +100,37 @@ export default function TaskTable({ tasks, loading, onComplete, onDelete }: Prop
         <tbody className="divide-y divide-gray-100">
           {tasks.map((task) => {
             const isOverdue = task.status === "PENDING" && task.dueDate && new Date(task.dueDate) < new Date();
+            const isHighlighted = Boolean(highlightTaskId && task.id === highlightTaskId);
             return (
-              <tr key={task.id} className={`hover:bg-gray-50 transition-colors ${isOverdue ? "bg-red-50" : ""}`}>
+              <tr
+                id={`task-row-${task.id}`}
+                key={task.id}
+                className={`hover:bg-gray-50 transition-colors ${isOverdue ? "bg-red-50" : ""} ${isHighlighted ? "bg-green-50 ring-1 ring-inset ring-green-300" : ""}`}
+              >
                 <td className="px-4 py-3">
                   <p className={`font-medium ${isOverdue ? "text-red-700" : "text-gray-900"}`}>{task.title}</p>
                   {task.description && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{task.description}</p>}
                   {isOverdue && <span className="text-xs text-red-500 font-medium">Overdue</span>}
+                  {isHighlighted && <span className="text-xs text-green-700 font-medium">From notification</span>}
                 </td>
                 <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{typeLabel(task.type)}</td>
                 <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
                   {task.assignee ? `${task.assignee.firstName} ${task.assignee.lastName}` : <span className="text-gray-400">—</span>}
                 </td>
                 <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                  {task.constituent ? `${task.constituent.firstName} ${task.constituent.lastName}` : <span className="text-gray-400">—</span>}
+                  {task.constituent ? (
+                    <Link href={`/constituents/${task.constituent.id}`} className="text-green-700 hover:underline">
+                      {task.constituent.firstName} {task.constituent.lastName}
+                    </Link>
+                  ) : <span className="text-gray-400">—</span>}
                 </td>
                 <td className={`px-4 py-3 whitespace-nowrap ${isOverdue ? "text-red-600 font-medium" : "text-gray-600"}`}>
                   {fmt(task.dueDate)}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${priorityColor(task.priority)}`}>
+                    {task.priority}
+                  </span>
                 </td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(task.status)}`}>

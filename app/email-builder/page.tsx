@@ -9,10 +9,10 @@ import EmailBuilderApp from '@/app/components/email-builder/EmailBuilderApp';
 
 interface PageProps {
   /** Next.js 15+ provides searchParams as a Promise in server components. */
-  searchParams: Promise<{ campaign?: string }>;
+  searchParams: Promise<{ campaign?: string; returnTo?: string }>;
 }
 
 export default async function EmailBuilderPage({ searchParams }: PageProps) {
-  const { campaign } = await searchParams;
-  return <EmailBuilderApp campaignId={campaign} />;
+  const { campaign, returnTo } = await searchParams;
+  return <EmailBuilderApp campaignId={campaign} returnTo={returnTo} />;
 }

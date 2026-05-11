@@ -13,11 +13,6 @@ const CARDS = [
     href: "/settings/events",
   },
   {
-    title: "Branding",
-    description: "Logo, primary colors, and public display defaults for forms and pages.",
-    href: "/settings/branding",
-  },
-  {
     title: "Users",
     description: "User onboarding, status controls, role assignment, and workspace access.",
     href: "/settings/users",
@@ -28,29 +23,14 @@ const CARDS = [
     href: "/settings/roles",
   },
   {
-    title: "CRM Modules",
-    description: "Enable/disable CRM areas: DonorCRM, Compassion CRM, Events, Automations, and more.",
-    href: "/settings/modules",
-  },
-  {
-    title: "Meetings",
-    description: "Default meeting types, durations, reminder windows, and follow-up task behavior.",
-    href: "/settings/meetings",
-  },
-  {
-    title: "Tasks",
-    description: "Task categories, priorities, overdue handling, and auto-assignment rules.",
-    href: "/settings/tasks",
-  },
-  {
-    title: "Workspaces",
-    description: "Enable/disable OyamaCRM and OyamaCRM-Compassion workspaces.",
-    href: "/settings/workspaces",
-  },
-  {
     title: "AI Assistant",
     description: "Configure Steward AI with local Ollama or a remote hosted Ollama endpoint.",
     href: "/settings/ai",
+  },
+  {
+    title: "CRM Modules",
+    description: "Enable and govern module access for DonorCRM, Compassion CRM, and Events CRM.",
+    href: "/settings/modules",
   },
   {
     title: "System Status",
@@ -61,6 +41,11 @@ const CARDS = [
     title: "Project Status",
     description: "Real-data vs demo-data audit matrix with concrete next-step remediation.",
     href: "/settings/project-status",
+  },
+  {
+    title: "Branding",
+    description: "Logo, primary colors, and public display defaults for forms and pages.",
+    href: "/settings/branding",
   },
   {
     title: "Plugins",
@@ -87,8 +72,8 @@ export default function SettingsOverviewPage() {
 
       <div className="bg-white rounded-lg border border-gray-200 p-4">
         <p className="text-sm text-gray-700">
-          Foundation status: dedicated settings sidebar is now active, core tabs are created, and deeper functionality can be
-          implemented incrementally without changing navigation architecture.
+          Settings is now organized around one-home paths for identity, access, modules, AI, and platform governance. Module-specific
+          operational workflows should live in their CRM workspaces rather than duplicate here.
         </p>
       </div>
 

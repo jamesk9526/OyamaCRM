@@ -9,6 +9,10 @@
  *   GET  /api/compassion/clients             — list clients
  *   POST /api/compassion/clients             — create client
  *   GET  /api/compassion/clients/:id         — client profile with relations
+ *   GET  /api/compassion/clients/:id/activity-entries — client-scoped activity records
+ *   POST /api/compassion/clients/:id/activity-entries — create client-scoped activity record
+ *   PATCH /api/compassion/clients/:id/activity-entries/:entryId — update activity record
+ *   DEL  /api/compassion/clients/:id/activity-entries/:entryId — delete activity record
  *   PUT  /api/compassion/clients/:id         — update client
  *   DEL  /api/compassion/clients/:id         — delete client (admin)
  *   GET  /api/compassion/cases               — list cases
@@ -27,6 +31,7 @@
  *   DEL  /api/compassion/follow-ups/:id      — delete follow-up
  *   GET  /api/compassion/services            — list services
  *   POST /api/compassion/services            — create service
+ *   PATCH /api/compassion/services/:id       — update service
  *   DEL  /api/compassion/services/:id        — delete service (admin)
  *
  * @module routes/compassion
@@ -38,6 +43,7 @@ import { requireRole } from "../middleware/requireRole.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
+import { hashPassword } from "../lib/auth.js";
 import {
   APPOINTMENT_WIDGET_PLUGIN_KEY,
   createWidgetToken,
@@ -56,6 +62,147 @@ import type {
 } from "@prisma/client";
 
 const router = Router();
+
+const CLIENT_ACTIVITY_ENTRY_TYPES = [
+  "CLIENT_NOTE",
+  "CLIENT_ASSESSMENT",
+  "CLIENT_DOCUMENT",
+  "CLIENT_COMMUNICATION",
+  "CLIENT_PORTAL_EVENT",
+] as const;
+
+const CLIENT_ACTIVITY_ENTRY_TYPE_SET = new Set<string>(CLIENT_ACTIVITY_ENTRY_TYPES);
+
+/** Returns true when the given activity type is allowed for client workspace custom records. */
+function isAllowedClientActivityEntryType(activityType: string): boolean {
+  return CLIENT_ACTIVITY_ENTRY_TYPE_SET.has(activityType);
+}
+
+/** Returns a safe metadata object for Json persistence or null when metadata is not an object. */
+function normalizeActivityMetadata(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+/** Normalizes mixed payload values into nullable trimmed identifiers. */
+function normalizeOptionalId(value: unknown): string | null {
+  const normalized = String(value ?? "").trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+/** Resolves the preferred staff reference from Compassion staff first, then linked platform user. */
+function resolveStaffReference(params: {
+  assignedCompassionStaff?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    displayName?: string | null;
+  } | null;
+  assignedStaff?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  } | null;
+}) {
+  if (params.assignedCompassionStaff) {
+    return {
+      id: params.assignedCompassionStaff.id,
+      firstName: params.assignedCompassionStaff.firstName,
+      lastName: params.assignedCompassionStaff.lastName,
+      displayName: params.assignedCompassionStaff.displayName ?? null,
+    };
+  }
+  if (params.assignedStaff) {
+    return {
+      id: params.assignedStaff.id,
+      firstName: params.assignedStaff.firstName,
+      lastName: params.assignedStaff.lastName,
+      displayName: null,
+    };
+  }
+  return null;
+}
+
+/** Shapes Compassion staff rows into a consistent API payload used by assignment UIs. */
+function mapCompassionStaffRow(staff: {
+  id: string;
+  firstName: string;
+  lastName: string;
+  displayName: string | null;
+  title: string | null;
+  email: string | null;
+  phone: string | null;
+  isActive: boolean;
+  supportsScheduling: boolean;
+  linkedUserId: string | null;
+  notes: string | null;
+  linkedUser?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: string;
+    active: boolean;
+  } | null;
+}) {
+  const fullName = (staff.displayName ?? "").trim() || `${staff.firstName} ${staff.lastName}`.trim();
+  return {
+    id: staff.id,
+    firstName: staff.firstName,
+    lastName: staff.lastName,
+    displayName: staff.displayName,
+    fullName,
+    title: staff.title,
+    email: staff.email,
+    phone: staff.phone,
+    isActive: staff.isActive,
+    supportsScheduling: staff.supportsScheduling,
+    linkedUserId: staff.linkedUserId,
+    hasLinkedAccount: Boolean(staff.linkedUserId),
+    notes: staff.notes,
+    linkedUser: staff.linkedUser ?? null,
+  };
+}
+
+/** Validates a Compassion staff directory id and returns the matching staff row when valid. */
+async function getValidCompassionStaff(params: {
+  organizationId: string;
+  compassionStaffId: string | null;
+  requireActive?: boolean;
+}) {
+  if (!params.compassionStaffId) return null;
+  return prisma.compassionStaff.findFirst({
+    where: {
+      id: params.compassionStaffId,
+      organizationId: params.organizationId,
+      ...(params.requireActive ? { isActive: true } : {}),
+    },
+    select: {
+      id: true,
+      linkedUserId: true,
+      firstName: true,
+      lastName: true,
+      displayName: true,
+      supportsScheduling: true,
+    },
+  });
+}
+
+/** Validates that a legacy global user staff id belongs to the same organization. */
+async function hasValidLegacyStaffUser(params: {
+  organizationId: string;
+  assignedStaffId: string | null;
+}) {
+  if (!params.assignedStaffId) return true;
+  const match = await prisma.user.findFirst({
+    where: {
+      id: params.assignedStaffId,
+      organizationId: params.organizationId,
+    },
+    select: { id: true },
+  });
+  return Boolean(match);
+}
 
 /** Returns a canonical key for a family grouping candidate. */
 function computeFamilyKey(client: {
@@ -116,12 +263,14 @@ router.get("/appointment-widget", async (req, res) => {
     const config = parseWidgetConfig(plugin?.config ?? null);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const publicUrl = `${appUrl.replace(/\/$/, "")}/compassion/public/appointments/${config.token}`;
+    const scriptUrl = `${appUrl.replace(/\/$/, "")}/embed/compassion-schedule.js`;
 
     res.json({
       enabled: plugin?.enabled ?? config.enabled,
       config,
       publicUrl,
       iframeSnippet: `<iframe src="${publicUrl}" width="100%" height="760" style="border:0;border-radius:12px;" title="Appointment Request"></iframe>`,
+      scriptSnippet: `<div id="oyama-compassion-schedule"></div>\n<script src="${scriptUrl}" data-token="${config.token}" data-target="oyama-compassion-schedule" async></script>`,
     });
   } catch (err) {
     console.error("[compassion] GET /appointment-widget error:", err);
@@ -328,6 +477,7 @@ router.get("/dashboard-summary", async (req, res) => {
         include: {
           client: { select: { firstName: true, lastName: true } },
           assignedStaff: { select: { firstName: true, lastName: true } },
+          assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
         },
       }),
 
@@ -342,9 +492,30 @@ router.get("/dashboard-summary", async (req, res) => {
         include: {
           client: { select: { firstName: true, lastName: true } },
           assignedStaff: { select: { firstName: true, lastName: true } },
+          assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
         },
       }),
     ]);
+
+    const mappedTodaysAppointments = todaysAppointments.map((item) => ({
+      ...item,
+      assignedStaff: resolveStaffReference({
+        assignedCompassionStaff: item.assignedCompassionStaff,
+        assignedStaff: item.assignedStaff
+          ? { id: item.assignedStaffId ?? "", firstName: item.assignedStaff.firstName, lastName: item.assignedStaff.lastName }
+          : null,
+      }),
+    }));
+
+    const mappedUpcomingFollowUps = upcomingFollowUps.map((item) => ({
+      ...item,
+      assignedStaff: resolveStaffReference({
+        assignedCompassionStaff: item.assignedCompassionStaff,
+        assignedStaff: item.assignedStaff
+          ? { id: item.assignedStaffId ?? "", firstName: item.assignedStaff.firstName, lastName: item.assignedStaff.lastName }
+          : null,
+      }),
+    }));
 
     // Map client status groups to chart-friendly format with brand colors
     const statusColors: Record<string, string> = {
@@ -386,8 +557,8 @@ router.get("/dashboard-summary", async (req, res) => {
       caseloadByStatus,
       casesByStatus,
       recentActivity,
-      todaysAppointments,
-      upcomingFollowUps,
+      todaysAppointments: mappedTodaysAppointments,
+      upcomingFollowUps: mappedUpcomingFollowUps,
     });
   } catch (err) {
     console.error("[compassion] dashboard-summary error:", err);
@@ -637,6 +808,245 @@ router.get("/reports/summary", async (req, res) => {
   }
 });
 
+// ─── Compassion Staff Directory ─────────────────────────────────────────────
+
+/**
+ * GET /api/compassion/staff
+ * Lists Compassion staff directory records for the authenticated organization.
+ * Query params: active=true|false (optional), search, limit.
+ */
+router.get("/staff", async (req, res) => {
+  try {
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+
+    const { active, search, limit = "200" } = req.query as Record<string, string>;
+    const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 200, 1), 500);
+    const activeFilter = active === "true" ? true : active === "false" ? false : undefined;
+    const normalizedSearch = (search ?? "").trim();
+
+    const staff = await prisma.compassionStaff.findMany({
+      where: {
+        organizationId,
+        ...(activeFilter !== undefined ? { isActive: activeFilter } : {}),
+        ...(normalizedSearch
+          ? {
+              OR: [
+                { firstName: { contains: normalizedSearch } },
+                { lastName: { contains: normalizedSearch } },
+                { displayName: { contains: normalizedSearch } },
+                { title: { contains: normalizedSearch } },
+                { email: { contains: normalizedSearch } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      take: parsedLimit,
+      include: {
+        linkedUser: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            role: true,
+            active: true,
+          },
+        },
+      },
+    });
+
+    res.json(staff.map((item) => mapCompassionStaffRow(item)));
+  } catch (err) {
+    console.error("[compassion] GET /staff error:", err);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load compassion staff" } });
+  }
+});
+
+/**
+ * POST /api/compassion/staff
+ * Creates a Compassion staff directory entry. Accounts remain optional via linkedUserId.
+ */
+router.post("/staff", requireRole("manager"), async (req, res) => {
+  try {
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+
+    const firstName = String(req.body?.firstName ?? "").trim();
+    const lastName = String(req.body?.lastName ?? "").trim();
+    const displayName = String(req.body?.displayName ?? "").trim() || null;
+    const title = String(req.body?.title ?? "").trim() || null;
+    const email = String(req.body?.email ?? "").trim() || null;
+    const phone = String(req.body?.phone ?? "").trim() || null;
+    const notes = String(req.body?.notes ?? "").trim() || null;
+    const linkedUserId = normalizeOptionalId(req.body?.linkedUserId);
+
+    if (!firstName || !lastName) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "firstName and lastName are required" } });
+      return;
+    }
+
+    if (linkedUserId) {
+      const linkedUser = await prisma.user.findFirst({
+        where: { id: linkedUserId, organizationId },
+        select: { id: true },
+      });
+      if (!linkedUser) {
+        res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "linkedUserId is not valid for this organization" } });
+        return;
+      }
+    }
+
+    const created = await prisma.compassionStaff.create({
+      data: {
+        organizationId,
+        firstName,
+        lastName,
+        displayName,
+        title,
+        email,
+        phone,
+        notes,
+        linkedUserId,
+        isActive: req.body?.isActive !== undefined ? Boolean(req.body.isActive) : true,
+        supportsScheduling: req.body?.supportsScheduling !== undefined
+          ? Boolean(req.body.supportsScheduling)
+          : true,
+      },
+      include: {
+        linkedUser: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            role: true,
+            active: true,
+          },
+        },
+      },
+    });
+
+    await logAudit({
+      action: "COMPASSION_STAFF_CREATED",
+      entity: "CompassionStaff",
+      entityId: created.id,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: {
+        linkedUserId: created.linkedUserId,
+        supportsScheduling: created.supportsScheduling,
+      },
+    });
+
+    res.status(201).json(mapCompassionStaffRow(created));
+  } catch (err) {
+    console.error("[compassion] POST /staff error:", err);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to create compassion staff" } });
+  }
+});
+
+/**
+ * PATCH /api/compassion/staff/:id
+ * Updates Compassion staff profile fields and optional linked account reference.
+ */
+router.patch("/staff/:id", requireRole("manager"), async (req, res) => {
+  try {
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+
+    const staffId = String(req.params.id || "").trim();
+    if (!staffId) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid staff id" } });
+      return;
+    }
+
+    const linkedUserIdProvided = req.body?.linkedUserId !== undefined;
+    const linkedUserId = linkedUserIdProvided ? normalizeOptionalId(req.body?.linkedUserId) : undefined;
+
+    if (linkedUserIdProvided && linkedUserId) {
+      const linkedUser = await prisma.user.findFirst({
+        where: { id: linkedUserId, organizationId },
+        select: { id: true },
+      });
+      if (!linkedUser) {
+        res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "linkedUserId is not valid for this organization" } });
+        return;
+      }
+    }
+
+    const updated = await prisma.compassionStaff.updateMany({
+      where: { id: staffId, organizationId },
+      data: {
+        ...(req.body?.firstName !== undefined && { firstName: String(req.body.firstName ?? "").trim() }),
+        ...(req.body?.lastName !== undefined && { lastName: String(req.body.lastName ?? "").trim() }),
+        ...(req.body?.displayName !== undefined && { displayName: String(req.body.displayName ?? "").trim() || null }),
+        ...(req.body?.title !== undefined && { title: String(req.body.title ?? "").trim() || null }),
+        ...(req.body?.email !== undefined && { email: String(req.body.email ?? "").trim() || null }),
+        ...(req.body?.phone !== undefined && { phone: String(req.body.phone ?? "").trim() || null }),
+        ...(req.body?.notes !== undefined && { notes: String(req.body.notes ?? "").trim() || null }),
+        ...(req.body?.isActive !== undefined && { isActive: Boolean(req.body.isActive) }),
+        ...(req.body?.supportsScheduling !== undefined && { supportsScheduling: Boolean(req.body.supportsScheduling) }),
+        ...(linkedUserIdProvided && { linkedUserId: linkedUserId ?? null }),
+      },
+    });
+
+    if (updated.count === 0) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Compassion staff not found" } });
+      return;
+    }
+
+    const staff = await prisma.compassionStaff.findFirst({
+      where: { id: staffId, organizationId },
+      include: {
+        linkedUser: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            role: true,
+            active: true,
+          },
+        },
+      },
+    });
+
+    if (!staff) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Compassion staff not found" } });
+      return;
+    }
+
+    await logAudit({
+      action: "COMPASSION_STAFF_UPDATED",
+      entity: "CompassionStaff",
+      entityId: staff.id,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: {
+        linkedUserId: staff.linkedUserId,
+        supportsScheduling: staff.supportsScheduling,
+        isActive: staff.isActive,
+      },
+    });
+
+    res.json(mapCompassionStaffRow(staff));
+  } catch (err) {
+    console.error("[compassion] PATCH /staff/:id error:", err);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to update compassion staff" } });
+  }
+});
+
 // ─── Clients ───────────────────────────────────────────────────────────────────
 
 /**
@@ -678,20 +1088,46 @@ router.get("/clients", async (req, res) => {
         ? new Date(Date.now() - Number(intakeWithinDays) * 24 * 60 * 60 * 1000)
         : undefined;
 
-    const where = {
-      organizationId,
-      ...(status && { clientStatus: status as CompassionClientStatus }),
-      ...(staffId && { assignedStaffId: staffId }),
-      ...(assigned === "true" && { NOT: [{ assignedStaffId: null }] }),
-      ...(assigned === "false" && { assignedStaffId: null }),
-      ...(missingContact === "true" && {
+    const andClauses: Array<Record<string, unknown>> = [];
+
+    if (staffId) {
+      andClauses.push({
+        OR: [
+          { assignedCompassionStaffId: staffId },
+          { assignedStaffId: staffId },
+        ],
+      });
+    }
+
+    if (assigned === "true") {
+      andClauses.push({
+        OR: [
+          { assignedCompassionStaffId: { not: null } },
+          { assignedStaffId: { not: null } },
+        ],
+      });
+    }
+
+    if (assigned === "false") {
+      andClauses.push({
+        AND: [
+          { assignedCompassionStaffId: null },
+          { assignedStaffId: null },
+        ],
+      });
+    }
+
+    if (missingContact === "true") {
+      andClauses.push({
         AND: [
           { OR: [{ email: null }, { email: "" }] },
           { OR: [{ phone: null }, { phone: "" }] },
         ],
-      }),
-      ...(intakeFloor && { intakeDate: { gte: intakeFloor } }),
-      ...(search && {
+      });
+    }
+
+    if (search) {
+      andClauses.push({
         OR: [
           { firstName: { contains: search } },
           { lastName: { contains: search } },
@@ -699,8 +1135,17 @@ router.get("/clients", async (req, res) => {
           { email: { contains: search } },
           { phone: { contains: search } },
           { referralSource: { contains: search } },
+          { assignedCompassionStaff: { is: { firstName: { contains: search } } } },
+          { assignedCompassionStaff: { is: { lastName: { contains: search } } } },
         ],
-      }),
+      });
+    }
+
+    const where = {
+      organizationId,
+      ...(status && { clientStatus: status as CompassionClientStatus }),
+      ...(intakeFloor && { intakeDate: { gte: intakeFloor } }),
+      ...(andClauses.length > 0 ? { AND: andClauses } : {}),
     };
 
     const parsedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
@@ -718,7 +1163,9 @@ router.get("/clients", async (req, res) => {
         phone: true,
         clientStatus: true,
         intakeDate: true,
+        assignedCompassionStaffId: true,
         assignedStaffId: true,
+        assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
         assignedStaff: { select: { firstName: true, lastName: true } },
         _count: { select: { cases: true, appointments: true } },
       },
@@ -734,6 +1181,16 @@ router.get("/clients", async (req, res) => {
       // Em-dash separator from eKYROS report exports.
       if (/\s—\s/.test(fn) || /\s—\s/.test(ln)) return false;
       return true;
+    }).map((client) => {
+      return {
+        ...client,
+        assignedStaff: resolveStaffReference({
+          assignedCompassionStaff: client.assignedCompassionStaff,
+          assignedStaff: client.assignedStaff
+            ? { id: client.assignedStaffId ?? "", firstName: client.assignedStaff.firstName, lastName: client.assignedStaff.lastName }
+            : null,
+        }),
+      };
     });
 
     res.json(safe);
@@ -774,10 +1231,36 @@ router.post("/clients", async (req, res) => {
       dateOfBirth,
       intakeDate,
       referralSource,
+      assignedCompassionStaffId,
       assignedStaffId,
       privateNotes,
       clientStatus,
     } = req.body;
+
+    const normalizedAssignedCompassionStaffId = normalizeOptionalId(assignedCompassionStaffId);
+    let normalizedAssignedStaffId = normalizeOptionalId(assignedStaffId);
+
+    if (normalizedAssignedCompassionStaffId) {
+      const compassionStaff = await getValidCompassionStaff({
+        organizationId,
+        compassionStaffId: normalizedAssignedCompassionStaffId,
+        requireActive: true,
+      });
+      if (!compassionStaff) {
+        res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned compassion staff member not found" } });
+        return;
+      }
+      if (!compassionStaff.supportsScheduling) {
+        res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned compassion staff member is not available for scheduling" } });
+        return;
+      }
+      normalizedAssignedStaffId = normalizedAssignedStaffId ?? compassionStaff.linkedUserId ?? null;
+    }
+
+    if (!await hasValidLegacyStaffUser({ organizationId, assignedStaffId: normalizedAssignedStaffId })) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned legacy staff account not found" } });
+      return;
+    }
 
     const client = await prisma.compassionClient.create({
       data: {
@@ -795,7 +1278,8 @@ router.post("/clients", async (req, res) => {
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
         intakeDate: intakeDate ? new Date(intakeDate) : new Date(),
         referralSource: referralSource ?? null,
-        assignedStaffId: assignedStaffId ?? null,
+        assignedCompassionStaffId: normalizedAssignedCompassionStaffId,
+        assignedStaffId: normalizedAssignedStaffId,
         privateNotes: privateNotes ?? null,
         clientStatus: clientStatus ?? "ACTIVE",
       },
@@ -809,7 +1293,12 @@ router.post("/clients", async (req, res) => {
         activityType: "CLIENT_CREATED",
         description: `Client record created for ${client.firstName} ${client.lastName}`,
         performedById: req.user?.sub ?? null,
-        metadata: { source: "api/compassion/clients:create", referralSource },
+        metadata: {
+          source: "api/compassion/clients:create",
+          referralSource,
+          assignedCompassionStaffId: normalizedAssignedCompassionStaffId,
+          assignedStaffId: normalizedAssignedStaffId,
+        },
       },
     });
 
@@ -846,10 +1335,12 @@ router.get("/clients/:id", async (req, res) => {
       where: { id: req.params.id as string, organizationId },
       include: {
         assignedStaff: { select: { id: true, firstName: true, lastName: true } },
+        assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
         cases: {
           orderBy: { openedAt: "desc" },
           include: {
             assignedStaff: { select: { id: true, firstName: true, lastName: true } },
+            assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
           },
         },
         appointments: {
@@ -857,6 +1348,7 @@ router.get("/clients/:id", async (req, res) => {
           take: 20,
           include: {
             assignedStaff: { select: { id: true, firstName: true, lastName: true } },
+            assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
           },
         },
         services: {
@@ -866,6 +1358,10 @@ router.get("/clients/:id", async (req, res) => {
         followUps: {
           orderBy: { dueDate: "asc" },
           where: { status: { not: "COMPLETED" } },
+          include: {
+            assignedStaff: { select: { id: true, firstName: true, lastName: true } },
+            assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
+          },
         },
         activities: {
           orderBy: { createdAt: "desc" },
@@ -882,10 +1378,318 @@ router.get("/clients/:id", async (req, res) => {
       return;
     }
 
-    res.json(client);
+    res.json({
+      ...client,
+      assignedStaff: resolveStaffReference({
+        assignedCompassionStaff: client.assignedCompassionStaff,
+        assignedStaff: client.assignedStaff,
+      }),
+      cases: client.cases.map((item) => ({
+        ...item,
+        assignedStaff: resolveStaffReference({
+          assignedCompassionStaff: item.assignedCompassionStaff,
+          assignedStaff: item.assignedStaff,
+        }),
+      })),
+      appointments: client.appointments.map((item) => ({
+        ...item,
+        assignedStaff: resolveStaffReference({
+          assignedCompassionStaff: item.assignedCompassionStaff,
+          assignedStaff: item.assignedStaff,
+        }),
+      })),
+      followUps: client.followUps.map((item) => ({
+        ...item,
+        assignedStaff: resolveStaffReference({
+          assignedCompassionStaff: item.assignedCompassionStaff,
+          assignedStaff: item.assignedStaff,
+        }),
+      })),
+    });
   } catch (err) {
     console.error("[compassion] GET /clients/:id error:", err);
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load client" } });
+  }
+});
+
+/**
+ * GET /api/compassion/clients/:id/activity-entries
+ * Returns client-scoped custom activity entries (notes, assessments, documents, communication, portal events).
+ */
+router.get("/clients/:id/activity-entries", async (req, res) => {
+  try {
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+
+    const clientId = String(req.params.id || "").trim();
+    const { types, limit = "100" } = req.query as Record<string, string>;
+
+    const client = await prisma.compassionClient.findFirst({
+      where: { id: clientId, organizationId },
+      select: { id: true },
+    });
+    if (!client) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Client not found" } });
+      return;
+    }
+
+    const requestedTypeTokens = (types ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    const requestedTypes = requestedTypeTokens
+      .filter((value) => isAllowedClientActivityEntryType(value));
+
+    if (requestedTypeTokens.length > 0 && requestedTypes.length === 0) {
+      res.status(400).json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: `types must include at least one allowed value: ${CLIENT_ACTIVITY_ENTRY_TYPES.join(", ")}`,
+        },
+      });
+      return;
+    }
+
+    const activeTypes = requestedTypes.length > 0
+      ? requestedTypes
+      : [...CLIENT_ACTIVITY_ENTRY_TYPES];
+
+    const parsedLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 100, 1), 300);
+
+    const entries = await prisma.compassionActivity.findMany({
+      where: {
+        organizationId,
+        clientId,
+        activityType: { in: activeTypes },
+      },
+      orderBy: { createdAt: "desc" },
+      take: parsedLimit,
+      include: {
+        performedBy: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+
+    res.json(entries);
+  } catch (err) {
+    console.error("[compassion] GET /clients/:id/activity-entries error:", err);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load client activity entries" } });
+  }
+});
+
+/**
+ * POST /api/compassion/clients/:id/activity-entries
+ * Creates a client-scoped custom activity entry.
+ * Body: { activityType, description, metadata?, caseId?, appointmentId? }
+ */
+router.post("/clients/:id/activity-entries", async (req, res) => {
+  try {
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+
+    const clientId = String(req.params.id || "").trim();
+    const activityType = String(req.body?.activityType || "").trim();
+    const description = String(req.body?.description || "").trim();
+    const caseId = req.body?.caseId ? String(req.body.caseId).trim() : null;
+    const appointmentId = req.body?.appointmentId ? String(req.body.appointmentId).trim() : null;
+    const metadata = normalizeActivityMetadata(req.body?.metadata);
+
+    if (!isAllowedClientActivityEntryType(activityType)) {
+      res.status(400).json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: `activityType must be one of: ${CLIENT_ACTIVITY_ENTRY_TYPES.join(", ")}`,
+        },
+      });
+      return;
+    }
+
+    if (!description) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "description is required" } });
+      return;
+    }
+
+    const client = await prisma.compassionClient.findFirst({
+      where: { id: clientId, organizationId },
+      select: { id: true, firstName: true, lastName: true },
+    });
+    if (!client) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Client not found" } });
+      return;
+    }
+
+    if (caseId) {
+      const linkedCase = await prisma.compassionCase.findFirst({
+        where: { id: caseId, organizationId, clientId },
+        select: { id: true },
+      });
+      if (!linkedCase) {
+        res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Case not found for this client" } });
+        return;
+      }
+    }
+
+    if (appointmentId) {
+      const linkedAppointment = await prisma.compassionAppointment.findFirst({
+        where: { id: appointmentId, organizationId, clientId },
+        select: { id: true },
+      });
+      if (!linkedAppointment) {
+        res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Appointment not found for this client" } });
+        return;
+      }
+    }
+
+    const created = await prisma.compassionActivity.create({
+      data: {
+        organizationId,
+        clientId,
+        caseId,
+        appointmentId,
+        activityType,
+        description,
+        metadata,
+        performedById: req.user?.sub ?? null,
+      },
+      include: {
+        performedBy: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+
+    await logAudit({
+      action: "COMPASSION_CLIENT_ACTIVITY_ENTRY_CREATED",
+      entity: "CompassionActivity",
+      entityId: created.id,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: { clientId, activityType },
+    });
+
+    res.status(201).json(created);
+  } catch (err) {
+    console.error("[compassion] POST /clients/:id/activity-entries error:", err);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to create client activity entry" } });
+  }
+});
+
+/**
+ * PATCH /api/compassion/clients/:id/activity-entries/:entryId
+ * Updates a client-scoped custom activity entry.
+ */
+router.patch("/clients/:id/activity-entries/:entryId", async (req, res) => {
+  try {
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+
+    const clientId = String(req.params.id || "").trim();
+    const entryId = String(req.params.entryId || "").trim();
+    const description = req.body?.description;
+    const metadata = req.body?.metadata;
+
+    const existing = await prisma.compassionActivity.findFirst({
+      where: {
+        id: entryId,
+        organizationId,
+        clientId,
+      },
+      select: { id: true, activityType: true },
+    });
+
+    if (!existing || !isAllowedClientActivityEntryType(existing.activityType)) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Activity entry not found" } });
+      return;
+    }
+
+    if (description === undefined && metadata === undefined) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "No updatable fields were provided" } });
+      return;
+    }
+
+    if (description !== undefined && !String(description).trim()) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "description cannot be empty" } });
+      return;
+    }
+
+    const updated = await prisma.compassionActivity.update({
+      where: { id: existing.id },
+      data: {
+        ...(description !== undefined && { description: String(description).trim() }),
+        ...(metadata !== undefined && { metadata: normalizeActivityMetadata(metadata) }),
+      },
+      include: {
+        performedBy: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+
+    await logAudit({
+      action: "COMPASSION_CLIENT_ACTIVITY_ENTRY_UPDATED",
+      entity: "CompassionActivity",
+      entityId: updated.id,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: { clientId, activityType: updated.activityType },
+    });
+
+    res.json(updated);
+  } catch (err) {
+    console.error("[compassion] PATCH /clients/:id/activity-entries/:entryId error:", err);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to update client activity entry" } });
+  }
+});
+
+/**
+ * DELETE /api/compassion/clients/:id/activity-entries/:entryId
+ * Deletes a client-scoped custom activity entry.
+ */
+router.delete("/clients/:id/activity-entries/:entryId", async (req, res) => {
+  try {
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+
+    const clientId = String(req.params.id || "").trim();
+    const entryId = String(req.params.entryId || "").trim();
+
+    const existing = await prisma.compassionActivity.findFirst({
+      where: {
+        id: entryId,
+        organizationId,
+        clientId,
+      },
+      select: { id: true, activityType: true },
+    });
+
+    if (!existing || !isAllowedClientActivityEntryType(existing.activityType)) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Activity entry not found" } });
+      return;
+    }
+
+    await prisma.compassionActivity.delete({ where: { id: existing.id } });
+
+    await logAudit({
+      action: "COMPASSION_CLIENT_ACTIVITY_ENTRY_DELETED",
+      entity: "CompassionActivity",
+      entityId: existing.id,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: { clientId, activityType: existing.activityType },
+    });
+
+    res.status(204).send();
+  } catch (err) {
+    console.error("[compassion] DELETE /clients/:id/activity-entries/:entryId error:", err);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to delete client activity entry" } });
   }
 });
 
@@ -903,9 +1707,49 @@ router.put("/clients/:id", async (req, res) => {
     const {
       firstName, lastName, preferredName, email, phone,
       addressLine1, addressLine2, city, state, zip,
-      dateOfBirth, intakeDate, referralSource, assignedStaffId,
+      dateOfBirth, intakeDate, referralSource, assignedStaffId, assignedCompassionStaffId,
       privateNotes, clientStatus,
     } = req.body;
+
+    const compassionStaffProvided = assignedCompassionStaffId !== undefined;
+    const legacyStaffProvided = assignedStaffId !== undefined;
+
+    let normalizedAssignedCompassionStaffId = compassionStaffProvided
+      ? normalizeOptionalId(assignedCompassionStaffId)
+      : undefined;
+    let normalizedAssignedStaffId = legacyStaffProvided
+      ? normalizeOptionalId(assignedStaffId)
+      : undefined;
+
+    if (compassionStaffProvided) {
+      if (normalizedAssignedCompassionStaffId) {
+        const compassionStaff = await getValidCompassionStaff({
+          organizationId,
+          compassionStaffId: normalizedAssignedCompassionStaffId,
+          requireActive: true,
+        });
+        if (!compassionStaff) {
+          res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned compassion staff member not found" } });
+          return;
+        }
+        if (!compassionStaff.supportsScheduling) {
+          res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned compassion staff member is not available for scheduling" } });
+          return;
+        }
+        if (!legacyStaffProvided) {
+          normalizedAssignedStaffId = compassionStaff.linkedUserId ?? null;
+        }
+      } else if (!legacyStaffProvided) {
+        // Clearing Compassion staff assignment also clears the legacy user link unless explicitly provided.
+        normalizedAssignedStaffId = null;
+      }
+    }
+
+    if ((legacyStaffProvided || compassionStaffProvided)
+      && !await hasValidLegacyStaffUser({ organizationId, assignedStaffId: normalizedAssignedStaffId ?? null })) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned legacy staff account not found" } });
+      return;
+    }
 
     const client = await prisma.compassionClient.updateMany({
       where: { id: req.params.id as string, organizationId },
@@ -923,7 +1767,8 @@ router.put("/clients/:id", async (req, res) => {
         ...(dateOfBirth !== undefined && { dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null }),
         ...(intakeDate !== undefined && { intakeDate: new Date(intakeDate) }),
         ...(referralSource !== undefined && { referralSource }),
-        ...(assignedStaffId !== undefined && { assignedStaffId }),
+        ...(compassionStaffProvided && { assignedCompassionStaffId: normalizedAssignedCompassionStaffId ?? null }),
+        ...((legacyStaffProvided || compassionStaffProvided) && { assignedStaffId: normalizedAssignedStaffId ?? null }),
         ...(privateNotes !== undefined && { privateNotes }),
         ...(clientStatus !== undefined && { clientStatus: clientStatus as CompassionClientStatus }),
       },
@@ -1013,11 +1858,18 @@ router.get("/cases", async (req, res) => {
       include: {
         client: { select: { id: true, firstName: true, lastName: true } },
         assignedStaff: { select: { id: true, firstName: true, lastName: true } },
+        assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
         _count: { select: { appointments: true, followUps: true } },
       },
     });
 
-    res.json(cases);
+    res.json(cases.map((item) => ({
+      ...item,
+      assignedStaff: resolveStaffReference({
+        assignedCompassionStaff: item.assignedCompassionStaff,
+        assignedStaff: item.assignedStaff,
+      }),
+    })));
   } catch (err) {
     console.error("[compassion] GET /cases error:", err);
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load cases" } });
@@ -1040,7 +1892,15 @@ router.post("/cases", async (req, res) => {
       return;
     }
 
-    const { clientId, caseType, priority, summary, assignedStaffId, privateNotes } = req.body;
+    const {
+      clientId,
+      caseType,
+      priority,
+      summary,
+      assignedStaffId,
+      assignedCompassionStaffId,
+      privateNotes,
+    } = req.body;
 
     if (!clientId) {
       res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "clientId is required" } });
@@ -1052,6 +1912,27 @@ router.post("/cases", async (req, res) => {
     const year = new Date().getFullYear();
     const caseNumber = `CASE-${year}-${String(count + 1).padStart(3, "0")}`;
 
+    const normalizedAssignedCompassionStaffId = normalizeOptionalId(assignedCompassionStaffId);
+    let normalizedAssignedStaffId = normalizeOptionalId(assignedStaffId);
+
+    if (normalizedAssignedCompassionStaffId) {
+      const compassionStaff = await getValidCompassionStaff({
+        organizationId,
+        compassionStaffId: normalizedAssignedCompassionStaffId,
+        requireActive: true,
+      });
+      if (!compassionStaff) {
+        res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned compassion staff member not found" } });
+        return;
+      }
+      normalizedAssignedStaffId = normalizedAssignedStaffId ?? compassionStaff.linkedUserId ?? null;
+    }
+
+    if (!await hasValidLegacyStaffUser({ organizationId, assignedStaffId: normalizedAssignedStaffId })) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned legacy staff account not found" } });
+      return;
+    }
+
     const compassionCase = await prisma.compassionCase.create({
       data: {
         organizationId,
@@ -1060,12 +1941,15 @@ router.post("/cases", async (req, res) => {
         caseType: (caseType ?? "OTHER") as CompassionCaseType,
         priority: (priority ?? "MEDIUM") as CompassionPriority,
         summary: summary ?? null,
-        assignedStaffId: assignedStaffId ?? null,
+        assignedCompassionStaffId: normalizedAssignedCompassionStaffId,
+        assignedStaffId: normalizedAssignedStaffId,
         privateNotes: privateNotes ?? null,
         caseStatus: "OPEN",
       },
       include: {
         client: { select: { id: true, firstName: true, lastName: true } },
+        assignedStaff: { select: { id: true, firstName: true, lastName: true } },
+        assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
       },
     });
 
@@ -1091,7 +1975,13 @@ router.post("/cases", async (req, res) => {
       ipAddress: req.ip,
     });
 
-    res.status(201).json(compassionCase);
+    res.status(201).json({
+      ...compassionCase,
+      assignedStaff: resolveStaffReference({
+        assignedCompassionStaff: compassionCase.assignedCompassionStaff,
+        assignedStaff: compassionCase.assignedStaff,
+      }),
+    });
   } catch (err) {
     console.error("[compassion] POST /cases error:", err);
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to create case" } });
@@ -1114,14 +2004,22 @@ router.get("/cases/:id", async (req, res) => {
       include: {
         client: { select: { id: true, firstName: true, lastName: true } },
         assignedStaff: { select: { id: true, firstName: true, lastName: true } },
+        assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
         appointments: {
           orderBy: { startTime: "desc" },
           include: {
-            assignedStaff: { select: { firstName: true, lastName: true } },
+            assignedStaff: { select: { id: true, firstName: true, lastName: true } },
+            assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
           },
         },
         services: { orderBy: { serviceDate: "desc" } },
-        followUps: { orderBy: { dueDate: "asc" } },
+        followUps: {
+          orderBy: { dueDate: "asc" },
+          include: {
+            assignedStaff: { select: { id: true, firstName: true, lastName: true } },
+            assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
+          },
+        },
         activities: {
           orderBy: { createdAt: "desc" },
           take: 20,
@@ -1135,7 +2033,27 @@ router.get("/cases/:id", async (req, res) => {
       return;
     }
 
-    res.json(compassionCase);
+    res.json({
+      ...compassionCase,
+      assignedStaff: resolveStaffReference({
+        assignedCompassionStaff: compassionCase.assignedCompassionStaff,
+        assignedStaff: compassionCase.assignedStaff,
+      }),
+      appointments: compassionCase.appointments.map((item) => ({
+        ...item,
+        assignedStaff: resolveStaffReference({
+          assignedCompassionStaff: item.assignedCompassionStaff,
+          assignedStaff: item.assignedStaff,
+        }),
+      })),
+      followUps: compassionCase.followUps.map((item) => ({
+        ...item,
+        assignedStaff: resolveStaffReference({
+          assignedCompassionStaff: item.assignedCompassionStaff,
+          assignedStaff: item.assignedStaff,
+        }),
+      })),
+    });
   } catch (err) {
     console.error("[compassion] GET /cases/:id error:", err);
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load case" } });
@@ -1153,7 +2071,50 @@ router.put("/cases/:id", async (req, res) => {
       res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
       return;
     }
-    const { caseStatus, caseType, priority, summary, assignedStaffId, closedAt, privateNotes } = req.body;
+    const {
+      caseStatus,
+      caseType,
+      priority,
+      summary,
+      assignedStaffId,
+      assignedCompassionStaffId,
+      closedAt,
+      privateNotes,
+    } = req.body;
+
+    const compassionStaffProvided = assignedCompassionStaffId !== undefined;
+    const legacyStaffProvided = assignedStaffId !== undefined;
+    let normalizedAssignedCompassionStaffId = compassionStaffProvided
+      ? normalizeOptionalId(assignedCompassionStaffId)
+      : undefined;
+    let normalizedAssignedStaffId = legacyStaffProvided
+      ? normalizeOptionalId(assignedStaffId)
+      : undefined;
+
+    if (compassionStaffProvided) {
+      if (normalizedAssignedCompassionStaffId) {
+        const compassionStaff = await getValidCompassionStaff({
+          organizationId,
+          compassionStaffId: normalizedAssignedCompassionStaffId,
+          requireActive: true,
+        });
+        if (!compassionStaff) {
+          res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned compassion staff member not found" } });
+          return;
+        }
+        if (!legacyStaffProvided) {
+          normalizedAssignedStaffId = compassionStaff.linkedUserId ?? null;
+        }
+      } else if (!legacyStaffProvided) {
+        normalizedAssignedStaffId = null;
+      }
+    }
+
+    if ((legacyStaffProvided || compassionStaffProvided)
+      && !await hasValidLegacyStaffUser({ organizationId, assignedStaffId: normalizedAssignedStaffId ?? null })) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned legacy staff account not found" } });
+      return;
+    }
 
     const updated = await prisma.compassionCase.updateMany({
       where: { id: req.params.id as string, organizationId },
@@ -1162,7 +2123,8 @@ router.put("/cases/:id", async (req, res) => {
         ...(caseType !== undefined && { caseType: caseType as CompassionCaseType }),
         ...(priority !== undefined && { priority: priority as CompassionPriority }),
         ...(summary !== undefined && { summary }),
-        ...(assignedStaffId !== undefined && { assignedStaffId }),
+        ...(compassionStaffProvided && { assignedCompassionStaffId: normalizedAssignedCompassionStaffId ?? null }),
+        ...((legacyStaffProvided || compassionStaffProvided) && { assignedStaffId: normalizedAssignedStaffId ?? null }),
         ...(closedAt !== undefined && { closedAt: closedAt ? new Date(closedAt) : null }),
         ...(privateNotes !== undefined && { privateNotes }),
       },
@@ -1224,9 +2186,176 @@ router.delete("/cases/:id", requireRole("admin"), async (req, res) => {
 
 // ─── Appointments ──────────────────────────────────────────────────────────────
 
+const DEFAULT_APPOINTMENT_DURATION_MINUTES = 60;
+const APPOINTMENT_BLOCKING_STATUSES: CompassionAppointmentStatus[] = ["SCHEDULED", "RESCHEDULED"];
+
+/** Adds a number of minutes to a date and returns a new Date instance. */
+function addMinutes(base: Date, minutes: number): Date {
+  return new Date(base.getTime() + minutes * 60_000);
+}
+
+/** Clamps user-provided appointment durations to a safe range. */
+function sanitizeDurationMinutes(rawValue: unknown): number {
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed)) return DEFAULT_APPOINTMENT_DURATION_MINUTES;
+  return Math.min(12 * 60, Math.max(5, Math.round(parsed)));
+}
+
+/** Normalizes location for conflict comparisons. */
+function normalizeLocation(value: string | null | undefined): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+/** Resolves an appointment time window from start/end and optional duration. */
+function resolveAppointmentWindow(params: {
+  startTime: unknown;
+  endTime?: unknown;
+  durationMinutes?: unknown;
+}): { start: Date; end: Date; durationMinutes: number } | null {
+  const start = new Date(String(params.startTime ?? ""));
+  if (Number.isNaN(start.getTime())) return null;
+
+  if (params.endTime !== undefined && params.endTime !== null && params.endTime !== "") {
+    const explicitEnd = new Date(String(params.endTime));
+    if (Number.isNaN(explicitEnd.getTime()) || explicitEnd <= start) return null;
+    const explicitDuration = Math.max(5, Math.round((explicitEnd.getTime() - start.getTime()) / 60_000));
+    return { start, end: explicitEnd, durationMinutes: explicitDuration };
+  }
+
+  const durationMinutes = sanitizeDurationMinutes(params.durationMinutes);
+  return { start, end: addMinutes(start, durationMinutes), durationMinutes };
+}
+
+interface AppointmentConflict {
+  id: string;
+  startTime: string;
+  endTime: string;
+  reasons: Array<"CLIENT" | "STAFF" | "LOCATION">;
+  clientName: string;
+  assignedStaffName: string | null;
+  location: string | null;
+}
+
+/**
+ * Finds overlapping appointments that should block scheduling.
+ * Conflicts are returned for same client, same staff, or same location.
+ */
+async function findAppointmentConflicts(params: {
+  organizationId: string;
+  start: Date;
+  end: Date;
+  clientId: string;
+  assignedCompassionStaffId?: string | null;
+  assignedStaffId?: string | null;
+  location?: string | null;
+  excludeAppointmentId?: string;
+}): Promise<AppointmentConflict[]> {
+  const where: Prisma.CompassionAppointmentWhereInput = {
+    organizationId: params.organizationId,
+    status: { in: APPOINTMENT_BLOCKING_STATUSES },
+    startTime: { lt: params.end },
+    OR: [{ endTime: null }, { endTime: { gt: params.start } }],
+    ...(params.excludeAppointmentId ? { id: { not: params.excludeAppointmentId } } : {}),
+  };
+
+  const candidates = await prisma.compassionAppointment.findMany({
+    where,
+    include: {
+      client: { select: { firstName: true, lastName: true } },
+      assignedStaff: { select: { firstName: true, lastName: true } },
+      assignedCompassionStaff: { select: { firstName: true, lastName: true, displayName: true } },
+    },
+  });
+
+  const targetLocation = normalizeLocation(params.location);
+  const conflicts: AppointmentConflict[] = [];
+
+  for (const candidate of candidates) {
+    const candidateEnd = candidate.endTime ?? addMinutes(candidate.startTime, DEFAULT_APPOINTMENT_DURATION_MINUTES);
+    const overlaps = candidate.startTime < params.end && candidateEnd > params.start;
+    if (!overlaps) continue;
+
+    const reasons: Array<"CLIENT" | "STAFF" | "LOCATION"> = [];
+    if (candidate.clientId === params.clientId) reasons.push("CLIENT");
+    const sameCompassionStaff = Boolean(
+      params.assignedCompassionStaffId
+      && candidate.assignedCompassionStaffId
+      && candidate.assignedCompassionStaffId === params.assignedCompassionStaffId,
+    );
+    const sameLegacyStaff = Boolean(
+      params.assignedStaffId
+      && candidate.assignedStaffId
+      && candidate.assignedStaffId === params.assignedStaffId,
+    );
+    if (sameCompassionStaff || sameLegacyStaff) reasons.push("STAFF");
+
+    const candidateLocation = normalizeLocation(candidate.location);
+    if (targetLocation && candidateLocation && candidateLocation === targetLocation) reasons.push("LOCATION");
+
+    if (reasons.length === 0) continue;
+
+    conflicts.push({
+      id: candidate.id,
+      startTime: candidate.startTime.toISOString(),
+      endTime: candidateEnd.toISOString(),
+      reasons,
+      clientName: `${candidate.client.firstName} ${candidate.client.lastName}`,
+      assignedStaffName: candidate.assignedCompassionStaff
+        ? (candidate.assignedCompassionStaff.displayName ?? `${candidate.assignedCompassionStaff.firstName} ${candidate.assignedCompassionStaff.lastName}`)
+        : (candidate.assignedStaff ? `${candidate.assignedStaff.firstName} ${candidate.assignedStaff.lastName}` : null),
+      location: candidate.location ?? null,
+    });
+  }
+
+  return conflicts;
+}
+
+/** Maps a DB appointment to a consistent API shape for list + calendar views. */
+function mapAppointmentForWorkspace<T extends {
+  startTime: Date;
+  endTime: Date | null;
+  followUpNeeded: boolean;
+  assignedCompassionStaff?: { id: string; firstName: string; lastName: string; displayName?: string | null } | null;
+  assignedStaff?: { id: string; firstName: string; lastName: string } | null;
+  client: { id: string; firstName: string; lastName: string; email?: string | null; phone?: string | null; intakeDate?: Date | null };
+}>(
+  appointment: T,
+  firstAppointmentByClient: Map<string, number>,
+  noShowCountByClient: Map<string, number>,
+) {
+  const resolvedEnd = appointment.endTime ?? addMinutes(appointment.startTime, DEFAULT_APPOINTMENT_DURATION_MINUTES);
+  const durationMinutes = Math.max(5, Math.round((resolvedEnd.getTime() - appointment.startTime.getTime()) / 60_000));
+  const firstStart = firstAppointmentByClient.get(appointment.client.id);
+  const noShowCount = noShowCountByClient.get(appointment.client.id) ?? 0;
+  const hasContact = Boolean((appointment.client.email ?? "").trim() || (appointment.client.phone ?? "").trim());
+
+  return {
+    ...appointment,
+    endTime: resolvedEnd,
+    durationMinutes,
+    assignedStaff: resolveStaffReference({
+      assignedCompassionStaff: appointment.assignedCompassionStaff,
+      assignedStaff: appointment.assignedStaff,
+    }),
+    staff: resolveStaffReference({
+      assignedCompassionStaff: appointment.assignedCompassionStaff,
+      assignedStaff: appointment.assignedStaff,
+    }),
+    flags: {
+      firstVisit: typeof firstStart === "number" && firstStart === appointment.startTime.getTime(),
+      followUpNeeded: Boolean(appointment.followUpNeeded),
+      noShowRisk: noShowCount > 0,
+      incompleteIntake: !hasContact,
+      noShowCount,
+    },
+  };
+}
+
 /**
  * GET /api/compassion/appointments
- * List appointments. Supports filters: clientId, caseId, status, dateFrom, dateTo.
+ * List appointments for calendar/list workspace.
+ * Supports filters: clientId, caseId, status, appointmentType, assignedStaffId,
+ * dateFrom, dateTo, location, search plus sorting.
  */
 router.get("/appointments", async (req, res) => {
   try {
@@ -1236,33 +2365,121 @@ router.get("/appointments", async (req, res) => {
       return;
     }
 
-    const { clientId, caseId, status, dateFrom, dateTo, limit = "50" } = req.query as Record<string, string>;
+    const {
+      clientId,
+      caseId,
+      status,
+      appointmentType,
+      assignedStaffId,
+      dateFrom,
+      dateTo,
+      location,
+      search,
+      sortBy = "startTime",
+      sortOrder = "asc",
+      limit = "250",
+    } = req.query as Record<string, string>;
+
+    const parsedLimit = Math.min(1000, Math.max(1, Number.parseInt(limit, 10) || 250));
+    const normalizedSearch = (search ?? "").trim();
+
+    const whereClauses: Array<Record<string, unknown>> = [];
+    if (assignedStaffId) {
+      whereClauses.push({
+        OR: [
+          { assignedCompassionStaffId: assignedStaffId },
+          { assignedStaffId },
+        ],
+      });
+    }
+
+    if (normalizedSearch) {
+      whereClauses.push({
+        OR: [
+          { notes: { contains: normalizedSearch } },
+          { location: { contains: normalizedSearch } },
+          { client: { firstName: { contains: normalizedSearch } } },
+          { client: { lastName: { contains: normalizedSearch } } },
+          { client: { email: { contains: normalizedSearch } } },
+          { client: { phone: { contains: normalizedSearch } } },
+          { assignedCompassionStaff: { is: { firstName: { contains: normalizedSearch } } } },
+          { assignedCompassionStaff: { is: { lastName: { contains: normalizedSearch } } } },
+        ],
+      });
+    }
+
+    const where = {
+      organizationId,
+      ...(clientId && { clientId }),
+      ...(caseId && { caseId }),
+      ...(status && { status: status as CompassionAppointmentStatus }),
+      ...(appointmentType && { appointmentType: appointmentType as CompassionAppointmentType }),
+      ...(location && { location: location.trim() }),
+      ...(dateFrom || dateTo
+        ? {
+            startTime: {
+              ...(dateFrom && { gte: new Date(dateFrom) }),
+              ...(dateTo && { lte: new Date(dateTo) }),
+            },
+          }
+        : {}),
+      ...(whereClauses.length > 0 ? { AND: whereClauses } : {}),
+    };
+
+    const orderBy: Prisma.CompassionAppointmentOrderByWithRelationInput =
+      sortBy === "status"
+        ? { status: sortOrder === "desc" ? "desc" : "asc" }
+        : sortBy === "createdAt"
+          ? { createdAt: sortOrder === "desc" ? "desc" : "asc" }
+          : sortBy === "appointmentType"
+            ? { appointmentType: sortOrder === "desc" ? "desc" : "asc" }
+            : { startTime: sortOrder === "desc" ? "desc" : "asc" };
 
     const appointments = await prisma.compassionAppointment.findMany({
-      where: {
-        organizationId,
-        ...(clientId && { clientId }),
-        ...(caseId && { caseId }),
-        ...(status && { status: status as CompassionAppointmentStatus }),
-        ...(dateFrom || dateTo
-          ? {
-              startTime: {
-                ...(dateFrom && { gte: new Date(dateFrom) }),
-                ...(dateTo && { lte: new Date(dateTo) }),
-              },
-            }
-          : {}),
-      },
-      take: parseInt(limit),
-      orderBy: { startTime: "desc" },
+      where,
+      take: parsedLimit,
+      orderBy,
       include: {
-        client: { select: { id: true, firstName: true, lastName: true } },
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            intakeDate: true,
+          },
+        },
         assignedStaff: { select: { id: true, firstName: true, lastName: true } },
+        assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
         case: { select: { id: true, caseNumber: true } },
       },
     });
 
-    res.json(appointments);
+    const clientIds = [...new Set(appointments.map((appointment) => appointment.client.id))];
+    const [firstByClient, noShowByClient] = await Promise.all([
+      clientIds.length > 0
+        ? prisma.compassionAppointment.groupBy({
+            by: ["clientId"],
+            where: { organizationId, clientId: { in: clientIds } },
+            _min: { startTime: true },
+          })
+        : Promise.resolve([]),
+      clientIds.length > 0
+        ? prisma.compassionAppointment.groupBy({
+            by: ["clientId"],
+            where: { organizationId, clientId: { in: clientIds }, status: "NO_SHOW" },
+            _count: { _all: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const firstAppointmentByClient = new Map(firstByClient.map((row) => [row.clientId, row._min.startTime?.getTime() ?? Number.NaN]));
+    const noShowCountByClient = new Map(noShowByClient.map((row) => [row.clientId, row._count._all]));
+
+    const shaped = appointments.map((appointment) => mapAppointmentForWorkspace(appointment, firstAppointmentByClient, noShowCountByClient));
+
+    res.json(shaped);
   } catch (err) {
     console.error("[compassion] GET /appointments error:", err);
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load appointments" } });
@@ -1272,8 +2489,8 @@ router.get("/appointments", async (req, res) => {
 /**
  * POST /api/compassion/appointments
  * Create a new appointment.
- * Body: { clientId, caseId?, appointmentType?, status?, startTime, endTime?,
- *          location?, assignedStaffId?, notes? }
+ * Body: { clientId, caseId?, appointmentType?, status?, startTime, endTime?, durationMinutes?,
+ *          location?, assignedStaffId?, notes?, followUpNeeded?, allowConflict? }
  */
 router.post("/appointments", async (req, res) => {
   try {
@@ -1287,29 +2504,120 @@ router.post("/appointments", async (req, res) => {
     }
 
     const {
-      clientId, caseId, appointmentType, status, startTime, endTime,
-      timezone, location, assignedStaffId, notes, followUpNeeded,
-    } = req.body;
+      clientId,
+      caseId,
+      appointmentType,
+      status,
+      startTime,
+      endTime,
+      durationMinutes,
+      timezone,
+      location,
+      assignedCompassionStaffId,
+      assignedStaffId,
+      notes,
+      followUpNeeded,
+      allowConflict,
+    } = req.body as Record<string, unknown>;
 
     if (!clientId || !startTime) {
       res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "clientId and startTime are required" } });
       return;
     }
 
+    const timeWindow = resolveAppointmentWindow({ startTime, endTime, durationMinutes });
+    if (!timeWindow) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid appointment time window" } });
+      return;
+    }
+
+    const normalizedAssignedCompassionStaffId = normalizeOptionalId(assignedCompassionStaffId);
+    let normalizedAssignedStaffId = normalizeOptionalId(assignedStaffId);
+    const normalizedLocation = String(location ?? "").trim() || null;
+
+    if (normalizedAssignedCompassionStaffId) {
+      const compassionStaff = await getValidCompassionStaff({
+        organizationId,
+        compassionStaffId: normalizedAssignedCompassionStaffId,
+        requireActive: true,
+      });
+      if (!compassionStaff) {
+        res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned compassion staff member not found" } });
+        return;
+      }
+      if (!compassionStaff.supportsScheduling) {
+        res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned compassion staff member is not available for scheduling" } });
+        return;
+      }
+      normalizedAssignedStaffId = normalizedAssignedStaffId ?? compassionStaff.linkedUserId ?? null;
+    }
+
+    const client = await prisma.compassionClient.findFirst({
+      where: { id: String(clientId), organizationId },
+      select: { id: true },
+    });
+    if (!client) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Client not found in this organization" } });
+      return;
+    }
+
+    if (caseId) {
+      const compassionCase = await prisma.compassionCase.findFirst({
+        where: { id: String(caseId), organizationId, clientId: client.id },
+        select: { id: true },
+      });
+      if (!compassionCase) {
+        res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Case not found for this client" } });
+        return;
+      }
+    }
+
+    if (!await hasValidLegacyStaffUser({ organizationId, assignedStaffId: normalizedAssignedStaffId })) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned legacy staff account not found" } });
+      return;
+    }
+
+    const conflicts = await findAppointmentConflicts({
+      organizationId,
+      start: timeWindow.start,
+      end: timeWindow.end,
+      clientId: client.id,
+      assignedCompassionStaffId: normalizedAssignedCompassionStaffId,
+      assignedStaffId: normalizedAssignedStaffId,
+      location: normalizedLocation,
+    });
+    if (!allowConflict && conflicts.length > 0) {
+      res.status(409).json({
+        error: {
+          code: "APPOINTMENT_CONFLICT",
+          message: "Appointment conflicts with an existing booking.",
+        },
+        conflicts,
+      });
+      return;
+    }
+
     const appointment = await prisma.compassionAppointment.create({
       data: {
         organizationId,
-        clientId,
-        caseId: caseId ?? null,
-        appointmentType: (appointmentType ?? "OTHER") as CompassionAppointmentType,
-        status: (status ?? "SCHEDULED") as CompassionAppointmentStatus,
-        startTime: new Date(startTime),
-        endTime: endTime ? new Date(endTime) : null,
-        timezone: timezone ?? "America/Chicago",
-        location: location ?? null,
-        assignedStaffId: assignedStaffId ?? null,
-        notes: notes ?? null,
+        clientId: client.id,
+        caseId: caseId ? String(caseId) : null,
+        appointmentType: (String(appointmentType ?? "OTHER") || "OTHER") as CompassionAppointmentType,
+        status: (String(status ?? "SCHEDULED") || "SCHEDULED") as CompassionAppointmentStatus,
+        startTime: timeWindow.start,
+        endTime: timeWindow.end,
+        timezone: String(timezone ?? "America/Chicago"),
+        location: normalizedLocation,
+        assignedCompassionStaffId: normalizedAssignedCompassionStaffId,
+        assignedStaffId: normalizedAssignedStaffId,
+        notes: notes ? String(notes) : null,
         followUpNeeded: followUpNeeded ?? false,
+      },
+      include: {
+        client: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, intakeDate: true } },
+        case: { select: { id: true, caseNumber: true } },
+        assignedStaff: { select: { id: true, firstName: true, lastName: true } },
+        assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
       },
     });
 
@@ -1317,16 +2625,41 @@ router.post("/appointments", async (req, res) => {
     await prisma.compassionActivity.create({
       data: {
         organizationId,
-        clientId,
-        caseId: caseId ?? null,
+        clientId: client.id,
+        caseId: caseId ? String(caseId) : null,
         appointmentId: appointment.id,
         activityType: "APPOINTMENT_SCHEDULED",
-        description: `Appointment scheduled for ${new Date(startTime).toLocaleDateString()}`,
+        description: `Appointment scheduled for ${timeWindow.start.toLocaleDateString()}`,
         performedById: req.user?.sub ?? null,
+        metadata: {
+          source: "internal-scheduler",
+          durationMinutes: timeWindow.durationMinutes,
+          assignedCompassionStaffId: normalizedAssignedCompassionStaffId,
+          assignedStaffId: normalizedAssignedStaffId,
+          location: normalizedLocation,
+        },
       },
     });
 
-    res.status(201).json(appointment);
+    await logAudit({
+      action: "COMPASSION_APPOINTMENT_CREATED",
+      entity: "CompassionAppointment",
+      entityId: appointment.id,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: {
+        clientId: client.id,
+        startTime: appointment.startTime,
+        endTime: appointment.endTime,
+        assignedCompassionStaffId: normalizedAssignedCompassionStaffId,
+        assignedStaffId: normalizedAssignedStaffId,
+        location: normalizedLocation,
+      },
+    });
+
+    const firstByClient = new Map([[appointment.client.id, appointment.startTime.getTime()]]);
+    const noShowByClient = new Map([[appointment.client.id, 0]]);
+    res.status(201).json(mapAppointmentForWorkspace(appointment, firstByClient, noShowByClient));
   } catch (err) {
     console.error("[compassion] POST /appointments error:", err);
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to create appointment" } });
@@ -1347,9 +2680,10 @@ router.get("/appointments/:id", async (req, res) => {
     const appointment = await prisma.compassionAppointment.findFirst({
       where: { id: req.params.id as string, organizationId },
       include: {
-        client: { select: { id: true, firstName: true, lastName: true } },
+        client: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, intakeDate: true } },
         case: { select: { id: true, caseNumber: true, caseType: true } },
         assignedStaff: { select: { id: true, firstName: true, lastName: true } },
+        assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
         followUps: true,
       },
     });
@@ -1359,7 +2693,9 @@ router.get("/appointments/:id", async (req, res) => {
       return;
     }
 
-    res.json(appointment);
+    const firstByClient = new Map([[appointment.client.id, appointment.startTime.getTime()]]);
+    const noShowByClient = new Map([[appointment.client.id, 0]]);
+    res.json(mapAppointmentForWorkspace(appointment, firstByClient, noShowByClient));
   } catch (err) {
     console.error("[compassion] GET /appointments/:id error:", err);
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load appointment" } });
@@ -1377,32 +2713,223 @@ router.patch("/appointments/:id", async (req, res) => {
       res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
       return;
     }
-    const {
-      status, outcome, notes, startTime, endTime,
-      location, assignedStaffId, followUpNeeded, appointmentType,
-    } = req.body;
-
-    const updated = await prisma.compassionAppointment.updateMany({
+    const existing = await prisma.compassionAppointment.findFirst({
       where: { id: req.params.id as string, organizationId },
-      data: {
-        ...(status !== undefined && { status: status as CompassionAppointmentStatus }),
-        ...(outcome !== undefined && { outcome }),
-        ...(notes !== undefined && { notes }),
-        ...(startTime !== undefined && { startTime: new Date(startTime) }),
-        ...(endTime !== undefined && { endTime: endTime ? new Date(endTime) : null }),
-        ...(location !== undefined && { location }),
-        ...(assignedStaffId !== undefined && { assignedStaffId }),
-        ...(followUpNeeded !== undefined && { followUpNeeded }),
-        ...(appointmentType !== undefined && { appointmentType: appointmentType as CompassionAppointmentType }),
+      include: {
+        client: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, intakeDate: true } },
       },
     });
 
-    if (updated.count === 0) {
+    if (!existing) {
       res.status(404).json({ error: { code: "NOT_FOUND", message: "Appointment not found" } });
       return;
     }
 
-    res.json({ id: req.params.id, updated: true });
+    const {
+      status,
+      outcome,
+      notes,
+      startTime,
+      endTime,
+      durationMinutes,
+      location,
+      assignedCompassionStaffId,
+      assignedStaffId,
+      followUpNeeded,
+      appointmentType,
+      caseId,
+      allowConflict,
+    } = req.body as Record<string, unknown>;
+
+    const nextClientId = existing.clientId;
+    const assignedCompassionStaffProvided = assignedCompassionStaffId !== undefined;
+    const assignedStaffProvided = assignedStaffId !== undefined;
+
+    let nextAssignedCompassionStaffId = assignedCompassionStaffProvided
+      ? normalizeOptionalId(assignedCompassionStaffId)
+      : existing.assignedCompassionStaffId;
+    let nextAssignedStaffId = assignedStaffProvided
+      ? normalizeOptionalId(assignedStaffId)
+      : existing.assignedStaffId;
+
+    if (assignedCompassionStaffProvided) {
+      if (nextAssignedCompassionStaffId) {
+        const compassionStaff = await getValidCompassionStaff({
+          organizationId,
+          compassionStaffId: nextAssignedCompassionStaffId,
+          requireActive: true,
+        });
+        if (!compassionStaff) {
+          res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned compassion staff member not found" } });
+          return;
+        }
+        if (!compassionStaff.supportsScheduling) {
+          res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned compassion staff member is not available for scheduling" } });
+          return;
+        }
+        if (!assignedStaffProvided) {
+          nextAssignedStaffId = compassionStaff.linkedUserId ?? null;
+        }
+      } else if (!assignedStaffProvided) {
+        nextAssignedStaffId = null;
+      }
+    }
+
+    const nextLocation = location !== undefined
+      ? (String(location ?? "").trim() || null)
+      : existing.location;
+    const nextCaseId = caseId !== undefined
+      ? (String(caseId ?? "").trim() || null)
+      : existing.caseId;
+
+    if (nextCaseId) {
+      const linkedCase = await prisma.compassionCase.findFirst({
+        where: { id: nextCaseId, organizationId, clientId: nextClientId },
+        select: { id: true },
+      });
+      if (!linkedCase) {
+        res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Case not found for this client" } });
+        return;
+      }
+    }
+
+    if (!await hasValidLegacyStaffUser({ organizationId, assignedStaffId: nextAssignedStaffId })) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned legacy staff account not found" } });
+      return;
+    }
+
+    let nextStart = existing.startTime;
+    let nextEnd = existing.endTime ?? addMinutes(existing.startTime, DEFAULT_APPOINTMENT_DURATION_MINUTES);
+
+    const startTimeProvided = startTime !== undefined;
+    const endTimeProvided = endTime !== undefined;
+    const durationProvided = durationMinutes !== undefined;
+
+    if (startTimeProvided || endTimeProvided || durationProvided) {
+      if (startTimeProvided && !endTimeProvided && !durationProvided) {
+        const shiftedStart = new Date(String(startTime));
+        if (Number.isNaN(shiftedStart.getTime())) {
+          res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid startTime" } });
+          return;
+        }
+        const currentDuration = Math.max(5, Math.round((nextEnd.getTime() - existing.startTime.getTime()) / 60_000));
+        nextStart = shiftedStart;
+        nextEnd = addMinutes(shiftedStart, currentDuration);
+      } else {
+        const effectiveEndInput = endTimeProvided
+          ? endTime
+          : (durationProvided ? undefined : existing.endTime?.toISOString());
+        const resolvedWindow = resolveAppointmentWindow({
+          startTime: startTimeProvided ? startTime : existing.startTime.toISOString(),
+          endTime: effectiveEndInput,
+          durationMinutes: durationProvided ? durationMinutes : undefined,
+        });
+        if (!resolvedWindow) {
+          res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid appointment time window" } });
+          return;
+        }
+        nextStart = resolvedWindow.start;
+        nextEnd = resolvedWindow.end;
+      }
+
+      const conflicts = await findAppointmentConflicts({
+        organizationId,
+        start: nextStart,
+        end: nextEnd,
+        clientId: nextClientId,
+        assignedCompassionStaffId: nextAssignedCompassionStaffId,
+        assignedStaffId: nextAssignedStaffId,
+        location: nextLocation,
+        excludeAppointmentId: existing.id,
+      });
+      if (!allowConflict && conflicts.length > 0) {
+        res.status(409).json({
+          error: {
+            code: "APPOINTMENT_CONFLICT",
+            message: "Appointment conflicts with an existing booking.",
+          },
+          conflicts,
+        });
+        return;
+      }
+    }
+
+    let nextStatus = status !== undefined
+      ? (String(status) as CompassionAppointmentStatus)
+      : existing.status;
+
+    if (status === undefined && (startTimeProvided || endTimeProvided || durationProvided)) {
+      if (existing.status === "SCHEDULED") nextStatus = "RESCHEDULED";
+    }
+
+    const updated = await prisma.compassionAppointment.update({
+      where: { id: existing.id },
+      data: {
+        status: nextStatus,
+        ...(outcome !== undefined && { outcome: outcome ? String(outcome) : null }),
+        ...(notes !== undefined && { notes: notes ? String(notes) : null }),
+        ...(startTimeProvided || endTimeProvided || durationProvided ? { startTime: nextStart, endTime: nextEnd } : {}),
+        ...(location !== undefined && { location: nextLocation }),
+        ...(assignedCompassionStaffProvided && { assignedCompassionStaffId: nextAssignedCompassionStaffId }),
+        ...((assignedStaffProvided || assignedCompassionStaffProvided) && { assignedStaffId: nextAssignedStaffId }),
+        ...(followUpNeeded !== undefined && { followUpNeeded: Boolean(followUpNeeded) }),
+        ...(appointmentType !== undefined && { appointmentType: String(appointmentType) as CompassionAppointmentType }),
+        ...(caseId !== undefined && { caseId: nextCaseId }),
+      },
+      include: {
+        client: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, intakeDate: true } },
+        case: { select: { id: true, caseNumber: true } },
+        assignedStaff: { select: { id: true, firstName: true, lastName: true } },
+        assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
+      },
+    });
+
+    const statusChanged = nextStatus !== existing.status;
+    const timeChanged = updated.startTime.getTime() !== existing.startTime.getTime()
+      || (updated.endTime?.getTime() ?? 0) !== (existing.endTime?.getTime() ?? 0);
+
+    if (statusChanged || timeChanged || notes !== undefined || outcome !== undefined) {
+      await prisma.compassionActivity.create({
+        data: {
+          organizationId,
+          clientId: updated.clientId,
+          caseId: updated.caseId,
+          appointmentId: updated.id,
+          activityType: statusChanged ? "APPOINTMENT_STATUS_UPDATED" : (timeChanged ? "APPOINTMENT_RESCHEDULED" : "APPOINTMENT_UPDATED"),
+          description: statusChanged
+            ? `Appointment status changed to ${nextStatus}`
+            : (timeChanged
+              ? `Appointment moved to ${updated.startTime.toLocaleString()}`
+              : "Appointment details updated"),
+          performedById: req.user?.sub ?? null,
+          metadata: {
+            previousStatus: existing.status,
+            newStatus: nextStatus,
+            previousStartTime: existing.startTime,
+            newStartTime: updated.startTime,
+          },
+        },
+      });
+    }
+
+    await logAudit({
+      action: "COMPASSION_APPOINTMENT_UPDATED",
+      entity: "CompassionAppointment",
+      entityId: updated.id,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: {
+        status: updated.status,
+        startTime: updated.startTime,
+        endTime: updated.endTime,
+        assignedCompassionStaffId: updated.assignedCompassionStaffId,
+        assignedStaffId: updated.assignedStaffId,
+      },
+    });
+
+    const firstByClient = new Map([[updated.client.id, updated.startTime.getTime()]]);
+    const noShowByClient = new Map([[updated.client.id, updated.status === "NO_SHOW" ? 1 : 0]]);
+    res.json(mapAppointmentForWorkspace(updated, firstByClient, noShowByClient));
   } catch (err) {
     console.error("[compassion] PATCH /appointments/:id error:", err);
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to update appointment" } });
@@ -1420,13 +2947,37 @@ router.delete("/appointments/:id", async (req, res) => {
       res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
       return;
     }
-    const deleted = await prisma.compassionAppointment.deleteMany({
+    const appointment = await prisma.compassionAppointment.findFirst({
       where: { id: req.params.id as string, organizationId },
+      select: { id: true, clientId: true, caseId: true },
     });
-    if (deleted.count === 0) {
+    if (!appointment) {
       res.status(404).json({ error: { code: "NOT_FOUND", message: "Appointment not found" } });
       return;
     }
+
+    await prisma.compassionAppointment.delete({ where: { id: appointment.id } });
+
+    await prisma.compassionActivity.create({
+      data: {
+        organizationId,
+        clientId: appointment.clientId,
+        caseId: appointment.caseId,
+        appointmentId: appointment.id,
+        activityType: "APPOINTMENT_DELETED",
+        description: "Appointment deleted",
+        performedById: req.user?.sub ?? null,
+      },
+    });
+
+    await logAudit({
+      action: "COMPASSION_APPOINTMENT_DELETED",
+      entity: "CompassionAppointment",
+      entityId: appointment.id,
+      userId: req.user?.sub,
+      organizationId,
+    });
+
     res.status(204).send();
   } catch (err) {
     console.error("[compassion] DELETE /appointments/:id error:", err);
@@ -1448,25 +2999,43 @@ router.get("/follow-ups", async (req, res) => {
       return;
     }
 
-    const { clientId, status, assignedStaffId, limit = "50" } = req.query as Record<string, string>;
+    const { clientId, status, priority, assignedStaffId, limit = "50" } = req.query as Record<string, string>;
+
+    const whereClauses: Array<Record<string, unknown>> = [];
+    if (assignedStaffId) {
+      whereClauses.push({
+        OR: [
+          { assignedCompassionStaffId: assignedStaffId },
+          { assignedStaffId },
+        ],
+      });
+    }
 
     const followUps = await prisma.compassionFollowUp.findMany({
       where: {
         organizationId,
         ...(clientId && { clientId }),
         ...(status && { status: status as CompassionFollowUpStatus }),
-        ...(assignedStaffId && { assignedStaffId }),
+        ...(priority && { priority: priority as CompassionPriority }),
+        ...(whereClauses.length > 0 ? { AND: whereClauses } : {}),
       },
       take: parseInt(limit),
       orderBy: { dueDate: "asc" },
       include: {
         client: { select: { id: true, firstName: true, lastName: true } },
         assignedStaff: { select: { id: true, firstName: true, lastName: true } },
+        assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
         case: { select: { id: true, caseNumber: true } },
       },
     });
 
-    res.json(followUps);
+    res.json(followUps.map((item) => ({
+      ...item,
+      assignedStaff: resolveStaffReference({
+        assignedCompassionStaff: item.assignedCompassionStaff,
+        assignedStaff: item.assignedStaff,
+      }),
+    })));
   } catch (err) {
     console.error("[compassion] GET /follow-ups error:", err);
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load follow-ups" } });
@@ -1489,10 +3058,41 @@ router.post("/follow-ups", async (req, res) => {
       return;
     }
 
-    const { clientId, caseId, appointmentId, title, dueDate, priority, assignedStaffId, notes } = req.body;
+    const {
+      clientId,
+      caseId,
+      appointmentId,
+      title,
+      dueDate,
+      priority,
+      assignedStaffId,
+      assignedCompassionStaffId,
+      notes,
+    } = req.body;
 
     if (!clientId || !title || !dueDate) {
       res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "clientId, title, and dueDate are required" } });
+      return;
+    }
+
+    const normalizedAssignedCompassionStaffId = normalizeOptionalId(assignedCompassionStaffId);
+    let normalizedAssignedStaffId = normalizeOptionalId(assignedStaffId);
+
+    if (normalizedAssignedCompassionStaffId) {
+      const compassionStaff = await getValidCompassionStaff({
+        organizationId,
+        compassionStaffId: normalizedAssignedCompassionStaffId,
+        requireActive: true,
+      });
+      if (!compassionStaff) {
+        res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned compassion staff member not found" } });
+        return;
+      }
+      normalizedAssignedStaffId = normalizedAssignedStaffId ?? compassionStaff.linkedUserId ?? null;
+    }
+
+    if (!await hasValidLegacyStaffUser({ organizationId, assignedStaffId: normalizedAssignedStaffId })) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned legacy staff account not found" } });
       return;
     }
 
@@ -1505,13 +3105,26 @@ router.post("/follow-ups", async (req, res) => {
         title,
         dueDate: new Date(dueDate),
         priority: (priority ?? "MEDIUM") as CompassionPriority,
-        assignedStaffId: assignedStaffId ?? null,
+        assignedCompassionStaffId: normalizedAssignedCompassionStaffId,
+        assignedStaffId: normalizedAssignedStaffId,
         notes: notes ?? null,
         status: "PENDING",
       },
+      include: {
+        client: { select: { id: true, firstName: true, lastName: true } },
+        assignedStaff: { select: { id: true, firstName: true, lastName: true } },
+        assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
+        case: { select: { id: true, caseNumber: true } },
+      },
     });
 
-    res.status(201).json(followUp);
+    res.status(201).json({
+      ...followUp,
+      assignedStaff: resolveStaffReference({
+        assignedCompassionStaff: followUp.assignedCompassionStaff,
+        assignedStaff: followUp.assignedStaff,
+      }),
+    });
   } catch (err) {
     console.error("[compassion] POST /follow-ups error:", err);
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to create follow-up" } });
@@ -1529,7 +3142,49 @@ router.patch("/follow-ups/:id", async (req, res) => {
       res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
       return;
     }
-    const { status, title, dueDate, priority, assignedStaffId, notes } = req.body;
+    const {
+      status,
+      title,
+      dueDate,
+      priority,
+      assignedStaffId,
+      assignedCompassionStaffId,
+      notes,
+    } = req.body;
+
+    const compassionStaffProvided = assignedCompassionStaffId !== undefined;
+    const legacyStaffProvided = assignedStaffId !== undefined;
+    let normalizedAssignedCompassionStaffId = compassionStaffProvided
+      ? normalizeOptionalId(assignedCompassionStaffId)
+      : undefined;
+    let normalizedAssignedStaffId = legacyStaffProvided
+      ? normalizeOptionalId(assignedStaffId)
+      : undefined;
+
+    if (compassionStaffProvided) {
+      if (normalizedAssignedCompassionStaffId) {
+        const compassionStaff = await getValidCompassionStaff({
+          organizationId,
+          compassionStaffId: normalizedAssignedCompassionStaffId,
+          requireActive: true,
+        });
+        if (!compassionStaff) {
+          res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned compassion staff member not found" } });
+          return;
+        }
+        if (!legacyStaffProvided) {
+          normalizedAssignedStaffId = compassionStaff.linkedUserId ?? null;
+        }
+      } else if (!legacyStaffProvided) {
+        normalizedAssignedStaffId = null;
+      }
+    }
+
+    if ((legacyStaffProvided || compassionStaffProvided)
+      && !await hasValidLegacyStaffUser({ organizationId, assignedStaffId: normalizedAssignedStaffId ?? null })) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Assigned legacy staff account not found" } });
+      return;
+    }
 
     const updated = await prisma.compassionFollowUp.updateMany({
       where: { id: req.params.id as string, organizationId },
@@ -1538,7 +3193,8 @@ router.patch("/follow-ups/:id", async (req, res) => {
         ...(title !== undefined && { title }),
         ...(dueDate !== undefined && { dueDate: new Date(dueDate) }),
         ...(priority !== undefined && { priority: priority as CompassionPriority }),
-        ...(assignedStaffId !== undefined && { assignedStaffId }),
+        ...(compassionStaffProvided && { assignedCompassionStaffId: normalizedAssignedCompassionStaffId ?? null }),
+        ...((legacyStaffProvided || compassionStaffProvided) && { assignedStaffId: normalizedAssignedStaffId ?? null }),
         ...(notes !== undefined && { notes }),
         // Auto-set completedAt when marking complete
         ...(status === "COMPLETED" && { completedAt: new Date() }),
@@ -1586,7 +3242,7 @@ router.delete("/follow-ups/:id", async (req, res) => {
 
 /**
  * GET /api/compassion/services
- * List services delivered. Supports filters: clientId, caseId, serviceType.
+ * List services delivered. Supports filters: clientId, caseId, serviceType, serviceTypes.
  */
 router.get("/services", async (req, res) => {
   try {
@@ -1596,14 +3252,23 @@ router.get("/services", async (req, res) => {
       return;
     }
 
-    const { clientId, caseId, serviceType, limit = "50" } = req.query as Record<string, string>;
+    const { clientId, caseId, serviceType, serviceTypes, limit = "50" } = req.query as Record<string, string>;
+
+    const requestedTypes = (serviceTypes ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean) as CompassionServiceType[];
 
     const services = await prisma.compassionService.findMany({
       where: {
         organizationId,
         ...(clientId && { clientId }),
         ...(caseId && { caseId }),
-        ...(serviceType && { serviceType: serviceType as CompassionServiceType }),
+        ...(requestedTypes.length > 0
+          ? { serviceType: { in: requestedTypes } }
+          : serviceType
+            ? { serviceType: serviceType as CompassionServiceType }
+            : {}),
       },
       take: parseInt(limit),
       orderBy: { serviceDate: "desc" },
@@ -1660,6 +3325,101 @@ router.post("/services", async (req, res) => {
   } catch (err) {
     console.error("[compassion] POST /services error:", err);
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to create service record" } });
+  }
+});
+
+/**
+ * PATCH /api/compassion/services/:id
+ * Partially update a service record.
+ * Body: { serviceType?, serviceDate?, quantity?, notes?, providedById? }
+ */
+router.patch("/services/:id", async (req, res) => {
+  try {
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) {
+      res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+      return;
+    }
+
+    const { serviceType, serviceDate, quantity, notes, providedById } = req.body;
+
+    if (
+      serviceType === undefined
+      && serviceDate === undefined
+      && quantity === undefined
+      && notes === undefined
+      && providedById === undefined
+    ) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "No updatable fields were provided" } });
+      return;
+    }
+
+    if (quantity !== undefined && quantity !== null && quantity !== "") {
+      const parsedQuantity = Number(quantity);
+      if (!Number.isFinite(parsedQuantity) || parsedQuantity < 0) {
+        res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "quantity must be a non-negative number" } });
+        return;
+      }
+    }
+
+    if (serviceDate !== undefined) {
+      const parsedServiceDate = new Date(serviceDate);
+      if (Number.isNaN(parsedServiceDate.getTime())) {
+        res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "serviceDate must be a valid date" } });
+        return;
+      }
+    }
+
+    const updated = await prisma.compassionService.updateMany({
+      where: { id: req.params.id as string, organizationId },
+      data: {
+        ...(serviceType !== undefined && { serviceType: serviceType as CompassionServiceType }),
+        ...(serviceDate !== undefined && { serviceDate: new Date(serviceDate) }),
+        ...(quantity !== undefined && {
+          quantity:
+            quantity === null || quantity === ""
+              ? null
+              : Number(quantity),
+        }),
+        ...(notes !== undefined && { notes: String(notes ?? "").trim() || null }),
+        ...(providedById !== undefined && { providedById: providedById ? String(providedById) : null }),
+      },
+    });
+
+    if (updated.count === 0) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Service record not found" } });
+      return;
+    }
+
+    const service = await prisma.compassionService.findFirst({
+      where: { id: req.params.id as string, organizationId },
+      include: {
+        client: { select: { id: true, firstName: true, lastName: true } },
+        providedBy: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+
+    if (!service) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Service record not found" } });
+      return;
+    }
+
+    await logAudit({
+      action: "COMPASSION_SERVICE_UPDATED",
+      entity: "CompassionService",
+      entityId: service.id,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: {
+        clientId: service.clientId,
+        serviceType: service.serviceType,
+      },
+    });
+
+    res.json(service);
+  } catch (err) {
+    console.error("[compassion] PATCH /services/:id error:", err);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to update service record" } });
   }
 });
 
@@ -1859,9 +3619,17 @@ router.post("/clients/import", requirePermission("import:data"), async (req, res
         if (dryRun) {
           // Dry-run: tally what would happen without writing any data
           if (existing) {
-            mode === "create_only" ? skipped++ : updated++;
+            if (mode === "create_only") {
+              skipped++;
+            } else {
+              updated++;
+            }
           } else {
-            mode === "update_only" ? skipped++ : created++;
+            if (mode === "update_only") {
+              skipped++;
+            } else {
+              created++;
+            }
           }
           continue;
         }

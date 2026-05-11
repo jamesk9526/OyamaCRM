@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 import EventsKPICard from "@/app/components/events/EventsKPICard";
 import EventsActionCard from "@/app/components/events/EventsActionCard";
@@ -13,6 +14,7 @@ import type { EventItem, EventsDashboardSummary } from "@/app/components/events/
  * so staff can move from planning into registration and check-in workflows.
  */
 export default function EventsDashboard() {
+  const router = useRouter();
   const [summary, setSummary] = useState<EventsDashboardSummary | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,11 +94,18 @@ export default function EventsDashboard() {
           <Link href="/events/events" className="px-3 py-2 text-sm font-medium border border-amber-200 text-amber-700 rounded-lg bg-white hover:bg-amber-50 transition-colors">
             Events Registry
           </Link>
-          <Link href="/events/check-in" className="px-3 py-2 text-sm font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors">
-            Launch Check-In
+          <Link href="/events/workspace?tool=check-in" className="px-3 py-2 text-sm font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors">
+            Event Workspace
           </Link>
         </div>
       </div>
+
+      <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">Event-Scoped Workflow</p>
+        <p className="text-sm text-amber-900 mt-1">
+          Start from the workspace selector, pick one event, then open tools in that event scope. This avoids mixing records across events.
+        </p>
+      </section>
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         <EventsKPICard
@@ -148,6 +157,7 @@ export default function EventsDashboard() {
                 badge="2 PENDING"
                 badgeColor="amber"
                 actionLabel="Review Setup"
+                onAction={() => router.push("/events/events")}
                 icon={
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
@@ -161,6 +171,7 @@ export default function EventsDashboard() {
                 badge="47 GUESTS"
                 badgeColor="blue"
                 actionLabel="View Guest List"
+                onAction={() => router.push("/events/workspace?tool=guests")}
                 icon={
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
@@ -174,6 +185,7 @@ export default function EventsDashboard() {
                 badge="2 TABLES"
                 badgeColor="amber"
                 actionLabel="Manage Tables"
+                onAction={() => router.push("/events/workspace?tool=tables")}
                 icon={
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <circle cx="12" cy="12" r="4" strokeWidth={1.75} />
@@ -190,6 +202,7 @@ export default function EventsDashboard() {
                 badge="3 EVENTS"
                 badgeColor="red"
                 actionLabel="Send Thank-Yous"
+                onAction={() => router.push("/events/workspace?tool=communications")}
                 icon={
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
@@ -206,12 +219,12 @@ export default function EventsDashboard() {
               {[
                 { label: "Create Event", href: "/events/events" },
                 { label: "Event Setup", href: "/events/setup" },
-                { label: "Add Guests", href: "/events/guests" },
-                { label: "Configure Tickets", href: "/events/tickets" },
-                { label: "Add Sponsors", href: "/events/sponsors" },
-                { label: "Seating Chart", href: "/events/tables" },
-                { label: "Check-In", href: "/events/check-in" },
-                { label: "Event Reports", href: "/events/reports" },
+                { label: "Add Guests", href: "/events/workspace?tool=guests" },
+                { label: "Configure Tickets", href: "/events/workspace?tool=tickets" },
+                { label: "Add Sponsors", href: "/events/workspace?tool=sponsors" },
+                { label: "Seating Chart", href: "/events/workspace?tool=tables" },
+                { label: "Check-In", href: "/events/workspace?tool=check-in" },
+                { label: "Event Reports", href: "/events/workspace?tool=reports" },
               ].map(({ label, href }) => (
                 <Link
                   key={href}
@@ -284,11 +297,11 @@ export default function EventsDashboard() {
             <div className="mt-4 space-y-2">
               {([
                 { label: "Event Registry", status: "ACTIVE", color: "green" },
-                { label: "Ticket Configuration", status: "IN PROGRESS", color: "amber" },
-                { label: "Guest Management", status: "IN PROGRESS", color: "amber" },
-                { label: "Table Assignments", status: "PLANNED", color: "blue" },
-                { label: "Check-In Workflow", status: "PLANNED", color: "blue" },
-                { label: "Post-Event Reporting", status: "PLANNED", color: "blue" },
+                { label: "Ticket Configuration", status: "LIVE", color: "green" },
+                { label: "Guest Management", status: "LIVE", color: "green" },
+                { label: "Table Assignments", status: "LIVE", color: "green" },
+                { label: "Check-In Workflow", status: "LIVE", color: "green" },
+                { label: "Post-Event Reporting", status: "LIVE", color: "green" },
               ] as const).map((item) => {
                 const colorMap = {
                   green: "bg-green-100 text-green-700 border-green-200",

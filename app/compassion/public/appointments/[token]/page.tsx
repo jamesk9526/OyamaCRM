@@ -47,6 +47,27 @@ interface PublicWidgetConfig {
   textColor: string;
   enabledFields: PublicWidgetFieldConfig[];
   customQuestions: PublicWidgetCustomQuestion[];
+  slotIntervalMinutes: number;
+  appointmentDurationMinutes: number;
+  minLeadHours: number;
+  maxAdvanceDays: number;
+}
+
+interface PublicAvailableSlot {
+  startTime: string;
+  endTime: string;
+  location: string;
+  appointmentType: string;
+  capacity: number;
+  remainingCapacity: number;
+}
+
+interface PublicSlotsResponse {
+  date: string;
+  timezone: string;
+  slotIntervalMinutes: number;
+  appointmentDurationMinutes: number;
+  slots: PublicAvailableSlot[];
 }
 
 interface PublicPageProps {
@@ -72,6 +93,23 @@ function fieldByKey(fields: PublicWidgetFieldConfig[], key: WidgetFieldKey): Pub
   };
 }
 
+/** Converts Date to local YYYY-MM-DD key for date input controls. */
+function toDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/** Formats an ISO slot into user-friendly date/time text. */
+function formatSlotLabel(slot: PublicAvailableSlot): string {
+  const start = new Date(slot.startTime);
+  const end = new Date(slot.endTime);
+  const timeText = `${start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} - ${end.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  const locationText = slot.location ? ` | ${slot.location}` : "";
+  return `${timeText}${locationText} | ${slot.remainingCapacity} open`;
+}
+
 /**
  * PublicAppointmentWidgetPage renders an unauthenticated booking form
  * for a configured Compassion CRM appointment widget token.
@@ -83,6 +121,13 @@ export default function PublicAppointmentWidgetPage({ params }: PublicPageProps)
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotsError, setSlotsError] = useState<string | null>(null);
+  const [slots, setSlots] = useState<PublicAvailableSlot[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    return toDateKey(tomorrow);
+  });
   const [customResponses, setCustomResponses] = useState<Record<string, string | boolean>>({});
   const [form, setForm] = useState({
     firstName: "",
@@ -116,7 +161,9 @@ export default function PublicAppointmentWidgetPage({ params }: PublicPageProps)
         ...prev,
         location: (body.locationOptions || [""])[0] || "",
         appointmentType: body.defaultAppointmentType || "INTAKE",
+        startTime: "",
       }));
+      setSelectedDate(toDateKey(new Date(Date.now() + 24 * 60 * 60 * 1000)));
       const nextResponses: Record<string, string | boolean> = {};
       const customQuestions = Array.isArray(body.customQuestions) ? body.customQuestions : [];
       for (const question of customQuestions) {
@@ -131,8 +178,61 @@ export default function PublicAppointmentWidgetPage({ params }: PublicPageProps)
   }, [token]);
 
   useEffect(() => {
-    load();
+    const timeoutId = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [load]);
+
+  const loadSlots = useCallback(async () => {
+    if (!config || !selectedDate) return;
+
+    setSlotsLoading(true);
+    setSlotsError(null);
+    try {
+      const params = new URLSearchParams({ date: selectedDate });
+      if (locationField.enabled && form.location.trim()) {
+        params.set("location", form.location.trim());
+      }
+      if (typeField.enabled && (config.allowTypeSelection || config.defaultAppointmentType)) {
+        params.set("appointmentType", form.appointmentType || config.defaultAppointmentType);
+      }
+
+      const res = await fetch(`${API_BASE}/api/compassion-public/widget/${token}/slots?${params.toString()}`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(body?.error?.message ?? "Could not load available slots");
+      }
+
+      const nextSlots = Array.isArray((body as PublicSlotsResponse).slots)
+        ? (body as PublicSlotsResponse).slots
+        : [];
+      setSlots(nextSlots);
+
+      setForm((current) => {
+        if (!current.startTime && nextSlots.length > 0) {
+          return { ...current, startTime: nextSlots[0].startTime };
+        }
+        if (current.startTime && !nextSlots.some((slot) => slot.startTime === current.startTime)) {
+          return { ...current, startTime: nextSlots[0]?.startTime ?? "" };
+        }
+        return current;
+      });
+    } catch (err) {
+      setSlots([]);
+      setSlotsError(err instanceof Error ? err.message : "Could not load available slots");
+      setForm((current) => ({ ...current, startTime: "" }));
+    } finally {
+      setSlotsLoading(false);
+    }
+  }, [config, form.appointmentType, form.location, locationField.enabled, selectedDate, token, typeField.enabled]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadSlots();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [loadSlots]);
 
   const canSubmit = useMemo(() => {
     if (!config) return false;
@@ -168,13 +268,12 @@ export default function PublicAppointmentWidgetPage({ params }: PublicPageProps)
     setSuccess(null);
 
     try {
-      const startIso = new Date(form.startTime).toISOString();
       const res = await fetch(`${API_BASE}/api/compassion-public/widget/${token}/appointments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
-          startTime: startIso,
+          startTime: form.startTime,
           customResponses,
         }),
       });
@@ -187,6 +286,7 @@ export default function PublicAppointmentWidgetPage({ params }: PublicPageProps)
       setForm((prev) => ({
         ...prev,
         notes: "",
+        startTime: "",
       }));
 
       const resetResponses: Record<string, string | boolean> = {};
@@ -194,6 +294,7 @@ export default function PublicAppointmentWidgetPage({ params }: PublicPageProps)
         resetResponses[question.id] = question.type === "checkbox" ? false : "";
       }
       setCustomResponses(resetResponses);
+      await loadSlots();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit request");
     } finally {
@@ -305,15 +406,56 @@ export default function PublicAppointmentWidgetPage({ params }: PublicPageProps)
                     </div>
                   )}
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Preferred Date & Time *</label>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Preferred Date *</label>
                     <input
-                      type="datetime-local"
+                      type="date"
+                      required
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Available Appointment Slots *</label>
+                  {slotsLoading ? (
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500 animate-pulse">
+                      Loading available time slots...
+                    </div>
+                  ) : slotsError ? (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 space-y-1">
+                      <p>{slotsError}</p>
+                      <button
+                        type="button"
+                        onClick={() => void loadSlots()}
+                        className="text-xs font-medium text-red-700 underline"
+                      >
+                        Retry slot lookup
+                      </button>
+                    </div>
+                  ) : slots.length === 0 ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                      No slots are currently available for this date. Try another day.
+                    </div>
+                  ) : (
+                    <select
                       required
                       value={form.startTime}
                       onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                    />
-                  </div>
+                    >
+                      <option value="">Select an available slot</option>
+                      {slots.map((slot) => (
+                        <option key={`${slot.startTime}-${slot.location}-${slot.appointmentType}`} value={slot.startTime}>
+                          {formatSlotLabel(slot)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Office hours and blackout dates are managed by staff. Only valid bookable slots appear here.
+                  </p>
                 </div>
 
                 {locationField.enabled && config.locationOptions.length > 0 && (

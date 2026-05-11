@@ -1,5 +1,42 @@
 # OyamaCRM Production Readiness Audit — 2026-05-08
 
+## 2026-05-10 Full Production Pass Update (Supersedes Prior Score)
+
+This section supersedes the previous readiness score and is the current release-gate view.
+
+- Central checklist: `docs/status/production-readiness-checklist.md`
+- Office guide: `HOWTO/HOW_TO_USE.md`
+- Overall release gate: **Not production-ready**
+
+### Current Validation Reality
+
+- `pnpm db:verify:demo`: pass
+- `pnpm test`: fail (`244 passed`, `10 failed`, `2 failed files`)
+- `pnpm test:smoke`: fail (`94 passed`, `10 failed`, `2 failed files`)
+- `pnpm test:coverage`: fail (`244 passed`, `10 failed`, `2 failed files`)
+- `pnpm test:e2e`: fail (redirect/auth-state failure on `/events/workspace`)
+- `pnpm lint .`: fail (`RangeError: Invalid string length`)
+- scoped eslint (`app server tests prisma scripts`): fail (`85 problems`)
+- app typecheck: fail (`6 errors`)
+- server typecheck: fail (`13 errors`)
+- `pnpm build`: fail (setup route parse failure)
+- `pnpm build:server`: fail (`40 errors` in `27` files)
+
+### Highest-Severity Failures Found
+
+1. **Critical:** Event-scoped guests page runtime crash from unsafe `guest.event.id` access (`app/events/guests/page.tsx`).
+2. **High:** Events reports uses unauthenticated `fetch()` calls and fails under protected API behavior (`app/events/reports/EventReportsContent.tsx`).
+3. **High:** Grants smoke flow broken by status/contract drift (`tests/smoke/grants-crud.test.ts`, `server/src/routes/grants.ts`, `prisma/schema.prisma`).
+4. **High:** Compassion workflow smoke has non-deterministic client visibility assertion (`tests/smoke/routes-workflow.test.ts`).
+5. **High:** Frontend production build currently fails (`app/setup/page.tsx`).
+
+### Defect Tracking
+
+Use defect IDs `PR-001` through `PR-008` in the centralized ledger:
+`docs/status/production-readiness-checklist.md`
+
+---
+
 ## Executive Summary
 
 OyamaCRM is a **meaningful internal MVP** with real donor CRM foundations. Route-level RBAC has been implemented across all API routes, user management and audit log backend/UI are built, error response shapes are standardized, and all frontend pages now use authenticated API calls. Core donor workflows (auth, onboarding, constituents, donations, campaigns, tasks, reports) are present and secured. Remaining gaps are communications depth, Compassion workspace, export permission gating, and E2E testing.
@@ -56,6 +93,19 @@ The following items from the original 52% audit have been addressed:
 ### ✅ Audit log viewer UI built
 - `app/components/settings/AuditLogViewer.tsx` — paginated table with action badge, entity, user, IP, timestamp; filter bar (action search, entity dropdown, date range); expand row for metadata JSON
 - `app/settings/audit/page.tsx` — placeholder replaced with `<AuditLogViewer />`
+
+### ✅ Campaign detail workflow expansion (2026-05-10)
+- Added dedicated campaign info route: `app/campaigns/[id]/page.tsx`
+- Campaign cards now include explicit info navigation from list to detail view
+- Campaign detail supports full edit fields and campaign delete action using existing `/api/campaigns/:id` PATCH/DELETE APIs
+- Campaign detail now surfaces donation snapshot and recent donation list for faster campaign stewardship decisions
+
+### ✅ CRM organization and navigation boundary cleanup (2026-05-10)
+- Added event-first workspace selector route (`/events/workspace`) and routed dashboard quick actions through scoped tool entry.
+- Added legacy-route warning in Events layout for global compatibility paths (`/events/check-in`, `/events/guests`, etc.).
+- Added explicit in-development warning banner for scaffolded Events workspace pages.
+- Simplified app launcher to core modules/shared workspaces and removed overlapping duplicate app tiles.
+- Reduced settings sidebar clutter and overlap to improve one-home path clarity for governance controls.
 
 ---
 
@@ -157,7 +207,7 @@ The following items from the original 52% audit have been addressed:
 | Settings Workspace | Core | Partial | `app/settings/layout.tsx`, `app/components/settings/SettingsSidebar.tsx`, `app/settings/organization/page.tsx` | Roles, security, integrations tabs | Implement remaining tabs |
 | Constituents | OyamaCRM | Working | `app/constituents/*`, `server/src/routes/constituents.ts` | Import/dedupe/custom fields | Build import + dedupe wizard |
 | Donations | OyamaCRM | Working | `app/donations/*`, `server/src/routes/donations.ts` | Receipts, refunds, pledges UI | Add receipt/ack workflow |
-| Campaigns | OyamaCRM | Working | `app/campaigns/page.tsx`, `server/src/routes/campaigns.ts` | Drill-down analytics | Add campaign detail/reporting views |
+| Campaigns | OyamaCRM | Working | `app/campaigns/page.tsx`, `app/campaigns/[id]/page.tsx`, `server/src/routes/campaigns.ts` | Cross-channel attribution + comparative analytics | Add attribution reporting from communications/events and multi-campaign comparison views |
 | Tasks | OyamaCRM | Partial | `app/tasks/page.tsx`, `server/src/routes/tasks.ts` | Inline edit, templates, bulk operations | Add stewardship templates and inline edit |
 | Email Builder | OyamaCRM | Partial | `app/email-builder/*`, `server/src/routes/email-campaigns.ts` | Media uploads, merge fields, history, stats depth | Implement communication center upgrade |
 | Communications Dashboard | OyamaCRM | Partial | `app/communications/page.tsx`, `app/components/communications/NewCampaignModal.tsx` | Sent/failed detail, timeline wiring, permissions | Add campaign detail + communication history |

@@ -1,6 +1,6 @@
 /**
  * FunderManager — manage grant funders (foundations, government agencies, etc.).
- * Lists all funders with grant counts, supports add/edit via modal.
+ * Provides dedicated sections for adding, browsing, and editing funders.
  */
 "use client";
 
@@ -26,7 +26,7 @@ function FunderForm({
 }: {
   initial?: GrantFunder;
   onSave: (f: GrantFunder) => void;
-  onCancel: () => void;
+  onCancel?: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [type, setType] = useState<GrantFunderType>(initial?.type ?? "PRIVATE_FOUNDATION");
@@ -111,9 +111,11 @@ function FunderForm({
       </div>
 
       <div className="flex justify-end gap-2">
-        <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100">
-          Cancel
-        </button>
+        {onCancel && (
+          <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100">
+            Cancel
+          </button>
+        )}
         <button onClick={handleSave} disabled={saving}
           className="px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
           {saving ? "Saving…" : initial ? "Save Changes" : "Add Funder"}
@@ -127,8 +129,8 @@ function FunderForm({
 export default function FunderManager() {
   const [funders, setFunders] = useState<GrantFunder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
   const [editTarget, setEditTarget] = useState<GrantFunder | null>(null);
+  const [addFormKey, setAddFormKey] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -140,15 +142,29 @@ export default function FunderManager() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void load();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [load]);
 
   function handleSaved(f: GrantFunder) {
     setFunders((prev) => {
       const idx = prev.findIndex((x) => x.id === f.id);
       return idx >= 0 ? prev.map((x) => x.id === f.id ? f : x) : [f, ...prev];
     });
-    setShowAdd(false);
-    setEditTarget(null);
+
+    if (editTarget?.id === f.id) {
+      setEditTarget(null);
+      return;
+    }
+
+    // Reset the add form after creating a new funder.
+    setAddFormKey((value) => value + 1);
   }
 
   const TYPE_LABELS: Record<GrantFunderType, string> = {
@@ -164,48 +180,58 @@ export default function FunderManager() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="rounded-xl border border-gray-200 bg-white px-5 py-4">
         <div>
-          <h2 className="text-base font-semibold text-gray-900">Grant Funders</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Foundations, government agencies, and corporate funders</p>
+          <h2 className="text-base font-semibold text-gray-900">Grant Funder Directory</h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Keep funder records clean, searchable, and ready before creating new grant opportunities.
+          </p>
         </div>
-        {!showAdd && (
-          <button
-            onClick={() => setShowAdd(true)}
-            className="px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            + Add Funder
-          </button>
-        )}
       </div>
 
-      {/* Add form */}
-      {showAdd && (
-        <FunderForm onSave={handleSaved} onCancel={() => setShowAdd(false)} />
-      )}
+      <div className="grid gap-4 lg:grid-cols-[1fr_1.35fr]">
+        {/* Add section */}
+        <section className="space-y-3">
+          <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-green-700">Section A</p>
+            <h3 className="text-sm font-semibold text-green-900 mt-1">Add New Funder</h3>
+            <p className="text-xs text-green-800/80 mt-1">
+              Create a funder profile first, then attach it when creating grants.
+            </p>
+          </div>
 
-      {/* Funder list */}
-      {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
-              <div className="h-3 bg-gray-200 rounded w-1/3" />
+          <FunderForm
+            key={addFormKey}
+            onSave={handleSaved}
+            onCancel={() => setAddFormKey((value) => value + 1)}
+          />
+        </section>
+
+        {/* Manage section */}
+        <section className="space-y-3">
+          <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Section B</p>
+            <h3 className="text-sm font-semibold text-gray-900 mt-1">Manage Existing Funders</h3>
+            <p className="text-xs text-gray-500 mt-1">Review contacts, grant counts, and update profile details.</p>
+          </div>
+
+          {loading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
+                  <div className="h-3 bg-gray-200 rounded w-1/3" />
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      ) : funders.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-sm text-gray-400">
-          No funders yet. Add your first grant funder to get started.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {funders.map((f) => (
-            <div key={f.id}>
-              {editTarget?.id === f.id ? (
-                <FunderForm initial={f} onSave={handleSaved} onCancel={() => setEditTarget(null)} />
-              ) : (
-                <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-start justify-between gap-4 hover:border-gray-300 transition-colors">
+          ) : funders.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-sm text-gray-400">
+              No funders yet. Add your first funder in Section A.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {funders.map((f) => (
+                <div key={f.id} className="bg-white rounded-xl border border-gray-200 p-4 flex items-start justify-between gap-4 hover:border-gray-300 transition-colors">
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold text-gray-900">{f.name}</p>
@@ -236,10 +262,27 @@ export default function FunderManager() {
                     Edit
                   </button>
                 </div>
-              )}
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </section>
+      </div>
+
+      {/* Edit section */}
+      {editTarget && (
+        <section className="space-y-3">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Section C</p>
+            <h3 className="text-sm font-semibold text-amber-900 mt-1">Edit Funder</h3>
+            <p className="text-xs text-amber-800/80 mt-1">Update profile details for {editTarget.name}.</p>
+          </div>
+
+          <FunderForm
+            initial={editTarget}
+            onSave={handleSaved}
+            onCancel={() => setEditTarget(null)}
+          />
+        </section>
       )}
     </div>
   );

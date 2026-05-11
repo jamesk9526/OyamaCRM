@@ -89,10 +89,10 @@ export default function MeetingsWidget() {
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-0.5">
       {/* Today count badge */}
       {todayCount > 0 && (
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-1.5">
           <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
             {todayCount} today
           </span>
@@ -107,14 +107,14 @@ export default function MeetingsWidget() {
         return (
           <div
             key={meeting.id}
-            className={`flex items-start gap-3 px-2 py-2 rounded-lg hover:bg-gray-50 transition-colors ${isToday ? "bg-blue-50 hover:bg-blue-50" : ""}`}
+            className={`flex items-start gap-2.5 px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-colors ${isToday ? "bg-blue-50 hover:bg-blue-50" : ""}`}
           >
             {/* Date block */}
             <div className="shrink-0 text-center">
               <div className="text-[10px] text-gray-400 uppercase font-semibold leading-none">
                 {start.toLocaleDateString("en-US", { month: "short" })}
               </div>
-              <div className="text-lg font-bold text-gray-800 leading-tight">{start.getDate()}</div>
+              <div className="text-base font-bold text-gray-800 leading-tight">{start.getDate()}</div>
             </div>
 
             {/* Info */}
@@ -146,7 +146,7 @@ export default function MeetingsWidget() {
       })}
 
       {/* View all link */}
-      <div className="pt-2 border-t border-gray-100">
+      <div className="pt-1.5 border-t border-gray-100">
         <Link
           href="/meetings"
           className="block text-center text-xs text-green-600 hover:text-green-700 font-medium py-1 hover:underline"

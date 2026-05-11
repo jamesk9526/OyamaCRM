@@ -3,16 +3,17 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import AppsDrawer, { AppsGridIcon } from "@/app/components/layout/AppsDrawer";
-import StewardChatPanel from "@/app/components/ai/StewardChatPanel";
+import StewardChatPanel, { type StewardPanelMode } from "@/app/components/ai/StewardChatPanel";
 import { apiFetch } from "@/app/lib/auth-client";
 import {
   DEFAULT_WORKSPACE_SETTINGS,
   fetchWorkspaceSettings,
   type WorkspaceSettings,
 } from "@/app/lib/workspace-settings";
+import { resolveTopBarModuleKey, type TopBarModuleKey } from "@/app/lib/navigation-boundaries";
 
 interface SearchResult {
   id: string;
@@ -24,7 +25,7 @@ interface SearchResult {
 }
 
 interface SearchResponse {
-  module: "donor" | "compassion" | "events" | "watchdog" | "webmaster";
+  module: "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "reportit";
   query: string;
   results: SearchResult[];
 }
@@ -52,7 +53,7 @@ interface StewardSignalsRebuildResult {
   };
 }
 
-function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "events" | "watchdog" | "webmaster" }) {
+function GlobalSearch({ moduleKey }: { moduleKey: TopBarModuleKey }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -86,8 +87,9 @@ function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "even
     const requestId = ++lastRequestIdRef.current;
     setLoading(true);
     try {
+      const searchModule = moduleKey === "reportit" ? "donor" : moduleKey;
       const params = new URLSearchParams({
-        module: moduleKey,
+        module: searchModule,
         q: normalized,
         limit: "6",
       });
@@ -204,6 +206,8 @@ function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "even
         ? "focus:ring-red-400/60"
         : moduleKey === "webmaster"
           ? "focus:ring-indigo-400/60"
+          : moduleKey === "reportit"
+              ? "focus:ring-cyan-400/60"
           : "focus:ring-green-400/60";
   const activeResultBg = moduleKey === "compassion"
     ? "bg-blue-50"
@@ -213,6 +217,8 @@ function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "even
         ? "bg-red-50"
         : moduleKey === "webmaster"
           ? "bg-indigo-50"
+          : moduleKey === "reportit"
+              ? "bg-cyan-50"
           : "bg-green-50";
   const spinnerColor = moduleKey === "compassion"
     ? "border-blue-400"
@@ -222,6 +228,8 @@ function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "even
         ? "border-red-400"
         : moduleKey === "webmaster"
           ? "border-indigo-400"
+          : moduleKey === "reportit"
+              ? "border-cyan-500"
           : "border-green-400";
   const placeholder = moduleKey === "compassion"
     ? "Search tools, clients, and cases (Ctrl+K)"
@@ -231,6 +239,8 @@ function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "even
         ? "Search security tools and vault items (Ctrl+K)"
         : moduleKey === "webmaster"
           ? "Search templates, pages, and website tools (Ctrl+K)"
+          : moduleKey === "reportit"
+              ? "Search reports, segments, and analytics views (Ctrl+K)"
           : "Search tools, constituents, campaigns... (Ctrl+K)";
 
   return (
@@ -297,17 +307,11 @@ function GlobalSearch({ moduleKey }: { moduleKey: "donor" | "compassion" | "even
 export default function TopBar() {
   const router = useRouter();
   const pathname = usePathname();
-  const moduleKey = pathname.startsWith("/compassion")
-    ? "compassion"
-    : pathname.startsWith("/events")
-      ? "events"
-      : pathname.startsWith("/watchdog")
-        ? "watchdog"
-        : pathname.startsWith("/webmaster")
-          ? "webmaster"
-          : "donor";
+  const searchParams = useSearchParams();
+  const moduleKey = resolveTopBarModuleKey(pathname);
+  const showTopBarAppLauncher = false;
   const [appsOpen, setAppsOpen] = useState(false);
-  const [stewardOpen, setStewardOpen] = useState(false);
+  const [stewardMode, setStewardMode] = useState<StewardPanelMode>("collapsed");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsError, setNotificationsError] = useState<string | null>(null);
@@ -317,6 +321,7 @@ export default function TopBar() {
   const [signalsAnalyzeError, setSignalsAnalyzeError] = useState<string | null>(null);
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
+  const chromeButtonBase = "w-9 h-9 rounded-xl border border-white/10 flex items-center justify-center transition-colors";
 
   useEffect(() => {
     let active = true;
@@ -337,8 +342,9 @@ export default function TopBar() {
     setNotificationsLoading(true);
     setNotificationsError(null);
     try {
+      const notificationModule = moduleKey === "reportit" ? "donor" : moduleKey;
       const data = await apiFetch<{ items: TopBarNotification[]; unreadCount: number }>(
-        `/api/notifications?module=${moduleKey}`
+        `/api/notifications?module=${notificationModule}`
       );
       setNotifications(Array.isArray(data.items) ? data.items : []);
       setUnreadCount(typeof data.unreadCount === "number" ? data.unreadCount : 0);
@@ -353,12 +359,31 @@ export default function TopBar() {
 
   useEffect(() => {
     if (!notificationsOpen) return;
-    void loadNotifications();
+
+    const timer = window.setTimeout(() => {
+      void loadNotifications();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, [notificationsOpen, loadNotifications]);
 
   useEffect(() => {
-    setNotificationsOpen(false);
+    const timer = window.setTimeout(() => {
+      setNotificationsOpen(false);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, [pathname]);
+
+  // Legacy compatibility: allow links like /?steward=open to open the docked Steward assistant.
+  useEffect(() => {
+    if (searchParams.get("steward") !== "open") return;
+    setStewardMode((current) => (current === "collapsed" ? "dock-right" : current));
+  }, [searchParams]);
 
   /** Manually rebuilds Steward Signals analysis index and notifies workspace widgets to refresh. */
   const runStewardSignalsAnalysis = useCallback(async () => {
@@ -387,21 +412,23 @@ export default function TopBar() {
 
   return (
     <>
-      <AppsDrawer open={appsOpen} onClose={() => setAppsOpen(false)} />
+      {showTopBarAppLauncher ? <AppsDrawer open={appsOpen} onClose={() => setAppsOpen(false)} /> : null}
       <StewardChatPanel
-        open={stewardOpen}
-        onClose={() => setStewardOpen(false)}
+        open={stewardMode !== "collapsed"}
+        onClose={() => setStewardMode("collapsed")}
         moduleKey={moduleKey}
         scopePath={pathname}
+        displayMode={stewardMode === "collapsed" ? "dock-right" : stewardMode}
+        onDisplayModeChange={setStewardMode}
       />
-      <header className="h-14 shrink-0 w-full flex items-center gap-4 px-4 bg-[#1a2332] border-b border-[#0f1924] z-20">
+      <header className="h-14 shrink-0 w-full flex items-center gap-4 px-4 bg-gradient-to-r from-[#0f172a] via-[#18253a] to-[#0f172a] border-b border-slate-700/60 shadow-[0_8px_28px_rgba(2,6,23,0.38)] backdrop-blur z-20">
 
         {/* ── Module switcher (left anchor) ── */}
         {workspaceSettings.showModuleSwitcher && (
           <>
             <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} />
             {/* ── Divider ── */}
-            <div className="w-px h-5 bg-white/10 shrink-0" />
+            <div className="w-px h-6 bg-white/15 shrink-0" />
           </>
         )}
 
@@ -424,21 +451,21 @@ export default function TopBar() {
             </button>
           )}
 
-          {/* Apps Drawer trigger */}
-          <button
-            title="Apps"
-            onClick={() => setAppsOpen((v) => !v)}
-            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors
-              ${appsOpen ? "text-white bg-white/20" : "text-gray-400 hover:text-white hover:bg-white/10"}`}
-          >
-            <AppsGridIcon className="w-4 h-4" />
-          </button>
+          {showTopBarAppLauncher ? (
+            <button
+              title="Apps"
+              onClick={() => setAppsOpen((v) => !v)}
+              className={`${chromeButtonBase} ${appsOpen ? "text-white bg-white/20 border-white/20" : "text-slate-300 hover:text-white hover:bg-white/10"}`}
+            >
+              <AppsGridIcon className="w-4 h-4" />
+            </button>
+          ) : null}
 
           {/* AI Assistant */}
           <button
             title="Open Steward AI Assistant"
-            onClick={() => setStewardOpen(true)}
-            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors relative group ${stewardOpen ? "text-white bg-white/20" : "text-gray-400 hover:text-white hover:bg-white/10"}`}
+            onClick={() => setStewardMode((current) => (current === "collapsed" ? "dock-right" : "collapsed"))}
+            className={`${chromeButtonBase} relative group ${stewardMode !== "collapsed" ? "text-white bg-white/20 border-white/20" : "text-slate-300 hover:text-white hover:bg-white/10"}`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
@@ -451,7 +478,7 @@ export default function TopBar() {
         {/* Help */}
         <button
           title="Help & Documentation"
-          className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+          className={`${chromeButtonBase} text-slate-300 hover:text-white hover:bg-white/10`}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0zm-9 5.25h.008v.008H12v-.008z" />
@@ -463,7 +490,7 @@ export default function TopBar() {
           <button
             title="Notifications"
             onClick={() => setNotificationsOpen((v) => !v)}
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors relative"
+            className={`${chromeButtonBase} text-slate-300 hover:text-white hover:bg-white/10 relative`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
@@ -478,6 +505,8 @@ export default function TopBar() {
                       ? "bg-red-600"
                       : moduleKey === "webmaster"
                         ? "bg-indigo-600"
+                            : moduleKey === "reportit"
+                              ? "bg-cyan-600"
                         : "bg-green-600"
               }`}>
                 {Math.min(unreadCount, 99)}
@@ -544,24 +573,109 @@ export default function TopBar() {
 }
 
 /**
- * ModuleSwitcher: lets users switch between DonorCRM, Compassion CRM, and Events CRM.
+ * ModuleSwitcher: lets users switch between all enabled OyamaCRM modules.
  */
 function ModuleSwitcher({
   moduleKey,
   settings,
 }: {
-  moduleKey: "donor" | "compassion" | "events" | "watchdog" | "webmaster";
+  moduleKey: TopBarModuleKey;
   settings: WorkspaceSettings;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
   const modules = [
-    { key: "donor", label: "DonorCRM", href: "/", color: "bg-green-500", active: moduleKey === "donor" },
-    { key: "compassion", label: "Compassion CRM", href: "/compassion/dashboard", color: "bg-blue-500", active: moduleKey === "compassion" },
-    { key: "events", label: "Events CRM", href: "/events", color: "bg-amber-500", active: moduleKey === "events" },
-    { key: "watchdog", label: "OyamaWatchdog", href: "/watchdog", color: "bg-red-500", active: moduleKey === "watchdog" },
-    { key: "webmaster", label: "OyamaWebMaster", href: "/webmaster", color: "bg-indigo-500", active: moduleKey === "webmaster" },
+    {
+      key: "donor",
+      label: "DonorCRM",
+      helper: "Fundraising",
+      href: "/",
+      color: "bg-green-500",
+      tileTone: "from-green-50 to-emerald-50",
+      icon: (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <path d="M12 21C12 21 3 15 3 9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 6-9 12-9 12z" />
+        </svg>
+      ),
+      active: moduleKey === "donor",
+    },
+    {
+      key: "compassion",
+      label: "Compassion CRM",
+      helper: "Client Care",
+      href: "/compassion/dashboard",
+      color: "bg-blue-500",
+      tileTone: "from-blue-50 to-sky-50",
+      icon: (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        </svg>
+      ),
+      active: moduleKey === "compassion",
+    },
+    {
+      key: "events",
+      label: "Events CRM",
+      helper: "Operations",
+      href: "/events",
+      color: "bg-amber-500",
+      tileTone: "from-amber-50 to-orange-50",
+      icon: (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <rect x="3" y="4" width="18" height="18" rx="2" />
+          <line x1="16" y1="2" x2="16" y2="6" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="3" y1="10" x2="21" y2="10" />
+        </svg>
+      ),
+      active: moduleKey === "events",
+    },
+    {
+      key: "watchdog",
+      label: "OyamaWatchdog",
+      helper: "Security",
+      href: "/watchdog",
+      color: "bg-red-500",
+      tileTone: "from-red-50 to-rose-50",
+      icon: (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <path d="M12 2l8 4v6c0 5.5-3.5 9.74-8 10-4.5-.26-8-4.5-8-10V6l8-4z" />
+        </svg>
+      ),
+      active: moduleKey === "watchdog",
+    },
+    {
+      key: "webmaster",
+      label: "OyamaWebMaster",
+      helper: "Web Builder",
+      href: "/webmaster",
+      color: "bg-indigo-500",
+      tileTone: "from-indigo-50 to-violet-50",
+      icon: (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <path d="M3 5h18v14H3z" />
+          <path d="M3 9h18" />
+        </svg>
+      ),
+      active: moduleKey === "webmaster",
+    },
+    {
+      key: "reportit",
+      label: "OyamaREPORTIT CRM",
+      helper: "Reporting Hub",
+      href: "/reports",
+      color: "bg-cyan-500",
+      tileTone: "from-cyan-50 to-sky-50",
+      icon: (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <path d="M4 19V9m8 10V5m8 14v-7" />
+        </svg>
+      ),
+      active: moduleKey === "reportit",
+    },
   ].filter((module) => {
     if (module.key === "donor") return settings.donorEnabled;
     if (module.key === "compassion") return settings.compassionEnabled;
@@ -581,11 +695,16 @@ function ModuleSwitcher({
     <div className="relative shrink-0">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors border border-white/15"
+        className="group flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors border border-white/15"
       >
-        <span className={`w-2 h-2 rounded-full ${current.color}`} />
-        <span>{current.label}</span>
-        <svg className="w-3 h-3 text-gray-300 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <span className={`w-7 h-7 rounded-lg ${current.color} text-white flex items-center justify-center shadow-sm`}>
+          {current.icon}
+        </span>
+        <div className="hidden sm:block text-left leading-tight">
+          <p className="text-[9px] uppercase tracking-widest text-slate-300">CRM</p>
+          <p className="text-xs font-semibold text-white">{current.label}</p>
+        </div>
+        <svg className="w-3 h-3 text-gray-300 ml-0.5 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -593,23 +712,33 @@ function ModuleSwitcher({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full mt-2 w-52 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
-            <p className="px-3 pt-2.5 pb-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Switch Module</p>
-            {modules.map((m) => (
-              <button
-                key={m.key}
-                onClick={() => switchTo(m.href)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm text-left transition-colors ${m.active ? "bg-gray-50 text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"}`}
-              >
-                <span className={`w-2.5 h-2.5 rounded-full ${m.color}`} />
-                <span>{m.label}</span>
-                {m.active && (
-                  <svg className="w-4 h-4 text-gray-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </button>
-            ))}
+          <div className="absolute left-0 top-full mt-2 w-[360px] max-w-[calc(100vw-1rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
+            <div className="px-3 pt-2.5 pb-1 border-b border-slate-100 bg-slate-50/80">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Switch CRM</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Icon-first workspace launcher</p>
+            </div>
+            <div className="p-2 grid grid-cols-2 gap-2">
+              {modules.map((m) => (
+                <button
+                  key={m.key}
+                  onClick={() => switchTo(m.href)}
+                  className={`rounded-xl border p-2.5 text-left transition-all ${m.active ? "border-slate-300 bg-slate-100 shadow-sm" : `border-slate-200 bg-gradient-to-br ${m.tileTone} hover:border-slate-300 hover:shadow-sm`}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className={`w-8 h-8 rounded-lg ${m.color} text-white flex items-center justify-center shrink-0`}>
+                      {m.icon}
+                    </span>
+                    {m.active && (
+                      <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                  <p className="text-xs font-semibold text-slate-900 mt-2">{m.label}</p>
+                  <p className="text-[11px] text-slate-600 mt-0.5">{m.helper}</p>
+                </button>
+              ))}
+            </div>
           </div>
         </>
       )}
@@ -618,7 +747,7 @@ function ModuleSwitcher({
 }
 
 /** UserMenu: avatar with sign-out dropdown. */
-function UserMenu({ moduleKey }: { moduleKey: "donor" | "compassion" | "events" | "watchdog" | "webmaster" }) {
+function UserMenu({ moduleKey }: { moduleKey: TopBarModuleKey }) {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -638,6 +767,8 @@ function UserMenu({ moduleKey }: { moduleKey: "donor" | "compassion" | "events" 
         ? "bg-red-700 border-red-500"
         : moduleKey === "webmaster"
           ? "bg-indigo-700 border-indigo-500"
+            : moduleKey === "reportit"
+              ? "bg-cyan-700 border-cyan-500"
           : "bg-green-700 border-green-500";
 
   return (

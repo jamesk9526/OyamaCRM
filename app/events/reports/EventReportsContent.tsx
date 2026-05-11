@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from "react";
 import EventsMetricCard from "@/app/components/events/EventsMetricCard";
+import { apiFetch } from "@/app/lib/auth-client";
 
 interface Event {
   id: string;
@@ -77,45 +78,100 @@ export default function EventReportsContent() {
   const [summaryReport, setSummaryReport] = useState<SummaryReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"summary" | "detail">("summary");
+  const [error, setError] = useState<string | null>(null);
 
   // Load events list
   useEffect(() => {
-    fetch("/api/events")
-      .then((res) => res.json())
-      .then((data) => {
-        setEvents(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    let cancelled = false;
+
+    async function loadEvents() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const data = await apiFetch<Event[]>("/api/events");
+        if (cancelled) return;
+        setEvents(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (cancelled) return;
+        setEvents([]);
+        setError(err instanceof Error ? err.message : "Failed to load events");
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadEvents();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Load summary report
   useEffect(() => {
-    if (viewMode === "summary") {
-      fetch("/api/events/reports/summary")
-        .then((res) => res.json())
-        .then((data) => setSummaryReport(data))
-        .catch(console.error);
+    if (viewMode !== "summary") return;
+
+    let cancelled = false;
+
+    async function loadSummaryReport() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const data = await apiFetch<SummaryReport>("/api/events/reports/summary");
+        if (cancelled) return;
+        setSummaryReport(data ?? null);
+      } catch (err) {
+        if (cancelled) return;
+        setSummaryReport(null);
+        setError(err instanceof Error ? err.message : "Failed to load summary report");
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
     }
+
+    void loadSummaryReport();
+
+    return () => {
+      cancelled = true;
+    };
   }, [viewMode]);
 
   // Load event-specific report when selected
   useEffect(() => {
-    if (selectedEventId && viewMode === "detail") {
-      async function loadReport() {
-        setLoading(true);
-        try {
-          const res = await fetch(`/api/events/${selectedEventId}/report`);
-          const data = await res.json();
-          setEventReport(data);
-        } catch (err) {
-          console.error("Failed to load report:", err);
-        } finally {
+    if (!selectedEventId || viewMode !== "detail") return;
+
+    let cancelled = false;
+
+    async function loadReport() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const data = await apiFetch<EventReport>(`/api/events/${selectedEventId}/report`);
+        if (cancelled) return;
+        setEventReport(data ?? null);
+      } catch (err) {
+        if (cancelled) return;
+        setEventReport(null);
+        setError(err instanceof Error ? err.message : "Failed to load event report");
+      } finally {
+        if (!cancelled) {
           setLoading(false);
         }
       }
-      loadReport();
     }
+
+    void loadReport();
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedEventId, viewMode]);
 
   const handleEventSelect = (eventId: string) => {
@@ -166,6 +222,12 @@ export default function EventReportsContent() {
           )}
         </div>
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {/* Summary View */}
       {viewMode === "summary" && summaryReport && (
@@ -239,6 +301,12 @@ export default function EventReportsContent() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {viewMode === "summary" && !loading && !summaryReport && !error && (
+        <div className="rounded-lg border border-gray-200 bg-white px-6 py-12 text-center text-sm text-gray-500">
+          No report data is available yet.
         </div>
       )}
 

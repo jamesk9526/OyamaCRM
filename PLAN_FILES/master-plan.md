@@ -33,6 +33,10 @@ Packet: [`phase-00-setup-onboarding-settings.md`](./phase-00-setup-onboarding-se
 - [ ] Finish **Users** management in Settings (add/edit/disable/invite/reset password).
 - [ ] Finish **Roles & Scopes** management with a real permission matrix editor.
 - [ ] Finish **Workspaces** settings so donor and Compassion access can be toggled intentionally.
+- [ ] Keep the TopBar app drawer dedicated to standalone apps (starts empty), with CRM module switching handled only by the module switcher.
+- [~] Keep TopBar app drawer trigger temporarily hidden while standalone app launch criteria are finalized; continue using direct `/apps/*` routes until re-enabled.
+- [ ] Keep standalone app routes under `/apps/*` on a basic shell that excludes CRM top search and CRM AI by default.
+- [ ] Maintain app-to-CRM isolation by default and require explicit permission-scoped integrations for any shared data.
 - [ ] Remove remaining hard-coded seeded-org assumptions (`org_demo`) from live routes and UI flows.
 - [ ] Apply admin / RBAC guards consistently to sensitive settings and setup-recovery surfaces.
 - [ ] Add backup, restore, and recovery runbooks for operators.

@@ -2,11 +2,12 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import TopBar from "@/app/components/layout/TopBar";
 import EventsSidebar from "@/app/components/layout/EventsSidebar";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
+import { resolveLegacyGlobalEventsRedirect } from "@/app/lib/events-route-boundaries";
 
 // TODO: enforce Events workspace permission — currently only checks authentication, not module access
 
@@ -17,12 +18,25 @@ import ErrorBoundary from "@/app/components/ErrorBoundary";
 export default function EventsLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     if (!loading && !user) {
       router.replace("/login");
     }
   }, [loading, user, router]);
+
+  useEffect(() => {
+    if (loading || !user) return;
+
+    const redirectTarget = resolveLegacyGlobalEventsRedirect(pathname, searchParams);
+    if (redirectTarget) {
+      router.replace(redirectTarget);
+    }
+  }, [loading, user, pathname, searchParams, router]);
+
+  const redirectTarget = resolveLegacyGlobalEventsRedirect(pathname, searchParams);
 
   if (loading || !user) {
     return (
@@ -39,7 +53,13 @@ export default function EventsLayout({ children }: { children: React.ReactNode }
         <EventsSidebar />
         <main className="flex-1 overflow-auto bg-amber-50/30 p-6">
           <ErrorBoundary>
-            {children}
+            {redirectTarget ? (
+              <section className="rounded-xl border border-amber-300 bg-amber-100 px-4 py-3 text-sm text-amber-900">
+                Redirecting to event-first workspace flow...
+              </section>
+            ) : (
+              children
+            )}
           </ErrorBoundary>
         </main>
       </div>

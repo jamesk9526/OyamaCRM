@@ -1,6 +1,28 @@
 # Events CRM — Feature Status
 
-_Last updated: 2025-05-09_
+_Last updated: 2026-05-10_
+
+## 2026-05-10 Production Readiness Overrides
+
+For release gating, this document defers to:
+`docs/status/production-readiness-checklist.md`
+
+Use these status labels for release decisions:
+
+- Working
+- Partially Working
+- Demo Only
+- Broken
+- Not Implemented
+
+Critical overrides from the latest full testing and browser pass:
+
+| Surface | Release status | Why |
+|---|---|---|
+| Event-scoped guests route (`/events/[eventId]/guests`) | Broken | Runtime crash from unsafe `guest.event.id` access when payload rows are missing `event`. |
+| Events reports page (`/events/reports`) | Broken | Uses raw `fetch()` calls instead of authenticated request helper, causing protected API failures. |
+| Event workspace selector (`/events/workspace`) | Working | Event-first selector model is present and usable. |
+| Event-scoped tool set overall | Partially Working | Core tools exist but several pages remain scaffold/demo-level or unstable under non-happy-path data. |
 
 ---
 
@@ -24,6 +46,18 @@ _Last updated: 2025-05-09_
 | EventsSidebar with collapsible sections | ✅ Production Ready | `app/components/layout/EventsSidebar.tsx` |
 | Module switcher in TopBar | ✅ Production Ready | TopBar AppsDrawer shows Events CRM |
 | Events in AppsDrawer | ✅ Production Ready | `app/components/layout/AppsDrawer.tsx` |
+
+---
+
+## Global vs Event-Scoped Tools
+
+| Feature | Status | Notes |
+|---|---|---|
+| Event workspace selector (`/events/workspace`) | ✅ Production Ready | Event-first entry for scoped tools with selected event + selected tool routing |
+| Scoped workspace routes (`/events/[eventId]/[tool]`) | ✅ Production Ready | Event operations remain tied to selected event context |
+| Global tools section in Events sidebar | ✅ Production Ready | Reports, page builder, templates, and event registry are explicit outside selected-event scope |
+| Global page builder route (`/events/page-builder`) | 🟡 Working | Sends teams into shared website builder with event context links |
+| Global template route (`/events/templates`) | 🔶 Partial | Template draft cloning works; metadata bundle cloning not yet implemented |
 
 ---
 
@@ -168,13 +202,13 @@ _Last updated: 2025-05-09_
 
 | Feature | Status | Notes |
 |---|---|---|
-| Event reports page | 🔶 Partial | `app/events/reports/page.tsx` — workspace stub |
+| Event reports page | 🟡 Working | `app/events/reports/page.tsx` and `EventReportsContent.tsx` use live APIs |
 | Guest list export | 🔴 Not Started | |
 | Seating report | 🔴 Not Started | |
 | Check-in report | 🔴 Not Started | |
-| Payment/revenue report | 🔴 Not Started | |
-| Global event reports | 🔴 Not Started | All events combined metrics |
-| Event-specific reports | 🔴 Not Started | One event deep dive |
+| Payment/revenue report | 🟡 Working | Revenue totals and top events are available in summary and event-detail report views |
+| Global event reports | 🟡 Working | `/api/events/reports/summary` powers all-events overview |
+| Event-specific reports | 🟡 Working | `/api/events/:eventId/report` powers per-event deep dive |
 
 ---
 
@@ -182,8 +216,8 @@ _Last updated: 2025-05-09_
 
 | Feature | Status | Notes |
 |---|---|---|
-| Page builder entry point | 🔴 Not Started | No route exists |
-| Template library | 🔴 Not Started | |
+| Page builder entry point | 🟡 Working | `/events/page-builder` global tool route exists |
+| Template library | 🔶 Partial | `/events/templates` supports draft template creation from existing events |
 | Block-based editor | 🔴 Not Started | |
 | Public event registration page | 🔴 Not Started | |
 | Publish/unpublish | 🔴 Not Started | |

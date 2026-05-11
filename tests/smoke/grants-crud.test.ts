@@ -39,7 +39,7 @@ describe("grants and funders CRUD", () => {
       .set(auth())
       .send({
         name: "Smoke Test Foundation",
-        type: "FOUNDATION",
+        type: "PRIVATE_FOUNDATION",
         contactName: "Jane Tester",
         contactEmail: "jane@smoketest.org",
         notes: "Created by smoke test",
@@ -54,7 +54,7 @@ describe("grants and funders CRUD", () => {
     const res = await request(app)
       .post("/api/grants/funders")
       .set(auth())
-      .send({ type: "FOUNDATION" });
+      .send({ type: "PRIVATE_FOUNDATION" });
     expect(res.status).toBe(400);
   });
 
@@ -80,7 +80,8 @@ describe("grants and funders CRUD", () => {
     const res = await request(app).get("/api/grants/stats").set(auth());
     expect(res.status).toBe(200);
     expect(typeof res.body.total).toBe("number");
-    expect(typeof res.body.totalAmount).toBe("number");
+    expect(typeof res.body.totalRequested).toBe("number");
+    expect(typeof res.body.totalAwarded).toBe("number");
   });
 
   it("creates a new grant", async () => {

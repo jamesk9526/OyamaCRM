@@ -20,10 +20,6 @@ export default function WatchdogLayout({ children }: { children: React.ReactNode
     if (loading) return;
     if (!user) {
       router.replace("/login");
-      return;
-    }
-    if (user.role !== "admin") {
-      router.replace("/");
     }
   }, [loading, user, router]);
 
@@ -36,7 +32,26 @@ export default function WatchdogLayout({ children }: { children: React.ReactNode
   }
 
   if (user.role !== "admin") {
-    return null;
+    return (
+      <div className="flex flex-col h-screen bg-[#05080f]">
+        <TopBar />
+        <main className="flex-1 flex items-center justify-center bg-[#0b1220] p-6">
+          <section className="w-full max-w-xl rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-center">
+            <h1 className="text-lg font-semibold text-red-100">OyamaWatchdog Access Restricted</h1>
+            <p className="mt-2 text-sm text-red-200/90">
+              OyamaWatchdog is limited to admin users. Your account can view DonorCRM but cannot open security command tools.
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push("/")}
+              className="mt-4 inline-flex items-center px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700"
+            >
+              Back To Dashboard
+            </button>
+          </section>
+        </main>
+      </div>
+    );
   }
 
   return (

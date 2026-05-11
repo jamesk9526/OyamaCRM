@@ -56,8 +56,8 @@ export default function RevenueProgress({
     : `${fmtCurrency(displayedTotal)} raised`;
 
   return (
-    <Card>
-      <div className="flex items-start justify-between mb-4">
+    <Card padding="small">
+      <div className="flex items-start justify-between mb-3">
         <h3 className="font-semibold text-gray-900">Revenue Progress</h3>
 
         {/* "Include Grants" toggle — only shown when grants data is available */}
@@ -84,7 +84,7 @@ export default function RevenueProgress({
         )}
       </div>
 
-      <div className="flex flex-col items-center py-4">
+      <div className="flex flex-col items-center py-3">
         {loading ? (
           <div className="w-36 h-36 rounded-full bg-gray-200 animate-pulse" />
         ) : (
@@ -106,7 +106,7 @@ export default function RevenueProgress({
           </div>
         )}
 
-        <div className="mt-4 text-center">
+        <div className="mt-3 text-center">
           {loading ? (
             <div className="h-8 w-24 bg-gray-200 rounded animate-pulse mx-auto" />
           ) : (
@@ -127,7 +127,7 @@ export default function RevenueProgress({
           </p>
         </div>
 
-        <div className="flex gap-2 mt-4">
+        <div className="flex gap-2 mt-3">
           <button
             type="button"
             onClick={() => setDisplayMode("revenue")}

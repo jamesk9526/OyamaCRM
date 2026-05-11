@@ -6,16 +6,8 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
-import { fmt$ } from "./types";
-
-interface GrantStats {
-  total: number;
-  active: number;
-  awarded: number;
-  totalRequested: number;
-  totalAwarded: number;
-  upcomingDeadlines: number;
-}
+import { PIPELINE_STAGES, fmt$ } from "./types";
+import type { GrantStats as GrantStatsResponse } from "./types";
 
 /** Single stat card used in the grants page header. */
 function StatCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
@@ -30,15 +22,21 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
 
 /** GrantStats — fetches and renders grant pipeline summary cards. */
 export default function GrantStats({ refresh }: { refresh?: number }) {
-  const [stats, setStats] = useState<GrantStats | null>(null);
+  const [stats, setStats] = useState<GrantStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
-    apiFetch<GrantStats>("/api/grants/stats")
-      .then(setStats)
-      .catch(() => setStats(null))
-      .finally(() => setLoading(false));
+    const timeoutId = window.setTimeout(() => {
+      setLoading(true);
+      apiFetch<GrantStatsResponse>("/api/grants/stats")
+        .then(setStats)
+        .catch(() => setStats(null))
+        .finally(() => setLoading(false));
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [refresh]);
 
   if (loading) {
@@ -56,11 +54,17 @@ export default function GrantStats({ refresh }: { refresh?: number }) {
 
   if (!stats) return null;
 
+  const activeCount = PIPELINE_STAGES.reduce((sum, status) => {
+    return sum + (stats.byStatus?.[status]?.count ?? 0);
+  }, 0);
+
+  const awardedCount = stats.byStatus?.AWARDED?.count ?? 0;
+
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
       <StatCard label="Total Grants" value={String(stats.total)} sub="all time" />
-      <StatCard label="Active Pipeline" value={String(stats.active)} sub="in progress" color="text-blue-600" />
-      <StatCard label="Awarded" value={String(stats.awarded)} sub="grants won" color="text-green-700" />
+      <StatCard label="Active Pipeline" value={String(activeCount)} sub="in progress" color="text-blue-600" />
+      <StatCard label="Awarded" value={String(awardedCount)} sub="grants won" color="text-green-700" />
       <StatCard label="Total Requested" value={fmt$(stats.totalRequested)} sub="pipeline value" />
       <StatCard label="Total Awarded" value={fmt$(stats.totalAwarded)} sub="secured" color="text-green-700" />
       <StatCard

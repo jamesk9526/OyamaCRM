@@ -4,7 +4,7 @@
  * Scoped dashboard for a single event showing:
  *   - Event KPIs (guests, check-in %, revenue, confirmed RSVPs, payment issues, tables)
  *   - Event detail card (name, type, status, dates, location, capacity)
- *   - Quick action cards linking to the event's global management pages
+ *   - Quick action cards linking to event-scoped workspace pages
  *   - Event-night readiness checklist
  */
 "use client";
@@ -76,7 +76,7 @@ function KpiCard({
 }
 
 /**
- * Quick action card — links to a global event management page with eventId pre-filtered.
+ * Quick action card — links to an event-scoped management route.
  */
 function ActionCard({
   icon,
@@ -300,25 +300,25 @@ export default function EventOverviewPage() {
               icon="✅"
               title="Check-In"
               description="Start door check-in for this event"
-              href={`/events/check-in?eventId=${eventId}`}
+              href={`/events/${eventId}/check-in`}
             />
             <ActionCard
               icon="👥"
               title="Guest List"
               description="View and manage all registered guests"
-              href={`/events/guests?eventId=${eventId}`}
+              href={`/events/${eventId}/guests`}
             />
             <ActionCard
               icon="🏆"
               title="Sponsors"
               description="Manage event sponsors and packages"
-              href={`/events/sponsors?eventId=${eventId}`}
+              href={`/events/${eventId}/sponsors`}
             />
             <ActionCard
               icon="📋"
               title="Tables"
               description="Assign guests to tables and seating"
-              href={`/events/tables?eventId=${eventId}`}
+              href={`/events/${eventId}/tables`}
             />
           </div>
         </div>

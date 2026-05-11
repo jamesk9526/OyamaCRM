@@ -1,5 +1,5 @@
 /**
- * Sidebar: primary navigation for DonorCRM and Compassion CRM.
+ * Sidebar: primary navigation for DonorCRM and OyamaREPORTIT CRM.
  * Contains brand logo at top, grouped nav sections, and bottom quick links.
  * Active state uses a left border + tinted background (no filled green pill).
  */
@@ -10,6 +10,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import type React from "react";
 import { usePlugins } from "@/app/components/plugins/PluginProvider";
+import { useAuth } from "@/app/components/auth/AuthProvider";
 
 /** Single navigation item */
 interface NavItem {
@@ -76,7 +77,7 @@ const DONOR_SECTIONS: NavSection[] = [
         href: "/reports",
         icon: <Ico d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />,
       },
-    ],
+    ].filter((item) => item.href !== "/reports"),
   },
   {
     label: "Engagement",
@@ -147,25 +148,82 @@ const DONOR_SECTIONS: NavSection[] = [
   },
 ];
 
+/** OyamaREPORTIT module sections — centralized reporting workspace navigation. */
+const REPORTIT_SECTIONS: NavSection[] = [
+  {
+    label: "Report Center",
+    defaultOpen: true,
+    items: [
+      {
+        label: "Overview",
+        href: "/reports",
+        icon: <Ico d="M3 4h18v16H3V4zm3 3h12M6 11h12M6 15h8" />,
+      },
+      {
+        label: "Donor Insights",
+        href: "/reports?tab=donors",
+        icon: <Ico d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM4 21a8 8 0 0116 0" />,
+      },
+      {
+        label: "Giving Trends",
+        href: "/reports?tab=giving",
+        icon: <Ico d="M4 17l5-5 4 3 7-8" />,
+      },
+      {
+        label: "Campaign Performance",
+        href: "/reports?tab=campaigns",
+        icon: <Ico d="M12 3v18M3 12h18" />,
+      },
+      {
+        label: "Retention",
+        href: "/reports?tab=retention",
+        icon: <Ico d="M4 12a8 8 0 1116 0 8 8 0 11-16 0zm8-3v3l2 2" />,
+      },
+    ],
+  },
+  {
+    label: "Context Sources",
+    defaultOpen: false,
+    items: [
+      {
+        label: "Donor CRM",
+        href: "/",
+        icon: <Ico d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />,
+      },
+      {
+        label: "Events CRM",
+        href: "/events",
+        icon: <Ico d="M8 7V3m8 4V3M4 11h16M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />,
+      },
+      {
+        label: "Compassion CRM",
+        href: "/compassion/dashboard",
+        icon: <Ico d="M4.5 12.5l7.5 7.5 7.5-7.5a4.95 4.95 0 00-7-7L12 6l-.5-.5a4.95 4.95 0 00-7 7z" />,
+      },
+    ],
+  },
+];
+
 /** Collapsible nav section with animated expand/collapse chevron */
 function SidebarSection({
   section,
   pathname,
   isCompassion,
+  isReportit,
 }: {
   section: NavSection;
   pathname: string;
   isCompassion: boolean;
+  isReportit: boolean;
 }) {
   const [open, setOpen] = useState(section.defaultOpen ?? true);
 
-  // Auto-open if any item in this section is active
-  const hasActive = section.items.some((item) =>
-    item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
-  );
-
-  const accentColor = isCompassion ? "border-blue-600 text-blue-700 bg-blue-50" : "border-green-600 text-green-700 bg-green-50";
-  const accentIcon = isCompassion ? "text-blue-600" : "text-green-600";
+  const accentColor = isCompassion
+    ? "border-blue-600 text-blue-700 bg-blue-50"
+    : isReportit
+        ? "border-cyan-600 text-cyan-700 bg-cyan-50"
+      : "border-green-600 text-green-700 bg-green-50";
+  const accentIcon = isCompassion ? "text-blue-600" : isReportit ? "text-cyan-600" : "text-green-600";
 
   return (
     <div className="mb-1">
@@ -187,7 +245,8 @@ function SidebarSection({
       {open && (
         <nav className="space-y-0.5">
           {section.items.map((item) => {
-            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            const hrefPath = item.href.split("?")[0];
+            const active = hrefPath === "/" ? pathname === "/" : pathname.startsWith(hrefPath);
             return (
               <Link
                 key={item.href}
@@ -224,9 +283,11 @@ function SidebarSection({
 export default function Sidebar() {
   const pathname = usePathname();
   const isCompassion = pathname.startsWith("/compassion");
+  const isReportit = pathname.startsWith("/reports");
   const { qbEnabled } = usePlugins();
+  const { user } = useAuth();
 
-  const brandBg = isCompassion ? "bg-blue-600" : "bg-green-600";
+  const brandBg = isCompassion ? "bg-blue-600" : isReportit ? "bg-cyan-600" : "bg-green-600";
 
   /** QB Sync nav item — only injected when plugin is enabled */
   const qbSyncItem: NavItem = {
@@ -241,15 +302,25 @@ export default function Sidebar() {
   };
 
   /** Build sections dynamically so we can inject QB Sync when enabled */
-  const sections: NavSection[] = DONOR_SECTIONS.map((section) => {
+  const donorSections: NavSection[] = DONOR_SECTIONS.map((section) => {
+    let sectionItems = section.items;
+
     if (section.label === "Fundraising" && qbEnabled) {
-      return {
-        ...section,
-        items: [...section.items, qbSyncItem],
-      };
+      sectionItems = [...sectionItems, qbSyncItem];
     }
-    return section;
+
+    // Keep Watchdog nav hidden unless the current user is admin.
+    if (section.label === "System" && user?.role !== "admin") {
+      sectionItems = sectionItems.filter((item) => item.href !== "/watchdog");
+    }
+
+    return {
+      ...section,
+      items: sectionItems,
+    };
   });
+
+  const sections: NavSection[] = isReportit ? REPORTIT_SECTIONS : donorSections;
 
   return (
     <aside className="w-56 shrink-0 bg-white border-r border-gray-200 flex flex-col h-full select-none">
@@ -266,8 +337,8 @@ export default function Sidebar() {
           </div>
           <div className="min-w-0">
             <p className="text-sm font-bold text-gray-900 leading-tight">OyamaCRM</p>
-            <p className={`text-[10px] font-medium leading-tight ${isCompassion ? "text-blue-600" : "text-green-600"}`}>
-              {isCompassion ? "Compassion CRM" : "DonorCRM"}
+            <p className={`text-[10px] font-medium leading-tight ${isCompassion ? "text-blue-600" : isReportit ? "text-cyan-600" : "text-green-600"}`}>
+              {isCompassion ? "Compassion CRM" : isReportit ? "OyamaREPORTIT CRM" : "DonorCRM"}
             </p>
           </div>
         </div>
@@ -281,6 +352,7 @@ export default function Sidebar() {
             section={section}
             pathname={pathname}
             isCompassion={isCompassion}
+            isReportit={isReportit}
           />
         ))}
       </div>

@@ -155,9 +155,9 @@ describe("events CRUD", () => {
     expect(eventId).toBeTruthy();
     expect(guestId).toBeTruthy();
     const res = await request(app)
-      .patch(`/api/events/${eventId}/guests/${guestId}`)
+      .post(`/api/events/guests/${guestId}/check-in`)
       .set(auth())
-      .send({ checkedIn: true, checkedInAt: new Date().toISOString() });
+      .send({ checkedIn: true });
     expect(res.status).toBe(200);
     expect(res.body.checkedIn).toBe(true);
   });

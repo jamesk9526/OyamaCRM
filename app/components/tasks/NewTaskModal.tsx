@@ -1,27 +1,86 @@
 /**
  * NewTaskModal component.
- * Modal form for creating a new task. Submits to POST /api/tasks.
+ * Modal form for creating stewardship tasks with assignment and constituent context.
+ * Submits to POST /api/tasks.
  */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 
 const TASK_TYPES = ["CALL", "EMAIL", "MAIL", "MEETING", "THANK_YOU", "FOLLOW_UP", "OTHER"];
+const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
+
+interface UserOption {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
+interface ConstituentOption {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
 
 interface Props {
   onClose: () => void;
   onCreated: () => void;
+  defaultAssigneeId?: string;
+  defaultType?: string;
 }
 
 /** NewTaskModal: inline modal for creating a new task */
-export default function NewTaskModal({ onClose, onCreated }: Props) {
+export default function NewTaskModal({ onClose, onCreated, defaultAssigneeId, defaultType = "FOLLOW_UP" }: Props) {
   const [title, setTitle] = useState("");
-  const [type, setType] = useState("FOLLOW_UP");
+  const [type, setType] = useState(defaultType);
+  const [priority, setPriority] = useState("MEDIUM");
   const [dueDate, setDueDate] = useState("");
   const [description, setDescription] = useState("");
+  const [assigneeId, setAssigneeId] = useState(defaultAssigneeId ?? "");
+  const [constituentId, setConstituentId] = useState("");
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [constituents, setConstituents] = useState<ConstituentOption[]>([]);
+  const [loadingLookups, setLoadingLookups] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /** Loads assignable users and constituents to support team assignment workflows. */
+  useEffect(() => {
+    let active = true;
+
+    async function loadLookups() {
+      setLoadingLookups(true);
+      try {
+        const [usersResult, constituentsResult] = await Promise.allSettled([
+          apiFetch<{ items?: UserOption[] }>("/api/users"),
+          apiFetch<ConstituentOption[]>("/api/constituents?limit=100"),
+        ]);
+
+        if (!active) return;
+
+        if (usersResult.status === "fulfilled") {
+          setUsers(usersResult.value.items ?? []);
+        } else {
+          setUsers([]);
+        }
+
+        if (constituentsResult.status === "fulfilled") {
+          setConstituents(constituentsResult.value ?? []);
+        } else {
+          setConstituents([]);
+        }
+      } finally {
+        if (active) setLoadingLookups(false);
+      }
+    }
+
+    loadLookups();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   /** Submit new task to the API */
   async function handleSubmit(e: React.FormEvent) {
@@ -35,6 +94,9 @@ export default function NewTaskModal({ onClose, onCreated }: Props) {
         body: JSON.stringify({
           title: title.trim(),
           type,
+          priority,
+          ...(assigneeId && { assigneeId }),
+          ...(constituentId && { constituentId }),
           ...(dueDate && { dueDate: new Date(dueDate).toISOString() }),
           ...(description && { description }),
         }),
@@ -75,6 +137,51 @@ export default function NewTaskModal({ onClose, onCreated }: Props) {
             >
               {TASK_TYPES.map((t) => (
                 <option key={t} value={t}>{t.replace("_", " ")}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Priority</label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                {TASK_PRIORITIES.map((taskPriority) => (
+                  <option key={taskPriority} value={taskPriority}>{taskPriority}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Assignee</label>
+              <select
+                value={assigneeId}
+                onChange={(e) => setAssigneeId(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                disabled={loadingLookups}
+              >
+                <option value="">Assign to me</option>
+                {assigneeId && users.length === 0 && (
+                  <option value={assigneeId}>Current user</option>
+                )}
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>{user.firstName} {user.lastName}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Constituent</label>
+            <select
+              value={constituentId}
+              onChange={(e) => setConstituentId(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+              disabled={loadingLookups}
+            >
+              <option value="">No constituent linked</option>
+              {constituents.map((constituent) => (
+                <option key={constituent.id} value={constituent.id}>{constituent.firstName} {constituent.lastName}</option>
               ))}
             </select>
           </div>

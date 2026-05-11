@@ -30,7 +30,7 @@ export interface ProjectStatusItem {
 }
 
 /** Last deep-audit date for this matrix. */
-export const PROJECT_STATUS_AUDIT_DATE = "2026-05-09";
+export const PROJECT_STATUS_AUDIT_DATE = "2026-05-10";
 
 /** Evidence-backed cross-module status matrix for production-readiness work. */
 export const PROJECT_STATUS_ITEMS: ProjectStatusItem[] = [
@@ -149,18 +149,34 @@ export const PROJECT_STATUS_ITEMS: ProjectStatusItem[] = [
   {
     area: "Compassion CRM",
     feature: "Dashboard",
-    status: "Placeholder Data",
-    dataSource: "Hardcoded Placeholder",
-    notes: "app/compassion/dashboard/page.tsx explicitly uses static arrays and TODO to replace with live API.",
-    nextStep: "Create Compassion API + models, then wire dashboard cards/charts to real queries.",
+    status: "Working",
+    dataSource: "Real API Data",
+    notes: "Dashboard loads /api/compassion/dashboard-summary with live appointment/follow-up/activity metrics.",
+    nextStep: "Add deeper outcomes reporting and more workflow-specific alert cards.",
   },
   {
     area: "Compassion CRM",
-    feature: "Clients, cases, appointments, reports, tasks, settings",
-    status: "UI Only",
-    dataSource: "Static Demo UI",
-    notes: "Most /compassion/* pages are ComingSoonBadge placeholders with no API calls.",
-    nextStep: "Implement client/case schema and CRUD routes, then replace placeholder routes one-by-one.",
+    feature: "Clients, cases, appointments core workflows",
+    status: "Working",
+    dataSource: "Real API Data",
+    notes: "Core client/case/appointment pages and APIs are wired and org-scoped; importer hardening is live.",
+    nextStep: "Expand workflow automation and operator productivity actions (status transitions, handoffs, reminders).",
+  },
+  {
+    area: "Compassion CRM",
+    feature: "Public scheduling + embeddable widget",
+    status: "Working",
+    dataSource: "Real API Data",
+    notes: "Tokenized public booking supports server-generated slots, submit-time slot validation, and iframe/script embedding.",
+    nextStep: "Add rate limiting, anti-abuse telemetry, and existing-client matcher with staff review queue.",
+  },
+  {
+    area: "Compassion CRM",
+    feature: "Client profile advanced care tabs",
+    status: "Partial",
+    dataSource: "Mixed Real/Demo Data",
+    notes: "Several client profile tabs are active, but many detailed care surfaces still show in-development warnings.",
+    nextStep: "Implement each in-development tab with client-scoped APIs and happy-path tests before removing warnings.",
   },
   {
     area: "Compassion CRM",
@@ -177,6 +193,14 @@ export const PROJECT_STATUS_ITEMS: ProjectStatusItem[] = [
     dataSource: "Mixed Real/Demo Data",
     notes: "Summary/event list are API-backed, but several dashboard action cards/status chips are hardcoded narrative values.",
     nextStep: "Replace hardcoded queue/status cards with API-derived counters.",
+  },
+  {
+    area: "Events CRM",
+    feature: "Event-first workspace + global tools boundary",
+    status: "Working",
+    dataSource: "Real API Data",
+    notes: "Workspace selector routes scoped tools through /events/[eventId]/[tool] while global tools remain explicit (/events/reports, /events/page-builder, /events/templates, /events/events).",
+    nextStep: "Add route-level permission enforcement and richer global management telemetry.",
   },
   {
     area: "Events CRM",

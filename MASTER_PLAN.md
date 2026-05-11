@@ -9,6 +9,8 @@ OyamaCRM is a modular nonprofit platform with three CRM workspaces:
 - **Compassion CRM** (blue): client care, cases, appointments, service outcomes.
 - **Events CRM** (amber): event operations, registration, guests, check-in, and donor follow-up.
 
+The platform also supports **standalone apps** (under `/apps/*`) that are not CRM modules.
+
 The platform goal is a complete stewardship loop: add constituent/client records, track activity, execute outreach, and report outcomes with reliable role-based access controls.
 
 ## 2. Current App Structure
@@ -18,6 +20,26 @@ The platform goal is a complete stewardship loop: add constituent/client records
 - `prisma/schema.prisma` + migrations — shared relational data model.
 - `docs/status/` — evidence-backed status and gap documents.
 - `app/settings/system-status` and `app/settings/project-status` — in-app readiness surfaces.
+- TopBar app drawer is now reserved for future standalone app launches (starts empty); CRM switching remains in the module switcher.
+- Standalone apps use a basic shell that intentionally excludes CRM top-search and CRM AI assistant controls.
+
+## 2.1 Reality Check From Full Production Pass (2026-05-10)
+
+The latest full validation pass (tests + smoke + e2e + lint + typecheck + build + browser audit) found production-blocking failures. Use `docs/status/production-readiness-checklist.md` as the release gate source.
+
+Immediate blockers:
+
+1. Grants smoke regressions from status/response-contract drift.
+2. Compassion workflow smoke regression where newly created clients are not reliably returned in immediate list assertions.
+3. Events reports route uses unauthenticated data calls and fails under protected APIs.
+4. Event-scoped guests route crashes on unsafe payload assumptions.
+5. Lint/typecheck/build lanes are not passing.
+
+Planning rule for next implementation cycle:
+
+1. Fix all Broken release-lane items first (PR-001 through PR-008 in checklist).
+2. Keep Demo Only and Not Implemented surfaces visibly labeled in UI.
+3. Re-run full matrix and only then move to expansion work.
 
 ## 3. Donor CRM Plan/Status
 
@@ -35,15 +57,18 @@ Still partial:
 
 ## 4. Compassion CRM Plan/Status
 
-**Current status:** mostly **UI Only / Placeholder Data**.
+**Current status:** **Mixed (working core + partial advanced workflows)**.
 
 Working now:
 - Blue module shell, navigation, and auth-gated route group.
+- Core client/case/appointment dashboard and CRUD routes.
+- Public scheduling page with server-generated slot availability and submit-time slot validation.
+- Embeddable scheduling via iframe and script snippets.
 
 Missing:
-- Core schema (`Client`, `Case`, `Assessment`, `CarePlan`, `Appointment`).
-- Compassion API routes and CRUD workflows.
-- Real dashboard/reporting data.
+- Existing-client matcher + staff triage queue for public appointment submissions.
+- Rate limiting/anti-abuse controls for public scheduling endpoints.
+- Full implementation of all in-development client profile tabs.
 - Workspace-specific permission enforcement.
 
 ## 5. Events CRM Plan/Status
@@ -52,6 +77,8 @@ Missing:
 
 Working now:
 - Event CRUD, orders, guests, tables, check-in, reports, and event activity sync into donor timeline.
+- Event-first workspace selector and scoped routing.
+- Explicit global tools outside selected-event scope (reports, page builder, templates, registry).
 
 UI-only areas:
 - Tickets, sponsors, communications, tasks, volunteers, files, settings, and parts of fundraising/public pages still use static scaffold cards.
@@ -173,6 +200,15 @@ Still needed:
    - Unified timeline for donations, event attendance/orders, sponsorships, emails, tasks, notes, imports, and approved Compassion interactions.
 7. **Versioning/Release Visibility:**
    - App version/build date/changelog/release notes with feature readiness labels in-app.
+8. **TopBar App Drawer Expansion:**
+   - Temporarily keep TopBar app launcher button hidden while launcher rollout criteria and app list governance are finalized.
+   - Re-enable only after approved app inventory, permissions review, and operator guidance are documented.
+   - Keep CRM modules out of the app drawer and use it for standalone tools/apps only.
+   - First app targets include Trivia Night workflows and future nonprofit mini-app experiences.
+9. **Standalone App Platform Rules:**
+   - Keep app routes under `/apps/*` with app-local shell/navigation.
+   - Preserve CRM data isolation by default; allow access only through explicit integration and permissions.
+   - Keep app UX platform-consistent while excluding CRM top-search and CRM AI controls unless explicitly required.
 
 ### Priority 4 — Nice-to-Have Improvements
 

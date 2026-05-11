@@ -38,6 +38,19 @@ interface GrantCardProps {
   onEdit?: (g: Grant) => void;
 }
 
+/** Returns the primary operational deadline for a grant card. */
+function primaryDeadline(grant: Grant): string | null {
+  return grant.applicationDeadline ?? grant.loiDeadline ?? null;
+}
+
+/** Returns days remaining until primary deadline. */
+function daysUntil(date: string | null): number | null {
+  if (!date) return null;
+  const target = new Date(date).getTime();
+  const diff = target - Date.now();
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
 /**
  * GrantCard — compact card showing funder, status, amounts, and upcoming deadlines.
  * Links to the full grant detail page.
@@ -46,6 +59,10 @@ export default function GrantCard({ grant, onEdit }: GrantCardProps) {
   const requested = Number(grant.amountRequested ?? 0);
   const awarded   = Number(grant.amountAwarded ?? 0);
   const meta = STATUS_META[grant.status];
+  const deadline = primaryDeadline(grant);
+  const daysLeft = daysUntil(deadline);
+  const overdue = daysLeft !== null && daysLeft < 0;
+  const dueSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 14;
 
   return (
     <div className={`bg-white rounded-xl border shadow-sm hover:shadow-md transition-shadow flex flex-col ${meta.border}`}>
@@ -61,7 +78,20 @@ export default function GrantCard({ grant, onEdit }: GrantCardProps) {
             </Link>
             <p className="text-xs text-gray-500 mt-0.5">{grant.funder?.name ?? "Unknown funder"}</p>
           </div>
-          <StatusBadge status={grant.status} />
+          <div className="flex flex-col items-end gap-1">
+            <StatusBadge status={grant.status} />
+            {daysLeft !== null && (
+              <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 border ${
+                overdue
+                  ? "text-red-700 bg-red-50 border-red-200"
+                  : dueSoon
+                  ? "text-amber-700 bg-amber-50 border-amber-200"
+                  : "text-gray-600 bg-gray-50 border-gray-200"
+              }`}>
+                {overdue ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d left`}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Amounts */}
@@ -99,11 +129,20 @@ export default function GrantCard({ grant, onEdit }: GrantCardProps) {
         </div>
 
         {/* Assignee */}
-        {grant.assignee && (
-          <p className="text-xs text-gray-400">
-            Assigned to {grant.assignee.firstName} {grant.assignee.lastName}
-          </p>
-        )}
+        <div className="flex items-center justify-between gap-2 text-xs">
+          {grant.assignee ? (
+            <p className="text-gray-400">
+              Assigned to {grant.assignee.firstName} {grant.assignee.lastName}
+            </p>
+          ) : (
+            <span className="inline-flex rounded-full px-2 py-0.5 bg-red-50 text-red-700 border border-red-200 font-medium">
+              Unassigned
+            </span>
+          )}
+          {requested > 0 && (
+            <span className="text-[11px] text-gray-400">Req. {fmt$(requested)}</span>
+          )}
+        </div>
       </div>
 
       {/* Footer actions */}

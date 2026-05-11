@@ -251,7 +251,7 @@ describe("compassion CRM smoke", () => {
       .set(auth)
       .send({
         records: [
-          { firstName: "Test", lastName: "Person", ssn: "123-45-6789", clientStatus: "ACTIVE" },
+          { firstName: "Alicia", lastName: "Rivera", ssn: "123-45-6789", clientStatus: "ACTIVE" },
         ],
         mode: "create_only",
         dryRun: false,

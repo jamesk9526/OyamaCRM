@@ -23,6 +23,8 @@ interface StaffUser {
   id: string;
   firstName: string;
   lastName: string;
+  displayName?: string | null;
+  fullName?: string;
 }
 
 /** Maps a clientStatus value to a badge style */
@@ -74,7 +76,7 @@ function AddClientModal({ onClose, onCreated, staffList }: {
           ...form,
           preferredName: form.preferredName || undefined,
           dateOfBirth: form.dateOfBirth || undefined,
-          assignedStaffId: form.assignedStaffId || undefined,
+          assignedCompassionStaffId: form.assignedStaffId || undefined,
           privateNotes: form.privateNotes || undefined,
         }),
       });
@@ -159,7 +161,7 @@ function AddClientModal({ onClose, onCreated, staffList }: {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
                 <option value="">Unassigned</option>
                 {staffList.map((s) => (
-                  <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
+                  <option key={s.id} value={s.id}>{s.fullName ?? s.displayName ?? `${s.firstName} ${s.lastName}`}</option>
                 ))}
               </select>
             </div>
@@ -227,12 +229,11 @@ export default function CompassionClientsPage() {
     }
   }, [search, statusFilter, assignedFilter, missingContact, intakeWindow]);
 
-  // Load staff list for assignee dropdown (reuse /api/users)
+  // Load Compassion staff list for assignee dropdown.
   useEffect(() => {
-    apiFetch<{ items?: StaffUser[] } | StaffUser[]>("/api/users?limit=100")
+    apiFetch<StaffUser[]>("/api/compassion/staff?active=true&limit=200")
       .then((d) => {
-        const list = Array.isArray(d) ? d : (d as { items?: StaffUser[] }).items ?? [];
-        setStaffList(list);
+        setStaffList(Array.isArray(d) ? d : []);
       })
       .catch(() => setStaffList([]));
   }, []);

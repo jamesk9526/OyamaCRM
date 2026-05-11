@@ -20,10 +20,19 @@ import {
 function jsonResponse(body: unknown, init: { status?: number; ok?: boolean } = {}) {
   const status = init.status ?? 200;
   const ok = init.ok ?? (status >= 200 && status < 300);
+  const serialized = JSON.stringify(body ?? {});
+  const headerMap = new Map<string, string>([
+    ["content-type", "application/json"],
+    ["content-length", String(serialized.length)],
+  ]);
   return {
     ok,
     status,
+    headers: {
+      get: (name: string) => headerMap.get(name.toLowerCase()) ?? null,
+    },
     json: async () => body,
+    text: async () => serialized,
   } as unknown as Response;
 }
 

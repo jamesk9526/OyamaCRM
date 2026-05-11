@@ -23,6 +23,8 @@ const APPOINTMENT_TYPE_SET = new Set<CompassionAppointmentType>(APPOINTMENT_TYPE
 const HEX_COLOR = /^#(?:[0-9a-fA-F]{6})$/;
 const LOGO_DATA_URL_PREFIX = /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i;
 const MAX_LOGO_DATA_URL_LENGTH = 220000;
+const TIME_24H = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
 
 export type AppointmentWidgetFieldKey = "email" | "phone" | "appointmentType" | "location" | "notes";
 export type AppointmentWidgetQuestionType = "text" | "textarea" | "select" | "checkbox";
@@ -44,6 +46,24 @@ export interface AppointmentWidgetCustomQuestion {
   placeholder?: string;
   helperText?: string;
   options: string[];
+}
+
+export interface AppointmentWidgetAvailabilityBlock {
+  id: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  location: string;
+  appointmentType: CompassionAppointmentType | "ANY";
+  capacity: number;
+  isActive: boolean;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+}
+
+export interface AppointmentWidgetBlackoutDate {
+  date: string;
+  reason?: string;
 }
 
 export interface AppointmentWidgetConfig {
@@ -68,6 +88,28 @@ export interface AppointmentWidgetConfig {
   textColor: string;
   enabledFields: AppointmentWidgetFieldConfig[];
   customQuestions: AppointmentWidgetCustomQuestion[];
+  slotIntervalMinutes: number;
+  appointmentDurationMinutes: number;
+  minLeadHours: number;
+  maxAdvanceDays: number;
+  availabilityBlocks: AppointmentWidgetAvailabilityBlock[];
+  blackoutDates: AppointmentWidgetBlackoutDate[];
+}
+
+export interface AppointmentSlotReservation {
+  startTime: Date;
+  location: string | null;
+  appointmentType: CompassionAppointmentType;
+  status?: string;
+}
+
+export interface AppointmentWidgetAvailableSlot {
+  startTime: string;
+  endTime: string;
+  location: string;
+  appointmentType: CompassionAppointmentType | "ANY";
+  capacity: number;
+  remainingCapacity: number;
 }
 
 /** Generates a fresh public token for a widget link. */
@@ -110,7 +152,115 @@ export function buildDefaultWidgetConfig(): AppointmentWidgetConfig {
     textColor: "#0f172a",
     enabledFields: buildDefaultWidgetFields(),
     customQuestions: [],
+    slotIntervalMinutes: 30,
+    appointmentDurationMinutes: 60,
+    minLeadHours: 12,
+    maxAdvanceDays: 90,
+    availabilityBlocks: [
+      { id: "mon-main", dayOfWeek: 1, startTime: "09:00", endTime: "17:00", location: "Main Office", appointmentType: "ANY", capacity: 2, isActive: true },
+      { id: "tue-main", dayOfWeek: 2, startTime: "09:00", endTime: "17:00", location: "Main Office", appointmentType: "ANY", capacity: 2, isActive: true },
+      { id: "wed-main", dayOfWeek: 3, startTime: "09:00", endTime: "17:00", location: "Main Office", appointmentType: "ANY", capacity: 2, isActive: true },
+      { id: "thu-main", dayOfWeek: 4, startTime: "09:00", endTime: "17:00", location: "Main Office", appointmentType: "ANY", capacity: 2, isActive: true },
+      { id: "fri-main", dayOfWeek: 5, startTime: "09:00", endTime: "17:00", location: "Main Office", appointmentType: "ANY", capacity: 2, isActive: true },
+    ],
+    blackoutDates: [],
   };
+}
+
+/** Parses bounded integer-like values with safe fallback. */
+function parseBoundedInt(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (Number.isNaN(parsed)) return fallback;
+  return Math.min(Math.max(parsed, min), max);
+}
+
+/** Parses HH:mm values into minute offsets. */
+function parseTimeToMinutes(value: string): number | null {
+  const match = TIME_24H.exec(value.trim());
+  if (!match) return null;
+  return Number.parseInt(match[1], 10) * 60 + Number.parseInt(match[2], 10);
+}
+
+/** Returns local date key YYYY-MM-DD from a Date. */
+function toDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/** Builds local Date from a YYYY-MM-DD key. */
+function fromDateKey(dateKey: string): Date {
+  const [year, month, day] = dateKey.split("-").map((value) => Number.parseInt(value, 10));
+  return new Date(year, month - 1, day, 0, 0, 0, 0);
+}
+
+/** Parses availability blocks and keeps only valid operational windows. */
+function parseAvailabilityBlocks(values: unknown, fallback: AppointmentWidgetAvailabilityBlock[]): AppointmentWidgetAvailabilityBlock[] {
+  if (!Array.isArray(values)) return fallback;
+
+  const parsed = values
+    .map((item, index): AppointmentWidgetAvailabilityBlock | null => {
+      if (!item || typeof item !== "object") return null;
+      const obj = item as Record<string, unknown>;
+
+      const id = String(obj.id ?? `block_${index + 1}`).trim() || `block_${index + 1}`;
+      const dayOfWeek = parseBoundedInt(obj.dayOfWeek, 1, 0, 6);
+
+      const startTime = String(obj.startTime ?? "").trim();
+      const endTime = String(obj.endTime ?? "").trim();
+      const startMinutes = parseTimeToMinutes(startTime);
+      const endMinutes = parseTimeToMinutes(endTime);
+      if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) return null;
+
+      const typeCandidate = String(obj.appointmentType ?? "ANY").trim();
+      const appointmentType: CompassionAppointmentType | "ANY" =
+        typeCandidate === "ANY"
+          ? "ANY"
+          : APPOINTMENT_TYPE_SET.has(typeCandidate as CompassionAppointmentType)
+            ? (typeCandidate as CompassionAppointmentType)
+            : "ANY";
+
+      const effectiveFrom = String(obj.effectiveFrom ?? "").trim();
+      const effectiveTo = String(obj.effectiveTo ?? "").trim();
+
+      return {
+        id,
+        dayOfWeek,
+        startTime,
+        endTime,
+        location: String(obj.location ?? "").trim(),
+        appointmentType,
+        capacity: parseBoundedInt(obj.capacity, 1, 1, 20),
+        isActive: typeof obj.isActive === "boolean" ? obj.isActive : true,
+        effectiveFrom: DATE_KEY.test(effectiveFrom) ? effectiveFrom : undefined,
+        effectiveTo: DATE_KEY.test(effectiveTo) ? effectiveTo : undefined,
+      };
+    })
+    .filter((block): block is AppointmentWidgetAvailabilityBlock => Boolean(block));
+
+  return parsed.length > 0 ? parsed.slice(0, 120) : fallback;
+}
+
+/** Parses one-off blackout dates that should never expose slots publicly. */
+function parseBlackoutDates(values: unknown): AppointmentWidgetBlackoutDate[] {
+  if (!Array.isArray(values)) return [];
+
+  const parsed = values
+    .map((item): AppointmentWidgetBlackoutDate | null => {
+      if (!item || typeof item !== "object") return null;
+      const obj = item as Record<string, unknown>;
+      const date = String(obj.date ?? "").trim();
+      if (!DATE_KEY.test(date)) return null;
+
+      return {
+        date,
+        reason: String(obj.reason ?? "").trim().slice(0, 160),
+      };
+    })
+    .filter((value): value is AppointmentWidgetBlackoutDate => Boolean(value));
+
+  return parsed.slice(0, 90);
 }
 
 /** Parses a single brand color and falls back when invalid. */
@@ -222,6 +372,8 @@ export function parseWidgetConfig(raw: unknown): AppointmentWidgetConfig {
   const defaultAppointmentType = APPOINTMENT_TYPE_SET.has(defaultAppointmentTypeCandidate as CompassionAppointmentType)
     ? (defaultAppointmentTypeCandidate as CompassionAppointmentType)
     : defaults.defaultAppointmentType;
+  const slotIntervalMinutes = parseBoundedInt(obj.slotIntervalMinutes, defaults.slotIntervalMinutes, 5, 180);
+  const appointmentDurationMinutes = parseBoundedInt(obj.appointmentDurationMinutes, defaults.appointmentDurationMinutes, 5, 240);
 
   return {
     enabled: typeof obj.enabled === "boolean" ? obj.enabled : defaults.enabled,
@@ -257,5 +409,107 @@ export function parseWidgetConfig(raw: unknown): AppointmentWidgetConfig {
     textColor: parseColor(obj.textColor, defaults.textColor),
     enabledFields: parseFieldConfig(obj.enabledFields, defaults.enabledFields),
     customQuestions: parseCustomQuestions(obj.customQuestions),
+    slotIntervalMinutes,
+    appointmentDurationMinutes,
+    minLeadHours: parseBoundedInt(obj.minLeadHours, defaults.minLeadHours, 0, 336),
+    maxAdvanceDays: parseBoundedInt(obj.maxAdvanceDays, defaults.maxAdvanceDays, 1, 365),
+    availabilityBlocks: parseAvailabilityBlocks(obj.availabilityBlocks, defaults.availabilityBlocks),
+    blackoutDates: parseBlackoutDates(obj.blackoutDates),
   };
+}
+
+/** Returns true when an appointment status should consume booking capacity. */
+function blocksCapacity(status: string | undefined): boolean {
+  return status !== "CANCELLED" && status !== "NO_SHOW";
+}
+
+/** Evaluates date-range filters for recurring availability blocks. */
+function blockAppliesToDate(block: AppointmentWidgetAvailabilityBlock, dateKey: string): boolean {
+  if (!block.isActive) return false;
+  if (block.effectiveFrom && dateKey < block.effectiveFrom) return false;
+  if (block.effectiveTo && dateKey > block.effectiveTo) return false;
+  return true;
+}
+
+/** Computes available slots from configured office availability and existing appointment load. */
+export function buildWidgetAvailableSlots(params: {
+  config: AppointmentWidgetConfig;
+  date: Date;
+  appointments: AppointmentSlotReservation[];
+  now?: Date;
+  requestedLocation?: string;
+  requestedAppointmentType?: CompassionAppointmentType;
+}): AppointmentWidgetAvailableSlot[] {
+  const now = params.now ?? new Date();
+  const dateKey = toDateKey(params.date);
+  const daysAhead = Math.floor((fromDateKey(dateKey).getTime() - fromDateKey(toDateKey(now)).getTime()) / (24 * 60 * 60 * 1000));
+  if (daysAhead < 0 || daysAhead > params.config.maxAdvanceDays) return [];
+  if (params.config.blackoutDates.some((item) => item.date === dateKey)) return [];
+
+  const requestedLocation = (params.requestedLocation ?? "").trim();
+  const requestedAppointmentType = params.requestedAppointmentType;
+  const leadCutoff = new Date(now.getTime() + params.config.minLeadHours * 60 * 60 * 1000);
+
+  const slotsByKey = new Map<string, AppointmentWidgetAvailableSlot>();
+  const weekday = fromDateKey(dateKey).getDay();
+
+  for (const block of params.config.availabilityBlocks) {
+    if (block.dayOfWeek !== weekday) continue;
+    if (!blockAppliesToDate(block, dateKey)) continue;
+
+    if (requestedLocation && block.location && block.location !== requestedLocation) continue;
+    if (
+      requestedAppointmentType
+      && block.appointmentType !== "ANY"
+      && block.appointmentType !== requestedAppointmentType
+    ) {
+      continue;
+    }
+
+    const startMinutes = parseTimeToMinutes(block.startTime);
+    const endMinutes = parseTimeToMinutes(block.endTime);
+    if (startMinutes === null || endMinutes === null) continue;
+
+    const slotLocation = block.location || requestedLocation || params.config.locationOptions[0] || "";
+    const blockType = block.appointmentType;
+
+    for (let minute = startMinutes; minute + params.config.appointmentDurationMinutes <= endMinutes; minute += params.config.slotIntervalMinutes) {
+      const slotStart = fromDateKey(dateKey);
+      slotStart.setHours(Math.floor(minute / 60), minute % 60, 0, 0);
+      if (slotStart.getTime() < leadCutoff.getTime()) continue;
+
+      const slotEnd = new Date(slotStart.getTime() + params.config.appointmentDurationMinutes * 60 * 1000);
+      const reservationCount = params.appointments.filter((appointment) => {
+        if (!blocksCapacity(appointment.status)) return false;
+        if (appointment.startTime.getTime() !== slotStart.getTime()) return false;
+
+        const appointmentLocation = (appointment.location ?? "").trim();
+        if (slotLocation && appointmentLocation && appointmentLocation !== slotLocation) return false;
+
+        if (blockType !== "ANY" && appointment.appointmentType !== blockType) return false;
+        if (requestedAppointmentType && appointment.appointmentType !== requestedAppointmentType && blockType === "ANY") return false;
+        return true;
+      }).length;
+
+      const remainingCapacity = Math.max(0, block.capacity - reservationCount);
+      if (remainingCapacity < 1) continue;
+
+      const slotKey = `${slotStart.toISOString()}|${slotLocation}|${blockType}`;
+      const existing = slotsByKey.get(slotKey);
+      const candidate: AppointmentWidgetAvailableSlot = {
+        startTime: slotStart.toISOString(),
+        endTime: slotEnd.toISOString(),
+        location: slotLocation,
+        appointmentType: blockType,
+        capacity: block.capacity,
+        remainingCapacity,
+      };
+
+      if (!existing || candidate.remainingCapacity > existing.remainingCapacity) {
+        slotsByKey.set(slotKey, candidate);
+      }
+    }
+  }
+
+  return [...slotsByKey.values()].sort((left, right) => left.startTime.localeCompare(right.startTime));
 }

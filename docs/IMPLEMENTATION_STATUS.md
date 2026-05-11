@@ -68,3 +68,24 @@ Missing: Donation/email/analytics adapters and connection UI.
 Status: Not Started
 Notes: Preflight module boundary is scaffolded.
 Missing: Critical/warning/suggestion checks and fix actions.
+
+## StewardAI
+
+| Feature | Status | Notes | Next Step |
+|---|---|---|---|
+| Top bar launch | Working | Steward opens from the top bar AI button. | Add keyboard shortcut discovery in UI help text. |
+| Panel mode controls | Partially Working | Collapsed, dock-right, popout (in-app), and maximized modes are wired in the UI shell. | Persist panel mode preference per user. |
+| Thread history | Working (Local) | Multi-thread history is stored locally in browser localStorage. | Add server-side chat persistence and sync. |
+| Clear conversation confirmation | Working | Clear action now asks for explicit confirmation. | Add per-thread clear option. |
+| Steward to OGentic handoff | Partially Working | Prompt + source route handoff is stored in sessionStorage and read in OGentic. | Add backend handoff session model. |
+
+## OGentic
+
+| Feature | Status | Notes | Next Step |
+|---|---|---|---|
+| Route and module shell | Partially Working | /ogentic route is live with a three-column control-center layout. | Add role-aware access checks. |
+| Left workspace sidebar | Partially Working | Recent chats and artifact counters are displayed. | Connect real chat metadata and saved workspace history. |
+| Main chat workspace | Partially Working | Large chat shell, suggested prompts, context toggles, and draft-only control exist. | Connect real agent execution and message streaming. |
+| Tool context panel | UI Shell Only | Tool registry categories and risk labels are visible from stub registry data. | Wire category tools to backend routes. |
+| Artifact panel | Partially Working (Local) | Draft/report/spreadsheet artifact cards persist locally for development. | Add backend artifact storage and retrieval APIs. |
+| Safety model | Partially Working | Risk levels and approval metadata exist in registry definitions. | Enforce approval gates server-side. |

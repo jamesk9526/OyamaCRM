@@ -29,8 +29,8 @@ export default function DonorRetention({ retained, total, rate, loading }: Donor
     : `${retained} out of ${total} donors retained`;
 
   return (
-    <Card>
-      <div className="flex items-start justify-between mb-4">
+    <Card padding="small">
+      <div className="flex items-start justify-between mb-3">
         <h3 className="font-semibold text-gray-900">Donor Retention</h3>
         <div className="flex items-center gap-1 rounded-md border border-gray-200 p-1">
           <button
@@ -58,7 +58,7 @@ export default function DonorRetention({ retained, total, rate, loading }: Donor
         </div>
       </div>
 
-      <div className="flex flex-col items-center py-4">
+      <div className="flex flex-col items-center py-3">
         {loading ? (
           <div className="w-44 h-44 rounded-full bg-gray-200 animate-pulse" />
         ) : (
@@ -82,7 +82,7 @@ export default function DonorRetention({ retained, total, rate, loading }: Donor
         
         <p className="text-xs text-gray-500 mt-1 uppercase tracking-wide">Year-over-Year</p>
         
-        <div className="mt-4 text-center">
+        <div className="mt-3 text-center">
           {loading ? (
             <div className="h-4 w-40 bg-gray-200 rounded animate-pulse" />
           ) : (
@@ -93,7 +93,7 @@ export default function DonorRetention({ retained, total, rate, loading }: Donor
         </div>
 
         {!loading && total > 0 && (
-          <div className="mt-4 w-full max-w-xs">
+          <div className="mt-3 w-full max-w-xs">
             <div className="h-2 w-full rounded-full overflow-hidden border border-gray-200 flex">
               <button
                 type="button"

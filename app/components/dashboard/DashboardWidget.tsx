@@ -89,7 +89,7 @@ export default function DashboardWidget({
       `}
     >
       {/* ── Card header ── */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 select-none">
+      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-gray-100 select-none">
 
         {/* Six-dot drag handle — visible only in edit mode */}
         {editMode && (
@@ -109,7 +109,7 @@ export default function DashboardWidget({
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-semibold text-gray-800 truncate">{title}</h3>
           {subtitle && (
-            <p className="text-xs text-gray-400 truncate">{subtitle}</p>
+            <p className="text-[11px] text-gray-400 truncate">{subtitle}</p>
           )}
         </div>
 
@@ -146,7 +146,7 @@ export default function DashboardWidget({
       </div>
 
       {/* ── Card body ── */}
-      <div className="flex-1 p-4 overflow-auto">
+      <div className="flex-1 p-3 overflow-auto">
         {children}
       </div>
     </div>

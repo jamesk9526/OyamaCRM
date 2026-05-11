@@ -78,9 +78,9 @@ export default function TopDonorsWidget() {
 
   if (loading) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="animate-pulse flex gap-3 items-center">
+          <div key={i} className="animate-pulse flex gap-2.5 items-center">
             <div className="w-6 h-6 bg-gray-100 rounded-full" />
             <div className="flex-1 space-y-1.5">
               <div className="h-3.5 bg-gray-100 rounded w-2/3" />
@@ -106,13 +106,13 @@ export default function TopDonorsWidget() {
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-0.5">
       {donors.map((donor, i) => {
         const rank = i + 1;
         return (
           <div
             key={donor.id}
-            className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2.5 py-1.5 px-2.5 rounded-lg hover:bg-gray-50 transition-colors"
           >
             {/* Rank / medal */}
             <div className={`w-5 text-center font-bold text-sm shrink-0 ${medalColor(rank)}`}>

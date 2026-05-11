@@ -7,7 +7,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
-import ClientWorkspacePlaceholder from "@/app/components/compassion/client-workspace/ClientWorkspacePlaceholder";
+import ClientActivityEntriesTab from "@/app/components/compassion/client-workspace/ClientActivityEntriesTab";
+import ClientFollowUpsTab from "@/app/components/compassion/client-workspace/ClientFollowUpsTab";
+import ClientServicesLogTab from "@/app/components/compassion/client-workspace/ClientServicesLogTab";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -15,6 +17,8 @@ interface StaffRef {
   id: string;
   firstName: string;
   lastName: string;
+  displayName?: string | null;
+  fullName?: string;
 }
 
 interface CompassionCase {
@@ -56,6 +60,13 @@ interface CompassionActivity {
   performedBy?: { firstName: string; lastName: string };
 }
 
+interface CompassionFollowUp {
+  id: string;
+  title: string;
+  status: string;
+  dueDate: string;
+}
+
 interface ClientDetail {
   id: string;
   firstName: string;
@@ -77,6 +88,7 @@ interface ClientDetail {
   cases: CompassionCase[];
   appointments: CompassionAppointment[];
   services: CompassionService[];
+  followUps: CompassionFollowUp[];
   activities: CompassionActivity[];
 }
 
@@ -194,7 +206,7 @@ function EditClientModal({
           state: form.state || undefined,
           zip: form.zip || undefined,
           dateOfBirth: form.dateOfBirth || undefined,
-          assignedStaffId: form.assignedStaffId || undefined,
+          assignedCompassionStaffId: form.assignedStaffId || undefined,
           referralSource: form.referralSource || undefined,
           privateNotes: form.privateNotes || undefined,
         }),
@@ -280,7 +292,7 @@ function EditClientModal({
               >
                 <option value="">Unassigned</option>
                 {staffList.map((s) => (
-                  <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
+                  <option key={s.id} value={s.id}>{s.fullName ?? s.displayName ?? `${s.firstName} ${s.lastName}`}</option>
                 ))}
               </select>
             </div>
@@ -452,28 +464,59 @@ function AppointmentsTab({ appointments }: { appointments: CompassionAppointment
   if (appointments.length === 0) {
     return <EmptyState message="No appointments scheduled for this client." />;
   }
-  return (
-    <div className="space-y-3">
-      {appointments.map((a) => (
-        <div key={a.id} className="bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-gray-900">{pretty(a.appointmentType)}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{fmtDateTime(a.startTime)}</p>
-              {a.location && <p className="text-xs text-gray-400 mt-0.5">📍 {a.location}</p>}
-            </div>
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${apptStatusBadge(a.status)}`}>
-              {pretty(a.status)}
-            </span>
-          </div>
-          {a.notes && <p className="text-xs text-gray-600 mt-2 border-t border-gray-50 pt-2">{a.notes}</p>}
-          {a.assignedStaff && (
-            <p className="text-xs text-gray-400 mt-1">
-              Staff: {a.assignedStaff.firstName} {a.assignedStaff.lastName}
-            </p>
-          )}
+
+  const now = new Date();
+  const upcoming = appointments.filter((appointment) => new Date(appointment.startTime) >= now);
+  const history = appointments.filter((appointment) => new Date(appointment.startTime) < now);
+
+  const renderCard = (appointment: CompassionAppointment) => (
+    <div key={appointment.id} className="bg-white rounded-xl border border-gray-200 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-gray-900">{pretty(appointment.appointmentType)}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{fmtDateTime(appointment.startTime)}</p>
+          {appointment.location && <p className="text-xs text-gray-400 mt-0.5">📍 {appointment.location}</p>}
         </div>
-      ))}
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${apptStatusBadge(appointment.status)}`}>
+          {pretty(appointment.status)}
+        </span>
+      </div>
+      {appointment.notes && <p className="text-xs text-gray-600 mt-2 border-t border-gray-50 pt-2">{appointment.notes}</p>}
+      {appointment.assignedStaff && (
+        <p className="text-xs text-gray-400 mt-1">
+          Staff: {appointment.assignedStaff.firstName} {appointment.assignedStaff.lastName}
+        </p>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="space-y-5">
+      <section>
+        <h3 className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Upcoming Appointments</h3>
+        {upcoming.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-4 text-sm text-gray-400">
+            No upcoming appointments.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {upcoming.map((appointment) => renderCard(appointment))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h3 className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Appointment History</h3>
+        {history.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-4 text-sm text-gray-400">
+            No historical appointments yet.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {history.map((appointment) => renderCard(appointment))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -544,23 +587,6 @@ function AuditLogTab({ activities }: { activities: CompassionActivity[] }) {
         </tbody>
       </table>
     </div>
-  );
-}
-
-/**
- * PlannedClientTab displays a standard in-development warning for tabs not fully implemented yet.
- */
-function PlannedClientTab({ title, description }: { title: string; description: string }) {
-  return (
-    <ClientWorkspacePlaceholder
-      title={title}
-      description={description}
-      criteria={[
-        "Client-scoped data retrieval is implemented and filtered by clientId.",
-        "At least one create/update happy-path test exists.",
-        "Audit events for view/create/update actions are written.",
-      ]}
-    />
   );
 }
 
@@ -661,11 +687,8 @@ export default function ClientProfilePage() {
 
   // Load staff list once for edit modal
   useEffect(() => {
-    apiFetch<{ items?: StaffRef[] } | StaffRef[]>("/api/users?limit=100")
-      .then((d) => {
-        const list = Array.isArray(d) ? d : (d as { items?: StaffRef[] }).items ?? [];
-        setStaffList(list);
-      })
+    apiFetch<StaffRef[]>("/api/compassion/staff?active=true&limit=200")
+      .then((d) => setStaffList(Array.isArray(d) ? d : []))
       .catch(() => setStaffList([]));
   }, []);
 
@@ -696,27 +719,62 @@ export default function ClientProfilePage() {
     );
   }
 
-  const tabs: { id: Tab; label: string; count?: number }[] = [
-    { id: "overview", label: "Overview" },
-    { id: "details", label: "Details" },
-    { id: "cases", label: "Cases", count: client.cases.length },
-    { id: "activity", label: "Activity", count: client.activities.length },
-    { id: "notes", label: "Notes" },
-    { id: "appointments", label: "Appointments", count: client.appointments.length },
-    { id: "followUps", label: "Follow Ups" },
-    { id: "resources", label: "Resources", count: client.services.length },
-    { id: "documents", label: "Documents" },
-    { id: "medical", label: "Medical" },
-    { id: "assessments", label: "Assessments" },
-    { id: "pregnancyTests", label: "Pregnancy Tests" },
-    { id: "sonograms", label: "Sonograms" },
-    { id: "referrals", label: "Referrals" },
-    { id: "classes", label: "Classes" },
-    { id: "boutique", label: "Boutique" },
-    { id: "communication", label: "Communication" },
-    { id: "portal", label: "Portal" },
-    { id: "auditLog", label: "Audit Log", count: client.activities.length },
+  const noteCount = client.activities.filter((item) => item.activityType === "CLIENT_NOTE").length;
+  const documentCount = client.activities.filter((item) => item.activityType === "CLIENT_DOCUMENT").length;
+  const assessmentCount = client.activities.filter((item) => item.activityType === "CLIENT_ASSESSMENT").length;
+  const communicationCount = client.activities.filter((item) => item.activityType === "CLIENT_COMMUNICATION").length;
+  const portalEventCount = client.activities.filter((item) => item.activityType === "CLIENT_PORTAL_EVENT").length;
+  const pregnancyTestCount = client.services.filter((item) => item.serviceType === "PREGNANCY_TEST").length;
+  const sonogramCount = client.services.filter((item) => item.serviceType === "ULTRASOUND").length;
+  const referralCount = client.services.filter((item) => ["HOUSING_REFERRAL", "EDUCATION_REFERRAL", "JOB_REFERRAL", "TRANSPORTATION_RESOURCE", "NUTRITION_SUPPORT"].includes(item.serviceType)).length;
+  const classCount = client.services.filter((item) => item.serviceType === "PARENTING_CLASS").length;
+  const boutiqueCount = client.services.filter((item) => ["DIAPERS", "CLOTHING", "FORMULA"].includes(item.serviceType)).length;
+  const medicalCount = client.services.filter((item) => ["PREGNANCY_TEST", "ULTRASOUND", "COUNSELING", "OTHER"].includes(item.serviceType)).length;
+  const activeCaseCount = client.cases.filter((item) => !["CLOSED", "ARCHIVED"].includes(item.caseStatus)).length;
+  const openFollowUpCount = client.followUps.filter((item) => ["PENDING", "IN_PROGRESS"].includes(item.status)).length;
+  const upcomingAppointmentCount = client.appointments.filter((item) => new Date(item.startTime).getTime() >= Date.now()).length;
+
+  const tabMeta: Record<Tab, { label: string; count?: number }> = {
+    overview: { label: "Overview" },
+    details: { label: "Details" },
+    cases: { label: "Cases", count: client.cases.length },
+    activity: { label: "Activity", count: client.activities.length },
+    notes: { label: "Notes", count: noteCount },
+    appointments: { label: "Appointments", count: client.appointments.length },
+    followUps: { label: "Follow Ups", count: client.followUps.length },
+    resources: { label: "Resources", count: client.services.length },
+    documents: { label: "Documents", count: documentCount },
+    medical: { label: "Medical", count: medicalCount },
+    assessments: { label: "Assessments", count: assessmentCount },
+    pregnancyTests: { label: "Pregnancy Tests", count: pregnancyTestCount },
+    sonograms: { label: "Sonograms", count: sonogramCount },
+    referrals: { label: "Referrals", count: referralCount },
+    classes: { label: "Classes", count: classCount },
+    boutique: { label: "Boutique", count: boutiqueCount },
+    communication: { label: "Communication", count: communicationCount },
+    portal: { label: "Portal", count: portalEventCount },
+    auditLog: { label: "Audit Log", count: client.activities.length },
+  };
+
+  const tabGroups: Array<{ label: string; tabs: Tab[] }> = [
+    {
+      label: "Client Profile",
+      tabs: ["overview", "details", "cases", "activity", "appointments", "followUps", "auditLog"],
+    },
+    {
+      label: "Care Documentation",
+      tabs: ["notes", "assessments", "documents", "communication", "portal"],
+    },
+    {
+      label: "Services And Programs",
+      tabs: ["resources", "medical", "pregnancyTests", "sonograms", "referrals", "classes", "boutique"],
+    },
   ];
+
+  const tabNotices: Partial<Record<Tab, string>> = {
+    documents: "Document record CRUD is active. Secure file upload/storage and signed retrieval links are still being finalized.",
+    portal: "Portal event CRUD is active. Automated inbound portal event ingestion is still being finalized.",
+  };
 
   const displayName = client.preferredName
     ? `${client.firstName} "${client.preferredName}" ${client.lastName}`
@@ -772,58 +830,255 @@ export default function ClientProfilePage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="flex gap-0 -mb-px overflow-x-auto">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                tab === t.id
-                  ? "border-blue-600 text-blue-700"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              {t.label}
-              {t.count !== undefined && t.count > 0 && (
-                <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
-                  tab === t.id ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"
-                }`}>
-                  {t.count}
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+          <p className="text-[11px] uppercase tracking-wide text-gray-500">Open Cases</p>
+          <p className="text-2xl font-semibold text-blue-700">{activeCaseCount}</p>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+          <p className="text-[11px] uppercase tracking-wide text-gray-500">Upcoming Appointments</p>
+          <p className="text-2xl font-semibold text-indigo-700">{upcomingAppointmentCount}</p>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+          <p className="text-[11px] uppercase tracking-wide text-gray-500">Open Follow Ups</p>
+          <p className="text-2xl font-semibold text-amber-700">{openFollowUpCount}</p>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+          <p className="text-[11px] uppercase tracking-wide text-gray-500">Service Entries</p>
+          <p className="text-2xl font-semibold text-emerald-700">{client.services.length}</p>
+        </div>
+      </section>
+
+      {/* Grouped tabs */}
+      <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-4">
+        {tabGroups.map((group) => (
+          <section key={group.label} className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{group.label}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {group.tabs.map((tabId) => {
+                const tabInfo = tabMeta[tabId];
+                return (
+                  <button
+                    key={tabId}
+                    onClick={() => setTab(tabId)}
+                    className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      tab === tabId
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    {tabInfo.label}
+                    {tabInfo.count !== undefined && tabInfo.count > 0 ? (
+                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${tab === tabId ? "bg-white/20 text-white" : "bg-white text-gray-600"}`}>
+                        {tabInfo.count}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
       </div>
 
       <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
         <p className="text-sm font-semibold text-blue-800">Client-scoped workspace</p>
         <p className="text-sm text-blue-700 mt-1">
-          This profile is the source of truth for client service history. Top-level navigation stays focused while detailed care records are managed here by client.
+          This profile is the source of truth for this client. Profile, care documentation, and service-delivery records are organized into focused tab groups.
         </p>
       </div>
+
+      {tabNotices[tab] ? (
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">In development</p>
+          <p className="text-sm text-amber-800 mt-1">{tabNotices[tab]}</p>
+        </section>
+      ) : null}
 
       {/* Tab content */}
       {tab === "overview"      && <OverviewTab client={client} />}
       {tab === "details"       && <DetailsTab client={client} />}
       {tab === "cases"         && <CasesTab cases={client.cases} />}
       {tab === "activity"      && <ActivityTab activities={client.activities} />}
-      {tab === "notes"         && <PlannedClientTab title="Notes" description="Structured and freeform client notes will be managed here with author attribution and history." />}
+      {tab === "notes"         && (
+        <ClientActivityEntriesTab
+          clientId={client.id}
+          activityType="CLIENT_NOTE"
+          title="Notes"
+          intro="Create and manage private client notes with full client scoping and audit coverage."
+          entryLabel="Note"
+          emptyMessage="No notes have been added for this client yet."
+          metadataFields={[
+            {
+              key: "visibility",
+              label: "Visibility",
+              type: "select",
+              options: ["staff_only", "team"],
+            },
+          ]}
+        />
+      )}
       {tab === "appointments"  && <AppointmentsTab appointments={client.appointments} />}
-      {tab === "followUps"     && <PlannedClientTab title="Follow Ups" description="Client-linked follow-up records and outcomes will be managed here and synced with the top-level follow-up queue." />}
-      {tab === "resources"     && <ResourcesTab services={client.services} />}
-      {tab === "documents"     && <PlannedClientTab title="Documents" description="Client documents and forms will be stored here with secure visibility controls." />}
-      {tab === "medical"       && <PlannedClientTab title="Medical" description="Sensitive medical information views will be client-scoped and permission-aware." />}
-      {tab === "assessments"   && <PlannedClientTab title="Assessments" description="Assessment history, stage transitions, and case-linked progress will appear in this tab." />}
-      {tab === "pregnancyTests" && <PlannedClientTab title="Pregnancy Tests" description="Pregnancy test records, outcomes, and follow-up links will be managed per client." />}
-      {tab === "sonograms"     && <PlannedClientTab title="Sonograms" description="Sonogram scheduling and results tracking will be client-scoped in this tab." />}
-      {tab === "referrals"     && <PlannedClientTab title="Referrals" description="Referral source and destination tracking with outcomes will be available here." />}
-      {tab === "classes"       && <PlannedClientTab title="Classes" description="Class attendance, completion, and education history will be managed here." />}
-      {tab === "boutique"      && <PlannedClientTab title="Boutique" description="Material assistance and boutique item usage with points tracking will appear here." />}
-      {tab === "communication" && <PlannedClientTab title="Communication" description="Client email, SMS, calls, and letters with consent-aware logs will be shown here." />}
-      {tab === "portal"        && <PlannedClientTab title="Portal" description="Client portal activity, form submissions, and engagement events will be tracked here." />}
+      {tab === "followUps"     && <ClientFollowUpsTab clientId={client.id} />}
+      {tab === "resources"     && (
+        <ClientServicesLogTab
+          clientId={client.id}
+          title="Resources"
+          intro="Track services and resource assistance delivered to this client."
+          allowedServiceTypes={[
+            "PREGNANCY_TEST",
+            "ULTRASOUND",
+            "DIAPERS",
+            "CLOTHING",
+            "FORMULA",
+            "PARENTING_CLASS",
+            "HOUSING_REFERRAL",
+            "EDUCATION_REFERRAL",
+            "JOB_REFERRAL",
+            "NUTRITION_SUPPORT",
+            "COUNSELING",
+            "TRANSPORTATION_RESOURCE",
+            "OTHER",
+          ]}
+          emptyMessage="No resources or service entries have been logged for this client."
+        />
+      )}
+      {tab === "documents"     && (
+        <ClientActivityEntriesTab
+          clientId={client.id}
+          activityType="CLIENT_DOCUMENT"
+          title="Documents"
+          intro="Register client document records and secure links in the client workspace timeline."
+          entryLabel="Document record"
+          emptyMessage="No document records have been logged for this client."
+          metadataFields={[
+            { key: "documentName", label: "Document Name", placeholder: "Intake Packet" },
+            { key: "documentType", label: "Document Type", placeholder: "Consent / Medical / Form" },
+            { key: "documentUrl", label: "Document URL", type: "url", placeholder: "https://..." },
+          ]}
+        />
+      )}
+      {tab === "medical"       && (
+        <ClientServicesLogTab
+          clientId={client.id}
+          title="Medical"
+          intro="Track medical-related client services and outcomes with a complete dated log."
+          allowedServiceTypes={["PREGNANCY_TEST", "ULTRASOUND", "COUNSELING", "OTHER"]}
+          defaultServiceType="PREGNANCY_TEST"
+          emptyMessage="No medical service records have been logged for this client."
+        />
+      )}
+      {tab === "assessments"   && (
+        <ClientActivityEntriesTab
+          clientId={client.id}
+          activityType="CLIENT_ASSESSMENT"
+          title="Assessments"
+          intro="Record client assessments with stage, score, and recommendation details."
+          entryLabel="Assessment summary"
+          emptyMessage="No assessments have been recorded for this client."
+          metadataFields={[
+            { key: "assessmentStage", label: "Stage", placeholder: "Intake / Progress / Exit" },
+            { key: "score", label: "Score", placeholder: "0-100" },
+            { key: "recommendation", label: "Recommendation", placeholder: "Next best action" },
+          ]}
+        />
+      )}
+      {tab === "pregnancyTests" && (
+        <ClientServicesLogTab
+          clientId={client.id}
+          title="Pregnancy Tests"
+          intro="Manage pregnancy test records, dates, and follow-up notes for this client."
+          allowedServiceTypes={["PREGNANCY_TEST"]}
+          defaultServiceType="PREGNANCY_TEST"
+          emptyMessage="No pregnancy test records have been logged for this client."
+        />
+      )}
+      {tab === "sonograms"     && (
+        <ClientServicesLogTab
+          clientId={client.id}
+          title="Sonograms"
+          intro="Track sonogram-related services and outcomes in this client profile."
+          allowedServiceTypes={["ULTRASOUND"]}
+          defaultServiceType="ULTRASOUND"
+          emptyMessage="No sonogram records have been logged for this client."
+        />
+      )}
+      {tab === "referrals"     && (
+        <ClientServicesLogTab
+          clientId={client.id}
+          title="Referrals"
+          intro="Log referral service outcomes and destination categories for this client."
+          allowedServiceTypes={[
+            "HOUSING_REFERRAL",
+            "EDUCATION_REFERRAL",
+            "JOB_REFERRAL",
+            "TRANSPORTATION_RESOURCE",
+            "NUTRITION_SUPPORT",
+          ]}
+          defaultServiceType="HOUSING_REFERRAL"
+          emptyMessage="No referral records have been logged for this client."
+        />
+      )}
+      {tab === "classes"       && (
+        <ClientServicesLogTab
+          clientId={client.id}
+          title="Classes"
+          intro="Track class attendance and completion entries for this client."
+          allowedServiceTypes={["PARENTING_CLASS"]}
+          defaultServiceType="PARENTING_CLASS"
+          emptyMessage="No class records have been logged for this client."
+        />
+      )}
+      {tab === "boutique"      && (
+        <ClientServicesLogTab
+          clientId={client.id}
+          title="Boutique"
+          intro="Track boutique and material assistance inventory support provided to this client."
+          allowedServiceTypes={["DIAPERS", "CLOTHING", "FORMULA"]}
+          defaultServiceType="DIAPERS"
+          emptyMessage="No boutique or material-assistance records have been logged for this client."
+        />
+      )}
+      {tab === "communication" && (
+        <ClientActivityEntriesTab
+          clientId={client.id}
+          activityType="CLIENT_COMMUNICATION"
+          title="Communication"
+          intro="Log email, SMS, phone, and in-person communication notes for this client."
+          entryLabel="Communication log"
+          emptyMessage="No communication logs have been recorded for this client."
+          metadataFields={[
+            {
+              key: "channel",
+              label: "Channel",
+              type: "select",
+              options: ["email", "sms", "phone", "in_person", "mail"],
+            },
+            {
+              key: "direction",
+              label: "Direction",
+              type: "select",
+              options: ["outbound", "inbound"],
+            },
+            { key: "result", label: "Result", placeholder: "Reached / Voicemail / No response" },
+          ]}
+        />
+      )}
+      {tab === "portal"        && (
+        <ClientActivityEntriesTab
+          clientId={client.id}
+          activityType="CLIENT_PORTAL_EVENT"
+          title="Portal"
+          intro="Track client portal interactions, submissions, and engagement events."
+          entryLabel="Portal event"
+          emptyMessage="No portal events have been recorded for this client."
+          metadataFields={[
+            { key: "eventType", label: "Event Type", placeholder: "Form submitted / Message sent" },
+            { key: "source", label: "Source", placeholder: "Portal / Embedded form" },
+            { key: "referenceUrl", label: "Reference URL", type: "url", placeholder: "https://..." },
+          ]}
+        />
+      )}
       {tab === "auditLog"      && <AuditLogTab activities={client.activities} />}
 
       {/* Edit Modal */}

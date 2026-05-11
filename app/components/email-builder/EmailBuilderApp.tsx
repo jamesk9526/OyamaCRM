@@ -56,6 +56,8 @@ const MERGE_TOKENS = [
 interface Props {
   /** Campaign ID from the `?campaign=` query param. */
   campaignId?: string;
+  /** Route to return to after editing (e.g., campaign workspace). */
+  returnTo?: string;
 }
 
 interface CommunicationsAiTemplateResponse {
@@ -211,7 +213,7 @@ function DragGhost({ label }: { label: string }) {
 
 // ─── EmailBuilderApp ──────────────────────────────────────────────────────────
 
-export default function EmailBuilderApp({ campaignId }: Props) {
+export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
   // ── Template state ─────────────────────────────────────────────────────────
   const [template, setTemplate] = useState<EmailTemplate>(createDefaultTemplate);
 
@@ -546,6 +548,9 @@ export default function EmailBuilderApp({ campaignId }: Props) {
   // ── Derived ────────────────────────────────────────────────────────────────
 
   const selectedBlock = template.blocks.find((b) => b.id === selectedId) ?? null;
+  const campaignWorkspaceHref = campaignId ? `/communications/${campaignId}` : "/communications";
+  const safeReturnHref = returnTo && returnTo.startsWith("/") ? returnTo : campaignWorkspaceHref;
+  const returnLabel = safeReturnHref.startsWith("/communications/") ? "Campaign Workspace" : "Communications";
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -596,15 +601,15 @@ export default function EmailBuilderApp({ campaignId }: Props) {
           {/* Left: back link + campaign name */}
           <div className="flex items-center gap-3">
             <a
-              href="/communications"
+              href={safeReturnHref}
               target="_self"
               className="text-xs text-gray-500 hover:text-green-600 transition-colors flex items-center gap-1"
-              title="Back to OyamaCRM"
+              title={`Back to ${returnLabel}`}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M19 12H5M12 19l-7-7 7-7" />
               </svg>
-              OyamaCRM
+              {returnLabel}
             </a>
             <span className="text-gray-200">|</span>
             <span className="text-sm font-semibold text-gray-800 truncate max-w-xs">
@@ -615,7 +620,7 @@ export default function EmailBuilderApp({ campaignId }: Props) {
             )}
             {campaignId && (
               <a
-                href={`/communications/${campaignId}`}
+                href={campaignWorkspaceHref}
                 target="_self"
                 className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50"
               >

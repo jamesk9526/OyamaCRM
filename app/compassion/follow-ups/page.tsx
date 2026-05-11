@@ -17,7 +17,7 @@ interface CompassionFollowUp {
 }
 
 interface ClientOption { id: string; firstName: string; lastName: string }
-interface StaffUser    { id: string; firstName: string; lastName: string }
+interface StaffUser    { id: string; firstName: string; lastName: string; displayName?: string | null; fullName?: string }
 
 /** Maps follow-up status to badge style */
 function statusBadge(status: string) {
@@ -81,7 +81,7 @@ function AddFollowUpModal({ onClose, onCreated, clientList, staffList }: {
         body: JSON.stringify({
           clientId: form.clientId,
           title: form.title.trim(),
-          assignedStaffId: form.assignedStaffId || undefined,
+          assignedCompassionStaffId: form.assignedStaffId || undefined,
           priority: form.priority,
           dueDate: new Date(form.dueDate).toISOString(),
           notes: form.notes || undefined,
@@ -148,7 +148,7 @@ function AddFollowUpModal({ onClose, onCreated, clientList, staffList }: {
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
               <option value="">Unassigned</option>
               {staffList.map((s) => (
-                <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
+                <option key={s.id} value={s.id}>{s.fullName ?? s.displayName ?? `${s.firstName} ${s.lastName}`}</option>
               ))}
             </select>
           </div>
@@ -211,11 +211,8 @@ export default function CompassionFollowUpsPage() {
     apiFetch<ClientOption[]>("/api/compassion/clients?limit=200")
       .then((d) => setClientList(Array.isArray(d) ? d : []))
       .catch(() => setClientList([]));
-    apiFetch<{ items?: StaffUser[] } | StaffUser[]>("/api/users?limit=100")
-      .then((d) => {
-        const list = Array.isArray(d) ? d : (d as { items?: StaffUser[] }).items ?? [];
-        setStaffList(list);
-      })
+    apiFetch<StaffUser[]>("/api/compassion/staff?active=true&limit=200")
+      .then((d) => setStaffList(Array.isArray(d) ? d : []))
       .catch(() => setStaffList([]));
   }, []);
 

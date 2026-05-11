@@ -6,6 +6,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import CampaignCard from "@/app/components/campaigns/CampaignCard";
 import NewCampaignModal from "@/app/components/campaigns/NewCampaignModal";
 import { apiFetch } from "@/app/lib/auth-client";
@@ -33,7 +34,7 @@ export default function CampaignsPage() {
   const [year, setYear] = useState<number>(currentYear);
   const [allYears, setAllYears] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+  const router = useRouter();
 
   /** Load campaigns from API */
   const loadCampaigns = useCallback(async () => {
@@ -65,19 +66,6 @@ export default function CampaignsPage() {
       setCampaigns((prev) => prev.filter((c) => c.id !== id));
     } catch {
       alert("Failed to delete campaign. Please try again.");
-    }
-  }
-
-  /** Toggle active state when editing */
-  async function handleToggleActive(campaign: Campaign) {
-    try {
-      await apiFetch(`/api/campaigns/${campaign.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ active: !campaign.active }),
-      });
-      setCampaigns((prev) => prev.map((c) => c.id === campaign.id ? { ...c, active: !c.active } : c));
-    } catch {
-      alert("Failed to update campaign.");
     }
   }
 
@@ -200,7 +188,8 @@ export default function CampaignsPage() {
             <CampaignCard
               key={campaign.id}
               campaign={campaign}
-              onEdit={() => setEditingCampaign(campaign)}
+              onInfo={() => router.push(`/campaigns/${campaign.id}`)}
+              onEdit={() => router.push(`/campaigns/${campaign.id}`)}
               onDelete={handleDelete}
             />
           ))}
@@ -212,42 +201,6 @@ export default function CampaignsPage() {
           onClose={() => setShowModal(false)}
           onCreated={() => { setShowModal(false); loadCampaigns(); }}
         />
-      )}
-
-      {/* Edit campaign: toggle active status inline */}
-      {editingCampaign && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-              <h2 className="text-base font-semibold text-gray-900">Edit Campaign</h2>
-              <button onClick={() => setEditingCampaign(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
-            </div>
-            <div className="px-6 py-5 space-y-4">
-              <p className="text-sm font-medium text-gray-900">{editingCampaign.name}</p>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Status</span>
-                <button
-                  onClick={() => { handleToggleActive(editingCampaign); setEditingCampaign(null); }}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                    editingCampaign.active
-                      ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      : "bg-green-600 text-white hover:bg-green-700"
-                  }`}
-                >
-                  {editingCampaign.active ? "Deactivate" : "Activate"}
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
-              <button
-                onClick={() => setEditingCampaign(null)}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

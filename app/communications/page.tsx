@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import NewCampaignModal from "@/app/components/communications/NewCampaignModal";
 import { apiFetch } from "@/app/lib/auth-client";
 
@@ -62,6 +64,7 @@ function pct(n: number, d: number) {
 }
 
 export default function CommunicationsPage() {
+  const router = useRouter();
   const [campaigns, setCampaigns] = useState<EmailCampaign[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -132,14 +135,23 @@ export default function CommunicationsPage() {
     }
   }
 
-  /** Opens the drag-and-drop email builder in a new tab for the given campaign. */
+  /** Builds an email-builder href with an explicit return target to keep editing flow contextual. */
+  function buildBuilderHref(id: string): string {
+    const params = new URLSearchParams({
+      campaign: id,
+      returnTo: `/communications/${id}`,
+    });
+    return `/email-builder?${params.toString()}`;
+  }
+
+  /** Opens the drag-and-drop email builder in the current tab with return-path context. */
   function openEditor(id: string) {
-    window.open(`/email-builder?campaign=${id}`, "_blank");
+    router.push(buildBuilderHref(id));
   }
 
   /** Opens the campaign operations workspace in the current tab. */
   function openWorkspace(id: string) {
-    window.location.href = `/communications/${id}`;
+    router.push(`/communications/${id}`);
   }
 
   const filtered = statusFilter === "all" ? campaigns : campaigns.filter((c) => c.status === statusFilter);
@@ -162,6 +174,19 @@ export default function CommunicationsPage() {
           New Campaign
         </button>
       </div>
+
+      <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Shared Communication Hub</p>
+        <p className="mt-1 text-sm text-emerald-900">
+          Use this workspace as the single home for campaign lifecycle work: drafts, scheduling, send history, and delivery telemetry.
+        </p>
+        <p className="mt-1 text-xs text-emerald-800">
+          The Email Builder is editor-only and should be launched from campaign actions here, not as a separate navigation workflow.
+        </p>
+        <Link href="/communications" className="mt-2 inline-flex text-xs font-semibold text-emerald-900 underline underline-offset-2">
+          Communication Home
+        </Link>
+      </section>
 
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
