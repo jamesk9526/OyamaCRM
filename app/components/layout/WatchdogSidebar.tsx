@@ -3,19 +3,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import OyamaGradientIcon from "@/app/components/ui/OyamaGradientIcon";
 
 interface NavItem {
   label: string;
   href: string;
   description: string;
+  icon: React.ReactNode;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Security Dashboard", href: "/watchdog", description: "Cross-CRM security monitor" },
-  { label: "Password Vault", href: "/watchdog#vault", description: "Encrypted credential storage" },
-  { label: "Security Feed", href: "/watchdog#feed", description: "High-risk events and alerts" },
-  { label: "Backup & Restore", href: "/watchdog#backup", description: "Full CRM export/import controls" },
-  { label: "Access Matrix", href: "/watchdog#access", description: "Fine-grained Watchdog controls" },
+  { label: "Security Dashboard", href: "/watchdog", description: "Cross-CRM security monitor", icon: <OyamaGradientIcon name="growth-analytics" size={16} /> },
+  { label: "Password Vault", href: "/watchdog#vault", description: "Encrypted credential storage", icon: <OyamaGradientIcon name="client-profile-sync" size={16} /> },
+  { label: "Security Feed", href: "/watchdog#feed", description: "High-risk events and alerts", icon: <OyamaGradientIcon name="task-checklist" size={16} /> },
+  { label: "Backup & Restore", href: "/watchdog#backup", description: "Full CRM export/import controls", icon: <OyamaGradientIcon name="contact-checklist" size={16} /> },
+  { label: "Access Matrix", href: "/watchdog#access", description: "Fine-grained Watchdog controls", icon: <OyamaGradientIcon name="goal-target" size={16} /> },
 ];
 
 /** WatchdogSidebar renders navigation for the dark OyamaWatchdog module shell. */
@@ -27,9 +29,7 @@ export default function WatchdogSidebar() {
       <div className="px-4 py-4 border-b border-[#1f2937]">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-red-600/90 flex items-center justify-center">
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2l8 4v6c0 5.5-3.5 9.74-8 10-4.5-.26-8-4.5-8-10V6l8-4zm0 7v4m0 4h.01" />
-            </svg>
+            <OyamaGradientIcon name="client-profile-sync" size={18} />
           </div>
           <div>
             <p className="text-sm font-semibold text-gray-100">OyamaWatchdog</p>
@@ -51,7 +51,10 @@ export default function WatchdogSidebar() {
                   : "border-transparent text-gray-300 hover:text-gray-100 hover:bg-gray-800/60"
               }`}
             >
-              <p className="text-sm font-medium">{item.label}</p>
+              <div className="flex items-center gap-2">
+                {item.icon}
+                <p className="text-sm font-medium">{item.label}</p>
+              </div>
               <p className="text-[11px] text-gray-400 mt-0.5">{item.description}</p>
             </Link>
           );

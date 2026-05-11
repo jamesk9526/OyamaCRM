@@ -1,360 +1,360 @@
-<!-- OyamaCRM Marketing Site — GitHub dark theme, product-led design -->
+<!-- OyamaCRM marketing site styled with the product shell language. -->
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OyamaCRM — The Modern Nonprofit CRM</title>
-    <meta name="description" content="OyamaCRM is a powerful open-source CRM for nonprofits. Donor management, client services, events, security, and web publishing — all in one platform." />
+    <meta
+      name="description"
+      content="OyamaCRM is a powerful open-source CRM for nonprofits. Donor management, client services, events, security, and web publishing — all in one platform."
+    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <header class="site-header">
-      <nav class="nav-inner">
-        <a class="brand" href="#top">
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect width="28" height="28" rx="8" fill="#238636"/><path d="M8 20L14 8L20 20M10.5 15.5H17.5" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
-          OyamaCRM
+      <div class="topbar-edge" aria-hidden="true"></div>
+      <div class="topbar-inner container">
+        <a class="brand-lockup" href="#top">
+          <div class="brand-light-panel">
+            <img src="assets/branding/oyama-mark-192.png" alt="OyamaCRM mark" class="brand-mark" />
+            <div class="brand-copy">
+              <span class="brand-name">OyamaCRM</span>
+              <span class="brand-sub">Mission-ready CRM for nonprofit teams</span>
+            </div>
+          </div>
         </a>
-        <div class="nav-links" id="navLinks">
+        <nav class="topbar-nav" id="topbarNav">
           <a href="#features">Features</a>
           <a href="#modules">Modules</a>
+          <a href="#desktop-app">Desktop App</a>
           <a href="#gallery">Screenshots</a>
           <a href="#compare">Why OyamaCRM</a>
-          <a href="https://github.com/jamesk9526/OyamaCRM" target="_blank" rel="noreferrer" class="nav-github">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
-            GitHub
-          </a>
-          <a href="#cta" class="btn-nav">Get Started Free</a>
-        </div>
-        <button class="mobile-toggle" id="mobileToggle" aria-label="Toggle menu" aria-expanded="false">
-          <span></span><span></span><span></span>
+          <a href="#cta" class="nav-cta">Get Started Free</a>
+        </nav>
+        <button class="mobile-toggle" id="mobileToggle" aria-expanded="false" aria-label="Toggle navigation">
+          <span></span>
+          <span></span>
+          <span></span>
         </button>
-      </nav>
+      </div>
     </header>
 
     <main id="top">
-      <!-- HERO -->
-      <section class="hero">
-        <div class="hero-bg-grid" aria-hidden="true"></div>
-        <div class="hero-glow" aria-hidden="true"></div>
-        <div class="hero-content">
-          <div class="hero-eyebrow">
-            <span class="eyebrow-dot"></span>
-            Open Source &amp; Self-Hosted
-          </div>
-          <h1 class="hero-title">
-            The CRM built for<br />
-            <span class="gradient-text">mission-driven teams</span>
-          </h1>
-          <p class="hero-subtitle">
-            OyamaCRM gives nonprofits one connected platform for donor stewardship, client services, event operations, security monitoring, and public site publishing. Free forever. No per-seat fees.
-          </p>
-          <div class="hero-actions">
-            <a href="https://github.com/jamesk9526/OyamaCRM" target="_blank" rel="noreferrer" class="btn-primary">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
-              View on GitHub
-            </a>
-            <a href="#gallery" class="btn-secondary">See Screenshots</a>
-          </div>
-          <div class="hero-meta">
-            <div class="meta-item"><span class="meta-val">5</span> CRM Modules</div>
-            <div class="meta-div"></div>
-            <div class="meta-item"><span class="meta-val">$0</span> License Cost</div>
-            <div class="meta-div"></div>
-            <div class="meta-item"><span class="meta-val">100%</span> Self-Hosted</div>
-          </div>
-        </div>
-        <div class="hero-mockup">
-          <div class="mockup-browser">
-            <div class="mockup-bar">
-              <span class="dot red"></span>
-              <span class="dot yellow"></span>
-              <span class="dot green"></span>
-              <div class="mockup-url">localhost:3000/dashboard</div>
+      <section class="hero-section">
+        <div class="hero-grid container">
+          <div class="hero-copy card-surface">
+            <div class="hero-badge">
+              <span class="hero-badge-dot"></span>
+              Open Source &amp; Self-Hosted
             </div>
-            <div class="mockup-screen">
-              <img id="heroScreenshot" src="assets/screenshots/02-donor-dashboard.png" alt="OyamaCRM Donor Dashboard" loading="eager" />
+            <h1>
+              The CRM built for
+              <span class="gradient-text">mission-driven teams</span>
+            </h1>
+            <p class="hero-text">
+              OyamaCRM gives nonprofits one connected platform for donor stewardship, client services, event operations,
+              security monitoring, and public site publishing. Free forever. No per-seat fees.
+            </p>
+            <div class="hero-actions">
+              <a class="primary-btn" href="https://github.com/jamesk9526/OyamaCRM" target="_blank" rel="noreferrer">View on GitHub</a>
+              <a class="ghost-btn" href="#gallery">See Screenshots</a>
+            </div>
+            <div class="hero-meta">
+              <div class="meta-item"><span class="meta-value">5</span> CRM modules</div>
+              <div class="meta-divider"></div>
+              <div class="meta-item"><span class="meta-value">$0</span> license cost</div>
+              <div class="meta-divider"></div>
+              <div class="meta-item"><span class="meta-value">100%</span> self-hosted</div>
             </div>
           </div>
-          <div class="float-pill pill-top-right">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="#3fb950" stroke-width="1.5"/><path d="M5 8l2 2 4-4" stroke="#3fb950" stroke-width="1.5" stroke-linecap="round"/></svg>
-            QuickBooks Sync
+
+          <div class="hero-stage card-surface">
+            <div class="hero-window">
+              <div class="hero-window-top">
+                <div class="window-dots">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+                <div class="window-pill">localhost:3000</div>
+                <div class="window-status">Live product screen</div>
+              </div>
+              <div class="hero-frame-title">
+                <div>
+                  <p class="section-kicker">Current spotlight</p>
+                  <h2 id="heroShotTitle">Donor Dashboard</h2>
+                </div>
+                <p id="heroShotMeta">Revenue progress, donor retention, and stewardship tasks in one workspace.</p>
+              </div>
+              <img id="heroScreenshot" src="assets/screenshots/02-donor-dashboard.png" alt="OyamaCRM donor dashboard" />
+            </div>
+            <div class="hero-selector">
+              <button class="hero-chip active" data-src="assets/screenshots/02-donor-dashboard.png" data-title="Donor Dashboard" data-meta="Revenue progress, donor retention, and stewardship tasks in one workspace.">Dashboard</button>
+              <button class="hero-chip" data-src="assets/screenshots/03-dashboard-ai-open.png" data-title="Steward AI Assistant" data-meta="Embedded AI assistant with workspace-aware context and guidance.">Steward AI</button>
+              <button class="hero-chip" data-src="assets/screenshots/13-compassion-dashboard.png" data-title="Compassion CRM" data-meta="A privacy-first client-services workspace with its own blue identity.">Compassion</button>
+              <button class="hero-chip" data-src="assets/screenshots/Desktop%20(1).png" data-title="Easy Desktop Application" data-meta="Run OyamaCRM in a lightweight desktop shell with guided setup and URL binding.">Desktop App</button>
+              <button class="hero-chip" data-src="assets/screenshots/15-watchdog.png" data-title="Watchdog Security" data-meta="Security visibility and operational oversight inside the same platform.">Watchdog</button>
+            </div>
           </div>
-          <div class="float-pill pill-bottom-left">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v4l3 2" stroke="#58a6ff" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="8" r="6" stroke="#58a6ff" stroke-width="1.5"/></svg>
-            Real-Time Watchdog
-          </div>
-        </div>
-        <div class="hero-slides">
-          <button class="slide-btn active" data-src="assets/screenshots/02-donor-dashboard.png" data-label="Donor Dashboard" aria-label="Donor Dashboard"></button>
-          <button class="slide-btn" data-src="assets/screenshots/16-compassion-clients.png" data-label="Compassion CRM" aria-label="Compassion CRM"></button>
-          <button class="slide-btn" data-src="assets/screenshots/14-events.png" data-label="Events CRM" aria-label="Events CRM"></button>
-          <button class="slide-btn" data-src="assets/screenshots/17-watchdog.png" data-label="Watchdog Security" aria-label="Watchdog Security"></button>
-          <button class="slide-btn" data-src="assets/screenshots/03-constituents.png" data-label="Constituents" aria-label="Constituents"></button>
         </div>
       </section>
 
-      <!-- STATS -->
       <section class="stats-strip">
-        <div class="container">
-          <div class="stats-grid">
-            <div class="stat reveal"><div class="stat-num">5</div><div class="stat-label">Integrated modules</div></div>
-            <div class="stat reveal"><div class="stat-num">25+</div><div class="stat-label">Live product screens</div></div>
-            <div class="stat reveal"><div class="stat-num">$0</div><div class="stat-label">Licensing fees</div></div>
-            <div class="stat reveal"><div class="stat-num">MySQL</div><div class="stat-label">+ Prisma + Next.js 16</div></div>
-          </div>
+        <div class="stats-grid container">
+          <div class="stat-card"><span>5</span><p>Integrated modules</p></div>
+          <div class="stat-card"><span>17</span><p>Live product screenshots</p></div>
+          <div class="stat-card"><span>$0</span><p>Licensing fees</p></div>
+          <div class="stat-card"><span>Next.js</span><p>MySQL + Prisma + Express</p></div>
         </div>
       </section>
 
-      <!-- FEATURE BENTO -->
-      <section id="features" class="section features-section">
+      <section id="features" class="section-block">
         <div class="container">
-          <div class="section-label">Capabilities</div>
+          <p class="section-kicker">Capabilities</p>
           <h2 class="section-title">Everything your nonprofit team needs</h2>
-          <p class="section-sub">One platform for fundraising operations, client care, event management, and organizational security.</p>
+          <p class="section-subtitle">One platform for fundraising operations, client care, event management, and organizational security.</p>
           <div class="bento-grid">
-            <div class="bento-card bento-wide reveal">
+            <article class="bento-card bento-wide card-surface">
               <div class="bento-text">
-                <div class="bento-tag green">DonorCRM</div>
+                <span class="workspace-pill donor">DonorCRM</span>
                 <h3>Donor stewardship at a glance</h3>
-                <p>Revenue progress, retention metrics, campaign tracking, and stewardship tasks — all on one mission-focused dashboard.</p>
-                <ul class="bento-list">
+                <p>Revenue progress, retention metrics, campaign tracking, and stewardship tasks all live on one mission-focused dashboard.</p>
+                <ul>
                   <li>YTD revenue and goal progress</li>
                   <li>Donor retention year-over-year</li>
                   <li>Campaign pipeline and allocations</li>
                   <li>Stewardship task queue with due dates</li>
                 </ul>
               </div>
-              <div class="bento-img"><img src="assets/screenshots/02-donor-dashboard.png" alt="Donor dashboard" loading="lazy" /></div>
-            </div>
-            <div class="bento-card reveal">
-              <div class="bento-tag blue">Constituents</div>
+              <div class="bento-image-wrap">
+                <img src="assets/screenshots/02-donor-dashboard.png" alt="Donor dashboard" loading="lazy" />
+              </div>
+            </article>
+
+            <article class="bento-card card-surface">
+              <span class="workspace-pill donor">Constituents</span>
               <h3>Rich constituent profiles</h3>
               <p>Full giving history, engagement timeline, notes, tasks, and communication records in one profile.</p>
-              <div class="bento-img-small"><img src="assets/screenshots/constituent-detail.png" alt="Constituent detail" loading="lazy" /></div>
-            </div>
-            <div class="bento-card reveal">
-              <div class="bento-tag yellow">Events CRM</div>
-              <h3>Event operations command center</h3>
-              <p>Guest lists, table management, ticketing, sponsorships, and live check-in workflows for fundraising galas.</p>
-              <div class="bento-img-small"><img src="assets/screenshots/14-events.png" alt="Events CRM" loading="lazy" /></div>
-            </div>
-            <div class="bento-card bento-wide bento-reversed reveal">
+              <img src="assets/screenshots/05-constituent-detail.png" alt="Constituent detail" loading="lazy" />
+            </article>
+
+            <article class="bento-card card-surface">
+              <span class="workspace-pill blue">Compassion</span>
+              <h3>Privacy-first client services</h3>
+              <p>A fully separate care module with clear data boundaries and a focused client-services workspace.</p>
+              <img src="assets/screenshots/14-compassion-clients.png" alt="Compassion clients" loading="lazy" />
+            </article>
+
+            <article class="bento-card bento-wide card-surface">
               <div class="bento-text">
-                <div class="bento-tag blue">Compassion CRM</div>
-                <h3>Privacy-first client services</h3>
-                <p>A fully separate case management module with strict data boundaries — donor records never bleed into sensitive client data.</p>
-                <ul class="bento-list">
-                  <li>Client profiles and intake records</li>
-                  <li>Care plans and appointment scheduling</li>
-                  <li>Case notes with audit-safe logging</li>
-                  <li>Module-level permission boundaries</li>
+                <span class="workspace-pill amber">Operations</span>
+                <h3>Watchdog, reporting, and platform oversight</h3>
+                <p>Security feeds, reporting workspaces, and operating tools feel integrated into the same product instead of scattered across separate systems.</p>
+                <ul>
+                  <li>Security command center</li>
+                  <li>Reporting and analytics views</li>
+                  <li>Import workflows and operational tooling</li>
+                  <li>One shared product language across modules</li>
                 </ul>
               </div>
-              <div class="bento-img"><img src="assets/screenshots/compassion-profile.png" alt="Compassion CRM client profile" loading="lazy" /></div>
-            </div>
-            <div class="bento-card reveal">
-              <div class="bento-tag red">Watchdog</div>
-              <h3>Security command center</h3>
-              <p>Cross-module security feed, AES-256-GCM vault, incident management, and full backup/restore from one admin screen.</p>
-              <div class="bento-img-small"><img src="assets/screenshots/17-watchdog.png" alt="Watchdog security" loading="lazy" /></div>
-            </div>
-            <div class="bento-card reveal">
-              <div class="bento-tag purple">Steward AI</div>
-              <h3>AI-powered work signals</h3>
-              <p>Real-time signals from your CRM data — donor follow-ups, task prioritization, and smart relationship recommendations.</p>
-              <div class="bento-img-small"><img src="assets/screenshots/03-dashboard-ai.png" alt="Steward AI" loading="lazy" /></div>
-            </div>
+              <div class="bento-image-wrap">
+                <img src="assets/screenshots/15-watchdog.png" alt="Watchdog security workspace" loading="lazy" />
+              </div>
+            </article>
           </div>
         </div>
       </section>
 
-      <!-- MODULES -->
-      <section id="modules" class="section modules-section">
+      <section id="modules" class="section-block section-tint">
         <div class="container">
-          <div class="section-label">Platform Modules</div>
+          <p class="section-kicker">Platform Modules</p>
           <h2 class="section-title">Five modules. One login.</h2>
           <div class="modules-grid">
-            <div class="module-tile green reveal">
-              <div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l3 6h6l-5 4 2 6-6-4-6 4 2-6-5-4h6z"/></svg></div>
-              <div class="module-name">DonorCRM</div>
-              <div class="module-desc">Donor management, donations, campaigns, tasks, and QuickBooks sync.</div>
-              <a href="#gallery" class="module-link">View screenshots →</a>
-            </div>
-            <div class="module-tile blue reveal">
-              <div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg></div>
-              <div class="module-name">Compassion CRM</div>
-              <div class="module-desc">Privacy-first client services, case management, and care planning.</div>
-              <a href="#gallery" class="module-link">View screenshots →</a>
-            </div>
-            <div class="module-tile yellow reveal">
-              <div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
-              <div class="module-name">Events CRM</div>
-              <div class="module-desc">Gala and event management, ticketing, seating, check-in, and reports.</div>
-              <a href="#gallery" class="module-link">View screenshots →</a>
-            </div>
-            <div class="module-tile red reveal">
-              <div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-              <div class="module-name">Watchdog Security</div>
-              <div class="module-desc">Security feed, encrypted vault, backup/restore, and incident controls.</div>
-              <a href="#gallery" class="module-link">View screenshots →</a>
-            </div>
-            <div class="module-tile teal reveal">
-              <div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg></div>
-              <div class="module-name">WebMaster Builder</div>
-              <div class="module-desc">Visual page builder for campaign sites and nonprofit web presence.</div>
-              <a href="#gallery" class="module-link">View screenshots →</a>
+            <article class="module-tile card-surface donor-border">
+              <h3>DonorCRM</h3>
+              <p>Donor management, donations, campaigns, tasks, communications, and QuickBooks sync.</p>
+            </article>
+            <article class="module-tile card-surface blue-border">
+              <h3>Compassion CRM</h3>
+              <p>Privacy-first client services, appointments, records, and care planning.</p>
+            </article>
+            <article class="module-tile card-surface amber-border">
+              <h3>Events CRM</h3>
+              <p>Event operations, registration flows, attendance tools, and reporting.</p>
+            </article>
+            <article class="module-tile card-surface red-border">
+              <h3>Watchdog Security</h3>
+              <p>Security feed, encrypted vault, backup tools, and incident controls.</p>
+            </article>
+            <article class="module-tile card-surface indigo-border">
+              <h3>WebMaster Builder</h3>
+              <p>Website tools, page building, and public-facing publishing workflows.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="desktop-app" class="section-block">
+        <div class="container">
+          <p class="section-kicker">Easy Desktop Application</p>
+          <h2 class="section-title">Open OyamaCRM like a native desktop workspace</h2>
+          <p class="section-subtitle">The easy desktop application wraps OyamaCRM in a lightweight shell with guided setup so teams can launch directly into their CRM URL every time.</p>
+
+          <div class="desktop-showcase">
+            <article class="desktop-guide card-surface">
+              <h3>What the desktop app adds</h3>
+              <ul class="desktop-steps">
+                <li>Step-by-step onboarding that binds your CRM URL in under a minute</li>
+                <li>A clean desktop frame with one-click launch behavior for staff</li>
+                <li>Simple appearance controls to match office preferences</li>
+                <li>Same secure login and full module access as the web experience</li>
+              </ul>
+              <p class="desktop-note">Ideal for front-desk teams and offices that want a consistent, app-like CRM launch experience without browser clutter.</p>
+            </article>
+
+            <div class="desktop-shots">
+              <figure class="desktop-shot card-surface">
+                <img src="assets/screenshots/Desktop%20(1).png" alt="Easy desktop application sign-in screen" loading="lazy" />
+                <figcaption>
+                  <span>Desktop Sign-In</span>
+                  <small>Branded login in the desktop shell experience.</small>
+                </figcaption>
+              </figure>
+
+              <figure class="desktop-shot card-surface">
+                <img src="assets/screenshots/Desktop%20(2).png" alt="Easy desktop application setup wizard" loading="lazy" />
+                <figcaption>
+                  <span>Desktop Setup Wizard</span>
+                  <small>Bind URL, apply appearance settings, and launch consistently.</small>
+                </figcaption>
+              </figure>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- GALLERY -->
-      <section id="gallery" class="section gallery-section">
+      <section id="gallery" class="section-block">
         <div class="container">
-          <div class="section-label">Product Screenshots</div>
-          <h2 class="section-title">See it in action</h2>
-          <p class="section-sub">Every screenshot is from the live application. No mockups, no stock photos.</p>
-          <div class="filter-bar">
-            <button class="chip active" data-filter="all">All Screens</button>
-            <button class="chip" data-filter="donor">DonorCRM</button>
-            <button class="chip" data-filter="compassion">Compassion</button>
-            <button class="chip" data-filter="events">Events</button>
-            <button class="chip" data-filter="ops">Security &amp; Ops</button>
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Product Screenshots</p>
+              <h2 class="section-title">See it in action</h2>
+              <p class="section-subtitle">Every screenshot is from the live application. No mockups, no stock photos.</p>
+            </div>
+            <div class="filter-row">
+              <button class="filter-chip active" data-filter="all">All Screens</button>
+              <button class="filter-chip" data-filter="donor">DonorCRM</button>
+              <button class="filter-chip" data-filter="compassion">Compassion</button>
+              <button class="filter-chip" data-filter="desktop">Desktop App</button>
+              <button class="filter-chip" data-filter="ops">Security &amp; Ops</button>
+            </div>
           </div>
+
           <div class="gallery-grid" id="galleryGrid">
-            <figure class="shot reveal" data-category="donor"><img src="assets/screenshots/02-donor-dashboard.png" alt="Donor dashboard" loading="lazy" /><figcaption>Donor Dashboard</figcaption></figure>
-            <figure class="shot reveal" data-category="donor"><img src="assets/screenshots/04-donations.png" alt="Donations workspace" loading="lazy" /><figcaption>Donations</figcaption></figure>
-            <figure class="shot reveal" data-category="donor"><img src="assets/screenshots/03-constituents.png" alt="Constituent list" loading="lazy" /><figcaption>Constituents</figcaption></figure>
-            <figure class="shot reveal" data-category="donor"><img src="assets/screenshots/constituent-detail.png" alt="Constituent profile" loading="lazy" /><figcaption>Constituent Profile</figcaption></figure>
-            <figure class="shot reveal" data-category="donor"><img src="assets/screenshots/donation-form.png" alt="Add donation form" loading="lazy" /><figcaption>Donation Form</figcaption></figure>
-            <figure class="shot reveal" data-category="donor"><img src="assets/screenshots/05-campaigns.png" alt="Campaigns" loading="lazy" /><figcaption>Campaigns</figcaption></figure>
-            <figure class="shot reveal" data-category="donor"><img src="assets/screenshots/06-grants.png" alt="Grants pipeline" loading="lazy" /><figcaption>Grants Pipeline</figcaption></figure>
-            <figure class="shot reveal" data-category="donor"><img src="assets/screenshots/07-tasks.png" alt="Stewardship tasks" loading="lazy" /><figcaption>Stewardship Tasks</figcaption></figure>
-            <figure class="shot reveal" data-category="donor"><img src="assets/screenshots/09-communications.png" alt="Communications" loading="lazy" /><figcaption>Communications</figcaption></figure>
-            <figure class="shot reveal" data-category="donor"><img src="assets/screenshots/12-reports.png" alt="Reports" loading="lazy" /><figcaption>Reports</figcaption></figure>
-            <figure class="shot reveal" data-category="donor"><img src="assets/screenshots/10-steward-signals.png" alt="Steward AI signals" loading="lazy" /><figcaption>Steward AI Signals</figcaption></figure>
-            <figure class="shot reveal" data-category="donor"><img src="assets/screenshots/11-volunteers.png" alt="Volunteers" loading="lazy" /><figcaption>Volunteers</figcaption></figure>
-            <figure class="shot reveal" data-category="compassion"><img src="assets/screenshots/16-compassion-clients.png" alt="Compassion clients" loading="lazy" /><figcaption>Compassion Clients</figcaption></figure>
-            <figure class="shot reveal" data-category="compassion"><img src="assets/screenshots/compassion-profile.png" alt="Client profile" loading="lazy" /><figcaption>Client Profile</figcaption></figure>
-            <figure class="shot reveal" data-category="events"><img src="assets/screenshots/14-events.png" alt="Events CRM" loading="lazy" /><figcaption>Events CRM</figcaption></figure>
-            <figure class="shot reveal" data-category="ops"><img src="assets/screenshots/17-watchdog.png" alt="Watchdog security" loading="lazy" /><figcaption>Watchdog Security</figcaption></figure>
-            <figure class="shot reveal" data-category="ops"><img src="assets/screenshots/13-data-import.png" alt="Data import" loading="lazy" /><figcaption>Data Import Tools</figcaption></figure>
-            <figure class="shot reveal" data-category="ops"><img src="assets/screenshots/08-meetings.png" alt="Meetings" loading="lazy" /><figcaption>Meetings</figcaption></figure>
+            <figure class="shot-card" data-category="ops"><img src="assets/screenshots/01-login.png" alt="Login screen" loading="lazy" /><figcaption><span>Login</span><small>Branded sign-in experience</small></figcaption></figure>
+            <figure class="shot-card" data-category="desktop"><img src="assets/screenshots/Desktop%20(1).png" alt="Desktop app login" loading="lazy" /><figcaption><span>Desktop App Login</span><small>Native shell sign-in window</small></figcaption></figure>
+            <figure class="shot-card" data-category="desktop"><img src="assets/screenshots/Desktop%20(2).png" alt="Desktop app setup" loading="lazy" /><figcaption><span>Desktop App Setup</span><small>URL binding and first-run onboarding</small></figcaption></figure>
+            <figure class="shot-card featured" data-category="donor"><img src="assets/screenshots/02-donor-dashboard.png" alt="Donor dashboard" loading="lazy" /><figcaption><span>Donor Dashboard</span><small>Mission-focused fundraising overview</small></figcaption></figure>
+            <figure class="shot-card" data-category="donor"><img src="assets/screenshots/03-dashboard-ai-open.png" alt="Steward AI open" loading="lazy" /><figcaption><span>Steward AI</span><small>AI-powered workspace support</small></figcaption></figure>
+            <figure class="shot-card" data-category="donor"><img src="assets/screenshots/04-constituents-list.png" alt="Constituents list" loading="lazy" /><figcaption><span>Constituents</span><small>Relationship management workspace</small></figcaption></figure>
+            <figure class="shot-card" data-category="donor"><img src="assets/screenshots/05-constituent-detail.png" alt="Constituent profile" loading="lazy" /><figcaption><span>Constituent Profile</span><small>History, notes, and engagement</small></figcaption></figure>
+            <figure class="shot-card" data-category="donor"><img src="assets/screenshots/06-donations.png" alt="Donations ledger" loading="lazy" /><figcaption><span>Donations</span><small>Gift tracking and review</small></figcaption></figure>
+            <figure class="shot-card" data-category="donor"><img src="assets/screenshots/07-donation-add-form.png" alt="Donation form" loading="lazy" /><figcaption><span>Add Donation</span><small>Structured giving entry flow</small></figcaption></figure>
+            <figure class="shot-card" data-category="donor"><img src="assets/screenshots/08-campaigns.png" alt="Campaigns" loading="lazy" /><figcaption><span>Campaigns</span><small>Goal and appeal management</small></figcaption></figure>
+            <figure class="shot-card" data-category="donor"><img src="assets/screenshots/09-grants-pipeline.png" alt="Grants pipeline" loading="lazy" /><figcaption><span>Grants</span><small>Pipeline visibility</small></figcaption></figure>
+            <figure class="shot-card" data-category="donor"><img src="assets/screenshots/10-tasks.png" alt="Tasks" loading="lazy" /><figcaption><span>Tasks</span><small>Stewardship follow-up queue</small></figcaption></figure>
+            <figure class="shot-card" data-category="donor"><img src="assets/screenshots/11-communications.png" alt="Communications" loading="lazy" /><figcaption><span>Communications</span><small>Engagement tools</small></figcaption></figure>
+            <figure class="shot-card" data-category="donor"><img src="assets/screenshots/12-reports.png" alt="Reports" loading="lazy" /><figcaption><span>Reports</span><small>Analytics and insights</small></figcaption></figure>
+            <figure class="shot-card" data-category="compassion"><img src="assets/screenshots/13-compassion-dashboard.png" alt="Compassion dashboard" loading="lazy" /><figcaption><span>Compassion Dashboard</span><small>Client-services home</small></figcaption></figure>
+            <figure class="shot-card" data-category="compassion"><img src="assets/screenshots/14-compassion-clients.png" alt="Compassion clients" loading="lazy" /><figcaption><span>Compassion Clients</span><small>Privacy-first case workspace</small></figcaption></figure>
+            <figure class="shot-card" data-category="ops"><img src="assets/screenshots/15-watchdog.png" alt="Watchdog" loading="lazy" /><figcaption><span>Watchdog</span><small>Security and operational oversight</small></figcaption></figure>
           </div>
         </div>
       </section>
 
-      <!-- COMPARE -->
-      <section id="compare" class="section compare-section">
+      <section id="compare" class="section-block section-tint">
         <div class="container">
-          <div class="section-label">Why OyamaCRM</div>
+          <p class="section-kicker">Why OyamaCRM</p>
           <h2 class="section-title">Built for missions, not enterprise lock-in</h2>
           <div class="compare-grid">
-            <div class="compare-col col-other reveal">
-              <div class="col-header">Traditional Nonprofit CRM</div>
+            <article class="compare-col card-surface muted-col">
+              <h3>Traditional Nonprofit CRM</h3>
               <ul class="compare-list">
-                <li class="bad">$8,000–$25,000/year licensing</li>
-                <li class="bad">Extra cost for each module</li>
-                <li class="bad">Separate tools for events and casework</li>
-                <li class="bad">Vendor-controlled hosting and roadmap</li>
-                <li class="bad">Data locked behind proprietary export</li>
-                <li class="bad">Black-box security controls</li>
+                <li>$8,000-$25,000 yearly licensing</li>
+                <li>Extra cost for each module</li>
+                <li>Separate tools for events and casework</li>
+                <li>Vendor-controlled hosting and roadmap</li>
+                <li>Data locked behind proprietary exports</li>
+                <li>Black-box security controls</li>
               </ul>
-            </div>
-            <div class="compare-divider"><span>vs</span></div>
-            <div class="compare-col col-oyama reveal">
-              <div class="col-header header-oyama">OyamaCRM</div>
-              <ul class="compare-list">
-                <li class="good">Free forever for self-hosted nonprofits</li>
-                <li class="good">5 integrated modules out of the box</li>
-                <li class="good">Donor + client + events in one login</li>
-                <li class="good">Open-source, contributor-driven</li>
-                <li class="good">Full data ownership and portability</li>
-                <li class="good">Watchdog security feed + AES-256 vault</li>
+            </article>
+            <article class="compare-col card-surface success-col">
+              <h3>OyamaCRM</h3>
+              <ul class="compare-list success">
+                <li>Free forever for self-hosted nonprofits</li>
+                <li>Five integrated modules out of the box</li>
+                <li>Donor, client, events, and ops in one login</li>
+                <li>Open-source and contributor-driven</li>
+                <li>Full data ownership and portability</li>
+                <li>Watchdog security feed and encrypted vault</li>
               </ul>
-            </div>
+            </article>
           </div>
         </div>
       </section>
 
-      <!-- TECH STACK -->
-      <section class="section tech-section">
+      <section class="section-block">
         <div class="container">
-          <div class="section-label">Architecture</div>
+          <p class="section-kicker">Architecture</p>
           <h2 class="section-title">Production-grade from the ground up</h2>
           <div class="tech-grid">
-            <div class="tech-card reveal"><div class="tech-icon">&#9889;</div><h3>Next.js 16 + React 19</h3><p>App Router with Server Components, TypeScript end-to-end, and a modular CRM workspace architecture.</p></div>
-            <div class="tech-card reveal"><div class="tech-icon">&#128274;</div><h3>JWT + RBAC + Watchdog</h3><p>In-memory access tokens, secure refresh cookies, role-aware permissions per module, and AES-256-GCM encrypted vault secrets.</p></div>
-            <div class="tech-card reveal"><div class="tech-icon">&#128451;</div><h3>MySQL + Prisma ORM</h3><p>Transactional data in MySQL via Prisma. External Watchdog store for security events. Full backup/restore controls built in.</p></div>
-            <div class="tech-card reveal"><div class="tech-icon">&#128288;</div><h3>QuickBooks Integration</h3><p>Native OAuth QuickBooks Online sync queue. Manual push workflow with immutable audit trail. Rate-limited, duplicate-safe.</p></div>
-            <div class="tech-card reveal"><div class="tech-icon">&#129302;</div><h3>Steward AI</h3><p>AI-powered work signal engine surfacing donor follow-ups, task prioritization, and relationship insights.</p></div>
-            <div class="tech-card reveal"><div class="tech-icon">&#128640;</div><h3>PM2 + Express API</h3><p>Express 5 API layer at /api with PM2 process management. Import/export tooling and Vitest smoke coverage.</p></div>
+            <article class="tech-card card-surface"><h3>Next.js + React</h3><p>Modern app-router foundations with modular workspaces and shared product chrome.</p></article>
+            <article class="tech-card card-surface"><h3>JWT + RBAC + Watchdog</h3><p>Role-aware security, auditing, and visibility across modules.</p></article>
+            <article class="tech-card card-surface"><h3>MySQL + Prisma ORM</h3><p>Transactional data with practical operational tooling around it.</p></article>
+            <article class="tech-card card-surface"><h3>QuickBooks Integration</h3><p>Native sync queue with manual controls and audit safety.</p></article>
+            <article class="tech-card card-surface"><h3>Steward AI</h3><p>AI-powered work signals, guidance, and relationship support.</p></article>
+            <article class="tech-card card-surface"><h3>Express API Layer</h3><p>Import/export workflows, background jobs, and integration-ready endpoints.</p></article>
           </div>
         </div>
       </section>
 
-      <!-- PROGRESS -->
-      <section class="section progress-section">
+      <section class="section-block section-tint">
         <div class="container">
-          <div class="progress-inner reveal">
-            <div class="progress-text">
-              <div class="section-label">Project Status</div>
-              <h2>Active development — 68% complete</h2>
-              <p>Core workflows are live and demo-ready. Built with care for pregnancy care centers as the initial sector, with architecture designed to expand to all nonprofit types.</p>
-              <ul class="status-checklist">
-                <li class="done">Donor operations, client services, events — live</li>
-                <li class="done">Watchdog backup/restore controls — implemented</li>
-                <li class="done">QuickBooks sync queue — integrated</li>
-                <li class="pending">SMS + voice outreach — coming soon</li>
-                <li class="pending">Advanced automation builder — planned</li>
+          <div class="progress-panel card-surface">
+            <div>
+              <p class="section-kicker">Project Status</p>
+              <h2 class="section-title">Active development with real working workflows</h2>
+              <p class="section-subtitle compact">Core workflows are live and demo-ready, with architecture designed to expand across nonprofit use cases.</p>
+              <ul class="status-list">
+                <li>Donor operations, client services, and events are live</li>
+                <li>Watchdog backup and restore controls are implemented</li>
+                <li>QuickBooks sync queue is integrated</li>
+                <li>SMS, voice, and deeper automation remain future growth areas</li>
               </ul>
             </div>
-            <div class="progress-visual">
-              <div class="progress-ring">
-                <svg viewBox="0 0 120 120" width="160" height="160">
-                  <circle class="ring-track" cx="60" cy="60" r="50" />
-                  <circle class="ring-fill" cx="60" cy="60" r="50" stroke-dasharray="314.16" stroke-dashoffset="100.53" />
-                </svg>
-                <div class="ring-label"><span class="ring-pct">68%</span><span class="ring-sub">complete</span></div>
-              </div>
+            <div class="progress-meter">
+              <div class="meter-ring"><span>68%</span></div>
+              <p>Complete</p>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- CTA -->
-      <section id="cta" class="section cta-section">
+      <section id="cta" class="section-block">
         <div class="container">
-          <div class="cta-card reveal">
-            <div class="cta-glow" aria-hidden="true"></div>
-            <div class="cta-text">
-              <h2>Ready to see OyamaCRM live?</h2>
-              <p>Clone the repo, run the dev server, and explore 5 fully integrated CRM modules. Self-hosted. Free forever.</p>
+          <div class="cta-panel card-surface">
+            <div>
+              <p class="section-kicker">Ready to see OyamaCRM live?</p>
+              <h2 class="section-title">Clone the repo, run the app, and explore the full platform.</h2>
+              <p class="section-subtitle compact">Self-hosted. Open source. Built to serve nonprofit teams with one connected system.</p>
             </div>
-            <div class="cta-code">
-              <div class="code-block">
-                <span class="code-comment"># Clone and start</span><br/>
-                <span class="code-cmd">git clone</span> github.com/jamesk9526/OyamaCRM<br/>
-                <span class="code-cmd">pnpm install &amp;&amp; pnpm dev</span>
-              </div>
-              <div class="cta-actions">
-                <a href="https://github.com/jamesk9526/OyamaCRM" target="_blank" rel="noreferrer" class="btn-primary">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
-                  Open on GitHub
-                </a>
-                <div class="donate-area">
-                  <p class="donate-label">Support the mission</p>
-                  <div id="donate-button-container">
-                    <div id="donate-button"></div>
-                    <script src="https://www.paypalobjects.com/donate/sdk/donate-sdk.js" charset="UTF-8"></script>
-                    <script>if(typeof PayPal!=='undefined'){PayPal.Donation.Button({env:'production',hosted_button_id:'KMNLGHUFW8MWW',image:{src:'https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif',alt:'Donate with PayPal',title:'PayPal - The safer, easier way to pay online!'}}).render('#donate-button');}</script>
-                  </div>
-                </div>
-              </div>
+            <div class="cta-actions">
+              <a class="primary-btn" href="https://github.com/jamesk9526/OyamaCRM" target="_blank" rel="noreferrer">Open on GitHub</a>
+              <a class="ghost-btn" href="#top">Back to top</a>
             </div>
           </div>
         </div>
@@ -362,41 +362,36 @@
     </main>
 
     <footer class="site-footer">
-      <div class="container footer-inner">
-        <div class="footer-brand">
-          <a class="brand" href="#top">
-            <svg width="22" height="22" viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect width="28" height="28" rx="8" fill="#238636"/><path d="M8 20L14 8L20 20M10.5 15.5H17.5" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
-            OyamaCRM
-          </a>
-          <p>Mission-ready CRM for nonprofit teams.<br/>Self-hosted. Open-source. Built to serve.</p>
+      <div class="container footer-grid">
+        <div>
+          <div class="footer-brand">
+            <img src="assets/branding/oyama-mark-192.png" alt="OyamaCRM mark" class="footer-mark" />
+            <div>
+              <strong>OyamaCRM</strong>
+              <p>Mission-ready CRM for nonprofit teams. Self-hosted. Open-source. Built to serve.</p>
+            </div>
+          </div>
         </div>
         <div class="footer-links">
-          <div class="footer-col">
-            <div class="footer-col-title">Product</div>
-            <a href="#features">Features</a>
-            <a href="#modules">Modules</a>
-            <a href="#gallery">Screenshots</a>
-          </div>
-          <div class="footer-col">
-            <div class="footer-col-title">Project</div>
-            <a href="https://github.com/jamesk9526/OyamaCRM" target="_blank" rel="noreferrer">GitHub Repo</a>
-            <a href="#compare">Why OyamaCRM</a>
-            <a href="THANKYOU/">Donor Thank-You</a>
-          </div>
+          <a href="#features">Features</a>
+          <a href="#modules">Modules</a>
+          <a href="#desktop-app">Desktop App</a>
+          <a href="#gallery">Screenshots</a>
+          <a href="#compare">Why OyamaCRM</a>
         </div>
       </div>
-      <div class="footer-bottom"><div class="container">OyamaCRM — Open source nonprofit CRM. MIT License.</div></div>
     </footer>
 
-    <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Screenshot viewer" aria-hidden="true">
-      <button id="lightboxPrev" class="lb-nav lb-prev" aria-label="Previous">&#8249;</button>
-      <div class="lb-content">
-        <button id="lightboxClose" class="lb-close" aria-label="Close">&#x2715;</button>
-        <img id="lightboxImg" src="" alt="Expanded screenshot" />
-        <p id="lightboxCaption" class="lb-caption"></p>
+    <div class="lightbox" id="lightbox" aria-hidden="true">
+      <button class="lightbox-close" id="lightboxClose" aria-label="Close screenshot viewer">&times;</button>
+      <button class="lightbox-nav prev" id="lightboxPrev" aria-label="Previous screenshot">&#8249;</button>
+      <div class="lightbox-content">
+        <img id="lightboxImage" src="" alt="Expanded screenshot" />
+        <p id="lightboxCaption"></p>
       </div>
-      <button id="lightboxNext" class="lb-nav lb-next" aria-label="Next">&#8250;</button>
+      <button class="lightbox-nav next" id="lightboxNext" aria-label="Next screenshot">&#8250;</button>
     </div>
+
     <script src="script.js"></script>
   </body>
 </html>

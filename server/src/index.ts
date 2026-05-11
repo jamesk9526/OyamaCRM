@@ -48,6 +48,7 @@ import stewardAiRoutes from "./routes/steward-ai.js";
 import communicationsAiRoutes from "./routes/communications-ai.js";
 import watchdogRoutes from "./routes/watchdog.js";
 import webmasterRoutes from "./routes/webmaster.js";
+import liveComRoutes from "./routes/livecom.js";
 import { prisma } from "./lib/prisma.js";
 import { getAppInfo } from "./lib/app-info.js";
 import { getEmailQueueWorkerStatus, startEmailQueueWorker } from "./services/email-queue-worker.js";
@@ -187,6 +188,7 @@ app.use("/api/steward-ai", stewardAiRoutes);
 app.use("/api/communications-ai", communicationsAiRoutes);
 app.use("/api/watchdog", watchdogRoutes);
 app.use("/api/webmaster", webmasterRoutes);
+app.use("/api/livecom", liveComRoutes);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 

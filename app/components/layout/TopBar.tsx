@@ -1,12 +1,14 @@
-// TopBar: full-width global navigation header with module switcher, search, and user controls.
-// Spans the entire width of the viewport — brand/logo lives in the Sidebar instead.
+// TopBar: full-width global navigation header with logo, module switcher, search, and user controls.
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import AppsDrawer, { AppsGridIcon } from "@/app/components/layout/AppsDrawer";
 import StewardChatPanel, { type StewardPanelMode } from "@/app/components/ai/StewardChatPanel";
+import OyamaGradientIcon from "@/app/components/ui/OyamaGradientIcon";
 import { apiFetch } from "@/app/lib/auth-client";
 import {
   DEFAULT_WORKSPACE_SETTINGS,
@@ -144,58 +146,16 @@ function GlobalSearch({ moduleKey }: { moduleKey: TopBarModuleKey }) {
   };
 
   function TypeIcon({ type }: { type: string }) {
-    if (type === "tool") return (
-      <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 6h16M4 12h16M4 18h16" />
-      </svg>
-    );
-    if (type === "event") return (
-      <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-      </svg>
-    );
-    if (type === "guest") return (
-      <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-      </svg>
-    );
-    if (type === "client") return (
-      <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-      </svg>
-    );
-    if (type === "case") return (
-      <svg className="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" />
-      </svg>
-    );
-    if (type === "constituent") return (
-      <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-      </svg>
-    );
-    if (type === "campaign") return (
-      <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
-      </svg>
-    );
-    if (type === "site") return (
-      <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 5h18v14H3z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 9h18" />
-      </svg>
-    );
-    if (type === "page") return (
-      <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M7 3h8l4 4v14H7z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 3v4h4" />
-      </svg>
-    );
-    return (
-      <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    );
+    if (type === "tool") return <OyamaGradientIcon name="contact-checklist" size={16} />;
+    if (type === "event") return <OyamaGradientIcon name="task-checklist" size={16} />;
+    if (type === "guest") return <OyamaGradientIcon name="constituent-search" size={16} />;
+    if (type === "client") return <OyamaGradientIcon name="client-support-chat" size={16} />;
+    if (type === "case") return <OyamaGradientIcon name="contact-checklist" size={16} />;
+    if (type === "constituent") return <OyamaGradientIcon name="constituent-search" size={16} />;
+    if (type === "campaign") return <OyamaGradientIcon name="goal-target" size={16} />;
+    if (type === "site") return <OyamaGradientIcon name="growth-analytics" size={16} />;
+    if (type === "page") return <OyamaGradientIcon name="reporting-dashboard" size={16} />;
+    return <OyamaGradientIcon name="donor-gift" size={16} />;
   }
 
   const focusRing = moduleKey === "compassion"
@@ -322,6 +282,17 @@ export default function TopBar() {
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
   const chromeButtonBase = "w-9 h-9 rounded-xl border border-white/10 flex items-center justify-center transition-colors";
+  const homeHref = moduleKey === "compassion"
+    ? "/compassion/dashboard"
+    : moduleKey === "events"
+      ? "/events/workspace"
+      : moduleKey === "watchdog"
+        ? "/watchdog"
+        : moduleKey === "webmaster"
+          ? "/webmaster"
+          : moduleKey === "reportit"
+            ? "/reports"
+            : "/";
 
   useEffect(() => {
     let active = true;
@@ -379,10 +350,10 @@ export default function TopBar() {
     };
   }, [pathname]);
 
-  // Legacy compatibility: allow links like /?steward=open to open the docked Steward assistant.
+  // Legacy compatibility: allow links like /?steward=open to open the popout Steward assistant.
   useEffect(() => {
     if (searchParams.get("steward") !== "open") return;
-    setStewardMode((current) => (current === "collapsed" ? "dock-right" : current));
+    setStewardMode((current) => (current === "collapsed" ? "popout" : current));
   }, [searchParams]);
 
   /** Manually rebuilds Steward Signals analysis index and notifies workspace widgets to refresh. */
@@ -418,27 +389,49 @@ export default function TopBar() {
         onClose={() => setStewardMode("collapsed")}
         moduleKey={moduleKey}
         scopePath={pathname}
-        displayMode={stewardMode === "collapsed" ? "dock-right" : stewardMode}
+        displayMode={stewardMode === "collapsed" ? "popout" : stewardMode}
         onDisplayModeChange={setStewardMode}
       />
-      <header className="h-14 shrink-0 w-full flex items-center gap-4 px-4 bg-gradient-to-r from-[#0f172a] via-[#18253a] to-[#0f172a] border-b border-slate-700/60 shadow-[0_8px_28px_rgba(2,6,23,0.38)] backdrop-blur z-20">
+      <header className="relative h-14 shrink-0 w-full flex items-center gap-4 px-4 bg-gradient-to-r from-[#0f172a] via-[#18253a] to-[#0f172a] border-b border-slate-700/60 shadow-[0_8px_28px_rgba(2,6,23,0.38)] backdrop-blur z-20 isolate">
+        {/* Diagonal light segment for brand + module switcher area. */}
+        <div
+          aria-hidden="true"
+          className="absolute left-0 top-0 h-full w-[430px] border-r border-white/35 pointer-events-none"
+          style={{
+            clipPath: "polygon(0 0, 88% 0, 100% 100%, 0 100%)",
+            background: "linear-gradient(180deg, rgba(248,250,252,0.95) 0%, rgba(241,245,249,0.92) 100%)",
+          }}
+        />
 
-        {/* ── Module switcher (left anchor) ── */}
-        {workspaceSettings.showModuleSwitcher && (
-          <>
-            <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} />
-            {/* ── Divider ── */}
-            <div className="w-px h-6 bg-white/15 shrink-0" />
-          </>
-        )}
+        <div className="relative z-10 flex items-center gap-3 shrink-0">
+          {/* ── TopBar Brand ── */}
+          <Link href={homeHref} className="shrink-0 flex items-center gap-2.5 rounded-lg px-1.5 py-1 hover:bg-slate-200/70 transition-colors" aria-label="Go to workspace home">
+            <span className="w-8 h-8 rounded-lg border border-slate-300 bg-white flex items-center justify-center overflow-hidden">
+              <Image src="/branding/oyama-mark-64.png" alt="OyamaCRM logo" width={24} height={24} className="w-6 h-6 object-contain" />
+            </span>
+            <span className="text-sm font-bold tracking-tight text-slate-900 hidden sm:inline">OyamaCRM</span>
+          </Link>
 
-        {/* ── Search (centered) ── */}
-        <div className="flex-1 flex justify-center px-1 sm:px-3">
-          <GlobalSearch moduleKey={moduleKey} />
+          <div className="w-px h-6 bg-slate-300/90 shrink-0" />
+
+          {/* ── Module switcher (left anchor) ── */}
+          {workspaceSettings.showModuleSwitcher && (
+            <>
+              <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} />
+              {/* ── Divider ── */}
+              <div className="w-px h-6 bg-slate-300/90 shrink-0" />
+            </>
+          )}
         </div>
 
-        {/* ── Right-side icon controls ── */}
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="relative z-10 flex-1 flex items-center gap-4">
+          {/* ── Search (centered) ── */}
+          <div className="flex-1 flex justify-center px-1 sm:px-3">
+            <GlobalSearch moduleKey={moduleKey} />
+          </div>
+
+          {/* ── Right-side icon controls ── */}
+          <div className="flex items-center gap-1 shrink-0">
 
           {isStewardSignalsWorkspace && (
             <button
@@ -464,12 +457,10 @@ export default function TopBar() {
           {/* AI Assistant */}
           <button
             title="Open Steward AI Assistant"
-            onClick={() => setStewardMode((current) => (current === "collapsed" ? "dock-right" : "collapsed"))}
+            onClick={() => setStewardMode((current) => (current === "collapsed" ? "popout" : "collapsed"))}
             className={`${chromeButtonBase} relative group ${stewardMode !== "collapsed" ? "text-white bg-white/20 border-white/20" : "text-slate-300 hover:text-white hover:bg-white/10"}`}
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-          </svg>
+            <OyamaGradientIcon name="client-support-chat" size={20} />
           <span className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
             AI Assistant
           </span>
@@ -480,9 +471,7 @@ export default function TopBar() {
           title="Help & Documentation"
           className={`${chromeButtonBase} text-slate-300 hover:text-white hover:bg-white/10`}
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0zm-9 5.25h.008v.008H12v-.008z" />
-          </svg>
+          <OyamaGradientIcon name="messaging-chat" size={20} />
         </button>
 
         {/* Notifications */}
@@ -492,9 +481,7 @@ export default function TopBar() {
             onClick={() => setNotificationsOpen((v) => !v)}
             className={`${chromeButtonBase} text-slate-300 hover:text-white hover:bg-white/10 relative`}
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
-            </svg>
+            <OyamaGradientIcon name="task-checklist" size={20} />
             {unreadCount > 0 && (
               <span className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold text-white flex items-center justify-center ${
                 moduleKey === "compassion"
@@ -562,11 +549,12 @@ export default function TopBar() {
           )}
         </div>
 
-        <div className="w-px h-5 bg-white/10 mx-1 shrink-0" />
+            <div className="w-px h-5 bg-white/10 mx-1 shrink-0" />
 
-        {/* User avatar */}
-        <UserMenu moduleKey={moduleKey} />
-      </div>
+            {/* User avatar */}
+            <UserMenu moduleKey={moduleKey} />
+          </div>
+        </div>
     </header>
     </>
   );
@@ -594,9 +582,7 @@ function ModuleSwitcher({
       color: "bg-green-500",
       tileTone: "from-green-50 to-emerald-50",
       icon: (
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-          <path d="M12 21C12 21 3 15 3 9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 6-9 12-9 12z" />
-        </svg>
+        <OyamaGradientIcon name="donor-gift" size={16} />
       ),
       active: moduleKey === "donor",
     },
@@ -608,11 +594,7 @@ function ModuleSwitcher({
       color: "bg-blue-500",
       tileTone: "from-blue-50 to-sky-50",
       icon: (
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-          <circle cx="9" cy="7" r="4" />
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-        </svg>
+        <OyamaGradientIcon name="client-support-chat" size={16} />
       ),
       active: moduleKey === "compassion",
     },
@@ -624,12 +606,7 @@ function ModuleSwitcher({
       color: "bg-amber-500",
       tileTone: "from-amber-50 to-orange-50",
       icon: (
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-          <rect x="3" y="4" width="18" height="18" rx="2" />
-          <line x1="16" y1="2" x2="16" y2="6" />
-          <line x1="8" y1="2" x2="8" y2="6" />
-          <line x1="3" y1="10" x2="21" y2="10" />
-        </svg>
+        <OyamaGradientIcon name="task-checklist" size={16} />
       ),
       active: moduleKey === "events",
     },
@@ -641,9 +618,7 @@ function ModuleSwitcher({
       color: "bg-red-500",
       tileTone: "from-red-50 to-rose-50",
       icon: (
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-          <path d="M12 2l8 4v6c0 5.5-3.5 9.74-8 10-4.5-.26-8-4.5-8-10V6l8-4z" />
-        </svg>
+        <OyamaGradientIcon name="client-profile-sync" size={16} />
       ),
       active: moduleKey === "watchdog",
     },
@@ -655,10 +630,7 @@ function ModuleSwitcher({
       color: "bg-indigo-500",
       tileTone: "from-indigo-50 to-violet-50",
       icon: (
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-          <path d="M3 5h18v14H3z" />
-          <path d="M3 9h18" />
-        </svg>
+        <OyamaGradientIcon name="growth-analytics" size={16} />
       ),
       active: moduleKey === "webmaster",
     },
@@ -670,9 +642,7 @@ function ModuleSwitcher({
       color: "bg-cyan-500",
       tileTone: "from-cyan-50 to-sky-50",
       icon: (
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-          <path d="M4 19V9m8 10V5m8 14v-7" />
-        </svg>
+        <OyamaGradientIcon name="reporting-dashboard" size={16} />
       ),
       active: moduleKey === "reportit",
     },
@@ -685,6 +655,17 @@ function ModuleSwitcher({
   if (modules.length === 0) return null;
 
   const current = modules.find((m) => m.active) ?? modules[0];
+  const switcherTone = current.key === "compassion"
+    ? "from-blue-50 to-sky-50 border-blue-200/80"
+    : current.key === "events"
+      ? "from-amber-50 to-orange-50 border-amber-200/80"
+      : current.key === "watchdog"
+        ? "from-red-50 to-rose-50 border-red-200/80"
+        : current.key === "webmaster"
+          ? "from-indigo-50 to-violet-50 border-indigo-200/80"
+          : current.key === "reportit"
+            ? "from-cyan-50 to-sky-50 border-cyan-200/80"
+            : "from-green-50 to-emerald-50 border-green-200/80";
 
   function switchTo(href: string) {
     setOpen(false);
@@ -695,16 +676,18 @@ function ModuleSwitcher({
     <div className="relative shrink-0">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="group flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors border border-white/15"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={`group flex items-center gap-2.5 px-2.5 py-1.5 rounded-2xl border bg-gradient-to-br ${switcherTone} text-slate-800 shadow-[0_4px_14px_rgba(15,23,42,0.08)] hover:shadow-[0_8px_18px_rgba(15,23,42,0.12)] transition-all`}
       >
-        <span className={`w-7 h-7 rounded-lg ${current.color} text-white flex items-center justify-center shadow-sm`}>
+        <span className={`w-8 h-8 rounded-xl ${current.color} text-white flex items-center justify-center shadow-sm ring-1 ring-white/70`}>
           {current.icon}
         </span>
-        <div className="hidden sm:block text-left leading-tight">
-          <p className="text-[9px] uppercase tracking-widest text-slate-300">CRM</p>
-          <p className="text-xs font-semibold text-white">{current.label}</p>
+        <div className="hidden sm:block text-left leading-tight min-w-0">
+          <p className="text-[9px] uppercase tracking-[0.22em] text-slate-500">Workspace</p>
+          <p className="text-xs font-semibold text-slate-900 truncate">{current.label}</p>
         </div>
-        <svg className="w-3 h-3 text-gray-300 ml-0.5 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className={`w-3.5 h-3.5 ml-0.5 text-slate-500 group-hover:text-slate-700 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -712,20 +695,20 @@ function ModuleSwitcher({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full mt-2 w-[360px] max-w-[calc(100vw-1rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
-            <div className="px-3 pt-2.5 pb-1 border-b border-slate-100 bg-slate-50/80">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Switch CRM</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">Icon-first workspace launcher</p>
+          <div className="absolute left-0 top-full mt-2 w-[380px] max-w-[calc(100vw-1rem)] bg-white/98 rounded-[22px] shadow-[0_18px_42px_rgba(15,23,42,0.18)] border border-slate-200/90 z-50 overflow-hidden backdrop-blur-xl">
+            <div className={`px-4 pt-3 pb-2 border-b border-slate-100 bg-gradient-to-r ${switcherTone}`}>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.22em]">Switch CRM</p>
+              <p className="text-[11px] text-slate-600 mt-0.5">Choose the workspace you want to open next.</p>
             </div>
-            <div className="p-2 grid grid-cols-2 gap-2">
+            <div className="p-2.5 grid grid-cols-2 gap-2.5">
               {modules.map((m) => (
                 <button
                   key={m.key}
                   onClick={() => switchTo(m.href)}
-                  className={`rounded-xl border p-2.5 text-left transition-all ${m.active ? "border-slate-300 bg-slate-100 shadow-sm" : `border-slate-200 bg-gradient-to-br ${m.tileTone} hover:border-slate-300 hover:shadow-sm`}`}
+                  className={`rounded-2xl border p-3 text-left transition-all ${m.active ? "border-slate-300 bg-slate-100 shadow-sm ring-1 ring-slate-200" : `border-slate-200 bg-gradient-to-br ${m.tileTone} hover:border-slate-300 hover:shadow-sm hover:-translate-y-0.5`}`}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <span className={`w-8 h-8 rounded-lg ${m.color} text-white flex items-center justify-center shrink-0`}>
+                    <span className={`w-9 h-9 rounded-xl ${m.color} text-white flex items-center justify-center shrink-0 shadow-sm`}>
                       {m.icon}
                     </span>
                     {m.active && (
@@ -734,7 +717,7 @@ function ModuleSwitcher({
                       </svg>
                     )}
                   </div>
-                  <p className="text-xs font-semibold text-slate-900 mt-2">{m.label}</p>
+                  <p className="text-[13px] font-semibold text-slate-900 mt-2.5">{m.label}</p>
                   <p className="text-[11px] text-slate-600 mt-0.5">{m.helper}</p>
                 </button>
               ))}

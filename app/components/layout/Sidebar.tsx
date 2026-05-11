@@ -11,6 +11,7 @@ import { useState } from "react";
 import type React from "react";
 import { usePlugins } from "@/app/components/plugins/PluginProvider";
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import OyamaGradientIcon from "@/app/components/ui/OyamaGradientIcon";
 
 /** Single navigation item */
 interface NavItem {
@@ -45,22 +46,22 @@ const DONOR_SECTIONS: NavSection[] = [
       {
         label: "Dashboard",
         href: "/",
-        icon: <Ico d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />,
+        icon: <OyamaGradientIcon name="growth-analytics" />,
       },
       {
         label: "Constituents",
         href: "/constituents",
-        icon: <Ico d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />,
+        icon: <OyamaGradientIcon name="constituent-search" />,
       },
       {
         label: "Donations",
         href: "/donations",
-        icon: <Ico d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />,
+        icon: <OyamaGradientIcon name="donor-gift" />,
       },
       {
         label: "Campaigns",
         href: "/campaigns",
-        icon: <Ico d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />,
+        icon: <OyamaGradientIcon name="goal-target" />,
       },
       {
         label: "Grants",
@@ -75,7 +76,7 @@ const DONOR_SECTIONS: NavSection[] = [
       {
         label: "Reports",
         href: "/reports",
-        icon: <Ico d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />,
+        icon: <OyamaGradientIcon name="reporting-dashboard" />,
       },
     ].filter((item) => item.href !== "/reports"),
   },
@@ -86,7 +87,7 @@ const DONOR_SECTIONS: NavSection[] = [
       {
         label: "Tasks",
         href: "/tasks",
-        icon: <Ico d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />,
+        icon: <OyamaGradientIcon name="task-checklist" />,
       },
       {
         label: "Meetings",
@@ -96,22 +97,28 @@ const DONOR_SECTIONS: NavSection[] = [
       {
         label: "Communications",
         href: "/communications",
-        icon: <Ico d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
+        icon: <OyamaGradientIcon name="messaging-chat" />,
+      },
+      {
+        label: "LiveCom",
+        href: "/livecom",
+        icon: <OyamaGradientIcon name="client-support-chat" />,
+        badge: "NEW",
       },
       {
         label: "Steward Paths",
         href: "/automations",
-        icon: <Ico><circle cx="12" cy="12" r="3" /><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14" /></Ico>,
+        icon: <OyamaGradientIcon name="client-profile-sync" />,
       },
       {
         label: "Steward Signals",
         href: "/steward-signals",
-        icon: <Ico d="M13 10V3L4 14h7v7l9-11h-7z" />,
+        icon: <OyamaGradientIcon name="momentum-growth" />,
       },
       {
         label: "Volunteers",
         href: "/volunteers",
-        icon: <Ico d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />,
+        icon: <OyamaGradientIcon name="relationship-partnership" />,
       },
     ],
   },
@@ -122,7 +129,7 @@ const DONOR_SECTIONS: NavSection[] = [
       {
         label: "Data Tools",
         href: "/data-tools",
-        icon: <Ico d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />,
+        icon: <OyamaGradientIcon name="contact-checklist" />,
       },
       {
         label: "Custom Fields",
@@ -157,27 +164,27 @@ const REPORTIT_SECTIONS: NavSection[] = [
       {
         label: "Overview",
         href: "/reports",
-        icon: <Ico d="M3 4h18v16H3V4zm3 3h12M6 11h12M6 15h8" />,
+        icon: <OyamaGradientIcon name="reporting-dashboard" />,
       },
       {
         label: "Donor Insights",
         href: "/reports?tab=donors",
-        icon: <Ico d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM4 21a8 8 0 0116 0" />,
+        icon: <OyamaGradientIcon name="constituent-search" />,
       },
       {
         label: "Giving Trends",
         href: "/reports?tab=giving",
-        icon: <Ico d="M4 17l5-5 4 3 7-8" />,
+        icon: <OyamaGradientIcon name="momentum-growth" />,
       },
       {
         label: "Campaign Performance",
         href: "/reports?tab=campaigns",
-        icon: <Ico d="M12 3v18M3 12h18" />,
+        icon: <OyamaGradientIcon name="growth-analytics" />,
       },
       {
         label: "Retention",
         href: "/reports?tab=retention",
-        icon: <Ico d="M4 12a8 8 0 1116 0 8 8 0 11-16 0zm8-3v3l2 2" />,
+        icon: <OyamaGradientIcon name="goal-target" />,
       },
     ],
   },
@@ -188,17 +195,17 @@ const REPORTIT_SECTIONS: NavSection[] = [
       {
         label: "Donor CRM",
         href: "/",
-        icon: <Ico d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />,
+        icon: <OyamaGradientIcon name="donor-gift" />,
       },
       {
         label: "Events CRM",
         href: "/events",
-        icon: <Ico d="M8 7V3m8 4V3M4 11h16M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />,
+        icon: <OyamaGradientIcon name="task-checklist" />,
       },
       {
         label: "Compassion CRM",
         href: "/compassion/dashboard",
-        icon: <Ico d="M4.5 12.5l7.5 7.5 7.5-7.5a4.95 4.95 0 00-7-7L12 6l-.5-.5a4.95 4.95 0 00-7 7z" />,
+        icon: <OyamaGradientIcon name="client-support-chat" />,
       },
     ],
   },
@@ -287,8 +294,6 @@ export default function Sidebar() {
   const { qbEnabled } = usePlugins();
   const { user } = useAuth();
 
-  const brandBg = isCompassion ? "bg-blue-600" : isReportit ? "bg-cyan-600" : "bg-green-600";
-
   /** QB Sync nav item — only injected when plugin is enabled */
   const qbSyncItem: NavItem = {
     label: "QB Sync",
@@ -324,25 +329,6 @@ export default function Sidebar() {
 
   return (
     <aside className="w-56 shrink-0 bg-white border-r border-gray-200 flex flex-col h-full select-none">
-
-      {/* ── Brand / Logo ── */}
-      <div className="px-3 py-3 border-b border-gray-100">
-        <div className="flex items-center gap-2.5">
-          {/* Logo mark */}
-          <div className={`w-8 h-8 rounded-lg ${brandBg} flex items-center justify-center shrink-0`}>
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-            </svg>
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-gray-900 leading-tight">OyamaCRM</p>
-            <p className={`text-[10px] font-medium leading-tight ${isCompassion ? "text-blue-600" : isReportit ? "text-cyan-600" : "text-green-600"}`}>
-              {isCompassion ? "Compassion CRM" : isReportit ? "OyamaREPORTIT CRM" : "DonorCRM"}
-            </p>
-          </div>
-        </div>
-      </div>
 
       {/* ── Navigation sections (scrollable) ── */}
       <div className="flex-1 overflow-y-auto py-2 px-0">

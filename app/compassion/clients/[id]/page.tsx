@@ -776,6 +776,31 @@ export default function ClientProfilePage() {
     portal: "Portal event CRUD is active. Automated inbound portal event ingestion is still being finalized.",
   };
 
+  const tabSummary: Partial<Record<Tab, string>> = {
+    overview: "Core identity, contact, intake, and assignment details.",
+    details: "Extended demographic and lifecycle details for this client.",
+    cases: "Case tracking history and active case workload.",
+    activity: "Chronological activity timeline for this client.",
+    appointments: "Upcoming and historical appointments.",
+    followUps: "Follow-up tasks and completion progress.",
+    notes: "Private and team notes tied to this client.",
+    assessments: "Assessment snapshots, scores, and recommendations.",
+    documents: "Document records and secure document references.",
+    communication: "Inbound/outbound communication logs by channel.",
+    portal: "Client portal interaction and event history.",
+    resources: "Service and resource delivery records.",
+    medical: "Medical service entries and outcomes.",
+    pregnancyTests: "Pregnancy test records and updates.",
+    sonograms: "Sonogram records and follow-through notes.",
+    referrals: "External referral records and destination outcomes.",
+    classes: "Class participation records and attendance.",
+    boutique: "Material assistance and boutique support entries.",
+    auditLog: "Auditable action trail for this client profile.",
+  };
+
+  const activeTabMeta = tabMeta[tab];
+  const activeGroup = tabGroups.find((group) => group.tabs.includes(tab));
+
   const displayName = client.preferredName
     ? `${client.firstName} "${client.preferredName}" ${client.lastName}`
     : `${client.firstName} ${client.lastName}`;
@@ -789,6 +814,9 @@ export default function ClientProfilePage() {
       >
         ← Clients
       </button>
+
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
+        <div className="space-y-6">
 
       {/* Profile Header */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
@@ -849,237 +877,265 @@ export default function ClientProfilePage() {
         </div>
       </section>
 
-      {/* Grouped tabs */}
-      <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-4">
-        {tabGroups.map((group) => (
-          <section key={group.label} className="space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{group.label}</p>
-            <div className="flex flex-wrap gap-1.5">
-              {group.tabs.map((tabId) => {
-                const tabInfo = tabMeta[tabId];
-                return (
-                  <button
-                    key={tabId}
-                    onClick={() => setTab(tabId)}
-                    className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                      tab === tabId
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
-                  >
-                    {tabInfo.label}
-                    {tabInfo.count !== undefined && tabInfo.count > 0 ? (
-                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${tab === tabId ? "bg-white/20 text-white" : "bg-white text-gray-600"}`}>
-                        {tabInfo.count}
-                      </span>
-                    ) : null}
-                  </button>
-                );
-              })}
+      {/* Main workspace content */}
+      <div className="space-y-4">
+        <div className="space-y-4">
+          <section className="rounded-xl border border-gray-200 bg-white px-5 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-600">
+              {activeGroup?.label ?? "Client Workspace"}
+            </p>
+            <div className="flex items-center justify-between gap-3 mt-1 flex-wrap">
+              <h2 className="text-lg font-semibold text-gray-900">{activeTabMeta.label}</h2>
+              {activeTabMeta.count !== undefined ? (
+                <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 text-xs font-semibold px-2.5 py-1">
+                  {activeTabMeta.count} record{activeTabMeta.count === 1 ? "" : "s"}
+                </span>
+              ) : null}
             </div>
+            {tabSummary[tab] ? (
+              <p className="text-sm text-gray-600 mt-1.5">{tabSummary[tab]}</p>
+            ) : null}
           </section>
-        ))}
+
+          {tabNotices[tab] ? (
+            <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">In development</p>
+              <p className="text-sm text-amber-800 mt-1">{tabNotices[tab]}</p>
+            </section>
+          ) : null}
+
+          {/* Tab content */}
+          {tab === "overview"      && <OverviewTab client={client} />}
+          {tab === "details"       && <DetailsTab client={client} />}
+          {tab === "cases"         && <CasesTab cases={client.cases} />}
+          {tab === "activity"      && <ActivityTab activities={client.activities} />}
+          {tab === "notes"         && (
+            <ClientActivityEntriesTab
+              clientId={client.id}
+              activityType="CLIENT_NOTE"
+              title="Notes"
+              intro="Create and manage private client notes with full client scoping and audit coverage."
+              entryLabel="Note"
+              emptyMessage="No notes have been added for this client yet."
+              metadataFields={[
+                {
+                  key: "visibility",
+                  label: "Visibility",
+                  type: "select",
+                  options: ["staff_only", "team"],
+                },
+              ]}
+            />
+          )}
+          {tab === "appointments"  && <AppointmentsTab appointments={client.appointments} />}
+          {tab === "followUps"     && <ClientFollowUpsTab clientId={client.id} />}
+          {tab === "resources"     && (
+            <ClientServicesLogTab
+              clientId={client.id}
+              title="Resources"
+              intro="Track services and resource assistance delivered to this client."
+              allowedServiceTypes={[
+                "PREGNANCY_TEST",
+                "ULTRASOUND",
+                "DIAPERS",
+                "CLOTHING",
+                "FORMULA",
+                "PARENTING_CLASS",
+                "HOUSING_REFERRAL",
+                "EDUCATION_REFERRAL",
+                "JOB_REFERRAL",
+                "NUTRITION_SUPPORT",
+                "COUNSELING",
+                "TRANSPORTATION_RESOURCE",
+                "OTHER",
+              ]}
+              emptyMessage="No resources or service entries have been logged for this client."
+            />
+          )}
+          {tab === "documents"     && (
+            <ClientActivityEntriesTab
+              clientId={client.id}
+              activityType="CLIENT_DOCUMENT"
+              title="Documents"
+              intro="Register client document records and secure links in the client workspace timeline."
+              entryLabel="Document record"
+              emptyMessage="No document records have been logged for this client."
+              metadataFields={[
+                { key: "documentName", label: "Document Name", placeholder: "Intake Packet" },
+                { key: "documentType", label: "Document Type", placeholder: "Consent / Medical / Form" },
+                { key: "documentUrl", label: "Document URL", type: "url", placeholder: "https://..." },
+              ]}
+            />
+          )}
+          {tab === "medical"       && (
+            <ClientServicesLogTab
+              clientId={client.id}
+              title="Medical"
+              intro="Track medical-related client services and outcomes with a complete dated log."
+              allowedServiceTypes={["PREGNANCY_TEST", "ULTRASOUND", "COUNSELING", "OTHER"]}
+              defaultServiceType="PREGNANCY_TEST"
+              emptyMessage="No medical service records have been logged for this client."
+            />
+          )}
+          {tab === "assessments"   && (
+            <ClientActivityEntriesTab
+              clientId={client.id}
+              activityType="CLIENT_ASSESSMENT"
+              title="Assessments"
+              intro="Record client assessments with stage, score, and recommendation details."
+              entryLabel="Assessment summary"
+              emptyMessage="No assessments have been recorded for this client."
+              metadataFields={[
+                { key: "assessmentStage", label: "Stage", placeholder: "Intake / Progress / Exit" },
+                { key: "score", label: "Score", placeholder: "0-100" },
+                { key: "recommendation", label: "Recommendation", placeholder: "Next best action" },
+              ]}
+            />
+          )}
+          {tab === "pregnancyTests" && (
+            <ClientServicesLogTab
+              clientId={client.id}
+              title="Pregnancy Tests"
+              intro="Manage pregnancy test records, dates, and follow-up notes for this client."
+              allowedServiceTypes={["PREGNANCY_TEST"]}
+              defaultServiceType="PREGNANCY_TEST"
+              emptyMessage="No pregnancy test records have been logged for this client."
+            />
+          )}
+          {tab === "sonograms"     && (
+            <ClientServicesLogTab
+              clientId={client.id}
+              title="Sonograms"
+              intro="Track sonogram-related services and outcomes in this client profile."
+              allowedServiceTypes={["ULTRASOUND"]}
+              defaultServiceType="ULTRASOUND"
+              emptyMessage="No sonogram records have been logged for this client."
+            />
+          )}
+          {tab === "referrals"     && (
+            <ClientServicesLogTab
+              clientId={client.id}
+              title="Referrals"
+              intro="Log referral service outcomes and destination categories for this client."
+              allowedServiceTypes={[
+                "HOUSING_REFERRAL",
+                "EDUCATION_REFERRAL",
+                "JOB_REFERRAL",
+                "TRANSPORTATION_RESOURCE",
+                "NUTRITION_SUPPORT",
+              ]}
+              defaultServiceType="HOUSING_REFERRAL"
+              emptyMessage="No referral records have been logged for this client."
+            />
+          )}
+          {tab === "classes"       && (
+            <ClientServicesLogTab
+              clientId={client.id}
+              title="Classes"
+              intro="Track class attendance and completion entries for this client."
+              allowedServiceTypes={["PARENTING_CLASS"]}
+              defaultServiceType="PARENTING_CLASS"
+              emptyMessage="No class records have been logged for this client."
+            />
+          )}
+          {tab === "boutique"      && (
+            <ClientServicesLogTab
+              clientId={client.id}
+              title="Boutique"
+              intro="Track boutique and material assistance inventory support provided to this client."
+              allowedServiceTypes={["DIAPERS", "CLOTHING", "FORMULA"]}
+              defaultServiceType="DIAPERS"
+              emptyMessage="No boutique or material-assistance records have been logged for this client."
+            />
+          )}
+          {tab === "communication" && (
+            <ClientActivityEntriesTab
+              clientId={client.id}
+              activityType="CLIENT_COMMUNICATION"
+              title="Communication"
+              intro="Log email, SMS, phone, and in-person communication notes for this client."
+              entryLabel="Communication log"
+              emptyMessage="No communication logs have been recorded for this client."
+              metadataFields={[
+                {
+                  key: "channel",
+                  label: "Channel",
+                  type: "select",
+                  options: ["email", "sms", "phone", "in_person", "mail"],
+                },
+                {
+                  key: "direction",
+                  label: "Direction",
+                  type: "select",
+                  options: ["outbound", "inbound"],
+                },
+                { key: "result", label: "Result", placeholder: "Reached / Voicemail / No response" },
+              ]}
+            />
+          )}
+          {tab === "portal"        && (
+            <ClientActivityEntriesTab
+              clientId={client.id}
+              activityType="CLIENT_PORTAL_EVENT"
+              title="Portal"
+              intro="Track client portal interactions, submissions, and engagement events."
+              entryLabel="Portal event"
+              emptyMessage="No portal events have been recorded for this client."
+              metadataFields={[
+                { key: "eventType", label: "Event Type", placeholder: "Form submitted / Message sent" },
+                { key: "source", label: "Source", placeholder: "Portal / Embedded form" },
+                { key: "referenceUrl", label: "Reference URL", type: "url", placeholder: "https://..." },
+              ]}
+            />
+          )}
+          {tab === "auditLog"      && <AuditLogTab activities={client.activities} />}
+        </div>
+
       </div>
 
-      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-        <p className="text-sm font-semibold text-blue-800">Client-scoped workspace</p>
-        <p className="text-sm text-blue-700 mt-1">
-          This profile is the source of truth for this client. Profile, care documentation, and service-delivery records are organized into focused tab groups.
-        </p>
       </div>
 
-      {tabNotices[tab] ? (
-        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">In development</p>
-          <p className="text-sm text-amber-800 mt-1">{tabNotices[tab]}</p>
-        </section>
-      ) : null}
+        <aside className="space-y-4 self-start xl:sticky xl:top-20">
+          <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-4">
+            {tabGroups.map((group) => (
+              <section key={group.label} className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{group.label}</p>
+                <div className="space-y-1.5">
+                  {group.tabs.map((tabId) => {
+                    const tabInfo = tabMeta[tabId];
+                    const active = tab === tabId;
+                    return (
+                      <button
+                        key={tabId}
+                        onClick={() => setTab(tabId)}
+                        className={`w-full inline-flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold border transition-colors ${
+                          active
+                            ? "bg-blue-600 border-blue-600 text-white"
+                            : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-200"
+                        }`}
+                      >
+                        <span className="text-left">{tabInfo.label}</span>
+                        {tabInfo.count !== undefined && tabInfo.count > 0 ? (
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${active ? "bg-white/20 text-white" : "bg-white text-gray-600"}`}>
+                            {tabInfo.count}
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
 
-      {/* Tab content */}
-      {tab === "overview"      && <OverviewTab client={client} />}
-      {tab === "details"       && <DetailsTab client={client} />}
-      {tab === "cases"         && <CasesTab cases={client.cases} />}
-      {tab === "activity"      && <ActivityTab activities={client.activities} />}
-      {tab === "notes"         && (
-        <ClientActivityEntriesTab
-          clientId={client.id}
-          activityType="CLIENT_NOTE"
-          title="Notes"
-          intro="Create and manage private client notes with full client scoping and audit coverage."
-          entryLabel="Note"
-          emptyMessage="No notes have been added for this client yet."
-          metadataFields={[
-            {
-              key: "visibility",
-              label: "Visibility",
-              type: "select",
-              options: ["staff_only", "team"],
-            },
-          ]}
-        />
-      )}
-      {tab === "appointments"  && <AppointmentsTab appointments={client.appointments} />}
-      {tab === "followUps"     && <ClientFollowUpsTab clientId={client.id} />}
-      {tab === "resources"     && (
-        <ClientServicesLogTab
-          clientId={client.id}
-          title="Resources"
-          intro="Track services and resource assistance delivered to this client."
-          allowedServiceTypes={[
-            "PREGNANCY_TEST",
-            "ULTRASOUND",
-            "DIAPERS",
-            "CLOTHING",
-            "FORMULA",
-            "PARENTING_CLASS",
-            "HOUSING_REFERRAL",
-            "EDUCATION_REFERRAL",
-            "JOB_REFERRAL",
-            "NUTRITION_SUPPORT",
-            "COUNSELING",
-            "TRANSPORTATION_RESOURCE",
-            "OTHER",
-          ]}
-          emptyMessage="No resources or service entries have been logged for this client."
-        />
-      )}
-      {tab === "documents"     && (
-        <ClientActivityEntriesTab
-          clientId={client.id}
-          activityType="CLIENT_DOCUMENT"
-          title="Documents"
-          intro="Register client document records and secure links in the client workspace timeline."
-          entryLabel="Document record"
-          emptyMessage="No document records have been logged for this client."
-          metadataFields={[
-            { key: "documentName", label: "Document Name", placeholder: "Intake Packet" },
-            { key: "documentType", label: "Document Type", placeholder: "Consent / Medical / Form" },
-            { key: "documentUrl", label: "Document URL", type: "url", placeholder: "https://..." },
-          ]}
-        />
-      )}
-      {tab === "medical"       && (
-        <ClientServicesLogTab
-          clientId={client.id}
-          title="Medical"
-          intro="Track medical-related client services and outcomes with a complete dated log."
-          allowedServiceTypes={["PREGNANCY_TEST", "ULTRASOUND", "COUNSELING", "OTHER"]}
-          defaultServiceType="PREGNANCY_TEST"
-          emptyMessage="No medical service records have been logged for this client."
-        />
-      )}
-      {tab === "assessments"   && (
-        <ClientActivityEntriesTab
-          clientId={client.id}
-          activityType="CLIENT_ASSESSMENT"
-          title="Assessments"
-          intro="Record client assessments with stage, score, and recommendation details."
-          entryLabel="Assessment summary"
-          emptyMessage="No assessments have been recorded for this client."
-          metadataFields={[
-            { key: "assessmentStage", label: "Stage", placeholder: "Intake / Progress / Exit" },
-            { key: "score", label: "Score", placeholder: "0-100" },
-            { key: "recommendation", label: "Recommendation", placeholder: "Next best action" },
-          ]}
-        />
-      )}
-      {tab === "pregnancyTests" && (
-        <ClientServicesLogTab
-          clientId={client.id}
-          title="Pregnancy Tests"
-          intro="Manage pregnancy test records, dates, and follow-up notes for this client."
-          allowedServiceTypes={["PREGNANCY_TEST"]}
-          defaultServiceType="PREGNANCY_TEST"
-          emptyMessage="No pregnancy test records have been logged for this client."
-        />
-      )}
-      {tab === "sonograms"     && (
-        <ClientServicesLogTab
-          clientId={client.id}
-          title="Sonograms"
-          intro="Track sonogram-related services and outcomes in this client profile."
-          allowedServiceTypes={["ULTRASOUND"]}
-          defaultServiceType="ULTRASOUND"
-          emptyMessage="No sonogram records have been logged for this client."
-        />
-      )}
-      {tab === "referrals"     && (
-        <ClientServicesLogTab
-          clientId={client.id}
-          title="Referrals"
-          intro="Log referral service outcomes and destination categories for this client."
-          allowedServiceTypes={[
-            "HOUSING_REFERRAL",
-            "EDUCATION_REFERRAL",
-            "JOB_REFERRAL",
-            "TRANSPORTATION_RESOURCE",
-            "NUTRITION_SUPPORT",
-          ]}
-          defaultServiceType="HOUSING_REFERRAL"
-          emptyMessage="No referral records have been logged for this client."
-        />
-      )}
-      {tab === "classes"       && (
-        <ClientServicesLogTab
-          clientId={client.id}
-          title="Classes"
-          intro="Track class attendance and completion entries for this client."
-          allowedServiceTypes={["PARENTING_CLASS"]}
-          defaultServiceType="PARENTING_CLASS"
-          emptyMessage="No class records have been logged for this client."
-        />
-      )}
-      {tab === "boutique"      && (
-        <ClientServicesLogTab
-          clientId={client.id}
-          title="Boutique"
-          intro="Track boutique and material assistance inventory support provided to this client."
-          allowedServiceTypes={["DIAPERS", "CLOTHING", "FORMULA"]}
-          defaultServiceType="DIAPERS"
-          emptyMessage="No boutique or material-assistance records have been logged for this client."
-        />
-      )}
-      {tab === "communication" && (
-        <ClientActivityEntriesTab
-          clientId={client.id}
-          activityType="CLIENT_COMMUNICATION"
-          title="Communication"
-          intro="Log email, SMS, phone, and in-person communication notes for this client."
-          entryLabel="Communication log"
-          emptyMessage="No communication logs have been recorded for this client."
-          metadataFields={[
-            {
-              key: "channel",
-              label: "Channel",
-              type: "select",
-              options: ["email", "sms", "phone", "in_person", "mail"],
-            },
-            {
-              key: "direction",
-              label: "Direction",
-              type: "select",
-              options: ["outbound", "inbound"],
-            },
-            { key: "result", label: "Result", placeholder: "Reached / Voicemail / No response" },
-          ]}
-        />
-      )}
-      {tab === "portal"        && (
-        <ClientActivityEntriesTab
-          clientId={client.id}
-          activityType="CLIENT_PORTAL_EVENT"
-          title="Portal"
-          intro="Track client portal interactions, submissions, and engagement events."
-          entryLabel="Portal event"
-          emptyMessage="No portal events have been recorded for this client."
-          metadataFields={[
-            { key: "eventType", label: "Event Type", placeholder: "Form submitted / Message sent" },
-            { key: "source", label: "Source", placeholder: "Portal / Embedded form" },
-            { key: "referenceUrl", label: "Reference URL", type: "url", placeholder: "https://..." },
-          ]}
-        />
-      )}
-      {tab === "auditLog"      && <AuditLogTab activities={client.activities} />}
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+            <p className="text-sm font-semibold text-blue-800">Client-scoped workspace</p>
+            <p className="text-sm text-blue-700 mt-1">
+              This profile is the source of truth for this client. Profile, care documentation, and service-delivery records are organized into focused tab groups.
+            </p>
+          </div>
+        </aside>
+      </div>
 
       {/* Edit Modal */}
       {showEdit && (

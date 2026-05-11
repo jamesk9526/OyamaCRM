@@ -297,40 +297,12 @@ function TasksCard({ followUps, overdueCount }: { followUps: FollowUpItem[]; ove
   );
 }
 
-/** Quick action shortcut buttons. */
-function QuickActionsCard() {
-  const actions = [
-    { label: "Add New Client",       href: "/compassion/clients",      icon: "👤" },
-    { label: "Schedule Appointment", href: "/compassion/appointments",  icon: "📅" },
-    { label: "Create Case Note",     href: "/compassion/cases",         icon: "📝" },
-    { label: "Log Follow-up",        href: "/compassion/follow-ups",    icon: "⚡" },
-  ];
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-      <h3 className="text-sm font-semibold text-gray-900 mb-4">Quick Actions</h3>
-      <div className="grid grid-cols-2 gap-2">
-        {actions.map((a, i) => (
-          <a
-            key={i}
-            href={a.href}
-            className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium transition-colors"
-          >
-            <span className="text-base">{a.icon}</span>
-            <span>{a.label}</span>
-          </a>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ─── Main Dashboard ────────────────────────────────────────────────────────────
 
 /**
  * CompassionDashboardPage: main landing page for Compassion CRM.
  * Fetches live data from /api/compassion/dashboard-summary on mount.
- * Shows caseload metrics, chart overviews, schedule, tasks, and quick actions.
+ * Shows caseload metrics, chart overviews, schedule, activity, and tasks.
  */
 export default function CompassionDashboardPage() {
   const { user } = useAuth();
@@ -536,13 +508,12 @@ export default function CompassionDashboardPage() {
         </div>
       )}
 
-      {/* ── Bottom row: schedule, activity, tasks, quick actions ─── */}
+      {/* ── Bottom row: schedule, activity, and tasks ─── */}
       {!loading && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           <ScheduleCard appointments={data?.todaysAppointments ?? []} />
           <ActivityCard activities={data?.recentActivity ?? []} />
           <TasksCard followUps={data?.upcomingFollowUps ?? []} overdueCount={data?.overdueFollowUps ?? 0} />
-          <QuickActionsCard />
         </div>
       )}
     </div>

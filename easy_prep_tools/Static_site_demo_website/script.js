@@ -1,193 +1,138 @@
-/**
- * OyamaCRM Demo Site — Interactive JS
- * Handles: hero slideshow, gallery filter + lightbox (with prev/next),
- *          mobile nav toggle, smooth scroll, scroll-reveal animations.
- */
-
+/* OyamaCRM marketing site interactions for hero switching, filters, mobile nav, and lightbox. */
 (function () {
-  'use strict';
+  const mobileToggle = document.getElementById("mobileToggle");
+  const topbarNav = document.getElementById("topbarNav");
+  const heroScreenshot = document.getElementById("heroScreenshot");
+  const heroShotTitle = document.getElementById("heroShotTitle");
+  const heroShotMeta = document.getElementById("heroShotMeta");
+  const heroChips = Array.from(document.querySelectorAll(".hero-chip"));
+  const filterChips = Array.from(document.querySelectorAll(".filter-chip"));
+  const shotCards = Array.from(document.querySelectorAll(".shot-card"));
 
-  /* ─── HERO SLIDESHOW ────────────────────────────────────────── */
-  const heroImg   = document.getElementById('heroScreenshot');
-  const slideBtns = document.querySelectorAll('.slide-btn');
-  let slideTimer  = null;
-  let currentSlide = 0;
+  const lightbox = document.getElementById("lightbox");
+  const lightboxImage = document.getElementById("lightboxImage");
+  const lightboxCaption = document.getElementById("lightboxCaption");
+  const lightboxClose = document.getElementById("lightboxClose");
+  const lightboxPrev = document.getElementById("lightboxPrev");
+  const lightboxNext = document.getElementById("lightboxNext");
 
-  function goToSlide(index) {
-    if (!heroImg) return;
-    const btn = slideBtns[index];
-    if (!btn) return;
+  let activeShots = shotCards.slice();
+  let activeIndex = 0;
 
-    /* Fade out, swap src, fade in */
-    heroImg.classList.add('fading');
-    setTimeout(() => {
-      heroImg.src = btn.dataset.src;
-      heroImg.alt = btn.dataset.label || 'OyamaCRM Screenshot';
-      heroImg.classList.remove('fading');
-    }, 250);
+  function syncHero(button) {
+    if (!button || !heroScreenshot) return;
 
-    /* Update active dot */
-    slideBtns.forEach((b, i) => b.classList.toggle('active', i === index));
-    currentSlide = index;
-  }
+    heroChips.forEach((chip) => chip.classList.toggle("active", chip === button));
+    heroScreenshot.src = button.dataset.src || heroScreenshot.src;
+    heroScreenshot.alt = button.dataset.title || heroScreenshot.alt;
 
-  function advanceSlide() {
-    goToSlide((currentSlide + 1) % slideBtns.length);
-  }
+    if (heroShotTitle) {
+      heroShotTitle.textContent = button.dataset.title || "OyamaCRM";
+    }
 
-  function resetTimer() {
-    clearInterval(slideTimer);
-    if (slideBtns.length > 1) {
-      slideTimer = setInterval(advanceSlide, 5000);
+    if (heroShotMeta) {
+      heroShotMeta.textContent = button.dataset.meta || "";
     }
   }
 
-  slideBtns.forEach((btn, i) => {
-    btn.addEventListener('click', () => { goToSlide(i); resetTimer(); });
-  });
-
-  resetTimer();
-
-  /* ─── MOBILE NAV ─────────────────────────────────────────────── */
-  const toggle   = document.getElementById('mobileToggle');
-  const navLinks = document.getElementById('navLinks');
-
-  if (toggle && navLinks) {
-    toggle.addEventListener('click', () => {
-      const isOpen = navLinks.classList.toggle('open');
-      toggle.classList.toggle('open', isOpen);
-      toggle.setAttribute('aria-expanded', String(isOpen));
-    });
-
-    /* Close nav when a link is clicked */
-    navLinks.querySelectorAll('a').forEach(a => {
-      a.addEventListener('click', () => {
-        navLinks.classList.remove('open');
-        toggle.classList.remove('open');
-        toggle.setAttribute('aria-expanded', 'false');
-      });
-    });
+  function syncActiveShots() {
+    activeShots = shotCards.filter((card) => !card.classList.contains("hidden"));
   }
-
-  /* ─── SMOOTH SCROLL ──────────────────────────────────────────── */
-  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-    anchor.addEventListener('click', e => {
-      const target = document.querySelector(anchor.getAttribute('href'));
-      if (target) {
-        e.preventDefault();
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    });
-  });
-
-  /* ─── GALLERY FILTER ─────────────────────────────────────────── */
-  const chips  = document.querySelectorAll('.chip');
-  const shots  = document.querySelectorAll('.shot');
-
-  chips.forEach(chip => {
-    chip.addEventListener('click', () => {
-      chips.forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-
-      const filter = chip.dataset.filter;
-      shots.forEach(shot => {
-        const match = filter === 'all' || shot.dataset.category === filter;
-        shot.classList.toggle('hidden', !match);
-      });
-    });
-  });
-
-  /* ─── LIGHTBOX ───────────────────────────────────────────────── */
-  const lightbox    = document.getElementById('lightbox');
-  const lbImg       = document.getElementById('lightboxImg');
-  const lbCaption   = document.getElementById('lightboxCaption');
-  const lbClose     = document.getElementById('lightboxClose');
-  const lbPrev      = document.getElementById('lightboxPrev');
-  const lbNext      = document.getElementById('lightboxNext');
-  let visibleShots  = [];
-  let lbIndex       = 0;
 
   function openLightbox(index) {
-    /* Re-compute visible shots (respects current filter) */
-    visibleShots = Array.from(shots).filter(s => !s.classList.contains('hidden'));
-    lbIndex = Math.max(0, Math.min(index, visibleShots.length - 1));
-    showLbSlide();
-    lightbox.setAttribute('aria-hidden', 'false');
-    document.body.style.overflow = 'hidden';
-    lbClose.focus();
-  }
+    syncActiveShots();
+    activeIndex = Math.max(0, Math.min(index, activeShots.length - 1));
+    const card = activeShots[activeIndex];
+    if (!card) return;
 
-  function showLbSlide() {
-    const shot = visibleShots[lbIndex];
-    if (!shot) return;
-    const img  = shot.querySelector('img');
-    const cap  = shot.querySelector('figcaption');
-    lbImg.src           = img ? img.src : '';
-    lbImg.alt           = img ? img.alt : '';
-    lbCaption.textContent = cap ? cap.textContent : '';
+    const image = card.querySelector("img");
+    const title = card.querySelector("figcaption span");
+    const meta = card.querySelector("figcaption small");
+    if (!image || !lightboxImage) return;
+
+    lightboxImage.src = image.src;
+    lightboxImage.alt = image.alt;
+    lightboxCaption.textContent = [title?.textContent || "", meta?.textContent || ""].filter(Boolean).join(" - ");
+    lightbox.classList.add("open");
+    lightbox.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
   }
 
   function closeLightbox() {
-    lightbox.setAttribute('aria-hidden', 'true');
-    document.body.style.overflow = '';
+    lightbox.classList.remove("open");
+    lightbox.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
   }
 
-  shots.forEach((shot, i) => {
-    shot.addEventListener('click', () => {
-      /* index within currently-visible shots */
-      const visible = Array.from(shots).filter(s => !s.classList.contains('hidden'));
-      const vi = visible.indexOf(shot);
-      openLightbox(vi >= 0 ? vi : 0);
+  function moveLightbox(step) {
+    syncActiveShots();
+    if (!activeShots.length) return;
+    activeIndex = (activeIndex + step + activeShots.length) % activeShots.length;
+    openLightbox(activeIndex);
+  }
+
+  heroChips.forEach((chip) => {
+    chip.addEventListener("click", () => syncHero(chip));
+  });
+
+  filterChips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const filter = chip.dataset.filter || "all";
+      filterChips.forEach((item) => item.classList.toggle("active", item === chip));
+      shotCards.forEach((card) => {
+        const category = card.dataset.category || "all";
+        const matches = filter === "all" || filter === category;
+        card.classList.toggle("hidden", !matches);
+      });
+      syncActiveShots();
     });
   });
 
-  lbClose && lbClose.addEventListener('click', closeLightbox);
-  lightbox && lightbox.addEventListener('click', e => { if (e.target === lightbox) closeLightbox(); });
-
-  lbPrev && lbPrev.addEventListener('click', e => {
-    e.stopPropagation();
-    lbIndex = (lbIndex - 1 + visibleShots.length) % visibleShots.length;
-    showLbSlide();
+  shotCards.forEach((card) => {
+    card.addEventListener("click", () => {
+      syncActiveShots();
+      openLightbox(activeShots.indexOf(card));
+    });
   });
 
-  lbNext && lbNext.addEventListener('click', e => {
-    e.stopPropagation();
-    lbIndex = (lbIndex + 1) % visibleShots.length;
-    showLbSlide();
-  });
+  if (lightboxClose) {
+    lightboxClose.addEventListener("click", closeLightbox);
+  }
 
-  document.addEventListener('keydown', e => {
-    if (lightbox.getAttribute('aria-hidden') === 'true') return;
-    if (e.key === 'Escape')       closeLightbox();
-    if (e.key === 'ArrowLeft')  { lbIndex = (lbIndex - 1 + visibleShots.length) % visibleShots.length; showLbSlide(); }
-    if (e.key === 'ArrowRight') { lbIndex = (lbIndex + 1) % visibleShots.length; showLbSlide(); }
-  });
+  if (lightboxPrev) {
+    lightboxPrev.addEventListener("click", () => moveLightbox(-1));
+  }
 
-  /* ─── SCROLL REVEAL ──────────────────────────────────────────── */
-  if ('IntersectionObserver' in window) {
-    const observer = new IntersectionObserver(entries => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
-          observer.unobserve(entry.target);
-        }
+  if (lightboxNext) {
+    lightboxNext.addEventListener("click", () => moveLightbox(1));
+  }
+
+  if (lightbox) {
+    lightbox.addEventListener("click", (event) => {
+      if (event.target === lightbox) {
+        closeLightbox();
+      }
+    });
+  }
+
+  if (mobileToggle && topbarNav) {
+    mobileToggle.addEventListener("click", () => {
+      const open = topbarNav.classList.toggle("open");
+      mobileToggle.setAttribute("aria-expanded", String(open));
+    });
+
+    topbarNav.querySelectorAll("a").forEach((link) => {
+      link.addEventListener("click", () => {
+        topbarNav.classList.remove("open");
+        mobileToggle.setAttribute("aria-expanded", "false");
       });
-    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
-
-    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
-  } else {
-    /* Fallback: show all immediately if no IntersectionObserver */
-    document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+    });
   }
 
-  /* ─── STICKY HEADER SHADOW ───────────────────────────────────── */
-  const header = document.querySelector('.site-header');
-  if (header) {
-    window.addEventListener('scroll', () => {
-      header.style.boxShadow = window.scrollY > 10
-        ? '0 1px 24px rgba(0,0,0,0.4)'
-        : 'none';
-    }, { passive: true });
-  }
-
+  document.addEventListener("keydown", (event) => {
+    if (!lightbox.classList.contains("open")) return;
+    if (event.key === "Escape") closeLightbox();
+    if (event.key === "ArrowLeft") moveLightbox(-1);
+    if (event.key === "ArrowRight") moveLightbox(1);
+  });
 })();

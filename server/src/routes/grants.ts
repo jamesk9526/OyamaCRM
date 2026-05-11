@@ -34,6 +34,7 @@ import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
+import type { GrantStatus } from "@prisma/client";
 
 const router = Router();
 
@@ -54,6 +55,35 @@ const DEFAULT_SECTIONS = [
   { key: "sustainability_plan",title: "Sustainability Plan",wordLimit: 500,  sortOrder: 7 },
   { key: "loi_narrative",      title: "Letter of Intent (LOI)", wordLimit: 1000, sortOrder: 8 },
 ];
+
+/**
+ * Legacy + canonical status aliases normalized into current GrantStatus enum values.
+ * This prevents runtime Prisma validation errors from older clients while keeping DB values canonical.
+ */
+const GRANT_STATUS_ALIASES: Record<string, GrantStatus> = {
+  IDEA: "IDEA",
+  PROSPECTING: "RESEARCH",
+  RESEARCH: "RESEARCH",
+  LOI_DRAFT: "LOI_DRAFT",
+  LOI_SUBMITTED: "LOI_SUBMITTED",
+  PROPOSAL_DRAFT: "PROPOSAL_DRAFT",
+  SUBMITTED: "PROPOSAL_SUBMITTED",
+  PROPOSAL_SUBMITTED: "PROPOSAL_SUBMITTED",
+  UNDER_REVIEW: "UNDER_REVIEW",
+  IN_REVIEW: "UNDER_REVIEW",
+  AWARDED: "AWARDED",
+  REJECTED: "REJECTED",
+  DECLINED: "REJECTED",
+  WITHDRAWN: "WITHDRAWN",
+  CLOSED: "CLOSED",
+};
+
+/** Normalizes inbound status values to supported GrantStatus values. */
+function parseGrantStatus(value: unknown): GrantStatus | null {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  if (!normalized) return null;
+  return GRANT_STATUS_ALIASES[normalized] ?? null;
+}
 
 // ─── Funder routes ────────────────────────────────────────────────────────────
 
@@ -103,7 +133,7 @@ router.patch("/funders/:id", requireRole("manager"), async (req, res) => {
 
   await logAudit({ action: "UPDATE", entity: "GrantFunder", entityId: id, userId: (req as { user?: { sub?: string } }).user?.sub });
   const updated = await prisma.grantFunder.findUnique({ where: { id } });
-  res.json(updated);
+  res.json({ ...(updated ?? {}), updated: funder.count });
 });
 
 /** DELETE /api/grants/funders/:id — Remove a funder (admin only). */
@@ -169,7 +199,14 @@ router.get("/", async (req, res) => {
   if (!organizationId) { res.json([]); return; }
 
   const where: Record<string, unknown> = { organizationId };
-  if (req.query.status) where.status = String(req.query.status);
+  if (req.query.status) {
+    const parsedStatus = parseGrantStatus(String(req.query.status));
+    if (!parsedStatus) {
+      res.status(400).json({ error: { message: "Invalid grant status filter" } });
+      return;
+    }
+    where.status = parsedStatus;
+  }
   if (req.query.assigneeId) where.assigneeId = String(req.query.assigneeId);
 
   const grants = await prisma.grant.findMany({
@@ -198,13 +235,28 @@ router.post("/", requireRole("manager"), async (req, res) => {
     return;
   }
 
+  const funder = await prisma.grantFunder.findFirst({
+    where: { id: String(funderId), organizationId },
+    select: { id: true },
+  });
+  if (!funder) {
+    res.status(404).json({ error: { message: "Funder not found" } });
+    return;
+  }
+
+  const parsedStatus = parseGrantStatus(status);
+  if (status !== undefined && parsedStatus === null) {
+    res.status(400).json({ error: { message: "Invalid grant status" } });
+    return;
+  }
+
   const grant = await prisma.grant.create({
     data: {
       organizationId,
       funderId,
       title,
       programArea,
-      status: status ?? "IDEA",
+      status: parsedStatus ?? "IDEA",
       amountRequested: amountRequested ? Number(amountRequested) : undefined,
       requiresLOI: requiresLOI ?? false,
       loiDeadline: loiDeadline ? new Date(loiDeadline) : undefined,
@@ -227,7 +279,7 @@ router.post("/", requireRole("manager"), async (req, res) => {
   await prisma.grantActivity.create({
     data: {
       grantId: grant.id,
-      userId: (req as { user?: { id: string } }).user?.id ?? null,
+      userId: (req as { user?: { sub?: string } }).user?.sub ?? null,
       type: "STATUS_CHANGE",
       description: `Grant created with status: ${grant.status}`,
     },
@@ -277,7 +329,38 @@ router.patch("/:id", async (req, res) => {
     "reportingDeadline","reportingSubmittedAt","assigneeId","notes","internalNotes",
   ];
   const data: Record<string, unknown> = {};
+
+  if ("funderId" in req.body) {
+    const nextFunderId = String(req.body.funderId ?? "").trim();
+    if (nextFunderId) {
+      const funder = await prisma.grantFunder.findFirst({
+        where: { id: nextFunderId, organizationId: organizationId ?? "" },
+        select: { id: true },
+      });
+      if (!funder) {
+        res.status(404).json({ error: { message: "Funder not found" } });
+        return;
+      }
+      data.funderId = nextFunderId;
+    } else {
+      res.status(400).json({ error: { message: "funderId cannot be empty" } });
+      return;
+    }
+  }
+
+  if ("status" in req.body) {
+    const parsedStatus = parseGrantStatus(req.body.status);
+    if (String(req.body.status ?? "").trim() && !parsedStatus) {
+      res.status(400).json({ error: { message: "Invalid grant status" } });
+      return;
+    }
+    if (parsedStatus) {
+      data.status = parsedStatus;
+    }
+  }
+
   for (const k of allowed) {
+    if (k === "status" || k === "funderId") continue;
     if (k in req.body) {
       if (["loiDeadline","loiSubmittedAt","applicationDeadline","submittedAt",
            "awardedAt","rejectedAt","grantPeriodStart","grantPeriodEnd",
@@ -300,13 +383,14 @@ router.patch("/:id", async (req, res) => {
 
   // Log status change as a timeline activity
   if (req.body.status && req.body.status !== existing.status) {
+    const nextStatus = (data.status as GrantStatus | undefined) ?? existing.status;
     await prisma.grantActivity.create({
       data: {
         grantId: id,
-        userId: (req as { user?: { id: string } }).user?.id ?? null,
+        userId: (req as { user?: { sub?: string } }).user?.sub ?? null,
         type: "STATUS_CHANGE",
-        description: `Status changed from ${existing.status} to ${req.body.status}`,
-        metadata: { from: existing.status, to: req.body.status },
+        description: `Status changed from ${existing.status} to ${nextStatus}`,
+        metadata: { from: existing.status, to: nextStatus },
       },
     });
   }
@@ -412,13 +496,14 @@ router.post("/:id/activity", async (req, res) => {
   });
   if (!grant) { res.status(404).json({ error: { message: "Grant not found" } }); return; }
 
-  const { description, type } = req.body;
+  const { type } = req.body;
+  const description = String(req.body.description ?? req.body.note ?? "").trim();
   if (!description) { res.status(400).json({ error: { message: "description is required" } }); return; }
 
   const activity = await prisma.grantActivity.create({
     data: {
       grantId: id,
-      userId: (req as { user?: { id: string } }).user?.id ?? null,
+      userId: (req as { user?: { sub?: string } }).user?.sub ?? null,
       type: type ?? "NOTE",
       description,
     },

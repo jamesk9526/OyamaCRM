@@ -127,6 +127,8 @@ describe("compassion CRM smoke", () => {
   let compassionToken = "";
   let createdClientId = "";
   let createdCaseId = "";
+  const uniqueSuffix = `${Date.now()}`;
+  const uniqueLastName = `TestClient-${uniqueSuffix}`;
 
   beforeAll(async () => {
     const res = await request(app).post("/api/auth/login").send({
@@ -154,8 +156,8 @@ describe("compassion CRM smoke", () => {
     const auth = { Authorization: `Bearer ${compassionToken}` };
     const res = await request(app).post("/api/compassion/clients").set(auth).send({
       firstName: "Smoke",
-      lastName: "TestClient",
-      email: "smoke-compassion@example.com",
+      lastName: uniqueLastName,
+      email: `smoke-compassion-${uniqueSuffix}@example.com`,
       intakeDate: new Date().toISOString(),
     });
     expect(res.status).toBe(201);
@@ -166,7 +168,9 @@ describe("compassion CRM smoke", () => {
 
   it("lists clients and includes the newly created one", async () => {
     const auth = { Authorization: `Bearer ${compassionToken}` };
-    const res = await request(app).get("/api/compassion/clients?limit=100").set(auth);
+    const res = await request(app)
+      .get(`/api/compassion/clients?limit=100&search=${encodeURIComponent(uniqueLastName)}`)
+      .set(auth);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
     const found = (res.body as Array<{ id: string }>).some((c) => c.id === createdClientId);

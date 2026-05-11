@@ -3,15 +3,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import OyamaGradientIcon from "@/app/components/ui/OyamaGradientIcon";
 
 const NAV_ITEMS = [
-  { href: "/webmaster", label: "Dashboard" },
-  { href: "/webmaster/builder", label: "Builder" },
-  { href: "/webmaster/templates", label: "Templates" },
-  { href: "/webmaster/cms", label: "CMS Collections" },
-  { href: "/webmaster/assets", label: "Assets" },
-  { href: "/webmaster/forms", label: "Forms" },
-  { href: "/webmaster/settings", label: "Site Settings" },
+  { href: "/webmaster", label: "Dashboard", icon: "growth-analytics" as const },
+  { href: "/webmaster/builder", label: "Builder", icon: "reporting-dashboard" as const },
+  { href: "/webmaster/templates", label: "Templates", icon: "contact-checklist" as const },
+  { href: "/webmaster/cms", label: "CMS Collections", icon: "constituent-search" as const },
+  { href: "/webmaster/assets", label: "Assets", icon: "donor-gift" as const },
+  { href: "/webmaster/forms", label: "Forms", icon: "task-checklist" as const },
+  { href: "/webmaster/settings", label: "Site Settings", icon: "client-profile-sync" as const },
 ];
 
 /** WebmasterSidebar renders navigation for the modular website-builder workspace. */
@@ -42,11 +43,12 @@ export default function WebmasterSidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`block rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                 isActive ? "bg-indigo-50 text-indigo-700" : "text-gray-600 hover:bg-gray-50"
               }`}
             >
-              {item.label}
+              <OyamaGradientIcon name={item.icon} size={16} />
+              <span>{item.label}</span>
             </Link>
           );
         })}

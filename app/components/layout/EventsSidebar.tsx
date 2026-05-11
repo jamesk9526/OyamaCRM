@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type React from "react";
+import OyamaGradientIcon from "@/app/components/ui/OyamaGradientIcon";
 
 /** Single events navigation item definition. */
 interface NavItem {
@@ -45,19 +46,19 @@ const BASE_NAV_SECTIONS: NavSection[] = [
   {
     label: "Command Center",
     items: [
-      { label: "Dashboard", href: "/events", icon: <Ico d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" /> },
-      { label: "Events", href: "/events/events", icon: <Ico d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
-      { label: "Workspace Selector", href: "/events/workspace", icon: <Ico d="M4 7h16M4 12h16M4 17h10" /> },
-      { label: "Setup", href: "/events/setup", icon: <Ico d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /> },
+      { label: "Dashboard", href: "/events", icon: <OyamaGradientIcon name="growth-analytics" /> },
+      { label: "Events", href: "/events/events", icon: <OyamaGradientIcon name="task-checklist" /> },
+      { label: "Workspace Selector", href: "/events/workspace", icon: <OyamaGradientIcon name="constituent-search" /> },
+      { label: "Setup", href: "/events/setup", icon: <OyamaGradientIcon name="client-profile-sync" /> },
     ],
   },
   {
     label: "Global Tools",
     items: [
-      { label: "Global Reports", href: "/events/reports", icon: <Ico d="M4 19V9m8 10V5m8 14v-7" /> },
-      { label: "Event Page Builder", href: "/events/page-builder", icon: <Ico d="M3 5h18v14H3zM3 9h18" /> },
-      { label: "Event Templates", href: "/events/templates", icon: <Ico d="M9 3h6M4 7h16M6 11h12M6 15h8" /> },
-      { label: "Overall Management", href: "/events/events", icon: <Ico d="M5 13l4 4L19 7" /> },
+      { label: "Global Reports", href: "/events/reports", icon: <OyamaGradientIcon name="reporting-dashboard" /> },
+      { label: "Event Page Builder", href: "/events/page-builder", icon: <OyamaGradientIcon name="growth-analytics" /> },
+      { label: "Event Templates", href: "/events/templates", icon: <OyamaGradientIcon name="contact-checklist" /> },
+      { label: "Overall Management", href: "/events/events", icon: <OyamaGradientIcon name="goal-target" /> },
     ],
   },
 ];
@@ -68,30 +69,30 @@ function getWorkspaceSections(eventId: string): NavSection[] {
     {
       label: "Event Workspace",
       items: [
-        { label: "Overview", href: `/events/${eventId}/overview`, activePath: `/events/${eventId}`, icon: <Ico d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" /> },
-        { label: "Tickets", href: `/events/${eventId}/tickets`, activePath: `/events/${eventId}/tickets`, icon: <Ico d="M3 8a2 2 0 012-2h14a2 2 0 012 2v2a2 2 0 010 4v2a2 2 0 01-2 2H5a2 2 0 01-2-2v-2a2 2 0 010-4V8z" /> },
-        { label: "Orders", href: `/events/${eventId}/orders`, activePath: `/events/${eventId}/orders`, icon: <Ico d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" /> },
-        { label: "Guests", href: `/events/${eventId}/guests`, activePath: `/events/${eventId}/guests`, icon: <Ico d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /> },
-        { label: "Tables", href: `/events/${eventId}/tables`, activePath: `/events/${eventId}/tables`, icon: <Ico><circle cx="12" cy="12" r="5" /><circle cx="12" cy="4" r="1.5" /><circle cx="20" cy="12" r="1.5" /><circle cx="12" cy="20" r="1.5" /><circle cx="4" cy="12" r="1.5" /></Ico> },
-        { label: "Check-In", href: `/events/${eventId}/check-in`, activePath: `/events/${eventId}/check-in`, icon: <Ico d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /> },
+        { label: "Overview", href: `/events/${eventId}/overview`, activePath: `/events/${eventId}`, icon: <OyamaGradientIcon name="growth-analytics" /> },
+        { label: "Tickets", href: `/events/${eventId}/tickets`, activePath: `/events/${eventId}/tickets`, icon: <OyamaGradientIcon name="donor-gift" /> },
+        { label: "Orders", href: `/events/${eventId}/orders`, activePath: `/events/${eventId}/orders`, icon: <OyamaGradientIcon name="contact-checklist" /> },
+        { label: "Guests", href: `/events/${eventId}/guests`, activePath: `/events/${eventId}/guests`, icon: <OyamaGradientIcon name="constituent-search" /> },
+        { label: "Tables", href: `/events/${eventId}/tables`, activePath: `/events/${eventId}/tables`, icon: <OyamaGradientIcon name="relationship-partnership" /> },
+        { label: "Check-In", href: `/events/${eventId}/check-in`, activePath: `/events/${eventId}/check-in`, icon: <OyamaGradientIcon name="client-profile-sync" /> },
       ],
     },
     {
       label: "Revenue & Follow-Up",
       items: [
-        { label: "Sponsors", href: `/events/${eventId}/sponsors`, activePath: `/events/${eventId}/sponsors`, icon: <Ico d="M4 6h16M4 12h16M4 18h10" /> },
-        { label: "Fundraising", href: `/events/${eventId}/fundraising`, activePath: `/events/${eventId}/fundraising`, icon: <Ico d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /> },
-        { label: "Communications", href: `/events/${eventId}/communications`, activePath: `/events/${eventId}/communications`, icon: <Ico d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /> },
-        { label: "Reports", href: `/events/${eventId}/reports`, activePath: `/events/${eventId}/reports`, icon: <Ico d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /> },
+        { label: "Sponsors", href: `/events/${eventId}/sponsors`, activePath: `/events/${eventId}/sponsors`, icon: <OyamaGradientIcon name="relationship-partnership" /> },
+        { label: "Fundraising", href: `/events/${eventId}/fundraising`, activePath: `/events/${eventId}/fundraising`, icon: <OyamaGradientIcon name="momentum-growth" /> },
+        { label: "Communications", href: `/events/${eventId}/communications`, activePath: `/events/${eventId}/communications`, icon: <OyamaGradientIcon name="messaging-chat" /> },
+        { label: "Reports", href: `/events/${eventId}/reports`, activePath: `/events/${eventId}/reports`, icon: <OyamaGradientIcon name="reporting-dashboard" /> },
       ],
     },
     {
       label: "Operations",
       items: [
-        { label: "Tasks", href: `/events/${eventId}/tasks`, activePath: `/events/${eventId}/tasks`, icon: <Ico d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /> },
-        { label: "Volunteers", href: `/events/${eventId}/volunteers`, activePath: `/events/${eventId}/volunteers`, icon: <Ico d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /> },
-        { label: "Files", href: `/events/${eventId}/files`, activePath: `/events/${eventId}/files`, icon: <Ico d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /> },
-        { label: "Settings", href: `/events/${eventId}/settings`, activePath: `/events/${eventId}/settings`, icon: <Ico d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /> },
+        { label: "Tasks", href: `/events/${eventId}/tasks`, activePath: `/events/${eventId}/tasks`, icon: <OyamaGradientIcon name="task-checklist" /> },
+        { label: "Volunteers", href: `/events/${eventId}/volunteers`, activePath: `/events/${eventId}/volunteers`, icon: <OyamaGradientIcon name="relationship-partnership" /> },
+        { label: "Files", href: `/events/${eventId}/files`, activePath: `/events/${eventId}/files`, icon: <OyamaGradientIcon name="contact-checklist" /> },
+        { label: "Settings", href: `/events/${eventId}/settings`, activePath: `/events/${eventId}/settings`, icon: <OyamaGradientIcon name="client-profile-sync" /> },
       ],
     },
   ];

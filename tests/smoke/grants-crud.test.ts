@@ -66,6 +66,8 @@ describe("grants and funders CRUD", () => {
       .send({ website: "https://smoketest.org", notes: "Updated by smoke test" });
     expect(res.status).toBe(200);
     expect(res.body.updated).toBeGreaterThan(0);
+    expect(res.body.id).toBe(funderId);
+    expect(res.body.website).toBe("https://smoketest.org");
   });
 
   // ── Grants ──────────────────────────────────────────────────────────────────
@@ -86,7 +88,7 @@ describe("grants and funders CRUD", () => {
 
   it("creates a new grant", async () => {
     expect(funderId).toBeTruthy();
-    const deadline = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const applicationDeadline = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     const res = await request(app)
       .post("/api/grants")
       .set(auth())
@@ -94,13 +96,14 @@ describe("grants and funders CRUD", () => {
         funderId,
         title: "Smoke Test Grant",
         status: "PROSPECTING",
-        amount: 50000,
-        deadline,
+        amountRequested: 50000,
+        applicationDeadline,
         programArea: "Education",
       });
     expect(res.status).toBe(201);
     expect(res.body.id).toBeTruthy();
     expect(res.body.title).toBe("Smoke Test Grant");
+    expect(res.body.status).toBe("RESEARCH");
     grantId = res.body.id;
   });
 
@@ -124,9 +127,18 @@ describe("grants and funders CRUD", () => {
     const res = await request(app)
       .patch(`/api/grants/${grantId}`)
       .set(auth())
-      .send({ status: "SUBMITTED", amount: 55000 });
+      .send({ status: "SUBMITTED", amountRequested: 55000 });
     expect(res.status).toBe(200);
-    expect(res.body.status).toBe("SUBMITTED");
+    expect(res.body.status).toBe("PROPOSAL_SUBMITTED");
+  });
+
+  it("rejects invalid status values with validation error", async () => {
+    expect(grantId).toBeTruthy();
+    const res = await request(app)
+      .patch(`/api/grants/${grantId}`)
+      .set(auth())
+      .send({ status: "NOT_A_REAL_STATUS" });
+    expect(res.status).toBe(400);
   });
 
   it("updates a writing section content", async () => {

@@ -306,6 +306,7 @@ export default function StewardChatPanel({
   const [error, setError] = useState<string | null>(null);
   const [modelUsed, setModelUsed] = useState<string | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [conversationsOpen, setConversationsOpen] = useState(false);
   const [activeAssistantMessageId, setActiveAssistantMessageId] = useState<string | null>(null);
   const messagesBottomRef = useRef<HTMLDivElement | null>(null);
   const streamAbortRef = useRef<AbortController | null>(null);
@@ -441,6 +442,13 @@ export default function StewardChatPanel({
     };
   }, [open, isWorkspaceMode]);
 
+  /** Closes the conversations drawer when the panel closes. */
+  useEffect(() => {
+    if (!open && !isWorkspaceMode) {
+      setConversationsOpen(false);
+    }
+  }, [open, isWorkspaceMode]);
+
   /** Expands docked chat on open so the panel is immediately actionable. */
   useEffect(() => {
     if (!open || isWorkspaceMode) return;
@@ -473,6 +481,7 @@ export default function StewardChatPanel({
     setMessages(nextThread.messages);
     setDraft("");
     setError(null);
+    setConversationsOpen(false);
   }
 
   /** Creates a new empty chat thread and makes it active immediately. */
@@ -487,6 +496,7 @@ export default function StewardChatPanel({
     setMessages([]);
     setDraft("");
     setError(null);
+    setConversationsOpen(false);
   }
 
   /** Deletes the active chat thread while preserving at least one thread shell. */
@@ -782,35 +792,66 @@ export default function StewardChatPanel({
 
   const rootClassName = isWorkspaceMode
     ? "h-full min-h-0 max-h-full"
+    : isDockMinimized
+      ? "fixed z-[90] bottom-4 left-2 right-2 sm:left-[15rem] sm:right-5 pointer-events-none flex items-end justify-center"
     : isMaximizedMode
       ? "fixed z-[80] top-16 bottom-3 left-2 right-2 sm:left-[15rem] sm:right-4 pointer-events-none"
       : isPopoutMode
-        ? "fixed z-[85] top-16 bottom-6 left-2 right-2 sm:left-auto sm:right-6 sm:w-[900px] pointer-events-none"
-        : "fixed z-[80] top-16 bottom-3 left-2 right-2 sm:left-[15rem] sm:right-5 pointer-events-none flex items-end justify-end";
+        ? "fixed z-[85] top-14 bottom-6 left-2 right-2 sm:left-auto sm:right-6 sm:w-[860px] pointer-events-none"
+        : `fixed z-[80] top-14 bottom-3 left-2 right-2 sm:left-[15rem] sm:right-5 pointer-events-none flex items-end ${isDockMinimized ? "justify-center" : "justify-end"}`;
 
   const panelClassName = isWorkspaceMode
     ? "h-full rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col overflow-hidden"
-    : `pointer-events-auto w-full rounded-2xl border border-emerald-100 bg-white/95 shadow-[0_32px_80px_rgba(15,23,42,0.25)] backdrop-blur-md flex flex-col overflow-hidden transition-[height,width] duration-200 ${isMaximizedMode ? "max-w-none h-full" : isPopoutMode ? "max-w-none h-full" : "max-w-[760px] h-[min(82vh,860px)] max-h-full"} ${isDockMinimized ? "h-[52px] max-h-[52px]" : ""}`;
+    : `pointer-events-auto rounded-[22px] border border-slate-800/70 bg-white/96 shadow-[0_32px_80px_rgba(15,23,42,0.25)] backdrop-blur-md flex flex-col overflow-hidden transition-[height,width] duration-200 ${isMaximizedMode ? "w-full max-w-none h-full" : isPopoutMode ? "w-full max-w-none h-full" : "w-full max-w-[760px] h-[min(78vh,760px)] max-h-full"}`;
+  const panelStyle = isWorkspaceMode
+    ? undefined
+    : isDockMinimized
+      ? undefined
+      : isMaximizedMode
+        ? undefined
+        : {
+            maxHeight: isPopoutMode ? "calc(100vh - 5rem)" : "calc(100vh - 4.25rem)",
+          };
 
   return (
     <div className={rootClassName}>
-      <aside className={panelClassName}>
-        <header className={`px-4 border-b ${isWorkspaceMode ? "border-slate-200 bg-white" : "border-slate-200/90 bg-gradient-to-r from-white via-emerald-50/70 to-white"} ${isDockMinimized ? "py-2.5" : "py-3"}`}>
-          <div className="flex items-center justify-between gap-3">
+      {isDockMinimized ? (
+        <button
+          type="button"
+          onClick={() => setIsMinimized(false)}
+          className="pointer-events-auto px-5 py-2 rounded-full border border-slate-700 bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 shadow-[0_16px_34px_rgba(2,6,23,0.45)]"
+          title="Open chat"
+        >
+          Open Chat
+        </button>
+      ) : (
+      <aside className={panelClassName} style={panelStyle}>
+        <header className={`px-4 border-b ${isWorkspaceMode ? "border-slate-200 bg-white" : "border-slate-700/80 bg-gradient-to-r from-[#0f172a] via-[#18253a] to-[#0f172a]"} ${isDockMinimized ? "py-1.5" : "py-2"}`}>
+          <div className="flex items-center justify-between gap-2.5">
             <div>
-              <h2 className={`text-sm font-semibold ${isWorkspaceMode ? "text-slate-900" : "text-slate-900"}`}>Steward</h2>
-              <p className={`text-xs ${isWorkspaceMode ? "text-slate-600" : "text-slate-600"}`}>
+              <h2 className={`text-[13px] font-semibold leading-tight ${isWorkspaceMode ? "text-slate-900" : "text-white"}`}>Steward</h2>
+              <p className={`text-[11px] leading-tight ${isWorkspaceMode ? "text-slate-600" : "text-slate-300"}`}>
                 Ask, analyze, summarize, and act across your CRM.
               </p>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className={`text-[11px] px-2 py-0.5 rounded-full border ${aiConfig?.enabled ? (isWorkspaceMode ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-emerald-200 bg-emerald-50 text-emerald-700") : (isWorkspaceMode ? "border-amber-200 bg-amber-50 text-amber-700" : "border-amber-200 bg-amber-50 text-amber-700")}`}>
+              {!isWorkspaceMode && (
+                <button
+                  type="button"
+                  onClick={() => setConversationsOpen((current) => !current)}
+                  className={`h-7 px-2.5 rounded-lg border text-[11px] font-medium ${conversationsOpen ? "border-emerald-400/60 bg-emerald-500/12 text-emerald-100" : "border-white/12 bg-white/8 text-slate-100 hover:bg-white/14"}`}
+                  title="Open conversations"
+                >
+                  Chats
+                </button>
+              )}
+              <span className={`text-[11px] px-2 py-0.5 rounded-full border ${aiConfig?.enabled ? (isWorkspaceMode ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-emerald-400/30 bg-emerald-500/10 text-emerald-200") : (isWorkspaceMode ? "border-amber-200 bg-amber-50 text-amber-700" : "border-amber-400/30 bg-amber-500/10 text-amber-200")}`}>
                 {aiConfig?.enabled ? `${aiConfig.mode === "local" ? "Local" : "Remote"} Ollama` : "Needs Setup"}
               </span>
               {!isWorkspaceMode && (
                 <Link
                   href={workspaceHref}
-                  className="h-7 px-2 rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 text-[11px] font-medium flex items-center"
+                  className="h-6.5 px-2 rounded-md border border-white/12 bg-white/8 text-slate-100 hover:bg-white/14 text-[11px] font-medium flex items-center"
                   title="Open StewardAIWorkspace"
                 >
                   Workspace
@@ -819,7 +860,7 @@ export default function StewardChatPanel({
               {!isWorkspaceMode && !isPopoutMode && (
                 <button
                   onClick={() => onDisplayModeChange?.("popout")}
-                  className="h-8 px-2 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 text-[11px]"
+                  className="h-7 px-2 rounded-lg border border-white/12 bg-white/8 text-slate-100 hover:bg-white/14 text-[11px]"
                   title="Open in-app popout"
                 >
                   Popout
@@ -828,7 +869,7 @@ export default function StewardChatPanel({
               {!isWorkspaceMode && isPopoutMode && (
                 <button
                   onClick={() => onDisplayModeChange?.("dock-right")}
-                  className="h-8 px-2 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 text-[11px]"
+                  className="h-7 px-2 rounded-lg border border-white/12 bg-white/8 text-slate-100 hover:bg-white/14 text-[11px]"
                   title="Return to dock"
                 >
                   Dock
@@ -837,7 +878,7 @@ export default function StewardChatPanel({
               {!isWorkspaceMode && !isMaximizedMode && (
                 <button
                   onClick={() => onDisplayModeChange?.("maximized")}
-                  className="h-8 px-2 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 text-[11px]"
+                  className="h-7 px-2 rounded-lg border border-white/12 bg-white/8 text-slate-100 hover:bg-white/14 text-[11px]"
                   title="Maximize Steward"
                 >
                   Max
@@ -846,7 +887,7 @@ export default function StewardChatPanel({
               {!isWorkspaceMode && isMaximizedMode && (
                 <button
                   onClick={() => onDisplayModeChange?.("dock-right")}
-                  className="h-8 px-2 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 text-[11px]"
+                  className="h-7 px-2 rounded-lg border border-white/12 bg-white/8 text-slate-100 hover:bg-white/14 text-[11px]"
                   title="Return to dock"
                 >
                   Return
@@ -855,7 +896,7 @@ export default function StewardChatPanel({
               {!isWorkspaceMode && (
                 <button
                   onClick={() => setIsMinimized((current) => !current)}
-                  className="h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                  className="h-7 w-7 rounded-lg border border-white/12 bg-white/8 text-slate-100 hover:bg-white/14"
                   title={isDockMinimized ? "Expand Steward" : "Minimize Steward"}
                 >
                   {isDockMinimized ? "▢" : "—"}
@@ -864,7 +905,7 @@ export default function StewardChatPanel({
               {!isWorkspaceMode && (
                 <button
                   onClick={onClose}
-                  className="h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                  className="h-7 w-7 rounded-lg border border-white/12 bg-white/8 text-slate-100 hover:bg-white/14"
                   title="Close Steward"
                 >
                   ×
@@ -873,31 +914,17 @@ export default function StewardChatPanel({
             </div>
           </div>
 
-          <div className={`mt-2 flex items-center justify-between gap-2 text-[11px] ${isWorkspaceMode ? "text-slate-500" : "text-slate-500"}`}>
+          <div className={`mt-1.5 flex items-center justify-between gap-2 text-[10px] ${isWorkspaceMode ? "text-slate-500" : "text-slate-300"}`}>
             <span>Module: <span className="font-medium capitalize">{moduleKey}</span></span>
             <span>{modelUsed ? `Model: ${modelUsed}` : "Model not used yet"}</span>
           </div>
 
           {!isDockMinimized && (
-            <div className="mt-3 flex items-center gap-2 flex-wrap">
-              {MODE_BUTTONS.map((button) => (
-                <button
-                  key={button.key}
-                  onClick={() => setMode(button.key)}
-                  className={`px-2.5 py-1 rounded-full border text-xs font-medium transition-colors ${mode === button.key ? (isWorkspaceMode ? "border-emerald-500 bg-emerald-600 text-white" : "border-emerald-500 bg-emerald-600 text-white") : (isWorkspaceMode ? "border-slate-200 bg-white text-slate-700 hover:bg-slate-100" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100")}`}
-                >
-                  {button.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {!isDockMinimized && (
-            <div className={`mt-2 text-xs flex items-center justify-between gap-2 ${isWorkspaceMode ? "text-slate-500" : "text-slate-500"}`}>
+            <div className={`mt-1.5 text-[11px] flex items-center justify-between gap-2 ${isWorkspaceMode ? "text-slate-500" : "text-slate-300"}`}>
               <span>
                 Scope:{" "}
                 {scopeHref ? (
-                  <Link href={scopeHref} className={isWorkspaceMode ? "text-emerald-700 hover:text-emerald-800 hover:underline" : "text-emerald-700 hover:text-emerald-800 hover:underline"}>
+                  <Link href={scopeHref} className={isWorkspaceMode ? "text-emerald-700 hover:text-emerald-800 hover:underline" : "text-emerald-300 hover:text-emerald-200 hover:underline"}>
                     {scopePath}
                   </Link>
                 ) : (
@@ -905,13 +932,13 @@ export default function StewardChatPanel({
                 )}
               </span>
               <div className="flex items-center gap-3">
-                <button onClick={clearHistory} className={isWorkspaceMode ? "text-slate-600 hover:text-slate-900" : "text-slate-600 hover:text-slate-900"}>
+                <button onClick={clearHistory} className={isWorkspaceMode ? "text-slate-600 hover:text-slate-900" : "text-slate-300 hover:text-white"}>
                   Clear
                 </button>
-                <button onClick={exportHistory} className={isWorkspaceMode ? "text-slate-600 hover:text-slate-900" : "text-slate-600 hover:text-slate-900"}>
+                <button onClick={exportHistory} className={isWorkspaceMode ? "text-slate-600 hover:text-slate-900" : "text-slate-300 hover:text-white"}>
                   Export
                 </button>
-                <Link href="/settings/ai" className={isWorkspaceMode ? "text-emerald-700 font-medium hover:text-emerald-800 hover:underline" : "text-emerald-700 font-medium hover:text-emerald-800 hover:underline"}>
+                <Link href="/settings/ai" className={isWorkspaceMode ? "text-emerald-700 font-medium hover:text-emerald-800 hover:underline" : "text-emerald-300 font-medium hover:text-emerald-200 hover:underline"}>
                   AI Settings
                 </Link>
                 {isWorkspaceMode && (
@@ -924,24 +951,6 @@ export default function StewardChatPanel({
           )}
         </header>
 
-        {isDockMinimized ? (
-          <div className={`px-4 py-2 text-xs flex items-center justify-between gap-3 ${isWorkspaceMode ? "text-[#8b949e] bg-[#0d1117]" : "text-slate-600 bg-white"}`}>
-            <span className="truncate">
-              Steward docked on the lower-right for <span className={`font-medium capitalize ${isWorkspaceMode ? "text-[#c9d1d9]" : "text-slate-800"}`}>{moduleKey}</span>
-              {scopeHref && (
-                <>
-                  {" "}· <Link href={scopeHref} className={isWorkspaceMode ? "text-[#58a6ff] hover:underline" : "text-emerald-700 hover:text-emerald-800 hover:underline"}>{scopePath}</Link>
-                </>
-              )}
-            </span>
-            <button
-              onClick={() => setIsMinimized(false)}
-              className={`shrink-0 rounded-md border px-2 py-1 text-[11px] ${isWorkspaceMode ? "border-[#30363d] bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"}`}
-            >
-              Expand
-            </button>
-          </div>
-        ) : (
           <>
             {!aiConfig?.enabled && !loadingConfig && (
               <div className={`mx-4 mt-3 rounded-lg border px-3 py-2 text-xs ${isWorkspaceMode ? "border-amber-200 bg-amber-50 text-amber-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
@@ -955,68 +964,24 @@ export default function StewardChatPanel({
               </div>
             )}
 
-            <div className="flex-1 min-h-0 flex">
-              {!isWorkspaceMode && (
-              <aside className={`hidden sm:flex sm:w-[230px] border-r flex-col ${isWorkspaceMode ? "border-[#30363d] bg-[#0d1117]" : "border-slate-200 bg-slate-50/80"}`}>
-                <div className={`p-3 border-b flex items-center gap-2 ${isWorkspaceMode ? "border-[#30363d]" : "border-slate-200"}`}>
-                  <button
-                    type="button"
-                    onClick={createNewThread}
-                    disabled={sending}
-                    className={`flex-1 h-8 rounded-md border text-xs font-medium disabled:opacity-60 ${isWorkspaceMode ? "border-[#30363d] bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"}`}
-                  >
-                    New Chat
-                  </button>
-                  <button
-                    type="button"
-                    onClick={deleteActiveThread}
-                    disabled={sending || threads.length <= 1}
-                    className={`h-8 px-2 rounded-md border text-xs font-medium disabled:opacity-60 ${isWorkspaceMode ? "border-[#da363366] bg-[#2d1214] text-[#ffa198] hover:bg-[#3a171b]" : "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"}`}
-                  >
-                    Del
-                  </button>
-                </div>
-                <div className="flex-1 overflow-y-auto chat-scroll-smooth p-2 space-y-1">
-                  {orderedThreads.map((thread) => (
-                    <button
-                      key={thread.id}
-                      type="button"
-                      onClick={() => switchActiveThread(thread.id)}
-                      className={`w-full text-left rounded-md border px-2.5 py-2 transition-colors ${thread.id === activeThreadId ? (isWorkspaceMode ? "border-[#1f6feb] bg-[#1f6feb22]" : "border-emerald-300 bg-emerald-50") : (isWorkspaceMode ? "border-[#30363d] bg-[#161b22] hover:bg-[#21262d]" : "border-slate-200 bg-white hover:bg-slate-100")}`}
-                    >
-                      <p className={`text-xs font-medium truncate ${isWorkspaceMode ? "text-[#c9d1d9]" : "text-slate-800"}`}>{thread.title}</p>
-                      <p className={`text-[11px] mt-0.5 ${isWorkspaceMode ? "text-[#8b949e]" : "text-slate-500"}`}>
-                        {new Date(thread.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </aside>
+            <div className="flex-1 min-h-0 flex relative overflow-hidden">
+              {!isWorkspaceMode && conversationsOpen && (
+                <button
+                  type="button"
+                  aria-label="Close conversations"
+                  onClick={() => setConversationsOpen(false)}
+                  className="absolute inset-0 z-10 bg-slate-950/10 backdrop-blur-[1px]"
+                />
               )}
 
-              <section className="flex-1 min-h-0 flex flex-col">
-                {!isWorkspaceMode && (
-                <div className={`sm:hidden p-3 border-b space-y-2 ${isWorkspaceMode ? "border-[#30363d] bg-[#0d1117]" : "border-slate-200 bg-slate-50/80"}`}>
-                  <div className="flex items-center gap-2">
-                    <label htmlFor="steward-chat-thread" className={`text-xs shrink-0 ${isWorkspaceMode ? "text-[#8b949e]" : "text-slate-500"}`}>Chat</label>
-                    <select
-                      id="steward-chat-thread"
-                      value={activeThreadId ?? ""}
-                      onChange={(event) => switchActiveThread(event.target.value)}
-                      disabled={sending || orderedThreads.length === 0}
-                      className={`flex-1 h-8 rounded-md border px-2 text-xs focus:outline-none focus:ring-2 ${isWorkspaceMode ? "border-[#30363d] bg-[#0d1117] text-[#c9d1d9] focus:ring-[#1f6feb]" : "border-slate-200 bg-white text-slate-700 focus:ring-emerald-500"}`}
-                    >
-                      {orderedThreads.map((thread) => (
-                        <option key={thread.id} value={thread.id}>{thread.title}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-2">
+              {!isWorkspaceMode && (
+                <aside className={`absolute left-0 top-0 bottom-0 z-20 w-[238px] border-r border-slate-200 bg-white/97 shadow-[0_18px_40px_rgba(15,23,42,0.12)] transition-transform duration-200 ${conversationsOpen ? "translate-x-0" : "-translate-x-full"}`}>
+                  <div className="p-3 border-b border-slate-200 flex items-center gap-2">
                     <button
                       type="button"
                       onClick={createNewThread}
                       disabled={sending}
-                      className={`flex-1 h-8 rounded-md border text-xs font-medium disabled:opacity-60 ${isWorkspaceMode ? "border-[#30363d] bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"}`}
+                      className="flex-1 h-8 rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 text-xs font-medium disabled:opacity-60"
                     >
                       New Chat
                     </button>
@@ -1024,32 +989,48 @@ export default function StewardChatPanel({
                       type="button"
                       onClick={deleteActiveThread}
                       disabled={sending || threads.length <= 1}
-                      className={`h-8 px-3 rounded-md border text-xs font-medium disabled:opacity-60 ${isWorkspaceMode ? "border-[#da363366] bg-[#2d1214] text-[#ffa198] hover:bg-[#3a171b]" : "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"}`}
+                      className="h-8 px-2 rounded-md border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 text-xs font-medium disabled:opacity-60"
                     >
-                      Delete
+                      Del
                     </button>
                   </div>
-                </div>
-                )}
+                  <div className="flex-1 overflow-y-auto chat-scroll-smooth p-2 space-y-1">
+                    {orderedThreads.map((thread) => (
+                      <button
+                        key={thread.id}
+                        type="button"
+                        onClick={() => switchActiveThread(thread.id)}
+                        className={`w-full text-left rounded-md border px-2.5 py-2 transition-colors ${thread.id === activeThreadId ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white hover:bg-slate-100"}`}
+                      >
+                        <p className="text-xs font-medium truncate text-slate-800">{thread.title}</p>
+                        <p className="text-[11px] mt-0.5 text-slate-500">
+                          {new Date(thread.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </aside>
+              )}
 
+              <section className="flex-1 min-h-0 flex flex-col relative">
                 {!isWorkspaceMode && (
-                <div className={`px-4 py-3 border-b flex flex-wrap gap-2 ${isWorkspaceMode ? "border-[#30363d] bg-[#0d1117]" : "border-slate-200 bg-white"}`}>
-                  {promptChips.map((prompt) => (
-                    <button
-                      key={prompt}
-                      onClick={() => {
-                        setDraft(prompt);
-                      }}
-                      className={`rounded-full border px-2.5 py-1 text-xs ${isWorkspaceMode ? "border-[#30363d] bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]" : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"}`}
-                    >
-                      {prompt}
-                    </button>
-                  ))}
-                </div>
+                  <div className="px-4 py-3 border-b border-slate-200 bg-white flex flex-wrap gap-2">
+                    {promptChips.map((prompt) => (
+                      <button
+                        key={prompt}
+                        onClick={() => {
+                          setDraft(prompt);
+                        }}
+                        className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-100"
+                      >
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
                 )}
 
-                <div className={`flex-1 overflow-y-auto chat-scroll-smooth px-4 py-3 ${isWorkspaceMode ? "bg-slate-50/70" : "bg-slate-50/70"}`}>
-                  <div className={isWorkspaceMode ? "mx-auto w-full max-w-4xl space-y-3" : "space-y-3"}>
+                <div className={`flex-1 overflow-y-auto chat-scroll-smooth px-4 pt-3 pb-28 ${isWorkspaceMode ? "bg-slate-50/70" : "bg-slate-50/80"}`}>
+                  <div className={isWorkspaceMode ? "mx-auto w-full max-w-4xl space-y-3" : "mx-auto w-full max-w-[580px] space-y-3"}>
                   {messages.map((message) => (
                     <div key={message.id} className={`max-w-[92%] ${message.role === "user" ? "ml-auto" : "mr-auto"}`}>
                       <div
@@ -1103,45 +1084,75 @@ export default function StewardChatPanel({
                   </div>
                 </div>
 
-                <footer className={`border-t p-3 space-y-2 ${isWorkspaceMode ? "border-slate-200 bg-white" : "border-slate-200 bg-white"}`}>
-                  <textarea
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    onKeyDown={handleComposerKeyDown}
-                    placeholder={aiConfig?.enabled ? "Ask Steward something about this page..." : "Enable Steward AI in Settings before chatting."}
-                    rows={isWorkspaceMode ? 3 : 2}
-                    disabled={!aiConfig?.enabled || sending}
-                    className={`w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed ${isWorkspaceMode ? "border-slate-200 bg-slate-50 text-slate-800 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-400" : "border-slate-200 bg-slate-50 text-slate-800 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-400"}`}
-                  />
-                  <div className="flex items-center justify-between gap-2">
-                    <p className={`text-[11px] ${isWorkspaceMode ? "text-slate-500" : "text-slate-500"}`}>
-                      Tools run automatically per message. Write actions remain confirm-first.
-                    </p>
-                    <div className="flex items-center gap-2">
-                      {sending && (
-                        <button
-                          type="button"
-                          onClick={stopGeneration}
-                          className={`px-3 py-2 rounded-lg border text-sm font-medium ${isWorkspaceMode ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100" : "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"}`}
+                <footer className={`absolute left-3 right-3 bottom-3 ${isWorkspaceMode ? "" : ""}`}>
+                  <div className={`mx-auto rounded-[24px] border p-3 shadow-[0_18px_34px_rgba(15,23,42,0.12)] backdrop-blur-xl ${isWorkspaceMode ? "max-w-4xl border-slate-200 bg-white/96" : "max-w-[680px] border-slate-200 bg-white/96"}`}>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {!isWorkspaceMode && (
+                          <button
+                            type="button"
+                            onClick={() => setConversationsOpen((current) => !current)}
+                            className={`h-8 px-3 rounded-full border text-xs font-medium ${conversationsOpen ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"}`}
+                          >
+                            Conversations
+                          </button>
+                        )}
+                        <label className="sr-only" htmlFor="steward-mode-select">Mode</label>
+                        <select
+                          id="steward-mode-select"
+                          value={mode}
+                          onChange={(event) => setMode(event.target.value as ChatMode)}
+                          className="h-8 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                         >
-                          Stop
+                          {MODE_BUTTONS.map((button) => (
+                            <option key={button.key} value={button.key}>{button.label}</option>
+                          ))}
+                        </select>
+                        <button onClick={clearHistory} className="text-[11px] text-slate-500 hover:text-slate-900">Clear</button>
+                        <button onClick={exportHistory} className="text-[11px] text-slate-500 hover:text-slate-900">Export</button>
+                        <Link href="/settings/ai" className="text-[11px] font-medium text-emerald-700 hover:text-emerald-800 hover:underline">
+                          AI Settings
+                        </Link>
+                      </div>
+                      <p className="text-[11px] text-slate-500">Confirm-first for write actions.</p>
+                    </div>
+
+                    <div className="mt-2 flex items-end gap-2">
+                      <textarea
+                        value={draft}
+                        onChange={(event) => setDraft(event.target.value)}
+                        onKeyDown={handleComposerKeyDown}
+                        placeholder={aiConfig?.enabled ? "Ask Steward something about this page..." : "Enable Steward AI in Settings before chatting."}
+                        rows={isWorkspaceMode ? 3 : 2}
+                        disabled={!aiConfig?.enabled || sending}
+                        className={`min-h-[52px] flex-1 resize-none rounded-[18px] border px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed ${isWorkspaceMode ? "border-slate-200 bg-slate-50 text-slate-800 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-400" : "border-slate-200 bg-slate-50 text-slate-800 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-400"}`}
+                      />
+                      <div className="flex items-center gap-2 shrink-0">
+                        {sending && (
+                          <button
+                            type="button"
+                            onClick={stopGeneration}
+                            className="px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm font-medium hover:bg-red-100"
+                          >
+                            Stop
+                          </button>
+                        )}
+                        <button
+                          onClick={() => void sendMessage()}
+                          disabled={!aiConfig?.enabled || sending || draft.trim().length === 0}
+                          className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60"
+                        >
+                          {sending ? "Sending..." : "Send"}
                         </button>
-                      )}
-                      <button
-                        onClick={() => void sendMessage()}
-                        disabled={!aiConfig?.enabled || sending || draft.trim().length === 0}
-                        className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60"
-                      >
-                        {sending ? "Sending..." : "Send"}
-                      </button>
+                      </div>
                     </div>
                   </div>
                 </footer>
               </section>
             </div>
           </>
-        )}
       </aside>
+      )}
     </div>
   );
 }
