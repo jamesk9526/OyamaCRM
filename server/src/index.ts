@@ -62,6 +62,10 @@ const app = express();
 const PORT = process.env.API_PORT ? parseInt(process.env.API_PORT) : 4000;
 const startTime = Date.now();
 
+// OyamaCRM commonly runs behind Nginx/Hostinger reverse proxies, so trust
+// forwarded client IP headers for accurate rate-limit key generation.
+app.set("trust proxy", true);
+
 const explicitCorsOrigins = new Set(
   [process.env.FRONTEND_ORIGIN, process.env.NEXT_PUBLIC_APP_URL]
     .map((value) => value?.trim())
