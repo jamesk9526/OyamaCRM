@@ -24,6 +24,8 @@ import GivingTrendChart from "./components/dashboard/GivingTrendChart";
 import RecentDonationsWidget from "./components/dashboard/RecentDonationsWidget";
 import TopDonorsWidget from "./components/dashboard/TopDonorsWidget";
 import MeetingsWidget from "./components/dashboard/MeetingsWidget";
+import CampaignGoalHealthWidget from "./components/dashboard/CampaignGoalHealthWidget";
+import EngagementPulseWidget from "./components/dashboard/EngagementPulseWidget";
 import DashboardLayoutModal, { type RevenueGoalMode, type RevenueProgressSource } from "./components/dashboard/DashboardLayoutModal";
 import { apiFetch } from "@/app/lib/auth-client";
 
@@ -70,7 +72,9 @@ const PREVIOUS_DEFAULT_WIDGET_ORDER = [
 /** Ordered list of widget IDs (CRM default). */
 const DEFAULT_WIDGET_ORDER = [
   "revenue",
+  "goal-health",
   "retention",
+  "engagement-pulse",
   "top-donors",
   "weekly-stats",
   "giving-trend",
@@ -84,7 +88,9 @@ type WidgetId = (typeof DEFAULT_WIDGET_ORDER)[number];
 /** Human-readable label + description for each widget (used in the layout modal) */
 const WIDGET_META = [
   { id: "revenue", label: "Revenue Progress", description: "Active campaign goal tracking" },
+  { id: "goal-health", label: "Campaign Goal Health", description: "Goal gap and campaign attainment" },
   { id: "retention", label: "Donor Retention", description: "Year-over-year retention rate" },
+  { id: "engagement-pulse", label: "Engagement Pulse", description: "Stewardship workload and activity" },
   { id: "top-donors", label: "Top Donors", description: "By lifetime giving amount" },
   { id: "weekly-stats", label: "This Week", description: "Weekly donation activity summary" },
   { id: "giving-trend", label: "Giving Trend", description: "Monthly giving totals chart" },
@@ -95,6 +101,7 @@ const WIDGET_META = [
 
 const LS_ORDER_KEY = "dashboard-widget-order";
 const LS_LOCK_KEY = "dashboard-locked";
+const LS_HIDDEN_WIDGETS_KEY = "dashboard-hidden-widgets";
 /** Persists the "Include Grants in revenue" preference */
 const LS_GRANTS_KEY = "dashboard-include-grants";
 /** Persists which data source Revenue Progress should display. */
@@ -125,6 +132,19 @@ function loadOrder(): WidgetId[] {
     return [...parsed, ...DEFAULT_WIDGET_ORDER.filter((w) => !existing.has(w))];
   } catch {
     return [...DEFAULT_WIDGET_ORDER];
+  }
+}
+
+/** Load hidden widgets from localStorage. */
+function loadHiddenWidgets(): WidgetId[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(LS_HIDDEN_WIDGETS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as WidgetId[];
+    return parsed.filter((id) => DEFAULT_WIDGET_ORDER.includes(id));
+  } catch {
+    return [];
   }
 }
 
@@ -171,6 +191,7 @@ export default function DashboardPage() {
 
   // ── Layout state ──
   const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(loadOrder);
+  const [hiddenWidgets, setHiddenWidgets] = useState<WidgetId[]>(loadHiddenWidgets);
   const [editMode, setEditMode] = useState(false);
   const [locked, setLocked] = useState(loadLocked);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
@@ -185,6 +206,8 @@ export default function DashboardPage() {
   // ── Drag state (only active in edit mode) ──
   const dragFrom = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+
+  const visibleWidgetOrder = widgetOrder.filter((id) => !hiddenWidgets.includes(id));
 
   /** Time-of-day greeting */
   const hour = new Date().getHours();
@@ -217,6 +240,11 @@ export default function DashboardPage() {
     localStorage.setItem(LS_ORDER_KEY, JSON.stringify(widgetOrder));
   }, [widgetOrder]);
 
+  // Persist hidden widgets to localStorage
+  useEffect(() => {
+    localStorage.setItem(LS_HIDDEN_WIDGETS_KEY, JSON.stringify(hiddenWidgets));
+  }, [hiddenWidgets]);
+
   // Persist lock state to localStorage
   useEffect(() => {
     localStorage.setItem(LS_LOCK_KEY, locked ? "true" : "false");
@@ -244,23 +272,29 @@ export default function DashboardPage() {
     localStorage.setItem(LS_MANUAL_REVENUE_GOAL_KEY, String(manualRevenueGoalAmount));
   }, [manualRevenueGoalAmount]);
 
+  const autoGoal = summary?.activeGoalTotal ?? 0;
+  const dynamicFallbackGoal = Math.max(autoGoal, summary?.ytdAmount ?? 0, 1000);
   const revenueGoal = revenueGoalMode === "MANUAL"
-    ? manualRevenueGoalAmount
-    : (summary?.activeGoalTotal ?? 0);
+    ? Math.max(1, manualRevenueGoalAmount)
+    : dynamicFallbackGoal;
 
   /** Swap widget at `from` index to `to` index */
   function moveWidget(from: number, to: number) {
-    if (to < 0 || to >= widgetOrder.length) return;
-    const next = [...widgetOrder];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
-    setWidgetOrder(next);
+    if (to < 0 || to >= visibleWidgetOrder.length) return;
+    const nextVisible = [...visibleWidgetOrder];
+    const hidden = widgetOrder.filter((id) => hiddenWidgets.includes(id));
+    const [moved] = nextVisible.splice(from, 1);
+    nextVisible.splice(to, 0, moved);
+    setWidgetOrder([...nextVisible, ...hidden]);
   }
 
   // ── Drag handlers ──
   function handleDragStart(idx: number) { dragFrom.current = idx; }
   function handleDragOver(e: React.DragEvent, idx: number) {
     e.preventDefault();
+    if (dragFrom.current === null || dragFrom.current === idx) return;
+    moveWidget(dragFrom.current, idx);
+    dragFrom.current = idx;
     setDragOverIdx(idx);
   }
   function handleDrop(idx: number) {
@@ -294,7 +328,7 @@ export default function DashboardPage() {
       onMoveUp: () => moveWidget(idx, idx - 1),
       onMoveDown: () => moveWidget(idx, idx + 1),
       canMoveUp: idx > 0,
-      canMoveDown: idx < widgetOrder.length - 1,
+      canMoveDown: idx < visibleWidgetOrder.length - 1,
       ...(editMode ? dragProps(idx) : {}),
     };
 
@@ -320,8 +354,8 @@ export default function DashboardPage() {
             subtitle={revenueGoalMode === "MANUAL"
               ? "Custom goal target"
               : (revenueProgressSource === "YTD_DONATIONS"
-                ? "Org YTD raised vs active campaign goals"
-                : "Active campaign raised vs active campaign goals")}
+                ? "Org YTD raised"
+                : "Active campaign raised")}
             {...editProps}
           >
             <RevenueProgress
@@ -336,6 +370,17 @@ export default function DashboardPage() {
             />
           </DashboardWidget>
         );
+      case "goal-health":
+        return (
+          <DashboardWidget key={id} id={id} title="Campaign Goal Health" subtitle="Attainment and gap analysis" {...editProps}>
+            <CampaignGoalHealthWidget
+              activeCampaigns={summary?.activeCampaigns ?? 0}
+              activeGoalTotal={summary?.activeGoalTotal ?? 0}
+              raisedAmount={summary?.activeCampaignRaisedAmount ?? 0}
+              loading={loading}
+            />
+          </DashboardWidget>
+        );
       case "retention":
         return (
           <DashboardWidget key={id} id={id} title="Donor Retention" subtitle="Year-over-year" {...editProps}>
@@ -343,6 +388,18 @@ export default function DashboardPage() {
               retained={retention?.retained ?? 0}
               total={retention?.total ?? 0}
               rate={retention?.rate}
+              loading={loading}
+            />
+          </DashboardWidget>
+        );
+      case "engagement-pulse":
+        return (
+          <DashboardWidget key={id} id={id} title="Engagement Pulse" subtitle="Stewardship queue health" {...editProps}>
+            <EngagementPulseWidget
+              pendingTasks={summary?.pendingTasks ?? 0}
+              overdueTasks={summary?.overdueTasks ?? 0}
+              newDonorsThisMonth={summary?.newDonorsThisMonth ?? 0}
+              monthDonationCount={summary?.monthCount ?? 0}
               loading={loading}
             />
           </DashboardWidget>
@@ -382,7 +439,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       {loadError && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Dashboard data is partially unavailable. {loadError}
@@ -474,7 +531,7 @@ export default function DashboardPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
           </svg>
           <span className="text-xs sm:text-sm text-green-700 font-medium">
-            Editing layout — drag cards or use ↑↓ arrows to rearrange
+            Editing layout — drag cards in real time or use ↑↓ arrows
           </span>
 
           {/* Right-side edit actions */}
@@ -494,13 +551,19 @@ export default function DashboardPage() {
             >
               Reset
             </button>
+            <button
+              onClick={() => setHiddenWidgets([])}
+              className="text-xs text-green-600 hover:text-green-800 font-medium px-2 py-1 rounded-lg hover:bg-green-100 transition-colors"
+            >
+              Show All
+            </button>
           </div>
         </div>
       )}
 
       {/* ── Widget grid ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {widgetOrder.map((id, idx) => renderWidget(id, idx))}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+        {visibleWidgetOrder.map((id, idx) => renderWidget(id, idx))}
       </div>
 
       {/* ── Customize Layout modal ── */}
@@ -512,12 +575,14 @@ export default function DashboardPage() {
           initialIncludeGrants={includeGrants}
           initialRevenueGoalMode={revenueGoalMode}
           initialManualRevenueGoalAmount={manualRevenueGoalAmount}
+          initialHiddenWidgetIds={hiddenWidgets}
           onApply={(newOrder, settings) => {
             setWidgetOrder(newOrder as WidgetId[]);
             setRevenueProgressSource(settings.revenueProgressSource);
             setIncludeGrants(settings.includeGrants);
             setRevenueGoalMode(settings.revenueGoalMode);
             setManualRevenueGoalAmount(settings.manualRevenueGoalAmount);
+            setHiddenWidgets(settings.hiddenWidgetIds as WidgetId[]);
           }}
           onClose={() => setShowCustomizeModal(false)}
         />

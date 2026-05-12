@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 /** Client as returned from GET /api/compassion/clients */
 interface CompassionClient {
@@ -90,8 +91,14 @@ function AddClientModal({ onClose, onCreated, staffList }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <WorkspaceSetupModal
+      title="Add New Client"
+      subtitle="Create a Compassion client profile with intake and assignment details."
+      checklist={["1. Enter identity details", "2. Capture intake and referral", "3. Save client record"]}
+      onClose={onClose}
+      maxWidthClassName="max-w-5xl"
+    >
+      <div className="max-h-[85vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="text-base font-semibold text-gray-900">Add New Client</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
@@ -186,7 +193,7 @@ function AddClientModal({ onClose, onCreated, staffList }: {
           </div>
         </form>
       </div>
-    </div>
+    </WorkspaceSetupModal>
   );
 }
 

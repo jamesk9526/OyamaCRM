@@ -38,10 +38,10 @@ export default function EventsActionCard({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:border-amber-200 transition-all">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3.5 hover:border-amber-200 transition-all">
       <div className="flex items-start gap-3">
         {icon && (
-          <div className="shrink-0 w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
+          <div className="shrink-0 w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
             {icon}
           </div>
         )}

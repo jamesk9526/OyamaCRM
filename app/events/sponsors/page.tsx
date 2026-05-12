@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -169,8 +170,14 @@ function SponsorModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-lg w-full max-w-lg mx-4 overflow-y-auto max-h-[90vh]">
+    <WorkspaceSetupModal
+      title={mode === "create" ? "Add Sponsor" : "Edit Sponsor"}
+      subtitle="Manage event sponsorship commitments, levels, and benefits in one guided modal."
+      checklist={["1. Select event and constituent", "2. Set level and amount", "3. Save sponsor"]}
+      onClose={onClose}
+      maxWidthClassName="max-w-5xl"
+    >
+      <div className="bg-white w-full overflow-y-auto max-h-[85vh]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-bold text-gray-900">
             {mode === "create" ? "Add Sponsor" : "Edit Sponsor"}
@@ -309,7 +316,7 @@ function SponsorModal({
           </div>
         </form>
       </div>
-    </div>
+    </WorkspaceSetupModal>
   );
 }
 
@@ -586,7 +593,13 @@ export default function EventsSponsorsPage() {
 
       {/* Delete confirmation dialog */}
       {confirmDeleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <WorkspaceSetupModal
+          title="Remove Sponsor"
+          subtitle="Confirm sponsor removal from this event. Constituent records stay intact."
+          checklist={["1. Review warning", "2. Confirm removal"]}
+          onClose={() => setConfirmDeleteId(null)}
+          maxWidthClassName="max-w-4xl"
+        >
           <div className="bg-white rounded-xl shadow-lg p-6 max-w-sm mx-4">
             <h3 className="text-lg font-bold text-gray-900 mb-2">Remove Sponsor?</h3>
             <p className="text-sm text-gray-600 mb-4">
@@ -608,7 +621,7 @@ export default function EventsSponsorsPage() {
               </button>
             </div>
           </div>
-        </div>
+        </WorkspaceSetupModal>
       )}
     </div>
   );

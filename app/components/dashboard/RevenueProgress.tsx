@@ -45,19 +45,21 @@ export default function RevenueProgress({
   const [displayMode, setDisplayMode] = useState<"revenue" | "raised">("revenue");
   // Total displayed is donations + grants when the toggle is on
   const displayedTotal = current + (includeGrants ? grantAmount : 0);
-  const percentage = goal > 0 ? Math.min(100, Math.round((displayedTotal / goal) * 100)) : 0;
+  const rawPercentage = goal > 0 ? Math.round((displayedTotal / goal) * 100) : 0;
+  const percentage = Math.max(0, Math.min(100, rawPercentage));
+  const overGoalAmount = goal > 0 ? Math.max(displayedTotal - goal, 0) : 0;
   const breakdown = includeGrants && grantAmount > 0
     ? `${fmtCurrency(current)} donations + ${fmtCurrency(grantAmount)} grants`
     : `${fmtCurrency(current)} donations`;
 
-  const headlineValue = displayMode === "revenue" ? fmtCurrency(displayedTotal) : `${percentage}%`;
+  const headlineValue = displayMode === "revenue" ? fmtCurrency(displayedTotal) : `${rawPercentage}%`;
   const headlineSubtext = displayMode === "revenue"
     ? `of ${fmtCurrency(goal)} goal`
     : `${fmtCurrency(displayedTotal)} raised`;
 
   return (
     <Card padding="small">
-      <div className="flex items-start justify-between mb-3">
+      <div className="flex items-start justify-between mb-2.5">
         <h3 className="font-semibold text-gray-900">Revenue Progress</h3>
 
         {/* "Include Grants" toggle — only shown when grants data is available */}
@@ -84,7 +86,7 @@ export default function RevenueProgress({
         )}
       </div>
 
-      <div className="flex flex-col items-center py-3">
+      <div className="flex flex-col items-center py-2.5">
         {loading ? (
           <div className="w-36 h-36 rounded-full bg-gray-200 animate-pulse" />
         ) : (
@@ -106,12 +108,12 @@ export default function RevenueProgress({
           </div>
         )}
 
-        <div className="mt-3 text-center">
+        <div className="mt-2.5 text-center">
           {loading ? (
             <div className="h-8 w-24 bg-gray-200 rounded animate-pulse mx-auto" />
           ) : (
             <>
-              <p className="text-3xl font-bold text-gray-900">
+              <p className="text-2xl font-bold text-gray-900">
                 {headlineValue}
               </p>
               {/* Grant breakdown line — visible only when grants are included */}
@@ -125,9 +127,14 @@ export default function RevenueProgress({
           <p className="text-sm text-gray-500 mt-1">
             {headlineSubtext}
           </p>
+          {overGoalAmount > 0 && (
+            <p className="text-[11px] text-green-700 font-semibold mt-1">
+              +{fmtCurrency(overGoalAmount)} above goal
+            </p>
+          )}
         </div>
 
-        <div className="flex gap-2 mt-3">
+        <div className="flex gap-2 mt-2.5">
           <button
             type="button"
             onClick={() => setDisplayMode("revenue")}

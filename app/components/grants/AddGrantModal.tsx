@@ -8,6 +8,7 @@
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import type { Grant, GrantFunder, GrantStatus } from "./types";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 interface Props {
   /** Existing grant for edit mode; undefined = create mode. */
@@ -100,18 +101,18 @@ export default function AddGrantModal({ grant: initial, onClose, onSaved }: Prop
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-base font-semibold text-gray-900">
-            {isEdit ? "Edit Grant" : "New Grant Opportunity"}
-          </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">&times;</button>
-        </div>
+    <WorkspaceSetupModal
+      title={isEdit ? "Edit Grant" : "New Grant Opportunity"}
+      subtitle="Manage grant pipeline details, deadlines, and amounts with a unified CRM workflow modal."
+      checklist={["1. Select funder", "2. Define status and amounts", "3. Save grant opportunity"]}
+      onClose={onClose}
+      maxWidthClassName="max-w-6xl"
+    >
+      <div className="px-6 py-5 max-h-[85vh] overflow-y-auto">
+        <h3 className="text-lg font-semibold text-gray-900">Grant Details</h3>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <form onSubmit={handleSubmit} className="mt-4 space-y-5">
           {error && (
             <div className="px-4 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
               {error}
@@ -255,26 +256,26 @@ export default function AddGrantModal({ grant: initial, onClose, onSaved }: Prop
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
             />
           </div>
-        </form>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-200 rounded-lg"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit as unknown as React.MouseEventHandler}
-            disabled={saving}
-            className="px-5 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
-          >
-            {saving ? "Saving…" : isEdit ? "Save Changes" : "Create Grant"}
-          </button>
-        </div>
+          {/* Footer */}
+          <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-200 rounded-lg"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit as unknown as React.MouseEventHandler}
+              disabled={saving}
+              className="px-5 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : isEdit ? "Save Changes" : "Create Grant"}
+            </button>
+          </div>
+        </form>
       </div>
-    </div>
+    </WorkspaceSetupModal>
   );
 }

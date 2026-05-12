@@ -84,12 +84,12 @@ export default function DashboardWidget({
         bg-white rounded-xl shadow-sm border flex flex-col transition-all duration-150
         ${editMode && isDragging ? "opacity-40 scale-[0.98] shadow-none" : ""}
         ${editMode && isDragOver ? "ring-2 ring-green-400 ring-offset-1 border-transparent" : "border-gray-200"}
-        ${editMode ? "ring-1 ring-green-200" : ""}
+        ${editMode ? "ring-1 ring-green-200" : "hover:shadow-md"}
         ${className}
       `}
     >
       {/* ── Card header ── */}
-      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-gray-100 select-none">
+      <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-gray-100 select-none">
 
         {/* Six-dot drag handle — visible only in edit mode */}
         {editMode && (
@@ -107,7 +107,7 @@ export default function DashboardWidget({
 
         {/* Title block */}
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-gray-800 truncate">{title}</h3>
+          <h3 className="text-[13px] font-semibold text-gray-800 truncate">{title}</h3>
           {subtitle && (
             <p className="text-[11px] text-gray-400 truncate">{subtitle}</p>
           )}
@@ -146,7 +146,7 @@ export default function DashboardWidget({
       </div>
 
       {/* ── Card body ── */}
-      <div className="flex-1 p-3 overflow-auto">
+      <div className="flex-1 p-2.5 overflow-auto">
         {children}
       </div>
     </div>

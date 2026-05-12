@@ -147,12 +147,12 @@ function DonutChart({ segments, total, centerLabel }: {
 /** Renders a single metric tile with icon, value, subtitle, and link. */
 function StatCard({ card }: { card: StatCardData }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-col gap-2">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3.5 flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
-        <span className={`w-9 h-9 rounded-lg flex items-center justify-center ${card.iconColor}`}>
+        <span className={`w-8 h-8 rounded-lg flex items-center justify-center ${card.iconColor}`}>
           {card.icon}
         </span>
-        <span className="text-2xl font-bold text-gray-900">{card.value}</span>
+        <span className="text-xl font-bold text-gray-900">{card.value}</span>
       </div>
       <p className="text-sm font-medium text-gray-700">{card.title}</p>
       <p className={`text-xs ${card.subRed ? "text-red-500 font-medium" : "text-gray-400"}`}>{card.sub}</p>
@@ -164,7 +164,7 @@ function StatCard({ card }: { card: StatCardData }) {
 /** Today's appointments with time, title, and person. */
 function ScheduleCard({ appointments }: { appointments: AppointmentItem[] }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-gray-900">My Schedule</h3>
         <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium">Today</span>
@@ -200,13 +200,42 @@ function ScheduleCard({ appointments }: { appointments: AppointmentItem[] }) {
 
 /** Recent activity feed with icon, description, and timestamp. */
 function ActivityCard({ activities }: { activities: ActivityItem[] }) {
-  /** Maps activity type to an emoji icon */
+  /** Maps activity type to a compact semantic icon */
   const iconFor = (type: string) => {
-    if (type.includes("CLIENT")) return "👤";
-    if (type.includes("CASE")) return "📋";
-    if (type.includes("APPOINTMENT")) return "📅";
-    if (type.includes("COMPLETED")) return "✅";
-    return "⚡";
+    if (type.includes("CLIENT")) {
+      return (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M17 20h5v-2a3 3 0 00-5.4-1.8M17 20H7m10 0v-2a5 5 0 00-10 0v2m10 0H7m5-9a4 4 0 100-8 4 4 0 000 8z" />
+        </svg>
+      );
+    }
+    if (type.includes("CASE")) {
+      return (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M9 5a2 2 0 002 2h2a2 2 0 002-2" />
+        </svg>
+      );
+    }
+    if (type.includes("APPOINTMENT")) {
+      return (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      );
+    }
+    if (type.includes("COMPLETED")) {
+      return (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M5 13l4 4L19 7" />
+        </svg>
+      );
+    }
+    return (
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+      </svg>
+    );
   };
 
   /** Formats a timestamp as "X min/hr ago" */
@@ -219,7 +248,7 @@ function ActivityCard({ activities }: { activities: ActivityItem[] }) {
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
       <h3 className="text-sm font-semibold text-gray-900 mb-4">Recent Activity</h3>
       {activities.length === 0 ? (
         <p className="text-xs text-gray-400 text-center py-4">No recent activity.</p>
@@ -227,7 +256,9 @@ function ActivityCard({ activities }: { activities: ActivityItem[] }) {
         <div className="space-y-3">
           {activities.map((item) => (
             <div key={item.id} className="flex items-start gap-3">
-              <span className="text-lg leading-none mt-0.5">{iconFor(item.activityType)}</span>
+              <span className="w-7 h-7 rounded-lg border border-blue-100 bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+                {iconFor(item.activityType)}
+              </span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-700 truncate">{item.description}</p>
                 <p className="text-xs text-gray-400 mt-0.5">{timeAgo(item.createdAt)}</p>
@@ -267,7 +298,7 @@ function TasksCard({ followUps, overdueCount }: { followUps: FollowUpItem[]; ove
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-gray-900">Upcoming Tasks</h3>
         {overdueCount > 0 && (
@@ -397,6 +428,20 @@ export default function CompassionDashboardPage() {
         </svg>
       ),
     },
+    {
+      title: "Active Client Rate",
+      value: data?.totalClients ? Math.round(((data.activeClients ?? 0) / data.totalClients) * 100) : 0,
+      sub: "Percent currently active",
+      link: "View client status mix →",
+      href: "/compassion/clients",
+      iconColor: "bg-indigo-100 text-indigo-600",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 17l6-6 4 4 8-8" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M21 21H3" />
+        </svg>
+      ),
+    },
   ];
 
   const caseloadTotal = (data?.caseloadByStatus ?? []).reduce((s, seg) => s + seg.value, 0);
@@ -437,9 +482,9 @@ export default function CompassionDashboardPage() {
 
       {/* ── Loading skeleton ─────────────────────────────────── */}
       {loading && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 h-28 animate-pulse">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-200 shadow-sm p-3.5 h-24 animate-pulse">
               <div className="h-4 bg-gray-100 rounded w-3/4 mb-2" />
               <div className="h-8 bg-gray-100 rounded w-1/2" />
             </div>
@@ -449,17 +494,17 @@ export default function CompassionDashboardPage() {
 
       {/* ── Stat cards row ─────────────────────────────────── */}
       {!loading && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {statCards.map((card, i) => <StatCard key={i} card={card} />)}
         </div>
       )}
 
       {/* ── Middle row: donut charts ────────────────────────── */}
       {!loading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 
           {/* Caseload Overview */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
             <h3 className="text-sm font-semibold text-gray-900 mb-4">Caseload Overview</h3>
             <div className="flex items-center gap-6">
               <DonutChart
@@ -483,7 +528,7 @@ export default function CompassionDashboardPage() {
           </div>
 
           {/* Cases by Status */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
             <h3 className="text-sm font-semibold text-gray-900 mb-4">Cases by Status</h3>
             <div className="flex items-center gap-6">
               <DonutChart
@@ -510,7 +555,7 @@ export default function CompassionDashboardPage() {
 
       {/* ── Bottom row: schedule, activity, and tasks ─── */}
       {!loading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           <ScheduleCard appointments={data?.todaysAppointments ?? []} />
           <ActivityCard activities={data?.recentActivity ?? []} />
           <TasksCard followUps={data?.upcomingFollowUps ?? []} overdueCount={data?.overdueFollowUps ?? 0} />

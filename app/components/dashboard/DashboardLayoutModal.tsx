@@ -1,10 +1,5 @@
 "use client";
-/**
- * DashboardLayoutModal — overlay editor for reordering dashboard widgets.
- * Shows all active widgets as a sorted list. Each row can be dragged to a new
- * position OR moved with up/down arrow buttons. Changes are staged locally and
- * only committed to the dashboard when the user clicks "Apply Changes".
- */
+/** DashboardLayoutModal manages widget order, visibility, and revenue widget settings. */
 
 import { useRef, useState } from "react";
 
@@ -22,32 +17,22 @@ interface DashboardWidgetSettings {
   includeGrants: boolean;
   revenueGoalMode: RevenueGoalMode;
   manualRevenueGoalAmount: number;
+  hiddenWidgetIds: string[];
 }
 
 interface Props {
-  /** Current widget order (from parent dashboard) */
   order: string[];
-  /** Metadata (label, description) for each widget ID */
   widgetMeta: WidgetMeta[];
-  /** Called when the user confirms a new order */
   onApply: (newOrder: string[], settings: DashboardWidgetSettings) => void;
-  /** Called when the user cancels or clicks backdrop */
   onClose: () => void;
-  /** Initial source for Revenue Progress totals. */
   initialRevenueProgressSource: RevenueProgressSource;
-  /** Initial include-grants preference for the Revenue Progress widget. */
   initialIncludeGrants: boolean;
-  /** Initial goal mode for Revenue Progress. */
   initialRevenueGoalMode: RevenueGoalMode;
-  /** Initial manual goal amount for Revenue Progress. */
   initialManualRevenueGoalAmount: number;
+  initialHiddenWidgetIds: string[];
 }
 
-/**
- * DashboardLayoutModal renders a centered modal with a reorderable widget list.
- * Dragging a row or clicking the arrow buttons updates the local staging order.
- * "Apply Changes" commits to the parent; "Cancel" discards edits.
- */
+/** DashboardLayoutModal renders a 2-column control center for dashboard personalization. */
 export default function DashboardLayoutModal({
   order,
   widgetMeta,
@@ -57,8 +42,10 @@ export default function DashboardLayoutModal({
   initialIncludeGrants,
   initialRevenueGoalMode,
   initialManualRevenueGoalAmount,
+  initialHiddenWidgetIds,
 }: Props) {
   const [localOrder, setLocalOrder] = useState<string[]>(order);
+  const [localHiddenWidgets, setLocalHiddenWidgets] = useState<Set<string>>(new Set(initialHiddenWidgetIds));
   const [localRevenueProgressSource, setLocalRevenueProgressSource] = useState<RevenueProgressSource>(initialRevenueProgressSource);
   const [localIncludeGrants, setLocalIncludeGrants] = useState<boolean>(initialIncludeGrants);
   const [localRevenueGoalMode, setLocalRevenueGoalMode] = useState<RevenueGoalMode>(initialRevenueGoalMode);
@@ -66,162 +53,191 @@ export default function DashboardLayoutModal({
   const dragFrom = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
-  /** Swap a widget with the one above it */
+  const activeOrder = localOrder.filter((id) => !localHiddenWidgets.has(id));
+  const hiddenOrder = localOrder.filter((id) => localHiddenWidgets.has(id));
+  const metaMap = Object.fromEntries(widgetMeta.map((m) => [m.id, m]));
+
+  /** Applies reordered active widgets while preserving hidden widgets at the end. */
+  function commitActiveOrder(nextActive: string[]) {
+    setLocalOrder([...nextActive, ...hiddenOrder]);
+  }
+
+  /** Moves one active widget up. */
   function moveUp(idx: number) {
     if (idx === 0) return;
-    const next = [...localOrder];
+    const next = [...activeOrder];
     [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
-    setLocalOrder(next);
+    commitActiveOrder(next);
   }
 
-  /** Swap a widget with the one below it */
+  /** Moves one active widget down. */
   function moveDown(idx: number) {
-    if (idx === localOrder.length - 1) return;
-    const next = [...localOrder];
+    if (idx === activeOrder.length - 1) return;
+    const next = [...activeOrder];
     [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
-    setLocalOrder(next);
+    commitActiveOrder(next);
   }
 
+  /** Starts drag reorder. */
   function handleDragStart(idx: number) {
     dragFrom.current = idx;
   }
 
-  function handleDragOver(e: React.DragEvent, idx: number) {
-    e.preventDefault();
+  /** Reorders immediately on drag-over for more responsive drag-and-drop feedback. */
+  function handleDragOver(event: React.DragEvent, idx: number) {
+    event.preventDefault();
+    if (dragFrom.current === null || dragFrom.current === idx) return;
+    const next = [...activeOrder];
+    const [moved] = next.splice(dragFrom.current, 1);
+    next.splice(idx, 0, moved);
+    commitActiveOrder(next);
+    dragFrom.current = idx;
     setDragOverIdx(idx);
   }
 
-  function handleDrop(idx: number) {
-    if (dragFrom.current === null || dragFrom.current === idx) return;
-    const next = [...localOrder];
-    const [moved] = next.splice(dragFrom.current, 1);
-    next.splice(idx, 0, moved);
-    setLocalOrder(next);
-    dragFrom.current = null;
-    setDragOverIdx(null);
-  }
-
+  /** Completes drag reorder cycle. */
   function handleDragEnd() {
     dragFrom.current = null;
     setDragOverIdx(null);
   }
 
-  /** Build a lookup of id → metadata */
-  const metaMap = Object.fromEntries(widgetMeta.map((m) => [m.id, m]));
+  /** Toggles whether a widget is visible on the dashboard. */
+  function toggleWidgetVisibility(id: string) {
+    setLocalHiddenWidgets((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        // Keep at least one widget visible.
+        if (localOrder.length - next.size <= 1) return prev;
+        next.add(id);
+      }
+      return next;
+    });
+  }
 
   return (
-    /* Backdrop — click to cancel */
-    <div
-      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* ── Modal header ── */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <div>
             <h2 className="text-base font-semibold text-gray-900">Customize Dashboard</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Drag rows or use arrows to reorder your widgets</p>
+            <p className="mt-0.5 text-xs text-gray-400">Reorder, hide, and restore widgets for your workflow</p>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors rounded-lg p-1 hover:bg-gray-100"
+            className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             title="Close"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        {/* ── Widget rows ── */}
-        <div className="px-4 py-3 space-y-1.5 max-h-[400px] overflow-y-auto">
-          {localOrder.map((id, idx) => {
-            const meta = metaMap[id];
-            const isOver = dragOverIdx === idx && dragFrom.current !== idx;
-
-            return (
-              <div
-                key={id}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.effectAllowed = "move";
-                  handleDragStart(idx);
-                }}
-                onDragOver={(e) => handleDragOver(e, idx)}
-                onDrop={() => handleDrop(idx)}
-                onDragEnd={handleDragEnd}
-                className={`
-                  flex items-center gap-3 px-3 py-2.5 rounded-xl border select-none
-                  cursor-grab active:cursor-grabbing transition-all duration-100
-                  ${isOver
-                    ? "border-green-400 bg-green-50 ring-2 ring-green-300 ring-offset-1"
-                    : "border-gray-100 bg-gray-50 hover:bg-gray-100 hover:border-gray-200"
-                  }
-                `}
-              >
-                {/* Six-dot drag handle */}
-                <svg
-                  viewBox="0 0 10 16"
-                  fill="currentColor"
-                  className="w-3 h-4 text-gray-400 shrink-0"
-                >
-                  <circle cx="2" cy="2" r="1.5" />
-                  <circle cx="8" cy="2" r="1.5" />
-                  <circle cx="2" cy="8" r="1.5" />
-                  <circle cx="8" cy="8" r="1.5" />
-                  <circle cx="2" cy="14" r="1.5" />
-                  <circle cx="8" cy="14" r="1.5" />
-                </svg>
-
-                {/* Position badge */}
-                <span className="text-xs font-mono text-gray-400 w-4 shrink-0 text-center">
-                  {idx + 1}
-                </span>
-
-                {/* Widget name + description */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 leading-tight">
-                    {meta?.label ?? id}
-                  </p>
-                  {meta?.description && (
-                    <p className="text-xs text-gray-400 truncate">{meta.description}</p>
-                  )}
-                </div>
-
-                {/* Move up / down arrows */}
-                <div className="flex flex-col gap-0 shrink-0">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); moveUp(idx); }}
-                    disabled={idx === 0}
-                    className="text-gray-400 hover:text-gray-700 disabled:opacity-20 disabled:cursor-not-allowed transition-colors p-1 rounded"
-                    title="Move up"
+        <div className="grid max-h-[460px] gap-4 overflow-y-auto px-4 py-3 md:grid-cols-2">
+          <div>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Visible Widgets</p>
+            <div className="space-y-1.5">
+              {activeOrder.map((id, idx) => {
+                const meta = metaMap[id];
+                const isOver = dragOverIdx === idx && dragFrom.current !== idx;
+                return (
+                  <div
+                    key={id}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = "move";
+                      handleDragStart(idx);
+                    }}
+                    onDragOver={(e) => handleDragOver(e, idx)}
+                    onDrop={handleDragEnd}
+                    onDragEnd={handleDragEnd}
+                    className={`
+                      flex cursor-grab select-none items-center gap-3 rounded-xl border px-3 py-2.5 transition-all duration-100 active:cursor-grabbing
+                      ${isOver
+                        ? "border-green-400 bg-green-50 ring-2 ring-green-300 ring-offset-1"
+                        : "border-gray-100 bg-gray-50 hover:border-gray-200 hover:bg-gray-100"
+                      }
+                    `}
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+                    <svg viewBox="0 0 10 16" fill="currentColor" className="h-4 w-3 shrink-0 text-gray-400">
+                      <circle cx="2" cy="2" r="1.5" />
+                      <circle cx="8" cy="2" r="1.5" />
+                      <circle cx="2" cy="8" r="1.5" />
+                      <circle cx="8" cy="8" r="1.5" />
+                      <circle cx="2" cy="14" r="1.5" />
+                      <circle cx="8" cy="14" r="1.5" />
                     </svg>
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); moveDown(idx); }}
-                    disabled={idx === localOrder.length - 1}
-                    className="text-gray-400 hover:text-gray-700 disabled:opacity-20 disabled:cursor-not-allowed transition-colors p-1 rounded"
-                    title="Move down"
+                    <span className="w-4 shrink-0 text-center font-mono text-xs text-gray-400">{idx + 1}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium leading-tight text-gray-800">{meta?.label ?? id}</p>
+                      {meta?.description && <p className="truncate text-xs text-gray-400">{meta.description}</p>}
+                    </div>
+                    <div className="flex shrink-0 flex-col gap-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveUp(idx);
+                        }}
+                        disabled={idx === 0}
+                        className="rounded p-1 text-gray-400 transition-colors hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-20"
+                        title="Move up"
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveDown(idx);
+                        }}
+                        disabled={idx === activeOrder.length - 1}
+                        className="rounded p-1 text-gray-400 transition-colors hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-20"
+                        title="Move down"
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Widget Visibility</p>
+            <div className="space-y-1.5">
+              {localOrder.map((id) => {
+                const meta = metaMap[id];
+                const hidden = localHiddenWidgets.has(id);
+                return (
+                  <label
+                    key={`toggle-${id}`}
+                    className="flex cursor-pointer items-start gap-2 rounded-lg border border-gray-200 px-3 py-2 hover:bg-gray-50"
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+                    <input
+                      type="checkbox"
+                      checked={!hidden}
+                      onChange={() => toggleWidgetVisibility(id)}
+                      className="mt-0.5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium leading-tight text-gray-800">{meta?.label ?? id}</p>
+                      {meta?.description && <p className="truncate text-xs text-gray-400">{meta.description}</p>}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
-        {/* ── Widget settings ── */}
-        <div className="px-6 pt-2 pb-3 border-t border-gray-100 bg-white">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Revenue Progress Settings</h3>
+        <div className="border-t border-gray-100 bg-white px-6 pb-3 pt-2">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Revenue Progress Settings</h3>
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm text-gray-700">
               <input
@@ -243,7 +259,7 @@ export default function DashboardLayoutModal({
               />
               Use Active Campaign Raised Amount
             </label>
-            <label className="flex items-center gap-2 text-sm text-gray-700 pt-1">
+            <label className="flex items-center gap-2 pt-1 text-sm text-gray-700">
               <input
                 type="checkbox"
                 checked={localIncludeGrants}
@@ -253,8 +269,8 @@ export default function DashboardLayoutModal({
               Include awarded grants in Revenue Progress
             </label>
 
-            <div className="pt-2 border-t border-gray-100">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Revenue Goal</p>
+            <div className="border-t border-gray-100 pt-2">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Revenue Goal</p>
               <label className="flex items-center gap-2 text-sm text-gray-700">
                 <input
                   type="radio"
@@ -265,7 +281,7 @@ export default function DashboardLayoutModal({
                 />
                 Use active campaign goal total (automatic)
               </label>
-              <label className="flex items-center gap-2 text-sm text-gray-700 mt-1">
+              <label className="mt-1 flex items-center gap-2 text-sm text-gray-700">
                 <input
                   type="radio"
                   name="revenue-goal-mode"
@@ -283,7 +299,7 @@ export default function DashboardLayoutModal({
                   value={localManualRevenueGoalAmount}
                   onChange={(event) => setLocalManualRevenueGoalAmount(event.target.value)}
                   disabled={localRevenueGoalMode !== "MANUAL"}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:text-gray-400"
                   placeholder="250000"
                 />
               </div>
@@ -291,11 +307,10 @@ export default function DashboardLayoutModal({
           </div>
         </div>
 
-        {/* ── Modal footer ── */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+        <div className="flex items-center justify-between rounded-b-2xl border-t border-gray-100 bg-gray-50 px-6 py-4">
           <button
             onClick={onClose}
-            className="text-sm text-gray-500 hover:text-gray-700 transition-colors font-medium"
+            className="text-sm font-medium text-gray-500 transition-colors hover:text-gray-700"
           >
             Cancel
           </button>
@@ -306,10 +321,11 @@ export default function DashboardLayoutModal({
                 includeGrants: localIncludeGrants,
                 revenueGoalMode: localRevenueGoalMode,
                 manualRevenueGoalAmount: Math.max(0, Number(localManualRevenueGoalAmount || 0)),
+                hiddenWidgetIds: Array.from(localHiddenWidgets),
               });
               onClose();
             }}
-            className="bg-green-600 hover:bg-green-700 active:bg-green-800 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
+            className="rounded-lg bg-green-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 active:bg-green-800"
           >
             Apply Changes
           </button>

@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 interface Constituent {
   id: string;
@@ -126,8 +127,14 @@ export default function NewGuestModal({ eventId, onClose, onCreated }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden">
+    <WorkspaceSetupModal
+      title="Add Guest"
+      subtitle="Register event attendees with optional constituent links and ticket assignments."
+      checklist={["1. Link or enter guest", "2. Assign ticket details", "3. Save guest"]}
+      onClose={onClose}
+      maxWidthClassName="max-w-5xl"
+    >
+      <form onSubmit={handleSubmit} className="bg-white w-full overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <div>
@@ -300,6 +307,6 @@ export default function NewGuestModal({ eventId, onClose, onCreated }: Props) {
           </button>
         </div>
       </form>
-    </div>
+    </WorkspaceSetupModal>
   );
 }

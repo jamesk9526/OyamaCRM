@@ -8,6 +8,7 @@
 import React, { useEffect, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 /** Shape of a user record returned by the API (omits passwordHash). */
 interface UserRecord {
@@ -88,8 +89,14 @@ function AddUserModal({ onClose, onSaved }: AddUserModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+    <WorkspaceSetupModal
+      title="Add New User"
+      subtitle="Create a staff account and assign baseline role-based permissions."
+      checklist={["1. Enter user profile", "2. Assign role", "3. Set temporary password"]}
+      onClose={onClose}
+      maxWidthClassName="max-w-5xl"
+    >
+      <div className="p-6 max-h-[85vh] overflow-y-auto">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Add New User</h2>
         {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -168,7 +175,7 @@ function AddUserModal({ onClose, onSaved }: AddUserModalProps) {
           </div>
         </form>
       </div>
-    </div>
+    </WorkspaceSetupModal>
   );
 }
 
@@ -205,8 +212,14 @@ function EditUserModal({ user, isSelf, onClose, onSaved }: EditUserModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+    <WorkspaceSetupModal
+      title="Edit User"
+      subtitle="Update role, profile details, and account activation state for this staff member."
+      checklist={["1. Review profile info", "2. Adjust role and status", "3. Save account changes"]}
+      onClose={onClose}
+      maxWidthClassName="max-w-5xl"
+    >
+      <div className="p-6 max-h-[85vh] overflow-y-auto">
         <h2 className="text-lg font-semibold text-gray-900 mb-1">Edit User</h2>
         <p className="text-sm text-gray-500 mb-4">{user.email}</p>
         {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
@@ -278,7 +291,7 @@ function EditUserModal({ user, isSelf, onClose, onSaved }: EditUserModalProps) {
           </div>
         </form>
       </div>
-    </div>
+    </WorkspaceSetupModal>
   );
 }
 
@@ -319,8 +332,14 @@ function ResetPasswordModal({ user, onClose, onSaved }: ResetPasswordModalProps)
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6">
+    <WorkspaceSetupModal
+      title="Reset Password"
+      subtitle="Set a temporary credential and force secure re-authentication for the user account."
+      checklist={["1. Enter new password", "2. Confirm password", "3. Apply secure reset"]}
+      onClose={onClose}
+      maxWidthClassName="max-w-4xl"
+    >
+      <div className="p-6 max-h-[85vh] overflow-y-auto">
         <h2 className="text-lg font-semibold text-gray-900 mb-1">Reset Password</h2>
         <p className="text-sm text-gray-500 mb-4">{user.firstName} {user.lastName} — {user.email}</p>
         <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 mb-4">
@@ -364,7 +383,7 @@ function ResetPasswordModal({ user, onClose, onSaved }: ResetPasswordModalProps)
           </div>
         </form>
       </div>
-    </div>
+    </WorkspaceSetupModal>
   );
 }
 

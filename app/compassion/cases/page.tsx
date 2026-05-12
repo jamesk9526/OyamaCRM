@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 /** Case as returned from GET /api/compassion/cases */
 interface CompassionCase {
@@ -105,8 +106,14 @@ function NewCaseModal({ onClose, onCreated, clientList, staffList }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+    <WorkspaceSetupModal
+      title="New Case"
+      subtitle="Open a Compassion case and assign the right staff ownership and priority."
+      checklist={["1. Choose client", "2. Define case type and priority", "3. Save case"]}
+      onClose={onClose}
+      maxWidthClassName="max-w-4xl"
+    >
+      <div>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="text-base font-semibold text-gray-900">New Case</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
@@ -176,7 +183,7 @@ function NewCaseModal({ onClose, onCreated, clientList, staffList }: {
           </div>
         </form>
       </div>
-    </div>
+    </WorkspaceSetupModal>
   );
 }
 

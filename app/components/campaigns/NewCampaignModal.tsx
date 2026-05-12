@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 const CATEGORIES = [
   "ANNUAL_FUND", "CAPITAL", "ENDOWMENT", "EVENT", "GIVING_DAY",
@@ -54,13 +55,16 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-base font-semibold text-gray-900">New Campaign</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
-        </div>
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+    <WorkspaceSetupModal
+      title="New Campaign"
+      subtitle="Create a fundraising campaign with goals, timeline, and category in one guided flow."
+      checklist={["1. Name and categorize campaign", "2. Set goal and dates", "3. Save campaign"]}
+      onClose={onClose}
+      maxWidthClassName="max-w-4xl"
+    >
+      <div className="px-6 py-5 max-h-[85vh] overflow-y-auto">
+        <h3 className="text-lg font-semibold text-gray-900">Campaign Setup</h3>
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">Campaign Name *</label>
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} required
@@ -104,6 +108,6 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
           </div>
         </form>
       </div>
-    </div>
+    </WorkspaceSetupModal>
   );
 }

@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 interface Constituent {
   id: string;
@@ -144,8 +145,14 @@ export default function NewOrderModal({ eventId, onClose, onCreated }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-2xl w-full max-w-3xl overflow-hidden">
+    <WorkspaceSetupModal
+      title="Create Manual Order"
+      subtitle="Capture offline event registrations with ticket line items and payment tracking."
+      checklist={["1. Choose purchaser", "2. Add tickets", "3. Confirm payment and save"]}
+      onClose={onClose}
+      maxWidthClassName="max-w-6xl"
+    >
+      <form onSubmit={handleSubmit} className="bg-white w-full overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <div>
@@ -334,6 +341,6 @@ export default function NewOrderModal({ eventId, onClose, onCreated }: Props) {
           </button>
         </div>
       </form>
-    </div>
+    </WorkspaceSetupModal>
   );
 }

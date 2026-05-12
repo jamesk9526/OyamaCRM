@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 const TASK_TYPES = ["CALL", "EMAIL", "MAIL", "MEETING", "THANK_YOU", "FOLLOW_UP", "OTHER"];
 const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
@@ -110,13 +111,16 @@ export default function NewTaskModal({ onClose, onCreated, defaultAssigneeId, de
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-base font-semibold text-gray-900">New Task</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
-        </div>
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+    <WorkspaceSetupModal
+      title="New Task"
+      subtitle="Create actionable stewardship work with owner, due date, and constituent context."
+      checklist={["1. Name the task", "2. Assign ownership", "3. Set due date and save"]}
+      onClose={onClose}
+      maxWidthClassName="max-w-4xl"
+    >
+      <div className="px-6 py-5 max-h-[85vh] overflow-y-auto">
+        <h3 className="text-lg font-semibold text-gray-900">Task Configuration</h3>
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">Title *</label>
             <input
@@ -217,6 +221,6 @@ export default function NewTaskModal({ onClose, onCreated, defaultAssigneeId, de
           </div>
         </form>
       </div>
-    </div>
+    </WorkspaceSetupModal>
   );
 }

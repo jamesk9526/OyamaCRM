@@ -10,7 +10,6 @@ import AppsDrawer, { AppsGridIcon } from "@/app/components/layout/AppsDrawer";
 import StewardChatPanel, { type StewardPanelMode } from "@/app/components/ai/StewardChatPanel";
 import { FeedbackButton } from "@/app/components/feedback/FeedbackButton";
 import { FeedbackModal } from "@/app/components/feedback/FeedbackModal";
-import OyamaGradientIcon from "@/app/components/ui/OyamaGradientIcon";
 import { apiFetch } from "@/app/lib/auth-client";
 import {
   DEFAULT_WORKSPACE_SETTINGS,
@@ -84,6 +83,65 @@ function BellIcon({ className = "w-5 h-5" }: { className?: string }) {
     <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" d="M14.86 17H9.14a2.8 2.8 0 0 1-2.8-2.8v-2.47a5.66 5.66 0 0 1 11.32 0v2.47a2.8 2.8 0 0 1-2.8 2.8z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M10 17a2 2 0 1 0 4 0" />
+    </svg>
+  );
+}
+
+/** Workspace switcher icon set using inline SVG (no custom image assets). */
+function WorkspaceSwitcherIcon({ moduleKey, className = "w-4 h-4" }: { moduleKey: TopBarModuleKey; className?: string }) {
+  if (moduleKey === "compassion") {
+    return (
+      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8.5 11.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM15.5 11.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 18.5a4.75 4.75 0 0 1 9.5 0M10.75 18.5a4.75 4.75 0 0 1 9.5 0" />
+      </svg>
+    );
+  }
+  if (moduleKey === "events") {
+    return (
+      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4.5" y="5.5" width="15" height="14" rx="2" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 3.5v4M16 3.5v4M4.5 10.5h15" />
+      </svg>
+    );
+  }
+  if (moduleKey === "watchdog") {
+    return (
+      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3.5l7 2.8v5.6c0 4.2-3 7.7-7 8.8-4-1.1-7-4.6-7-8.8V6.3L12 3.5z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.5 12.5l1.7 1.7 3.3-3.4" />
+      </svg>
+    );
+  }
+  if (moduleKey === "webmaster") {
+    return (
+      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 8.5h17M8.5 4.5v4" />
+      </svg>
+    );
+  }
+  if (moduleKey === "hrm") {
+    return (
+      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.25a2.75 2.75 0 1 1 0 5.5 2.75 2.75 0 0 1 0-5.5z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 19.25a7 7 0 0 1 14 0" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 7.75h3M16 7.75h3" />
+      </svg>
+    );
+  }
+  if (moduleKey === "reportit") {
+    return (
+      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 18.5h14" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 15.5v-4M12 15.5V8M16.5 15.5v-6" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5l2.2 4.5 4.9.7-3.5 3.4.8 4.9L12 15.9 7.6 18l.8-4.9-3.5-3.4 4.9-.7L12 4.5z" />
     </svg>
   );
 }
@@ -665,6 +723,8 @@ export default function TopBar() {
   const [analyzingSignals, setAnalyzingSignals] = useState(false);
   const [signalsAnalyzeError, setSignalsAnalyzeError] = useState<string | null>(null);
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
+  const [topBarReactiveGlow, setTopBarReactiveGlow] = useState(false);
+  const reactiveGlowTimeoutRef = useRef<number | null>(null);
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
   const chromeButtonBase = "w-9 h-9 rounded-xl border border-white/20 bg-white/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-sm flex items-center justify-center transition-all";
   const iconActiveTone = moduleKey === "compassion"
@@ -693,6 +753,19 @@ export default function TopBar() {
           : moduleKey === "reportit"
             ? "#155e75"
             : "#14532d";
+  const topBarReactiveTint = moduleKey === "compassion"
+    ? "rgba(59,130,246,0.36)"
+    : moduleKey === "events"
+      ? "rgba(245,158,11,0.33)"
+      : moduleKey === "watchdog"
+        ? "rgba(239,68,68,0.34)"
+        : moduleKey === "webmaster"
+          ? "rgba(99,102,241,0.34)"
+          : moduleKey === "hrm"
+            ? "rgba(20,184,166,0.33)"
+          : moduleKey === "reportit"
+            ? "rgba(6,182,212,0.33)"
+            : "rgba(34,197,94,0.32)";
   const topBarBackground = `linear-gradient(90deg, #0f172a 0%, #18253a 56%, ${topBarRightTint} 100%)`;
   const homeHref = moduleKey === "compassion"
     ? "/compassion/dashboard"
@@ -711,6 +784,20 @@ export default function TopBar() {
     scope: mapModuleKeyToHelpScope(moduleKey),
     scopePath: pathname,
   });
+
+  /** Briefly pulses module accent glow to acknowledge meaningful workspace actions. */
+  const triggerTopBarReactiveGlow = useCallback(() => {
+    if (reactiveGlowTimeoutRef.current) {
+      window.clearTimeout(reactiveGlowTimeoutRef.current);
+    }
+    setTopBarReactiveGlow(false);
+    window.requestAnimationFrame(() => {
+      setTopBarReactiveGlow(true);
+      reactiveGlowTimeoutRef.current = window.setTimeout(() => {
+        setTopBarReactiveGlow(false);
+      }, 900);
+    });
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -774,6 +861,35 @@ export default function TopBar() {
     setStewardMode((current) => (current === "collapsed" ? "popout" : current));
   }, [searchParams]);
 
+  // Subtle color response when navigation context changes.
+  useEffect(() => {
+    triggerTopBarReactiveGlow();
+  }, [pathname, triggerTopBarReactiveGlow]);
+
+  // Subtle color response when topbar interactive panels are used.
+  useEffect(() => {
+    if (notificationsOpen || feedbackOpen || appsOpen || stewardMode !== "collapsed") {
+      triggerTopBarReactiveGlow();
+    }
+  }, [notificationsOpen, feedbackOpen, appsOpen, stewardMode, triggerTopBarReactiveGlow]);
+
+  // Subtle color response after task-level actions complete in topbar utilities.
+  useEffect(() => {
+    if (!notificationsLoading || analyzingSignals) return;
+    const timer = window.setTimeout(() => {
+      triggerTopBarReactiveGlow();
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [notificationsLoading, analyzingSignals, triggerTopBarReactiveGlow]);
+
+  useEffect(() => {
+    return () => {
+      if (reactiveGlowTimeoutRef.current) {
+        window.clearTimeout(reactiveGlowTimeoutRef.current);
+      }
+    };
+  }, []);
+
   /** Manually rebuilds Steward Signals analysis index and notifies workspace widgets to refresh. */
   const runStewardSignalsAnalysis = useCallback(async () => {
     if (!isStewardSignalsWorkspace || analyzingSignals) return;
@@ -817,6 +933,13 @@ export default function TopBar() {
         onDisplayModeChange={setStewardMode}
       />
       <header className="relative h-14 shrink-0 w-full flex items-center gap-2 md:gap-4 px-2 md:px-4 border-b border-slate-700/60 shadow-[0_8px_28px_rgba(2,6,23,0.38)] backdrop-blur z-20 isolate" style={{ background: topBarBackground }}>
+        <div
+          aria-hidden="true"
+          className={`absolute inset-0 pointer-events-none transition-opacity duration-700 ${topBarReactiveGlow ? "opacity-100" : "opacity-0"}`}
+          style={{
+            background: `radial-gradient(70% 90% at 85% 50%, ${topBarReactiveTint} 0%, rgba(15,23,42,0) 70%)`,
+          }}
+        />
         {/* Diagonal light segment for brand + module switcher area. */}
         <div
           aria-hidden="true"
@@ -1016,9 +1139,7 @@ function ModuleSwitcher({
       label: "DonorCRM",
       helper: "Fundraising",
       href: "/",
-      icon: (
-        <OyamaGradientIcon name="donor-gift" size={16} />
-      ),
+      icon: <WorkspaceSwitcherIcon moduleKey="donor" />,
       active: moduleKey === "donor",
     },
     {
@@ -1026,9 +1147,7 @@ function ModuleSwitcher({
       label: "Compassion CRM",
       helper: "Client Care",
       href: "/compassion/dashboard",
-      icon: (
-        <OyamaGradientIcon name="client-support-chat" size={16} />
-      ),
+      icon: <WorkspaceSwitcherIcon moduleKey="compassion" />,
       active: moduleKey === "compassion",
     },
     {
@@ -1036,9 +1155,7 @@ function ModuleSwitcher({
       label: "Events CRM",
       helper: "Operations",
       href: "/events",
-      icon: (
-        <OyamaGradientIcon name="task-checklist" size={16} />
-      ),
+      icon: <WorkspaceSwitcherIcon moduleKey="events" />,
       active: moduleKey === "events",
     },
     {
@@ -1046,9 +1163,7 @@ function ModuleSwitcher({
       label: "OyamaWatchdog",
       helper: "Security",
       href: "/watchdog",
-      icon: (
-        <OyamaGradientIcon name="client-profile-sync" size={16} />
-      ),
+      icon: <WorkspaceSwitcherIcon moduleKey="watchdog" />,
       active: moduleKey === "watchdog",
     },
     {
@@ -1056,9 +1171,7 @@ function ModuleSwitcher({
       label: "OyamaWebMaster",
       helper: "Web Builder",
       href: "/webmaster",
-      icon: (
-        <OyamaGradientIcon name="growth-analytics" size={16} />
-      ),
+      icon: <WorkspaceSwitcherIcon moduleKey="webmaster" />,
       active: moduleKey === "webmaster",
     },
     {
@@ -1066,9 +1179,7 @@ function ModuleSwitcher({
       label: "OyamaHRM",
       helper: "HRM",
       href: "/hrm",
-      icon: (
-        <OyamaGradientIcon name="relationship-partnership" size={16} />
-      ),
+      icon: <WorkspaceSwitcherIcon moduleKey="hrm" />,
       active: moduleKey === "hrm",
     },
     {
@@ -1076,9 +1187,7 @@ function ModuleSwitcher({
       label: "OyamaREPORTIT CRM",
       helper: "Reporting Hub",
       href: "/reports",
-      icon: (
-        <OyamaGradientIcon name="reporting-dashboard" size={16} />
-      ),
+      icon: <WorkspaceSwitcherIcon moduleKey="reportit" />,
       active: moduleKey === "reportit",
     },
   ].filter((module) => {
@@ -1137,8 +1246,8 @@ function ModuleSwitcher({
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute left-0 top-full mt-2 w-[320px] max-w-[calc(100vw-1rem)] bg-white/98 rounded-[22px] shadow-[0_18px_42px_rgba(15,23,42,0.18)] border border-slate-200/90 z-50 overflow-hidden backdrop-blur-xl">
             <div className={`px-4 pt-3 pb-2 border-b border-slate-100 bg-gradient-to-r ${switcherTone}`}>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.22em]">Switch CRM</p>
-              <p className="text-[11px] text-slate-600 mt-0.5">Choose the workspace you want to open next.</p>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.22em]">Switch Workspace</p>
+              <p className="text-[11px] text-slate-600 mt-0.5">Open another module without leaving your current session.</p>
             </div>
             <div className="p-2.5 space-y-2">
               {modules.map((m) => (

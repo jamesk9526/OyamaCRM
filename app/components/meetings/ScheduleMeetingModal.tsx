@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 /** Meeting type options shown in the form */
 const MEETING_TYPES = [
@@ -105,25 +106,18 @@ export default function ScheduleMeetingModal({ onClose, onCreated, constituentId
   }
 
   return (
-    /* Modal backdrop */
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-bold text-gray-900">Schedule Meeting</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-            aria-label="Close"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+    <WorkspaceSetupModal
+      title="Schedule Meeting"
+      subtitle="Create a meeting plan with timing, location, and stewardship purpose."
+      checklist={["1. Set date and time", "2. Define location", "3. Save meeting schedule"]}
+      onClose={onClose}
+      maxWidthClassName="max-w-5xl"
+    >
+      <div className="px-6 py-5 max-h-[85vh] overflow-y-auto">
+        <h3 className="text-lg font-semibold text-gray-900">Meeting Planner</h3>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           {/* Error banner */}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm text-red-700">{error}</div>
@@ -259,27 +253,26 @@ export default function ScheduleMeetingModal({ onClose, onCreated, constituentId
               className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
             />
           </div>
+          {/* Footer actions */}
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              onClick={handleSubmit}
+              disabled={saving}
+              className="px-5 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-60 transition-colors"
+            >
+              {saving ? "Scheduling…" : "Schedule Meeting"}
+            </button>
+          </div>
         </form>
-
-        {/* Footer actions */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            onClick={handleSubmit}
-            disabled={saving}
-            className="px-5 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-60 transition-colors"
-          >
-            {saving ? "Scheduling…" : "Schedule Meeting"}
-          </button>
-        </div>
       </div>
-    </div>
+    </WorkspaceSetupModal>
   );
 }

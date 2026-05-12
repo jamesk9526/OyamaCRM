@@ -51,6 +51,13 @@ export default function EventsDashboard() {
     .sort((a, b) => +new Date(a.startDate) - +new Date(b.startDate))
     .slice(0, 3);
 
+  const checkInRate = (summary?.registeredGuests ?? 0) > 0
+    ? Math.round(((summary?.checkedInGuests ?? 0) / (summary?.registeredGuests ?? 1)) * 100)
+    : 0;
+  const seatFillRate = (summary?.registeredGuests ?? 0) + (summary?.openSeats ?? 0) > 0
+    ? Math.round(((summary?.registeredGuests ?? 0) / ((summary?.registeredGuests ?? 0) + (summary?.openSeats ?? 0))) * 100)
+    : 0;
+
   const Icons = {
     Calendar: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -74,6 +81,16 @@ export default function EventsDashboard() {
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
           d="M3 8a2 2 0 012-2h14a2 2 0 012 2v2a2 2 0 010 4v2a2 2 0 01-2 2H5a2 2 0 01-2-2v-2a2 2 0 010-4V8z" />
+      </svg>
+    ),
+    Check: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M5 13l4 4L19 7" />
+      </svg>
+    ),
+    Trend: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 17l6-6 4 4 8-8" />
       </svg>
     ),
   };
@@ -107,7 +124,7 @@ export default function EventsDashboard() {
         </p>
       </section>
 
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 xl:grid-cols-6 gap-2.5">
         <EventsKPICard
           label="Active Events"
           value={loading ? "…" : (summary?.activeEvents ?? 0)}
@@ -141,6 +158,24 @@ export default function EventsDashboard() {
           trend="neutral"
           icon={Icons.Ticket}
         />
+        <EventsKPICard
+          label="Check-In Rate"
+          value={loading ? "…" : `${checkInRate}%`}
+          helper={`${summary?.checkedInGuests ?? 0} of ${summary?.registeredGuests ?? 0}`}
+          trend={checkInRate >= 70 ? "up" : "neutral"}
+          trendValue={checkInRate >= 70 ? "Strong" : "Watch"}
+          comparison="current events"
+          icon={Icons.Check}
+        />
+        <EventsKPICard
+          label="Seat Fill Rate"
+          value={loading ? "…" : `${seatFillRate}%`}
+          helper={`${summary?.openSeats ?? 0} seats open`}
+          trend={seatFillRate >= 80 ? "up" : "neutral"}
+          trendValue={seatFillRate >= 80 ? "Healthy" : "Can improve"}
+          comparison="capacity use"
+          icon={Icons.Trend}
+        />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-4">
@@ -150,7 +185,7 @@ export default function EventsDashboard() {
               <h2 className="text-sm font-semibold text-gray-900">Operational Queue</h2>
               <p className="text-xs text-gray-500 mt-0.5">Critical actions needed across your events</p>
             </div>
-            <div className="p-5 grid gap-3 sm:grid-cols-2">
+            <div className="p-4 grid gap-2.5 sm:grid-cols-2">
               <EventsActionCard
                 title="Incomplete Event Setup"
                 description="2 events need ticket types, sponsor packages, or table assignments configured."
@@ -213,7 +248,7 @@ export default function EventsDashboard() {
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-amber-50 to-white rounded-xl border border-amber-200 shadow-sm p-5">
+          <div className="bg-gradient-to-br from-amber-50 to-white rounded-xl border border-amber-200 shadow-sm p-4">
             <h2 className="text-sm font-semibold text-gray-900">Quick Event Workflows</h2>
             <div className="mt-4 grid grid-cols-2 gap-2">
               {[
@@ -239,7 +274,7 @@ export default function EventsDashboard() {
         </div>
 
         <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
             <h2 className="text-sm font-semibold text-gray-900">Upcoming Events</h2>
             <p className="text-xs text-gray-500 mt-0.5">Next events requiring attention</p>
             <div className="mt-4 space-y-3">

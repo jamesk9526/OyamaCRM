@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 interface Campaign {
   id: string;
@@ -118,19 +119,19 @@ export default function QuickGiftModal({ constituentId, constituentName, onClose
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-green-50">
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">Record Gift</h2>
-            <p className="text-xs text-green-700 mt-0.5">for {constituentName}</p>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
-        </div>
+    <WorkspaceSetupModal
+      title="Record Gift"
+      subtitle={`Create a donation record for ${constituentName} and keep stewardship history current.`}
+      checklist={["1. Enter gift details", "2. Link campaign and fund", "3. Save donation record"]}
+      onClose={onClose}
+      maxWidthClassName="max-w-5xl"
+    >
+      <div className="px-6 py-5 max-h-[85vh] overflow-y-auto">
+        <h3 className="text-lg font-semibold text-gray-900">Gift Entry</h3>
+        <p className="text-sm text-gray-500 mt-1">for {constituentName}</p>
 
         {/* Form */}
-        <form onSubmit={handleSave} className="px-6 py-5 space-y-4">
+        <form onSubmit={handleSave} className="mt-4 space-y-4">
           {error && (
             <div className="px-4 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>
           )}
@@ -261,6 +262,6 @@ export default function QuickGiftModal({ constituentId, constituentName, onClose
           </div>
         </form>
       </div>
-    </div>
+    </WorkspaceSetupModal>
   );
 }

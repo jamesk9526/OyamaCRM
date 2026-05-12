@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { apiFetch, setAccessToken } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 interface ResetVerificationResponse {
   /** The 10-digit code the user must type back exactly. */
@@ -116,8 +117,14 @@ export default function SettingsResetPanel() {
       </section>
 
       {dialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 px-4">
-          <div className="w-full max-w-lg rounded-xl border border-gray-200 bg-white shadow-2xl">
+        <WorkspaceSetupModal
+          title="Confirm CRM reset"
+          subtitle="This is a destructive action. Complete both verification steps to proceed."
+          checklist={["1. Type the 10-digit code", "2. Type RESET", "3. Confirm full reset"]}
+          onClose={resetDialogState}
+          maxWidthClassName="max-w-5xl"
+        >
+          <div className="w-full rounded-xl border border-gray-200 bg-white shadow-2xl">
             <div className="border-b border-gray-100 px-6 py-4">
               <h3 className="text-base font-semibold text-gray-900">Confirm CRM reset</h3>
               <p className="mt-1 text-sm text-gray-500">
@@ -189,7 +196,7 @@ export default function SettingsResetPanel() {
               </button>
             </div>
           </div>
-        </div>
+        </WorkspaceSetupModal>
       )}
     </>
   );
