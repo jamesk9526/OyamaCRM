@@ -5,7 +5,7 @@
 import { prisma } from "../lib/prisma.js";
 import { executeStewardPathsForTrigger } from "./stewardPathsEngine.js";
 
-export type StewardPathsWorkerHealth = "Working" | "Partial" | "Not Started";
+export type StewardPathsWorkerHealth = "Working" | "Broken" | "Not Implemented";
 
 export interface StewardPathsWorkerStatus {
   running: boolean;
@@ -212,9 +212,9 @@ export function stopStewardPathsWorker(): void {
 /** Returns current worker status for diagnostics and health endpoints. */
 export function getStewardPathsWorkerStatus(): StewardPathsWorkerStatus {
   const status: StewardPathsWorkerHealth = !state.running
-    ? "Not Started"
+    ? "Not Implemented"
     : state.lastError
-      ? "Partial"
+      ? "Broken"
       : "Working";
 
   return {

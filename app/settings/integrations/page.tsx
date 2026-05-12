@@ -1,19 +1,8 @@
-/** Integrations settings page placeholder for third-party service connections. */
-import SettingsPlaceholderPage from "@/app/components/settings/SettingsPlaceholderPage";
+/** Settings route wrapper for the live integrations readiness workspace. */
+import IntegrationsSettingsPage from "@/app/components/settings/integrations/IntegrationsSettingsPage";
 
-/** IntegrationsSettingsPage provides a route foundation for external system setup. */
-export default function IntegrationsSettingsPage() {
-  return (
-    <SettingsPlaceholderPage
-      title="Integrations"
-      description="Connect payment, messaging, calendar, and data-export providers."
-      plannedItems={[
-        "Configure payment provider credentials",
-        "Connect email and SMS services",
-        "Manage accounting and calendar sync integration",
-        "Set AI provider endpoint and policies",
-      ]}
-    />
-  );
+/** IntegrationsSettingsRoute renders API-backed integration readiness and setup links. */
+export default function IntegrationsSettingsRoute() {
+  return <IntegrationsSettingsPage />;
 }
 

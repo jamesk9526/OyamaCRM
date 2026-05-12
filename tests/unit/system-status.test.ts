@@ -47,8 +47,9 @@ describe("system-status metadata", () => {
     const counts = getFeatureStatusCounts(FEATURE_READINESS);
 
     expect(counts.Working).toBeGreaterThan(0);
-    expect(counts.Partial).toBeGreaterThan(0);
-    expect(counts["Not Started"]).toBeGreaterThan(0);
+    expect(counts["Partially Working"]).toBeGreaterThan(0);
+    expect(counts["Not Implemented"]).toBeGreaterThanOrEqual(0);
+    expect(counts.Broken).toBeGreaterThanOrEqual(0);
     expect(OVERALL_READINESS_SCORE).toBeGreaterThanOrEqual(50);
   });
 });

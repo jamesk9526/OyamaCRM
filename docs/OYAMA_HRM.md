@@ -25,7 +25,7 @@ OyamaHRM owns:
 - Internal role and assignment metadata
 - Internal location metadata
 - Internal availability/scheduling intent
-- Internal communication scaffolding
+- Internal communication records and workflows
 
 OyamaHRM does not own:
 
@@ -44,12 +44,12 @@ OyamaHRM does not own:
 
 Authentication remains in the shared `User` account model.
 
-Target pattern:
+Current pattern:
 
-- `User` = login/access identity
-- `HrmPerson` (planned) = HRM internal profile
-- A profile may exist without login
-- A user may exist without full HRM profile
+- `User` = login/access identity and role/permission source
+- `CompassionStaff` = staff assignment and scheduling profile (with optional linked user)
+- HRM people directory = merged `User` + unlinked `CompassionStaff` records
+- HRM module settings/location/message entities = `HrmSetting`, `HrmLocation`, `HrmMessage`
 
 ## Compassion CRM Integration Direction
 
@@ -61,8 +61,8 @@ Planned integration direction:
 
 Current status:
 
-- HRM shell and people/scheduling scaffolding is live
-- Full backend model integration is not yet complete
+- HRM shell plus dashboard/people/scheduling APIs are live
+- People and schedule data are sourced from persisted user, staff, meeting, and appointment records
 
 ## Locations And Communication
 
@@ -75,15 +75,16 @@ Planned HRM location and communication support:
 
 Current status:
 
-- UI and route scaffolding is live
-- Persistence/API workflows are in active build
+- Persisted location CRUD is live through `/api/hrm/locations`
+- Persisted internal message workflows are live through `/api/hrm/messages`
+- Persisted HRM module policy settings are live through `/api/hrm/settings`
 
 ## Permissions
 
 Current implementation:
 
 - HRM module is blocked for `report_viewer` role in shell-level guard
-- Additional granular permission checks are TODO
+- HRM APIs enforce granular permission keys (`hrm.view`, `hrm.locations.manage`, `hrm.messages.manage`, `hrm.settings.manage`)
 
 Planned permission keys:
 
@@ -92,8 +93,6 @@ Planned permission keys:
 - `hrm.schedules.manage`
 - `hrm.locations.manage`
 - `hrm.messages.manage`
-- `hrm.board.manage`
-- `hrm.reports.view`
 - `hrm.settings.manage`
 
 ## Extension Guidance
@@ -109,9 +108,11 @@ When extending OyamaHRM:
 ## Status Snapshot
 
 - Module shell and switcher integration: Working
-- Dashboard and starter routes: Working
-- People directory scaffold: Partially Working
-- Scheduling/availability scaffold: Partially Working
-- Internal messaging persistence: Not Implemented
-- Cross-module assignment integration: Not Implemented
-- Backend HRM data models and migration plan: Not Implemented
+- Dashboard and route surfaces: Working
+- People directory (live API-backed): Working
+- Scheduling and conflict detection (live API-backed): Working
+- Location CRUD persistence: Working
+- Internal messaging persistence: Working
+- HRM settings persistence: Working
+- Cross-module assignment integration: Partially Working
+- Backend HRM data models and migrations: Working

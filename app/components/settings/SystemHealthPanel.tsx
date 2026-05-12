@@ -38,13 +38,23 @@ interface EmailSettingsPayload {
   smtpFromEmail?: string;
 }
 
+interface StewardAiSettingsPayload {
+  enabled: boolean;
+  mode: "local" | "remote";
+  model: string;
+}
+
 /**
  * SystemHealthPanel combines live API health with email/queue/AI readiness hints.
  * Queue and AI are marked from known implementation state until those services exist.
  */
 export default function SystemHealthPanel({ buildInfo }: { buildInfo: PublicBuildInfo }) {
   const [health, setHealth] = useState<HealthPayload | null>(null);
-  const [emailReady, setEmailReady] = useState<"Working" | "Partial">("Partial");
+  const [emailReady, setEmailReady] = useState<"Working" | "Partially Working">("Partially Working");
+  const [aiProvider, setAiProvider] = useState<{ status: FeatureStatus; value: string }>({
+    status: "Partially Working",
+    value: "Configured feature, currently disabled",
+  });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -52,9 +62,10 @@ export default function SystemHealthPanel({ buildInfo }: { buildInfo: PublicBuil
 
     async function load() {
       try {
-        const [healthResult, settingsResult] = await Promise.allSettled([
+        const [healthResult, settingsResult, aiResult] = await Promise.allSettled([
           apiFetch<HealthPayload>("/api/health"),
           apiFetch<EmailSettingsPayload>("/api/settings"),
+          apiFetch<StewardAiSettingsPayload>("/api/steward-ai/config"),
         ]);
 
         if (healthResult.status === "rejected") {
@@ -68,7 +79,22 @@ export default function SystemHealthPanel({ buildInfo }: { buildInfo: PublicBuil
 
         if (!active) return;
         setHealth(nextHealth);
-        setEmailReady(settings?.smtpHost && settings?.smtpFromEmail ? "Working" : "Partial");
+        setEmailReady(settings?.smtpHost && settings?.smtpFromEmail ? "Working" : "Partially Working");
+
+        if (aiResult.status === "fulfilled") {
+          const aiSettings = aiResult.value;
+          setAiProvider({
+            status: "Partially Working",
+            value: aiSettings.enabled
+              ? `${aiSettings.mode} mode active (model: ${aiSettings.model})`
+              : "Configured feature, currently disabled",
+          });
+        } else {
+          setAiProvider({
+            status: "Broken",
+            value: "Unable to load AI runtime settings",
+          });
+        }
       } catch (err) {
         if (!active) return;
         setError(err instanceof Error ? err.message : "Unable to load runtime diagnostics.");
@@ -82,27 +108,27 @@ export default function SystemHealthPanel({ buildInfo }: { buildInfo: PublicBuil
   }, []);
 
   const runtime = health ?? {
-    status: "needs-review",
+    status: "degraded",
     appName: buildInfo.appName,
     version: buildInfo.version,
     buildDate: buildInfo.buildDate,
     gitCommit: buildInfo.gitCommit,
     releaseChannel: buildInfo.releaseChannel,
-    database: "needs-review",
+    database: "error",
     environment: buildInfo.environment,
     lastAuditDate: buildInfo.lastAuditDate,
   };
-  const queueStatus: FeatureStatus = runtime.queue?.status ?? "Not Started";
+  const queueStatus: FeatureStatus = runtime.queue?.status ?? "Not Implemented";
   const queueValue = runtime.queue?.running
     ? `Worker active (${Math.round(runtime.queue.pollMs / 1000)}s poll, ${runtime.queue.pendingDueCount} due)`
     : "No queue worker configured";
 
   const cards: { label: string; value: string; status: FeatureStatus }[] = [
-    { label: "API Status", value: runtime.status === "ok" ? "Online" : "Needs Review", status: runtime.status === "ok" ? "Working" : "Partial" as const },
-    { label: "Database Connection", value: runtime.database === "ok" ? "Connected" : "Not Ready", status: runtime.database === "ok" ? "Working" : "Partial" as const },
+    { label: "API Status", value: runtime.status === "ok" ? "Online" : "Degraded", status: runtime.status === "ok" ? "Working" : "Broken" },
+    { label: "Database Connection", value: runtime.database === "ok" ? "Connected" : "Not Ready", status: runtime.database === "ok" ? "Working" : "Broken" },
     { label: "Email Provider Status", value: emailReady === "Working" ? "SMTP Configured" : "SMTP Incomplete", status: emailReady },
     { label: "Queue Status", value: queueValue, status: queueStatus },
-    { label: "AI Provider Status", value: "No AI provider configured", status: "Not Started" as const },
+    { label: "AI Provider Status", value: aiProvider.value, status: aiProvider.status },
   ];
 
   return (

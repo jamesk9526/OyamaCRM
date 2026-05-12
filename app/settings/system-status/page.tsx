@@ -23,7 +23,7 @@ export default function SystemStatusPage() {
       <div>
         <h1 className="text-xl font-semibold text-gray-900">System Status &amp; Feature Readiness</h1>
         <p className="mt-0.5 text-sm text-gray-500">
-          Evidence-based readiness view for what is working, partially working, placeholder-only, or still not started.
+          Evidence-based readiness view for what is working, partially working, demo-only, broken, or not implemented.
         </p>
         <p className="mt-1 text-xs text-gray-500">
           Need row-level real-vs-demo evidence?{" "}

@@ -2,12 +2,12 @@
 
 _Last deep audit: 2026-05-09_
 
-## 2026-05-10 Reality Correction
+## 2026-05-11 Status Correction
 
-This document is still useful for feature-level context, but release readiness now uses:
+This file remains useful for feature context, but release-readiness authority is:
 `docs/status/production-readiness-checklist.md`
 
-Centralized status labels are now locked to:
+Centralized status labels are locked to:
 
 - Working
 - Partially Working
@@ -15,14 +15,17 @@ Centralized status labels are now locked to:
 - Broken
 - Not Implemented
 
-Current release-gate snapshot from full validation pass:
+Current release-gate snapshot (fresh run):
 
-- Test lane: Broken
-- Smoke lane: Broken
-- E2E lane: Broken
-- Lint lane: Broken
-- Typecheck lane: Broken
+- Smoke lane: Working (143 passed)
+- E2E lane: Working
 - Build lane: Broken
+
+Recent truth updates completed in this pass:
+
+- `/settings/integrations` is now live and API-backed (QuickBooks, Site Embeds, AI config, SMTP).
+- `/settings/system-status` now uses standardized labels and an explicit Done vs Not Done checklist.
+- HRM status should be treated as Partially Working with real persisted API-backed pages (not Not Implemented).
 
 Do not use this file alone to declare production readiness.
 

@@ -39,8 +39,10 @@ export default function SystemStatusOverview({
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Status Counts</p>
           <div className="mt-2 space-y-1 text-sm text-gray-700">
             <p>Working: <span className="font-semibold">{counts.Working ?? 0}</span></p>
-            <p>Partial: <span className="font-semibold">{counts.Partial ?? 0}</span></p>
-            <p>Placeholder / Not Started: <span className="font-semibold">{(counts.Placeholder ?? 0) + (counts["Not Started"] ?? 0)}</span></p>
+            <p>Partially Working: <span className="font-semibold">{counts["Partially Working"] ?? 0}</span></p>
+            <p>Demo Only: <span className="font-semibold">{counts["Demo Only"] ?? 0}</span></p>
+            <p>Broken: <span className="font-semibold">{counts.Broken ?? 0}</span></p>
+            <p>Not Implemented: <span className="font-semibold">{counts["Not Implemented"] ?? 0}</span></p>
           </div>
         </div>
       </div>

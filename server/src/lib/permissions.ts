@@ -40,6 +40,12 @@ export const PERMISSION_KEYS = [
   "watchdog.tickets.assign",
   "watchdog.tickets.resolve",
   "watchdog.tickets.delete",
+  "hrm.view",
+  "hrm.people.manage",
+  "hrm.schedules.manage",
+  "hrm.locations.manage",
+  "hrm.messages.manage",
+  "hrm.settings.manage",
 ] as const;
 
 /** Union type for one permission key. */
@@ -87,13 +93,19 @@ const PERMISSION_DEFAULTS: Record<PermissionKey, PermissionDefault> = {
   "watchdog:incident:escalate": { minRole: "admin" },
   "watchdog:incident:resolve": { minRole: "admin" },
   "watchdog:manage": { minRole: "admin" },
-  "feedback.submit": { minRole: "readonly" },
-  "feedback.view_own": { minRole: "readonly" },
+  "feedback.submit": { minRole: "report_viewer" },
+  "feedback.view_own": { minRole: "report_viewer" },
   "watchdog.tickets.view": { minRole: "admin" },
   "watchdog.tickets.manage": { minRole: "admin" },
   "watchdog.tickets.assign": { minRole: "admin" },
   "watchdog.tickets.resolve": { minRole: "admin" },
   "watchdog.tickets.delete": { minRole: "admin" },
+  "hrm.view": { minRole: "readonly" },
+  "hrm.people.manage": { minRole: "manager" },
+  "hrm.schedules.manage": { minRole: "manager" },
+  "hrm.locations.manage": { minRole: "manager" },
+  "hrm.messages.manage": { minRole: "staff" },
+  "hrm.settings.manage": { minRole: "admin" },
 };
 
 /**

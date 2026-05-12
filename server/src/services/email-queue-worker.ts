@@ -5,7 +5,7 @@
 import { prisma } from "../lib/prisma.js";
 import { sendCampaignNow } from "../routes/email-campaigns.js";
 
-export type QueueHealthStatus = "Working" | "Partial" | "Not Started";
+export type QueueHealthStatus = "Working" | "Broken" | "Not Implemented";
 
 export interface EmailQueueWorkerStatus {
   running: boolean;
@@ -130,9 +130,9 @@ export function stopEmailQueueWorker(): void {
 /** Returns the current queue worker health snapshot for diagnostics surfaces. */
 export function getEmailQueueWorkerStatus(): EmailQueueWorkerStatus {
   const status: QueueHealthStatus = !workerState.running
-    ? "Not Started"
+    ? "Not Implemented"
     : workerState.lastError
-      ? "Partial"
+      ? "Broken"
       : "Working";
 
   return {

@@ -4,10 +4,10 @@ import type { FeatureStatus } from "@/app/lib/system-status";
 
 const BADGE_STYLES: Record<FeatureStatus, string> = {
   Working: "bg-green-50 text-green-700 border-green-200",
-  Partial: "bg-amber-50 text-amber-700 border-amber-200",
-  Placeholder: "bg-sky-50 text-sky-700 border-sky-200",
-  "Not Started": "bg-gray-100 text-gray-700 border-gray-200",
-  "Needs Review": "bg-purple-50 text-purple-700 border-purple-200",
+  "Partially Working": "bg-amber-50 text-amber-700 border-amber-200",
+  "Demo Only": "bg-sky-50 text-sky-700 border-sky-200",
+  Broken: "bg-rose-50 text-rose-700 border-rose-200",
+  "Not Implemented": "bg-gray-100 text-gray-700 border-gray-200",
 };
 
 /**

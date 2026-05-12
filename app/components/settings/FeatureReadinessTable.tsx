@@ -12,7 +12,7 @@ export default function FeatureReadinessTable({ items }: { items: FeatureReadine
       <div className="border-b border-gray-200 px-5 py-4">
         <h2 className="text-sm font-semibold text-gray-900">Feature Readiness Matrix</h2>
         <p className="mt-1 text-sm text-gray-500">
-          Features are labeled Working, Partial, Placeholder, Not Started, or Needs Review only when the code supports that claim.
+          Features are labeled Working, Partially Working, Demo Only, Broken, or Not Implemented only when evidence supports that claim.
         </p>
       </div>
       <div className="overflow-x-auto">

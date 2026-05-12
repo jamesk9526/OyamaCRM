@@ -279,6 +279,9 @@ model Organization {
   qbSyncQueueItems    QBSyncQueueItem[]
   emailRecipientLists EmailRecipientList[]
   emailDeliveryEvents EmailCampaignDeliveryEvent[]
+  hrmLocations        HrmLocation[]
+  hrmMessages         HrmMessage[]
+  hrmSettings         HrmSetting?
 }
 
 model OrganizationSettings {
@@ -345,6 +348,8 @@ model User {
   webmasterPagesUpdated         WebmasterPage[]         @relation("WebmasterPageUpdater")
   submittedFeedbackTickets      WatchdogFeedbackTicket[] @relation("FeedbackSubmittedBy")
   assignedFeedbackTickets       WatchdogFeedbackTicket[] @relation("FeedbackAssignedDeveloper")
+  sentHrmMessages               HrmMessage[]            @relation("HrmMessageSender")
+  receivedHrmMessages           HrmMessage[]            @relation("HrmMessageRecipient")
 }
 
 // ─── Constituent (Donor/Volunteer/Member) ─────────────────────────────────────
@@ -1007,6 +1012,97 @@ model WatchdogFeedbackTicket {
   @@index([organizationId, crmScope])
   @@index([organizationId, submittedByUserId])
   @@index([organizationId, assignedDeveloperId])
+}
+
+enum HrmLocationStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum HrmMessagePriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum HrmMessageKind {
+  DIRECT
+  ANNOUNCEMENT
+}
+
+model HrmLocation {
+  id             String            @id @default(cuid())
+  organizationId String
+
+  name         String
+  code         String?
+  timezone     String            @default("America/Chicago")
+  status       HrmLocationStatus @default(ACTIVE)
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  zip          String?
+  notes        String?           @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization       Organization @relation(fields: [organizationId], references: [id])
+  defaultForSettings HrmSetting[] @relation("HrmSettingDefaultLocation")
+
+  @@unique([organizationId, name])
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+}
+
+model HrmMessage {
+  id             String             @id @default(cuid())
+  organizationId String
+  senderUserId   String
+  recipientUserId String?
+  recipientRole  String?
+  kind           HrmMessageKind     @default(DIRECT)
+  priority       HrmMessagePriority @default(NORMAL)
+  broadcastAll   Boolean            @default(false)
+
+  title      String
+  body       String @db.Text
+  readAt     DateTime?
+  archivedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  sender       User         @relation("HrmMessageSender", fields: [senderUserId], references: [id], onDelete: Cascade)
+  recipient    User?        @relation("HrmMessageRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, recipientUserId, readAt])
+  @@index([organizationId, recipientRole, readAt])
+  @@index([organizationId, senderUserId])
+  @@index([organizationId, kind])
+}
+
+model HrmSetting {
+  id                        String  @id @default(cuid())
+  organizationId            String  @unique
+  defaultTimezone           String  @default("America/Chicago")
+  defaultLocationId         String?
+  allowCompassionAssignmentSync Boolean @default(true)
+  requireSchedulableFlag    Boolean @default(true)
+  messageDigestEnabled      Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  defaultLocation HrmLocation? @relation("HrmSettingDefaultLocation", fields: [defaultLocationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([defaultLocationId])
 }
 
 enum AutomationTrigger {
