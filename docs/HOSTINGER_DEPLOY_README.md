@@ -102,7 +102,7 @@ Use separate upstreams for web and API.
 			index index.html;
 
 			location /api/ {
-				proxy_pass http://127.0.0.1:4000/;
+				proxy_pass http://127.0.0.1:4000;
 				proxy_http_version 1.1;
 				proxy_set_header X-Forwarded-Host $host;
 				proxy_set_header X-Forwarded-Server $host;
@@ -141,26 +141,27 @@ Important:
 
 - Set Hostinger app port variable to 3650.
 - Keep API block fixed on 4000.
+- Do not add a trailing slash to the API `proxy_pass` target, or Nginx will strip the `/api` prefix and backend routes will 404.
 
 ## 4) Standard Deploy Flow
 
 		cd ~/htdocs/<APP_DIRECTORY>
 		git fetch origin
 		git checkout main
+
+##### Copy and run these!!
+
 		git pull --ff-only
 		pnpm install --frozen-lockfile
 		pnpm prisma migrate deploy
 		pnpm build
 		pnpm build:server
-
-Load env and start/restart PM2:
-
 		set -a
 		source .env.production
 		set +a
 		pnpm pm2:start -- --env production --update-env
 		pnpm pm2:restart -- --env production --update-env
-		pnpm pm2:save
+		pnpm pm2 save
 
 ## 5) Verification Checklist
 

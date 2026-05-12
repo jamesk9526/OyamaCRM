@@ -1,7 +1,7 @@
 // Settings page for distributing the OyamaCRM desktop installer to staff users.
 import Link from "next/link";
 
-const DESKTOP_INSTALLER_URL = "http://oyamacrm.com/downloads/OyamaCRM-Desktop-Setup-1.0.0.exe";
+const DESKTOP_INSTALLER_URL = "https://oyamacrm.com/downloads/OyamaCRM-Desktop-Setup-1.0.0.exe";
 
 /**
  * DesktopAppSettingsPage exposes a one-click installer download link in Settings.
