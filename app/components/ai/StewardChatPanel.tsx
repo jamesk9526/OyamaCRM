@@ -105,7 +105,7 @@ function normalizeStoredMessages(messages: unknown): UiMessage[] {
 
   return messages
     .filter((message) => message && typeof message === "object")
-    .map((message) => {
+    .map((message): UiMessage => {
       const candidate = message as Partial<UiMessage>;
       return {
         id: typeof candidate.id === "string" && candidate.id.length > 0 ? candidate.id : crypto.randomUUID(),
