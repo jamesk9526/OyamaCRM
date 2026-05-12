@@ -7,6 +7,7 @@ module.exports = {
     {
       name: 'oyama-crm-web',
       script: './node_modules/.bin/next',
+      interpreter: 'none',
       args: 'start',
       instances: 'max',
       exec_mode: 'cluster',
@@ -24,6 +25,7 @@ module.exports = {
     {
       name: 'oyama-crm-api',
       script: 'tsx',
+      interpreter: 'none',
       args: 'server/src/index.ts',
       instances: 1,
       exec_mode: 'fork',
