@@ -8,6 +8,11 @@ const CARDS = [
     href: "/settings/organization",
   },
   {
+    title: "Desktop App",
+    description: "Download the Windows one-click installer for the OyamaCRM desktop shell.",
+    href: "/settings/desktop-app",
+  },
+  {
     title: "Events CRM",
     description: "Configure event operations defaults and module-specific communication templates.",
     href: "/settings/events",

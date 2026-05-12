@@ -13,6 +13,7 @@ interface SettingsNavItem {
 
 const SETTINGS_NAV: SettingsNavItem[] = [
   { label: "Overview", href: "/settings", icon: "growth-analytics" },
+  { label: "Desktop App", href: "/settings/desktop-app", icon: "messaging-chat" },
   { label: "Organization", href: "/settings/organization", icon: "constituent-search" },
   { label: "Branding", href: "/settings/branding", icon: "donor-gift" },
   { label: "Users", href: "/settings/users", icon: "relationship-partnership" },
