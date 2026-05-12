@@ -13,6 +13,7 @@ import {
   type StewardPathTimelineEventType,
 } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
+import { generateLetterFromTemplate } from "./letters-execution.js";
 
 interface ProcessDueOptions {
   organizationId?: string;
@@ -41,6 +42,18 @@ interface CreateTaskStepConfig {
   priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT" | string;
   taskType?: "CALL" | "EMAIL" | "MAIL" | "MEETING" | "THANK_YOU" | "FOLLOW_UP" | "OTHER" | string;
   completionMode?: "continue_immediately_after_task_created" | "wait_until_task_completed";
+}
+
+interface GenerateLetterStepConfig {
+  templateId?: string;
+  year?: number;
+  taskMode?: "none" | "create_and_continue" | "create_and_wait_for_completion";
+  taskTitleTemplate?: string;
+  taskDescriptionTemplate?: string;
+  dueOffsetAmount?: number;
+  dueOffsetUnit?: "hours" | "days" | "weeks";
+  priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT" | string;
+  taskType?: "CALL" | "EMAIL" | "MAIL" | "MEETING" | "THANK_YOU" | "FOLLOW_UP" | "OTHER" | string;
 }
 
 interface DraftEmailStepConfig {
@@ -240,6 +253,9 @@ async function processEnrollmentStep(ctx: EnrollmentContext, now: Date, userId?:
     case "CREATE_TASK":
       await processCreateTaskStep(ctx, now, userId);
       break;
+    case "GENERATE_LETTER":
+      await processGenerateLetterStep(ctx, now, userId);
+      break;
     case "DRAFT_EMAIL":
       await processDraftEmailStep(ctx, now, userId);
       break;
@@ -277,6 +293,175 @@ async function processEnrollmentStep(ctx: EnrollmentContext, now: Date, userId?:
       });
       throw new Error(`Unsupported step type: ${step.stepType}`);
   }
+}
+
+/** Generates a letter/printable and optionally creates a linked follow-up task. */
+async function processGenerateLetterStep(ctx: EnrollmentContext, now: Date, userId?: string): Promise<void> {
+  const { enrollment, run } = ctx;
+  const step = enrollment.currentStep!;
+  const config = (step.configJson ?? {}) as GenerateLetterStepConfig;
+  const taskMode = config.taskMode ?? "none";
+  const actorUserId = userId ?? enrollment.ownerUserId ?? enrollment.path.defaultOwnerId ?? undefined;
+
+  if (!actorUserId) {
+    throw new Error("GENERATE_LETTER step requires actor user context");
+  }
+
+  if (run.status === "PENDING") {
+    if (!config.templateId) {
+      throw new Error("GENERATE_LETTER step requires config.templateId");
+    }
+
+    const generatedResult = await generateLetterFromTemplate({
+      organizationId: enrollment.organizationId,
+      templateId: config.templateId,
+      actorUserId,
+      constituentId: enrollment.constituentId ?? undefined,
+      year: Number.isFinite(config.year) ? Number(config.year) : undefined,
+      stewardPathEnrollmentId: enrollment.id,
+      stewardPathStepRunId: run.id,
+    });
+    if (!generatedResult) {
+      throw new Error("Template for GENERATE_LETTER step not found");
+    }
+
+    let taskId: string | null = null;
+    if (taskMode !== "none") {
+      const title = renderTemplate(config.taskTitleTemplate ?? `Follow up: ${generatedResult.template.name}`, enrollment);
+      const description = renderTemplate(
+        config.taskDescriptionTemplate ?? "Review and complete generated letter workflow tasks.",
+        enrollment,
+      ) || undefined;
+      const dueDate = config.dueOffsetAmount && config.dueOffsetUnit
+        ? addDuration(now, config.dueOffsetAmount, config.dueOffsetUnit)
+        : null;
+
+      const task = await prisma.task.create({
+        data: {
+          constituentId: enrollment.constituentId ?? undefined,
+          createdById: actorUserId,
+          assigneeId: enrollment.ownerUserId ?? enrollment.path.defaultOwnerId ?? undefined,
+          title,
+          description,
+          type: normalizeTaskType(config.taskType),
+          priority: normalizeTaskPriority(config.priority),
+          dueDate,
+          generatedLetterId: generatedResult.generated.id,
+          stewardPathEnrollmentId: enrollment.id,
+          stewardPathStepRunId: run.id,
+        },
+      });
+      taskId = task.id;
+
+      await prisma.generatedLetter.update({
+        where: { id: generatedResult.generated.id },
+        data: { sourceTaskId: task.id },
+      });
+
+      await createTimelineEvent({
+        enrollmentId: enrollment.id,
+        stepId: step.id,
+        eventType: "TASK_CREATED",
+        message: `Task created from generated letter: ${task.title}`,
+        createdByUserId: actorUserId,
+        metadataJson: { taskId: task.id, letterId: generatedResult.generated.id },
+      });
+    }
+
+    await createTimelineEvent({
+      enrollmentId: enrollment.id,
+      stepId: step.id,
+      eventType: "STEP_STARTED",
+      message: `Generated letter from template ${generatedResult.template.name}.`,
+      createdByUserId: actorUserId,
+      metadataJson: {
+        letterId: generatedResult.generated.id,
+        taskId,
+        taskMode,
+      },
+    });
+
+    if (taskMode === "create_and_wait_for_completion" && taskId) {
+      const nextPoll = addDuration(now, 30, "minutes");
+      await prisma.stewardPathStepRun.update({
+        where: { id: run.id },
+        data: {
+          status: "RUNNING",
+          startedAt: now,
+          scheduledFor: nextPoll,
+          resultJson: {
+            letterId: generatedResult.generated.id,
+            taskId,
+            taskMode,
+          },
+        },
+      });
+      await prisma.stewardPathEnrollment.update({
+        where: { id: enrollment.id },
+        data: { nextStepDueAt: nextPoll },
+      });
+      return;
+    }
+
+    await prisma.stewardPathStepRun.update({
+      where: { id: run.id },
+      data: {
+        status: "COMPLETED",
+        startedAt: now,
+        completedAt: now,
+        resultJson: {
+          letterId: generatedResult.generated.id,
+          taskId,
+          taskMode,
+        },
+      },
+    });
+    await advanceEnrollment(enrollment.id, enrollment.path.id, step.id, userId);
+    return;
+  }
+
+  if (run.status !== "RUNNING") return;
+
+  const resultJson = toRecord(run.resultJson);
+  const taskId = typeof resultJson.taskId === "string" ? resultJson.taskId : null;
+  if (!taskId) {
+    throw new Error("GENERATE_LETTER waiting mode is missing taskId");
+  }
+
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { status: true } });
+  if (!task) {
+    throw new Error("Linked task for GENERATE_LETTER step no longer exists");
+  }
+
+  if (task.status === "COMPLETED") {
+    await prisma.stewardPathStepRun.update({
+      where: { id: run.id },
+      data: {
+        status: "COMPLETED",
+        completedAt: now,
+      },
+    });
+    await createTimelineEvent({
+      enrollmentId: enrollment.id,
+      stepId: step.id,
+      eventType: "STEP_COMPLETED",
+      message: `${step.name} completed after linked task completion.`,
+      createdByUserId: actorUserId,
+      metadataJson: { taskId },
+    });
+    await advanceEnrollment(enrollment.id, enrollment.path.id, step.id, userId);
+    return;
+  }
+
+  const nextPoll = addDuration(now, 30, "minutes");
+  await prisma.stewardPathEnrollment.update({
+    where: { id: enrollment.id },
+    data: { nextStepDueAt: nextPoll },
+  });
+  await prisma.stewardPathStepRun.update({
+    where: { id: run.id },
+    data: { scheduledFor: nextPoll },
+  });
 }
 
 /** Handles a delay step by scheduling then completing once due. */

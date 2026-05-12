@@ -92,6 +92,32 @@ These are registered in `server/src/lib/permissions.ts` and surfaced in the sett
 - Enrollment/step transitions are written to timeline events for auditability.
 - Worker processing marks failed enrollments and captures failure messages.
 
+## Generate Letter Step
+
+`GENERATE_LETTER` is now a supported sequence step type.
+
+Required config:
+
+- `templateId` (letter template to generate)
+
+Optional config:
+
+- `year` (merge context year)
+- `taskMode`: `none` | `create_and_continue` | `create_and_wait_for_completion`
+- `taskTitleTemplate`
+- `taskDescriptionTemplate`
+- `dueOffsetAmount`
+- `dueOffsetUnit`: `hours` | `days` | `weeks`
+- `priority`
+- `taskType`
+
+Execution behavior:
+
+- The step generates a `GeneratedLetter` via shared execution service logic.
+- The generated letter is linked to steward context using `stewardPathEnrollmentId` and `stewardPathStepRunId`.
+- If `taskMode` creates a task, the task is linked to the generated letter and steward context.
+- If `taskMode = create_and_wait_for_completion`, the step run remains `RUNNING` and repolls until the linked task is completed.
+
 ## Current Limits
 
 - Conditional branching is placeholder-only (`BRANCH_PLACEHOLDER` is skipped).

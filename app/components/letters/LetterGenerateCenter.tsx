@@ -14,6 +14,18 @@ interface DraftPreview {
   unsupportedFields: string[];
 }
 
+/** Converts raw API errors into user-facing guidance for letter workflows. */
+function normalizeLettersError(error: unknown): string {
+  const fallback = "Failed to load letter templates.";
+  if (!(error instanceof Error)) return fallback;
+
+  if (error.message.includes("database migrations are pending")) {
+    return "Letter templates are temporarily unavailable because the database migration is pending. Run pnpm db:migrate, pnpm db:generate, then restart the API.";
+  }
+
+  return error.message || fallback;
+}
+
 /** Supports one-off generation flow with preview before save. */
 export default function LetterGenerateCenter() {
   const searchParams = useSearchParams();
@@ -31,9 +43,14 @@ export default function LetterGenerateCenter() {
   const [createdId, setCreatedId] = useState<string | null>(null);
 
   const loadTemplates = useCallback(async () => {
-    const result = await apiFetch<LetterTemplateSummary[]>("/api/letters/templates?status=ACTIVE");
-    setTemplates(result);
-    if (!templateId && result[0]) setTemplateId(result[0].id);
+    try {
+      const result = await apiFetch<LetterTemplateSummary[]>("/api/letters/templates?status=ACTIVE");
+      setTemplates(result);
+      if (!templateId && result[0]) setTemplateId(result[0].id);
+    } catch (requestError) {
+      setTemplates([]);
+      setError(normalizeLettersError(requestError));
+    }
   }, [templateId]);
 
   useEffect(() => {

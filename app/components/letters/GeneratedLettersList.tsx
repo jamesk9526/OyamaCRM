@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 import LettersWorkspaceNav from "@/app/components/letters/LettersWorkspaceNav";
 import type { GeneratedLetterSummary } from "@/app/components/letters/types";
@@ -11,6 +12,10 @@ const STATUS_OPTIONS = ["ALL", "GENERATED", "PRINTED", "MAILED", "EMAIL_DRAFT_CR
 
 /** Lists generated letter instances and supports downstream workflow actions. */
 export default function GeneratedLettersList() {
+  const searchParams = useSearchParams();
+  const sourceTaskIdFilter = searchParams.get("sourceTaskId") || "";
+  const stewardPathEnrollmentIdFilter = searchParams.get("stewardPathEnrollmentId") || "";
+
   const [letters, setLetters] = useState<GeneratedLetterSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +28,8 @@ export default function GeneratedLettersList() {
     try {
       const params = new URLSearchParams();
       if (status !== "ALL") params.set("status", status);
+      if (sourceTaskIdFilter) params.set("sourceTaskId", sourceTaskIdFilter);
+      if (stewardPathEnrollmentIdFilter) params.set("stewardPathEnrollmentId", stewardPathEnrollmentIdFilter);
       const result = await apiFetch<GeneratedLetterSummary[]>(`/api/letters/generated?${params.toString()}`);
       setLetters(result);
     } catch (requestError) {
@@ -30,7 +37,7 @@ export default function GeneratedLettersList() {
     } finally {
       setLoading(false);
     }
-  }, [status]);
+  }, [status, sourceTaskIdFilter, stewardPathEnrollmentIdFilter]);
 
   useEffect(() => {
     void load();
@@ -98,6 +105,16 @@ export default function GeneratedLettersList() {
           </button>
         ))}
         <button onClick={() => void load()} className="px-3 py-1.5 text-sm rounded-full border border-gray-200 text-gray-600 hover:border-gray-300">Refresh</button>
+        {sourceTaskIdFilter && (
+          <span className="px-3 py-1.5 text-xs rounded-full border border-blue-200 bg-blue-50 text-blue-700">
+            Filter: Source Task {sourceTaskIdFilter}
+          </span>
+        )}
+        {stewardPathEnrollmentIdFilter && (
+          <span className="px-3 py-1.5 text-xs rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700">
+            Filter: Steward Enrollment {stewardPathEnrollmentIdFilter}
+          </span>
+        )}
       </div>
 
       {error && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{error}</div>}
@@ -119,6 +136,18 @@ export default function GeneratedLettersList() {
                     {letter.category.replaceAll("_", " ")} · {letter.status}
                     {letter.constituent && ` · ${letter.constituent.firstName} ${letter.constituent.lastName}`}
                   </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    {letter.sourceTaskId && (
+                      <Link href={`/tasks?taskId=${letter.sourceTaskId}`} className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700 hover:bg-blue-100">
+                        Linked Task
+                      </Link>
+                    )}
+                    {letter.stewardPathEnrollmentId && (
+                      <Link href={`/letters-printables/generated?stewardPathEnrollmentId=${letter.stewardPathEnrollmentId}`} className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] text-indigo-700 hover:bg-indigo-100">
+                        Steward Path
+                      </Link>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-400 mt-1">Generated {new Date(letter.generatedAt).toLocaleString()}</p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">

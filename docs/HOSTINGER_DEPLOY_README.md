@@ -154,6 +154,23 @@ Important:
 		git pull --ff-only
 		pnpm install --frozen-lockfile
 		pnpm prisma migrate deploy
+		pnpm prisma generate
+		pnpm build
+		pnpm build:server
+		set -a
+		source .env.production
+		set +a
+		pnpm pm2:start -- --env production --update-env
+		pnpm pm2:restart -- --env production --update-env
+		pnpm pm2 save
+
+Recommended safer variant (stop on first failure):
+
+		set -euo pipefail
+		git pull --ff-only
+		pnpm install --frozen-lockfile
+		pnpm prisma migrate deploy
+		pnpm prisma generate
 		pnpm build
 		pnpm build:server
 		set -a
@@ -189,6 +206,38 @@ If typecheck fails with missing Prisma exports, regenerate client:
 
 		rm -rf node_modules/.prisma
 		pnpm prisma generate
+
+If errors mention missing models/enums such as `letterTemplate`, `generatedLetter`, or `StewardPath*`, this always means Prisma Client was not regenerated against the latest schema. Run:
+
+		pnpm prisma migrate deploy
+		pnpm prisma generate
+		pnpm build
+		pnpm build:server
+
+### 6.5 pnpm fetch 404 for caniuse-lite
+
+Symptom:
+
+		ERR_PNPM_FETCH_404 ... caniuse-lite-<version>.tgz Not Found
+
+Cause:
+
+- Lockfile references a non-existent caniuse-lite version.
+
+Fix:
+
+1. Pull latest `main` (contains corrected lockfile).
+2. Retry install:
+
+		pnpm install --frozen-lockfile
+
+If still blocked, refresh lockfile once and commit from a trusted dev machine:
+
+		rm -rf node_modules pnpm-lock.yaml
+		pnpm install
+		git add pnpm-lock.yaml
+		git commit -m "fix: refresh lockfile"
+		git push
 
 ### 6.3 502 Bad Gateway
 

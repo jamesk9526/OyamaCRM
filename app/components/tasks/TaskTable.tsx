@@ -112,6 +112,26 @@ export default function TaskTable({ tasks, loading, highlightTaskId, onComplete,
                   {task.description && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{task.description}</p>}
                   {isOverdue && <span className="text-xs text-red-500 font-medium">Overdue</span>}
                   {isHighlighted && <span className="text-xs text-green-700 font-medium">From notification</span>}
+                  {(task.generatedLetterId || task.stewardPathEnrollmentId) && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      {task.generatedLetterId && (
+                        <Link
+                          href={`/letters-printables/generated?sourceTaskId=${task.id}`}
+                          className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700 hover:bg-blue-100"
+                        >
+                          Linked Letter
+                        </Link>
+                      )}
+                      {task.stewardPathEnrollmentId && (
+                        <Link
+                          href={`/letters-printables/generated?stewardPathEnrollmentId=${task.stewardPathEnrollmentId}`}
+                          className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] text-indigo-700 hover:bg-indigo-100"
+                        >
+                          Steward Step
+                        </Link>
+                      )}
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{typeLabel(task.type)}</td>
                 <td className="px-4 py-3 text-gray-600 whitespace-nowrap">

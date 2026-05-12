@@ -51,6 +51,12 @@ Implemented endpoints:
 - `POST /generated/:id/export-pdf` (returns partial-implementation notice)
 - `POST /generated/batch` (returns partial-implementation notice)
 
+`GET /generated` supports trace-aware filters for unified workflow navigation:
+
+- `sourceTaskId`
+- `stewardPathEnrollmentId`
+- `stewardPathStepRunId`
+
 ## Communication History Integration
 
 When a letter is generated or advanced in status, Activity timeline entries are written for the linked constituent.
@@ -88,6 +94,14 @@ Working now:
 - Constituent-profile letter history panel
 - Email draft creation from generated letter
 - Timeline + audit logging for key letter events
+- Visual Print Content builder foundation (drag/drop block editor) with backward-compatible printBody flattening
+- Shared letter execution service reused by letters API and steward-path letter steps
+- Steward-generated letters can link to created tasks for cross-navigation between Tasks and Generated Letters views
+
+Feature flag for visual editor:
+
+- `NEXT_PUBLIC_FEATURE_LETTERS_VISUAL_BUILDER=true` enables the visual Print Content mode in the template editor.
+- When disabled, the legacy text-area editor remains the default behavior.
 
 Partially implemented:
 

@@ -303,6 +303,7 @@ model OrganizationSettings {
   timezone                   String   @default("America/Chicago")
   donorWorkspaceEnabled      Boolean  @default(true)
   compassionWorkspaceEnabled Boolean  @default(true)
+  lettersVisualBuilderEnabled Boolean @default(false)
   showModuleSwitcher         Boolean  @default(true)
   defaultWorkspace           String   @default("donor")
   smtpHost                   String?
@@ -614,6 +615,9 @@ model Task {
   priority    TaskPriority @default(MEDIUM)
   dueDate     DateTime?
   completedAt DateTime?
+  generatedLetterId       String?
+  stewardPathEnrollmentId String?
+  stewardPathStepRunId    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -624,6 +628,10 @@ model Task {
   activities  Activity[]
   meeting     Meeting?     @relation(fields: [meetingId], references: [id])
   meetingId   String?
+
+  @@index([generatedLetterId])
+  @@index([stewardPathEnrollmentId])
+  @@index([stewardPathStepRunId])
 }
 
 // ─── Meetings ─────────────────────────────────────────────────────────────────
@@ -1192,6 +1200,7 @@ enum StewardPathTarget {
 enum StewardPathStepType {
   DELAY
   CREATE_TASK
+  GENERATE_LETTER
   DRAFT_EMAIL
   SEND_EMAIL
   MANUAL_ACTION
@@ -1556,6 +1565,7 @@ model LetterTemplate {
   status           LetterTemplateStatus @default(DRAFT)
   printSubject     String?
   printBody        String               @db.LongText
+  printLayoutJson  Json?
   emailSubject     String?
   emailBody        String?              @db.LongText
   headerPresetId   String?
@@ -1600,6 +1610,9 @@ model GeneratedLetter {
   pdfUrl                 String?
   emailCampaignId        String?
   communicationActivityId String?
+  sourceTaskId           String?
+  stewardPathEnrollmentId String?
+  stewardPathStepRunId   String?
   generatedByUserId      String
   generatedAt            DateTime              @default(now())
   printedAt              DateTime?
@@ -1623,6 +1636,9 @@ model GeneratedLetter {
   @@index([organizationId, category])
   @@index([constituentId, generatedAt])
   @@index([templateId, generatedAt])
+  @@index([sourceTaskId])
+  @@index([stewardPathEnrollmentId])
+  @@index([stewardPathStepRunId])
 }
 
 // ─── Email Campaigns(Communications Hub) ─────────────────────────────────────

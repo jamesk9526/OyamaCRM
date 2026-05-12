@@ -93,6 +93,24 @@ const PRESET_AUTOMATIONS: PresetAutomation[] = [
   },
 ];
 
+const AUTOMATION_TRIGGERS: AutomationTrigger[] = [
+  "DONATION_RECEIVED",
+  "CONSTITUENT_CREATED",
+  "TASK_DUE",
+  "PLEDGE_CREATED",
+  "EMAIL_OPENED",
+  "EVENT_REGISTERED",
+];
+
+const AUTOMATION_ACTION_TYPES: AutomationActionType[] = [
+  "SEND_EMAIL",
+  "CREATE_TASK",
+  "UPDATE_FIELD",
+  "ADD_TAG",
+  "REMOVE_TAG",
+  "ASSIGN_USER",
+];
+
 interface SharingSettings {
   ownerId: string | null;
   sharedWithOrganization: boolean;
@@ -145,6 +163,20 @@ function canManageAutomation(sharing: SharingSettings, userId: string, role: str
   if (role === "admin") return true;
   if (!sharing.ownerId) return true;
   return sharing.ownerId === userId;
+}
+
+/** Safely parses valid automation trigger enum values. */
+function parseAutomationTrigger(value: unknown): AutomationTrigger | null {
+  if (typeof value !== "string") return null;
+  const candidate = value.trim().toUpperCase() as AutomationTrigger;
+  return AUTOMATION_TRIGGERS.includes(candidate) ? candidate : null;
+}
+
+/** Safely parses valid automation action-type enum values. */
+function parseAutomationActionType(value: unknown): AutomationActionType | null {
+  if (typeof value !== "string") return null;
+  const candidate = value.trim().toUpperCase() as AutomationActionType;
+  return AUTOMATION_ACTION_TYPES.includes(candidate) ? candidate : null;
 }
 
 /**
@@ -599,6 +631,116 @@ router.patch("/:id", async (req, res) => {
     ownerId,
     sharedWithOrganization: nextShared,
   });
+});
+
+/**
+ * PUT /api/automations/:id/workflow
+ * Replaces one automation workflow definition including ordered actions.
+ */
+router.put("/:id/workflow", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured for this installation." } });
+    return;
+  }
+
+  const existing = await prisma.automation.findFirst({
+    where: { id: req.params.id, organizationId },
+    select: { id: true, triggerConfig: true },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Automation not found" } });
+    return;
+  }
+
+  const sharing = parseAutomationSharing(existing.triggerConfig);
+  if (!canManageAutomation(sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only the owner can edit this Steward Path" } });
+    return;
+  }
+
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  if (!name) {
+    res.status(400).json({ error: { code: "INVALID_NAME", message: "name is required" } });
+    return;
+  }
+
+  const trigger = parseAutomationTrigger(req.body?.trigger);
+  if (!trigger) {
+    res.status(400).json({ error: { code: "INVALID_TRIGGER", message: "trigger is invalid" } });
+    return;
+  }
+
+  const rawActions = Array.isArray(req.body?.actions) ? req.body.actions : [];
+  if (rawActions.length === 0) {
+    res.status(400).json({ error: { code: "ACTIONS_REQUIRED", message: "At least one action is required" } });
+    return;
+  }
+
+  const normalizedActions = rawActions.map((item: unknown, index: number) => {
+    const action = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+    const type = parseAutomationActionType(action.type);
+    if (!type) {
+      throw new Error(`invalid_action_type:${index}`);
+    }
+    return {
+      type,
+      order: index,
+      config: action.config && typeof action.config === "object" && !Array.isArray(action.config)
+        ? (action.config as Record<string, unknown>)
+        : undefined,
+    };
+  });
+
+  const ownerId = sharing.ownerId ?? userId;
+  const nextTriggerConfig = withAutomationSharing(
+    req.body?.triggerConfig ?? undefined,
+    ownerId,
+    sharing.sharedWithOrganization,
+  );
+
+  try {
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.automationAction.deleteMany({ where: { automationId: existing.id } });
+      await tx.automation.update({
+        where: { id: existing.id },
+        data: {
+          name,
+          description: typeof req.body?.description === "string" ? req.body.description.trim() || null : null,
+          trigger,
+          triggerConfig: nextTriggerConfig,
+          actions: {
+            create: normalizedActions,
+          },
+        },
+      });
+
+      return tx.automation.findUnique({
+        where: { id: existing.id },
+        include: { actions: { orderBy: { order: "asc" } } },
+      });
+    });
+
+    res.json({
+      ...updated,
+      ownerId,
+      sharedWithOrganization: sharing.sharedWithOrganization,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("invalid_action_type:")) {
+      const index = error.message.split(":")[1] ?? "unknown";
+      res.status(400).json({ error: { code: "INVALID_ACTION", message: `Action at index ${index} has an invalid type` } });
+      return;
+    }
+    throw error;
+  }
 });
 
 /**

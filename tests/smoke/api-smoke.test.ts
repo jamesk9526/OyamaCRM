@@ -125,6 +125,114 @@ describe("API smoke tests", () => {
     expect(archived.status).toBe(204);
   });
 
+  it("processes GENERATE_LETTER step and creates linked task", async () => {
+    const auth = { Authorization: `Bearer ${authToken}` };
+
+    const constituents = await request(app)
+      .get("/api/constituents")
+      .set(auth);
+    expect(constituents.status).toBe(200);
+    const constituent = (constituents.body as Array<{ id: string }>)[0];
+    expect(constituent?.id).toBeTruthy();
+
+    const template = await request(app)
+      .post("/api/letters/templates")
+      .set(auth)
+      .send({
+        name: `Smoke Sequence Letter ${Date.now()}`,
+        category: "THANK_YOU",
+        status: "ACTIVE",
+        printBody: "Dear {{donor.firstName}}, thank you for supporting {{organization.name}}.",
+        emailBody: "Thanks {{donor.firstName}}.",
+      });
+    expect(template.status).toBe(201);
+    const templateId = template.body.id as string;
+    expect(templateId).toBeTruthy();
+
+    const createdPath = await request(app)
+      .post("/api/steward-paths/templates")
+      .set(auth)
+      .send({
+        name: `Smoke Generate Letter Path ${Date.now()}`,
+        targetType: "CONSTITUENT",
+        crmScope: "DONOR",
+        status: "ACTIVE",
+      });
+    expect(createdPath.status).toBe(201);
+    const pathId = createdPath.body.id as string;
+    expect(pathId).toBeTruthy();
+
+    const createdStep = await request(app)
+      .post(`/api/steward-paths/templates/${pathId}/steps`)
+      .set(auth)
+      .send({
+        name: "Generate thank-you letter",
+        stepType: "GENERATE_LETTER",
+        configJson: {
+          templateId,
+          taskMode: "create_and_continue",
+          taskTitleTemplate: "Mail generated letter to {{firstName}} {{lastName}}",
+          taskType: "MAIL",
+        },
+      });
+    expect(createdStep.status).toBe(201);
+
+    const enrollment = await request(app)
+      .post(`/api/steward-paths/templates/${pathId}/enrollments`)
+      .set(auth)
+      .send({
+        targetId: constituent.id,
+        targetType: "CONSTITUENT",
+        constituentId: constituent.id,
+      });
+    expect(enrollment.status).toBe(201);
+    const enrollmentId = enrollment.body.id as string;
+    expect(enrollmentId).toBeTruthy();
+
+    const processed = await request(app)
+      .post("/api/steward-paths/process-due")
+      .set(auth)
+      .send({ limit: 25 });
+    expect(processed.status).toBe(200);
+
+    const generated = await request(app)
+      .get(`/api/letters/generated?stewardPathEnrollmentId=${encodeURIComponent(enrollmentId)}`)
+      .set(auth);
+    expect(generated.status).toBe(200);
+    expect(Array.isArray(generated.body)).toBe(true);
+    const letter = (generated.body as Array<{
+      id: string;
+      sourceTaskId?: string | null;
+      stewardPathEnrollmentId?: string | null;
+      stewardPathStepRunId?: string | null;
+    }>).find((row) => row.stewardPathEnrollmentId === enrollmentId);
+    expect(letter).toBeTruthy();
+    expect(letter?.sourceTaskId).toBeTruthy();
+    expect(letter?.stewardPathStepRunId).toBeTruthy();
+
+    const tasks = await request(app)
+      .get(`/api/tasks?scope=all&constituentId=${encodeURIComponent(constituent.id)}`)
+      .set(auth);
+    expect(tasks.status).toBe(200);
+    expect(Array.isArray(tasks.body?.items)).toBe(true);
+    const linkedTask = (tasks.body.items as Array<{
+      id: string;
+      generatedLetterId?: string | null;
+      stewardPathEnrollmentId?: string | null;
+    }>).find((row) => row.generatedLetterId === letter?.id && row.stewardPathEnrollmentId === enrollmentId);
+    expect(linkedTask).toBeTruthy();
+
+    const archivedPath = await request(app)
+      .delete(`/api/steward-paths/templates/${pathId}`)
+      .set(auth);
+    expect(archivedPath.status).toBe(204);
+
+    const archivedTemplate = await request(app)
+      .delete(`/api/letters/templates/${templateId}`)
+      .set(auth);
+    expect(archivedTemplate.status).toBe(204);
+  });
+
   it("creates, previews, generates, and drafts a letter", async () => {
     const auth = { Authorization: `Bearer ${authToken}` };
 

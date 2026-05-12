@@ -8,9 +8,11 @@ import { logAudit } from "../lib/audit.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { hasDefaultPermission } from "../lib/permissions.js";
 import { prisma } from "../lib/prisma.js";
+import { isSchemaDriftError, migrationRequiredMessage } from "../lib/prisma-runtime-errors.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
-import { collectMergeFieldKeys, renderMergeFields, SUPPORTED_LETTER_MERGE_FIELDS, unsupportedMergeFieldKeys } from "../services/letters-merge.js";
+import { generateLetterFromTemplate, getTemplateForGeneration, resolveLetterMergeContext } from "../services/letters-execution.js";
+import { collectMergeFieldKeys, SUPPORTED_LETTER_MERGE_FIELDS } from "../services/letters-merge.js";
 
 const router = Router();
 
@@ -55,10 +57,14 @@ function parseEnum<T extends string>(value: unknown, allowed: readonly T[]): T |
   return allowed.includes(normalized as T) ? (normalized as T) : null;
 }
 
-/** Converts unknown JSON input to a safe record for Prisma JSON storage. */
+/** Converts unknown JSON input to a JSON-safe value for Prisma JSON storage. */
 function asJsonObject(value: unknown): Prisma.InputJsonValue | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  return value as Prisma.InputJsonValue;
+  if (value === undefined) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Parses a positive integer value with fallback and min/max bounds. */
@@ -66,36 +72,6 @@ function parsePositiveInt(value: unknown, fallback: number, min = 1, max = 500):
   const parsed = typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(Math.max(parsed, min), max);
-}
-
-/** Converts a decimal-ish Prisma value into a number safely. */
-function toNumber(value: unknown): number {
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  if (typeof value === "string") {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-  if (value && typeof value === "object" && "toString" in (value as Record<string, unknown>)) {
-    const parsed = Number.parseFloat((value as { toString(): string }).toString());
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-  return 0;
-}
-
-/** Formats currency values for merged donor-facing content. */
-function formatCurrency(value: unknown): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(toNumber(value));
-}
-
-/** Formats dates for merged donor-facing content. */
-function formatDate(value: Date | null | undefined): string {
-  if (!value) return "";
-  return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(value);
 }
 
 /** Converts line-break text into simple HTML paragraphs for email draft creation. */
@@ -126,182 +102,6 @@ async function hasPermission(req: { user?: { sub?: string; role?: string } }, pe
   if (override && !override.granted) return false;
   if (override && override.granted) return true;
   return hasDefaultPermission(role, permission);
-}
-
-interface MergeContextParams {
-  organizationId: string;
-  template: {
-    id: string;
-    printBody: string;
-    emailBody: string | null;
-    printSubject: string | null;
-    emailSubject: string | null;
-  };
-  constituentId?: string;
-  donationId?: string;
-  campaignId?: string;
-  eventId?: string;
-  year?: number;
-  actorUserId?: string;
-}
-
-/** Loads merge context and resolves all placeholders used by letters. */
-async function resolveMergeContext(params: MergeContextParams): Promise<{
-  values: Record<string, string>;
-  unsupportedFields: string[];
-  mergedPrintBody: string;
-  mergedEmailBody: string | null;
-  mergedPrintSubject: string | null;
-  mergedEmailSubject: string | null;
-  resolvedConstituentId: string | null;
-  resolvedDonationId: string | null;
-  resolvedCampaignId: string | null;
-  resolvedEventId: string | null;
-}> {
-  const [organization, settings, user] = await Promise.all([
-    prisma.organization.findUnique({ where: { id: params.organizationId }, select: { id: true, name: true } }),
-    prisma.organizationSettings.findUnique({
-      where: { organizationId: params.organizationId },
-      select: { smtpFromEmail: true, smtpFromName: true },
-    }),
-    params.actorUserId
-      ? prisma.user.findUnique({ where: { id: params.actorUserId }, select: { id: true, firstName: true, lastName: true, email: true, role: true } })
-      : Promise.resolve(null),
-  ]);
-
-  const donation = params.donationId
-    ? await prisma.donation.findFirst({
-        where: {
-          id: params.donationId,
-          constituent: { organizationId: params.organizationId },
-        },
-        include: {
-          campaign: { select: { id: true, name: true } },
-          designation: { select: { name: true } },
-          constituent: { select: { id: true } },
-          event: { select: { id: true, name: true } },
-        },
-      })
-    : null;
-
-  const resolvedConstituentId = params.constituentId ?? donation?.constituentId ?? null;
-
-  const constituent = resolvedConstituentId
-    ? await prisma.constituent.findFirst({
-        where: { id: resolvedConstituentId, organizationId: params.organizationId },
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          phone: true,
-          addressLine1: true,
-          addressLine2: true,
-          city: true,
-          state: true,
-          zip: true,
-        },
-      })
-    : null;
-
-  const resolvedCampaignId = params.campaignId ?? donation?.campaignId ?? null;
-  const campaign = resolvedCampaignId
-    ? await prisma.campaign.findFirst({
-        where: { id: resolvedCampaignId, organizationId: params.organizationId },
-        select: { id: true, name: true },
-      })
-    : null;
-
-  const resolvedEventId = params.eventId ?? donation?.eventId ?? null;
-  const event = resolvedEventId
-    ? await prisma.event.findFirst({
-        where: { id: resolvedEventId, organizationId: params.organizationId },
-        select: { id: true, name: true },
-      })
-    : null;
-
-  const targetYear = Math.max(2000, Math.min(3000, params.year ?? new Date().getFullYear()));
-  const yearStart = new Date(`${targetYear}-01-01T00:00:00.000Z`);
-  const yearEnd = new Date(`${targetYear}-12-31T23:59:59.999Z`);
-
-  const yearDonations = constituent
-    ? await prisma.donation.findMany({
-        where: {
-          constituentId: constituent.id,
-          date: { gte: yearStart, lte: yearEnd },
-          status: "COMPLETED",
-        },
-        select: { amount: true, date: true },
-        orderBy: { date: "asc" },
-      })
-    : [];
-
-  const yearTotal = yearDonations.reduce((sum, donationRow) => sum + toNumber(donationRow.amount), 0);
-  const firstGift = yearDonations[0]?.date ?? null;
-  const lastGift = yearDonations[yearDonations.length - 1]?.date ?? null;
-
-  const donorFullName = constituent ? `${constituent.firstName} ${constituent.lastName}`.trim() : "";
-
-  const values: Record<string, string> = {
-    "donor.firstName": constituent?.firstName ?? "",
-    "donor.lastName": constituent?.lastName ?? "",
-    "donor.fullName": donorFullName,
-    "donor.preferredName": constituent?.firstName ?? "",
-    "donor.email": constituent?.email ?? "",
-    "donor.phone": constituent?.phone ?? "",
-    "donor.addressLine1": constituent?.addressLine1 ?? "",
-    "donor.addressLine2": constituent?.addressLine2 ?? "",
-    "donor.city": constituent?.city ?? "",
-    "donor.state": constituent?.state ?? "",
-    "donor.zip": constituent?.zip ?? "",
-    "donor.salutation": constituent?.firstName ? `Dear ${constituent.firstName},` : "Dear Friend,",
-    "gift.amount": formatCurrency(donation?.amount ?? 0),
-    "gift.date": formatDate(donation?.date),
-    "gift.fund": donation?.designation?.name ?? "",
-    "gift.campaign": campaign?.name ?? donation?.campaign?.name ?? "",
-    "gift.paymentMethod": donation?.paymentMethod ? donation.paymentMethod.replaceAll("_", " ") : "",
-    "gift.receiptNumber": donation?.receiptNumber ?? "",
-    "gift.taxDeductibleAmount": formatCurrency(donation?.taxDeductible ? donation.amount : 0),
-    "year": String(targetYear),
-    "year.totalGiving": formatCurrency(yearTotal),
-    "year.firstGiftDate": formatDate(firstGift),
-    "year.lastGiftDate": formatDate(lastGift),
-    "year.numberOfGifts": String(yearDonations.length),
-    "organization.name": organization?.name ?? "",
-    "organization.address": "",
-    "organization.phone": "",
-    "organization.email": settings?.smtpFromEmail ?? "",
-    "organization.website": "",
-    "organization.taxId": "",
-    "staff.fullName": user ? `${user.firstName} ${user.lastName}`.trim() : "",
-    "staff.title": user?.role ? user.role.toUpperCase() : "",
-    "staff.email": user?.email ?? "",
-  };
-
-  const mergedPrintBody = renderMergeFields(params.template.printBody, values);
-  const mergedEmailBody = params.template.emailBody ? renderMergeFields(params.template.emailBody, values) : null;
-  const mergedPrintSubject = params.template.printSubject ? renderMergeFields(params.template.printSubject, values) : null;
-  const mergedEmailSubject = params.template.emailSubject ? renderMergeFields(params.template.emailSubject, values) : null;
-
-  const keys = collectMergeFieldKeys(
-    params.template.printBody,
-    params.template.emailBody,
-    params.template.printSubject,
-    params.template.emailSubject,
-  );
-
-  return {
-    values,
-    unsupportedFields: unsupportedMergeFieldKeys(keys),
-    mergedPrintBody,
-    mergedEmailBody,
-    mergedPrintSubject,
-    mergedEmailSubject,
-    resolvedConstituentId: constituent?.id ?? null,
-    resolvedDonationId: donation?.id ?? null,
-    resolvedCampaignId: campaign?.id ?? null,
-    resolvedEventId: event?.id ?? null,
-  };
 }
 
 /** GET /api/letters/dashboard — Returns letter workspace summary cards. */
@@ -396,25 +196,40 @@ router.get("/templates", requirePermission("letters.view"), async (req, res) => 
   const category = parseEnum(req.query.category, LETTER_CATEGORIES);
   const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
 
-  const templates = await prisma.letterTemplate.findMany({
-    where: {
-      organizationId,
-      ...(status ? { status } : {}),
-      ...(category ? { category } : {}),
-      ...(search ? { name: { contains: search } } : {}),
-    },
-    include: {
-      headerPreset: { select: { id: true, name: true } },
-      footerPreset: { select: { id: true, name: true } },
-      signatureBlock: { select: { id: true, name: true, signerName: true } },
-      createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
-      updatedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
-      _count: { select: { generatedLetters: true } },
-    },
-    orderBy: { updatedAt: "desc" },
-  });
+  try {
+    const templates = await prisma.letterTemplate.findMany({
+      where: {
+        organizationId,
+        ...(status ? { status } : {}),
+        ...(category ? { category } : {}),
+        ...(search ? { name: { contains: search } } : {}),
+      },
+      include: {
+        headerPreset: { select: { id: true, name: true } },
+        footerPreset: { select: { id: true, name: true } },
+        signatureBlock: { select: { id: true, name: true, signerName: true } },
+        createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+        updatedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+        _count: { select: { generatedLetters: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
 
-  res.json(templates);
+    res.json(templates);
+  } catch (error) {
+    if (isSchemaDriftError(error)) {
+      res.status(503).json({
+        error: {
+          code: "MIGRATION_REQUIRED",
+          message: migrationRequiredMessage("Letter templates"),
+        },
+      });
+      return;
+    }
+
+    console.error("[letters] GET /templates failed", error);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load letter templates." } });
+  }
 });
 
 /** GET /api/letters/templates/:id — Returns one template with preset references. */
@@ -425,23 +240,38 @@ router.get("/templates/:id", requirePermission("letters.view"), async (req, res)
     return;
   }
 
-  const template = await prisma.letterTemplate.findFirst({
-    where: { id: getRouteId(req), organizationId },
-    include: {
-      headerPreset: true,
-      footerPreset: true,
-      signatureBlock: true,
-      createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
-      updatedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
-    },
-  });
+  try {
+    const template = await prisma.letterTemplate.findFirst({
+      where: { id: getRouteId(req), organizationId },
+      include: {
+        headerPreset: true,
+        footerPreset: true,
+        signatureBlock: true,
+        createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+        updatedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+      },
+    });
 
-  if (!template) {
-    res.status(404).json({ error: { code: "NOT_FOUND", message: "Letter template not found." } });
-    return;
+    if (!template) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Letter template not found." } });
+      return;
+    }
+
+    res.json(template);
+  } catch (error) {
+    if (isSchemaDriftError(error)) {
+      res.status(503).json({
+        error: {
+          code: "MIGRATION_REQUIRED",
+          message: migrationRequiredMessage("Letter template details"),
+        },
+      });
+      return;
+    }
+
+    console.error("[letters] GET /templates/:id failed", error);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load letter template." } });
   }
-
-  res.json(template);
 });
 
 /** POST /api/letters/templates — Creates a new letter template. */
@@ -486,6 +316,7 @@ router.post("/templates", requirePermission("letters.create"), async (req, res) 
       status,
       printSubject: typeof req.body?.printSubject === "string" ? req.body.printSubject : null,
       printBody,
+      printLayoutJson: asJsonObject(req.body?.printLayoutJson),
       emailSubject: typeof req.body?.emailSubject === "string" ? req.body.emailSubject : null,
       emailBody: typeof req.body?.emailBody === "string" ? req.body.emailBody : null,
       headerPresetId: typeof req.body?.headerPresetId === "string" ? req.body.headerPresetId : null,
@@ -580,6 +411,9 @@ router.patch("/templates/:id", requirePermission("letters.edit"), async (req, re
     }
     patch.printBody = req.body.printBody;
   }
+  if (req.body?.printLayoutJson !== undefined) {
+    patch.printLayoutJson = asJsonObject(req.body.printLayoutJson) ?? Prisma.JsonNull;
+  }
   if (req.body?.emailSubject !== undefined) patch.emailSubject = typeof req.body.emailSubject === "string" ? req.body.emailSubject : null;
   if (req.body?.emailBody !== undefined) patch.emailBody = typeof req.body.emailBody === "string" ? req.body.emailBody : null;
 
@@ -654,6 +488,9 @@ router.post("/templates/:id/duplicate", requirePermission("letters.create"), asy
       status: "DRAFT",
       printSubject: existing.printSubject,
       printBody: existing.printBody,
+      printLayoutJson: existing.printLayoutJson === null
+        ? Prisma.JsonNull
+        : (existing.printLayoutJson as Prisma.InputJsonValue | undefined),
       emailSubject: existing.emailSubject,
       emailBody: existing.emailBody,
       headerPresetId: existing.headerPresetId,
@@ -1126,6 +963,9 @@ router.get("/generated", requirePermission("letters.view"), async (req, res) => 
   const status = parseEnum(req.query.status, LETTER_GENERATED_STATUSES);
   const category = parseEnum(req.query.category, LETTER_CATEGORIES);
   const constituentId = typeof req.query.constituentId === "string" ? req.query.constituentId : undefined;
+  const sourceTaskId = typeof req.query.sourceTaskId === "string" ? req.query.sourceTaskId : undefined;
+  const stewardPathEnrollmentId = typeof req.query.stewardPathEnrollmentId === "string" ? req.query.stewardPathEnrollmentId : undefined;
+  const stewardPathStepRunId = typeof req.query.stewardPathStepRunId === "string" ? req.query.stewardPathStepRunId : undefined;
   const limit = parsePositiveInt(req.query.limit, 100, 1, 400);
 
   const rows = await prisma.generatedLetter.findMany({
@@ -1134,6 +974,9 @@ router.get("/generated", requirePermission("letters.view"), async (req, res) => 
       ...(status ? { status } : {}),
       ...(category ? { category } : {}),
       ...(constituentId ? { constituentId } : {}),
+      ...(sourceTaskId ? { sourceTaskId } : {}),
+      ...(stewardPathEnrollmentId ? { stewardPathEnrollmentId } : {}),
+      ...(stewardPathStepRunId ? { stewardPathStepRunId } : {}),
     },
     include: {
       template: { select: { id: true, name: true, category: true } },
@@ -1190,23 +1033,14 @@ router.post("/generated/preview", requirePermission("letters.generate"), async (
     return;
   }
 
-  const template = await prisma.letterTemplate.findFirst({
-    where: { id: templateId, organizationId },
-    select: {
-      id: true,
-      printBody: true,
-      emailBody: true,
-      printSubject: true,
-      emailSubject: true,
-    },
-  });
+  const template = await getTemplateForGeneration(organizationId, templateId);
   if (!template) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Template not found." } });
     return;
   }
 
   const year = typeof req.body?.year === "number" ? req.body.year : Number.parseInt(String(req.body?.year ?? ""), 10);
-  const merged = await resolveMergeContext({
+  const merged = await resolveLetterMergeContext({
     organizationId,
     template,
     constituentId: typeof req.body?.constituentId === "string" ? req.body.constituentId : undefined,
@@ -1238,101 +1072,34 @@ router.post("/generated", requirePermission("letters.generate"), async (req, res
     return;
   }
 
-  const template = await prisma.letterTemplate.findFirst({
-    where: { id: templateId, organizationId },
-    select: {
-      id: true,
-      name: true,
-      category: true,
-      printBody: true,
-      emailBody: true,
-      printSubject: true,
-      emailSubject: true,
-      status: true,
-    },
-  });
-  if (!template) {
-    res.status(404).json({ error: { code: "NOT_FOUND", message: "Template not found." } });
-    return;
-  }
-
   const year = typeof req.body?.year === "number" ? req.body.year : Number.parseInt(String(req.body?.year ?? ""), 10);
-  const merged = await resolveMergeContext({
+  const result = await generateLetterFromTemplate({
     organizationId,
-    template,
+    templateId,
+    actorUserId: userId,
     constituentId: typeof req.body?.constituentId === "string" ? req.body.constituentId : undefined,
     donationId: typeof req.body?.donationId === "string" ? req.body.donationId : undefined,
     campaignId: typeof req.body?.campaignId === "string" ? req.body.campaignId : undefined,
     eventId: typeof req.body?.eventId === "string" ? req.body.eventId : undefined,
     year: Number.isFinite(year) ? year : undefined,
-    actorUserId: userId,
+    sourceTaskId: typeof req.body?.sourceTaskId === "string" ? req.body.sourceTaskId : undefined,
+    stewardPathEnrollmentId: typeof req.body?.stewardPathEnrollmentId === "string" ? req.body.stewardPathEnrollmentId : undefined,
+    stewardPathStepRunId: typeof req.body?.stewardPathStepRunId === "string" ? req.body.stewardPathStepRunId : undefined,
   });
+  if (!result) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Template not found." } });
+    return;
+  }
 
-  const generated = await prisma.$transaction(async (tx) => {
-    const created = await tx.generatedLetter.create({
-      data: {
-        organizationId,
-        templateId: template.id,
-        constituentId: merged.resolvedConstituentId,
-        donationId: merged.resolvedDonationId,
-        campaignId: merged.resolvedCampaignId,
-        eventId: merged.resolvedEventId,
-        category: template.category,
-        status: "GENERATED",
-        mergedPrintSubject: merged.mergedPrintSubject,
-        mergedPrintBody: merged.mergedPrintBody,
-        mergedEmailBody: merged.mergedEmailBody,
-        emailSubject: merged.mergedEmailSubject,
-        generatedByUserId: userId,
-        metadataJson: {
-          unsupportedMergeFields: merged.unsupportedFields,
-          templateStatusAtGeneration: template.status,
-        },
-      },
-    });
-
-    if (merged.resolvedConstituentId) {
-      const activity = await tx.activity.create({
-        data: {
-          constituentId: merged.resolvedConstituentId,
-          donationId: merged.resolvedDonationId,
-          eventId: merged.resolvedEventId,
-          type: "NOTE",
-          description: `Generated ${template.category.toLowerCase().replaceAll("_", " ")} letter from template: ${template.name}`,
-          metadata: {
-            source: "letters-printables",
-            communicationType: "printed_letter",
-            letterId: created.id,
-            templateId: template.id,
-            category: template.category,
-          },
-          userId,
-        },
-      });
-
-      return tx.generatedLetter.update({
-        where: { id: created.id },
-        data: { communicationActivityId: activity.id },
-        include: {
-          template: { select: { id: true, name: true, category: true } },
-          constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
-          donation: { select: { id: true, amount: true, date: true } },
-          campaign: { select: { id: true, name: true } },
-          event: { select: { id: true, name: true } },
-        },
-      });
-    }
-
-    return tx.generatedLetter.findUnique({
-      where: { id: created.id },
-      include: {
-        template: { select: { id: true, name: true, category: true } },
-        constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
-        donation: { select: { id: true, amount: true, date: true } },
-        campaign: { select: { id: true, name: true } },
-        event: { select: { id: true, name: true } },
-      },
-    });
+  const generated = await prisma.generatedLetter.findUnique({
+    where: { id: result.generated.id },
+    include: {
+      template: { select: { id: true, name: true, category: true } },
+      constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
+      donation: { select: { id: true, amount: true, date: true } },
+      campaign: { select: { id: true, name: true } },
+      event: { select: { id: true, name: true } },
+    },
   });
 
   await logAudit({
@@ -1342,9 +1109,9 @@ router.post("/generated", requirePermission("letters.generate"), async (req, res
     organizationId,
     userId,
     metadata: {
-      templateId: template.id,
-      category: template.category,
-      hasUnsupportedMergeFields: merged.unsupportedFields.length > 0,
+      templateId: result.template.id,
+      category: result.template.category,
+      hasUnsupportedMergeFields: result.merged.unsupportedFields.length > 0,
     },
   });
 
@@ -1391,7 +1158,7 @@ router.patch("/generated/:id/status", requirePermission("letters.generate"), asy
       data: {
         constituentId: existing.constituentId,
         type: "NOTE",
-        description: `Letter status updated to ${status.toLowerCase().replaceAll("_", " ")}`,
+        description: `Letter status updated to ${status.toLowerCase().replace(/_/g, " ")}`,
         metadata: {
           source: "letters-printables",
           communicationType: "printed_letter",

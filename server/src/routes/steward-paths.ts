@@ -19,6 +19,7 @@ const TARGET_VALUES: StewardPathTarget[] = ["CONSTITUENT", "DONOR", "CLIENT", "E
 const STEP_TYPE_VALUES: StewardPathStepType[] = [
   "DELAY",
   "CREATE_TASK",
+  "GENERATE_LETTER",
   "DRAFT_EMAIL",
   "SEND_EMAIL",
   "MANUAL_ACTION",

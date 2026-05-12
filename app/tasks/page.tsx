@@ -23,6 +23,9 @@ export interface Task {
   status: string;
   priority: string;
   dueDate?: string;
+  generatedLetterId?: string | null;
+  stewardPathEnrollmentId?: string | null;
+  stewardPathStepRunId?: string | null;
   assignee?: { id: string; firstName: string; lastName: string };
   createdBy?: { id: string; firstName: string; lastName: string };
   constituent?: { id: string; firstName: string; lastName: string };
@@ -43,6 +46,18 @@ type FocusMode = "my" | "team" | "followups";
 const TASK_TYPES = ["CALL", "EMAIL", "MAIL", "MEETING", "THANK_YOU", "FOLLOW_UP", "OTHER"];
 const TASK_STATUSES = ["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
 const FOLLOW_UP_TYPES = new Set(["FOLLOW_UP", "THANK_YOU", "CALL", "EMAIL"]);
+
+/** Converts notification API errors into actionable operator guidance. */
+function normalizeNotificationsError(error: unknown): string {
+  const fallback = "Failed to load notifications.";
+  if (!(error instanceof Error)) return fallback;
+
+  if (error.message.includes("database migrations are pending")) {
+    return "Notifications are temporarily unavailable because a database migration is pending. Run pnpm db:migrate, pnpm db:generate, then restart the API.";
+  }
+
+  return error.message || fallback;
+}
 
 /** Tasks page — list, filter, complete, and create tasks */
 export default function TasksPage() {
@@ -122,7 +137,7 @@ export default function TasksPage() {
       const relevant = (data.items ?? []).filter((item) => item.type === "task" || item.type === "follow_up").slice(0, 6);
       setNotifications(relevant);
     } catch (requestError) {
-      setNotificationsError(requestError instanceof Error ? requestError.message : "Failed to load notifications.");
+      setNotificationsError(normalizeNotificationsError(requestError));
       setNotifications([]);
     } finally {
       setNotificationsLoading(false);

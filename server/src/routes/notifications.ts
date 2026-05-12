@@ -5,6 +5,7 @@
 import { Router } from "express";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
+import { isSchemaDriftError, migrationRequiredMessage } from "../lib/prisma-runtime-errors.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { listWatchdogSecurityEvents } from "../services/watchdog-store.js";
 import { listWebmasterPagesByStatus, listWebmasterSitesByStatus } from "../services/webmaster-store.js";
@@ -273,6 +274,16 @@ router.get("/", async (req, res) => {
       unreadCount: sorted.length,
     });
   } catch (err) {
+    if (isSchemaDriftError(err)) {
+      res.status(503).json({
+        error: {
+          code: "MIGRATION_REQUIRED",
+          message: migrationRequiredMessage("Notifications"),
+        },
+      });
+      return;
+    }
+
     console.error("[notifications] GET / error:", err);
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load notifications" } });
   }

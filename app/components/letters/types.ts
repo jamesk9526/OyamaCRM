@@ -1,5 +1,18 @@
 /** Shared type contracts for the Letters & Printables workspace UI. */
 
+export type PrintLayoutKind = "PARAGRAPH" | "HEADING" | "MERGE_TOKEN" | "DIVIDER" | "SPACER";
+
+export interface PrintLayoutBlock {
+  id: string;
+  kind: PrintLayoutKind;
+  content?: string;
+  level?: number;
+  token?: string;
+  spacerHeight?: number;
+}
+
+export type PrintLayoutDocument = PrintLayoutBlock[];
+
 export interface LetterTemplateSummary {
   id: string;
   name: string;
@@ -16,6 +29,9 @@ export interface GeneratedLetterSummary {
   id: string;
   templateId: string;
   constituentId?: string | null;
+  sourceTaskId?: string | null;
+  stewardPathEnrollmentId?: string | null;
+  stewardPathStepRunId?: string | null;
   category: string;
   status: string;
   generatedAt: string;

@@ -4,7 +4,9 @@
  */
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import AutomationWorkflowEditorModal from "@/app/components/automations/AutomationWorkflowEditorModal";
 import NewAutomationModal from "@/app/components/automations/NewAutomationModal";
 import { apiFetch } from "@/app/lib/auth-client";
 
@@ -95,6 +97,116 @@ interface Automation {
   actions: AutomationAction[];
 }
 
+interface ActionLink {
+  href: string;
+  label: string;
+  title: string;
+}
+
+/** Reads one string value from action config JSON when available. */
+function readActionConfigString(action: AutomationAction, key: string): string {
+  if (!action.config || typeof action.config !== "object" || Array.isArray(action.config)) return "";
+  const value = action.config[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/** Resolves one action into primary/secondary edit destinations and setup state. */
+function resolveActionLinks(action: AutomationAction): { primary: ActionLink | null; secondary: ActionLink[]; needsSetup: boolean } {
+  if (action.type === "SEND_EMAIL") {
+    const campaignId = readActionConfigString(action, "campaignId");
+    const letterTemplateId = readActionConfigString(action, "letterTemplateId");
+
+    if (!campaignId && !letterTemplateId) {
+      return {
+        primary: {
+          href: "/communications?new=1&source=steward-path",
+          label: "Set up",
+          title: "Create or link an email campaign",
+        },
+        secondary: [],
+        needsSetup: true,
+      };
+    }
+
+    const primary: ActionLink | null = campaignId
+      ? {
+          href: `/communications/${encodeURIComponent(campaignId)}`,
+          label: "Edit",
+          title: "Edit linked email campaign",
+        }
+      : {
+          href: `/letters-printables/templates/${encodeURIComponent(letterTemplateId)}`,
+          label: "Edit",
+          title: "Edit linked letter template",
+        };
+
+    const secondary: ActionLink[] = [];
+    if (campaignId) {
+      secondary.push({
+        href: `/email-builder?campaign=${encodeURIComponent(campaignId)}&returnTo=${encodeURIComponent(`/communications/${campaignId}`)}`,
+        label: "Builder",
+        title: "Open linked email campaign in Email Builder",
+      });
+    }
+    if (letterTemplateId) {
+      secondary.push({
+        href: `/letters-printables/templates/${encodeURIComponent(letterTemplateId)}`,
+        label: "Letter",
+        title: "Open linked letter template",
+      });
+    }
+
+    return { primary, secondary, needsSetup: false };
+  }
+
+  if (action.type === "CREATE_TASK") {
+    const taskId = readActionConfigString(action, "taskId");
+    const generatedLetterId = readActionConfigString(action, "generatedLetterId");
+
+    if (taskId) {
+      return {
+        primary: {
+          href: `/tasks?taskId=${encodeURIComponent(taskId)}&focus=my`,
+          label: "Edit",
+          title: "Open linked task",
+        },
+        secondary: generatedLetterId
+          ? [{
+              href: `/letters-printables/generated?sourceTaskId=${encodeURIComponent(taskId)}`,
+              label: "Letter",
+              title: "Open generated letters linked to this task",
+            }]
+          : [],
+        needsSetup: false,
+      };
+    }
+
+    if (generatedLetterId) {
+      return {
+        primary: {
+          href: "/letters-printables/generated",
+          label: "Open",
+          title: "Open generated letter context",
+        },
+        secondary: [],
+        needsSetup: false,
+      };
+    }
+
+    return {
+      primary: {
+        href: "/tasks?focus=my",
+        label: "Set up",
+        title: "Configure linked task context",
+      },
+      secondary: [],
+      needsSetup: true,
+    };
+  }
+
+  return { primary: null, secondary: [], needsSetup: false };
+}
+
 interface AutomationPreset {
   id: string;
   name: string;
@@ -134,10 +246,14 @@ export default function AutomationsPage() {
   const [running, setRunning] = useState<string | null>(null);
   const [installingPreset, setInstallingPreset] = useState<string | null>(null);
   const [sharingUpdateId, setSharingUpdateId] = useState<string | null>(null);
+  const [editingAutomationId, setEditingAutomationId] = useState<string | null>(null);
   const [presets, setPresets] = useState<AutomationPreset[]>([]);
   const [runs, setRuns] = useState<StewardPathRun[]>([]);
   const [activeTab, setActiveTab] = useState<"paths" | "history">("paths");
   const stewardSuggestions = getStewardSuggestions(automations);
+  const editingAutomation = editingAutomationId
+    ? automations.find((automation) => automation.id === editingAutomationId) ?? null
+    : null;
 
   /** Fetch Steward Path run history from the API. */
   const loadRuns = useCallback(async () => {
@@ -383,6 +499,7 @@ export default function AutomationsPage() {
               key={a.id}
               automation={a}
               onToggle={() => toggle(a)}
+              onEdit={() => setEditingAutomationId(a.id)}
               onRun={() => runNow(a.id)}
               onDelete={() => del(a.id)}
               onToggleSharing={() => toggleSharing(a)}
@@ -466,16 +583,28 @@ export default function AutomationsPage() {
           onCreated={() => { setShowModal(false); load(); }}
         />
       )}
+
+      {editingAutomation && (
+        <AutomationWorkflowEditorModal
+          automation={editingAutomation}
+          onClose={() => setEditingAutomationId(null)}
+          onSaved={(updated) => {
+            setAutomations((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
+            setEditingAutomationId(null);
+          }}
+        />
+      )}
     </div>
   );
 }
 
 /** Individual automation card showing trigger, actions, stats, and controls. */
 function AutomationCard({
-  automation: a, onToggle, onRun, onDelete, onToggleSharing, toggling, running, sharingUpdating,
+  automation: a, onToggle, onEdit, onRun, onDelete, onToggleSharing, toggling, running, sharingUpdating,
 }: {
   automation: Automation;
   onToggle: () => void;
+  onEdit: () => void;
   onRun: () => void;
   onDelete: () => void;
   onToggleSharing: () => void;
@@ -531,14 +660,44 @@ function AutomationCard({
                   <svg className="w-3 h-3 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
-                  {a.actions.map((act, i) => (
-                    <span key={act.id} className="flex items-center gap-1">
-                      {i > 0 && <span className="text-gray-300 text-xs">then</span>}
-                      <span className="px-2 py-0.5 text-xs font-medium bg-green-50 text-green-700 rounded-full border border-green-200">
-                        {ACTION_LABELS[act.type] ?? act.type}
+                  {a.actions.map((act, i) => {
+                    const links = resolveActionLinks(act);
+                    return (
+                      <span key={act.id} className="flex items-center gap-1">
+                        {i > 0 && <span className="text-gray-300 text-xs">then</span>}
+                        <span className="px-2 py-0.5 text-xs font-medium bg-green-50 text-green-700 rounded-full border border-green-200">
+                          {ACTION_LABELS[act.type] ?? act.type}
+                        </span>
+                        {links.primary && (
+                          <Link
+                            href={links.primary.href}
+                            title={links.primary.title}
+                            className="inline-flex items-center justify-center w-5 h-5 rounded-md border border-gray-200 bg-white text-gray-500 hover:text-green-700 hover:border-green-300 transition-colors"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5h-6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-6" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                          </Link>
+                        )}
+                        {links.secondary.map((link) => (
+                          <Link
+                            key={`${act.id}-${link.href}`}
+                            href={link.href}
+                            title={link.title}
+                            className="px-1.5 py-0.5 text-[10px] font-semibold text-gray-600 border border-gray-200 rounded-md hover:border-green-300 hover:text-green-700"
+                          >
+                            {link.label}
+                          </Link>
+                        ))}
+                        {links.needsSetup && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-md">
+                            Needs setup
+                          </span>
+                        )}
                       </span>
-                    </span>
-                  ))}
+                    );
+                  })}
                 </>
               )}
               {a.actions.length === 0 && (
@@ -565,6 +724,12 @@ function AutomationCard({
               className="text-xs px-2.5 py-1 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
               {sharingUpdating ? "Saving..." : a.sharedWithOrganization ? "Make Private" : "Share"}
+            </button>
+            <button
+              onClick={onEdit}
+              className="text-xs px-2.5 py-1 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              Edit workflow
             </button>
             <button
               onClick={onRun}
