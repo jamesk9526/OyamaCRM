@@ -53,6 +53,10 @@ export default function OrganizationSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [smtpTestRecipient, setSmtpTestRecipient] = useState("");
+  const [smtpTesting, setSmtpTesting] = useState(false);
+  const [smtpTestMessage, setSmtpTestMessage] = useState<string | null>(null);
+  const [smtpTestError, setSmtpTestError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -61,6 +65,7 @@ export default function OrganizationSettingsPage() {
       try {
         const data = await apiFetch<Settings>("/api/settings");
         setForm(data);
+        setSmtpTestRecipient(data.smtpFromEmail || "");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load settings");
       } finally {
@@ -93,6 +98,33 @@ export default function OrganizationSettingsPage() {
       setError(err instanceof Error ? err.message : "Failed to save settings");
     } finally {
       setSaving(false);
+    }
+  }
+
+  /** Sends a live SMTP test email using current SMTP form values. */
+  async function handleSmtpTestSend() {
+    setSmtpTesting(true);
+    setSmtpTestError(null);
+    setSmtpTestMessage(null);
+    try {
+      const response = await apiFetch<{ success?: boolean; message?: string }>("/api/settings/smtp/test", {
+        method: "POST",
+        body: JSON.stringify({
+          toEmail: smtpTestRecipient,
+          smtpHost: form.smtpHost,
+          smtpPort: form.smtpPort,
+          smtpSecure: form.smtpSecure,
+          smtpUser: form.smtpUser,
+          smtpPass: form.smtpPass,
+          smtpFromName: form.smtpFromName,
+          smtpFromEmail: form.smtpFromEmail,
+        }),
+      });
+      setSmtpTestMessage(response?.message ?? `SMTP test email sent to ${smtpTestRecipient}.`);
+    } catch (err) {
+      setSmtpTestError(err instanceof Error ? err.message : "SMTP test failed");
+    } finally {
+      setSmtpTesting(false);
     }
   }
 
@@ -264,6 +296,34 @@ export default function OrganizationSettingsPage() {
             />
             Use secure TLS/SSL transport
           </label>
+
+          <div className="border-t border-gray-100 pt-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-600">Send Test Email</p>
+            <p className="text-xs text-gray-500">Uses the SMTP values currently in this form, even before saving.</p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                type="email"
+                value={smtpTestRecipient}
+                onChange={(e) => setSmtpTestRecipient(e.target.value)}
+                className="w-full sm:max-w-sm px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="you@organization.org"
+              />
+              <button
+                type="button"
+                disabled={smtpTesting || !smtpTestRecipient.trim()}
+                onClick={handleSmtpTestSend}
+                className="px-4 py-2 text-sm font-medium text-green-700 border border-green-200 bg-green-50 rounded-lg hover:bg-green-100 disabled:opacity-60 transition-colors"
+              >
+                {smtpTesting ? "Sending Test..." : "Send SMTP Test"}
+              </button>
+            </div>
+            {smtpTestMessage && (
+              <p className="text-xs text-green-700">{smtpTestMessage}</p>
+            )}
+            {smtpTestError && (
+              <p className="text-xs text-red-700">{smtpTestError}</p>
+            )}
+          </div>
         </div>
 
         <div className="flex justify-end">

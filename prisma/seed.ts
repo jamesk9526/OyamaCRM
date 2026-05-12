@@ -20,9 +20,10 @@ import { seedDemoExpansion, type DemoSeedSize } from "./demo-seed-expansion";
 const prisma = new PrismaClient();
 
 /** Parses CLI args/env vars for demo dataset size and deterministic seed key. */
-function parseDemoSeedOptions(argv: string[]): { size: DemoSeedSize; seedKey: string } {
+function parseDemoSeedOptions(argv: string[]): { size: DemoSeedSize; seedKey: string; tinyGiftDebug: boolean } {
   let sizeArg: string | undefined;
   let seedKeyArg: string | undefined;
+  let tinyGiftDebug = false;
 
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
@@ -44,13 +45,49 @@ function parseDemoSeedOptions(argv: string[]): { size: DemoSeedSize; seedKey: st
       seedKeyArg = token.slice("--seed=".length);
       continue;
     }
+    if (token === "--tiny-gifts") {
+      tinyGiftDebug = true;
+    }
   }
 
   const rawSize = (sizeArg ?? process.env.DEMO_SEED_SIZE ?? "small").toLowerCase();
   const size: DemoSeedSize = rawSize === "medium" || rawSize === "large" ? rawSize : "small";
   const seedKey = seedKeyArg ?? process.env.DEMO_SEED_KEY ?? "oyamacrm-demo-seed-v1";
+  const tinyGiftFromEnv = String(process.env.DEMO_TINY_GIFTS ?? "").toLowerCase() === "true"
+    || process.env.DEMO_TINY_GIFTS === "1";
 
-  return { size, seedKey };
+  return { size, seedKey, tinyGiftDebug: tinyGiftDebug || tinyGiftFromEnv };
+}
+
+/**
+ * Computes a normalized 0-100 engagement score from giving behavior.
+ */
+function computeEngagementScore(params: {
+  giftCount: number;
+  lastGiftDate: Date | null;
+  totalLifetimeGiving: number;
+  totalYtdGiving: number;
+}): number {
+  if (params.giftCount <= 0) return 0;
+
+  const now = Date.now();
+  const daysSinceLastGift = params.lastGiftDate
+    ? Math.max(0, Math.floor((now - params.lastGiftDate.getTime()) / (1000 * 60 * 60 * 24)))
+    : 9999;
+
+  const recencyScore =
+    daysSinceLastGift <= 30 ? 35
+      : daysSinceLastGift <= 90 ? 28
+      : daysSinceLastGift <= 180 ? 20
+      : daysSinceLastGift <= 365 ? 12
+      : daysSinceLastGift <= 730 ? 6
+      : 2;
+
+  const frequencyScore = Math.min(25, Math.round(params.giftCount * 2.5));
+  const lifetimeScore = Math.min(25, Math.round(Math.log10(params.totalLifetimeGiving + 1) * 10));
+  const momentumScore = Math.min(15, Math.round(Math.log10(params.totalYtdGiving + 1) * 7));
+
+  return Math.max(0, Math.min(100, recencyScore + frequencyScore + lifetimeScore + momentumScore));
 }
 
 async function main() {
@@ -58,6 +95,9 @@ async function main() {
   console.log("🌱 Seeding OyamaCRM...");
   console.log(`   Demo profile: ${demoOptions.size}`);
   console.log(`   Demo seed key: ${demoOptions.seedKey}`);
+  if (demoOptions.tinyGiftDebug) {
+    console.log("   Tiny gift debug mode: ENABLED (10 donations, whole-dollar amounts <= $10)");
+  }
 
   const adminHash = await bcrypt.hash("admin123!", 12);
   const staffHash = await bcrypt.hash("staff123!", 12);
@@ -412,18 +452,36 @@ async function main() {
   });
 
   // Donations (recent history)
-  const donationData = [
-    { id: "don_01", constituentId: "con_01", amount: 10000, date: new Date("2025-02-10"), campaignId: annualCampaign.id, designationId: generalFund.id, paymentMethod: PaymentMethod.CHECK },
-    { id: "don_02", constituentId: "con_02", amount: 5000, date: new Date("2025-01-15"), campaignId: annualCampaign.id, designationId: generalFund.id, paymentMethod: PaymentMethod.CREDIT_CARD },
-    { id: "don_03", constituentId: "con_03", amount: 500, date: new Date("2025-03-01"), campaignId: annualCampaign.id, designationId: youthFund.id, paymentMethod: PaymentMethod.ONLINE },
-    { id: "don_04", constituentId: "con_04", amount: 200, date: new Date("2025-04-05"), campaignId: annualCampaign.id, designationId: generalFund.id, paymentMethod: PaymentMethod.CREDIT_CARD },
-    { id: "don_05", constituentId: "con_07", amount: 500, date: new Date("2025-04-20"), campaignId: annualCampaign.id, designationId: youthFund.id, paymentMethod: PaymentMethod.ONLINE },
-    { id: "don_06", constituentId: "con_08", amount: 25000, date: new Date("2025-04-01"), campaignId: capitalCampaign.id, designationId: capitalFund.id, paymentMethod: PaymentMethod.WIRE },
-    { id: "don_07", constituentId: "con_01", amount: 5000, date: new Date("2024-06-15"), campaignId: capitalCampaign.id, designationId: capitalFund.id, paymentMethod: PaymentMethod.CHECK },
-    { id: "don_08", constituentId: "con_03", amount: 250, date: new Date("2025-01-20"), campaignId: annualCampaign.id, designationId: generalFund.id, paymentMethod: PaymentMethod.CREDIT_CARD },
-    { id: "don_09", constituentId: "con_07", amount: 250, date: new Date("2025-02-14"), campaignId: annualCampaign.id, designationId: generalFund.id, paymentMethod: PaymentMethod.ONLINE },
-    { id: "don_10", constituentId: "con_02", amount: 2500, date: new Date("2024-12-31"), campaignId: capitalCampaign.id, designationId: capitalFund.id, paymentMethod: PaymentMethod.CHECK },
-  ];
+  const currentYear = new Date().getFullYear();
+  const tinyGiftDate = (monthIndex: number, dayOfMonth: number) => {
+    // Keep tiny-gift debug dates in Jan-Apr so default YTD screens align before May.
+    return new Date(Date.UTC(currentYear, monthIndex, dayOfMonth, 12, 0, 0));
+  };
+  const donationData = demoOptions.tinyGiftDebug
+    ? [
+      { id: "don_01", constituentId: "con_01", amount: 1, date: tinyGiftDate(0, 9), campaignId: annualCampaign.id, designationId: generalFund.id, paymentMethod: PaymentMethod.CASH },
+      { id: "don_02", constituentId: "con_02", amount: 2, date: tinyGiftDate(0, 19), campaignId: annualCampaign.id, designationId: generalFund.id, paymentMethod: PaymentMethod.CASH },
+      { id: "don_03", constituentId: "con_03", amount: 3, date: tinyGiftDate(1, 1), campaignId: annualCampaign.id, designationId: youthFund.id, paymentMethod: PaymentMethod.CASH },
+      { id: "don_04", constituentId: "con_04", amount: 4, date: tinyGiftDate(1, 9), campaignId: annualCampaign.id, designationId: generalFund.id, paymentMethod: PaymentMethod.CASH },
+      { id: "don_05", constituentId: "con_05", amount: 5, date: tinyGiftDate(1, 19), campaignId: annualCampaign.id, designationId: youthFund.id, paymentMethod: PaymentMethod.CASH },
+      { id: "don_06", constituentId: "con_06", amount: 6, date: tinyGiftDate(2, 1), campaignId: annualCampaign.id, designationId: capitalFund.id, paymentMethod: PaymentMethod.CASH },
+      { id: "don_07", constituentId: "con_07", amount: 7, date: tinyGiftDate(2, 9), campaignId: annualCampaign.id, designationId: generalFund.id, paymentMethod: PaymentMethod.CASH },
+      { id: "don_08", constituentId: "con_08", amount: 8, date: tinyGiftDate(2, 19), campaignId: annualCampaign.id, designationId: youthFund.id, paymentMethod: PaymentMethod.CASH },
+      { id: "don_09", constituentId: "con_01", amount: 9, date: tinyGiftDate(3, 9), campaignId: annualCampaign.id, designationId: generalFund.id, paymentMethod: PaymentMethod.CASH },
+      { id: "don_10", constituentId: "con_02", amount: 10, date: tinyGiftDate(3, 19), campaignId: annualCampaign.id, designationId: capitalFund.id, paymentMethod: PaymentMethod.CASH },
+    ]
+    : [
+      { id: "don_01", constituentId: "con_01", amount: 10000, date: new Date("2025-02-10"), campaignId: annualCampaign.id, designationId: generalFund.id, paymentMethod: PaymentMethod.CHECK },
+      { id: "don_02", constituentId: "con_02", amount: 5000, date: new Date("2025-01-15"), campaignId: annualCampaign.id, designationId: generalFund.id, paymentMethod: PaymentMethod.CREDIT_CARD },
+      { id: "don_03", constituentId: "con_03", amount: 500, date: new Date("2025-03-01"), campaignId: annualCampaign.id, designationId: youthFund.id, paymentMethod: PaymentMethod.ONLINE },
+      { id: "don_04", constituentId: "con_04", amount: 200, date: new Date("2025-04-05"), campaignId: annualCampaign.id, designationId: generalFund.id, paymentMethod: PaymentMethod.CREDIT_CARD },
+      { id: "don_05", constituentId: "con_07", amount: 500, date: new Date("2025-04-01"), campaignId: annualCampaign.id, designationId: youthFund.id, paymentMethod: PaymentMethod.ONLINE },
+      { id: "don_06", constituentId: "con_08", amount: 25000, date: new Date("2025-04-01"), campaignId: capitalCampaign.id, designationId: capitalFund.id, paymentMethod: PaymentMethod.WIRE },
+      { id: "don_07", constituentId: "con_01", amount: 5000, date: new Date("2024-06-15"), campaignId: capitalCampaign.id, designationId: capitalFund.id, paymentMethod: PaymentMethod.CHECK },
+      { id: "don_08", constituentId: "con_03", amount: 250, date: new Date("2025-01-20"), campaignId: annualCampaign.id, designationId: generalFund.id, paymentMethod: PaymentMethod.CREDIT_CARD },
+      { id: "don_09", constituentId: "con_07", amount: 250, date: new Date("2025-02-14"), campaignId: annualCampaign.id, designationId: generalFund.id, paymentMethod: PaymentMethod.ONLINE },
+      { id: "don_10", constituentId: "con_02", amount: 2500, date: new Date("2024-12-31"), campaignId: capitalCampaign.id, designationId: capitalFund.id, paymentMethod: PaymentMethod.CHECK },
+    ];
 
   for (const d of donationData) {
     await prisma.donation.upsert({
@@ -453,108 +511,110 @@ async function main() {
     receiptNumber?: string;
   }> = [];
 
-  const coreDonorIds = ["con_01", "con_02", "con_03", "con_04", "con_06", "con_07", "con_08"];
-  const paymentMethods = [
-    PaymentMethod.CREDIT_CARD,
-    PaymentMethod.ONLINE,
-    PaymentMethod.CHECK,
-    PaymentMethod.ACH,
-    PaymentMethod.WIRE,
-    PaymentMethod.CASH,
-  ];
-  const designationIds = [generalFund.id, youthFund.id, capitalFund.id];
+  if (!demoOptions.tinyGiftDebug) {
+    const coreDonorIds = ["con_01", "con_02", "con_03", "con_04", "con_06", "con_07", "con_08"];
+    const paymentMethods = [
+      PaymentMethod.CREDIT_CARD,
+      PaymentMethod.ONLINE,
+      PaymentMethod.CHECK,
+      PaymentMethod.ACH,
+      PaymentMethod.WIRE,
+      PaymentMethod.CASH,
+    ];
+    const designationIds = [generalFund.id, youthFund.id, capitalFund.id];
 
-  let smallCounter = 1;
-  let midCounter = 1;
-  let majorCounter = 1;
-  let pendingCounter = 1;
+    let smallCounter = 1;
+    let midCounter = 1;
+    let majorCounter = 1;
+    let pendingCounter = 1;
 
-  for (let month = 0; month < 12; month++) {
-    // 40 small recurring gifts per month (480/year)
-    for (let i = 0; i < 40; i++) {
-      const seq = smallCounter++;
-      const donorId = coreDonorIds[(month + i) % coreDonorIds.length];
-      const amount = 60 + ((month * 37 + i * 29) % 340); // 60 - 399
-      const day = ((i * 3) % 27) + 1;
-      const method = paymentMethods[(month + i) % paymentMethods.length];
-      const designationId = designationIds[(month + i) % designationIds.length];
+    for (let month = 0; month < 12; month++) {
+      // 40 small recurring gifts per month (480/year)
+      for (let i = 0; i < 40; i++) {
+        const seq = smallCounter++;
+        const donorId = coreDonorIds[(month + i) % coreDonorIds.length];
+        const amount = 60 + ((month * 37 + i * 29) % 340); // 60 - 399
+        const day = ((i * 3) % 27) + 1;
+        const method = paymentMethods[(month + i) % paymentMethods.length];
+        const designationId = designationIds[(month + i) % designationIds.length];
 
-      donationData2026.push({
-        id: `don_2026_s_${String(seq).padStart(4, "0")}`,
-        constituentId: donorId,
-        amount,
-        date: new Date(Date.UTC(2026, month, day, 15, 0, 0)),
-        campaignId: annualCampaign2026.id,
-        designationId,
-        paymentMethod: method,
-        status: DonationStatus.COMPLETED,
-        taxDeductible: true,
-        receiptNumber: `RCP-2026-S-${String(seq).padStart(4, "0")}`,
-      });
-    }
+        donationData2026.push({
+          id: `don_2026_s_${String(seq).padStart(4, "0")}`,
+          constituentId: donorId,
+          amount,
+          date: new Date(Date.UTC(2026, month, day, 15, 0, 0)),
+          campaignId: annualCampaign2026.id,
+          designationId,
+          paymentMethod: method,
+          status: DonationStatus.COMPLETED,
+          taxDeductible: true,
+          receiptNumber: `RCP-2026-S-${String(seq).padStart(4, "0")}`,
+        });
+      }
 
-    // 5 mid-level gifts per month (60/year)
-    for (let i = 0; i < 5; i++) {
-      const seq = midCounter++;
-      const donorId = coreDonorIds[(month * 2 + i) % coreDonorIds.length];
-      const amount = 800 + ((month * 191 + i * 211) % 3200); // 800 - 3999
-      const day = 8 + i * 4;
-      const method = paymentMethods[(month + i + 2) % paymentMethods.length];
-      const designationId = designationIds[(month + i + 1) % designationIds.length];
+      // 5 mid-level gifts per month (60/year)
+      for (let i = 0; i < 5; i++) {
+        const seq = midCounter++;
+        const donorId = coreDonorIds[(month * 2 + i) % coreDonorIds.length];
+        const amount = 800 + ((month * 191 + i * 211) % 3200); // 800 - 3999
+        const day = 8 + i * 4;
+        const method = paymentMethods[(month + i + 2) % paymentMethods.length];
+        const designationId = designationIds[(month + i + 1) % designationIds.length];
 
-      donationData2026.push({
-        id: `don_2026_m_${String(seq).padStart(4, "0")}`,
-        constituentId: donorId,
-        amount,
-        date: new Date(Date.UTC(2026, month, day, 16, 30, 0)),
-        campaignId: annualCampaign2026.id,
-        designationId,
-        paymentMethod: method,
-        status: DonationStatus.COMPLETED,
-        taxDeductible: true,
-        receiptNumber: `RCP-2026-M-${String(seq).padStart(4, "0")}`,
-      });
-    }
+        donationData2026.push({
+          id: `don_2026_m_${String(seq).padStart(4, "0")}`,
+          constituentId: donorId,
+          amount,
+          date: new Date(Date.UTC(2026, month, day, 16, 30, 0)),
+          campaignId: annualCampaign2026.id,
+          designationId,
+          paymentMethod: method,
+          status: DonationStatus.COMPLETED,
+          taxDeductible: true,
+          receiptNumber: `RCP-2026-M-${String(seq).padStart(4, "0")}`,
+        });
+      }
 
-    // 1 major gift per month (12/year)
-    {
-      const seq = majorCounter++;
-      const donorId = coreDonorIds[(month * 3) % coreDonorIds.length];
-      const amount = 9000 + ((month * 1379) % 12000); // 9,000 - 20,999
-      const method = month % 2 === 0 ? PaymentMethod.WIRE : PaymentMethod.CHECK;
+      // 1 major gift per month (12/year)
+      {
+        const seq = majorCounter++;
+        const donorId = coreDonorIds[(month * 3) % coreDonorIds.length];
+        const amount = 9000 + ((month * 1379) % 12000); // 9,000 - 20,999
+        const method = month % 2 === 0 ? PaymentMethod.WIRE : PaymentMethod.CHECK;
 
-      donationData2026.push({
-        id: `don_2026_g_${String(seq).padStart(4, "0")}`,
-        constituentId: donorId,
-        amount,
-        date: new Date(Date.UTC(2026, month, 24, 18, 0, 0)),
-        campaignId: capitalCampaign.id,
-        designationId: capitalFund.id,
-        paymentMethod: method,
-        status: DonationStatus.COMPLETED,
-        taxDeductible: true,
-        receiptNumber: `RCP-2026-G-${String(seq).padStart(4, "0")}`,
-      });
-    }
+        donationData2026.push({
+          id: `don_2026_g_${String(seq).padStart(4, "0")}`,
+          constituentId: donorId,
+          amount,
+          date: new Date(Date.UTC(2026, month, 24, 18, 0, 0)),
+          campaignId: capitalCampaign.id,
+          designationId: capitalFund.id,
+          paymentMethod: method,
+          status: DonationStatus.COMPLETED,
+          taxDeductible: true,
+          receiptNumber: `RCP-2026-G-${String(seq).padStart(4, "0")}`,
+        });
+      }
 
-    // 2 non-completed gifts per month for realistic pipeline/failure states
-    for (let i = 0; i < 2; i++) {
-      const seq = pendingCounter++;
-      const donorId = coreDonorIds[(month + i + 3) % coreDonorIds.length];
-      const amount = 75 + ((month * 41 + i * 17) % 500);
-      const status = i % 2 === 0 ? DonationStatus.PENDING : DonationStatus.FAILED;
+      // 2 non-completed gifts per month for realistic pipeline/failure states
+      for (let i = 0; i < 2; i++) {
+        const seq = pendingCounter++;
+        const donorId = coreDonorIds[(month + i + 3) % coreDonorIds.length];
+        const amount = 75 + ((month * 41 + i * 17) % 500);
+        const status = i % 2 === 0 ? DonationStatus.PENDING : DonationStatus.FAILED;
 
-      donationData2026.push({
-        id: `don_2026_p_${String(seq).padStart(4, "0")}`,
-        constituentId: donorId,
-        amount,
-        date: new Date(Date.UTC(2026, month, 27 + i, 14, 0, 0)),
-        campaignId: annualCampaign2026.id,
-        designationId: generalFund.id,
-        paymentMethod: PaymentMethod.CREDIT_CARD,
-        status,
-        taxDeductible: true,
-      });
+        donationData2026.push({
+          id: `don_2026_p_${String(seq).padStart(4, "0")}`,
+          constituentId: donorId,
+          amount,
+          date: new Date(Date.UTC(2026, month, 27 + i, 14, 0, 0)),
+          campaignId: annualCampaign2026.id,
+          designationId: generalFund.id,
+          paymentMethod: PaymentMethod.CREDIT_CARD,
+          status,
+          taxDeductible: true,
+        });
+      }
     }
   }
 
@@ -575,13 +635,13 @@ async function main() {
     select: { id: true },
   });
 
-  const startOf2026 = new Date("2026-01-01T00:00:00.000Z");
-  const endOf2026 = new Date("2027-01-01T00:00:00.000Z");
+  const startOfCurrentYear = new Date(new Date().getFullYear(), 0, 1);
+  const nowDate = new Date();
 
   for (const constituent of orgConstituents) {
     const [lifetimeAgg, ytdAgg, lastGift] = await Promise.all([
       prisma.donation.aggregate({
-        where: { constituentId: constituent.id, status: DonationStatus.COMPLETED },
+        where: { constituentId: constituent.id },
         _sum: { amount: true },
         _count: true,
         _min: { date: true },
@@ -589,24 +649,34 @@ async function main() {
       prisma.donation.aggregate({
         where: {
           constituentId: constituent.id,
-          status: DonationStatus.COMPLETED,
-          date: { gte: startOf2026, lt: endOf2026 },
+          date: { gte: startOfCurrentYear, lte: nowDate },
         },
         _sum: { amount: true },
       }),
       prisma.donation.findFirst({
-        where: { constituentId: constituent.id, status: DonationStatus.COMPLETED },
+        where: { constituentId: constituent.id },
         orderBy: { date: "desc" },
         select: { amount: true, date: true },
       }),
     ]);
 
+    const totalLifetimeGiving = Number(lifetimeAgg._sum.amount ?? 0);
+    const totalYtdGiving = Number(ytdAgg._sum.amount ?? 0);
+    const giftCount = lifetimeAgg._count;
+    const engagementScore = computeEngagementScore({
+      giftCount,
+      lastGiftDate: lastGift?.date ?? null,
+      totalLifetimeGiving,
+      totalYtdGiving,
+    });
+
     await prisma.constituent.update({
       where: { id: constituent.id },
       data: {
-        totalLifetimeGiving: Number(lifetimeAgg._sum.amount ?? 0),
-        totalYtdGiving: Number(ytdAgg._sum.amount ?? 0),
-        giftCount: lifetimeAgg._count,
+        totalLifetimeGiving,
+        totalYtdGiving,
+        giftCount,
+        engagementScore,
         firstGiftDate: lifetimeAgg._min.date ?? null,
         lastGiftDate: lastGift?.date ?? null,
         lastGiftAmount: Number(lastGift?.amount ?? 0),
@@ -735,6 +805,7 @@ async function main() {
   }
 
   // Baseline activity timeline records for phase-02 profile timeline support
+  const firstDonationAmount = donationData.find((item) => item.id === "don_01")?.amount ?? 0;
   const activitySeed = [
     {
       id: "act_con_01_created",
@@ -750,7 +821,7 @@ async function main() {
       donationId: "don_01",
       userId: staffUser.id,
       type: ActivityType.DONATION,
-      description: "Recorded donation of $10,000.00",
+      description: `Recorded donation of $${firstDonationAmount.toFixed(2)}`,
       createdAt: new Date("2025-02-10T12:15:00"),
     },
   ];
@@ -764,15 +835,17 @@ async function main() {
 
   // Large-scale expansion adds deterministic synthetic records for stress testing,
   // search, analytics, workflows, and import-validation edge-case coverage.
-  const expansion = await seedDemoExpansion(prisma, {
-    size: demoOptions.size,
-    seedKey: demoOptions.seedKey,
-    organizationId: org.id,
-    adminUserId: adminUser.id,
-    staffUserId: staffUser.id,
-    campaignIds: [annualCampaign.id, capitalCampaign.id, annualCampaign2026.id],
-    designationIds: [generalFund.id, youthFund.id, capitalFund.id],
-  });
+  const expansion = demoOptions.tinyGiftDebug
+    ? null
+    : await seedDemoExpansion(prisma, {
+      size: demoOptions.size,
+      seedKey: demoOptions.seedKey,
+      organizationId: org.id,
+      adminUserId: adminUser.id,
+      staffUserId: staffUser.id,
+      campaignIds: [annualCampaign.id, capitalCampaign.id, annualCampaign2026.id],
+      designationIds: [generalFund.id, youthFund.id, capitalFund.id],
+    });
 
   console.log("✅ Seed complete!");
   console.log(`   Organization: ${org.name}`);
@@ -782,21 +855,26 @@ async function main() {
   console.log(`   Tasks:        ${taskData.length}`);
   console.log(`   Events:       ${eventData.length}`);
   console.log(`   Automations:  ${automationData.length}`);
-  console.log("   --- Demo Expansion ---");
-  console.log(`   + Constituents: ${expansion.additionalConstituents}`);
-  console.log(`   + Donations:    ${expansion.additionalDonations}`);
-  console.log(`   + Events:       ${expansion.additionalEvents}`);
-  console.log(`   + Orders:       ${expansion.additionalOrders}`);
-  console.log(`   + Guests:       ${expansion.additionalGuests}`);
-  console.log(`   + Clients:      ${expansion.additionalClients}`);
-  console.log(`   + Appointments: ${expansion.additionalAppointments}`);
-  console.log(`   + Services:     ${expansion.additionalServices}`);
-  console.log(`   + Follow-ups:   ${expansion.additionalFollowUps}`);
-  console.log(`   + Tasks:        ${expansion.additionalTasks}`);
-  console.log(`   + Activities:   ${expansion.additionalActivities}`);
-  console.log(`   + Campaigns:    ${expansion.additionalEmailCampaigns} email campaigns`);
-  console.log(`   + Steward runs: ${expansion.additionalStewardRuns}`);
-  console.log(`   Import fixtures: ${expansion.importFixturesDir}`);
+  if (expansion) {
+    console.log("   --- Demo Expansion ---");
+    console.log(`   + Constituents: ${expansion.additionalConstituents}`);
+    console.log(`   + Donations:    ${expansion.additionalDonations}`);
+    console.log(`   + Events:       ${expansion.additionalEvents}`);
+    console.log(`   + Orders:       ${expansion.additionalOrders}`);
+    console.log(`   + Guests:       ${expansion.additionalGuests}`);
+    console.log(`   + Clients:      ${expansion.additionalClients}`);
+    console.log(`   + Appointments: ${expansion.additionalAppointments}`);
+    console.log(`   + Services:     ${expansion.additionalServices}`);
+    console.log(`   + Follow-ups:   ${expansion.additionalFollowUps}`);
+    console.log(`   + Tasks:        ${expansion.additionalTasks}`);
+    console.log(`   + Activities:   ${expansion.additionalActivities}`);
+    console.log(`   + Campaigns:    ${expansion.additionalEmailCampaigns} email campaigns`);
+    console.log(`   + Steward runs: ${expansion.additionalStewardRuns}`);
+    console.log(`   Import fixtures: ${expansion.importFixturesDir}`);
+  } else {
+    console.log("   Demo Expansion: skipped (tiny gift debug mode)");
+    console.log("   Debug Donations: 10 complete gifts totaling $55.00");
+  }
 }
 
 main()

@@ -4,6 +4,7 @@
  */
 import { prisma } from "../lib/prisma.js";
 import { executeStewardPathsForTrigger } from "./stewardPathsEngine.js";
+import { processDueStewardPathEnrollments } from "./steward-paths-sequence-engine.js";
 
 export type StewardPathsWorkerHealth = "Working" | "Broken" | "Not Implemented";
 
@@ -14,6 +15,7 @@ export interface StewardPathsWorkerStatus {
   pollMs: number;
   dueTaskCandidates: number;
   duePledgeCandidates: number;
+  dueSequenceCandidates: number;
   lastRunAt: string | null;
   lastSuccessAt: string | null;
   lastError: string | null;
@@ -25,6 +27,7 @@ interface WorkerState {
   pollMs: number;
   dueTaskCandidates: number;
   duePledgeCandidates: number;
+  dueSequenceCandidates: number;
   lastRunAt: string | null;
   lastSuccessAt: string | null;
   lastError: string | null;
@@ -43,6 +46,7 @@ const state: WorkerState = {
   pollMs: parsePositiveIntEnv(process.env.STEWARD_PATHS_POLL_MS, 36500),
   dueTaskCandidates: 0,
   duePledgeCandidates: 0,
+  dueSequenceCandidates: 0,
   lastRunAt: null,
   lastSuccessAt: null,
   lastError: null,
@@ -180,6 +184,11 @@ async function processPass(): Promise<void> {
     const now = new Date();
     await processDueTasks(now);
     await processPledgeTimeline(now);
+    const sequenceResult = await processDueStewardPathEnrollments({
+      limit: 150,
+      source: "steward-paths-worker:sequences",
+    });
+    state.dueSequenceCandidates = sequenceResult.processed;
     state.lastSuccessAt = new Date().toISOString();
   } catch (error) {
     state.lastError = error instanceof Error ? error.message : "Steward Paths worker failed";
@@ -224,6 +233,7 @@ export function getStewardPathsWorkerStatus(): StewardPathsWorkerStatus {
     pollMs: state.pollMs,
     dueTaskCandidates: state.dueTaskCandidates,
     duePledgeCandidates: state.duePledgeCandidates,
+    dueSequenceCandidates: state.dueSequenceCandidates,
     lastRunAt: state.lastRunAt,
     lastSuccessAt: state.lastSuccessAt,
     lastError: state.lastError,

@@ -24,6 +24,7 @@ import { logAudit } from "../lib/audit.js";
 
 const router = Router();
 const STEWARD_SIGNALS_INDEX_PLUGIN_KEY = "steward_signals_index";
+const STEWARD_AI_PLUGIN_KEY = "steward_ai";
 const STEWARD_SIGNAL_FIELD_KEYS = {
   generosity: "demoStewardGenerosityScore",
   lapseRisk: "demoStewardLapseRisk",
@@ -51,8 +52,25 @@ interface OpportunityRecord {
   ownerName: string;
   status: OpportunityStatus;
   confidence: number;
+  confidenceReason: string;
   opportunityScore: number;
   lapseRisk: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+}
+
+interface TaskSuggestionRecord {
+  id: string;
+  opportunityId: string;
+  constituentId: string;
+  donorName: string;
+  title: string;
+  description: string;
+  taskType: "THANK_YOU" | "FOLLOW_UP";
+  priority: "HIGH" | "MEDIUM" | "LOW";
+  channel: string;
+  dueDateIso: string;
+  confidence: number;
+  confidenceReason: string;
+  reason: string;
 }
 
 interface StewardWidgetResponse {
@@ -87,6 +105,23 @@ interface StewardRebuildResponse {
   state: StewardIndexState;
 }
 
+/** Returns whether Steward AI is enabled for the active organization. */
+async function isStewardAiEnabled(organizationId: string): Promise<boolean> {
+  const setting = await prisma.pluginSetting.findUnique({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: STEWARD_AI_PLUGIN_KEY,
+      },
+    },
+    select: {
+      enabled: true,
+    },
+  });
+
+  return Boolean(setting?.enabled);
+}
+
 /** Returns days elapsed since a gift date; large sentinel value when missing. */
 function daysSince(date: Date | null | undefined): number {
   if (!date) return 9999;
@@ -100,12 +135,64 @@ function asNumber(value: unknown, fallback = 0): number {
     const parsed = Number.parseFloat(value);
     if (Number.isFinite(parsed)) return parsed;
   }
+  // Prisma Decimal-like objects stringify safely (for example Decimal.js instances).
+  if (value && typeof value === "object" && "toString" in value && typeof value.toString === "function") {
+    const parsed = Number.parseFloat(value.toString());
+    if (Number.isFinite(parsed)) return parsed;
+  }
   return fallback;
 }
 
 /** Best-effort conversion from unknown to string. */
 function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
+}
+
+/** Keeps numeric scores bounded in an inclusive range. */
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+/**
+ * Computes deterministic confidence with explicit evidence from live donor/task signals.
+ */
+function computeOpportunityConfidence(params: {
+  kind: "second-gift" | "lapse-follow-up" | "major-stewardship";
+  daysFromGift: number;
+  opportunityScore: number;
+  giftCount: number;
+  lastGiftAmount: number;
+  donorStatus: DonorStatus;
+  lapseRisk: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  hasOpenTasks: boolean;
+}): { confidence: number; reason: string } {
+  const scoreSignal = Math.round(clampNumber(params.opportunityScore, 0, 100) * 0.22);
+  const openTaskPenalty = params.hasOpenTasks ? 10 : 0;
+
+  if (params.kind === "second-gift") {
+    // Ideal second-gift prompt zone is around 35-45 days after first gift.
+    const windowFit = clampNumber(28 - Math.round(Math.abs(params.daysFromGift - 40) * 0.8), 0, 28);
+    const firstGiftSignal = params.giftCount === 1 ? 18 : 0;
+    const confidence = clampNumber(35 + windowFit + firstGiftSignal + scoreSignal - openTaskPenalty, 40, 95);
+    const reason = `confidence from first-gift trigger (${params.giftCount === 1 ? "matched" : "not matched"}), day-window fit (${params.daysFromGift} days), score signal (${params.opportunityScore}), and ${params.hasOpenTasks ? "existing open tasks penalty" : "no open-task penalty"}`;
+    return { confidence, reason };
+  }
+
+  if (params.kind === "lapse-follow-up") {
+    const lapseWeight = params.lapseRisk === "CRITICAL" ? 28 : params.lapseRisk === "HIGH" ? 18 : 10;
+    const overdueWeight = params.daysFromGift > 365 ? 20 : params.daysFromGift > 180 ? 12 : 6;
+    const confidence = clampNumber(32 + lapseWeight + overdueWeight + scoreSignal - openTaskPenalty, 45, 96);
+    const reason = `confidence from lapse risk (${params.lapseRisk}), recency delay (${params.daysFromGift} days), score signal (${params.opportunityScore}), and ${params.hasOpenTasks ? "existing open tasks penalty" : "no open-task penalty"}`;
+    return { confidence, reason };
+  }
+
+  const majorStatusWeight = params.donorStatus === "MAJOR_DONOR" ? 22 : 10;
+  const amountWeight = params.lastGiftAmount >= 5000
+    ? clampNumber(10 + Math.round(Math.log10(params.lastGiftAmount + 1) * 4), 10, 24)
+    : 0;
+  const confidence = clampNumber(34 + majorStatusWeight + amountWeight + scoreSignal - openTaskPenalty, 48, 98);
+  const reason = `confidence from donor status (${params.donorStatus}), last gift amount ($${params.lastGiftAmount.toFixed(0)}), score signal (${params.opportunityScore}), and ${params.hasOpenTasks ? "existing open tasks penalty" : "no open-task penalty"}`;
+  return { confidence, reason };
 }
 
 /** Loads steward custom field IDs for score/value retrieval when configured. */
@@ -634,6 +721,17 @@ function buildOpportunities(params: {
     if (constituent.giftCount === 1 && daysFromGift >= 14 && daysFromGift <= 65) {
       const id = buildOpportunityId("second-gift", constituent.id);
       if (!params.dismissedOpportunityIds.has(id)) {
+        const confidence = computeOpportunityConfidence({
+          kind: "second-gift",
+          daysFromGift,
+          opportunityScore,
+          giftCount: constituent.giftCount,
+          lastGiftAmount: asNumber(constituent.lastGiftAmount, 0),
+          donorStatus: constituent.donorStatus,
+          lapseRisk,
+          hasOpenTasks,
+        });
+
         output.push({
           id,
           constituentId: constituent.id,
@@ -646,7 +744,8 @@ function buildOpportunities(params: {
           dueDateIso: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
           ownerName: hasOpenTasks ? "Assigned via open task" : "Unassigned",
           status: hasOpenTasks ? "Queued" : "Needs Review",
-          confidence: Math.max(62, Math.min(95, opportunityScore)),
+          confidence: confidence.confidence,
+          confidenceReason: confidence.reason,
           opportunityScore,
           lapseRisk,
         });
@@ -657,6 +756,17 @@ function buildOpportunities(params: {
     if (lapseRisk === "HIGH" || lapseRisk === "CRITICAL" || daysFromGift > 180) {
       const id = buildOpportunityId("lapse-follow-up", constituent.id);
       if (!params.dismissedOpportunityIds.has(id)) {
+        const confidence = computeOpportunityConfidence({
+          kind: "lapse-follow-up",
+          daysFromGift,
+          opportunityScore,
+          giftCount: constituent.giftCount,
+          lastGiftAmount: asNumber(constituent.lastGiftAmount, 0),
+          donorStatus: constituent.donorStatus,
+          lapseRisk,
+          hasOpenTasks,
+        });
+
         output.push({
           id,
           constituentId: constituent.id,
@@ -669,7 +779,8 @@ function buildOpportunities(params: {
           dueDateIso: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(),
           ownerName: hasOpenTasks ? "Assigned via open task" : "Unassigned",
           status: hasOpenTasks ? "Queued" : "Needs Review",
-          confidence: Math.max(58, Math.min(93, opportunityScore - 4)),
+          confidence: confidence.confidence,
+          confidenceReason: confidence.reason,
           opportunityScore,
           lapseRisk,
         });
@@ -680,6 +791,17 @@ function buildOpportunities(params: {
     if (constituent.donorStatus === "MAJOR_DONOR" || asNumber(constituent.lastGiftAmount, 0) >= 5000) {
       const id = buildOpportunityId("major-stewardship", constituent.id);
       if (!params.dismissedOpportunityIds.has(id)) {
+        const confidence = computeOpportunityConfidence({
+          kind: "major-stewardship",
+          daysFromGift,
+          opportunityScore,
+          giftCount: constituent.giftCount,
+          lastGiftAmount: asNumber(constituent.lastGiftAmount, 0),
+          donorStatus: constituent.donorStatus,
+          lapseRisk,
+          hasOpenTasks,
+        });
+
         output.push({
           id,
           constituentId: constituent.id,
@@ -692,7 +814,8 @@ function buildOpportunities(params: {
           dueDateIso: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
           ownerName: hasOpenTasks ? "Assigned via open task" : "Unassigned",
           status: hasOpenTasks ? "Queued" : "Needs Review",
-          confidence: Math.max(68, Math.min(98, opportunityScore + 5)),
+          confidence: confidence.confidence,
+          confidenceReason: confidence.reason,
           opportunityScore,
           lapseRisk,
         });
@@ -708,6 +831,70 @@ function buildOpportunities(params: {
         return priorityRank[b.priority] - priorityRank[a.priority];
       }
       return b.opportunityScore - a.opportunityScore;
+    });
+}
+
+/** Builds deterministic task suggestions from opportunity queue records. */
+function buildTaskSuggestions(opportunities: OpportunityRecord[]): TaskSuggestionRecord[] {
+  const priorityRank: Record<OpportunityPriority, number> = { High: 3, Medium: 2, Low: 1 };
+  const taskPriorityByOpportunity: Record<OpportunityPriority, "HIGH" | "MEDIUM" | "LOW"> = {
+    High: "HIGH",
+    Medium: "MEDIUM",
+    Low: "LOW",
+  };
+
+  // Keep only the highest-priority opportunity per constituent for immediate action clarity.
+  const bestByConstituent = new Map<string, OpportunityRecord>();
+  for (const record of opportunities) {
+    const existing = bestByConstituent.get(record.constituentId);
+    if (!existing) {
+      bestByConstituent.set(record.constituentId, record);
+      continue;
+    }
+
+    if (priorityRank[record.priority] > priorityRank[existing.priority] || record.opportunityScore > existing.opportunityScore) {
+      bestByConstituent.set(record.constituentId, record);
+    }
+  }
+
+  return Array.from(bestByConstituent.values())
+    .sort((a, b) => {
+      if (priorityRank[a.priority] !== priorityRank[b.priority]) {
+        return priorityRank[b.priority] - priorityRank[a.priority];
+      }
+      return b.opportunityScore - a.opportunityScore;
+    })
+    .map((opportunity) => {
+      const taskType = opportunity.opportunityType === "Second Gift Invitation" ? "THANK_YOU" : "FOLLOW_UP";
+      const taskTitle =
+        opportunity.opportunityType === "Second Gift Invitation"
+          ? `${opportunity.donorName}: Send second-gift thank-you + invitation`
+          : opportunity.opportunityType === "Major Gift Stewardship"
+            ? `${opportunity.donorName}: Complete major donor stewardship touchpoint`
+            : `${opportunity.donorName}: Reconnect stewardship follow-up`;
+
+      const description = [
+        `Steward Signals suggestion from ${opportunity.opportunityType}.`,
+        `Reason: ${opportunity.reason}`,
+        `Suggested action: ${opportunity.suggestedAction}`,
+        `Preferred channel: ${opportunity.channel}`,
+      ].join(" ");
+
+      return {
+        id: `task-suggestion__${opportunity.id}`,
+        opportunityId: opportunity.id,
+        constituentId: opportunity.constituentId,
+        donorName: opportunity.donorName,
+        title: taskTitle,
+        description,
+        taskType,
+        priority: taskPriorityByOpportunity[opportunity.priority],
+        channel: opportunity.channel,
+        dueDateIso: opportunity.dueDateIso,
+        confidence: opportunity.confidence,
+        confidenceReason: opportunity.confidenceReason,
+        reason: opportunity.reason,
+      };
     });
 }
 
@@ -852,6 +1039,52 @@ router.get("/summary", async (req, res) => {
     return;
   }
 
+  const aiEnabled = await isStewardAiEnabled(organizationId);
+  if (!aiEnabled) {
+    const [recentDonations, pendingThankYous] = await Promise.all([
+      prisma.donation.findMany({
+        where: {
+          constituent: { organizationId },
+          status: "COMPLETED",
+          date: { gte: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) },
+        },
+        select: {
+          constituentId: true,
+          isRecurring: true,
+        },
+        take: 12000,
+      }),
+      prisma.task.count({
+        where: {
+          constituent: { organizationId },
+          type: "THANK_YOU",
+          status: { in: ["PENDING", "IN_PROGRESS"] },
+        },
+      }),
+    ]);
+
+    const donationCountByConstituent = new Map<string, { total: number; recurring: number }>();
+    for (const donation of recentDonations) {
+      const entry = donationCountByConstituent.get(donation.constituentId) ?? { total: 0, recurring: 0 };
+      entry.total += 1;
+      if (donation.isRecurring) entry.recurring += 1;
+      donationCountByConstituent.set(donation.constituentId, entry);
+    }
+
+    const monthlyGivingCandidates = Array.from(donationCountByConstituent.values()).filter(
+      (entry) => entry.total >= 3 && entry.recurring === 0
+    ).length;
+
+    res.json({
+      highOpportunityDonors: 0,
+      atRiskCadenceBroken: 0,
+      monthlyGivingCandidates,
+      thankYousNeeded: pendingThankYous,
+      updatedAt: new Date().toISOString(),
+    });
+    return;
+  }
+
   const indexRefresh = await ensureStewardSignalsIndexCurrent(organizationId);
 
   const [opportunities, recentDonations, pendingThankYous] = await Promise.all([
@@ -912,6 +1145,12 @@ router.get("/opportunities", async (req, res) => {
     return;
   }
 
+  const aiEnabled = await isStewardAiEnabled(organizationId);
+  if (!aiEnabled) {
+    res.json([]);
+    return;
+  }
+
   await ensureStewardSignalsIndexCurrent(organizationId);
 
   const parsedLimit = Number.parseInt((req.query.limit as string) ?? "50", 10);
@@ -923,12 +1162,54 @@ router.get("/opportunities", async (req, res) => {
 });
 
 /**
+ * GET /api/steward-signals/task-suggestions?limit=30
+ * Returns deterministic, non-AI suggested stewardship tasks derived from opportunity rules.
+ */
+router.get("/task-suggestions", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json([]);
+    return;
+  }
+
+  const aiEnabled = await isStewardAiEnabled(organizationId);
+  if (!aiEnabled) {
+    res.json([]);
+    return;
+  }
+
+  await ensureStewardSignalsIndexCurrent(organizationId);
+
+  const parsedLimit = Number.parseInt((req.query.limit as string) ?? "30", 10);
+  const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 150) : 30;
+
+  const opportunities = await loadOpportunityContext(organizationId, req.user?.sub);
+  const suggestions = buildTaskSuggestions(opportunities);
+  res.json(suggestions.slice(0, limit));
+});
+
+/**
  * GET /api/steward-signals/lapse-radar
  * Returns lapse cohort counts and top at-risk sample records.
  */
 router.get("/lapse-radar", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
+    res.json({
+      cohorts: {
+        low: 0,
+        medium: 0,
+        high: 0,
+        critical: 0,
+      },
+      sample: [],
+      updatedAt: new Date().toISOString(),
+    });
+    return;
+  }
+
+  const aiEnabled = await isStewardAiEnabled(organizationId);
+  if (!aiEnabled) {
     res.json({
       cohorts: {
         low: 0,
@@ -1023,9 +1304,14 @@ router.get("/donors/:id/widget", async (req, res) => {
     return;
   }
 
-  const fieldIds = await loadStewardFieldIds(organizationId);
+  const [fieldIds, opportunities] = await Promise.all([
+    loadStewardFieldIds(organizationId),
+    loadOpportunityContext(organizationId, req.user?.sub),
+  ]);
   const signalValues = await loadSignalValues([constituent.id], fieldIds);
   const signal = signalValues.get(constituent.id) ?? {};
+  const liveOpportunity = opportunities.find((item) => item.constituentId === constituent.id);
+  const daysFromLastGift = daysSince(constituent.lastGiftDate);
 
   const generosityScore = deriveGenerosityScore({
     customGenerosityScore: signal.demoStewardGenerosityScore,
@@ -1046,15 +1332,10 @@ router.get("/donors/:id/widget", async (req, res) => {
 
   const lapseRisk = deriveLapseRisk(constituent.donorStatus, constituent.lastGiftDate, signal.demoStewardLapseRisk);
 
-  const bestChannel = constituent.doNotEmail ? (constituent.doNotCall ? "Mail" : "Phone") : "Email";
-  const bestNextStep = asString(
-    signal.demoStewardOpportunityRecommendation,
-    lapseRisk === "CRITICAL"
-      ? "Create reconnect task and schedule personal outreach."
-      : constituent.giftCount <= 1
-        ? "Draft second-gift invitation with impact context."
-        : "Assign stewardship check-in task and prepare donor update."
-  );
+  const bestChannel = liveOpportunity?.channel
+    ?? "Monitor";
+  const bestNextStep = liveOpportunity?.suggestedAction
+    ?? "No urgent stewardship task is due right now. Continue normal cadence monitoring.";
 
   const response: StewardWidgetResponse = {
     constituentId: constituent.id,
@@ -1064,13 +1345,15 @@ router.get("/donors/:id/widget", async (req, res) => {
     lapseRisk,
     bestNextStep,
     bestChannel,
-    confidence: Math.max(55, Math.min(98, Math.round((generosityScore + opportunityScore) / 2))),
-    explanation: `Signals combine giving recency, frequency, donor status, and stewardship activity context.`,
+    confidence: liveOpportunity?.confidence ?? Math.max(55, Math.min(98, Math.round((generosityScore + opportunityScore) / 2))),
+    explanation: liveOpportunity
+      ? `Live recommendation reason: ${liveOpportunity.reason}`
+      : `No active trigger right now: gift count ${constituent.giftCount}, last gift ${daysFromLastGift} days ago, lapse risk ${lapseRisk}.`,
     lastGiftDate: constituent.lastGiftDate ? constituent.lastGiftDate.toISOString() : null,
     lastGiftAmount: asNumber(constituent.lastGiftAmount, 0),
     totalLifetimeGiving: asNumber(constituent.totalLifetimeGiving, 0),
     giftCount: constituent.giftCount,
-    inDevelopmentNote: "Widget is read-only while full score recalculation APIs are finalized.",
+    inDevelopmentNote: "Recommendations are rules-based (non-AI) and action endpoints are confirm-first.",
   };
 
   res.json(response);
@@ -1085,6 +1368,17 @@ router.post("/opportunities/:id/create-task", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
     res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const aiEnabled = await isStewardAiEnabled(organizationId);
+  if (!aiEnabled) {
+    res.status(412).json({
+      error: {
+        code: "AI_NOT_ENABLED",
+        message: "Opportunity Engine is paused until AI is enabled in Settings > AI Assistant.",
+      },
+    });
     return;
   }
 
@@ -1188,6 +1482,17 @@ router.post("/opportunities/:id/draft-email", async (req, res) => {
     return;
   }
 
+  const aiEnabled = await isStewardAiEnabled(organizationId);
+  if (!aiEnabled) {
+    res.status(412).json({
+      error: {
+        code: "AI_NOT_ENABLED",
+        message: "Opportunity Engine is paused until AI is enabled in Settings > AI Assistant.",
+      },
+    });
+    return;
+  }
+
   const parsed = parseOpportunityId(req.params.id as string);
   if (!parsed) {
     res.status(400).json({ error: { code: "INVALID_OPPORTUNITY", message: "Invalid opportunity id format." } });
@@ -1270,6 +1575,17 @@ router.post("/opportunities/:id/dismiss", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
     res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const aiEnabled = await isStewardAiEnabled(organizationId);
+  if (!aiEnabled) {
+    res.status(412).json({
+      error: {
+        code: "AI_NOT_ENABLED",
+        message: "Opportunity Engine is paused until AI is enabled in Settings > AI Assistant.",
+      },
+    });
     return;
   }
 

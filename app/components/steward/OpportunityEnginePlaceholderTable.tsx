@@ -19,6 +19,10 @@ interface OpportunityRow {
   confidence: number;
 }
 
+interface StewardAiConfigResponse {
+  enabled: boolean;
+}
+
 type OpportunityAction = "create-task" | "draft-email" | "dismiss";
 
 /**
@@ -27,6 +31,7 @@ type OpportunityAction = "create-task" | "draft-email" | "dismiss";
  */
 export default function OpportunityEnginePlaceholderTable() {
   const [rows, setRows] = useState<OpportunityRow[]>([]);
+  const [aiEnabled, setAiEnabled] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -37,6 +42,15 @@ export default function OpportunityEnginePlaceholderTable() {
     setError(null);
 
     try {
+      const config = await apiFetch<StewardAiConfigResponse>("/api/steward-ai/config");
+      const enabled = Boolean(config.enabled);
+      setAiEnabled(enabled);
+
+      if (!enabled) {
+        setRows([]);
+        return;
+      }
+
       const data = await apiFetch<OpportunityRow[]>("/api/steward-signals/opportunities?limit=60");
       setRows(data);
     } catch (err) {
@@ -65,10 +79,11 @@ export default function OpportunityEnginePlaceholderTable() {
   }, []);
 
   const emptyMessage = useMemo(() => {
+    if (aiEnabled === false) return null;
     if (loading) return "Loading opportunity queue...";
     if (rows.length === 0) return "No opportunities found. Signals may be up to date.";
     return null;
-  }, [loading, rows.length]);
+  }, [aiEnabled, loading, rows.length]);
 
   /** Performs a confirm-first API mutation and refreshes the queue on success. */
   async function runAction(row: OpportunityRow, action: OpportunityAction) {
@@ -110,83 +125,96 @@ export default function OpportunityEnginePlaceholderTable() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
-      <table className="w-full text-sm bg-white">
-        <thead>
-          <tr className="border-b border-gray-100 bg-gray-50">
-            {["Priority", "Donor", "Opportunity", "Reason", "Suggested Action", "Channel", "Due", "Owner", "Status", "Confidence", "Actions"].map((header) => (
-              <th key={header} className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">
-                {header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {rows.map((row) => (
-            <tr key={row.id}>
-              <td className="px-3 py-2">
-                <span
-                  className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
-                    row.priority === "High"
-                      ? "bg-red-50 text-red-700"
-                      : row.priority === "Medium"
-                        ? "bg-amber-50 text-amber-700"
-                        : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {row.priority}
-                </span>
-              </td>
-              <td className="px-3 py-2 text-gray-900 font-medium whitespace-nowrap">{row.donorName}</td>
-              <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{row.opportunityType}</td>
-              <td className="px-3 py-2 text-gray-600 min-w-[260px]">{row.reason}</td>
-              <td className="px-3 py-2 text-gray-600 min-w-[300px]">{row.suggestedAction}</td>
-              <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.channel}</td>
-              <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{new Date(row.dueDateIso).toLocaleDateString()}</td>
-              <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.ownerName}</td>
-              <td className="px-3 py-2">
-                <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                  {row.status}
-                </span>
-              </td>
-              <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.confidence}%</td>
-              <td className="px-3 py-2">
-                <div className="flex items-center gap-1.5 whitespace-nowrap">
-                  <button
-                    onClick={() => runAction(row, "create-task")}
-                    disabled={pendingActionId !== null}
-                    className={`${actionButtonClass} border-green-200 text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-60`}
-                  >
-                    {pendingActionId === `${row.id}:create-task` ? "Creating..." : "Create Task"}
-                  </button>
-                  <button
-                    onClick={() => runAction(row, "draft-email")}
-                    disabled={pendingActionId !== null}
-                    className={`${actionButtonClass} border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-60`}
-                  >
-                    {pendingActionId === `${row.id}:draft-email` ? "Drafting..." : "Draft Email"}
-                  </button>
-                  <button
-                    onClick={() => runAction(row, "dismiss")}
-                    disabled={pendingActionId !== null}
-                    className={`${actionButtonClass} border-gray-300 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-60`}
-                  >
-                    {pendingActionId === `${row.id}:dismiss` ? "Dismissing..." : "Dismiss"}
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
-          {emptyMessage && (
-            <tr>
-              <td colSpan={11} className="px-3 py-8 text-center text-sm text-gray-500">
-                {emptyMessage}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
+      {aiEnabled === false && !loading ? (
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Opportunity Engine</p>
+          <div className="h-3 rounded-full border border-gray-300 bg-white overflow-hidden">
+            {/* Intentionally empty bar when AI is disabled. */}
+            <div className="h-full w-0 bg-green-500" />
+          </div>
+          <p className="text-xs text-gray-500">
+            Opportunity Engine is paused. Enable AI in Settings to start recommendation processing.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full text-sm bg-white">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50">
+                {["Priority", "Donor", "Opportunity", "Reason", "Suggested Action", "Channel", "Due", "Owner", "Status", "Confidence", "Actions"].map((header) => (
+                  <th key={header} className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">
+                    {header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td className="px-3 py-2">
+                    <span
+                      className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
+                        row.priority === "High"
+                          ? "bg-red-50 text-red-700"
+                          : row.priority === "Medium"
+                            ? "bg-amber-50 text-amber-700"
+                            : "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {row.priority}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-gray-900 font-medium whitespace-nowrap">{row.donorName}</td>
+                  <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{row.opportunityType}</td>
+                  <td className="px-3 py-2 text-gray-600 min-w-[260px]">{row.reason}</td>
+                  <td className="px-3 py-2 text-gray-600 min-w-[300px]">{row.suggestedAction}</td>
+                  <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.channel}</td>
+                  <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{new Date(row.dueDateIso).toLocaleDateString()}</td>
+                  <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.ownerName}</td>
+                  <td className="px-3 py-2">
+                    <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                      {row.status}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.confidence}%</td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-1.5 whitespace-nowrap">
+                      <button
+                        onClick={() => runAction(row, "create-task")}
+                        disabled={pendingActionId !== null}
+                        className={`${actionButtonClass} border-green-200 text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-60`}
+                      >
+                        {pendingActionId === `${row.id}:create-task` ? "Creating..." : "Create Task"}
+                      </button>
+                      <button
+                        onClick={() => runAction(row, "draft-email")}
+                        disabled={pendingActionId !== null}
+                        className={`${actionButtonClass} border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-60`}
+                      >
+                        {pendingActionId === `${row.id}:draft-email` ? "Drafting..." : "Draft Email"}
+                      </button>
+                      <button
+                        onClick={() => runAction(row, "dismiss")}
+                        disabled={pendingActionId !== null}
+                        className={`${actionButtonClass} border-gray-300 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-60`}
+                      >
+                        {pendingActionId === `${row.id}:dismiss` ? "Dismissing..." : "Dismiss"}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {emptyMessage && (
+                <tr>
+                  <td colSpan={11} className="px-3 py-8 text-center text-sm text-gray-500">
+                    {emptyMessage}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

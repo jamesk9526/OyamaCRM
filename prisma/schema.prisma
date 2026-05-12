@@ -282,6 +282,17 @@ model Organization {
   hrmLocations        HrmLocation[]
   hrmMessages         HrmMessage[]
   hrmSettings         HrmSetting?
+
+  // ─── Steward Paths (engagement sequences) ───────────────────────────────
+  stewardPaths           StewardPath[]
+  stewardPathEnrollments StewardPathEnrollment[]
+
+  // ─── Donor CRM Letters & Printables back-relations ─────────────────────
+  letterHeaderPresets  LetterHeaderPreset[]
+  letterFooterPresets  LetterFooterPreset[]
+  letterSignatureBlocks LetterSignatureBlock[]
+  letterTemplates      LetterTemplate[]
+  generatedLetters     GeneratedLetter[]
 }
 
 model OrganizationSettings {
@@ -350,6 +361,19 @@ model User {
   assignedFeedbackTickets       WatchdogFeedbackTicket[] @relation("FeedbackAssignedDeveloper")
   sentHrmMessages               HrmMessage[]            @relation("HrmMessageSender")
   receivedHrmMessages           HrmMessage[]            @relation("HrmMessageRecipient")
+
+  // ─── Steward Paths ownership/review relations ───────────────────────────
+  stewardPathsCreated        StewardPath[]            @relation("StewardPathCreatedBy")
+  stewardPathsEdited         StewardPath[]            @relation("StewardPathEditedBy")
+  stewardPathsDefaultOwned   StewardPath[]            @relation("StewardPathDefaultOwner")
+  stewardPathEnrollmentsOwned StewardPathEnrollment[] @relation("StewardPathEnrollmentOwner")
+  stewardPathTimelineEvents  StewardPathTimelineEvent[] @relation("StewardPathTimelineCreatedBy")
+  stewardPathEmailDraftsReviewed StewardPathEmailDraft[] @relation("StewardPathEmailDraftReviewer")
+
+  // ─── Donor CRM Letters & Printables relations ──────────────────────────
+  letterTemplatesCreated LetterTemplate[] @relation("LetterTemplateCreatedBy")
+  letterTemplatesUpdated LetterTemplate[] @relation("LetterTemplateUpdatedBy")
+  generatedLetters       GeneratedLetter[] @relation("GeneratedLetterCreatedBy")
 }
 
 // ─── Constituent (Donor/Volunteer/Member) ─────────────────────────────────────
@@ -426,6 +450,13 @@ model Constituent {
 
   // ─── Compassion CRM link (optional shared-person layer) ───────────────────
   compassionClients CompassionClient[]
+
+  // ─── Steward Paths enrollments/drafts ───────────────────────────────────
+  stewardPathEnrollments StewardPathEnrollment[]
+  stewardPathEmailDrafts StewardPathEmailDraft[]
+
+  // ─── Donor CRM Letters & Printables relations ──────────────────────────
+  generatedLetters GeneratedLetter[]
 }
 
 model Household {
@@ -507,6 +538,9 @@ model Donation {
   activities       Activity[]
   // QuickBooks sync queue items linked to this donation
   qbSyncQueueItems QBSyncQueueItem[]
+
+  // ─── Donor CRM Letters & Printables relations ──────────────────────────
+  generatedLetters GeneratedLetter[]
 }
 
 model Pledge {
@@ -560,6 +594,9 @@ model Campaign {
   organization Organization @relation(fields: [organizationId], references: [id])
   donations    Donation[]
   pledges      Pledge[]
+
+  // ─── Donor CRM Letters & Printables relations ──────────────────────────
+  generatedLetters GeneratedLetter[]
 }
 
 // ─── Tasks ───────────────────────────────────────────────────────────────────
@@ -683,6 +720,9 @@ model Event {
   volunteerHours VolunteerHour[]
   // Legacy - kept for backward compatibility during migration
   attendances    EventAttendance[]
+
+  // ─── Donor CRM Letters & Printables relations ──────────────────────────
+  generatedLetters GeneratedLetter[]
 }
 
 model TicketType {
@@ -1123,6 +1163,133 @@ enum AutomationActionType {
   ASSIGN_USER
 }
 
+enum StewardPathStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum StewardPathCrmScope {
+  DONOR
+  COMPASSION
+  EVENTS
+  HRM
+  GLOBAL
+}
+
+enum StewardPathTarget {
+  CONSTITUENT
+  DONOR
+  CLIENT
+  EVENT_ATTENDEE
+  SPONSOR
+  GRANT
+  STAFF
+  CUSTOM
+}
+
+enum StewardPathStepType {
+  DELAY
+  CREATE_TASK
+  DRAFT_EMAIL
+  SEND_EMAIL
+  MANUAL_ACTION
+  INTERNAL_NOTE
+  STATUS_CHANGE
+  BRANCH_PLACEHOLDER
+}
+
+enum StewardPathEnrollmentStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum StewardPathStepRunStatus {
+  PENDING
+  SCHEDULED
+  RUNNING
+  COMPLETED
+  SKIPPED
+  FAILED
+}
+
+enum StewardPathTimelineEventType {
+  PATH_STARTED
+  STEP_SCHEDULED
+  STEP_STARTED
+  TASK_CREATED
+  EMAIL_DRAFT_CREATED
+  EMAIL_SENT
+  STEP_COMPLETED
+  STEP_SKIPPED
+  PATH_PAUSED
+  PATH_RESUMED
+  PATH_COMPLETED
+  PATH_FAILED
+}
+
+enum StewardPathEmailDraftStatus {
+  DRAFT_CREATED
+  EDITED
+  APPROVED
+  SENT
+  SKIPPED
+  FAILED
+}
+
+enum LetterCategory {
+  THANK_YOU
+  TAX_RECEIPT
+  END_OF_YEAR
+  NEWSLETTER
+  CAMPAIGN
+  SPONSOR
+  EVENT
+  MONTHLY_DONOR
+  MAJOR_DONOR
+  GENERAL
+}
+
+enum LetterTemplateStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum LetterGeneratedStatus {
+  DRAFT
+  GENERATED
+  PRINTED
+  MAILED
+  EMAIL_DRAFT_CREATED
+  EMAIL_SENT
+  ARCHIVED
+}
+
+enum LetterCrmScope {
+  DONOR
+  EVENTS
+  COMPASSION
+  GLOBAL
+}
+
+enum LetterLogoMode {
+  ORGANIZATION_DEFAULT
+  CUSTOM
+  NONE
+}
+
+enum LetterLogoAlignment {
+  LEFT
+  CENTER
+  RIGHT
+  NONE
+}
+
 // ─── Automations ─────────────────────────────────────────────────────────────
 
 // A saved automation workflow: trigger → conditions → ordered list of actions.
@@ -1152,6 +1319,310 @@ model AutomationAction {
   createdAt    DateTime             @default(now())
 
   automation Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+}
+
+// ─── Steward Paths Engagement Sequences ─────────────────────────────────────
+
+model StewardPath {
+  id               String             @id @default(cuid())
+  organizationId   String
+  name             String
+  description      String?            @db.Text
+  crmScope         StewardPathCrmScope @default(DONOR)
+  targetType       StewardPathTarget
+  triggerType      String             @default("MANUAL")
+  triggerConfig    Json?
+  status           StewardPathStatus  @default(DRAFT)
+  defaultOwnerId   String?
+  createdByUserId  String
+  lastEditedByUserId String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  defaultOwner     User?              @relation("StewardPathDefaultOwner", fields: [defaultOwnerId], references: [id], onDelete: SetNull)
+  createdBy        User               @relation("StewardPathCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  lastEditedBy     User?              @relation("StewardPathEditedBy", fields: [lastEditedByUserId], references: [id], onDelete: SetNull)
+  steps            StewardPathStep[]
+  enrollments      StewardPathEnrollment[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, crmScope, targetType])
+}
+
+model StewardPathStep {
+  id            String             @id @default(cuid())
+  pathId        String
+  orderIndex    Int
+  name          String
+  description   String?            @db.Text
+  stepType      StewardPathStepType
+  configJson    Json?
+  isRequired    Boolean            @default(true)
+  isActive      Boolean            @default(true)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  path          StewardPath        @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  runs          StewardPathStepRun[]
+  timelineEvents StewardPathTimelineEvent[]
+  emailDrafts   StewardPathEmailDraft[]
+  enrollmentsAsCurrent StewardPathEnrollment[] @relation("StewardPathCurrentStep")
+
+  @@unique([pathId, orderIndex])
+  @@index([pathId, isActive, orderIndex])
+}
+
+model StewardPathEnrollment {
+  id                  String                       @id @default(cuid())
+  organizationId      String
+  pathId              String
+  targetType          StewardPathTarget
+  targetId            String
+  constituentId       String?
+  status              StewardPathEnrollmentStatus @default(ACTIVE)
+  currentStepId       String?
+  ownerUserId         String?
+  startedAt           DateTime                     @default(now())
+  lastStepCompletedAt DateTime?
+  nextStepDueAt       DateTime?
+  completedAt         DateTime?
+  pausedAt            DateTime?
+  pausedReason        String?                      @db.Text
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+
+  organization        Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  path                StewardPath                  @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  currentStep         StewardPathStep?             @relation("StewardPathCurrentStep", fields: [currentStepId], references: [id], onDelete: SetNull)
+  ownerUser           User?                        @relation("StewardPathEnrollmentOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  constituent         Constituent?                 @relation(fields: [constituentId], references: [id], onDelete: SetNull)
+  stepRuns            StewardPathStepRun[]
+  timelineEvents      StewardPathTimelineEvent[]
+  emailDrafts         StewardPathEmailDraft[]
+
+  @@index([organizationId, status, nextStepDueAt])
+  @@index([pathId, status])
+  @@index([targetType, targetId])
+  @@index([constituentId])
+}
+
+model StewardPathStepRun {
+  id            String                   @id @default(cuid())
+  enrollmentId  String
+  stepId        String
+  status        StewardPathStepRunStatus @default(PENDING)
+  scheduledFor  DateTime?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  resultJson    Json?
+  errorMessage  String?                  @db.Text
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  enrollment    StewardPathEnrollment    @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  step          StewardPathStep          @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, stepId])
+  @@index([status, scheduledFor])
+}
+
+model StewardPathTimelineEvent {
+  id              String                      @id @default(cuid())
+  enrollmentId    String
+  stepId          String?
+  eventType       StewardPathTimelineEventType
+  message         String                      @db.Text
+  metadataJson    Json?
+  createdByUserId String?
+  createdAt       DateTime                    @default(now())
+
+  enrollment      StewardPathEnrollment       @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  step            StewardPathStep?            @relation(fields: [stepId], references: [id], onDelete: SetNull)
+  createdBy       User?                       @relation("StewardPathTimelineCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([enrollmentId, createdAt])
+  @@index([eventType, createdAt])
+}
+
+model StewardPathEmailDraft {
+  id                 String                   @id @default(cuid())
+  enrollmentId       String
+  stepId             String
+  constituentId      String?
+  reviewerUserId     String?
+  status             StewardPathEmailDraftStatus @default(DRAFT_CREATED)
+  subject            String
+  body               String                   @db.Text
+  fromMode           String                   @default("organization")
+  replyToMode        String?
+  requireApproval    Boolean                  @default(true)
+  allowUserEdits     Boolean                  @default(true)
+  sentAt             DateTime?
+  skippedAt          DateTime?
+  failedAt           DateTime?
+  failureReason      String?                  @db.Text
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  enrollment         StewardPathEnrollment    @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  step               StewardPathStep          @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  constituent        Constituent?             @relation(fields: [constituentId], references: [id], onDelete: SetNull)
+  reviewer           User?                    @relation("StewardPathEmailDraftReviewer", fields: [reviewerUserId], references: [id], onDelete: SetNull)
+
+  @@index([reviewerUserId, status])
+  @@index([enrollmentId, status])
+}
+
+// ─── Donor CRM Letters & Printables ───────────────────────────────────────
+
+model LetterHeaderPreset {
+  id                   String              @id @default(cuid())
+  organizationId       String
+  name                 String
+  logoAlignment        LetterLogoAlignment @default(LEFT)
+  showOrganizationName Boolean             @default(true)
+  showTagline          Boolean             @default(false)
+  showAddress          Boolean             @default(true)
+  showPhone            Boolean             @default(true)
+  showWebsite          Boolean             @default(true)
+  customHtml           String?             @db.LongText
+  isDefault            Boolean             @default(false)
+  isActive             Boolean             @default(true)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  templates    LetterTemplate[]
+
+  @@index([organizationId, isActive])
+  @@index([organizationId, isDefault])
+}
+
+model LetterFooterPreset {
+  id                   String   @id @default(cuid())
+  organizationId       String
+  name                 String
+  showOrganizationName Boolean  @default(true)
+  showAddress          Boolean  @default(true)
+  showPhone            Boolean  @default(true)
+  showEmail            Boolean  @default(true)
+  showWebsite          Boolean  @default(true)
+  showTaxId            Boolean  @default(false)
+  showPageNumber       Boolean  @default(false)
+  customText           String?  @db.Text
+  customHtml           String?  @db.LongText
+  isDefault            Boolean  @default(false)
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  templates    LetterTemplate[]
+
+  @@index([organizationId, isActive])
+  @@index([organizationId, isDefault])
+}
+
+model LetterSignatureBlock {
+  id                String   @id @default(cuid())
+  organizationId    String
+  name              String
+  signerName        String
+  signerTitle       String?
+  closingPhrase     String?
+  signatureImageUrl String?
+  typedSignature    String?
+  email             String?
+  phone             String?
+  isDefault         Boolean  @default(false)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  templates    LetterTemplate[]
+
+  @@index([organizationId, isActive])
+  @@index([organizationId, isDefault])
+}
+
+model LetterTemplate {
+  id               String               @id @default(cuid())
+  organizationId   String
+  name             String
+  category         LetterCategory       @default(GENERAL)
+  description      String?              @db.Text
+  status           LetterTemplateStatus @default(DRAFT)
+  printSubject     String?
+  printBody        String               @db.LongText
+  emailSubject     String?
+  emailBody        String?              @db.LongText
+  headerPresetId   String?
+  footerPresetId   String?
+  signatureBlockId String?
+  logoMode         LetterLogoMode       @default(ORGANIZATION_DEFAULT)
+  customLogoUrl    String?
+  mergeFieldsUsed  Json?
+  crmScope         LetterCrmScope       @default(DONOR)
+  createdByUserId  String
+  updatedByUserId  String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  headerPreset   LetterHeaderPreset?   @relation(fields: [headerPresetId], references: [id], onDelete: SetNull)
+  footerPreset   LetterFooterPreset?   @relation(fields: [footerPresetId], references: [id], onDelete: SetNull)
+  signatureBlock LetterSignatureBlock? @relation(fields: [signatureBlockId], references: [id], onDelete: SetNull)
+  createdBy      User                  @relation("LetterTemplateCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  updatedBy      User?                 @relation("LetterTemplateUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  generatedLetters GeneratedLetter[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, category])
+  @@index([organizationId, updatedAt])
+}
+
+model GeneratedLetter {
+  id                     String                @id @default(cuid())
+  organizationId         String
+  templateId             String
+  constituentId          String?
+  donationId             String?
+  campaignId             String?
+  eventId                String?
+  category               LetterCategory
+  status                 LetterGeneratedStatus @default(GENERATED)
+  mergedPrintSubject     String?
+  mergedPrintBody        String                @db.LongText
+  mergedEmailBody        String?               @db.LongText
+  emailSubject           String?
+  pdfUrl                 String?
+  emailCampaignId        String?
+  communicationActivityId String?
+  generatedByUserId      String
+  generatedAt            DateTime              @default(now())
+  printedAt              DateTime?
+  mailedAt               DateTime?
+  emailDraftCreatedAt    DateTime?
+  emailSentAt            DateTime?
+  metadataJson           Json?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  template     LetterTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  constituent  Constituent?   @relation(fields: [constituentId], references: [id], onDelete: SetNull)
+  donation     Donation?      @relation(fields: [donationId], references: [id], onDelete: SetNull)
+  campaign     Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  event        Event?         @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  emailCampaign EmailCampaign? @relation(fields: [emailCampaignId], references: [id], onDelete: SetNull)
+  generatedBy  User           @relation("GeneratedLetterCreatedBy", fields: [generatedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([organizationId, category])
+  @@index([constituentId, generatedAt])
+  @@index([templateId, generatedAt])
 }
 
 // ─── Email Campaigns(Communications Hub) ─────────────────────────────────────
@@ -1186,6 +1657,7 @@ model EmailCampaign {
 
   organization   Organization                 @relation(fields: [organizationId], references: [id])
   deliveryEvents EmailCampaignDeliveryEvent[]
+  generatedLetters GeneratedLetter[]
 }
 
 model EmailRecipientList {

@@ -505,7 +505,7 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
           : "Search tools, constituents, campaigns, commands... (Ctrl+K)";
 
   return (
-    <div className="relative w-full max-w-3xl">
+    <div className="relative w-full min-w-0 max-w-3xl">
       <div className="relative">
         <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
@@ -816,11 +816,11 @@ export default function TopBar() {
         displayMode={stewardMode === "collapsed" ? "popout" : stewardMode}
         onDisplayModeChange={setStewardMode}
       />
-      <header className="relative h-14 shrink-0 w-full flex items-center gap-4 px-4 border-b border-slate-700/60 shadow-[0_8px_28px_rgba(2,6,23,0.38)] backdrop-blur z-20 isolate" style={{ background: topBarBackground }}>
+      <header className="relative h-14 shrink-0 w-full flex items-center gap-2 md:gap-4 px-2 md:px-4 border-b border-slate-700/60 shadow-[0_8px_28px_rgba(2,6,23,0.38)] backdrop-blur z-20 isolate" style={{ background: topBarBackground }}>
         {/* Diagonal light segment for brand + module switcher area. */}
         <div
           aria-hidden="true"
-          className="absolute left-0 top-0 h-full w-[430px] border-r border-white/35 pointer-events-none"
+          className="absolute left-0 top-0 h-full w-[min(430px,38vw)] border-r border-white/35 pointer-events-none"
           style={{
             clipPath: "polygon(0 0, 88% 0, 100% 100%, 0 100%)",
             background: "linear-gradient(180deg, rgba(248,250,252,0.95) 0%, rgba(241,245,249,0.92) 100%)",
@@ -852,9 +852,9 @@ export default function TopBar() {
           )}
         </div>
 
-        <div className="relative z-10 flex-1 flex items-center gap-4">
+        <div className="relative z-10 flex-1 min-w-0 flex items-center gap-2 md:gap-4">
           {/* ── Search (centered) ── */}
-          <div className="flex-1 flex justify-center px-1 sm:px-3">
+          <div className="flex-1 min-w-0 flex justify-center px-0 sm:px-2 md:px-3">
             <GlobalSearch moduleKey={moduleKey} pathname={pathname} />
           </div>
 

@@ -285,10 +285,10 @@ export const PROJECT_STATUS_ITEMS: ProjectStatusItem[] = [
   {
     area: "Core Platform",
     feature: "Payment Portal",
-    status: "Placeholder Data",
-    dataSource: "Mock Data",
-    notes: "Processors, transaction log, payout settings, and webhook tabs rely on client-only mock/simulated data.",
-    nextStep: "Create /api/payments endpoints and provider connection state model.",
+    status: "Partially Working",
+    dataSource: "Real API Data + In-Development Guards",
+    notes: "Payments page now shows a live donation-backed ledger. Processor onboarding, payout settings, and webhook logs are intentionally hidden until backend endpoints exist.",
+    nextStep: "Implement /api/payments/processors, /api/payments/payout-settings, and /api/payments/webhook-events before re-enabling full payments UI.",
   },
   {
     area: "Core Platform",

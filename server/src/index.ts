@@ -9,6 +9,8 @@
  *   FRONTEND_ORIGIN     — explicit frontend origin allowed for CORS
  *   NEXT_PUBLIC_APP_URL — optional frontend app URL mirror for CORS
  *   NODE_ENV            — controls logging verbosity and secure cookie flag
+ *   DEV_CORS_ALLOW_ALL  — when true/1 in non-production, allow all origins for local testing
+ *   DEV_CORS_EXTRA_ORIGINS — optional comma-separated non-production origin allow-list
  *
  * @module index
  */
@@ -44,6 +46,8 @@ import quickbooksRoutes from "./routes/quickbooks.js";
 import searchRoutes from "./routes/search.js";
 import notificationsRoutes from "./routes/notifications.js";
 import stewardSignalsRoutes from "./routes/steward-signals.js";
+import stewardPathRoutes from "./routes/steward-paths.js";
+import lettersRoutes from "./routes/letters.js";
 import stewardAiRoutes from "./routes/steward-ai.js";
 import communicationsAiRoutes from "./routes/communications-ai.js";
 import hrmRoutes from "./routes/hrm.js";
@@ -72,12 +76,26 @@ const explicitCorsOrigins = new Set(
     .filter((value): value is string => Boolean(value)),
 );
 
+/** Parses comma-separated dev origins from DEV_CORS_EXTRA_ORIGINS. */
+const devCorsExtraOrigins = new Set(
+  String(process.env.DEV_CORS_EXTRA_ORIGINS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean),
+);
+
+/** True when development should allow any browser Origin for local testing. */
+const devCorsAllowAll = String(process.env.DEV_CORS_ALLOW_ALL ?? "").toLowerCase() === "true"
+  || process.env.DEV_CORS_ALLOW_ALL === "1";
+
 /** Checks whether one request origin is allowed for CORS. */
 function isCorsOriginAllowed(origin: string): boolean {
   if (explicitCorsOrigins.has(origin)) return true;
 
   if (process.env.NODE_ENV !== "production") {
-    return /^http:\/\/(localhost|127\.0\.0\.1):(3650|3001)$/.test(origin);
+    if (devCorsAllowAll) return true;
+    if (devCorsExtraOrigins.has(origin)) return true;
+    return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(origin);
   }
 
   return false;
@@ -193,6 +211,8 @@ app.use("/api/quickbooks", quickbooksRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/steward-signals", stewardSignalsRoutes);
+app.use("/api/steward-paths", stewardPathRoutes);
+app.use("/api/letters", lettersRoutes);
 app.use("/api/steward-ai", stewardAiRoutes);
 app.use("/api/communications-ai", communicationsAiRoutes);
 app.use("/api/hrm", hrmRoutes);

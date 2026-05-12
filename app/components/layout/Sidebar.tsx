@@ -100,6 +100,11 @@ const DONOR_SECTIONS: NavSection[] = [
         icon: <OyamaGradientIcon name="messaging-chat" />,
       },
       {
+        label: "Letters & Printables",
+        href: "/letters-printables",
+        icon: <OyamaGradientIcon name="reporting-dashboard" />,
+      },
+      {
         label: "LiveCom",
         href: "/livecom",
         icon: <OyamaGradientIcon name="client-support-chat" />,

@@ -6,6 +6,7 @@
  * @module routes/settings
  */
 import { Router, Request, Response } from "express";
+import nodemailer from "nodemailer";
 import { REFRESH_COOKIE } from "../lib/auth.js";
 import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
@@ -63,6 +64,23 @@ interface ResetPayload {
   verificationCode?: string;
   /** The second confirmation field, which must equal RESET exactly. */
   confirmationText?: string;
+}
+
+interface SmtpTestPayload {
+  toEmail?: string;
+  smtpHost?: string | null;
+  smtpPort?: number | null;
+  smtpSecure?: boolean;
+  smtpUser?: string | null;
+  smtpPass?: string | null;
+  smtpFromName?: string | null;
+  smtpFromEmail?: string | null;
+}
+
+/** Practical email format validation for SMTP test-send endpoint. */
+function isValidEmail(value: string): boolean {
+  const email = value.trim();
+  return /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/.test(email);
 }
 
 /** Reads SMTP defaults from environment for deployments that configure SMTP outside DB settings. */
@@ -365,6 +383,100 @@ router.put("/", requireAuth, requireRole("admin"), async (req: Request, res: Res
     return res.json({ success: true });
   } catch {
     return res.status(500).json({ error: { code: "SETTINGS_WRITE_FAILED", message: "Failed to save settings" } });
+  }
+});
+
+/**
+ * POST /api/settings/smtp/test
+ * Sends a real SMTP test email using current organization settings (env fallback included).
+ */
+router.post("/smtp/test", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await resolveSettingsOrganizationId(req);
+    if (!organizationId) {
+      return res.status(404).json({ error: { code: "SETTINGS_NOT_READY", message: "No organization is configured yet." } });
+    }
+
+    const body = req.body as SmtpTestPayload;
+    const toEmail = String(body.toEmail ?? "").trim().toLowerCase();
+    if (!toEmail || !isValidEmail(toEmail)) {
+      return res.status(400).json({ error: { code: "INVALID_EMAIL", message: "A valid recipient email is required." } });
+    }
+
+    const [organization, settings] = await Promise.all([
+      prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } }),
+      prisma.organizationSettings.findUnique({
+        where: { organizationId },
+        select: {
+          smtpHost: true,
+          smtpPort: true,
+          smtpSecure: true,
+          smtpUser: true,
+          smtpPass: true,
+          smtpFromName: true,
+          smtpFromEmail: true,
+        },
+      }),
+    ]);
+
+    const envSmtp = getEnvSmtpDefaults();
+    const smtpHost = valueOrEnv(body.smtpHost, valueOrEnv(settings?.smtpHost, envSmtp.smtpHost));
+    const smtpPort = body.smtpPort ?? settings?.smtpPort ?? envSmtp.smtpPort;
+    const smtpSecure = body.smtpSecure ?? settings?.smtpSecure ?? envSmtp.smtpSecure;
+    const smtpUser = valueOrEnv(body.smtpUser, valueOrEnv(settings?.smtpUser, envSmtp.smtpUser));
+    const smtpPass = valueOrEnv(body.smtpPass, valueOrEnv(settings?.smtpPass, envSmtp.smtpPass));
+    const smtpFromName = valueOrEnv(
+      body.smtpFromName,
+      valueOrEnv(settings?.smtpFromName, envSmtp.smtpFromName || organization?.name || "OyamaCRM"),
+    );
+    const smtpFromEmail = valueOrEnv(body.smtpFromEmail, valueOrEnv(settings?.smtpFromEmail, envSmtp.smtpFromEmail));
+
+    if (!smtpHost || !smtpPort || !smtpFromEmail) {
+      return res.status(400).json({
+        error: {
+          code: "SMTP_NOT_CONFIGURED",
+          message: "SMTP host, port, and from email are required before test send.",
+        },
+      });
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      auth: smtpUser ? { user: smtpUser, pass: smtpPass } : undefined,
+    });
+
+    await transporter.verify();
+
+    await transporter.sendMail({
+      from: `"${smtpFromName}" <${smtpFromEmail}>`,
+      to: toEmail,
+      subject: `SMTP Test - ${organization?.name ?? "OyamaCRM"}`,
+      text: `This is a live SMTP test from ${organization?.name ?? "OyamaCRM"}.`,
+      html: `<p>This is a live SMTP test from <strong>${organization?.name ?? "OyamaCRM"}</strong>.</p>`,
+    });
+
+    logAudit({
+      action: "SMTP_TEST_EMAIL_SENT",
+      entity: "OrganizationSettings",
+      entityId: organizationId,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: {
+        toEmail,
+        smtpHost,
+        smtpPort,
+        smtpSecure,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    return res.json({ success: true, message: `SMTP test email sent to ${toEmail}.` });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "SMTP test failed.";
+    return res.status(502).json({ error: { code: "SMTP_TEST_FAILED", message } });
   }
 });
 

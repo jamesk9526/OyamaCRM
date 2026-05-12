@@ -51,10 +51,35 @@ const DEFAULTS: ConstituentFormData = {
   doNotEmail: false, doNotCall: false, doNotMail: false,
 };
 
+/**
+ * Ensures controlled inputs never receive null/undefined values from API payloads.
+ */
+function normalizeInitialData(initialData?: Partial<ConstituentFormData>): ConstituentFormData {
+  if (!initialData) return { ...DEFAULTS };
+
+  const merged = { ...DEFAULTS, ...initialData } as ConstituentFormData;
+
+  for (const key of Object.keys(DEFAULTS) as Array<keyof ConstituentFormData>) {
+    const defaultValue = DEFAULTS[key];
+    const incomingValue = merged[key];
+
+    if (typeof defaultValue === "string") {
+      merged[key] = (incomingValue ?? "") as ConstituentFormData[typeof key];
+      continue;
+    }
+
+    if (typeof defaultValue === "boolean") {
+      merged[key] = (incomingValue ?? defaultValue) as ConstituentFormData[typeof key];
+    }
+  }
+
+  return merged;
+}
+
 export default function ConstituentForm({ mode, initialData, constituentId }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [form, setForm] = useState<ConstituentFormData>({ ...DEFAULTS, ...initialData });
+  const [form, setForm] = useState<ConstituentFormData>(() => normalizeInitialData(initialData));
   const [error, setError] = useState<string | null>(null);
 
   function set(field: keyof ConstituentFormData, value: string | boolean) {

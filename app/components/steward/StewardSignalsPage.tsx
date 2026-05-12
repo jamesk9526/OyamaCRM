@@ -5,6 +5,7 @@ import Link from "next/link";
 import OpportunityEnginePlaceholderTable from "@/app/components/steward/OpportunityEnginePlaceholderTable";
 import StewardSignalsSummaryCards from "@/app/components/steward/StewardSignalsSummaryCards";
 import StewardLapseRadarPanel from "@/app/components/steward/StewardLapseRadarPanel";
+import StewardTaskSuggestionsTable from "@/app/components/steward/StewardTaskSuggestionsTable";
 
 /**
  * StewardSignalsPage provides a UI-first foundation for:
@@ -53,15 +54,29 @@ export default function StewardSignalsPage() {
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-base font-semibold text-gray-900">Opportunity Engine</h2>
           <span className="text-xs px-2 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">
-            Live Queue
+            AI-Gated Queue
           </span>
         </div>
         <p className="text-sm text-gray-500">
-          The Opportunity Engine will recommend the right donor follow-up, channel, and timing based on giving signals,
-          engagement patterns, unresolved stewardship tasks, and custom donor signal fields where configured.
+          The Opportunity Engine runs only when AI is enabled in Settings. When disabled, this panel remains empty by design.
         </p>
 
         <OpportunityEnginePlaceholderTable />
+      </section>
+
+      <section className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold text-gray-900">Suggested Tasks (Rules-Based)</h2>
+          <span className="text-xs px-2 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">
+            No AI
+          </span>
+        </div>
+        <p className="text-sm text-gray-500">
+          These suggested tasks are calculated from deterministic stewardship rules using donor recency, gift frequency,
+          lapse risk, and unresolved follow-up context.
+        </p>
+
+        <StewardTaskSuggestionsTable />
       </section>
 
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">

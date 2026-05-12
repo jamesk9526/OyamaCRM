@@ -1,6 +1,6 @@
 # OyamaCRM Office How-To Guide (Current Reality)
 
-Last updated: 2026-05-10
+Last updated: 2026-05-12
 
 ## Purpose
 
@@ -37,6 +37,14 @@ It focuses on what works today, what is partially ready, and what should be avoi
 2. Open campaign details from the campaign card.
 3. Update campaign status, dates, and goals as needed.
 4. Review recent donation activity under that campaign.
+
+### Letters and printables workflow
+
+1. Go to Letters & Printables.
+2. Create or open a template in Templates.
+3. Use Generate to produce a constituent-specific letter from a template.
+4. In Generated, mark status as Printed or Mailed as fulfillment happens.
+5. If an email version is needed, use Create Email Draft and continue in Communications.
 
 ## Daily Workflow: Compassion CRM
 
@@ -94,13 +102,15 @@ Use this section as an operations safety list.
 | Grants create/update smoke paths | Partially Working | Prefer grant statuses from configured enum (for example IDEA, RESEARCH). Avoid unverified custom status labels. |
 | Compassion full-name search | Partially Working | If full-name search misses records, search by last name or first name separately. |
 | Compassion appointment matcher queue | Not Implemented | Public bookings sync to the staff calendar now, but manual triage is still required until matcher/review queue ships. |
+| Letters PDF export + batch generation | Partially Working | Use single-letter generation and browser print/PDF until full export and batch pipeline ships. |
 | Some module tabs and tools | Not Implemented | Follow in-app in-development warnings and do not rely on those tabs for live operations. |
 
 ## What To Use For Live Operations Right Now
 
 1. Donor core workflows: constituents, donations, campaigns, tasks.
-2. Compassion core workflows: clients, cases, appointments, public slot-based scheduling.
-3. Events core workflows: event registry, check-in, tables, guests with caution on known crash path.
+2. Donor communication workflows: letters template creation, single-letter generation, and email draft handoff.
+3. Compassion core workflows: clients, cases, appointments, public slot-based scheduling.
+4. Events core workflows: event registry, check-in, tables, guests with caution on known crash path.
 
 ## If You Hit an Error
 

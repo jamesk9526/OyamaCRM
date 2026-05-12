@@ -14,6 +14,7 @@ import {
 import HouseholdPanel from "@/app/components/constituents/HouseholdPanel";
 import QuickGiftModal from "@/app/components/constituents/QuickGiftModal";
 import ConstituentNotesTab from "@/app/components/constituents/ConstituentNotesTab";
+import ConstituentLettersPanel from "@/app/components/constituents/ConstituentLettersPanel";
 import DonorStewardSignalsWidget from "@/app/components/steward/DonorStewardSignalsWidget";
 import { apiFetch } from "@/app/lib/auth-client";
 
@@ -110,6 +111,7 @@ export default function ConstituentDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"giving" | "tasks" | "timeline" | "household" | "notes">("giving");
   const [showGiftModal, setShowGiftModal] = useState(false);
+  const [deletingDonationId, setDeletingDonationId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -126,6 +128,23 @@ export default function ConstituentDetailPage() {
     }
     load();
   }, [id]);
+
+  /** Deletes a donation from this profile and reloads donor details so rollups stay accurate. */
+  async function handleDeleteDonation(donationId: string) {
+    if (!confirm("Delete this donation record? This cannot be undone.")) return;
+
+    setDeletingDonationId(donationId);
+    try {
+      await apiFetch(`/api/donations/${donationId}`, { method: "DELETE" });
+      const refreshed = await apiFetch<ConstituentDetail>(`/api/constituents/${id}`);
+      setConstituent(refreshed);
+      setTab("giving");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to delete donation.");
+    } finally {
+      setDeletingDonationId(null);
+    }
+  }
 
   if (loading) return <LoadingState />;
   if (error || !constituent) return <ErrorState error={error} id={id} />;
@@ -198,6 +217,12 @@ export default function ConstituentDetailPage() {
               💚 Record Gift
             </button>
             <Link
+              href={`/letters-printables/generate?constituentId=${id}`}
+              className="px-4 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors"
+            >
+              Generate Letter
+            </Link>
+            <Link
               href={`/constituents/${id}/edit`}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
@@ -241,6 +266,9 @@ export default function ConstituentDetailPage() {
       {/* Steward Signals donor widget shell (read-only until full orchestration rollout). */}
       <DonorStewardSignalsWidget constituentId={id} />
 
+      {/* Constituent-specific letter history and generation shortcut. */}
+      <ConstituentLettersPanel constituentId={id} />
+
       {/* Tabbed detail */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="flex border-b border-gray-200 overflow-x-auto">
@@ -263,7 +291,13 @@ export default function ConstituentDetailPage() {
           {tab === "household" && c.headOf && (
             <HouseholdPanel householdId={c.headOf.id} headConstituentId={c.id} />
           )}
-          {tab === "giving" && <GivingTab donations={c.donations ?? []} />}
+          {tab === "giving" && (
+            <GivingTab
+              donations={c.donations ?? []}
+              onDelete={handleDeleteDonation}
+              deletingDonationId={deletingDonationId}
+            />
+          )}
           {tab === "tasks" && <TasksTab tasks={c.tasks ?? []} />}
           {tab === "timeline" && <TimelineTab activities={c.activities ?? []} />}
           {tab === "notes" && (
@@ -316,14 +350,22 @@ export default function ConstituentDetailPage() {
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function GivingTab({ donations }: { donations: ConstituentDetail["donations"] }) {
+function GivingTab({
+  donations,
+  onDelete,
+  deletingDonationId,
+}: {
+  donations: ConstituentDetail["donations"];
+  onDelete?: (donationId: string) => void;
+  deletingDonationId?: string | null;
+}) {
   if (!donations.length) return <p className="text-sm text-gray-400 italic">No donations recorded.</p>;
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-gray-100">
-            {["Date", "Amount", "Campaign", "Fund", "Method", "Status"].map((h) => (
+            {["Date", "Amount", "Campaign", "Fund", "Method", "Status", "Actions"].map((h) => (
               <th key={h} className="pb-2 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide pr-4">{h}</th>
             ))}
           </tr>
@@ -342,6 +384,19 @@ function GivingTab({ donations }: { donations: ConstituentDetail["donations"] })
                 }`}>
                   {d.status.toLowerCase()}
                 </span>
+              </td>
+              <td className="py-2 pr-4">
+                {onDelete && (
+                  <button
+                    type="button"
+                    onClick={() => onDelete(d.id)}
+                    disabled={deletingDonationId === d.id}
+                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 disabled:opacity-60 transition-colors"
+                    title="Delete donation"
+                  >
+                    {deletingDonationId === d.id ? "Deleting..." : "Delete"}
+                  </button>
+                )}
               </td>
             </tr>
           ))}

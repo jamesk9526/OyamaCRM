@@ -1,72 +1,136 @@
-/**
- * Payment Portal page — /payments
- * Central hub for connecting and configuring payment processors.
- * Tabs: Connected Processors | Transaction Log | Payout Settings | Webhook Events
- */
+// Payments page now shows only live donation payment data and hides mock processor UI.
 "use client";
 
-import { useState } from "react";
-import ProcessorsTab from "@/app/components/payments/ProcessorsTab";
-import TransactionLogTab from "@/app/components/payments/TransactionLogTab";
-import PayoutSettingsTab from "@/app/components/payments/PayoutSettingsTab";
-import WebhookEventsTab from "@/app/components/payments/WebhookEventsTab";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { apiFetch } from "@/app/lib/auth-client";
+import { formatCurrency, formatDate, methodLabel, statusColor, type DonationRow } from "@/app/components/donations/donation-utils";
 
-type Tab = "processors" | "transactions" | "payouts" | "webhooks";
-
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: "processors", label: "Payment Processors", icon: "💳" },
-  { id: "transactions", label: "Transaction Log", icon: "📋" },
-  { id: "payouts", label: "Payout Settings", icon: "🏦" },
-  { id: "webhooks", label: "Webhook Events", icon: "🔔" },
-];
-
+/**
+ * PaymentsPage renders a real payment ledger sourced from live donation records.
+ * Mock processor configuration tabs are intentionally hidden until backend APIs exist.
+ */
 export default function PaymentsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>("processors");
+  const [rows, setRows] = useState<DonationRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadLedger() {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await apiFetch<{ items?: DonationRow[] }>("/api/donations?limit=100&page=1");
+        if (!active) return;
+        setRows(data.items ?? []);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to load payment ledger.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    void loadLedger();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((row) => {
+      const fullName = `${row.constituent.firstName} ${row.constituent.lastName}`.toLowerCase();
+      return (
+        fullName.includes(q) ||
+        (row.constituent.email ?? "").toLowerCase().includes(q) ||
+        methodLabel(row.paymentMethod).toLowerCase().includes(q) ||
+        (row.receiptNumber ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [rows, search]);
 
   return (
-    <div className="space-y-5">
-      {/* ── Page header ── */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Payment Portal</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Connect payment processors, manage transactions, and configure payout settings.
-          </p>
-        </div>
-        {/* Status pill */}
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg">
-          <span className="w-2 h-2 rounded-full bg-amber-400" />
-          <span className="text-xs font-medium text-amber-700">No processor active</span>
-        </div>
-      </div>
-
-      {/* ── Tabs ── */}
-      <div className="border-b border-gray-200">
-        <div className="flex gap-1">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap
-                ${activeTab === tab.id
-                  ? "border-green-600 text-green-700"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-            >
-              <span>{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Tab content ── */}
+    <div className="space-y-6">
       <div>
-        {activeTab === "processors" && <ProcessorsTab />}
-        {activeTab === "transactions" && <TransactionLogTab />}
-        {activeTab === "payouts" && <PayoutSettingsTab />}
-        {activeTab === "webhooks" && <WebhookEventsTab />}
+        <h1 className="text-xl font-semibold text-gray-900">Payments</h1>
+        <p className="mt-0.5 text-sm text-gray-500">
+          Live payment ledger sourced from recorded donations.
+        </p>
       </div>
+
+      <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">In development</p>
+        <p className="mt-1 text-sm text-amber-800">
+          Processor onboarding, payout settings, and webhook event viewers are hidden until server APIs are implemented.
+        </p>
+        {/* TODO: backend API needed - implement /api/payments/processors, /api/payments/payout-settings, /api/payments/webhook-events before re-enabling processor UI. */}
+      </section>
+
+      <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search donor, email, payment method, or receipt..."
+            className="w-full max-w-xl rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <Link
+            href="/donations"
+            className="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Open full donations workspace
+          </Link>
+        </div>
+
+        {loading ? (
+          <div className="py-10 text-center text-sm text-gray-400">Loading payment ledger...</div>
+        ) : error ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Donor</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Amount</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Method</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Receipt</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map((row) => (
+                  <tr key={row.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 text-xs text-gray-600">{formatDate(row.date)}</td>
+                    <td className="px-3 py-2">
+                      <p className="font-medium text-gray-900">{row.constituent.firstName} {row.constituent.lastName}</p>
+                      <p className="text-xs text-gray-500">{row.constituent.email ?? "No email"}</p>
+                    </td>
+                    <td className="px-3 py-2 text-right font-semibold text-gray-900">{formatCurrency(row.amount)}</td>
+                    <td className="px-3 py-2 text-gray-700">{methodLabel(row.paymentMethod)}</td>
+                    <td className="px-3 py-2">
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusColor(row.status)}`}>
+                        {row.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-600">{row.receiptNumber ?? "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {filtered.length === 0 && (
+              <div className="py-8 text-center text-sm text-gray-400">No payment rows found for this filter.</div>
+            )}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

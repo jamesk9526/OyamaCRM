@@ -67,6 +67,91 @@ type DonationFilterQuery = {
   scope?: string;
 };
 
+/**
+ * Computes a normalized 0-100 engagement score from giving behavior.
+ * This keeps engagement deterministic until broader interaction signals are wired.
+ */
+function computeEngagementScore(params: {
+  giftCount: number;
+  lastGiftDate: Date | null;
+  totalLifetimeGiving: number;
+  totalYtdGiving: number;
+}): number {
+  if (params.giftCount <= 0) return 0;
+
+  const now = Date.now();
+  const daysSinceLastGift = params.lastGiftDate
+    ? Math.max(0, Math.floor((now - params.lastGiftDate.getTime()) / (1000 * 60 * 60 * 24)))
+    : 9999;
+
+  const recencyScore =
+    daysSinceLastGift <= 30 ? 35
+      : daysSinceLastGift <= 90 ? 28
+      : daysSinceLastGift <= 180 ? 20
+      : daysSinceLastGift <= 365 ? 12
+      : daysSinceLastGift <= 730 ? 6
+      : 2;
+
+  const frequencyScore = Math.min(25, Math.round(params.giftCount * 2.5));
+  const lifetimeScore = Math.min(25, Math.round(Math.log10(params.totalLifetimeGiving + 1) * 10));
+  const momentumScore = Math.min(15, Math.round(Math.log10(params.totalYtdGiving + 1) * 7));
+
+  return Math.max(0, Math.min(100, recencyScore + frequencyScore + lifetimeScore + momentumScore));
+}
+
+/**
+ * Recalculates one constituent's denormalized giving rollups from all recorded donations.
+ * Lifetime totals intentionally include all donation records across all years.
+ */
+async function recalculateConstituentGivingRollups(constituentId: string): Promise<void> {
+  const startOfCurrentYear = new Date(new Date().getFullYear(), 0, 1);
+  const now = new Date();
+
+  const [lifetimeAgg, ytdAgg, lastGift] = await Promise.all([
+    prisma.donation.aggregate({
+      where: { constituentId },
+      _sum: { amount: true },
+      _count: { id: true },
+      _min: { date: true },
+    }),
+    prisma.donation.aggregate({
+      where: {
+        constituentId,
+        date: { gte: startOfCurrentYear, lte: now },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.donation.findFirst({
+      where: { constituentId },
+      orderBy: { date: "desc" },
+      select: { amount: true, date: true },
+    }),
+  ]);
+
+  const totalLifetimeGiving = Number(lifetimeAgg._sum.amount ?? 0);
+  const totalYtdGiving = Number(ytdAgg._sum.amount ?? 0);
+  const giftCount = lifetimeAgg._count.id;
+  const engagementScore = computeEngagementScore({
+    giftCount,
+    lastGiftDate: lastGift?.date ?? null,
+    totalLifetimeGiving,
+    totalYtdGiving,
+  });
+
+  await prisma.constituent.update({
+    where: { id: constituentId },
+    data: {
+      totalLifetimeGiving,
+      totalYtdGiving,
+      giftCount,
+      engagementScore,
+      firstGiftDate: lifetimeAgg._min.date ?? undefined,
+      lastGiftDate: lastGift?.date ?? undefined,
+      lastGiftAmount: lastGift?.amount ?? undefined,
+    },
+  });
+}
+
 /** Parses a YYYY-MM-DD-like date string into start-of-day local time. */
 function parseDateStart(raw?: string): Date | undefined {
   if (!raw) return undefined;
@@ -322,6 +407,9 @@ router.post("/", async (req, res) => {
     });
   }
 
+  // Keep constituent giving rollups aligned with all-time donation history.
+  await recalculateConstituentGivingRollups(donation.constituentId);
+
   res.status(201).json(donation);
 });
 
@@ -373,6 +461,9 @@ router.put("/:id", async (req, res) => {
       metadata: { source: "api/donations:update" },
     },
   });
+
+  // Keep constituent giving rollups aligned after manual edits.
+  await recalculateConstituentGivingRollups(donation.constituentId);
 
   res.json(donation);
 });
@@ -582,29 +673,7 @@ router.post("/import", async (req, res) => {
    * after a new donation is inserted. Runs in the same transaction context.
    */
   async function updateConstituentStats(constituentId: string): Promise<void> {
-    const agg = await prisma.donation.aggregate({
-      where: { constituentId, status: "COMPLETED" },
-      _sum:   { amount: true },
-      _count: { id: true },
-      _min:   { date: true },
-      _max:   { date: true },
-    });
-    // Get the last gift amount separately
-    const lastGift = await prisma.donation.findFirst({
-      where: { constituentId, status: "COMPLETED" },
-      orderBy: { date: "desc" },
-      select: { amount: true },
-    });
-    await prisma.constituent.update({
-      where: { id: constituentId },
-      data: {
-        totalLifetimeGiving: agg._sum.amount ?? 0,
-        giftCount:           agg._count.id,
-        firstGiftDate:       agg._min.date ?? undefined,
-        lastGiftDate:        agg._max.date ?? undefined,
-        lastGiftAmount:      lastGift?.amount ?? undefined,
-      },
-    });
+    await recalculateConstituentGivingRollups(constituentId);
   }
 
   // ─── Main import loop ─────────────────────────────────────────────────────────
@@ -759,6 +828,9 @@ router.delete("/:id", async (req, res) => {
   });
 
   await prisma.donation.delete({ where: { id } });
+
+  // Keep constituent giving rollups aligned after deletion.
+  await recalculateConstituentGivingRollups(existing.constituentId);
 
   // Audit trail for donation deletion
   logAudit({

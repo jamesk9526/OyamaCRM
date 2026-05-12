@@ -1,6 +1,6 @@
 # Production Readiness Checklist
 
-Last updated: 2026-05-11
+Last updated: 2026-05-12
 
 This file is the release-gate source of truth for production readiness.
 
@@ -40,6 +40,10 @@ Recommendation: Do not mark OyamaCRM production-ready yet.
 3. Production checklist UI now provides explicit done vs not-done tracking.
    - Component: app/components/settings/ProductionReadinessChecklist.tsx
    - Added summary counters and separate Done / Not Done sections
+4. Donor CRM Letters & Printables workspace now has live API + UI foundation.
+   - Routes: app/letters-printables/* and server/src/routes/letters.ts
+   - Timeline + communications integration: generated letters log Activity events and can create linked EmailCampaign drafts
+   - Current status: Partially Working (single-letter workflows are live; PDF export and batch generation are explicit partial endpoints)
 
 ## Done Now Checklist
 
