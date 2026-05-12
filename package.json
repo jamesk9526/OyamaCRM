@@ -30,6 +30,7 @@
     "db:seed:medium": "tsx prisma/seed.ts --size medium",
     "db:seed:large": "tsx prisma/seed.ts --size large",
     "db:verify:demo": "tsx prisma/verify-demo-seed.ts",
+    "db:verify:linux-casing": "node scripts/verify-linux-migration-casing.mjs",
     "db:reset": "prisma migrate reset --force",
     "db:reset:demo": "prisma migrate reset --force --skip-seed && pnpm db:seed:small && pnpm db:verify:demo",
     "db:studio": "prisma studio",

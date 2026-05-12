@@ -507,6 +507,8 @@ pnpm test:smoke           # API smoke tests only
 pnpm test:coverage        # Coverage report
 
 # Production (PM2)
+pnpm db:verify:linux-casing
+pnpm db:migrate
 pnpm build && pnpm build:server
 pnpm pm2:start
 pnpm pm2:status
@@ -515,6 +517,38 @@ pnpm pm2:logs
 # Screenshots
 node scripts/take-screenshots.mjs   # Regenerate README screenshots
 ```
+
+### Ubuntu VPS Production Runbook
+
+Use this flow on Ubuntu so Prisma migrations and Linux table-name rules do not break production deploys.
+
+1. Pull latest code and install dependencies
+
+    pnpm install --frozen-lockfile
+
+2. Verify migration SQL is Linux-safe
+
+    pnpm db:verify:linux-casing
+
+3. If Prisma reports a failed migration (P3018), mark it rolled back once, then retry deploy
+
+    pnpm prisma migrate resolve --rolled-back 20260509051734_expand_events_data_model
+
+4. Apply migrations in production mode (never use migrate dev on VPS)
+
+    pnpm db:migrate
+
+5. Build and restart processes
+
+    pnpm build
+    pnpm build:server
+    pnpm pm2:restart
+    pnpm pm2:status
+
+If you still see Table 'oyamacrm.activity' doesn't exist, your VPS checkout is stale.
+Confirm this exact line is present in [prisma/migrations/20260509051734_expand_events_data_model/migration.sql](prisma/migrations/20260509051734_expand_events_data_model/migration.sql#L2):
+
+ALTER TABLE `Activity` ADD COLUMN `eventId` VARCHAR(191) NULL;
 
 ---
 
