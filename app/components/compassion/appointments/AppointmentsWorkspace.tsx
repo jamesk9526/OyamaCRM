@@ -14,8 +14,8 @@ import type {
   EventClickArg,
   EventDropArg,
   EventInput,
-  EventResizeDoneArg,
 } from "@fullcalendar/core";
+import type { EventResizeDoneArg } from "@fullcalendar/interaction";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import AppointmentEditorModal from "./AppointmentEditorModal";
 import {
