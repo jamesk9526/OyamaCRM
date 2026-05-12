@@ -1,26 +1,26 @@
 -- AlterTable
-ALTER TABLE `compassionactivity` ADD COLUMN `performedByCompassionStaffId` VARCHAR(191) NULL;
+ALTER TABLE `CompassionActivity` ADD COLUMN `performedByCompassionStaffId` VARCHAR(191) NULL;
 
 -- AlterTable
-ALTER TABLE `compassionappointment` ADD COLUMN `assignedCompassionStaffId` VARCHAR(191) NULL;
+ALTER TABLE `CompassionAppointment` ADD COLUMN `assignedCompassionStaffId` VARCHAR(191) NULL;
 
 -- AlterTable
-ALTER TABLE `compassioncase` ADD COLUMN `assignedCompassionStaffId` VARCHAR(191) NULL;
+ALTER TABLE `CompassionCase` ADD COLUMN `assignedCompassionStaffId` VARCHAR(191) NULL;
 
 -- AlterTable
-ALTER TABLE `compassionclient` ADD COLUMN `assignedCompassionStaffId` VARCHAR(191) NULL;
+ALTER TABLE `CompassionClient` ADD COLUMN `assignedCompassionStaffId` VARCHAR(191) NULL;
 
 -- AlterTable
-ALTER TABLE `compassionfollowup` ADD COLUMN `assignedCompassionStaffId` VARCHAR(191) NULL;
+ALTER TABLE `CompassionFollowUp` ADD COLUMN `assignedCompassionStaffId` VARCHAR(191) NULL;
 
 -- AlterTable
-ALTER TABLE `compassionservice` ADD COLUMN `providedByCompassionStaffId` VARCHAR(191) NULL;
+ALTER TABLE `CompassionService` ADD COLUMN `providedByCompassionStaffId` VARCHAR(191) NULL;
 
 -- AlterTable
-ALTER TABLE `emailrecipientlist` MODIFY `description` VARCHAR(191) NULL;
+ALTER TABLE `EmailRecipientList` MODIFY `description` VARCHAR(191) NULL;
 
 -- AlterTable
-ALTER TABLE `organizationsettings` ADD COLUMN `compassionWorkspaceEnabled` BOOLEAN NOT NULL DEFAULT true,
+ALTER TABLE `OrganizationSettings` ADD COLUMN `compassionWorkspaceEnabled` BOOLEAN NOT NULL DEFAULT true,
     ADD COLUMN `defaultWorkspace` VARCHAR(191) NOT NULL DEFAULT 'donor',
     ADD COLUMN `donorWorkspaceEnabled` BOOLEAN NOT NULL DEFAULT true,
     ADD COLUMN `showModuleSwitcher` BOOLEAN NOT NULL DEFAULT true;

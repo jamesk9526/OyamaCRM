@@ -1,11 +1,11 @@
 -- AlterTable
-ALTER TABLE `activity` ADD COLUMN `eventId` VARCHAR(191) NULL;
+ALTER TABLE `Activity` ADD COLUMN `eventId` VARCHAR(191) NULL;
 
 -- AlterTable
-ALTER TABLE `donation` ADD COLUMN `eventId` VARCHAR(191) NULL;
+ALTER TABLE `Donation` ADD COLUMN `eventId` VARCHAR(191) NULL;
 
 -- AlterTable
-ALTER TABLE `event` ADD COLUMN `address` VARCHAR(191) NULL,
+ALTER TABLE `Event` ADD COLUMN `address` VARCHAR(191) NULL,
     ADD COLUMN `capacity` INTEGER NULL,
     ADD COLUMN `city` VARCHAR(191) NULL,
     ADD COLUMN `internalNotes` TEXT NULL,
