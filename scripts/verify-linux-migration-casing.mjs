@@ -59,8 +59,8 @@ function checkFile(filePath) {
     const line = lines[i];
 
     for (const name of riskyLowercaseNames) {
-      const alterPattern = new RegExp("\\bALTER\\s+TABLE\\s+`" + name + "`", "i");
-      const refPattern = new RegExp("\\bREFERENCES\\s+`" + name + "`", "i");
+      const alterPattern = new RegExp("\\bALTER\\s+TABLE\\s+`" + name + "`");
+      const refPattern = new RegExp("\\bREFERENCES\\s+`" + name + "`");
 
       if (alterPattern.test(line) || refPattern.test(line)) {
         issues.push(`Line ${i + 1}: ${line.trim()}`);
