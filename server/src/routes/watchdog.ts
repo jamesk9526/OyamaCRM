@@ -335,7 +335,7 @@ router.post("/backups/export", requireWatchdogPermission("watchdog:manage"), asy
  */
 router.get("/backups/:id", requireWatchdogPermission("watchdog:manage"), async (req, res) => {
   const organizationId = req.user!.orgId;
-  const id = req.params.id;
+  const id = String(req.params.id ?? "");
 
   let record: Awaited<ReturnType<typeof getWatchdogCrmBackup>>;
   try {
@@ -378,7 +378,7 @@ router.get("/backups/:id", requireWatchdogPermission("watchdog:manage"), async (
  */
 router.get("/backups/:id/sql", requireWatchdogPermission("watchdog:manage"), async (req, res) => {
   const organizationId = req.user!.orgId;
-  const id = req.params.id;
+  const id = String(req.params.id ?? "");
 
   let record: Awaited<ReturnType<typeof getWatchdogCrmBackup>>;
   try {
@@ -904,7 +904,7 @@ router.post("/vault", requireWatchdogPermission("watchdog:vault:write"), async (
 router.get("/vault/:id", requireWatchdogPermission("watchdog:vault:read"), async (req, res) => {
   const organizationId = req.user!.orgId;
   const userId = req.user!.sub;
-  const id = req.params.id;
+  const id = String(req.params.id ?? "");
   const revealSecret = req.query.reveal === "true";
 
   if (revealSecret) {

@@ -16,6 +16,7 @@
  */
 import { Router } from "express";
 import nodemailer from "nodemailer";
+import type { Prisma } from "@prisma/client";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
@@ -437,6 +438,7 @@ async function createDeliveryEvents(params: {
 }) {
   const uniqueRecipients = Array.from(new Set(params.recipients.map((email) => email.trim().toLowerCase())));
   if (uniqueRecipients.length === 0) return;
+  const metadataInput = params.metadata as Prisma.InputJsonValue | undefined;
 
   await prisma.emailCampaignDeliveryEvent.createMany({
     data: uniqueRecipients.map((recipientEmail) => ({
@@ -445,7 +447,7 @@ async function createDeliveryEvents(params: {
       recipientEmail,
       eventType: params.eventType,
       eventAt: new Date(),
-      metadata: params.metadata,
+      metadata: metadataInput,
     })),
     skipDuplicates: true,
   });
@@ -880,6 +882,7 @@ router.post("/:id/delivery-events", async (req, res) => {
     res.status(400).json({ error: { code: "INVALID_EVENT_AT", message: "eventAt must be a valid ISO datetime." } });
     return;
   }
+  const metadataInput = metadata as Prisma.InputJsonValue | undefined;
 
   const event = await prisma.emailCampaignDeliveryEvent.upsert({
     where: {
@@ -891,7 +894,7 @@ router.post("/:id/delivery-events", async (req, res) => {
     },
     update: {
       eventAt: safeEventAt,
-      metadata: metadata ?? undefined,
+      metadata: metadataInput,
     },
     create: {
       organizationId,
@@ -899,7 +902,7 @@ router.post("/:id/delivery-events", async (req, res) => {
       recipientEmail: recipientEmail.trim().toLowerCase(),
       eventType: safeType,
       eventAt: safeEventAt,
-      metadata: metadata ?? undefined,
+      metadata: metadataInput,
     },
   });
 

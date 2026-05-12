@@ -204,10 +204,10 @@ router.get("/summary", requirePermission("watchdog.tickets.view"), async (req: R
         createdAt: { lte: seventyTwoHoursAgo },
       },
     }),
-    prisma.watchdogFeedbackTicket.groupBy({ by: ["status"], where: { organizationId }, _count: { _all: true } }),
-    prisma.watchdogFeedbackTicket.groupBy({ by: ["type"], where: { organizationId }, _count: { _all: true } }),
-    prisma.watchdogFeedbackTicket.groupBy({ by: ["crmScope"], where: { organizationId }, _count: { _all: true } }),
-    prisma.watchdogFeedbackTicket.groupBy({ by: ["priority"], where: { organizationId }, _count: { _all: true } }),
+    prisma.watchdogFeedbackTicket.groupBy({ by: ["status"], where: { organizationId }, _count: { _all: true }, orderBy: { status: "asc" } }),
+    prisma.watchdogFeedbackTicket.groupBy({ by: ["type"], where: { organizationId }, _count: { _all: true }, orderBy: { type: "asc" } }),
+    prisma.watchdogFeedbackTicket.groupBy({ by: ["crmScope"], where: { organizationId }, _count: { _all: true }, orderBy: { crmScope: "asc" } }),
+    prisma.watchdogFeedbackTicket.groupBy({ by: ["priority"], where: { organizationId }, _count: { _all: true }, orderBy: { priority: "asc" } }),
   ]);
 
   res.json({
@@ -373,7 +373,7 @@ router.get("/:id", requirePermission("watchdog.tickets.view"), async (req: Reque
     return;
   }
 
-  const id = req.params.id;
+  const id = String(req.params.id ?? "");
   const item = await prisma.watchdogFeedbackTicket.findFirst({
     where: { id, organizationId },
     select: TICKET_SELECT,
@@ -399,7 +399,7 @@ router.patch("/:id", requirePermission("watchdog.tickets.manage"), async (req: R
     return;
   }
 
-  const id = req.params.id;
+  const id = String(req.params.id ?? "");
   const current = await prisma.watchdogFeedbackTicket.findFirst({
     where: { id, organizationId },
     select: TICKET_SELECT,
@@ -541,7 +541,7 @@ router.post("/:id/resolve", requirePermission("watchdog.tickets.resolve"), async
     return;
   }
 
-  const id = req.params.id;
+  const id = String(req.params.id ?? "");
   const item = await prisma.watchdogFeedbackTicket.findFirst({
     where: { id, organizationId },
     select: TICKET_SELECT,
@@ -594,7 +594,7 @@ router.post("/:id/reopen", requirePermission("watchdog.tickets.resolve"), async 
     return;
   }
 
-  const id = req.params.id;
+  const id = String(req.params.id ?? "");
   const item = await prisma.watchdogFeedbackTicket.findFirst({
     where: { id, organizationId },
     select: TICKET_SELECT,
@@ -644,7 +644,7 @@ router.delete("/:id", requirePermission("watchdog.tickets.delete"), async (req: 
     return;
   }
 
-  const id = req.params.id;
+  const id = String(req.params.id ?? "");
   const item = await prisma.watchdogFeedbackTicket.findFirst({
     where: { id, organizationId },
     select: { id: true, ticketNumber: true, status: true },

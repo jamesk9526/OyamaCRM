@@ -140,7 +140,10 @@ export async function apiFetch<T = unknown>(
   }
 
   const body = JSON.parse(rawBody) as { data?: T } | T;
-  return (body.data ?? body) as T;
+  if (body && typeof body === "object" && "data" in body) {
+    return (body as { data?: T }).data as T;
+  }
+  return body as T;
 }
 
 /**

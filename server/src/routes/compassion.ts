@@ -55,6 +55,7 @@ import {
   parseWidgetConfig,
   type AppointmentWidgetConfig,
 } from "../services/compassion-appointment-widget.js";
+import { Prisma } from "@prisma/client";
 import type {
   CompassionClientStatus,
   CompassionCaseStatus,
@@ -375,6 +376,7 @@ router.put("/appointment-widget", requireRole("admin"), async (req, res) => {
     };
 
     const enabled = typeof req.body?.enabled === "boolean" ? req.body.enabled : existing?.enabled ?? merged.enabled;
+    const mergedConfigJson = merged as unknown as Prisma.InputJsonValue;
 
     const saved = await prisma.pluginSetting.upsert({
       where: {
@@ -387,11 +389,11 @@ router.put("/appointment-widget", requireRole("admin"), async (req, res) => {
         organizationId,
         pluginKey: APPOINTMENT_WIDGET_PLUGIN_KEY,
         enabled,
-        config: merged,
+        config: mergedConfigJson,
       },
       update: {
         enabled,
-        config: merged,
+        config: mergedConfigJson,
       },
     });
 
@@ -1730,6 +1732,7 @@ router.post("/clients/:id/activity-entries", async (req, res) => {
     const caseId = req.body?.caseId ? String(req.body.caseId).trim() : null;
     const appointmentId = req.body?.appointmentId ? String(req.body.appointmentId).trim() : null;
     const metadata = normalizeActivityMetadata(req.body?.metadata);
+    const metadataInput = metadata as Prisma.InputJsonValue | undefined;
 
     if (!isAllowedClientActivityEntryType(activityType)) {
       res.status(400).json({
@@ -1785,7 +1788,7 @@ router.post("/clients/:id/activity-entries", async (req, res) => {
         appointmentId,
         activityType,
         description,
-        metadata,
+        metadata: metadataInput,
         performedById: req.user?.sub ?? null,
       },
       include: {
@@ -1850,11 +1853,18 @@ router.patch("/clients/:id/activity-entries/:entryId", async (req, res) => {
       return;
     }
 
+    const normalizedMetadata = metadata !== undefined ? normalizeActivityMetadata(metadata) : undefined;
+    const metadataUpdate = normalizedMetadata === undefined
+      ? undefined
+      : normalizedMetadata === null
+        ? Prisma.JsonNull
+        : (normalizedMetadata as Prisma.InputJsonValue);
+
     const updated = await prisma.compassionActivity.update({
       where: { id: existing.id },
       data: {
         ...(description !== undefined && { description: String(description).trim() }),
-        ...(metadata !== undefined && { metadata: normalizeActivityMetadata(metadata) }),
+        ...(metadata !== undefined && { metadata: metadataUpdate }),
       },
       include: {
         performedBy: { select: { id: true, firstName: true, lastName: true } },
@@ -2842,7 +2852,7 @@ router.post("/appointments", async (req, res) => {
         assignedCompassionStaffId: normalizedAssignedCompassionStaffId,
         assignedStaffId: normalizedAssignedStaffId,
         notes: notes ? String(notes) : null,
-        followUpNeeded: followUpNeeded ?? false,
+        followUpNeeded: Boolean(followUpNeeded),
       },
       include: {
         client: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, intakeDate: true } },

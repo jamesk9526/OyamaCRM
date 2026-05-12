@@ -498,7 +498,7 @@ router.post("/email-builder/generate-template", async (req, res) => {
   await logAudit({
     action: "COMMUNICATIONS_AI_TEMPLATE_GENERATED",
     organizationId,
-    userId: req.user?.id,
+    userId: req.user?.sub,
     metadata: {
       goalLength: goal.length,
       blockCount: normalizedTemplate.blocks.length,
@@ -615,7 +615,7 @@ router.post("/email-builder/generate-block", async (req, res) => {
   await logAudit({
     action: "COMMUNICATIONS_AI_BLOCK_GENERATED",
     organizationId,
-    userId: req.user?.id,
+    userId: req.user?.sub,
     metadata: {
       blockKind: payload.blockKind,
       promptLength: prompt.length,

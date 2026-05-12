@@ -30,5 +30,11 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/dist/**",
+    "REFERANCE_SOFTWARE",
+    "REFERANCE_SOFTWARE/**"
+  ]
 }

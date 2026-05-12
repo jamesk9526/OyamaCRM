@@ -103,8 +103,7 @@ function personTypeFromStaffTitle(title: string | null): "staff" | "employee" | 
 /** Computes person status from one user/staff active-state combination. */
 function resolvePersonStatus(params: { userActive?: boolean; staffActive?: boolean }): "active" | "on_leave" | "inactive" {
   if (params.userActive === false) return "inactive";
-  if (params.staffActive === false) return "on_leave";
-  if (params.userActive === undefined && params.staffActive === false) return "inactive";
+  if (params.staffActive === false) return params.userActive === undefined ? "inactive" : "on_leave";
   return "active";
 }
 
@@ -183,42 +182,40 @@ async function buildScheduleItems(params: {
       status: meeting.status.toLowerCase(),
     }));
 
-  const appointmentItems: HrmScheduleItem[] = appointments
-    .map((appointment) => {
-      if (appointment.assignedStaff) {
-        return {
-          id: appointment.id,
-          source: "appointment" as const,
-          personKey: `user:${appointment.assignedStaff.id}`,
-          personName: `${appointment.assignedStaff.firstName} ${appointment.assignedStaff.lastName}`.trim(),
-          title: appointment.appointmentType.replaceAll("_", " "),
-          location: appointment.location ?? null,
-          startTime: appointment.startTime.toISOString(),
-          endTime: appointment.endTime?.toISOString() ?? null,
-          status: appointment.status.toLowerCase(),
-        };
-      }
+  const appointmentItems: HrmScheduleItem[] = appointments.flatMap((appointment): HrmScheduleItem[] => {
+    if (appointment.assignedStaff) {
+      return [{
+        id: appointment.id,
+        source: "appointment",
+        personKey: `user:${appointment.assignedStaff.id}`,
+        personName: `${appointment.assignedStaff.firstName} ${appointment.assignedStaff.lastName}`.trim(),
+        title: appointment.appointmentType.replaceAll("_", " "),
+        location: appointment.location ?? null,
+        startTime: appointment.startTime.toISOString(),
+        endTime: appointment.endTime?.toISOString() ?? null,
+        status: appointment.status.toLowerCase(),
+      }];
+    }
 
-      if (appointment.assignedCompassionStaff) {
-        const displayName = appointment.assignedCompassionStaff.displayName
-          ?? `${appointment.assignedCompassionStaff.firstName} ${appointment.assignedCompassionStaff.lastName}`.trim();
+    if (appointment.assignedCompassionStaff) {
+      const displayName = appointment.assignedCompassionStaff.displayName
+        ?? `${appointment.assignedCompassionStaff.firstName} ${appointment.assignedCompassionStaff.lastName}`.trim();
 
-        return {
-          id: appointment.id,
-          source: "appointment" as const,
-          personKey: `staff:${appointment.assignedCompassionStaff.id}`,
-          personName: displayName,
-          title: appointment.appointmentType.replaceAll("_", " "),
-          location: appointment.location ?? null,
-          startTime: appointment.startTime.toISOString(),
-          endTime: appointment.endTime?.toISOString() ?? null,
-          status: appointment.status.toLowerCase(),
-        };
-      }
+      return [{
+        id: appointment.id,
+        source: "appointment",
+        personKey: `staff:${appointment.assignedCompassionStaff.id}`,
+        personName: displayName,
+        title: appointment.appointmentType.replaceAll("_", " "),
+        location: appointment.location ?? null,
+        startTime: appointment.startTime.toISOString(),
+        endTime: appointment.endTime?.toISOString() ?? null,
+        status: appointment.status.toLowerCase(),
+      }];
+    }
 
-      return null;
-    })
-    .filter((item): item is HrmScheduleItem => Boolean(item));
+    return [];
+  });
 
   return [...meetingItems, ...appointmentItems].sort((left, right) =>
     new Date(left.startTime).getTime() - new Date(right.startTime).getTime());

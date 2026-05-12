@@ -118,6 +118,7 @@ export function WatchdogTicketsDashboard() {
 
   useEffect(() => {
     if (!selectedTicketId) return;
+    const ticketId = selectedTicketId;
 
     let active = true;
     setLoadingDetail(true);
@@ -125,7 +126,7 @@ export function WatchdogTicketsDashboard() {
 
     async function loadDetail() {
       try {
-        const ticket = await fetchWatchdogTicketById(selectedTicketId);
+        const ticket = await fetchWatchdogTicketById(ticketId);
         if (!active) return;
         setSelectedTicket(ticket);
       } catch (loadError) {

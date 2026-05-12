@@ -219,7 +219,7 @@ function nextTicketNumber(previousTicketNumber: string | null): string {
 }
 
 /** Creates one ticket with retry logic to handle rare sequence collisions. */
-async function createTicketWithSequence(data: Prisma.WatchdogFeedbackTicketCreateInput) {
+async function createTicketWithSequence(data: Omit<Prisma.WatchdogFeedbackTicketUncheckedCreateInput, "ticketNumber">) {
   let attempts = 0;
 
   while (attempts < 5) {

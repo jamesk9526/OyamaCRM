@@ -167,7 +167,6 @@ export const DONATION_AUTO_MAP_ALIASES: Record<string, string> = {
   // ─── Notes / In-Kind ────────────────────────────────────────────────
   "note":                   "notes",
   "notes":                  "notes",
-  "comment":                "notes",
   "comments":               "notes",
   "gift note":              "notes",
   "in-kind description":    "inKindDescription",

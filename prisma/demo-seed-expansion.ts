@@ -730,7 +730,7 @@ function buildDemoEvents(
       revenueGoal: rng.int(35000, 260000),
       ownerId: idx % 2 === 0 ? options.staffUserId : options.adminUserId,
       internalNotes: `${DEMO_MARKER} Event supports search, check-in, table, and reporting demo paths.`,
-      active: status !== "CANCELLED",
+      active: true,
     });
 
     const individualTicketId = `demo_tkt_${String(ticketSeq++).padStart(6, "0")}`;
