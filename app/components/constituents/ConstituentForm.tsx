@@ -57,23 +57,27 @@ const DEFAULTS: ConstituentFormData = {
 function normalizeInitialData(initialData?: Partial<ConstituentFormData>): ConstituentFormData {
   if (!initialData) return { ...DEFAULTS };
 
-  const merged = { ...DEFAULTS, ...initialData } as ConstituentFormData;
+  // Use a union-typed record during normalization so dynamic key assignment stays type-safe.
+  const merged: Record<keyof ConstituentFormData, string | boolean> = {
+    ...DEFAULTS,
+    ...initialData,
+  };
 
   for (const key of Object.keys(DEFAULTS) as Array<keyof ConstituentFormData>) {
     const defaultValue = DEFAULTS[key];
     const incomingValue = merged[key];
 
     if (typeof defaultValue === "string") {
-      merged[key] = (incomingValue ?? "") as ConstituentFormData[typeof key];
+      merged[key] = typeof incomingValue === "string" ? incomingValue : defaultValue;
       continue;
     }
 
     if (typeof defaultValue === "boolean") {
-      merged[key] = (incomingValue ?? defaultValue) as ConstituentFormData[typeof key];
+      merged[key] = typeof incomingValue === "boolean" ? incomingValue : defaultValue;
     }
   }
 
-  return merged;
+  return merged as ConstituentFormData;
 }
 
 export default function ConstituentForm({ mode, initialData, constituentId }: Props) {

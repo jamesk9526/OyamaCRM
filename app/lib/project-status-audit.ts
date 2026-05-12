@@ -4,6 +4,7 @@ export type ProjectStatusLabel =
   | "Complete"
   | "Working"
   | "Partial"
+  | "Partially Working"
   | "UI Only"
   | "Placeholder Data"
   | "Broken"
@@ -13,6 +14,7 @@ export type ProjectStatusLabel =
 export type ProjectDataSourceLabel =
   | "Real Database Data"
   | "Real API Data"
+  | "Real API Data + In-Development Guards"
   | "Mixed Real/Demo Data"
   | "Mock Data"
   | "Hardcoded Placeholder"

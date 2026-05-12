@@ -3,7 +3,7 @@
  * Provides template management, merge preview, generated letters, and email-draft integration.
  */
 import { Prisma } from "@prisma/client";
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { logAudit } from "../lib/audit.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { hasDefaultPermission } from "../lib/permissions.js";
@@ -36,9 +36,16 @@ const LETTER_ALIGNMENT = ["LEFT", "CENTER", "RIGHT", "NONE"] as const;
 router.use(requireAuth);
 
 /** Validates and returns the active organization context for one request. */
-async function requireOrganizationId(req: Parameters<typeof resolveOrganizationId>[0]["req"]): Promise<string | null> {
+async function requireOrganizationId(req: Request): Promise<string | null> {
   const organizationId = await resolveOrganizationId({ req });
   return organizationId || null;
+}
+
+/** Normalizes Express route id params into one string value. */
+function getRouteId(req: Request): string {
+  const raw = req.params?.id;
+  if (Array.isArray(raw)) return raw[0] ?? "";
+  return raw ?? "";
 }
 
 /** Parses one enum-like input value against an allowed literal list. */
@@ -419,7 +426,7 @@ router.get("/templates/:id", requirePermission("letters.view"), async (req, res)
   }
 
   const template = await prisma.letterTemplate.findFirst({
-    where: { id: req.params.id, organizationId },
+    where: { id: getRouteId(req), organizationId },
     include: {
       headerPreset: true,
       footerPreset: true,
@@ -517,7 +524,7 @@ router.patch("/templates/:id", requirePermission("letters.edit"), async (req, re
     return;
   }
 
-  const existing = await prisma.letterTemplate.findFirst({ where: { id: req.params.id, organizationId } });
+  const existing = await prisma.letterTemplate.findFirst({ where: { id: getRouteId(req), organizationId } });
   if (!existing) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Letter template not found." } });
     return;
@@ -632,7 +639,7 @@ router.post("/templates/:id/duplicate", requirePermission("letters.create"), asy
     return;
   }
 
-  const existing = await prisma.letterTemplate.findFirst({ where: { id: req.params.id, organizationId } });
+  const existing = await prisma.letterTemplate.findFirst({ where: { id: getRouteId(req), organizationId } });
   if (!existing) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Letter template not found." } });
     return;
@@ -654,7 +661,7 @@ router.post("/templates/:id/duplicate", requirePermission("letters.create"), asy
       signatureBlockId: existing.signatureBlockId,
       logoMode: existing.logoMode,
       customLogoUrl: existing.customLogoUrl,
-      mergeFieldsUsed: existing.mergeFieldsUsed,
+      mergeFieldsUsed: (existing.mergeFieldsUsed ?? []) as Prisma.InputJsonValue,
       crmScope: existing.crmScope,
       createdByUserId: userId,
       updatedByUserId: userId,
@@ -682,7 +689,7 @@ router.delete("/templates/:id", requirePermission("letters.archive"), async (req
     return;
   }
 
-  const existing = await prisma.letterTemplate.findFirst({ where: { id: req.params.id, organizationId } });
+  const existing = await prisma.letterTemplate.findFirst({ where: { id: getRouteId(req), organizationId } });
   if (!existing) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Letter template not found." } });
     return;
@@ -772,7 +779,7 @@ router.patch("/header-presets/:id", requirePermission("letters.manage_branding")
     return;
   }
 
-  const existing = await prisma.letterHeaderPreset.findFirst({ where: { id: req.params.id, organizationId } });
+  const existing = await prisma.letterHeaderPreset.findFirst({ where: { id: getRouteId(req), organizationId } });
   if (!existing) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Header preset not found." } });
     return;
@@ -825,7 +832,7 @@ router.delete("/header-presets/:id", requirePermission("letters.manage_branding"
     return;
   }
 
-  const existing = await prisma.letterHeaderPreset.findFirst({ where: { id: req.params.id, organizationId } });
+  const existing = await prisma.letterHeaderPreset.findFirst({ where: { id: getRouteId(req), organizationId } });
   if (!existing) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Header preset not found." } });
     return;
@@ -906,7 +913,7 @@ router.patch("/footer-presets/:id", requirePermission("letters.manage_branding")
     return;
   }
 
-  const existing = await prisma.letterFooterPreset.findFirst({ where: { id: req.params.id, organizationId } });
+  const existing = await prisma.letterFooterPreset.findFirst({ where: { id: getRouteId(req), organizationId } });
   if (!existing) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Footer preset not found." } });
     return;
@@ -954,7 +961,7 @@ router.delete("/footer-presets/:id", requirePermission("letters.manage_branding"
     return;
   }
 
-  const existing = await prisma.letterFooterPreset.findFirst({ where: { id: req.params.id, organizationId } });
+  const existing = await prisma.letterFooterPreset.findFirst({ where: { id: getRouteId(req), organizationId } });
   if (!existing) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Footer preset not found." } });
     return;
@@ -1038,7 +1045,7 @@ router.patch("/signatures/:id", requirePermission("letters.manage_signatures"), 
     return;
   }
 
-  const existing = await prisma.letterSignatureBlock.findFirst({ where: { id: req.params.id, organizationId } });
+  const existing = await prisma.letterSignatureBlock.findFirst({ where: { id: getRouteId(req), organizationId } });
   if (!existing) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Signature block not found." } });
     return;
@@ -1091,7 +1098,7 @@ router.delete("/signatures/:id", requirePermission("letters.manage_signatures"),
     return;
   }
 
-  const existing = await prisma.letterSignatureBlock.findFirst({ where: { id: req.params.id, organizationId } });
+  const existing = await prisma.letterSignatureBlock.findFirst({ where: { id: getRouteId(req), organizationId } });
   if (!existing) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Signature block not found." } });
     return;
@@ -1155,7 +1162,7 @@ router.get("/constituents/:id/generated", requirePermission("letters.view"), asy
   const rows = await prisma.generatedLetter.findMany({
     where: {
       organizationId,
-      constituentId: req.params.id,
+      constituentId: getRouteId(req),
     },
     include: {
       template: { select: { id: true, name: true, category: true } },
@@ -1360,7 +1367,7 @@ router.patch("/generated/:id/status", requirePermission("letters.generate"), asy
   }
 
   const existing = await prisma.generatedLetter.findFirst({
-    where: { id: req.params.id, organizationId },
+    where: { id: getRouteId(req), organizationId },
     select: { id: true, constituentId: true, status: true },
   });
   if (!existing) {
@@ -1418,7 +1425,7 @@ router.post("/generated/:id/create-email-draft", requirePermission("letters.crea
   }
 
   const generated = await prisma.generatedLetter.findFirst({
-    where: { id: req.params.id, organizationId },
+    where: { id: getRouteId(req), organizationId },
     include: {
       template: { select: { id: true, name: true, category: true } },
       constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -1525,7 +1532,7 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
     return;
   }
 
-  const exists = await prisma.generatedLetter.findFirst({ where: { id: req.params.id, organizationId }, select: { id: true } });
+  const exists = await prisma.generatedLetter.findFirst({ where: { id: getRouteId(req), organizationId }, select: { id: true } });
   if (!exists) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Generated letter not found." } });
     return;

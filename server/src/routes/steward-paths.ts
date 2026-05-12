@@ -3,7 +3,7 @@
  * Manages path templates, ordered steps, enrollments, timeline, drafts, and due-step processing.
  */
 import { Prisma, type StewardPathCrmScope, type StewardPathEmailDraftStatus, type StewardPathEnrollmentStatus, type StewardPathStatus, type StewardPathStepType, type StewardPathTarget, type StewardPathTimelineEventType } from "@prisma/client";
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
@@ -32,9 +32,21 @@ const EMAIL_DRAFT_STATUS_VALUES: StewardPathEmailDraftStatus[] = ["DRAFT_CREATED
 router.use(requireAuth);
 
 /** Validates that the request has an organization context. */
-async function requireOrganizationId(req: Parameters<typeof resolveOrganizationId>[0]["req"]): Promise<string | null> {
+async function requireOrganizationId(req: Request): Promise<string | null> {
   const organizationId = await resolveOrganizationId({ req });
   return organizationId || null;
+}
+
+/** Normalizes Express route id params into one string value. */
+function getRouteParam(req: Request, key: string): string {
+  const raw = req.params?.[key];
+  if (Array.isArray(raw)) return raw[0] ?? "";
+  return raw ?? "";
+}
+
+/** Returns the normalized id route param value. */
+function getRouteId(req: Request): string {
+  return getRouteParam(req, "id");
 }
 
 /** Parses and validates an enum-like request string. */
@@ -109,7 +121,7 @@ router.get("/templates/:id", requirePermission("steward_paths.view"), async (req
   }
 
   const path = await prisma.stewardPath.findFirst({
-    where: { id: req.params.id, organizationId },
+    where: { id: getRouteId(req), organizationId },
     include: {
       steps: { orderBy: { orderIndex: "asc" } },
       enrollments: {
@@ -195,7 +207,7 @@ router.patch("/templates/:id", requirePermission("steward_paths.edit"), async (r
     return;
   }
 
-  const existing = await prisma.stewardPath.findFirst({ where: { id: req.params.id, organizationId } });
+  const existing = await prisma.stewardPath.findFirst({ where: { id: getRouteId(req), organizationId } });
   if (!existing) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Steward Path template not found." } });
     return;
@@ -277,7 +289,7 @@ router.delete("/templates/:id", requirePermission("steward_paths.archive"), asyn
     return;
   }
 
-  const existing = await prisma.stewardPath.findFirst({ where: { id: req.params.id, organizationId } });
+  const existing = await prisma.stewardPath.findFirst({ where: { id: getRouteId(req), organizationId } });
   if (!existing) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Steward Path template not found." } });
     return;
@@ -312,7 +324,7 @@ router.post("/templates/:id/steps", requirePermission("steward_paths.edit"), asy
     return;
   }
 
-  const path = await prisma.stewardPath.findFirst({ where: { id: req.params.id, organizationId } });
+  const path = await prisma.stewardPath.findFirst({ where: { id: getRouteId(req), organizationId } });
   if (!path) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Steward Path template not found." } });
     return;
@@ -381,13 +393,13 @@ router.patch("/templates/:id/steps/:stepId", requirePermission("steward_paths.ed
     return;
   }
 
-  const path = await prisma.stewardPath.findFirst({ where: { id: req.params.id, organizationId } });
+  const path = await prisma.stewardPath.findFirst({ where: { id: getRouteId(req), organizationId } });
   if (!path) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Steward Path template not found." } });
     return;
   }
 
-  const step = await prisma.stewardPathStep.findFirst({ where: { id: req.params.stepId, pathId: path.id } });
+  const step = await prisma.stewardPathStep.findFirst({ where: { id: getRouteParam(req, "stepId"), pathId: path.id } });
   if (!step) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Steward Path step not found." } });
     return;
@@ -450,13 +462,15 @@ router.post("/templates/:id/steps/reorder", requirePermission("steward_paths.edi
     return;
   }
 
-  const path = await prisma.stewardPath.findFirst({ where: { id: req.params.id, organizationId } });
+  const path = await prisma.stewardPath.findFirst({ where: { id: getRouteId(req), organizationId } });
   if (!path) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Steward Path template not found." } });
     return;
   }
 
-  const stepIds = Array.isArray(req.body?.stepIds) ? req.body.stepIds.filter((id): id is string => typeof id === "string") : [];
+  const stepIds = Array.isArray(req.body?.stepIds)
+    ? req.body.stepIds.filter((id: unknown): id is string => typeof id === "string")
+    : [];
   if (stepIds.length === 0) {
     res.status(400).json({ error: { code: "INVALID_STEPS", message: "stepIds[] is required." } });
     return;
@@ -469,7 +483,7 @@ router.post("/templates/:id/steps/reorder", requirePermission("steward_paths.edi
   });
 
   const existingIds = new Set(existing.map((s) => s.id));
-  const orderedUnique = Array.from(new Set(stepIds));
+  const orderedUnique = Array.from(new Set<string>(stepIds));
   if (orderedUnique.some((id) => !existingIds.has(id)) || orderedUnique.length !== existing.length) {
     res.status(400).json({ error: { code: "INVALID_STEPS", message: "stepIds must include every step exactly once." } });
     return;
@@ -511,8 +525,8 @@ router.delete("/templates/:id/steps/:stepId", requirePermission("steward_paths.e
 
   const step = await prisma.stewardPathStep.findFirst({
     where: {
-      id: req.params.stepId,
-      pathId: req.params.id,
+      id: getRouteParam(req, "stepId"),
+      pathId: getRouteId(req),
       path: { organizationId },
     },
   });
@@ -527,7 +541,7 @@ router.delete("/templates/:id/steps/:stepId", requirePermission("steward_paths.e
     data: { isActive: false },
   });
 
-  await prisma.stewardPath.update({ where: { id: req.params.id }, data: { lastEditedByUserId: userId } });
+  await prisma.stewardPath.update({ where: { id: getRouteId(req) }, data: { lastEditedByUserId: userId } });
 
   await logAudit({
     action: "STEWARD_PATH_STEP_ARCHIVED",
@@ -535,7 +549,7 @@ router.delete("/templates/:id/steps/:stepId", requirePermission("steward_paths.e
     entityId: step.id,
     userId,
     organizationId,
-    metadata: { pathId: req.params.id },
+    metadata: { pathId: getRouteId(req) },
   });
 
   res.status(204).send();
@@ -582,7 +596,7 @@ router.post("/templates/:id/enrollments", requirePermission("steward_paths.enrol
 
   const path = await prisma.stewardPath.findFirst({
     where: {
-      id: req.params.id,
+      id: getRouteId(req),
       organizationId,
       status: { in: ["ACTIVE", "DRAFT", "PAUSED"] },
     },
@@ -673,7 +687,7 @@ router.patch("/enrollments/:id/status", requirePermission("steward_paths.pause")
   }
 
   const enrollment = await prisma.stewardPathEnrollment.findFirst({
-    where: { id: req.params.id, organizationId },
+    where: { id: getRouteId(req), organizationId },
     include: { path: { select: { id: true, name: true } } },
   });
 
@@ -744,7 +758,7 @@ router.post("/enrollments/:id/complete-current-step", requirePermission("steward
     return;
   }
 
-  const enrollment = await prisma.stewardPathEnrollment.findFirst({ where: { id: req.params.id, organizationId } });
+  const enrollment = await prisma.stewardPathEnrollment.findFirst({ where: { id: getRouteId(req), organizationId } });
   if (!enrollment) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Enrollment not found." } });
     return;
@@ -785,7 +799,7 @@ router.get("/enrollments/:id/timeline", requirePermission("steward_paths.view"),
     return;
   }
 
-  const enrollment = await prisma.stewardPathEnrollment.findFirst({ where: { id: req.params.id, organizationId }, select: { id: true } });
+  const enrollment = await prisma.stewardPathEnrollment.findFirst({ where: { id: getRouteId(req), organizationId }, select: { id: true } });
   if (!enrollment) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Enrollment not found." } });
     return;
@@ -856,7 +870,7 @@ router.patch("/email-drafts/:id", requirePermission("steward_paths.edit"), async
 
   const draft = await prisma.stewardPathEmailDraft.findFirst({
     where: {
-      id: req.params.id,
+      id: getRouteId(req),
       enrollment: { organizationId },
     },
     include: {
@@ -963,7 +977,7 @@ router.post("/process-due", requirePermission("steward_paths.process_due_steps")
     entity: "StewardPath",
     userId,
     organizationId,
-    metadata: result,
+    metadata: { ...result },
   });
 
   res.json(result);

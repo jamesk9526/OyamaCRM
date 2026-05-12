@@ -3,6 +3,7 @@
  * Processes due enrollments step-by-step with auditable timeline events.
  */
 import {
+  type Prisma,
   type StewardPathEnrollment,
   type StewardPathEnrollmentStatus,
   type StewardPathStep,
@@ -208,7 +209,7 @@ export async function completeCurrentManualStep(enrollmentId: string, userId?: s
     data: {
       status: "COMPLETED",
       completedAt: new Date(),
-      resultJson: note ? { completionNote: note } : run.resultJson,
+      resultJson: (note ? { completionNote: note } : toRecord(run.resultJson)) as Prisma.InputJsonValue,
     },
   });
 
@@ -732,7 +733,7 @@ export async function createTimelineEvent(args: {
   eventType: StewardPathTimelineEventType;
   message: string;
   createdByUserId?: string;
-  metadataJson?: Record<string, unknown>;
+  metadataJson?: Prisma.InputJsonValue;
 }): Promise<void> {
   await prisma.stewardPathTimelineEvent.create({
     data: {
