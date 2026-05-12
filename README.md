@@ -550,6 +550,44 @@ Confirm this exact line is present in [prisma/migrations/20260509051734_expand_e
 
 ALTER TABLE `Activity` ADD COLUMN `eventId` VARCHAR(191) NULL;
 
+### Percona 8 (Ubuntu) Database Preflight
+
+OyamaCRM is compatible with Percona Server 8.0.x (MySQL protocol), including your current version 8.0.36.
+
+Before running migrations on Ubuntu, verify these database settings and privileges:
+
+1. Confirm server variables
+
+    SHOW VARIABLES LIKE 'version';
+    SHOW VARIABLES LIKE 'lower_case_table_names';
+    SHOW VARIABLES LIKE 'character_set_server';
+    SHOW VARIABLES LIKE 'collation_server';
+
+2. Required expectations
+
+    - lower_case_table_names should be 0 on Linux (case-sensitive table names).
+    - character_set_server should be utf8mb4.
+    - collation_server should be utf8mb4_0900_ai_ci or another utf8mb4 collation.
+
+3. Confirm app user grants
+
+    SHOW GRANTS FOR 'oyamacrm'@'localhost';
+
+    Minimum recommended grants on the app database:
+
+    GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP, REFERENCES ON oyamacrm.* TO 'oyamacrm'@'localhost';
+    FLUSH PRIVILEGES;
+
+4. Use production migration mode only
+
+    - Use pnpm db:migrate (prisma migrate deploy).
+    - Do not use prisma migrate dev on VPS, because it needs shadow-database create permissions.
+
+5. If a migration fails with P3018
+
+    pnpm prisma migrate resolve --rolled-back <failed_migration_name>
+    pnpm db:migrate
+
 ---
 
 ## 🗺️ Roadmap
