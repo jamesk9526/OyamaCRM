@@ -6,11 +6,11 @@ module.exports = {
   apps: [
     {
       name: 'oyama-crm-web',
-      script: './node_modules/.bin/next',
-      interpreter: 'none',
-      args: 'start',
-      instances: 'max',
-      exec_mode: 'cluster',
+      script: './node_modules/next/dist/bin/next',
+      interpreter: 'node',
+      args: `start -p ${WEB_PORT}`,
+      instances: 1,
+      exec_mode: 'fork',
       watch: false,
       max_memory_restart: '1G',
       env: {
@@ -19,6 +19,10 @@ module.exports = {
       },
       env_development: {
         NODE_ENV: 'development',
+        PORT: WEB_PORT,
+      },
+      env_production: {
+        NODE_ENV: 'production',
         PORT: WEB_PORT,
       },
     },
@@ -37,6 +41,10 @@ module.exports = {
       },
       env_development: {
         NODE_ENV: 'development',
+        API_PORT,
+      },
+      env_production: {
+        NODE_ENV: 'production',
         API_PORT,
       },
     },
