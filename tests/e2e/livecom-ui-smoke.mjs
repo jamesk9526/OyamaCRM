@@ -4,7 +4,7 @@
  */
 import { chromium } from "playwright";
 
-const WEB_BASE = process.env.E2E_WEB_BASE_URL || "http://localhost:3000";
+const WEB_BASE = process.env.E2E_WEB_BASE_URL || "http://localhost:3650";
 const API_BASE = process.env.E2E_API_BASE_URL || "http://localhost:4000";
 
 /** Attempts to recover the current browser session by rotating refresh cookie once. */
@@ -58,7 +58,7 @@ function assertAuthed(url) {
 }
 
 /** Waits for interaction row visibility or throws on visible save failures. */
-async function waitForInteractionRow(page, interactionRow, timeoutMs = 30000) {
+async function waitForInteractionRow(page, interactionRow, timeoutMs = 36500) {
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < timeoutMs) {
@@ -117,7 +117,7 @@ async function main() {
     let optionCount = 0;
     const optionsWaitStarted = Date.now();
 
-    while (Date.now() - optionsWaitStarted < 30000) {
+    while (Date.now() - optionsWaitStarted < 36500) {
       optionCount = await constituentSelect.locator("option").count();
       if (optionCount >= 2) {
         break;
@@ -136,7 +136,7 @@ async function main() {
     await page.getByRole("button", { name: "Save Interaction" }).click();
 
     const interactionRow = page.locator("table tbody tr", { hasText: uniqueText }).first();
-    await waitForInteractionRow(page, interactionRow, 30000);
+    await waitForInteractionRow(page, interactionRow, 36500);
 
     const statusSelect = interactionRow.locator("select").first();
     const ownerInput = interactionRow.locator('input[placeholder="Unassigned"]').first();
@@ -147,7 +147,7 @@ async function main() {
     const saveButton = interactionRow.getByRole("button", { name: "Save" });
     await saveButton.click();
 
-    await interactionRow.getByText("In Progress", { exact: false }).first().waitFor({ timeout: 30000 });
+    await interactionRow.getByText("In Progress", { exact: false }).first().waitFor({ timeout: 36500 });
 
     const donorLink = interactionRow.locator('a[href^="/constituents/"]').first();
     await donorLink.click();

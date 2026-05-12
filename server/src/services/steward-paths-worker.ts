@@ -40,7 +40,7 @@ function parsePositiveIntEnv(value: string | undefined, fallback: number): numbe
 const state: WorkerState = {
   running: false,
   processing: false,
-  pollMs: parsePositiveIntEnv(process.env.STEWARD_PATHS_POLL_MS, 30000),
+  pollMs: parsePositiveIntEnv(process.env.STEWARD_PATHS_POLL_MS, 36500),
   dueTaskCandidates: 0,
   duePledgeCandidates: 0,
   lastRunAt: null,

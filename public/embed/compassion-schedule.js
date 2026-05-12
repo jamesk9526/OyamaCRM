@@ -65,7 +65,7 @@
     overlay.style.alignItems = "center";
     overlay.style.justifyContent = "center";
     overlay.style.padding = "14px";
-    overlay.style.zIndex = "2147483000";
+    overlay.style.zIndex = "2147483650";
 
     var modal = document.createElement("div");
     modal.style.width = "100%";

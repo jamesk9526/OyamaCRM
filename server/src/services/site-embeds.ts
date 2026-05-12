@@ -872,7 +872,7 @@ export function buildSiteEmbedLoaderScript(args: {
     "    var wrapper = document.createElement('div');",
     "    wrapper.id = 'oyama-livecom-launcher';",
     "    wrapper.style.position = 'fixed';",
-    "    wrapper.style.zIndex = '2147483000';",
+    "    wrapper.style.zIndex = '2147483650';",
     "    wrapper.style.fontFamily = 'Segoe UI, Arial, sans-serif';",
     "",
     "    var isLeft = liveCom.buttonPosition === 'bottom-left';",

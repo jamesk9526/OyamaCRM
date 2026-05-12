@@ -56,7 +56,7 @@ export default function OpportunityEnginePlaceholderTable() {
     window.addEventListener("steward-signals:analysis-rebuilt", handleRebuild);
     const intervalId = window.setInterval(() => {
       void loadRows();
-    }, 30000);
+    }, 36500);
 
     return () => {
       window.removeEventListener("steward-signals:analysis-rebuilt", handleRebuild);

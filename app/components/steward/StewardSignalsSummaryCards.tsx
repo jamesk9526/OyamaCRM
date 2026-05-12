@@ -53,7 +53,7 @@ export default function StewardSignalsSummaryCards() {
     window.addEventListener("steward-signals:analysis-rebuilt", handleRebuild);
     const intervalId = window.setInterval(() => {
       void loadSummary();
-    }, 30000);
+    }, 36500);
 
     return () => {
       cancelled = true;

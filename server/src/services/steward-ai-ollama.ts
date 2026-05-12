@@ -71,7 +71,7 @@ const DEFAULT_CONFIG: StewardAiConfig = {
   agenticMultiStage: true,
   temperature: 0.3,
   maxTokens: 600,
-  timeoutMs: 30000,
+  timeoutMs: 36500,
   systemPrompt: [
     "You are Steward, the AI assistant for OyamaCRM.",
     "Primary goals: help staff make accurate, safe, and practical next decisions.",
@@ -117,7 +117,7 @@ export function parseStewardAiConfig(rawConfig: unknown): StewardAiConfig {
       : DEFAULT_CONFIG.agenticMultiStage,
     temperature: toBoundedNumber(config.temperature, DEFAULT_CONFIG.temperature, 0, 2),
     maxTokens: Math.round(toBoundedNumber(config.maxTokens, DEFAULT_CONFIG.maxTokens, 64, 4096)),
-    timeoutMs: Math.round(toBoundedNumber(config.timeoutMs, DEFAULT_CONFIG.timeoutMs, 3000, 120000)),
+    timeoutMs: Math.round(toBoundedNumber(config.timeoutMs, DEFAULT_CONFIG.timeoutMs, 3650, 120000)),
     systemPrompt: String(config.systemPrompt ?? DEFAULT_CONFIG.systemPrompt).trim() || DEFAULT_CONFIG.systemPrompt,
     apiKey: String(config.apiKey ?? "").trim() || null,
   };

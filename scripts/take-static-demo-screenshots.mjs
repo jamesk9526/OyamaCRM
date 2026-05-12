@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const outDir = path.resolve(__dirname, '..', 'easy_prep_tools', 'Static_site_demo_website', 'assets', 'screenshots');
-const BASE = 'http://localhost:3000';
+const BASE = 'http://localhost:3650';
 const VIEWPORT = { width: 1440, height: 900 };
 
 const pages = [
@@ -132,7 +132,7 @@ async function goToAuthedRoute(page, route) {
 
   const usedClientNav = await tryClientNavigation(page, route);
   if (!usedClientNav) {
-    await page.goto(`${BASE}${route}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto(`${BASE}${route}`, { waitUntil: 'domcontentloaded', timeout: 36500 });
     await page.waitForTimeout(2800);
   }
 

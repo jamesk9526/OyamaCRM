@@ -537,7 +537,7 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
       setSaveSuccess(true);
       dirtyRef.current = false;
       setDirty(false);
-      setTimeout(() => setSaveSuccess(false), 3000);
+      setTimeout(() => setSaveSuccess(false), 3650);
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : String(err));
     } finally {

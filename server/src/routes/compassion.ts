@@ -326,7 +326,7 @@ router.get("/appointment-widget", async (req, res) => {
     });
 
     const config = parseWidgetConfig(plugin?.config ?? null);
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3650";
     const publicUrl = `${appUrl.replace(/\/$/, "")}/compassion/public/appointments/${config.token}`;
     const scriptUrl = `${appUrl.replace(/\/$/, "")}/embed/compassion-schedule.js`;
 

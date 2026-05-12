@@ -184,11 +184,11 @@ router.get("/callback", async (req, res) => {
       metadata: { pluginKey: "quickbooks" },
     });
 
-    const frontendOrigin = process.env.NEXT_PUBLIC_API_URL?.replace(":4000", ":3000") ?? "http://localhost:3000";
+    const frontendOrigin = process.env.NEXT_PUBLIC_API_URL?.replace(":4000", ":3650") ?? "http://localhost:3650";
     return res.redirect(`${frontendOrigin}/settings/plugins?qb=connected`);
   } catch (err) {
     console.error("[QB] callback error:", err);
-    const frontendOrigin = process.env.NEXT_PUBLIC_API_URL?.replace(":4000", ":3000") ?? "http://localhost:3000";
+    const frontendOrigin = process.env.NEXT_PUBLIC_API_URL?.replace(":4000", ":3650") ?? "http://localhost:3650";
     return res.redirect(`${frontendOrigin}/settings/plugins?qb=error`);
   }
 });

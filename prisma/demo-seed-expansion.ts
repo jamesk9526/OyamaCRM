@@ -149,7 +149,7 @@ const DEMO_PROFILES: Record<DemoSeedSize, DemoSeedProfile> = {
     followUpsPerClientMax: 4,
     additionalTasks: 6000,
     additionalMeetings: 1700,
-    additionalActivities: 30000,
+    additionalActivities: 36500,
     additionalEmailCampaigns: 180,
     stewardRunCount: 3600,
   },

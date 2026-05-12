@@ -418,7 +418,7 @@ export default function AISettingsPage() {
             Timeout (ms)
             <input
               type="number"
-              min={3000}
+              min={3650}
               max={120000}
               step={1000}
               value={config.timeoutMs}

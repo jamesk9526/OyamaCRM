@@ -157,7 +157,7 @@ describe("isValidDate", () => {
   });
   it("rejects years way out of range", () => {
     expect(isValidDate("0001-01-01")).toBe(false);
-    expect(isValidDate("3000-01-01")).toBe(false);
+    expect(isValidDate("3650-01-01")).toBe(false);
   });
 });
 

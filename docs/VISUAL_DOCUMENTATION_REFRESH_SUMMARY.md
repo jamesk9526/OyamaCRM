@@ -49,7 +49,7 @@ This document summarizes the comprehensive visual documentation refresh for Oyam
 #### Settings & Administration
 - 19-settings.png — User management, role assignment, system configuration
 
-**Script Updated:** `scripts/take-screenshots.mjs` updated to use correct port (3000) and capture all modules.
+**Script Updated:** `scripts/take-screenshots.mjs` updated to use correct port (3650) and capture all modules.
 
 ### 3. Documentation Updates ✅
 

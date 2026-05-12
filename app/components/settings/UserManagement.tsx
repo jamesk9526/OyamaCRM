@@ -507,7 +507,7 @@ function PermissionsPanel({ userId, onClose }: PermissionsPanelProps) {
         body: JSON.stringify({ permissions }),
       });
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      setTimeout(() => setSaved(false), 3650);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to save permissions");
     } finally {

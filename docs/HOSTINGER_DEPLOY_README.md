@@ -188,7 +188,7 @@ If Nginx shows `502 Bad Gateway`, it usually means proxy upstream is not reachab
 
 For OyamaCRM, expected upstreams are:
 
-- Next.js web app on `127.0.0.1:3000`
+- Next.js web app on `127.0.0.1:3650`
 - Express API on `127.0.0.1:4000`
 
 ### A) Quick diagnosis
@@ -200,14 +200,14 @@ cd ~/htdocs/www.crm.partnertpcc.com
 pm2 status
 pm2 logs oyama-crm-web --lines 80
 pm2 logs oyama-crm-api --lines 80
-ss -ltnp | grep -E ':3000|:4000' || true
-curl -I http://127.0.0.1:3000 || true
+ss -ltnp | grep -E ':3650|:4000' || true
+curl -I http://127.0.0.1:3650 || true
 curl -I http://127.0.0.1:4000/health || true
 ```
 
 Interpretation:
 
-- If nothing is listening on `3000`, Nginx to web will return 502.
+- If nothing is listening on `3650`, Nginx to web will return 502.
 - If API is down on `4000`, API calls fail even if web loads.
 
 ### B) Start/restart services
@@ -229,11 +229,11 @@ Your Hostinger template uses:
 proxy_pass http://127.0.0.1:{{app_port}}/;
 ```
 
-Make sure `{{app_port}}` resolves to `3000` for the website upstream.
+Make sure `{{app_port}}` resolves to `3650` for the website upstream.
 
 ### D) Recommended Nginx routing for OyamaCRM
 
-OyamaCRM runs web and API separately, so route `/api` to `4000` and everything else to `3000`.
+OyamaCRM runs web and API separately, so route `/api` to `4000` and everything else to `3650`.
 
 ```nginx
 location /api/ {
@@ -250,7 +250,7 @@ location /api/ {
 }
 
 location / {
-	proxy_pass http://127.0.0.1:3000/;
+	proxy_pass http://127.0.0.1:3650/;
 	proxy_http_version 1.1;
 	proxy_set_header X-Forwarded-Host $host;
 	proxy_set_header X-Forwarded-Server $host;
@@ -273,5 +273,5 @@ curl -I https://www.crm.partnertpcc.com/api/health
 ### E) If 502 persists
 
 - Verify PM2 process names match ecosystem config: `oyama-crm-web`, `oyama-crm-api`.
-- Confirm no port conflicts on `3000`/`4000`.
+- Confirm no port conflicts on `3650`/`4000`.
 - Confirm `NEXT_PUBLIC_API_URL` and `FRONTEND_ORIGIN` are set correctly in `.env`.

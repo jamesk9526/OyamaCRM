@@ -58,7 +58,7 @@ export default function WorkspacesSettingsPage() {
       });
       setSettings(normalizeWorkspaceSettings(payload));
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      setTimeout(() => setSaved(false), 3650);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save workspace settings");
       setSaved(false);

@@ -55,7 +55,7 @@ export default function StewardLapseRadarPanel() {
     window.addEventListener("steward-signals:analysis-rebuilt", handleRebuild);
     const intervalId = window.setInterval(() => {
       void loadLapseRadar();
-    }, 30000);
+    }, 36500);
 
     return () => {
       cancelled = true;

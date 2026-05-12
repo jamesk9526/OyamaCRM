@@ -1,5 +1,5 @@
 /** @type {import('pm2').StartOptions} */
-const WEB_PORT = Number(process.env.PORT || 3000);
+const WEB_PORT = Number(process.env.PORT || 3650);
 const API_PORT = Number(process.env.API_PORT || 4000);
 
 module.exports = {

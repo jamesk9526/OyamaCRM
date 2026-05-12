@@ -193,7 +193,7 @@ async function main() {
       name: "Annual Fund 2026",
       description: "Primary 2026 annual campaign for unrestricted and program support.",
       category: CampaignCategory.ANNUAL_FUND,
-      goal: 300000,
+      goal: 365000,
       startDate: new Date("2026-01-01"),
       endDate: new Date("2026-12-31"),
       active: true,

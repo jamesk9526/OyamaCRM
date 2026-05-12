@@ -73,7 +73,7 @@ function isCorsOriginAllowed(origin: string): boolean {
   if (explicitCorsOrigins.has(origin)) return true;
 
   if (process.env.NODE_ENV !== "production") {
-    return /^http:\/\/(localhost|127\.0\.0\.1):(3000|3001)$/.test(origin);
+    return /^http:\/\/(localhost|127\.0\.0\.1):(3650|3001)$/.test(origin);
   }
 
   return false;
