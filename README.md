@@ -449,7 +449,7 @@ Edit `.env`:
 # Required
 DATABASE_URL="mysql://user:password@localhost:3306/oyamacrm"
 JWT_SECRET="your-long-random-secret"
-JWT_REFRESH_SECRET="another-long-random-secret"
+REFRESH_SECRET="another-long-random-secret"
 API_PORT=4000
 FRONTEND_ORIGIN=http://localhost:3001
 
@@ -461,7 +461,7 @@ SENDGRID_API_KEY=
 ### 3. Initialize Database
 
 ```bash
-pnpm db:migrate        # Run migrations
+pnpm db:migrate        # Apply existing migrations (safe for production)
 pnpm db:seed:small     # Seed with demo data
 ```
 
@@ -491,7 +491,8 @@ pnpm dev:api              # API only (port 4000)
 pnpm dev:web              # Web only (port 3001)
 
 # Database
-pnpm db:migrate           # Run migrations
+pnpm db:migrate           # Apply existing migrations (safe for production)
+pnpm db:migrate:dev       # Create/apply a new migration during local development
 pnpm db:push              # Push schema without migration files
 pnpm db:seed:small        # ~50 donors
 pnpm db:seed:medium       # ~200 donors
