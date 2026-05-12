@@ -106,6 +106,15 @@ const DAYS_OF_WEEK: Array<{ value: number; label: string }> = [
   { value: 6, label: "Saturday" },
 ];
 
+type WidgetColorKey = "primaryColor" | "secondaryColor" | "surfaceColor" | "textColor";
+
+const WIDGET_COLOR_FIELDS: Array<{ key: WidgetColorKey; label: string }> = [
+  { key: "primaryColor", label: "Primary color" },
+  { key: "secondaryColor", label: "Secondary color" },
+  { key: "surfaceColor", label: "Surface color" },
+  { key: "textColor", label: "Text color" },
+];
+
 /** Converts enum values into user-facing labels. */
 function humanize(value: string): string {
   return value
@@ -592,18 +601,18 @@ export default function CompassionSettingsPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {[{ key: "primaryColor", label: "Primary color" }, { key: "secondaryColor", label: "Secondary color" }, { key: "surfaceColor", label: "Surface color" }, { key: "textColor", label: "Text color" }].map((item) => (
+                {WIDGET_COLOR_FIELDS.map((item) => (
                   <div key={item.key}>
                     <label className="block text-xs font-medium text-gray-700 mb-1">{item.label}</label>
                     <div className="flex items-center gap-2">
                       <input
                         type="color"
-                        value={(form as Record<string, string>)[item.key]}
+                        value={form[item.key]}
                         onChange={(e) => setForm((f) => (f ? { ...f, [item.key]: e.target.value } : f))}
                         className="h-9 w-11 rounded border border-gray-200 bg-white p-1"
                       />
                       <input
-                        value={(form as Record<string, string>)[item.key]}
+                        value={form[item.key]}
                         onChange={(e) => setForm((f) => (f ? { ...f, [item.key]: e.target.value } : f))}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
                       />
