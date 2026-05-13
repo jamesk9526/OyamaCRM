@@ -373,11 +373,11 @@ router.put("/workflow-settings", requirePermission("letters.manage_branding"), a
       organizationId,
       pluginKey: LETTER_WORKFLOW_POLICY_PLUGIN_KEY,
       enabled: true,
-      config: normalized as Prisma.InputJsonValue,
+      config: normalized as unknown as Prisma.InputJsonValue,
     },
     update: {
       enabled: true,
-      config: normalized as Prisma.InputJsonValue,
+      config: normalized as unknown as Prisma.InputJsonValue,
     },
   });
 
@@ -387,7 +387,7 @@ router.put("/workflow-settings", requirePermission("letters.manage_branding"), a
     entityId: organizationId,
     organizationId,
     userId,
-    metadata: normalized,
+    metadata: normalized as unknown as Record<string, unknown>,
   });
 
   res.json(normalized);

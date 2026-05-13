@@ -396,7 +396,7 @@ router.put("/security/auth", requireAuth, requireRole("admin"), async (req: Requ
     entityId: organizationId,
     userId: req.user?.sub,
     organizationId,
-    metadata: settings,
+    metadata: settings as Record<string, unknown>,
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
   });

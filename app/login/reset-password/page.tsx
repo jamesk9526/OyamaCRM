@@ -2,12 +2,12 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, Suspense, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { resetPasswordWithToken } from "@/app/lib/auth-client";
 
 /** Renders one token-based password reset form with confirmation and policy guidance. */
-export default function ResetPasswordPage() {
+function ResetPasswordPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = useMemo(() => searchParams.get("token")?.trim() || "", [searchParams]);
@@ -101,5 +101,14 @@ export default function ResetPasswordPage() {
         </Link>
       </section>
     </main>
+  );
+}
+
+/** Wraps reset-password client search-params usage in Suspense for build-time prerender compatibility. */
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-gradient-to-b from-green-50 via-white to-slate-50" />}>
+      <ResetPasswordPageContent />
+    </Suspense>
   );
 }

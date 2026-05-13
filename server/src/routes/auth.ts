@@ -18,6 +18,7 @@
  */
 import { createHash, randomBytes, randomInt } from "node:crypto";
 import { Router, Request, Response } from "express";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import {
   comparePassword,
@@ -38,6 +39,7 @@ const PASSWORD_RESET_PREFIX = "auth-password-reset:token:";
 const MFA_CHALLENGE_PREFIX = "auth-mfa:ticket:";
 
 interface PasswordResetTokenConfig {
+  [key: string]: unknown;
   kind: "PASSWORD_RESET";
   userId: string;
   email: string;
@@ -49,6 +51,7 @@ interface PasswordResetTokenConfig {
 }
 
 interface MfaChallengeConfig {
+  [key: string]: unknown;
   kind: "EMAIL_MFA";
   userId: string;
   codeHash: string;
@@ -299,11 +302,11 @@ router.post("/login", async (req: Request, res: Response) => {
         organizationId: user.organizationId,
         pluginKey: mfaChallengePluginKey(ticket),
         enabled: true,
-        config: challengeConfig,
+        config: challengeConfig as unknown as Prisma.InputJsonValue,
       },
       update: {
         enabled: true,
-        config: challengeConfig,
+        config: challengeConfig as unknown as Prisma.InputJsonValue,
       },
     });
 
@@ -510,11 +513,11 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
       organizationId: user.organizationId,
       pluginKey: passwordResetPluginKey(tokenHash),
       enabled: true,
-      config,
+      config: config as unknown as Prisma.InputJsonValue,
     },
     update: {
       enabled: true,
-      config,
+      config: config as unknown as Prisma.InputJsonValue,
     },
   });
 

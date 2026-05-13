@@ -1,9 +1,11 @@
 /** Auth security settings helpers for password reset and email-based MFA policy. */
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 
 const AUTH_SECURITY_PLUGIN_KEY = "auth-security-settings";
 
 export interface AuthSecuritySettings {
+  [key: string]: unknown;
   emailMfaEnabled: boolean;
   passwordResetEnabled: boolean;
   mfaCodeTtlMinutes: number;
@@ -75,11 +77,11 @@ export async function saveAuthSecuritySettingsForOrganization(
       organizationId,
       pluginKey: AUTH_SECURITY_PLUGIN_KEY,
       enabled: true,
-      config: normalized,
+      config: normalized as unknown as Prisma.InputJsonValue,
     },
     update: {
       enabled: true,
-      config: normalized,
+      config: normalized as unknown as Prisma.InputJsonValue,
     },
   });
 

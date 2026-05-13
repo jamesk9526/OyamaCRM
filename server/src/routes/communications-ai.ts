@@ -58,6 +58,7 @@ interface BuilderTemplateDraft {
 interface BuilderBlockDraft {
   type?: SupportedBuilderBlockKind;
   eyebrow?: string;
+  headline?: string;
   title?: string;
   subtitle?: string;
   content?: string;
@@ -71,6 +72,7 @@ interface BuilderBlockDraft {
   label?: string;
   sublabel?: string;
   bgColor?: string;
+  bulletColor?: string;
   textColor?: string;
   href?: string;
   prompt?: string;
@@ -83,6 +85,7 @@ interface BuilderBlockDraft {
   barColor?: string;
   trackColor?: string;
   body?: string;
+  appealText?: string;
   borderColor?: string;
   items?: string[];
   buttonLabel?: string;

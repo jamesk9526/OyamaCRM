@@ -67,9 +67,13 @@ const app = express();
 const PORT = process.env.API_PORT ? parseInt(process.env.API_PORT) : 4000;
 const startTime = Date.now();
 
-// OyamaCRM commonly runs behind Nginx/Hostinger reverse proxies, so trust
-// forwarded client IP headers for accurate rate-limit key generation.
-app.set("trust proxy", true);
+// Use explicit proxy-hop trust so express-rate-limit cannot be bypassed with
+// permissive `trust proxy = true` behavior.
+const configuredProxyHops = Number.parseInt(String(process.env.TRUST_PROXY_HOPS ?? "1"), 10);
+const trustProxySetting = process.env.NODE_ENV === "production"
+  ? (Number.isFinite(configuredProxyHops) && configuredProxyHops > 0 ? configuredProxyHops : 1)
+  : false;
+app.set("trust proxy", trustProxySetting);
 
 const explicitCorsOrigins = new Set(
   [process.env.FRONTEND_ORIGIN, process.env.NEXT_PUBLIC_APP_URL]

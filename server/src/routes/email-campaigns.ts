@@ -491,12 +491,14 @@ function applyComplianceLinkTokens(
   content: string,
   links: { unsubscribeUrl: string; preferencesUrl: string },
 ): string {
-  return content
-    .replaceAll("{{unsubscribeUrl}}", links.unsubscribeUrl)
-    .replaceAll("{{unsubscribe_url}}", links.unsubscribeUrl)
-    .replaceAll("{{managePreferencesUrl}}", links.preferencesUrl)
-    .replaceAll("{{preferencesUrl}}", links.preferencesUrl)
-    .replaceAll("{{preferences_url}}", links.preferencesUrl);
+  const replaceToken = (input: string, token: string, value: string) => input.split(token).join(value);
+  let normalized = content;
+  normalized = replaceToken(normalized, "{{unsubscribeUrl}}", links.unsubscribeUrl);
+  normalized = replaceToken(normalized, "{{unsubscribe_url}}", links.unsubscribeUrl);
+  normalized = replaceToken(normalized, "{{managePreferencesUrl}}", links.preferencesUrl);
+  normalized = replaceToken(normalized, "{{preferencesUrl}}", links.preferencesUrl);
+  normalized = replaceToken(normalized, "{{preferences_url}}", links.preferencesUrl);
+  return normalized;
 }
 
 /** Issues one tokenized unsubscribe/preferences link pair for a specific recipient and campaign. */
@@ -589,7 +591,7 @@ async function persistSendRecipients(params: {
     email: string;
     constituentId: string | null;
     subscriptionId: string | null;
-    eligibilityStatus: string;
+    eligibilityStatus: EmailRecipientEligibilityStatus;
     ineligibilityReason: string | null;
   }>();
 

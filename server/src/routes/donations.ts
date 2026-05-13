@@ -127,6 +127,12 @@ async function loadDonationQuickActionContext(organizationId: string, donationId
   });
 }
 
+/** Normalizes Express route id params to one string for strict TypeScript call-sites. */
+function getRouteIdParam(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0] ?? "";
+  return value ?? "";
+}
+
 /** Resolves the best available donor steward path template for quick enrollment actions. */
 async function resolveDefaultDonationPathTemplate(organizationId: string) {
   const preferred = await prisma.stewardPath.findFirst({
@@ -589,7 +595,7 @@ router.post("/:id/quick-actions/email-draft", requirePermission("edit:communicat
     return;
   }
 
-  const donation = await loadDonationQuickActionContext(organizationId, req.params.id);
+  const donation = await loadDonationQuickActionContext(organizationId, getRouteIdParam(req.params.id));
   if (!donation) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Donation not found" } });
     return;
@@ -701,7 +707,7 @@ router.post("/:id/quick-actions/call-task", requirePermission("edit:tasks"), asy
     return;
   }
 
-  const donation = await loadDonationQuickActionContext(organizationId, req.params.id);
+  const donation = await loadDonationQuickActionContext(organizationId, getRouteIdParam(req.params.id));
   if (!donation) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Donation not found" } });
     return;
@@ -775,7 +781,7 @@ router.post("/:id/quick-actions/start-path", requirePermission("steward_paths.en
     return;
   }
 
-  const donation = await loadDonationQuickActionContext(organizationId, req.params.id);
+  const donation = await loadDonationQuickActionContext(organizationId, getRouteIdParam(req.params.id));
   if (!donation) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Donation not found" } });
     return;
@@ -808,13 +814,6 @@ router.post("/:id/quick-actions/start-path", requirePermission("steward_paths.en
       currentStepId: pathTemplate.steps[0]?.id ?? null,
       nextStepDueAt: new Date(),
       status: "ACTIVE",
-      metadataJson: {
-        source: "donation-quick-action",
-        donationId: donation.id,
-        campaignId: donation.campaignId,
-        designationId: donation.designationId,
-        enrollmentLabel,
-      },
     },
     select: { id: true, pathId: true },
   });
