@@ -2,6 +2,16 @@
 
 _Last deep audit: 2026-05-13_
 
+## 2026-05-13 Donor Engagement Unified System Refactor — Phase 4 partial (visual builder skeleton)
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| `app/components/steward-paths/` workspace components | Working | `app/components/steward-paths/StewardPathBuilderPage.tsx`, `WorkflowCanvas.tsx`, `NodePalette.tsx`, `NodeInspector.tsx`, `WorkflowNodeCard.tsx`, `palette-catalog.ts`, `workflow-types.ts` | Three-panel skeleton (palette / canvas / inspector) with structured-card fallback for the visual map. Full palette catalog includes Triggers, Timing, Email, Print, Task, Donor Data, Logic, and Safety blocks; each block carries an honest "Working / Partially Working / Not Implemented" readiness badge. |
+| `/steward-paths/builder` route | Working | `app/steward-paths/builder/page.tsx` | Mounted as a preview surface so reviewers can interact with the new builder. The production editor remains at `/automations` until persistence wiring lands. |
+| Visual builder persistence (save/load against `/api/steward-paths`) | Not Implemented | `app/components/steward-paths/StewardPathBuilderPage.tsx` | Skeleton edits the document in memory only. Save and Run Test Enrollment buttons are visibly disabled with tooltips explaining the limitation. |
+| Drag-and-drop reordering | Not Implemented | `app/components/steward-paths/WorkflowNodeCard.tsx` | Up/Down/Remove buttons provide the structured-card fallback. Drag/drop is a progressive enhancement for a later pass. |
+| Branch edges in the canvas | Not Implemented | `app/components/steward-paths/workflow-types.ts` | `WorkflowEdge` type is defined; canvas currently renders linear chains only. Branching UI lands with Phase 5 step execution. |
+
 ## 2026-05-13 Donor Engagement Unified System Refactor — Phase 2 (UI relabeling, shared status) and Phase 3 partial (shared service contracts foundation)
 
 Status labels used in this section are restricted to:

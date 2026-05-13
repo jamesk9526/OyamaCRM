@@ -123,8 +123,10 @@ describe("evaluateBranchRule", () => {
   });
 
   it("returns false when in/not_in value is not an array", () => {
-    // @ts-expect-error intentionally invalid input to verify safety
-    expect(evaluateBranchRule("VIP", { operator: "in", value: "vip" })).toBe(false);
+    // Intentionally invalid input to verify safety.
+    expect(
+      evaluateBranchRule("VIP", { operator: "in", value: "vip" as unknown as string[] }),
+    ).toBe(false);
   });
 
   it("returns false for null/undefined input on lookup operators", () => {

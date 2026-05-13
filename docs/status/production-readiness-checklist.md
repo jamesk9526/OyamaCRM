@@ -28,7 +28,8 @@ Phase 1 (audit + docs), Phase 2 (UI relabeling, shared status vocabulary), and P
 | Steward Paths shared status legend with tone palette | Working | `app/automations/page.tsx` |
 | Steward Paths `SEND_EMAIL` UI label updated to "Create review-required email" | Working | `app/automations/page.tsx`, `app/components/automations/NewAutomationModal.tsx`, `app/components/automations/AutomationWorkflowEditorModal.tsx` |
 | Canonical `/steward-paths` URL (redirect wrapper) | Working | `app/steward-paths/page.tsx` |
-| Steward Paths visual node-based builder | Not Implemented | Planned in Phase 4 of the refactor doc |
+| Steward Paths visual builder skeleton (palette/canvas/inspector) at `/steward-paths/builder` | Working | `app/steward-paths/builder/page.tsx`, `app/components/steward-paths/*` |
+| Visual builder persistence (save/load) | Not Implemented | Skeleton edits document in memory only; save/run buttons disabled with tooltip |
 | Steward Paths real branching / status-change / auto-send | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts`; planned in Phase 5 |
 | Sequence engine cutover to shared helpers | Not Implemented | Engine still uses private `addDuration`; planned with the visual builder cutover so parity tests ship together |
 | Legacy `stewardPathsEngine.ts` retirement | Not Implemented | Legacy and sequence engines coexist intentionally until parity is confirmed in Phase 3 cutover |
