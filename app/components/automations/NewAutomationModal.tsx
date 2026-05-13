@@ -19,7 +19,7 @@ const TRIGGERS = [
 ];
 
 const ACTION_TYPES = [
-  { value: "SEND_EMAIL", label: "Send email" },
+  { value: "SEND_EMAIL", label: "Create review-required email" },
   { value: "CREATE_TASK", label: "Create task" },
   { value: "ADD_TAG", label: "Add tag" },
   { value: "REMOVE_TAG", label: "Remove tag" },

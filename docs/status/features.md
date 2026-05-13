@@ -2,6 +2,31 @@
 
 _Last deep audit: 2026-05-13_
 
+## 2026-05-13 Donor Engagement Unified System Refactor — Phase 2 (UI relabeling, shared status) and Phase 3 partial (shared service contracts foundation)
+
+Status labels used in this section are restricted to:
+
+- Working
+- Partially Working
+- Demo Only
+- Broken
+- Not Implemented
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Shared engagement status vocabulary helpers | Working | `app/lib/engagement-status.ts`, `tests/unit/engagement-status.test.ts` | Pure module mapping channel-specific backend statuses (email/letter/path-draft/path-step-run/path-enrollment/task) to the locked user-facing labels with chip tones. 10 unit tests. |
+| Shared engagement orchestration helpers | Working | `app/lib/engagement-orchestration.ts`, `tests/unit/engagement-orchestration.test.ts` | Pure helpers for delay math (`addEngagementDuration`, `computeDelayScheduledFor`), communication-preference checks (`canContactConstituent`), and branch rule evaluation (`evaluateBranchRule`). 17 unit tests. Server engine still uses its private copies until cutover in a later Phase-3 pass. |
+| Communications "Letters" tab → discovery card | Working | `app/communications/page.tsx` | Tab is now labeled "Letters & Printables ↗" and renders an explicit notice + link cards pointing to `/letters-printables` instead of duplicating queue UI. |
+| Steward Paths shared status legend uses tone palette | Working | `app/automations/page.tsx` | Legend now sources `ENGAGEMENT_STATUS_LEGEND` and renders chips with tones from `getEngagementStatusChipClass`. |
+| Steward Paths `SEND_EMAIL` UI label | Working | `app/automations/page.tsx`, `app/components/automations/NewAutomationModal.tsx`, `app/components/automations/AutomationWorkflowEditorModal.tsx` | Renamed from "Send email" to "Create review-required email" to match the actual draft-first behavior. Backend value `SEND_EMAIL` unchanged for backwards compatibility. |
+| Canonical `/steward-paths` URL | Working | `app/steward-paths/page.tsx` | Thin Next.js redirect points to `/automations`. Establishes the canonical URL ahead of the Phase 4 visual builder; sidebar will be flipped when the new builder lands. |
+| Steward Paths visual node-based builder | Not Implemented | `app/automations/page.tsx`, no `app/components/steward-paths/` builder components | Phase 4 of the refactor doc. |
+| Steward Paths `BRANCH_PLACEHOLDER` execution | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts` | Step is skipped at runtime; planned for Phase 5. |
+| Steward Paths `STATUS_CHANGE` execution | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts` | Step is skipped at runtime; planned for Phase 5. |
+| Steward Paths `SEND_EMAIL` auto-send | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts` | Routes through draft-first; auto-send remains gated by `email_auto_send` permission and intentionally not enabled. |
+| Sequence engine cutover to shared helpers | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts` | Engine still uses private `addDuration`. Cutover deferred until visual builder lands so the cutover and parity tests ship together. |
+| Legacy `stewardPathsEngine.ts` retirement | Not Implemented | `server/src/services/stewardPathsEngine.ts`, `server/src/services/steward-paths-worker.ts` | Legacy and sequence engines coexist intentionally. |
+
 ## 2026-05-13 Donor Engagement Unified System Refactor — Phase 1 (audit + docs)
 
 Status labels used in this section are restricted to:

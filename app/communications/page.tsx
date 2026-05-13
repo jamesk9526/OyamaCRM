@@ -132,7 +132,7 @@ const WORKSPACE_TABS: Array<{ id: WorkspaceTab; label: string }> = [
   { id: "overview", label: "Overview" },
   { id: "email-campaigns", label: "Email Campaigns" },
   { id: "email-drafts", label: "Email Drafts" },
-  { id: "letters", label: "Letters" },
+  { id: "letters", label: "Letters & Printables ↗" },
   { id: "templates", label: "Templates" },
   { id: "segments", label: "Segments" },
   { id: "send-queue", label: "Send Queue" },
@@ -540,6 +540,16 @@ export default function CommunicationsPage() {
 
       {workspaceTab === "letters" && (
         <div className="space-y-4">
+          <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <h2 className="text-sm font-semibold text-amber-900">Letter management lives in Letters &amp; Printables</h2>
+            <p className="text-sm text-amber-900 mt-1">
+              Communications owns email campaigns, drafts, and send logs. Letter templates, generated letters, the print queue, and the mail queue are managed in
+              {" "}
+              <Link href="/letters-printables" className="font-semibold underline">Letters &amp; Printables</Link>.
+              The numbers below are linked summaries; use the Letters &amp; Printables workspace for queue actions.
+            </p>
+          </section>
+
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <OverviewCard label="Active Templates" value={lettersStats?.activeTemplates ?? 0} hint="Reusable letter templates" tone="green" />
             <OverviewCard label="Generated This Month" value={lettersStats?.generatedThisMonth ?? 0} hint="Print and PDF queue" tone="blue" />
@@ -548,12 +558,15 @@ export default function CommunicationsPage() {
           </div>
 
           <div className="rounded-xl border border-gray-200 bg-white p-4">
-            <h2 className="text-sm font-semibold text-gray-900">Letters Workspace Actions</h2>
+            <h2 className="text-sm font-semibold text-gray-900">Open in Letters &amp; Printables</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Print, mail, and PDF workflows are managed in their own workspace.</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Link href="/letters-printables" className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">Letters Home</Link>
+              <Link href="/letters-printables" className="px-3 py-1.5 text-xs font-semibold text-white bg-green-600 rounded-md hover:bg-green-700">Letters &amp; Printables Home</Link>
               <Link href="/letters-printables/templates" className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">Templates</Link>
               <Link href="/letters-printables/generate" className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">Generate</Link>
               <Link href="/letters-printables/generated" className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">Generated Letters</Link>
+              <Link href="/letters-printables/print-queue" className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">Print Queue</Link>
+              <Link href="/letters-printables/mail-queue" className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">Mail Queue</Link>
             </div>
           </div>
         </div>

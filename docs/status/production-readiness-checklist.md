@@ -16,17 +16,22 @@ Use only these status labels:
 
 ## Donor Engagement Unified System Refactor (2026-05-13)
 
-Phase 1 of the unified donor engagement refactor landed as documentation only. Application code, schema, and routes were not changed in this pass.
+Phase 1 (audit + docs), Phase 2 (UI relabeling, shared status vocabulary), and Phase 3 partial (shared service contract foundation + unit tests) have landed. Sequence engine cutover, visual builder, and auto-send/branching execution remain in later phases.
 
 | Item | Status | Evidence |
 |---|---|---|
 | Incremental workspace refactor permission in AGENTS.md | Working | `AGENTS.md` `incremental-workspace-refactor-rules` |
 | Unified donor engagement refactor plan | Working | `docs/DONOR_ENGAGEMENT_UNIFIED_SYSTEM_REFACTOR.md` |
-| Steward Paths visual node-based builder | Not Implemented | `app/automations/page.tsx` is the current Steward Paths surface; planned in Phase 4 of the refactor doc |
+| Shared engagement status vocabulary helpers | Working | `app/lib/engagement-status.ts` + 10 unit tests in `tests/unit/engagement-status.test.ts` |
+| Shared engagement orchestration helpers (delay math, comm-pref checks, branch evaluation) | Working | `app/lib/engagement-orchestration.ts` + 17 unit tests in `tests/unit/engagement-orchestration.test.ts` |
+| Communications "Letters" tab → discovery card linking to Letters & Printables | Working | `app/communications/page.tsx` |
+| Steward Paths shared status legend with tone palette | Working | `app/automations/page.tsx` |
+| Steward Paths `SEND_EMAIL` UI label updated to "Create review-required email" | Working | `app/automations/page.tsx`, `app/components/automations/NewAutomationModal.tsx`, `app/components/automations/AutomationWorkflowEditorModal.tsx` |
+| Canonical `/steward-paths` URL (redirect wrapper) | Working | `app/steward-paths/page.tsx` |
+| Steward Paths visual node-based builder | Not Implemented | Planned in Phase 4 of the refactor doc |
 | Steward Paths real branching / status-change / auto-send | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts`; planned in Phase 5 |
-| Letters tab inside Communications collapsed to a link card | Not Implemented | Planned in Phase 2 of the refactor doc |
-| Shared engagement status vocabulary applied across UI chips | Partially Working | Vocabulary defined in `docs/DONOR_ENGAGEMENT_SYSTEM.md`; UI rollout planned in Phase 2 |
-| Legacy `stewardPathsEngine.ts` retirement | Not Implemented | Legacy and sequence engines coexist intentionally until parity is confirmed in Phase 3 |
+| Sequence engine cutover to shared helpers | Not Implemented | Engine still uses private `addDuration`; planned with the visual builder cutover so parity tests ship together |
+| Legacy `stewardPathsEngine.ts` retirement | Not Implemented | Legacy and sequence engines coexist intentionally until parity is confirmed in Phase 3 cutover |
 
 This refactor must follow the new `incremental-workspace-refactor-rules` in `AGENTS.md`: no destructive migration in a single pass, public route compatibility preserved (redirects/wrappers when routes move), draft-first / review-first / opt-out / audit defaults preserved, and no working feature removed until the replacement has equal or better behavior.
 

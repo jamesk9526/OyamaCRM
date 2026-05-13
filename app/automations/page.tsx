@@ -9,6 +9,10 @@ import { useCallback, useEffect, useState } from "react";
 import AutomationWorkflowEditorModal from "@/app/components/automations/AutomationWorkflowEditorModal";
 import NewAutomationModal from "@/app/components/automations/NewAutomationModal";
 import { apiFetch } from "@/app/lib/auth-client";
+import {
+  ENGAGEMENT_STATUS_LEGEND,
+  getEngagementStatusChipClass,
+} from "@/app/lib/engagement-status";
 
 /** Trigger labels for display */
 const TRIGGER_LABELS: Record<string, string> = {
@@ -20,9 +24,12 @@ const TRIGGER_LABELS: Record<string, string> = {
   EVENT_REGISTERED: "Event registration",
 };
 
-/** Action type labels */
+/** Action type labels.
+ * SEND_EMAIL is intentionally labeled to reflect its current draft-first behavior:
+ * the sequence engine creates a review-required email rather than auto-sending.
+ * See docs/DONOR_ENGAGEMENT_UNIFIED_SYSTEM_REFACTOR.md (Phase 2). */
 const ACTION_LABELS: Record<string, string> = {
-  SEND_EMAIL: "Send email",
+  SEND_EMAIL: "Create review-required email",
   CREATE_TASK: "Create task",
   UPDATE_FIELD: "Update field",
   ADD_TAG: "Add tag",
@@ -30,21 +37,9 @@ const ACTION_LABELS: Record<string, string> = {
   ASSIGN_USER: "Assign user",
 };
 
-/** Status language shown in the visual legend to align paths with communications and letters. */
-const SHARED_STATUS_LEGEND = [
-  "Draft",
-  "Needs Review",
-  "Approved",
-  "Scheduled",
-  "Sent",
-  "Generated",
-  "Printed",
-  "Mailed",
-  "Completed",
-  "Failed",
-  "Canceled",
-  "Archived",
-];
+/** Status language shown in the visual legend to align paths with communications and letters.
+ * Sourced from app/lib/engagement-status.ts so every workspace renders the same vocabulary. */
+const SHARED_STATUS_LEGEND = ENGAGEMENT_STATUS_LEGEND;
 
 /** Renders one compact icon for each action type in sequence cards. */
 function ActionTypeIcon({ actionType }: { actionType: string }) {
@@ -488,7 +483,10 @@ export default function AutomationsPage() {
             </div>
             <div className="flex flex-wrap gap-1.5">
               {SHARED_STATUS_LEGEND.map((status) => (
-                <span key={status} className="px-2 py-0.5 rounded-full text-[11px] font-medium border border-gray-200 bg-gray-50 text-gray-700">
+                <span
+                  key={status}
+                  className={`px-2 py-0.5 rounded-full text-[11px] font-medium border border-gray-200 ${getEngagementStatusChipClass(status)}`}
+                >
                   {status}
                 </span>
               ))}
