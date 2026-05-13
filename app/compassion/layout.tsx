@@ -22,6 +22,7 @@ export default function CompassionLayout({ children }: { children: React.ReactNo
   const pathname = usePathname();
   const isPublicWidgetRoute = pathname.startsWith("/compassion/public");
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     if (isPublicWidgetRoute || loading || !user) return;
@@ -50,6 +51,11 @@ export default function CompassionLayout({ children }: { children: React.ReactNo
     }
   }, [isPublicWidgetRoute, loading, user, router, workspaceSettings.compassionEnabled]);
 
+  // Close mobile drawer when users navigate between Compassion routes.
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
+
   if (isPublicWidgetRoute) {
     return <>{children}</>;
   }
@@ -67,10 +73,38 @@ export default function CompassionLayout({ children }: { children: React.ReactNo
     <div className="flex flex-col h-screen bg-white">
       {/* TopBar is module-aware and will render blue accents for /compassion paths */}
       <TopBar />
-      <div className="flex flex-1 overflow-hidden">
-        <CompassionSidebar />
+      <div className="flex flex-1 overflow-hidden relative">
+        <div className="hidden md:block">
+          <CompassionSidebar />
+        </div>
+
+        {mobileNavOpen && (
+          <div className="md:hidden fixed inset-0 z-40">
+            <button
+              aria-label="Close Compassion navigation"
+              onClick={() => setMobileNavOpen(false)}
+              className="absolute inset-0 bg-black/35"
+            />
+            <div className="absolute inset-y-0 left-0 w-64 max-w-[86vw] shadow-2xl">
+              <CompassionSidebar />
+            </div>
+          </div>
+        )}
+
         {/* Blue-tinted content area distinguishes Compassion CRM visually */}
-        <main className="flex-1 overflow-auto bg-blue-50/30 p-6">
+        <main className="flex-1 overflow-auto bg-blue-50/30 p-3 sm:p-4 md:p-6">
+          <div className="md:hidden mb-3">
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 shadow-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+              Menu
+            </button>
+          </div>
           <ErrorBoundary>
             {children}
           </ErrorBoundary>

@@ -144,7 +144,7 @@ export default function AuditLogViewer() {
       {/* Filter bar */}
       <form onSubmit={handleFilterSubmit} className="flex flex-wrap gap-3 mb-5 items-end">
         {/* Action search */}
-        <div className="flex-1 min-w-[160px]">
+        <div className="w-full sm:flex-1 sm:min-w-[160px]">
           <label className="block text-xs font-medium text-gray-600 mb-1">Action contains</label>
           <input
             type="text"
@@ -156,7 +156,7 @@ export default function AuditLogViewer() {
         </div>
 
         {/* Entity type dropdown */}
-        <div className="min-w-[160px]">
+        <div className="w-full sm:w-auto sm:min-w-[160px]">
           <label className="block text-xs font-medium text-gray-600 mb-1">Entity</label>
           <select
             value={entityFilter}
@@ -170,7 +170,7 @@ export default function AuditLogViewer() {
         </div>
 
         {/* Date range from */}
-        <div>
+        <div className="w-full sm:w-auto">
           <label className="block text-xs font-medium text-gray-600 mb-1">From</label>
           <input
             type="date"
@@ -181,7 +181,7 @@ export default function AuditLogViewer() {
         </div>
 
         {/* Date range to */}
-        <div>
+        <div className="w-full sm:w-auto">
           <label className="block text-xs font-medium text-gray-600 mb-1">To</label>
           <input
             type="date"
@@ -192,7 +192,7 @@ export default function AuditLogViewer() {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2 items-end">
+        <div className="flex gap-2 items-end w-full sm:w-auto">
           <button
             type="submit"
             className="px-3 py-1.5 text-sm text-white bg-green-600 rounded hover:bg-green-700"
@@ -248,7 +248,51 @@ export default function AuditLogViewer() {
           No audit log entries match your filters.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <>
+        <div className="md:hidden rounded-lg border border-gray-200 divide-y divide-gray-100 bg-white">
+          {logs.map((log) => (
+            <article key={log.id} className="px-3 py-3">
+              <div className="flex items-start justify-between gap-2">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium font-mono ${actionColor(log.action)}`}>
+                  {log.action}
+                </span>
+                <span className="text-xs text-gray-500">{formatTs(log.createdAt)}</span>
+              </div>
+
+              <div className="mt-2 space-y-1 text-xs text-gray-700">
+                <p>
+                  <span className="font-medium text-gray-800">Entity:</span>{" "}
+                  {log.entity ? (
+                    <>
+                      {log.entity}
+                      {log.entityId ? <span className="ml-1 text-gray-500 font-mono">#{truncate(log.entityId, 8)}</span> : null}
+                    </>
+                  ) : "—"}
+                </p>
+                <p><span className="font-medium text-gray-800">User:</span> {log.user ? `${log.user.firstName} ${log.user.lastName}` : "System"}</p>
+                <p><span className="font-medium text-gray-800">IP:</span> {log.ipAddress ?? "—"}</p>
+              </div>
+
+              {log.metadata && Object.keys(log.metadata).length > 0 && (
+                <div className="mt-2">
+                  <button
+                    onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    {expandedId === log.id ? "Hide" : "Show"} metadata
+                  </button>
+                  {expandedId === log.id && (
+                    <pre className="mt-1 text-xs text-gray-600 overflow-x-auto whitespace-pre-wrap max-w-full rounded border border-gray-100 bg-gray-50 p-2">
+                      {JSON.stringify(log.metadata, null, 2)}
+                    </pre>
+                  )}
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
+
+        <div className="hidden md:block overflow-x-auto rounded-lg border border-gray-200">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
@@ -324,6 +368,7 @@ export default function AuditLogViewer() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {/* Bottom pagination */}

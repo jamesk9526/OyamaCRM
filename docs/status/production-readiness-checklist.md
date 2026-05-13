@@ -64,6 +64,7 @@ Recommendation: Do not mark OyamaCRM production-ready yet.
 | Payment/webhook endpoints are idempotent | Not Implemented | Provider webhooks are not implemented yet |
 | Backup/restore process is documented | Not Implemented | Recovery runbook is still missing |
 | RBAC is enforced server-side | Partially Working | Coverage exists but not complete for all sensitive endpoints |
+| Mobile readiness gate is passing | Partially Working | Shared shells and major data surfaces now have mobile treatments; remaining routes and a clean mobile e2e pass are still required |
 
 ## Release Gate Exit Criteria
 

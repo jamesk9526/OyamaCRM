@@ -25,6 +25,7 @@
     "test:smoke:critical": "vitest run tests/smoke/critical-hardening.test.ts",
     "test:smoke:livecom": "vitest run tests/smoke/livecom-workflow.test.ts",
     "test:e2e": "node tests/e2e/ui-production-smoke.mjs",
+    "test:e2e:mobile": "node tests/e2e/mobile-readiness-audit.mjs",
     "test:e2e:livecom": "node tests/e2e/livecom-ui-smoke.mjs",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",

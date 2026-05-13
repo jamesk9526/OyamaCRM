@@ -46,7 +46,66 @@ export default function DonationTable({ donations, onDelete }: Props) {
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div>
+      <div className="md:hidden space-y-2">
+        {sorted.map((d) => (
+          <article key={d.id} className="rounded-lg border border-gray-200 bg-white p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <Link href={`/constituents/${d.constituent.id}`} className="font-medium text-gray-800 hover:text-green-600">
+                  {d.constituent.firstName} {d.constituent.lastName}
+                </Link>
+                {d.constituent.email && <p className="text-xs text-gray-500 truncate">{d.constituent.email}</p>}
+              </div>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(d.status)}`}>
+                {d.status.charAt(0) + d.status.slice(1).toLowerCase()}
+              </span>
+            </div>
+
+            <div className="mt-2 flex items-center justify-between">
+              <span className="text-xs text-gray-500">{formatDate(d.date)}</span>
+              <span className="font-semibold text-gray-900">{formatCurrency(d.amount)}</span>
+            </div>
+
+            <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-md bg-gray-50 px-2 py-1.5">
+                <p className="text-gray-500">Method</p>
+                <p className="font-medium text-gray-800">{methodLabel(d.paymentMethod)}</p>
+              </div>
+              <div className="rounded-md bg-gray-50 px-2 py-1.5">
+                <p className="text-gray-500">Recurring</p>
+                <p className="font-medium text-gray-800">{d.isRecurring ? "Yes" : "No"}</p>
+              </div>
+            </div>
+
+            {(d.designation?.name || d.campaign?.name) && (
+              <div className="mt-2 text-xs text-gray-600">
+                {d.designation?.name ? <p>Fund: <span className="font-medium text-gray-800">{d.designation.name}</span></p> : null}
+                {d.campaign?.name ? <p>Campaign: <span className="font-medium text-gray-800">{d.campaign.name}</span></p> : null}
+              </div>
+            )}
+
+            <div className="mt-3 flex items-center gap-2">
+              <Link
+                href={`/donations/${d.id}/edit`}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50"
+              >
+                Edit
+              </Link>
+              {onDelete && (
+                <button
+                  onClick={() => onDelete(d.id)}
+                  className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="hidden md:block overflow-x-auto">
       <table className="w-full text-sm">
         <thead className="bg-gray-50 border-b border-gray-200">
           <tr>
@@ -116,6 +175,7 @@ export default function DonationTable({ donations, onDelete }: Props) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

@@ -159,7 +159,7 @@ export default function QBSyncQueueTable({ items, onRefresh, syncingAll = false 
       {editState && (
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-3">
           <h4 className="text-sm font-semibold text-blue-900">Edit Queue Item</h4>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Customer Name</label>
               <input
@@ -219,7 +219,83 @@ export default function QBSyncQueueTable({ items, onRefresh, syncingAll = false 
       )}
 
       {/* Queue table */}
-      <div className="overflow-x-auto rounded-xl border border-gray-200">
+      <div className="md:hidden rounded-xl border border-gray-200 divide-y divide-gray-100 bg-white">
+        {items.map((item) => {
+          const isBusy = syncingAll || syncingId === item.id || removingId === item.id;
+          const canEdit = ["PENDING", "FAILED"].includes(item.status);
+          const canSync = ["PENDING", "FAILED"].includes(item.status);
+          const canRemove = item.status !== "SYNCED";
+          return (
+            <article key={item.id} className="px-3 py-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-900 truncate">{item.customerName ?? "—"}</p>
+                  {item.donation?.constituent && (
+                    <p className="text-xs text-gray-500 truncate">
+                      {item.donation.constituent.firstName} {item.donation.constituent.lastName}
+                    </p>
+                  )}
+                </div>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[item.status]}`}>
+                  {item.status}
+                </span>
+              </div>
+
+              <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-md bg-gray-50 px-2 py-1.5">
+                  <p className="text-gray-500">Amount</p>
+                  <p className="font-medium text-gray-900">${Number(item.amount).toFixed(2)}</p>
+                </div>
+                <div className="rounded-md bg-gray-50 px-2 py-1.5">
+                  <p className="text-gray-500">Added</p>
+                  <p className="font-medium text-gray-800">{new Date(item.createdAt).toLocaleDateString()}</p>
+                </div>
+              </div>
+
+              <p className="mt-2 text-xs text-gray-600 break-words">{item.memo ?? "—"}</p>
+              {item.errorMessage && <p className="text-xs text-red-500 mt-1 break-words">⚠ {item.errorMessage}</p>}
+              {item.qbEntityId && <p className="text-xs text-green-600 mt-1">QB: {item.qbEntityId}</p>}
+
+              <div className="mt-3 flex items-center gap-3 text-xs">
+                {canEdit && !editState && (
+                  <button
+                    onClick={() => startEdit(item)}
+                    disabled={isBusy}
+                    className="text-blue-600 hover:text-blue-800 font-medium disabled:opacity-40"
+                  >
+                    Edit
+                  </button>
+                )}
+                {canSync && (
+                  <button
+                    onClick={() => handleSync(item.id)}
+                    disabled={isBusy}
+                    className="text-green-700 hover:text-green-900 font-medium disabled:opacity-40"
+                  >
+                    {syncingId === item.id ? "Syncing…" : "Sync"}
+                  </button>
+                )}
+                {canRemove && (
+                  <button
+                    onClick={() => handleRemove(item.id)}
+                    disabled={isBusy}
+                    className="text-red-500 hover:text-red-700 font-medium disabled:opacity-40"
+                  >
+                    {removingId === item.id ? "Removing…" : "Remove"}
+                  </button>
+                )}
+                {item.status === "SYNCED" && (
+                  <span className="text-gray-400">
+                    {item.syncedAt ? new Date(item.syncedAt).toLocaleDateString() : "Synced"}
+                  </span>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200">
         <table className="min-w-full divide-y divide-gray-100 text-sm">
           <thead className="bg-gray-50">
             <tr>

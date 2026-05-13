@@ -15,7 +15,27 @@ export default function FeatureReadinessTable({ items }: { items: FeatureReadine
           Features are labeled Working, Partially Working, Demo Only, Broken, or Not Implemented only when evidence supports that claim.
         </p>
       </div>
-      <div className="overflow-x-auto">
+
+      <div className="md:hidden divide-y divide-gray-100">
+        {items.map((item) => (
+          <article key={`${item.workspace}-${item.feature}`} className="px-4 py-3">
+            <p className="text-xs text-gray-500">{item.workspace}</p>
+            <p className="mt-0.5 text-sm font-semibold text-gray-900">{item.feature}</p>
+            <div className="mt-1.5">
+              <SystemStatusBadge status={item.status} />
+            </div>
+            <div className="mt-2 space-y-1 text-xs text-gray-700">
+              <p><span className="font-medium">Last Verified:</span> {item.lastVerified}</p>
+              <p><span className="font-medium">Working:</span> {item.workingPieces}</p>
+              <p><span className="font-medium">Missing:</span> {item.missingPieces}</p>
+              <p><span className="font-medium">Next:</span> {item.nextAction}</p>
+              <p className="font-mono text-gray-600"><span className="font-medium font-sans">Plan:</span> {item.linkedPlanFile}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="hidden md:block overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-gray-50">
             <tr>

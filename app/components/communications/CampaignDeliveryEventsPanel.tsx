@@ -46,7 +46,23 @@ export default function CampaignDeliveryEventsPanel({ data, loading, onRefresh }
           {data.events.length === 0 ? (
             <p className="text-sm text-gray-500">No per-recipient events recorded yet.</p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <div className="md:hidden divide-y divide-gray-100 rounded-lg border border-gray-100">
+              {data.events.map((event) => (
+                <article key={event.id} className="px-3 py-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs text-gray-500">{formatWorkspaceDate(event.eventAt)}</p>
+                    <span className="text-xs font-semibold text-gray-800">{event.eventType}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-gray-800 break-all">{event.recipientEmail}</p>
+                  <p className="mt-1 text-xs text-gray-600 break-words">
+                    {event.metadata ? JSON.stringify(event.metadata) : "-"}
+                  </p>
+                </article>
+              ))}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full min-w-[760px] text-sm">
                 <thead className="bg-gray-50">
                   <tr>
@@ -70,6 +86,7 @@ export default function CampaignDeliveryEventsPanel({ data, loading, onRefresh }
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       )}

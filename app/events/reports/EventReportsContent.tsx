@@ -256,7 +256,44 @@ export default function EventReportsContent() {
             <div className="px-6 py-4 border-b border-gray-200">
               <h2 className="text-base font-semibold text-gray-900">Top Events by Revenue</h2>
             </div>
-            <div className="overflow-x-auto">
+
+            <div className="md:hidden divide-y divide-gray-100">
+              {summaryReport.topEvents.map((event) => (
+                <article key={event.id} className="px-4 py-3">
+                  <p className="text-sm font-semibold text-gray-900">{event.name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{event.type} • {new Date(event.startDate).toLocaleDateString()}</p>
+                  <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                    <div className="rounded-md bg-gray-50 px-2 py-1.5">
+                      <p className="text-gray-500">Revenue</p>
+                      <p className="font-semibold text-gray-900">${event.revenue.toLocaleString()}</p>
+                    </div>
+                    <div className="rounded-md bg-gray-50 px-2 py-1.5">
+                      <p className="text-gray-500">Guests</p>
+                      <p className="font-medium text-gray-800">{event.guests}</p>
+                    </div>
+                    <div className="rounded-md bg-gray-50 px-2 py-1.5">
+                      <p className="text-gray-500">Checked In</p>
+                      <p className="font-medium text-gray-800">{event.checkedIn}</p>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <button
+                      onClick={() => handleEventSelect(event.id)}
+                      className="text-amber-600 hover:text-amber-700 text-xs font-medium"
+                    >
+                      View Report
+                    </button>
+                  </div>
+                </article>
+              ))}
+              {summaryReport.topEvents.length === 0 && (
+                <div className="px-4 py-10 text-center text-sm text-gray-500">
+                  No events found. Create your first event to get started.
+                </div>
+              )}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>

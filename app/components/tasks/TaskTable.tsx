@@ -88,7 +88,72 @@ export default function TaskTable({ tasks, loading, highlightTaskId, onComplete,
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="md:hidden divide-y divide-gray-100">
+        {tasks.map((task) => {
+          const isOverdue = task.status === "PENDING" && task.dueDate && new Date(task.dueDate) < new Date();
+          const isHighlighted = Boolean(highlightTaskId && task.id === highlightTaskId);
+          return (
+            <article
+              id={`task-row-${task.id}`}
+              key={task.id}
+              className={`p-3 ${isOverdue ? "bg-red-50" : ""} ${isHighlighted ? "bg-green-50 ring-1 ring-inset ring-green-300" : ""}`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className={`font-medium ${isOverdue ? "text-red-700" : "text-gray-900"}`}>{task.title}</p>
+                  {task.description && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{task.description}</p>}
+                  {task.constituent ? (
+                    <Link href={`/constituents/${task.constituent.id}`} className="text-xs text-green-700 hover:underline">
+                      {task.constituent.firstName} {task.constituent.lastName}
+                    </Link>
+                  ) : null}
+                </div>
+                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(task.status)}`}>
+                  {task.status.replace("_", " ")}
+                </span>
+              </div>
+
+              <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-md bg-gray-50 px-2 py-1.5">
+                  <p className="text-gray-500">Due</p>
+                  <p className={`font-medium ${isOverdue ? "text-red-600" : "text-gray-800"}`}>{fmt(task.dueDate)}</p>
+                </div>
+                <div className="rounded-md bg-gray-50 px-2 py-1.5">
+                  <p className="text-gray-500">Priority</p>
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${priorityColor(task.priority)}`}>
+                    {task.priority}
+                  </span>
+                </div>
+                <div className="rounded-md bg-gray-50 px-2 py-1.5 col-span-2">
+                  <p className="text-gray-500">Type</p>
+                  <p className="font-medium text-gray-800">{typeLabel(task.type)}</p>
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-center gap-2">
+                {(task.status === "PENDING" || task.status === "IN_PROGRESS") ? (
+                  <button
+                    onClick={() => onComplete(task.id)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-700 bg-white border border-green-200 rounded-md hover:bg-green-50 transition-colors"
+                  >
+                    Done
+                  </button>
+                ) : null}
+                <button
+                  onClick={() => onDelete(task.id)}
+                  className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 transition-colors"
+                  title="Delete task"
+                >
+                  Delete
+                </button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="hidden md:block overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50">
@@ -186,6 +251,7 @@ export default function TaskTable({ tasks, loading, highlightTaskId, onComplete,
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

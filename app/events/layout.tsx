@@ -1,7 +1,7 @@
 // Events CRM nested layout — provides the amber-themed Events shell for all /events/* routes.
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import TopBar from "@/app/components/layout/TopBar";
@@ -34,6 +34,7 @@ function EventsLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -50,6 +51,11 @@ function EventsLayoutContent({ children }: { children: React.ReactNode }) {
     }
   }, [loading, user, pathname, searchParams, router]);
 
+  // Close mobile drawer when route context changes.
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
+
   const redirectTarget = resolveLegacyGlobalEventsRedirect(pathname, searchParams);
 
   if (loading || !user) {
@@ -63,9 +69,37 @@ function EventsLayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col h-screen bg-white">
       <TopBar />
-      <div className="flex flex-1 overflow-hidden">
-        <EventsSidebar />
-        <main className="flex-1 overflow-auto bg-amber-50/30 p-6">
+      <div className="flex flex-1 overflow-hidden relative">
+        <div className="hidden md:block">
+          <EventsSidebar />
+        </div>
+
+        {mobileNavOpen && (
+          <div className="md:hidden fixed inset-0 z-40">
+            <button
+              aria-label="Close Events navigation"
+              onClick={() => setMobileNavOpen(false)}
+              className="absolute inset-0 bg-black/35"
+            />
+            <div className="absolute inset-y-0 left-0 w-64 max-w-[86vw] shadow-2xl">
+              <EventsSidebar />
+            </div>
+          </div>
+        )}
+
+        <main className="flex-1 overflow-auto bg-amber-50/30 p-3 sm:p-4 md:p-6">
+          <div className="md:hidden mb-3">
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm font-medium text-amber-700 shadow-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+              Menu
+            </button>
+          </div>
           <ErrorBoundary>
             {redirectTarget ? (
               <section className="rounded-xl border border-amber-300 bg-amber-100 px-4 py-3 text-sm text-amber-900">

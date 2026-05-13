@@ -36,7 +36,39 @@ export default function CampaignSendLogTable({ logs, loading, onRefresh }: Props
       ) : logs.length === 0 ? (
         <div className="px-5 py-8 text-sm text-gray-500">No activity yet for this mailing.</div>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        <div className="md:hidden divide-y divide-gray-100">
+          {logs.map((entry) => {
+            const metadata = entry.metadata ?? {};
+            const sendMode = typeof metadata.sendMode === "string" ? metadata.sendMode : undefined;
+            const audienceType = typeof metadata.audienceType === "string" ? metadata.audienceType : undefined;
+            const finalSendCount = typeof metadata.finalSendCount === "number" ? metadata.finalSendCount : undefined;
+            const errorMessage = typeof metadata.message === "string" ? metadata.message : undefined;
+
+            return (
+              <article key={entry.id} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs text-gray-500">{formatWorkspaceDate(entry.createdAt)}</p>
+                  <span className="text-xs font-medium text-gray-800">{formatSendAction(entry.action)}</span>
+                </div>
+                <p className="mt-1 text-xs text-gray-600">Actor: {entry.user?.name || "System"}</p>
+                <p className="mt-1 text-xs text-gray-600">
+                  {errorMessage ? (
+                    <span className="text-red-600">{errorMessage}</span>
+                  ) : (
+                    <span>
+                      {sendMode ? `mode=${sendMode}` : ""}
+                      {audienceType ? ` audience=${audienceType}` : ""}
+                      {typeof finalSendCount === "number" ? ` recipients=${finalSendCount}` : ""}
+                    </span>
+                  )}
+                </p>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
             <thead className="bg-gray-50">
               <tr>
@@ -76,6 +108,7 @@ export default function CampaignSendLogTable({ logs, loading, onRefresh }: Props
             </tbody>
           </table>
         </div>
+        </>
       )}
     </section>
   );

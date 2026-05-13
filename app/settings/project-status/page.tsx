@@ -14,7 +14,24 @@ export default function ProjectStatusPage() {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="md:hidden divide-y divide-gray-100">
+          {PROJECT_STATUS_ITEMS.map((row) => (
+            <article key={`${row.area}-${row.feature}`} className="px-3 py-3">
+              <p className="text-xs text-gray-500">{row.area}</p>
+              <p className="mt-0.5 text-sm font-semibold text-gray-900">{row.feature}</p>
+              <div className="mt-1.5 flex items-center gap-2">
+                <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700">
+                  {row.status}
+                </span>
+                <span className="text-xs text-gray-600">{row.dataSource}</span>
+              </div>
+              <p className="mt-2 text-xs text-gray-700"><span className="font-medium">Notes:</span> {row.notes}</p>
+              <p className="mt-1 text-xs text-gray-700"><span className="font-medium">Next:</span> {row.nextStep}</p>
+            </article>
+          ))}
+        </div>
+
+        <div className="hidden md:block overflow-x-auto">
           <table className="min-w-[1200px] w-full text-sm">
             <thead className="bg-gray-50">
               <tr className="text-left text-gray-600">

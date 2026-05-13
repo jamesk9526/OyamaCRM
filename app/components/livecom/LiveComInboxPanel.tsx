@@ -127,7 +127,100 @@ export default function LiveComInboxPanel({
       {conversations.length === 0 ? (
         <div className="px-5 py-10 text-center text-sm text-gray-500">No conversations in this queue.</div>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        <div className="md:hidden divide-y divide-gray-100">
+          {conversations.map((conversation) => {
+            const draft = draftByConversationId[conversation.id] ?? {
+              status: conversation.status,
+              priority: conversation.priority,
+              owner: conversation.owner,
+            };
+            const hasChanges =
+              draft.status !== conversation.status ||
+              draft.priority !== conversation.priority ||
+              normalizeOwner(draft.owner) !== normalizeOwner(conversation.owner);
+            const isSaving = updatingConversationId === conversation.id;
+
+            return (
+              <article key={conversation.id} className="px-4 py-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    {conversation.constituentId ? (
+                      <Link
+                        href={`/constituents/${conversation.constituentId}`}
+                        className="font-medium text-gray-900 hover:text-green-700"
+                      >
+                        {conversation.donorName}
+                      </Link>
+                    ) : (
+                      <p className="font-medium text-gray-900">{conversation.donorName}</p>
+                    )}
+                    <p className="mt-0.5 text-xs text-gray-500 line-clamp-2">{conversation.messagePreview}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${statusTone(conversation.status)}`}>
+                      {statusLabel(conversation.status)}
+                    </span>
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${priorityTone(conversation.priority)}`}>
+                      {conversation.priority}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2">
+                  <label className="text-xs text-gray-600">
+                    Status
+                    <select
+                      value={draft.status}
+                      onChange={(event) => updateDraft(conversation.id, { status: event.target.value as LiveComConversationStatus })}
+                      className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-700"
+                    >
+                      <option value="NEW">New</option>
+                      <option value="IN_PROGRESS">In Progress</option>
+                      <option value="WAITING_ON_DONOR">Waiting On Donor</option>
+                      <option value="RESOLVED">Resolved</option>
+                    </select>
+                  </label>
+                  <label className="text-xs text-gray-600">
+                    Priority
+                    <select
+                      value={draft.priority}
+                      onChange={(event) => updateDraft(conversation.id, { priority: event.target.value as LiveComPriority })}
+                      className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-700"
+                    >
+                      <option value="LOW">Low</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HIGH">High</option>
+                    </select>
+                  </label>
+                  <label className="text-xs text-gray-600">
+                    Owner
+                    <input
+                      value={draft.owner}
+                      onChange={(event) => updateDraft(conversation.id, { owner: event.target.value })}
+                      className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-700"
+                      placeholder="Unassigned"
+                    />
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">{channelLabel(conversation.channel)} • {formatRelativeTime(conversation.receivedAt)}</span>
+                  <button
+                    type="button"
+                    onClick={() => void handleSave(conversation)}
+                    disabled={!hasChanges || isSaving}
+                    className="rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 enabled:hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isSaving ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full min-w-[900px] text-sm">
             <thead className="bg-gray-50">
               <tr>
@@ -227,6 +320,7 @@ export default function LiveComInboxPanel({
             </tbody>
           </table>
         </div>
+        </>
       )}
     </section>
   );

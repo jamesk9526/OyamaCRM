@@ -81,7 +81,84 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="md:hidden divide-y divide-gray-100">
+        {sorted.map((c) => (
+          <article key={c.id} className="p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <Link href={`/constituents/${c.id}`} className="font-medium text-gray-900 hover:text-green-600 transition-colors">
+                  {c.firstName} {c.lastName}
+                </Link>
+                {c.email && <p className="text-xs text-gray-500 mt-0.5 truncate">{c.email}</p>}
+              </div>
+              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(c.donorStatus)}`}>
+                {statusLabel(c.donorStatus)}
+              </span>
+            </div>
+
+            <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-md bg-gray-50 px-2 py-1.5">
+                <p className="text-gray-500">Type</p>
+                <p className="font-medium text-gray-800">{typeLabel(c.type)}</p>
+              </div>
+              <div className="rounded-md bg-gray-50 px-2 py-1.5">
+                <p className="text-gray-500">YTD</p>
+                <p className="font-medium text-gray-900">{formatCurrency(c.totalYtdGiving)}</p>
+              </div>
+              <div className="rounded-md bg-gray-50 px-2 py-1.5">
+                <p className="text-gray-500">Lifetime</p>
+                <p className="font-medium text-gray-800">{formatCurrency(c.totalLifetimeGiving)}</p>
+              </div>
+              <div className="rounded-md bg-gray-50 px-2 py-1.5">
+                <p className="text-gray-500">Last Gift</p>
+                <p className="font-medium text-gray-800">{c.lastGiftAmount ? formatCurrency(c.lastGiftAmount) : "No gifts"}</p>
+              </div>
+            </div>
+
+            <div className="mt-2 flex items-center gap-2">
+              <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div className="h-full bg-green-500 rounded-full" style={{ width: `${c.engagementScore}%` }} />
+              </div>
+              <span className={`text-xs font-medium ${engagementColor(c.engagementScore)}`}>Engagement {c.engagementScore}</span>
+            </div>
+
+            {c.tags.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {c.tags.slice(0, 3).map((t) => (
+                  <span
+                    key={t.tagId}
+                    className="inline-flex px-1.5 py-0.5 rounded text-[11px] font-medium text-white"
+                    style={{ backgroundColor: t.tag.color }}
+                  >
+                    {t.tag.name}
+                  </span>
+                ))}
+                {c.tags.length > 3 && <span className="text-[11px] text-gray-400">+{c.tags.length - 3}</span>}
+              </div>
+            )}
+
+            <div className="mt-3 flex items-center gap-2">
+              <Link
+                href={`/constituents/${c.id}/edit`}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50"
+              >
+                Edit
+              </Link>
+              {onDelete && (
+                <button
+                  onClick={() => onDelete(c.id)}
+                  className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="hidden md:block overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50">
@@ -205,6 +282,7 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
