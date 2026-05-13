@@ -1,11 +1,28 @@
 # OyamaCRM Office How-To Guide (Current Reality)
 
-Last updated: 2026-05-12
+Last updated: 2026-05-13
 
 ## Purpose
 
 This guide is for office staff who need practical daily steps in the current application state.
 It focuses on what works today, what is partially ready, and what should be avoided until fixes are shipped.
+
+## Current Release Gate Snapshot
+
+Current readiness gate: Broken
+
+Most recent full audit evidence shows:
+
+- Working: typecheck, smoke tests, full test run, coverage run, web/server builds, Linux migration casing verification
+- Broken: lint, all three E2E lanes, Prisma client generation (`pnpm db:generate`)
+
+Use the dated audit docs for details:
+
+- `docs/status/readiness-audit-2026-05-12.md`
+- `docs/status/testing-coverage-audit-2026-05-12.md`
+- `docs/status/e2e-coverage-audit-2026-05-12.md`
+- `docs/status/smoke-coverage-audit-2026-05-12.md`
+- `docs/status/build-and-typecheck-audit-2026-05-12.md`
 
 ## Quick Start
 
@@ -27,9 +44,14 @@ It focuses on what works today, what is partially ready, and what should be avoi
 
 1. Go to Donations.
 2. Add the donation with the correct date, amount, and campaign/designation.
-3. Open Tasks.
-4. Create a follow-up task (thank-you call, receipt check, impact update).
-5. Assign due date and owner.
+3. Use row quick actions to:
+	- Generate Letter
+	- Create Email Draft
+	- Create Call Task
+	- Start Path
+	- Mark Thanked
+4. Open Communications for campaign and draft review/scheduling.
+5. Open Tasks for assignment and completion tracking.
 
 ### Campaign operations
 
@@ -45,6 +67,18 @@ It focuses on what works today, what is partially ready, and what should be avoi
 3. Use Generate to produce a constituent-specific letter from a template.
 4. In Generated, mark status as Printed or Mailed as fulfillment happens.
 5. If an email version is needed, use Create Email Draft and continue in Communications.
+
+### Communications hub workflow
+
+Use Communications as the donor outreach control center:
+
+1. Overview: review drafts needing review, queued sends, and recent communication activity.
+2. Email Campaigns: manage campaign draft/schedule/send lifecycle.
+	- Open Builder for the campaign studio flow (Audience -> Design -> Personalize -> Review -> Schedule).
+	- Use Block Library donor blocks for thank-you, receipt, giving summary, CTA, and footer compliance sections.
+3. Email Drafts: review steward path drafts and letter-to-email bridge drafts.
+4. Letters: open letter queues and handoff points.
+5. Communication Log: review cross-channel outreach history.
 
 ## Daily Workflow: Compassion CRM
 
@@ -99,7 +133,7 @@ Use this section as an operations safety list.
 |---|---|---|
 | Events reports page | Partially Working | If reports fail to load, use event overview and dashboard metrics temporarily. |
 | Event-scoped guests route | Broken in some datasets | If page crashes, return to workspace selector and use another tool until fix ships. |
-| Grants create/update smoke paths | Partially Working | Prefer grant statuses from configured enum (for example IDEA, RESEARCH). Avoid unverified custom status labels. |
+| Grants research workspace paths | Partially Working | Use grants for research, requirements, reminders, tasks, writing, and resources. Record received grant money separately in Donations. |
 | Compassion full-name search | Partially Working | If full-name search misses records, search by last name or first name separately. |
 | Compassion appointment matcher queue | Not Implemented | Public bookings sync to the staff calendar now, but manual triage is still required until matcher/review queue ships. |
 | Letters PDF export + batch generation | Partially Working | Use single-letter generation and browser print/PDF until full export and batch pipeline ships. |
@@ -118,6 +152,12 @@ Use DonorCRM as the daily stewardship command center:
 Donor references for staff and implementers:
 
 - [docs/DONOR_CRM_AUDIT.md](docs/DONOR_CRM_AUDIT.md)
+- [docs/DONOR_ENGAGEMENT_SYSTEM.md](docs/DONOR_ENGAGEMENT_SYSTEM.md)
+- [docs/DONOR_CRM_COMMUNICATIONS_AUDIT.md](docs/DONOR_CRM_COMMUNICATIONS_AUDIT.md)
+- [docs/DONOR_CRM_EMAIL_BUILDER.md](docs/DONOR_CRM_EMAIL_BUILDER.md)
+- [docs/DONOR_CRM_LETTERS_PRINTABLES.md](docs/DONOR_CRM_LETTERS_PRINTABLES.md)
+- [docs/DONOR_CRM_GRANTS_RESEARCH_WORKSPACE.md](docs/DONOR_CRM_GRANTS_RESEARCH_WORKSPACE.md)
+- [docs/DONOR_CRM_GRANTS_AUDIT.md](docs/DONOR_CRM_GRANTS_AUDIT.md)
 - [docs/DONOR_CRM_STEWARDSHIP_COMMAND_CENTER.md](docs/DONOR_CRM_STEWARDSHIP_COMMAND_CENTER.md)
 - [docs/DONOR_CRM_SIDEBAR_NAVIGATION.md](docs/DONOR_CRM_SIDEBAR_NAVIGATION.md)
 - [docs/status/features.md](docs/status/features.md)
@@ -139,4 +179,4 @@ Donor references for staff and implementers:
 
 ## Source Of Truth For Readiness
 
-Use docs/status/production-readiness-checklist.md for current release readiness and status labels.
+Use `docs/status/production-readiness-checklist.md` for the release-gate source of truth and current status labels.

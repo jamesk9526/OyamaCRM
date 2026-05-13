@@ -7,9 +7,25 @@
 'use client';
 
 import type { EmailBlock } from '@/app/lib/email-builder-types';
+import HeadingBlock from './blocks/HeadingBlock';
 import TextBlock    from './blocks/TextBlock';
 import QuoteBlock   from './blocks/QuoteBlock';
 import ImpactStatBlock from './blocks/ImpactStatBlock';
+import ImpactStoryBlock from './blocks/ImpactStoryBlock';
+import ImpactGridBlock from './blocks/ImpactGridBlock';
+import ProgressBlock from './blocks/ProgressBlock';
+import TimelineBlock from './blocks/TimelineBlock';
+import CalloutBlock from './blocks/CalloutBlock';
+import FeatureListBlock from './blocks/FeatureListBlock';
+import DonorThankYouBlock from './blocks/DonorThankYouBlock';
+import DonationReceiptBlock from './blocks/DonationReceiptBlock';
+import GivingSummaryBlock from './blocks/GivingSummaryBlock';
+import DonationCtaBlock from './blocks/DonationCtaBlock';
+import MonthlyDonorInvitationBlock from './blocks/MonthlyDonorInvitationBlock';
+import LapsedDonorReengagementBlock from './blocks/LapsedDonorReengagementBlock';
+import FirstTimeDonorWelcomeBlock from './blocks/FirstTimeDonorWelcomeBlock';
+import StaffSignatureBlock from './blocks/StaffSignatureBlock';
+import FooterComplianceBlock from './blocks/FooterComplianceBlock';
 import ImageBlock   from './blocks/ImageBlock';
 import VideoBlock   from './blocks/VideoBlock';
 import ButtonBlock  from './blocks/ButtonBlock';
@@ -22,18 +38,36 @@ import ColumnsBlock from './blocks/ColumnsBlock';
 
 interface Props {
   block: EmailBlock;
+  editable?: boolean;
+  onChangeContent?: (id: string, content: string) => void;
 }
 
 /** Renders the appropriate canvas component for any EmailBlock. */
-export default function BlockRenderer({ block }: Props) {
+export default function BlockRenderer({ block, editable = false, onChangeContent }: Props) {
   switch (block.type) {
-    case 'text':    return <TextBlock    block={block} />;
+    case 'heading': return <HeadingBlock block={block} />;
+    case 'text':    return <TextBlock    block={block} editable={editable} onChangeContent={(content) => onChangeContent?.(block.id, content)} />;
     case 'quote':   return <QuoteBlock   block={block} />;
     case 'impactStat': return <ImpactStatBlock block={block} />;
+    case 'impactStory': return <ImpactStoryBlock block={block} />;
+    case 'impactGrid': return <ImpactGridBlock block={block} />;
+    case 'progress': return <ProgressBlock block={block} />;
+    case 'timeline': return <TimelineBlock block={block} />;
+    case 'callout': return <CalloutBlock block={block} />;
+    case 'featureList': return <FeatureListBlock block={block} />;
+    case 'donorThankYou': return <DonorThankYouBlock block={block} />;
+    case 'donationReceipt': return <DonationReceiptBlock block={block} />;
+    case 'givingSummary': return <GivingSummaryBlock block={block} />;
+    case 'donationCta': return <DonationCtaBlock block={block} />;
+    case 'monthlyDonorInvitation': return <MonthlyDonorInvitationBlock block={block} />;
+    case 'lapsedDonorReengagement': return <LapsedDonorReengagementBlock block={block} />;
+    case 'firstTimeDonorWelcome': return <FirstTimeDonorWelcomeBlock block={block} />;
+    case 'staffSignature': return <StaffSignatureBlock block={block} />;
+    case 'footerCompliance': return <FooterComplianceBlock block={block} />;
     case 'image':   return <ImageBlock   block={block} />;
     case 'video':   return <VideoBlock   block={block} />;
     case 'button':  return <ButtonBlock  block={block} />;
-    case 'aiText':  return <AiTextBlock  block={block} />;
+    case 'aiText':  return <AiTextBlock  block={block} editable={editable} onChangeContent={(content) => onChangeContent?.(block.id, content)} />;
     case 'aiButton': return <AiButtonBlock block={block} />;
     case 'divider': return <DividerBlock block={block} />;
     case 'spacer':  return <SpacerBlock  block={block} />;

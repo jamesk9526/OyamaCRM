@@ -30,6 +30,40 @@ const ACTION_LABELS: Record<string, string> = {
   ASSIGN_USER: "Assign user",
 };
 
+/** Status language shown in the visual legend to align paths with communications and letters. */
+const SHARED_STATUS_LEGEND = [
+  "Draft",
+  "Needs Review",
+  "Approved",
+  "Scheduled",
+  "Sent",
+  "Generated",
+  "Printed",
+  "Mailed",
+  "Completed",
+  "Failed",
+  "Canceled",
+  "Archived",
+];
+
+/** Renders one compact icon for each action type in sequence cards. */
+function ActionTypeIcon({ actionType }: { actionType: string }) {
+  const cls = "w-3.5 h-3.5";
+  if (actionType === "SEND_EMAIL") {
+    return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>;
+  }
+  if (actionType === "CREATE_TASK") {
+    return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>;
+  }
+  if (actionType === "UPDATE_FIELD") {
+    return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M11 5h2M5 12h14M8 19h8" /></svg>;
+  }
+  if (actionType === "ADD_TAG" || actionType === "REMOVE_TAG") {
+    return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 7h.01M3 11l8-8 10 10-8 8-10-10z" /></svg>;
+  }
+  return <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>;
+}
+
 /** SVG icon for each trigger type (no emoji) */
 function TriggerIcon({ trigger }: { trigger: string }) {
   const cls = "w-4 h-4";
@@ -444,6 +478,26 @@ export default function AutomationsPage() {
         <>
 
       {!loading && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">Visual Sequence Builder Language</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Steward paths orchestrate tasks, letters, and communications. Keep outbound work in draft/review states unless explicitly approved.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {SHARED_STATUS_LEGEND.map((status) => (
+                <span key={status} className="px-2 py-0.5 rounded-full text-[11px] font-medium border border-gray-200 bg-gray-50 text-gray-700">
+                  {status}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!loading && (
         <div className="bg-gradient-to-r from-green-50 to-white border border-green-100 rounded-xl p-4">
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 rounded-lg bg-green-600 text-white flex items-center justify-center shrink-0">
@@ -822,6 +876,47 @@ function AutomationCard({
                 <span className="text-xs text-gray-400 italic">No actions configured</span>
               )}
             </div>
+
+            {a.actions.length > 0 && (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {a.actions.map((act, index) => {
+                  const links = resolveActionLinks(act);
+                  return (
+                    <div key={`${a.id}-${act.id}-node`} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="inline-flex items-center gap-1.5 text-gray-700">
+                          <ActionTypeIcon actionType={act.type} />
+                          <p className="text-xs font-semibold">{ACTION_LABELS[act.type] ?? act.type}</p>
+                        </div>
+                        <span className="text-[10px] font-semibold text-gray-500">Step {index + 1}</span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-gray-500">Status: {links.needsSetup ? "Needs Review" : "Ready"}</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {links.primary && (
+                          <Link
+                            href={links.primary.href}
+                            title={links.primary.title}
+                            className="px-1.5 py-0.5 text-[10px] font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-white"
+                          >
+                            {links.primary.label}
+                          </Link>
+                        )}
+                        {links.secondary.map((link) => (
+                          <Link
+                            key={`${act.id}-${link.href}-node`}
+                            href={link.href}
+                            title={link.title}
+                            className="px-1.5 py-0.5 text-[10px] font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-white"
+                          >
+                            {link.label}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 

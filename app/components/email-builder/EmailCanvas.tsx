@@ -13,6 +13,7 @@
 
 'use client';
 
+import { useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -23,6 +24,8 @@ import { CSS } from '@dnd-kit/utilities';
 import type { EmailBlock, EmailTemplate } from '@/app/lib/email-builder-types';
 import BlockRenderer from './BlockRenderer';
 
+type CanvasViewport = 'desktop' | 'mobile';
+
 // ─── SortableBlock ────────────────────────────────────────────────────────────
 
 interface SortableBlockProps {
@@ -30,6 +33,10 @@ interface SortableBlockProps {
   isSelected: boolean;
   onSelect:   (id: string) => void;
   onDelete:   () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onDuplicate?: () => void;
+  onInlineContentChange?: (id: string, content: string) => void;
 }
 
 /**
@@ -44,6 +51,10 @@ function SortableBlock({
   isSelected,
   onSelect,
   onDelete,
+  onMoveUp,
+  onMoveDown,
+  onDuplicate,
+  onInlineContentChange,
 }: SortableBlockProps) {
   const {
     attributes,
@@ -103,23 +114,57 @@ function SortableBlock({
             : 'hover:outline hover:outline-1 hover:outline-gray-300',
         ].join(' ')}
       >
-        <BlockRenderer block={block} />
+        <BlockRenderer
+          block={block}
+          editable={isSelected}
+          onChangeContent={onInlineContentChange}
+        />
 
         {/* ── Toolbar shown when selected ── */}
         {isSelected && (
-          <div className="absolute top-6 right-1 z-30 flex gap-1">
-            <span className="text-xs bg-green-600 text-white rounded-tl-none rounded-br-none rounded-tr-none rounded-bl-none px-1.5 py-0.5 rounded select-none">
+          <div className="absolute top-7 right-2 z-30 flex items-center gap-1 rounded-md border border-gray-200 bg-white/95 px-1 py-1 shadow-sm">
+            <span className="text-[11px] bg-green-600 text-white px-1.5 py-0.5 rounded select-none font-semibold">
               {block.type}
             </span>
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                onMoveUp?.();
+              }}
+              className="text-xs rounded border border-gray-200 bg-white px-1.5 py-0.5 text-gray-600 hover:bg-gray-50"
+              title="Move block up"
+            >
+              ↑
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveDown?.();
+              }}
+              className="text-xs rounded border border-gray-200 bg-white px-1.5 py-0.5 text-gray-600 hover:bg-gray-50"
+              title="Move block down"
+            >
+              ↓
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDuplicate?.();
+              }}
+              className="text-xs rounded border border-gray-200 bg-white px-1.5 py-0.5 text-gray-600 hover:bg-gray-50"
+              title="Duplicate block"
+            >
+              Duplicate
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
                 onDelete();
               }}
-              className="text-xs bg-red-500 text-white rounded px-1.5 py-0.5 hover:bg-red-600 transition-colors"
+              className="text-xs rounded bg-red-500 px-1.5 py-0.5 text-white hover:bg-red-600 transition-colors"
               title="Delete block"
             >
-              × Delete
+              Delete
             </button>
           </div>
         )}
@@ -135,6 +180,9 @@ interface Props {
   selectedId:       string | null;
   onSelectBlock:    (id: string | null) => void;
   onDeleteBlock:    (id: string) => void;
+  onMoveBlock?: (id: string, direction: 'up' | 'down') => void;
+  onDuplicateBlock?: (id: string) => void;
+  onInlineContentChange?: (id: string, content: string) => void;
 }
 
 /**
@@ -150,7 +198,12 @@ export default function EmailCanvas({
   selectedId,
   onSelectBlock,
   onDeleteBlock,
+  onMoveBlock,
+  onDuplicateBlock,
+  onInlineContentChange,
 }: Props) {
+  const [viewport, setViewport] = useState<CanvasViewport>('desktop');
+
   /* Fallback droppable for when the canvas is empty or the drag target
      is between blocks rather than directly on a block. */
   const { setNodeRef: setCanvasRef, isOver: isCanvasOver } = useDroppable({
@@ -159,15 +212,41 @@ export default function EmailCanvas({
 
   return (
     <div
-      className="flex-1 overflow-auto bg-gray-600"
+      className="flex-1 overflow-auto bg-gray-700"
       style={{ padding: '32px 24px' }}
       /* Deselect when clicking the raw canvas background */
       onClick={() => onSelectBlock(null)}
     >
+      <div className="mx-auto mb-3 flex max-w-[980px] items-center justify-between rounded-lg border border-gray-500/40 bg-gray-800/60 px-3 py-2 text-xs text-gray-200">
+        <span>Email width: {viewport === 'mobile' ? 380 : template.contentWidth}px · {viewport === 'mobile' ? 'Mobile Preview' : 'Desktop Preview'}</span>
+        <div className="inline-flex rounded-md border border-gray-500/50 bg-gray-900/50 p-0.5">
+          <button
+            type="button"
+            onClick={() => setViewport('desktop')}
+            className={[
+              'rounded px-2 py-1 font-semibold',
+              viewport === 'desktop' ? 'bg-white text-gray-800' : 'text-gray-300',
+            ].join(' ')}
+          >
+            Desktop
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewport('mobile')}
+            className={[
+              'rounded px-2 py-1 font-semibold',
+              viewport === 'mobile' ? 'bg-white text-gray-800' : 'text-gray-300',
+            ].join(' ')}
+          >
+            Mobile
+          </button>
+        </div>
+      </div>
+
       {/* Email content area */}
       <div
         style={{
-          maxWidth:        template.contentWidth,
+          maxWidth:        viewport === 'mobile' ? 380 : template.contentWidth,
           margin:          '0 auto',
           backgroundColor: '#ffffff',
           boxShadow:       '0 4px 24px rgba(0,0,0,0.18)',
@@ -225,6 +304,10 @@ export default function EmailCanvas({
                   isSelected={selectedId === block.id}
                   onSelect={onSelectBlock}
                   onDelete={() => onDeleteBlock(block.id)}
+                  onMoveUp={() => onMoveBlock?.(block.id, 'up')}
+                  onMoveDown={() => onMoveBlock?.(block.id, 'down')}
+                  onDuplicate={() => onDuplicateBlock?.(block.id)}
+                  onInlineContentChange={onInlineContentChange}
                 />
               ))
             )}

@@ -1,0 +1,16 @@
+=== START pnpm-db-generate ===
+START_UTC: 2026-05-13T04:20:37.2198220Z
+COMMAND: pnpm db:generate
+
+> agents-create-oyamam-crm-workspace@0.3.0 db:generate C:\Users\James\Documents\GitHub\OyamaCRM
+> prisma generate
+
+Environment variables loaded from .env
+Prisma schema loaded from prisma\schema.prisma
+Error: 
+EPERM: operation not permitted, rename 'C:\Users\James\Documents\GitHub\OyamaCRM\node_modules\.pnpm\@prisma+client@5.22.0_prisma@5.22.0\node_modules\.prisma\client\query_engine-windows.dll.node.tmp71620' -> 'C:\Users\James\Documents\GitHub\OyamaCRM\node_modules\.pnpm\@prisma+client@5.22.0_prisma@5.22.0\node_modules\.prisma\client\query_engine-windows.dll.node'
+
+
+ΓÇëELIFECYCLEΓÇë Command failed with exit code 1.
+END_UTC: 2026-05-13T04:20:48.1874104Z
+EXIT_CODE: 1

@@ -1,0 +1,10 @@
+=== START pnpm-db-verify-linux-casing ===
+START_UTC: 2026-05-13T04:20:48.1890879Z
+COMMAND: pnpm db:verify:linux-casing
+
+> agents-create-oyamam-crm-workspace@0.3.0 db:verify:linux-casing C:\Users\James\Documents\GitHub\OyamaCRM
+> node scripts/verify-linux-migration-casing.mjs
+
+PASS: No risky lowercase migration table references found.
+END_UTC: 2026-05-13T04:20:48.9643198Z
+EXIT_CODE: 0

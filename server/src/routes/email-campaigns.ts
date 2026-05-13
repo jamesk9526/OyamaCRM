@@ -19,9 +19,15 @@ import { randomUUID } from "crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import nodemailer from "nodemailer";
-import type { Prisma } from "@prisma/client";
+import type { EmailCategory, EmailPurpose, EmailRecipientEligibilityStatus, Prisma } from "@prisma/client";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
+import {
+  evaluateRecipientEligibility,
+  getCampaignComplianceIssues,
+  hashPublicEmailToken,
+  parseEmailPurpose,
+} from "../services/email-compliance.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 
@@ -46,6 +52,7 @@ type AudienceConstituent = {
   id: string;
   email: string | null;
   doNotEmail: boolean;
+  doNotContact: boolean;
   emailOptOut: boolean;
 };
 
@@ -56,6 +63,10 @@ interface AudiencePreview {
   optedOut: number;
   duplicateEmails: number;
   suppressionCount: number;
+  categoryOptOut: number;
+  doNotContact: number;
+  invalidEmail: number;
+  suppressed: number;
   finalSendCount: number;
   recipients: string[];
 }
@@ -95,6 +106,14 @@ interface CampaignSendOptions {
 interface ResolvedRecipientPlan {
   sendMode: CampaignSendMode;
   recipients: string[];
+  decisions: Array<{
+    email: string;
+    constituentId: string | null;
+    subscriptionId: string | null;
+    eligibilityStatus: EmailRecipientEligibilityStatus;
+    ineligibilityReason: string | null;
+  }>;
+  category: EmailCategory;
   audience: Omit<AudiencePreview, "recipients">;
   audienceType: string;
   recipientListId?: string;
@@ -143,6 +162,7 @@ async function getAudienceConstituents(filter: AudienceFilter, organizationId: s
       id: true,
       email: true,
       doNotEmail: true,
+      doNotContact: true,
       emailOptOut: true,
     },
     take: 5000,
@@ -151,45 +171,39 @@ async function getAudienceConstituents(filter: AudienceFilter, organizationId: s
 }
 
 /**
- * Computes recipient preview counts and de-duplicates valid email recipients.
- * This powers pre-send confirmations and keeps send behavior consistent with preview.
+ * Computes recipient preview counts after applying shared subscription/suppression compliance rules.
+ * This keeps preview and actual send eligibility behavior aligned.
  */
-function computeAudiencePreview(rows: AudienceConstituent[]): AudiencePreview {
-  const validCandidates: string[] = [];
-  const seen = new Set<string>();
-  const uniqueRecipients: string[] = [];
-  let missingEmail = 0;
-  let optedOut = 0;
-
-  for (const row of rows) {
-    const email = row.email?.trim().toLowerCase() ?? "";
-    if (!email) {
-      missingEmail += 1;
-      continue;
-    }
-    if (row.doNotEmail || row.emailOptOut) {
-      optedOut += 1;
-      continue;
-    }
-    validCandidates.push(email);
-    if (!seen.has(email)) {
-      seen.add(email);
-      uniqueRecipients.push(email);
-    }
-  }
-
-  const duplicateEmails = validCandidates.length - uniqueRecipients.length;
-  const suppressionCount = missingEmail + optedOut + duplicateEmails;
+async function computeAudiencePreview(
+  rows: AudienceConstituent[],
+  organizationId: string,
+  purpose: EmailPurpose,
+): Promise<AudiencePreview> {
+  const evaluation = await evaluateRecipientEligibility({
+    organizationId,
+    purpose,
+    candidates: rows.map((row) => ({
+      email: row.email ?? "",
+      constituentId: row.id,
+      doNotEmail: row.doNotEmail,
+      doNotContact: row.doNotContact,
+      emailOptOut: row.emailOptOut,
+    })),
+  });
 
   return {
-    totalMatched: rows.length,
-    validEmail: validCandidates.length,
-    missingEmail,
-    optedOut,
-    duplicateEmails,
-    suppressionCount,
-    finalSendCount: uniqueRecipients.length,
-    recipients: uniqueRecipients,
+    totalMatched: evaluation.summary.totalMatched,
+    validEmail: evaluation.summary.validEmail,
+    missingEmail: evaluation.summary.missingEmail,
+    optedOut: evaluation.summary.optedOut,
+    duplicateEmails: evaluation.summary.duplicateEmails,
+    suppressionCount: evaluation.summary.suppressionCount,
+    categoryOptOut: evaluation.summary.categoryOptOut,
+    doNotContact: evaluation.summary.doNotContact,
+    invalidEmail: evaluation.summary.invalidEmail,
+    suppressed: evaluation.summary.suppressed,
+    finalSendCount: evaluation.summary.finalSendCount,
+    recipients: evaluation.recipients,
   };
 }
 
@@ -268,24 +282,36 @@ async function resolveSavedListRecipients(
 
 /** Resolves recipients for one send operation from campaign audience, segment, list, or individual modes. */
 async function resolveRecipientPlan(
-  campaign: { organizationId: string; audienceFilter: string | null },
+  campaign: { organizationId: string; audienceFilter: string | null; purpose: EmailPurpose },
   options?: CampaignSendOptions,
 ): Promise<ResolvedRecipientPlan> {
   const sendMode = options?.sendMode ?? "CAMPAIGN_AUDIENCE";
 
   if (sendMode === "SAVED_LIST") {
     const saved = await resolveSavedListRecipients(options?.recipientListId, campaign.organizationId);
+    const evaluation = await evaluateRecipientEligibility({
+      organizationId: campaign.organizationId,
+      purpose: campaign.purpose,
+      candidates: saved.recipients.map((email) => ({ email })),
+    });
+
     return {
       sendMode,
-      recipients: saved.recipients,
+      recipients: evaluation.recipients,
+      decisions: evaluation.decisions,
+      category: evaluation.category,
       audience: {
-        totalMatched: saved.recipients.length,
-        validEmail: saved.recipients.length,
-        missingEmail: 0,
-        optedOut: 0,
-        duplicateEmails: 0,
-        suppressionCount: 0,
-        finalSendCount: saved.recipients.length,
+        totalMatched: evaluation.summary.totalMatched,
+        validEmail: evaluation.summary.validEmail,
+        missingEmail: evaluation.summary.missingEmail,
+        optedOut: evaluation.summary.optedOut,
+        duplicateEmails: evaluation.summary.duplicateEmails,
+        suppressionCount: evaluation.summary.suppressionCount,
+        categoryOptOut: evaluation.summary.categoryOptOut,
+        doNotContact: evaluation.summary.doNotContact,
+        invalidEmail: evaluation.summary.invalidEmail,
+        suppressed: evaluation.summary.suppressed,
+        finalSendCount: evaluation.summary.finalSendCount,
       },
       audienceType: `saved-list:${saved.name}`,
       recipientListId: saved.listId,
@@ -294,17 +320,29 @@ async function resolveRecipientPlan(
 
   if (sendMode === "LIST" || sendMode === "INDIVIDUAL") {
     const recipients = normalizeRecipientEmails(options?.recipientEmails);
+    const evaluation = await evaluateRecipientEligibility({
+      organizationId: campaign.organizationId,
+      purpose: campaign.purpose,
+      candidates: recipients.map((email) => ({ email })),
+    });
+
     return {
       sendMode,
-      recipients,
+      recipients: evaluation.recipients,
+      decisions: evaluation.decisions,
+      category: evaluation.category,
       audience: {
-        totalMatched: recipients.length,
-        validEmail: recipients.length,
-        missingEmail: 0,
-        optedOut: 0,
-        duplicateEmails: 0,
-        suppressionCount: 0,
-        finalSendCount: recipients.length,
+        totalMatched: evaluation.summary.totalMatched,
+        validEmail: evaluation.summary.validEmail,
+        missingEmail: evaluation.summary.missingEmail,
+        optedOut: evaluation.summary.optedOut,
+        duplicateEmails: evaluation.summary.duplicateEmails,
+        suppressionCount: evaluation.summary.suppressionCount,
+        categoryOptOut: evaluation.summary.categoryOptOut,
+        doNotContact: evaluation.summary.doNotContact,
+        invalidEmail: evaluation.summary.invalidEmail,
+        suppressed: evaluation.summary.suppressed,
+        finalSendCount: evaluation.summary.finalSendCount,
       },
       audienceType: sendMode === "INDIVIDUAL" ? "individual" : "manual-list",
     };
@@ -316,18 +354,35 @@ async function resolveRecipientPlan(
     : stored.filter;
 
   const rows = await getAudienceConstituents(effectiveFilter, campaign.organizationId);
-  const preview = computeAudiencePreview(rows);
+  const evaluation = await evaluateRecipientEligibility({
+    organizationId: campaign.organizationId,
+    purpose: campaign.purpose,
+    candidates: rows.map((row) => ({
+      email: row.email ?? "",
+      constituentId: row.id,
+      doNotEmail: row.doNotEmail,
+      doNotContact: row.doNotContact,
+      emailOptOut: row.emailOptOut,
+    })),
+  });
+
   return {
     sendMode,
-    recipients: preview.recipients,
+    recipients: evaluation.recipients,
+    decisions: evaluation.decisions,
+    category: evaluation.category,
     audience: {
-      totalMatched: preview.totalMatched,
-      validEmail: preview.validEmail,
-      missingEmail: preview.missingEmail,
-      optedOut: preview.optedOut,
-      duplicateEmails: preview.duplicateEmails,
-      suppressionCount: preview.suppressionCount,
-      finalSendCount: preview.finalSendCount,
+      totalMatched: evaluation.summary.totalMatched,
+      validEmail: evaluation.summary.validEmail,
+      missingEmail: evaluation.summary.missingEmail,
+      optedOut: evaluation.summary.optedOut,
+      duplicateEmails: evaluation.summary.duplicateEmails,
+      suppressionCount: evaluation.summary.suppressionCount,
+      categoryOptOut: evaluation.summary.categoryOptOut,
+      doNotContact: evaluation.summary.doNotContact,
+      invalidEmail: evaluation.summary.invalidEmail,
+      suppressed: evaluation.summary.suppressed,
+      finalSendCount: evaluation.summary.finalSendCount,
     },
     audienceType:
       effectiveFilter && typeof effectiveFilter === "object" && typeof effectiveFilter.type === "string"
@@ -431,6 +486,66 @@ function serializeCampaignAudienceFilter(
   });
 }
 
+/** Replaces compliance merge tokens with recipient-specific URLs. */
+function applyComplianceLinkTokens(
+  content: string,
+  links: { unsubscribeUrl: string; preferencesUrl: string },
+): string {
+  return content
+    .replaceAll("{{unsubscribeUrl}}", links.unsubscribeUrl)
+    .replaceAll("{{unsubscribe_url}}", links.unsubscribeUrl)
+    .replaceAll("{{managePreferencesUrl}}", links.preferencesUrl)
+    .replaceAll("{{preferencesUrl}}", links.preferencesUrl)
+    .replaceAll("{{preferences_url}}", links.preferencesUrl);
+}
+
+/** Issues one tokenized unsubscribe/preferences link pair for a specific recipient and campaign. */
+async function issueRecipientComplianceLinks(params: {
+  organizationId: string;
+  campaignId: string;
+  email: string;
+  category: EmailCategory;
+}) {
+  const normalizedEmail = params.email.trim().toLowerCase();
+  const subscription = await prisma.emailSubscription.upsert({
+    where: {
+      organizationId_email: {
+        organizationId: params.organizationId,
+        email: normalizedEmail,
+      },
+    },
+    create: {
+      organizationId: params.organizationId,
+      email: normalizedEmail,
+      globalStatus: "UNKNOWN",
+      source: "campaign-send",
+    },
+    update: {},
+  });
+
+  const rawToken = `${randomUUID()}${randomUUID()}`;
+  const tokenHash = hashPublicEmailToken(rawToken);
+  const expiresAt = new Date(Date.now() + (180 * 24 * 60 * 60 * 1000));
+
+  await prisma.emailUnsubscribeToken.create({
+    data: {
+      organizationId: params.organizationId,
+      subscriptionId: subscription.id,
+      tokenHash,
+      email: normalizedEmail,
+      category: params.category,
+      campaignId: params.campaignId,
+      expiresAt,
+    },
+  });
+
+  const appBase = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  return {
+    unsubscribeUrl: `${appBase}/unsubscribe/${rawToken}`,
+    preferencesUrl: `${appBase}/preferences/${rawToken}`,
+  };
+}
+
 /** Writes one event row per recipient for delivery analytics and send forensics. */
 async function createDeliveryEvents(params: {
   organizationId: string;
@@ -451,6 +566,54 @@ async function createDeliveryEvents(params: {
       eventType: params.eventType,
       eventAt: new Date(),
       metadata: metadataInput,
+    })),
+    skipDuplicates: true,
+  });
+}
+
+/** Persists one eligibility snapshot row per campaign recipient for compliance and reporting. */
+async function persistSendRecipients(params: {
+  organizationId: string;
+  campaignId: string;
+  purpose: EmailPurpose;
+  category: EmailCategory;
+  decisions: Array<{
+    email: string;
+    constituentId: string | null;
+    subscriptionId: string | null;
+    eligibilityStatus: EmailRecipientEligibilityStatus;
+    ineligibilityReason: string | null;
+  }>;
+}) {
+  const byEmail = new Map<string, {
+    email: string;
+    constituentId: string | null;
+    subscriptionId: string | null;
+    eligibilityStatus: string;
+    ineligibilityReason: string | null;
+  }>();
+
+  for (const decision of params.decisions) {
+    const email = decision.email.trim().toLowerCase();
+    if (!email || byEmail.has(email)) continue;
+    byEmail.set(email, { ...decision, email });
+  }
+
+  if (byEmail.size === 0) return;
+
+  await prisma.emailSendRecipient.createMany({
+    data: Array.from(byEmail.values()).map((decision) => ({
+      organizationId: params.organizationId,
+      campaignId: params.campaignId,
+      subscriptionId: decision.subscriptionId,
+      constituentId: decision.constituentId,
+      email: decision.email,
+      category: params.category,
+      purpose: params.purpose,
+      eligibilityStatus: decision.eligibilityStatus,
+      ineligibilityReason: decision.ineligibilityReason,
+      queuedAt: decision.eligibilityStatus === "ELIGIBLE" ? new Date() : null,
+      sentAt: null,
     })),
     skipDuplicates: true,
   });
@@ -606,6 +769,19 @@ export async function sendCampaignNow(
     throw new CampaignSendError("Only scheduled campaigns can be processed by the queue worker.", 400);
   }
 
+  const purpose = parseEmailPurpose((campaign as { purpose?: unknown }).purpose);
+  const complianceIssues = getCampaignComplianceIssues({
+    purpose,
+    subject: campaign.subject,
+    bodyHtml: campaign.bodyHtml,
+    bodyText: campaign.bodyText,
+    fromEmail: campaign.fromEmail,
+    replyToEmail: campaign.replyToEmail,
+  });
+  if (complianceIssues.length > 0) {
+    throw new CampaignSendError(`Campaign failed compliance checks: ${complianceIssues.join(" ")}`, 400);
+  }
+
   const previousStatus = campaign.status;
   const claimed = await prisma.emailCampaign.updateMany({
     where: { id: campaign.id, status: previousStatus },
@@ -638,8 +814,21 @@ export async function sendCampaignNow(
       );
     }
 
-    const recipientPlan = await resolveRecipientPlan(campaign, options);
+    const recipientPlan = await resolveRecipientPlan({
+      organizationId: campaign.organizationId,
+      audienceFilter: campaign.audienceFilter,
+      purpose,
+    }, options);
     resolvedPlan = recipientPlan;
+
+    await persistSendRecipients({
+      organizationId: campaign.organizationId,
+      campaignId: campaign.id,
+      purpose,
+      category: recipientPlan.category,
+      decisions: recipientPlan.decisions,
+    });
+
     const to = recipientPlan.recipients;
     const recipientCount = to.length;
 
@@ -664,14 +853,35 @@ export async function sendCampaignNow(
       },
     });
 
-    await transporter.sendMail({
-      from: `"${settings.smtpFromName || campaign.fromName}" <${settings.smtpFromEmail}>`,
-      to: settings.smtpFromEmail,
-      bcc: to,
-      subject: campaign.subject || campaign.name,
-      text: campaign.bodyText || "No text content",
-      html: campaign.bodyHtml || `<p>${campaign.bodyText || "No content"}</p>`,
+    await prisma.emailSendRecipient.updateMany({
+      where: {
+        campaignId: campaign.id,
+        email: { in: to },
+      },
+      data: {
+        sentAt: new Date(),
+      },
     });
+
+    for (const recipientEmail of to) {
+      const links = await issueRecipientComplianceLinks({
+        organizationId: campaign.organizationId,
+        campaignId: campaign.id,
+        email: recipientEmail,
+        category: recipientPlan.category,
+      });
+
+      const rawHtml = campaign.bodyHtml || `<p>${campaign.bodyText || "No content"}</p>`;
+      const rawText = campaign.bodyText || "No text content";
+
+      await transporter.sendMail({
+        from: `"${settings.smtpFromName || campaign.fromName}" <${settings.smtpFromEmail}>`,
+        to: recipientEmail,
+        subject: campaign.subject || campaign.name,
+        text: applyComplianceLinkTokens(rawText, links),
+        html: applyComplianceLinkTokens(rawHtml, links),
+      });
+    }
 
     await createDeliveryEvents({
       organizationId: campaign.organizationId,
@@ -720,8 +930,14 @@ export async function sendCampaignNow(
           missingEmail: recipientPlan.audience.missingEmail,
           optedOut: recipientPlan.audience.optedOut,
           duplicateEmails: recipientPlan.audience.duplicateEmails,
+          categoryOptOut: recipientPlan.audience.categoryOptOut,
+          doNotContact: recipientPlan.audience.doNotContact,
+          invalidEmail: recipientPlan.audience.invalidEmail,
+          suppressed: recipientPlan.audience.suppressed,
           finalSendCount: recipientPlan.audience.finalSendCount,
           recipientListId: recipientPlan.recipientListId,
+          purpose,
+          category: recipientPlan.category,
         },
       },
     });
@@ -1102,6 +1318,10 @@ router.post("/audience-preview", async (req, res) => {
         optedOut: 0,
         duplicateEmails: 0,
         suppressionCount: 0,
+        categoryOptOut: 0,
+        doNotContact: 0,
+        invalidEmail: 0,
+        suppressed: 0,
         finalSendCount: 0,
       },
       recipientsSample: [],
@@ -1110,8 +1330,9 @@ router.post("/audience-preview", async (req, res) => {
   }
 
   const filter = (req.body?.audienceFilter ?? null) as AudienceFilter;
+  const purpose = parseEmailPurpose(req.body?.purpose);
   const rows = await getAudienceConstituents(filter, organizationId);
-  const preview = computeAudiencePreview(rows);
+  const preview = await computeAudiencePreview(rows, organizationId, purpose);
 
   res.json({
     audience: {
@@ -1121,6 +1342,10 @@ router.post("/audience-preview", async (req, res) => {
       optedOut: preview.optedOut,
       duplicateEmails: preview.duplicateEmails,
       suppressionCount: preview.suppressionCount,
+      categoryOptOut: preview.categoryOptOut,
+      doNotContact: preview.doNotContact,
+      invalidEmail: preview.invalidEmail,
+      suppressed: preview.suppressed,
       finalSendCount: preview.finalSendCount,
     },
     recipientsSample: preview.recipients.slice(0, 25),
@@ -1522,6 +1747,7 @@ router.post("/", async (req, res) => {
     name, subject, previewText, fromName, fromEmail, replyToEmail,
     bodyHtml, bodyText, templateJson, scheduledAt, audienceFilter, sharedWithOrganization = false, preparationStatus,
   } = req.body;
+  const purpose = parseEmailPurpose(req.body?.purpose);
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
     res.status(400).json({ error: "No organization is configured for this installation." });
@@ -1544,6 +1770,7 @@ router.post("/", async (req, res) => {
       organizationId,
       name: name ?? "Untitled Campaign",
       subject: subject ?? "",
+      purpose,
       previewText, fromName, fromEmail, replyToEmail,
       bodyHtml, bodyText,
       templateJson,
@@ -1600,6 +1827,9 @@ router.put("/:id", async (req, res) => {
   }
 
   const ownerId = parsedExisting.sharing.ownerId ?? userId;
+  const nextPurpose = req.body?.purpose !== undefined
+    ? parseEmailPurpose(req.body?.purpose, parseEmailPurpose((existing as { purpose?: unknown }).purpose))
+    : parseEmailPurpose((existing as { purpose?: unknown }).purpose);
   const nextSharing = typeof sharedWithOrganization === "boolean"
     ? sharedWithOrganization
     : parsedExisting.sharing.sharedWithOrganization;
@@ -1612,6 +1842,7 @@ router.put("/:id", async (req, res) => {
     where: { id: req.params.id },
     data: {
       name, subject, previewText, fromName, fromEmail, replyToEmail,
+      purpose: nextPurpose,
       bodyHtml, bodyText, templateJson,
       scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
       audienceFilter: serializeCampaignAudienceFilter(nextFilter, ownerId, nextSharing, nextPreparationStatus),
@@ -1794,6 +2025,25 @@ router.post("/:id/schedule", async (req, res) => {
 
   if (!canManageCampaign(parseCampaignAudienceFilter(campaign.audienceFilter).sharing, userId, role)) {
     res.status(403).json({ error: { code: "FORBIDDEN", message: "Only the owner can schedule this campaign" } });
+    return;
+  }
+
+  const schedulePurpose = parseEmailPurpose((campaign as { purpose?: unknown }).purpose);
+  const scheduleComplianceIssues = getCampaignComplianceIssues({
+    purpose: schedulePurpose,
+    subject: campaign.subject,
+    bodyHtml: campaign.bodyHtml,
+    bodyText: campaign.bodyText,
+    fromEmail: campaign.fromEmail,
+    replyToEmail: campaign.replyToEmail,
+  });
+  if (scheduleComplianceIssues.length > 0) {
+    res.status(400).json({
+      error: {
+        code: "CAMPAIGN_NOT_READY",
+        message: `Campaign failed compliance checks: ${scheduleComplianceIssues.join(" ")}`,
+      },
+    });
     return;
   }
 

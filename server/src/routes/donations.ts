@@ -469,6 +469,71 @@ router.put("/:id", async (req, res) => {
 });
 
 /**
+ * PATCH /api/donations/:id/acknowledgment — Mark or reset donor acknowledgment state for one donation.
+ *
+ * Request body:
+ *   acknowledged?: boolean  // defaults to true
+ *
+ * Response:
+ *   { id, acknowledgmentSentAt }
+ */
+router.patch("/:id/acknowledgment", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const existing = await prisma.donation.findFirst({
+    where: { id: req.params.id, constituent: { organizationId } },
+    select: { id: true, constituentId: true, acknowledgmentSentAt: true },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Donation not found" } });
+    return;
+  }
+
+  const acknowledged = req.body?.acknowledged !== false;
+  const acknowledgmentSentAt = acknowledged ? new Date() : null;
+
+  const donation = await prisma.donation.update({
+    where: { id: existing.id },
+    data: { acknowledgmentSentAt },
+    select: { id: true, constituentId: true, acknowledgmentSentAt: true },
+  });
+
+  await prisma.activity.create({
+    data: {
+      constituentId: donation.constituentId,
+      donationId: donation.id,
+      type: "NOTE",
+      description: acknowledged
+        ? "Donation acknowledgment marked as sent"
+        : "Donation acknowledgment reset",
+      metadata: {
+        source: "api/donations:acknowledgment",
+        acknowledged,
+      },
+    },
+  });
+
+  logAudit({
+    action: acknowledged ? "DONATION_ACKNOWLEDGMENT_MARKED" : "DONATION_ACKNOWLEDGMENT_RESET",
+    entity: "Donation",
+    entityId: donation.id,
+    userId: req.user?.sub,
+    metadata: {
+      constituentId: donation.constituentId,
+      acknowledgmentSentAt: donation.acknowledgmentSentAt,
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({ id: donation.id, acknowledgmentSentAt: donation.acknowledgmentSentAt });
+});
+
+/**
  * POST /api/donations/import — Bulk-import historical donation records from a CSV wizard.
  *
  * Accepts an array of mapped row objects (from the DonationImportWizard) and:

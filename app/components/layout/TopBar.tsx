@@ -785,9 +785,6 @@ export default function TopBar() {
     scope: mapModuleKeyToHelpScope(moduleKey),
     scopePath: pathname,
   });
-  const workspaceIdentityLabel = moduleKey === "donor"
-    ? "DonorCRM · Fundraising & Stewardship"
-    : null;
 
   /** Briefly pulses module accent glow to acknowledge meaningful workspace actions. */
   const triggerTopBarReactiveGlow = useCallback(() => {
@@ -980,11 +977,6 @@ export default function TopBar() {
             </>
           )}
 
-          {workspaceIdentityLabel && (
-            <div className="hidden lg:flex items-center rounded-full border border-emerald-300/70 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold tracking-wide text-emerald-700">
-              {workspaceIdentityLabel}
-            </div>
-          )}
           </div>
 
           {/* Mobile top-right priority controls */}

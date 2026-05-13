@@ -8,16 +8,31 @@
 'use client';
 
 import type { TextBlock as TextBlockData } from '@/app/lib/email-builder-types';
+import RichTextEditor from '@/app/components/email-builder/RichTextEditor';
 
 interface Props {
   block: TextBlockData;
+  editable?: boolean;
+  onChangeContent?: (content: string) => void;
 }
 
 /**
  * Renders a text block in the email canvas.
  * Inline styles mirror what the HTML email generator produces.
  */
-export default function TextBlock({ block }: Props) {
+export default function TextBlock({ block, editable = false, onChangeContent }: Props) {
+  if (editable) {
+    return (
+      <div style={{ padding: block.padding }}>
+        <RichTextEditor
+          value={block.content}
+          onChange={(content) => onChangeContent?.(content)}
+          minHeight={140}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       style={{

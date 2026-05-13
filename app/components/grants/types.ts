@@ -1,6 +1,6 @@
 /**
- * Shared TypeScript types for the Grant Management module.
- * Used across the grants list, detail, writing, and funder pages.
+ * Shared TypeScript types for the DonorCRM Grants research workspace.
+ * Used across grants overview, detail case-file tabs, writing, and funder pages.
  */
 
 /** Status pipeline stages for a grant application. */
@@ -104,23 +104,80 @@ export interface GrantStats {
   totalAwarded: number;
   total: number;
   upcomingDeadlines: number;
+  applicationsInProgress?: number;
+  submittedAwaitingDecision?: number;
+  reportsDue?: number;
+  renewalsComingUp?: number;
+}
+
+/** Case-file item kinds tracked under each grant. */
+export type GrantCaseItemKind = "REMINDER" | "TASK" | "RESOURCE" | "REQUIREMENT";
+
+/** Grant-specific task statuses used in writing/research workflows. */
+export type GrantTaskStatus =
+  | "NOT_STARTED"
+  | "IN_PROGRESS"
+  | "WAITING_ON_SOMEONE"
+  | "READY_FOR_REVIEW"
+  | "COMPLETED"
+  | "BLOCKED"
+  | "CANCELED";
+
+/** Grant reminder statuses. */
+export type GrantReminderStatus = "PENDING" | "COMPLETED" | "CANCELED";
+
+/** Grant requirement checklist statuses. */
+export type GrantRequirementStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" | "BLOCKED";
+
+/** Resource-link statuses in the grant case file. */
+export type GrantResourceStatus = "ACTIVE" | "NEEDS_REVIEW" | "ARCHIVED";
+
+/** One persisted grant case-file item returned by grants case-item endpoints. */
+export interface GrantCaseItem {
+  id: string;
+  grantId: string;
+  kind: GrantCaseItemKind;
+  title: string;
+  description?: string | null;
+  status?: string | null;
+  priority?: string | null;
+  taskType?: string | null;
+  reminderType?: string | null;
+  resourceType?: string | null;
+  dueAt?: string | null;
+  remindAt?: string | null;
+  assignedToId?: string | null;
+  assignedToName?: string | null;
+  url?: string | null;
+  pinned?: boolean;
+  createdAt: string;
+}
+
+/** Case item with grant summary fields, used by workspace-level deadlines/tasks views. */
+export interface GrantWorkspaceCaseItem extends GrantCaseItem {
+  grant: {
+    id: string;
+    title: string;
+    status: GrantStatus;
+    funderName?: string | null;
+  };
 }
 
 // ─── Status metadata ──────────────────────────────────────────────────────────
 
 /** Visual metadata for each grant status. */
 export const STATUS_META: Record<GrantStatus, { label: string; color: string; bg: string; border: string; stage: "active" | "terminal" }> = {
-  IDEA:               { label: "Idea",              color: "text-gray-600",   bg: "bg-gray-100",   border: "border-gray-200",  stage: "active" },
-  RESEARCH:           { label: "Research",          color: "text-blue-700",   bg: "bg-blue-50",    border: "border-blue-200",  stage: "active" },
-  LOI_DRAFT:          { label: "LOI Draft",         color: "text-yellow-700", bg: "bg-yellow-50",  border: "border-yellow-200",stage: "active" },
-  LOI_SUBMITTED:      { label: "LOI Submitted",     color: "text-orange-700", bg: "bg-orange-50",  border: "border-orange-200",stage: "active" },
-  PROPOSAL_DRAFT:     { label: "Proposal Draft",    color: "text-purple-700", bg: "bg-purple-50",  border: "border-purple-200",stage: "active" },
-  PROPOSAL_SUBMITTED: { label: "Proposal Submitted",color: "text-indigo-700", bg: "bg-indigo-50",  border: "border-indigo-200",stage: "active" },
-  UNDER_REVIEW:       { label: "Under Review",      color: "text-amber-700",  bg: "bg-amber-50",   border: "border-amber-200", stage: "active" },
-  AWARDED:            { label: "Awarded",            color: "text-green-700",  bg: "bg-green-100",  border: "border-green-300", stage: "terminal" },
-  REJECTED:           { label: "Rejected",           color: "text-red-700",    bg: "bg-red-50",     border: "border-red-200",   stage: "terminal" },
-  WITHDRAWN:          { label: "Withdrawn",          color: "text-gray-500",   bg: "bg-gray-100",   border: "border-gray-200",  stage: "terminal" },
-  CLOSED:             { label: "Closed",             color: "text-gray-500",   bg: "bg-gray-100",   border: "border-gray-200",  stage: "terminal" },
+  IDEA:               { label: "Watching",                color: "text-gray-600",   bg: "bg-gray-100",   border: "border-gray-200",  stage: "active" },
+  RESEARCH:           { label: "Researching",             color: "text-blue-700",   bg: "bg-blue-50",    border: "border-blue-200",  stage: "active" },
+  LOI_DRAFT:          { label: "LOI Needed",              color: "text-yellow-700", bg: "bg-yellow-50",  border: "border-yellow-200",stage: "active" },
+  LOI_SUBMITTED:      { label: "LOI Submitted",           color: "text-orange-700", bg: "bg-orange-50",  border: "border-orange-200",stage: "active" },
+  PROPOSAL_DRAFT:     { label: "Application In Progress", color: "text-purple-700", bg: "bg-purple-50",  border: "border-purple-200",stage: "active" },
+  PROPOSAL_SUBMITTED: { label: "Submitted",               color: "text-indigo-700", bg: "bg-indigo-50",  border: "border-indigo-200",stage: "active" },
+  UNDER_REVIEW:       { label: "Awaiting Decision",       color: "text-amber-700",  bg: "bg-amber-50",   border: "border-amber-200", stage: "active" },
+  AWARDED:            { label: "Awarded",                 color: "text-green-700",  bg: "bg-green-100",  border: "border-green-300", stage: "terminal" },
+  REJECTED:           { label: "Declined",                color: "text-red-700",    bg: "bg-red-50",     border: "border-red-200",   stage: "terminal" },
+  WITHDRAWN:          { label: "Closed",                  color: "text-gray-500",   bg: "bg-gray-100",   border: "border-gray-200",  stage: "terminal" },
+  CLOSED:             { label: "Archived",                color: "text-gray-500",   bg: "bg-gray-100",   border: "border-gray-200",  stage: "terminal" },
 };
 
 /** Ordered pipeline stages (active statuses, excluding terminal). */

@@ -1,8 +1,8 @@
 # OyamaCRM Feature Status Audit
 
-_Last deep audit: 2026-05-09_
+_Last deep audit: 2026-05-13_
 
-## 2026-05-11 Status Correction
+## 2026-05-12 Readiness Audit Refresh
 
 This file remains useful for feature context, but release-readiness authority is:
 `docs/status/production-readiness-checklist.md`
@@ -15,19 +15,66 @@ Centralized status labels are locked to:
 - Broken
 - Not Implemented
 
-Current release-gate snapshot (fresh run):
+Current release-gate snapshot from the 14-command audit run:
 
-- Smoke lane: Working (143 passed)
-- E2E lane: Working
-- Build lane: Broken
+- Lint lane: Broken (`pnpm lint` exited 1 with 13 errors)
+- Typecheck lane: Working (`pnpm typecheck`, `pnpm typecheck:web`, `pnpm typecheck:server` all exited 0)
+- Smoke lane: Working (`pnpm test:smoke` 151 passed)
+- E2E lane: Broken (`pnpm test:e2e`, `pnpm test:e2e:mobile`, `pnpm test:e2e:livecom` all exited 1)
+- Test + coverage lane: Working (`pnpm test` and `pnpm test:coverage` exited 0)
+- Build lane: Working (`pnpm build`, `pnpm build:server` exited 0)
+- Prisma generation lane: Broken (`pnpm db:generate` exited 1 with Windows `EPERM` rename failure)
+- Migration safety lane: Working (`pnpm db:verify:linux-casing` exited 0)
 
-Recent truth updates completed in this pass:
+Dated evidence docs:
 
-- `/settings/integrations` is now live and API-backed (QuickBooks, Site Embeds, AI config, SMTP).
-- `/settings/system-status` now uses standardized labels and an explicit Done vs Not Done checklist.
-- HRM status should be treated as Partially Working with real persisted API-backed pages (not Not Implemented).
+- `docs/status/readiness-audit-2026-05-12.md`
+- `docs/status/testing-coverage-audit-2026-05-12.md`
+- `docs/status/e2e-coverage-audit-2026-05-12.md`
+- `docs/status/smoke-coverage-audit-2026-05-12.md`
+- `docs/status/build-and-typecheck-audit-2026-05-12.md`
 
 Do not use this file alone to declare production readiness.
+
+## 2026-05-12 Donor Engagement Integration Pass
+
+Status labels used in this section are restricted to:
+
+- Working
+- Partially Working
+- Demo Only
+- Broken
+- Not Implemented
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Donor engagement architecture docs | Working | `docs/DONOR_ENGAGEMENT_SYSTEM.md`, `docs/DONOR_CRM_COMMUNICATIONS_AUDIT.md` | Shared tool relationships are now documented as one system. |
+| Communications workspace as outreach hub | Partially Working | `app/communications/page.tsx` | New tabbed hub (overview/campaigns/drafts/letters/templates/segments/queue/log/settings) is live; deeper filters/export remain in progress. |
+| Donation acknowledgment quick-action loop | Working | `app/components/donations/DonationTable.tsx`, `app/donations/page.tsx`, `server/src/routes/donations.ts` | Mark Thanked now persists through API and appears in donation row actions. |
+| Constituent quick actions into engagement tools | Working | `app/constituents/[id]/page.tsx` | Added direct actions for communication, letters, paths, tasks, meetings. |
+| Campaign quick actions into engagement workflows | Working | `app/campaigns/[id]/page.tsx` | Added campaign-level links for email campaign, appeal letter, follow-up path. |
+| Email Builder campaign studio UX and donor block library | Partially Working | `app/components/email-builder/EmailBuilderApp.tsx`, `app/components/email-builder/BlockPalette.tsx`, `app/lib/email-builder-types.ts` | Workflow stage indicator, review checklist, grouped merge fields, canvas controls, and donor-specific blocks were added; reusable sections persistence and revision history remain not implemented. |
+| Shared email subscription and unsubscribe compliance layer | Partially Working | `server/src/routes/email-preferences.ts`, `server/src/services/email-compliance.ts`, `docs/DONOR_CRM_EMAIL_COMPLIANCE.md` | Tokenized preferences/unsubscribe flows, suppression-aware eligibility checks, and donor profile preference controls are now wired; webhook ingestion and full cross-tool propagation remain in progress. |
+| Steward Paths visual clarity upgrades | Partially Working | `app/automations/page.tsx` | Added shared status legend and sequence-node cards; full visual canvas builder remains in progress. |
+
+## 2026-05-12 Donor Grants Research Workspace Pass
+
+Status labels used in this section are restricted to:
+
+- Working
+- Partially Working
+- Demo Only
+- Broken
+- Not Implemented
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Grants research-workspace reframing | Working | `app/grants/page.tsx`, `app/components/grants/GrantStats.tsx`, `app/components/grants/GrantsCommandPanel.tsx` | Primary grants language shifted from pipeline framing to research/deadline/writing workflows. |
+| Grant case-file detail tabs | Working | `app/grants/[id]/page.tsx`, `app/components/grants/GrantCaseItemPanel.tsx` | Added dedicated requirements, reminders, tasks, resources, research, and decision views. |
+| Grant case-file persistence APIs | Working | `server/src/routes/grants.ts` | Added workspace and grant-level case-item endpoints for reminder/task/resource/requirement records. |
+| Grant-specific permissions | Working | `server/src/lib/permissions.ts`, `server/src/routes/grants.ts` | Added and enforced grants permission keys for viewing, editing, funders, deadlines, tasks, resources. |
+| Donation separation for grants | Working | `app/grants/[id]/page.tsx`, `app/donations/new/page.tsx` | Award handoff now routes to Donations flow; grants do not auto-create donation ledger rows. |
+| Grant calendar/reporting depth | Partially Working | `app/grants/page.tsx` | Deadline and task workspace tabs are live; dedicated calendar and deeper analytics remain in progress. |
 
 ## Audit Rules
 
@@ -42,6 +89,7 @@ This document treats a feature as complete only when it uses real data, saves co
 | Donor CRM | Constituent profile + notes + timeline | Working | Real API Data | `app/constituents/[id]/page.tsx` reads `/api/constituents/:id`; notes saved through `POST /api/constituents/:id/notes`. | Add richer timeline grouping and event filtering. |
 | Donor CRM | Donations CRUD + donation import | Working | Real API Data | `app/donations/page.tsx`, `server/src/routes/donations.ts`, `/api/donations/import` are wired. | Add rollback support and receipt automation. |
 | Donor CRM | Campaign management | Working | Real API Data | `app/campaigns/page.tsx` now links to `app/campaigns/[id]/page.tsx` for campaign info, full edit, recent donations, and delete workflows backed by `/api/campaigns` CRUD. | Add campaign attribution reporting from events + communications and multi-campaign comparison analytics. |
+| Donor CRM | Grants research workspace | Partially Working | Real API Data | Grants route/module now supports case-file reminders/tasks/resources/requirements and donation handoff separation from grant records. | Add dedicated grant calendar view and expanded cross-grant workload/reporting surfaces. |
 | Donor CRM | Tasks | Working | Real API Data | `app/tasks/page.tsx` is backed by `/api/tasks` CRUD. | Add task templates and bulk assignment from segment results. |
 | Donor CRM | Communications campaign CRUD | Partially Working | Mixed Real/Demo Data | Email campaign records are persisted via `/api/email-campaigns`; delivery analytics are simulated in current flow. | Add provider webhook ingestion for delivery/open/click metrics and unsubscribe events. |
 | Donor CRM | Letters & Printables workspace | Partially Working | Real API Data | New `/api/letters` routes plus `/letters-printables` UI now support template CRUD, merge preview, single-letter generation, constituent timeline logging, and email draft creation. | Wire true server-side PDF rendering/export and batch generation queue workflows. |
@@ -49,28 +97,28 @@ This document treats a feature as complete only when it uses real data, saves co
 | Donor CRM | Email/newsletter builder | Partially Working | Mixed Real/Demo Data | Builder stores structure/content in DB; advanced merge fields/media pipeline are incomplete. | Add merge fields, media uploads, and timeline writeback per recipient. |
 | Donor CRM | Reports | Working | Real API Data | `app/reports/page.tsx` consumes summary/monthly/retention/top donor/campaign APIs. | Add scheduled report delivery and server-side export jobs. |
 | Donor CRM | Import wizard (constituents + donations) | Working | Real API Data | Import wizard posts to `/api/constituents/import`; donation wizard posts to `/api/donations/import`. | Add import history and rollback tooling. |
-| Donor CRM | Merge workflow | UI Only | Static Demo UI | `app/data-tools/merge/MergeWorkflow.tsx` is preview-first and not yet wired to merge endpoint writes. | Implement backend merge endpoint and explicit conflict resolution. |
+| Donor CRM | Merge workflow | Demo Only | Static Demo UI | `app/data-tools/merge/MergeWorkflow.tsx` is preview-first and not yet wired to merge endpoint writes. | Implement backend merge endpoint and explicit conflict resolution. |
 | Donor CRM | Volunteers page | Partially Working | Real API Data | `app/volunteers/page.tsx` uses direct `fetch` to `/api/constituents?type=VOLUNTEER`; behavior differs from `apiFetch` helper pattern. | Switch to `apiFetch` and validate auth/session consistency. |
-| Compassion CRM | Dashboard | Placeholder Data | Hardcoded Placeholder | `app/compassion/dashboard/page.tsx` uses static arrays and TODO markers for live API replacement. | Create Compassion API + schema and wire dashboard cards/charts. |
-| Compassion CRM | Clients, cases, appointments, services, reports | UI Only | Static Demo UI | Most `/app/compassion/*` routes render placeholder shells/coming soon pages only. | Build models and API routes, then replace placeholders incrementally. |
-| Compassion CRM | Search/filtering + intake/import tools | Not Started | Unknown / Needs Verification | No Compassion-specific search endpoints or import routes found. | Add Compassion data tools and scoped filters after client/case schema launch. |
-| Compassion CRM | Module permissions | Partial | Unknown / Needs Verification | `app/compassion/layout.tsx` includes TODO for workspace permission enforcement. | Add module-level authorization middleware and role checks. |
+| Compassion CRM | Dashboard | Demo Only | Hardcoded Placeholder | `app/compassion/dashboard/page.tsx` uses static arrays and TODO markers for live API replacement. | Create Compassion API + schema and wire dashboard cards/charts. |
+| Compassion CRM | Clients, cases, appointments, services, reports | Demo Only | Static Demo UI | Most `/app/compassion/*` routes render placeholder shells/coming soon pages only. | Build models and API routes, then replace placeholders incrementally. |
+| Compassion CRM | Search/filtering + intake/import tools | Not Implemented | Unknown / Needs Verification | No Compassion-specific search endpoints or import routes found. | Add Compassion data tools and scoped filters after client/case schema launch. |
+| Compassion CRM | Module permissions | Partially Working | Unknown / Needs Verification | `app/compassion/layout.tsx` includes TODO for workspace permission enforcement. | Add module-level authorization middleware and role checks. |
 | Events CRM | Event registry + setup | Working | Real API Data | `app/events/list` + `app/events/dashboard` call events APIs in `server/src/routes/events.ts`. | Add visibility policy controls and registration publishing controls. |
 | Events CRM | Orders + guests + tables + check-in | Working | Real API Data | `app/events/orders|guests|tables|check-in` are wired to DB-backed event endpoints. | Add reconciliation workflows for unlinked/duplicate guests. |
 | Events CRM | Event reports + donor activity sync | Working | Real API Data | `/events/reports` uses `/api/events/reports/*`; event actions write `Activity` entries in `events.ts`. | Add sponsor, ticket-type, and export reporting slices. |
-| Events CRM | Tickets, sponsors, communications, tasks, volunteers, files, settings | UI Only | Static Demo UI | These routes use `app/components/events/EventsWorkspacePage.tsx` with static metrics/text only. | Build dedicated APIs and replace each scaffold with live data pages. |
-| Events CRM | Public ticketing page + hosted checkout | Not Started | Unknown / Needs Verification | No public ticket storefront route/API is currently wired. | Implement event ticket type CRUD + public registration page generation. |
-| OyamaWatchdog | Security feed + encrypted vault + admin controls | Partial | External DB + Real API Data | `/watchdog` module and `/api/watchdog/*` routes are scaffolded with encrypted secret storage and permission key checks. | Add full permission matrix UI, runbook actions, and production-ready health/alert wiring. |
-| OyamaWebMaster | Section-first website builder dashboard + shell | Partial | Real API Data + Builder Shell | `/webmaster` now includes real website management actions, quick page creation, and a visual builder shell with persisted section content save/load via `/api/webmaster`. | Expand templates, CMS/forms, export, preflight, and publish targets/rollback. |
+| Events CRM | Tickets, sponsors, communications, tasks, volunteers, files, settings | Demo Only | Static Demo UI | These routes use `app/components/events/EventsWorkspacePage.tsx` with static metrics/text only. | Build dedicated APIs and replace each scaffold with live data pages. |
+| Events CRM | Public ticketing page + hosted checkout | Not Implemented | Unknown / Needs Verification | No public ticket storefront route/API is currently wired. | Implement event ticket type CRUD + public registration page generation. |
+| OyamaWatchdog | Security feed + encrypted vault + admin controls | Partially Working | External DB + Real API Data | `/watchdog` module and `/api/watchdog/*` routes are scaffolded with encrypted secret storage and permission key checks. | Add full permission matrix UI, runbook actions, and production-ready health/alert wiring. |
+| OyamaWebMaster | Section-first website builder dashboard + shell | Partially Working | Real API Data + Builder Shell | `/webmaster` now includes real website management actions, quick page creation, and a visual builder shell with persisted section content save/load via `/api/webmaster`. | Expand templates, CMS/forms, export, preflight, and publish targets/rollback. |
 | Platform | Authentication + session | Working | Real API Data | JWT auth, refresh, logout, and `/api/auth/me` are active. | Add MFA, session list, and revocation UI. |
 | Platform | Users management | Working | Real API Data | Settings users page is wired to `/api/users` CRUD + password reset. | Add invite flow and user onboarding emails. |
 | Platform | Audit logs | Working | Real API Data | Settings audit page reads `/api/audit-logs` with filter/pagination. | Add exports and saved filter presets. |
-| Platform | Roles & scopes matrix | UI Only | Hardcoded Placeholder | `app/settings/roles/page.tsx` currently presents static role content. | Build persisted role matrix editor + permission inheritance controls. |
-| Platform | Payments portal | Placeholder Data | Mock Data | `app/components/payments/*` tabs are mock/simulated data with TODO comments. | Build `/api/payments/*` and provider integration flows. |
+| Platform | Roles & scopes matrix | Demo Only | Hardcoded Placeholder | `app/settings/roles/page.tsx` currently presents static role content. | Build persisted role matrix editor + permission inheritance controls. |
+| Platform | Payments portal | Demo Only | Mock Data | `app/components/payments/*` tabs are mock/simulated data with TODO comments. | Build `/api/payments/*` and provider integration flows. |
 | Platform | Version/build/status visibility | Working | Real API Data | `/api/health`, settings system page, and system status show version/build metadata. | Add release notes/changelog UI and deployment history. |
-| Growth Tools | Blog Builder | Not Started | Unknown / Needs Verification | No blog model/API/UI exists in app or server directories. | Implement blog module (editor, publish flow, public feed/post, embeds). |
-| Growth Tools | Website Embed System | Not Started | Unknown / Needs Verification | No generic embed generator for widgets/forms/blog/events is present. | Build iframe/script/hosted embed pipeline with branding controls. |
-| Growth Tools | Event Manager CRM expansion | Partial | Mixed Real/Demo Data | Core operations exist; ticketing/sponsor/public workflows are still scaffolded. | Prioritize ticket types, sponsor CRUD, and public event registration pages. |
+| Growth Tools | Blog Builder | Not Implemented | Unknown / Needs Verification | No blog model/API/UI exists in app or server directories. | Implement blog module (editor, publish flow, public feed/post, embeds). |
+| Growth Tools | Website Embed System | Not Implemented | Unknown / Needs Verification | No generic embed generator for widgets/forms/blog/events is present. | Build iframe/script/hosted embed pipeline with branding controls. |
+| Growth Tools | Event Manager CRM expansion | Partially Working | Mixed Real/Demo Data | Core operations exist; ticketing/sponsor/public workflows are still scaffolded. | Prioritize ticket types, sponsor CRUD, and public event registration pages. |
 
 ## Real Data vs Demo Data Audit
 
@@ -123,7 +171,7 @@ This document treats a feature as complete only when it uses real data, saves co
 | donor.constituentProfile | Working | `app/constituents/[id]/page.tsx` + `/api/constituents/:id` | Includes giving/tasks/timeline and letters panel hooks. |
 | donor.donations | Working | `app/donations/page.tsx` + `/api/donations` | CRUD and stats endpoints live. |
 | donor.campaigns | Working | `app/campaigns/*` + `/api/campaigns` | List/detail/edit workflows are API-backed. |
-| donor.grants | Working | `app/grants/*` + `/api/grants` | Full lifecycle routes with smoke coverage. |
+| donor.grants | Partially Working | `app/grants/*` + `/api/grants` | Research workspace + case-file APIs are live; calendar/reporting depth remains in progress. |
 | donor.payments | Partially Working | `app/payments/page.tsx` | Ledger is live; processor tooling intentionally in development. |
 | donor.tasks | Working | `app/tasks/page.tsx` + `/api/tasks` | Task CRUD and bulk assignment live. |
 | donor.meetings | Working | `app/meetings/page.tsx` + `/api/meetings` | Scheduling and completion flows are live. |

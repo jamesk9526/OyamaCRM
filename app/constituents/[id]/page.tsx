@@ -15,6 +15,7 @@ import HouseholdPanel from "@/app/components/constituents/HouseholdPanel";
 import QuickGiftModal from "@/app/components/constituents/QuickGiftModal";
 import ConstituentNotesTab from "@/app/components/constituents/ConstituentNotesTab";
 import ConstituentLettersPanel from "@/app/components/constituents/ConstituentLettersPanel";
+import EmailPreferencePanel from "@/app/components/constituents/EmailPreferencePanel";
 import DonorStewardSignalsWidget from "@/app/components/steward/DonorStewardSignalsWidget";
 import { apiFetch } from "@/app/lib/auth-client";
 
@@ -223,6 +224,30 @@ export default function ConstituentDetailPage() {
               Generate Letter
             </Link>
             <Link
+              href={`/communications?new=1&source=constituent&constituentId=${id}`}
+              className="px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+            >
+              Create Communication
+            </Link>
+            <Link
+              href={`/automations?source=constituent&constituentId=${id}`}
+              className="px-3 py-2 text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
+            >
+              Start Steward Path
+            </Link>
+            <Link
+              href={`/tasks?focus=my&constituentId=${id}`}
+              className="px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors"
+            >
+              Create Task
+            </Link>
+            <Link
+              href={`/meetings?constituentId=${id}`}
+              className="px-3 py-2 text-sm font-medium text-sky-700 bg-sky-50 border border-sky-200 rounded-lg hover:bg-sky-100 transition-colors"
+            >
+              Schedule Meeting
+            </Link>
+            <Link
               href={`/constituents/${id}/edit`}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
@@ -249,6 +274,10 @@ export default function ConstituentDetailPage() {
             {c.doNotMail && <Flag label="Do Not Mail" />}
           </div>
         )}
+
+        <div className="mt-4">
+          <EmailPreferencePanel constituentId={id} email={c.email} />
+        </div>
       </div>
 
       {/* Stats row */}

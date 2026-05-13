@@ -1,0 +1,18 @@
+=== START pnpm-test-e2e-livecom ===
+START_UTC: 2026-05-13T04:19:35.8476524Z
+COMMAND: pnpm test:e2e:livecom
+
+> agents-create-oyamam-crm-workspace@0.3.0 test:e2e:livecom C:\Users\James\Documents\GitHub\OyamaCRM
+> node tests/e2e/livecom-ui-smoke.mjs
+
+LiveCom UI smoke failed: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3650/login
+Call log:
+  - navigating to "http://localhost:3650/login", waiting until "domcontentloaded"
+
+    at login (C:\Users\James\Documents\GitHub\OyamaCRM\tests\e2e\livecom-ui-smoke.mjs:22:14)
+    at main (C:\Users\James\Documents\GitHub\OyamaCRM\tests\e2e\livecom-ui-smoke.mjs:95:11) {
+  name: 'Error'
+}
+ΓÇëELIFECYCLEΓÇë Command failed with exit code 1.
+END_UTC: 2026-05-13T04:19:39.8551163Z
+EXIT_CODE: 1

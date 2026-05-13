@@ -1,0 +1,257 @@
+=== START pnpm-lint ===
+START_UTC: 2026-05-13T04:18:36.3729614Z
+COMMAND: pnpm lint
+
+> agents-create-oyamam-crm-workspace@0.3.0 lint C:\Users\James\Documents\GitHub\OyamaCRM
+> eslint
+
+
+C:\Users\James\Documents\GitHub\OyamaCRM\Desktopapp\shell.js
+  62:5  warning  'currentStep' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\apps\trivia\hooks\useTriviaModuleState.ts
+  720:6  warning  React Hook useMemo has missing dependencies: 'addQuestion', 'addRound', 'addTeam', 'applyScoreAction', 'createEvent', 'createSampleEvent', 'deleteEvent', 'importEventsFromJson', 'markProjectorOpened', 'removeTeam', 'reorderTeam', 'resetTimer', 'setActiveRound', 'setDisplayStage', 'setQuestionIndex', 'setTimerRemaining', 'setTimerRunning', 'setWinner', 'undoLastScoreAction', 'updateEventSettings', 'updateEventStatus', and 'updateTeam'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\compassion\clients\[id]\page.tsx
+  534:10  warning  'ResourcesTab' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\compassion\public\appointments\[token]\page.tsx
+  322:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\compassion\settings\page.tsx
+   596:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  1063:17  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\components\ai\StewardChatPanel.tsx
+  325:9  warning  'isDockMode' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\components\grants\GrantCaseItemPanel.tsx
+   87:10  warning  'toDateInput' is defined but never used                                                                       @typescript-eslint/no-unused-vars
+  156:6   warning  React Hook useEffect has a missing dependency: 'loadItems'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\components\hrm\HrmPeoplePage.tsx
+  53:9  warning  The 'items' logical expression could make the dependencies of useMemo Hook (at line 58) change on every render. To fix this, wrap the initialization of 'items' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  53:9  warning  The 'items' logical expression could make the dependencies of useMemo Hook (at line 63) change on every render. To fix this, wrap the initialization of 'items' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\components\layout\TopBar.tsx
+  231:9   warning  The 'combinedNavigableResults' conditional could make the dependencies of useEffect Hook (at line 375) change on every render. To fix this, wrap the initialization of 'combinedNavigableResults' in its own useMemo() Hook                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           react-hooks/exhaustive-deps
+  790:49  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `setTopBarReactiveGlow`, but the source dependencies were []. Inferred dependency not present in source.
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\components\layout\TopBar.tsx:790:49
+  788 |
+  789 |   /** Briefly pulses module accent glow to acknowledge meaningful workspace actions. */
+> 790 |   const triggerTopBarReactiveGlow = useCallback(() => {
+      |                                                 ^^^^^^^
+> 791 |     if (reactiveGlowTimeoutRef.current) {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 792 |       window.clearTimeout(reactiveGlowTimeoutRef.current);
+      ΓÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 800 |     });
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 801 |   }, []);
+      | ^^^^ Could not preserve existing manual memoization
+  802 |
+  803 |   useEffect(() => {
+  804 |     let active = true;                                                                                                                                                   react-hooks/preserve-manual-memoization
+  818:41  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `setNotificationsLoading`, but the source dependencies were [moduleKey]. Inferred different dependency than source.
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\components\layout\TopBar.tsx:818:41
+  816 |   }, []);
+  817 |
+> 818 |   const loadNotifications = useCallback(async () => {
+      |                                         ^^^^^^^^^^^^^
+> 819 |     setNotificationsLoading(true);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 820 |     setNotificationsError(null);
+      ΓÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 834 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 835 |   }, [moduleKey]);
+      | ^^^^ Could not preserve existing manual memoization
+  836 |
+  837 |   useEffect(() => {
+  838 |     if (!notificationsOpen) return;                                                                                                                                                                                                                                                            react-hooks/preserve-manual-memoization
+  818:41  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `setNotificationsError`, but the source dependencies were [moduleKey]. Inferred different dependency than source.
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\components\layout\TopBar.tsx:818:41
+  816 |   }, []);
+  817 |
+> 818 |   const loadNotifications = useCallback(async () => {
+      |                                         ^^^^^^^^^^^^^
+> 819 |     setNotificationsLoading(true);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 820 |     setNotificationsError(null);
+      ΓÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 834 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 835 |   }, [moduleKey]);
+      | ^^^^ Could not preserve existing manual memoization
+  836 |
+  837 |   useEffect(() => {
+  838 |     if (!notificationsOpen) return;                                                                                                                                                                                                                                                              react-hooks/preserve-manual-memoization
+  818:41  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `setNotifications`, but the source dependencies were [moduleKey]. Inferred different dependency than source.
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\components\layout\TopBar.tsx:818:41
+  816 |   }, []);
+  817 |
+> 818 |   const loadNotifications = useCallback(async () => {
+      |                                         ^^^^^^^^^^^^^
+> 819 |     setNotificationsLoading(true);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 820 |     setNotificationsError(null);
+      ΓÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 834 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 835 |   }, [moduleKey]);
+      | ^^^^ Could not preserve existing manual memoization
+  836 |
+  837 |   useEffect(() => {
+  838 |     if (!notificationsOpen) return;                                                                                                                                                                                                                                                                   react-hooks/preserve-manual-memoization
+  818:41  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `setUnreadCount`, but the source dependencies were [moduleKey]. Inferred different dependency than source.
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\components\layout\TopBar.tsx:818:41
+  816 |   }, []);
+  817 |
+> 818 |   const loadNotifications = useCallback(async () => {
+      |                                         ^^^^^^^^^^^^^
+> 819 |     setNotificationsLoading(true);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 820 |     setNotificationsError(null);
+      ΓÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 834 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 835 |   }, [moduleKey]);
+      | ^^^^ Could not preserve existing manual memoization
+  836 |
+  837 |   useEffect(() => {
+  838 |     if (!notificationsOpen) return;                                                                                                                                                                                                                                                                     react-hooks/preserve-manual-memoization
+  896:49  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `setAnalyzingSignals`, but the source dependencies were [isStewardSignalsWorkspace, analyzingSignals]. Inferred different dependency than source.
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\components\layout\TopBar.tsx:896:49
+  894 |
+  895 |   /** Manually rebuilds Steward Signals analysis index and notifies workspace widgets to refresh. */
+> 896 |   const runStewardSignalsAnalysis = useCallback(async () => {
+      |                                                 ^^^^^^^^^^^^^
+> 897 |     if (!isStewardSignalsWorkspace || analyzingSignals) return;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 898 |     setAnalyzingSignals(true);
+      ΓÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 917 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 918 |   }, [isStewardSignalsWorkspace, analyzingSignals]);
+      | ^^^^ Could not preserve existing manual memoization
+  919 |
+  920 |   return (
+  921 |     <>     react-hooks/preserve-manual-memoization
+  896:49  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `setSignalsAnalyzeError`, but the source dependencies were [isStewardSignalsWorkspace, analyzingSignals]. Inferred different dependency than source.
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\components\layout\TopBar.tsx:896:49
+  894 |
+  895 |   /** Manually rebuilds Steward Signals analysis index and notifies workspace widgets to refresh. */
+> 896 |   const runStewardSignalsAnalysis = useCallback(async () => {
+      |                                                 ^^^^^^^^^^^^^
+> 897 |     if (!isStewardSignalsWorkspace || analyzingSignals) return;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 898 |     setAnalyzingSignals(true);
+      ΓÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 917 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 918 |   }, [isStewardSignalsWorkspace, analyzingSignals]);
+      | ^^^^ Could not preserve existing manual memoization
+  919 |
+  920 |   return (
+  921 |     <>  react-hooks/preserve-manual-memoization
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\components\meetings\MeetingCard.tsx
+  57:9  warning  'isPast' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\components\settings\ai\AISettingsPage.tsx
+  109:6  warning  React Hook useEffect has a missing dependency: 'config'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\help-content\search.ts
+  118:10  warning  'buildArticleIndex' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\page.tsx
+   21:8   warning  'StatCard' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @typescript-eslint/no-unused-vars
+  584:33  error    Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+C:\Users\James\Documents\GitHub\OyamaCRM\app\page.tsx:584:33
+  582 |       {/* ΓöÇΓöÇ Widget grid ΓöÇΓöÇ */}
+  583 |       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+> 584 |         {visibleWidgetOrder.map((id, idx) => renderWidget(id, idx))}
+      |                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  585 |       </div>
+  586 |
+  587 |       {/* ΓöÇΓöÇ Customize Layout modal ΓöÇΓöÇ */}  react-hooks/refs
+
+C:\Users\James\Documents\GitHub\OyamaCRM\prisma\demo-seed-expansion.ts
+     6:3   warning  'CampaignCategory' is defined but never used  @typescript-eslint/no-unused-vars
+   217:55  warning  'lifecycle' is defined but never used         @typescript-eslint/no-unused-vars
+  1874:3   warning  'rng' is defined but never used               @typescript-eslint/no-unused-vars
+
+C:\Users\James\Documents\GitHub\OyamaCRM\prisma\seed.ts
+  186:9  warning  'tags' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\James\Documents\GitHub\OyamaCRM\scripts\take-screenshots.mjs
+  9:10  warning  'existsSync' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\James\Documents\GitHub\OyamaCRM\server\src\index.ts
+  234:68  warning  '_next' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\James\Documents\GitHub\OyamaCRM\server\src\middleware\requireAuth.ts
+  13:3  error  ES2015 module syntax is preferred over namespaces  @typescript-eslint/no-namespace
+
+C:\Users\James\Documents\GitHub\OyamaCRM\server\src\routes\automations.ts
+  784:20  warning  '_actions' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\James\Documents\GitHub\OyamaCRM\server\src\routes\compassion.ts
+  1958:9  error  'normalizedAssignedCompassionStaffId' is never reassigned. Use 'const' instead  prefer-const
+  2328:9  error  'normalizedAssignedCompassionStaffId' is never reassigned. Use 'const' instead  prefer-const
+  2989:9  error  'nextAssignedCompassionStaffId' is never reassigned. Use 'const' instead        prefer-const
+  3398:9  error  'normalizedAssignedCompassionStaffId' is never reassigned. Use 'const' instead  prefer-const
+
+C:\Users\James\Documents\GitHub\OyamaCRM\server\src\routes\constituents.ts
+  536:11  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  538:11  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+
+C:\Users\James\Documents\GitHub\OyamaCRM\server\src\routes\meetings.ts
+  294:15  warning  'displayName' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\James\Documents\GitHub\OyamaCRM\server\src\routes\watchdog.ts
+  371:23  warning  '_ignoredBackupJson' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\James\Documents\GitHub\OyamaCRM\server\src\services\steward-paths-sequence-engine.ts
+  12:8  warning  'StewardPathStepType' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\James\Documents\GitHub\OyamaCRM\tests\smoke\compassion-appointments-workspace.test.ts
+  7:5  warning  'adminUserId' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+Γ£û 42 problems (13 errors, 29 warnings)
+  4 errors and 0 warnings potentially fixable with the `--fix` option.
+
+ΓÇëELIFECYCLEΓÇë Command failed with exit code 1.
+END_UTC: 2026-05-13T04:19:01.3158393Z
+EXIT_CODE: 1

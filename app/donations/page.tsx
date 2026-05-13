@@ -35,6 +35,7 @@ export default function DonationsPage() {
   const [loading, setLoading] = useState(true);
   const [apiDown, setApiDown] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [acknowledgingDonationId, setAcknowledgingDonationId] = useState<string | null>(null);
 
   const [page, setPage] = useState(1);
   const [allYears, setAllYears] = useState(false);
@@ -104,6 +105,22 @@ export default function DonationsPage() {
     }
   }
 
+  /** Marks one donation as acknowledged so stewardship queues can clear quickly. */
+  async function handleMarkThanked(id: string) {
+    setAcknowledgingDonationId(id);
+    try {
+      await apiFetch(`/api/donations/${id}/acknowledgment`, {
+        method: "PATCH",
+        body: JSON.stringify({ acknowledged: true }),
+      });
+      await load();
+    } catch {
+      alert("Failed to mark this donation as thanked. Please try again.");
+    } finally {
+      setAcknowledgingDonationId(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -141,6 +158,14 @@ export default function DonationsPage() {
           </div>
         ))}
       </div>
+
+      <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Donation Acknowledgment Workflow</p>
+        <p className="mt-1 text-sm text-emerald-900">
+          Use donation quick actions to move each gift into stewardship: generate a thank-you letter, prepare an email draft,
+          create a call task, start a steward path, and mark the gift as thanked.
+        </p>
+      </section>
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -186,7 +211,12 @@ export default function DonationsPage() {
         {loading ? (
           <div className="py-16 text-center text-gray-400 text-sm animate-pulse">Loading donations…</div>
         ) : (
-          <DonationTable donations={donations} onDelete={handleDelete} />
+          <DonationTable
+            donations={donations}
+            onDelete={handleDelete}
+            onMarkThanked={handleMarkThanked}
+            acknowledgingDonationId={acknowledgingDonationId}
+          />
         )}
       </div>
 

@@ -1,5 +1,5 @@
 /**
- * GrantStats — summary stat cards for the grants pipeline.
+ * GrantStats — summary cards for grants research, deadlines, and decision workflows.
  * Fetches aggregated metrics from GET /api/grants/stats.
  */
 "use client";
@@ -58,20 +58,23 @@ export default function GrantStats({ refresh }: { refresh?: number }) {
     return sum + (stats.byStatus?.[status]?.count ?? 0);
   }, 0);
 
-  const awardedCount = stats.byStatus?.AWARDED?.count ?? 0;
+  const applicationsInProgress = stats.applicationsInProgress ?? activeCount;
+  const submittedAwaitingDecision = stats.submittedAwaitingDecision ?? 0;
+  const reportsDue = stats.reportsDue ?? 0;
+  const renewalsComingUp = stats.renewalsComingUp ?? 0;
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-      <StatCard label="Total Grants" value={String(stats.total)} sub="all time" />
-      <StatCard label="Active Pipeline" value={String(activeCount)} sub="in progress" color="text-blue-600" />
-      <StatCard label="Awarded" value={String(awardedCount)} sub="grants won" color="text-green-700" />
-      <StatCard label="Total Requested" value={fmt$(stats.totalRequested)} sub="pipeline value" />
-      <StatCard label="Total Awarded" value={fmt$(stats.totalAwarded)} sub="secured" color="text-green-700" />
+      <StatCard label="Total Opportunities" value={String(stats.total)} sub="all tracked grants" />
+      <StatCard label="Applications In Progress" value={String(applicationsInProgress)} sub="currently being written" color="text-blue-600" />
+      <StatCard label="Submitted Awaiting Decision" value={String(submittedAwaitingDecision)} sub="pending funder response" color="text-indigo-700" />
+      <StatCard label="Requested Amount" value={fmt$(stats.totalRequested)} sub="potential, not received revenue" />
+      <StatCard label="Awarded Amount" value={fmt$(stats.totalAwarded)} sub="decision-tracked awards" color="text-green-700" />
       <StatCard
-        label="Upcoming Deadlines"
-        value={String(stats.upcomingDeadlines)}
-        sub="next 30 days"
-        color={stats.upcomingDeadlines > 0 ? "text-amber-600" : "text-gray-900"}
+        label="Deadlines / Reports"
+        value={String(stats.upcomingDeadlines + reportsDue)}
+        sub={`next 30 days, ${renewalsComingUp} renewals ahead`}
+        color={stats.upcomingDeadlines + reportsDue > 0 ? "text-amber-600" : "text-gray-900"}
       />
     </div>
   );

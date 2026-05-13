@@ -188,6 +188,39 @@ export default function CampaignDetailPage() {
         </div>
       </div>
 
+      <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Campaign Follow-Up Workflow</p>
+        <p className="mt-1 text-sm text-emerald-900">
+          Launch communication and stewardship work directly from this campaign so outbound touchpoints, tasks, and path activity stay connected.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link
+            href={`/communications?new=1&source=campaign&campaignId=${campaign.id}`}
+            className="px-3 py-1.5 text-xs font-semibold text-blue-700 bg-white border border-blue-200 rounded-md hover:bg-blue-50"
+          >
+            Create Email Campaign
+          </Link>
+          <Link
+            href={`/letters-printables/generate?campaignId=${campaign.id}`}
+            className="px-3 py-1.5 text-xs font-semibold text-green-700 bg-white border border-green-200 rounded-md hover:bg-green-50"
+          >
+            Generate Appeal Letter
+          </Link>
+          <Link
+            href={`/automations?source=campaign&campaignId=${campaign.id}`}
+            className="px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-white border border-indigo-200 rounded-md hover:bg-indigo-50"
+          >
+            Start Follow-Up Path
+          </Link>
+          <Link
+            href="/communications"
+            className="px-3 py-1.5 text-xs font-semibold text-purple-700 bg-white border border-purple-200 rounded-md hover:bg-purple-50"
+          >
+            View Segment Workspace
+          </Link>
+        </div>
+      </section>
+
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
           {error}

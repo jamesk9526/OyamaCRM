@@ -4,6 +4,8 @@ Last updated: 2026-05-12
 
 This report is the whole-CRM audit snapshot for current implementation readiness.
 
+> Historical note: this report is superseded by `docs/status/readiness-audit-2026-05-12.md` and `docs/status/production-readiness-checklist.md` for current release-gate truth.
+
 Release status labels used in this report:
 
 - Working

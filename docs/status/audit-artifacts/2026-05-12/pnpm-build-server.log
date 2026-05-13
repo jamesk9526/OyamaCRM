@@ -1,0 +1,9 @@
+=== START pnpm-build-server ===
+START_UTC: 2026-05-13T04:20:29.0822146Z
+COMMAND: pnpm build:server
+
+> agents-create-oyamam-crm-workspace@0.3.0 build:server C:\Users\James\Documents\GitHub\OyamaCRM
+> tsc --project server/tsconfig.json
+
+END_UTC: 2026-05-13T04:20:37.2176462Z
+EXIT_CODE: 0

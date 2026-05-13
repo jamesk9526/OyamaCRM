@@ -9,6 +9,8 @@ type SortKey = "date" | "amount" | "constituent" | "status";
 interface Props {
   donations: DonationRow[];
   onDelete?: (id: string) => void;
+  onMarkThanked?: (id: string) => void;
+  acknowledgingDonationId?: string | null;
 }
 
 function SortHeader({
@@ -35,7 +37,7 @@ function SortHeader({
   );
 }
 
-export default function DonationTable({ donations, onDelete }: Props) {
+export default function DonationTable({ donations, onDelete, onMarkThanked, acknowledgingDonationId }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -68,6 +70,11 @@ export default function DonationTable({ donations, onDelete }: Props) {
                   {d.constituent.firstName} {d.constituent.lastName}
                 </Link>
                 {d.constituent.email && <p className="text-xs text-gray-500 truncate">{d.constituent.email}</p>}
+                <p className={`mt-1 text-[11px] ${d.acknowledgmentSentAt ? "text-green-700" : "text-amber-700"}`}>
+                  {d.acknowledgmentSentAt
+                    ? `Thanked ${formatDate(d.acknowledgmentSentAt)}`
+                    : "Needs acknowledgment"}
+                </p>
               </div>
               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(d.status)}`}>
                 {d.status.charAt(0) + d.status.slice(1).toLowerCase()}
@@ -113,6 +120,42 @@ export default function DonationTable({ donations, onDelete }: Props) {
                 </button>
               )}
             </div>
+
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <Link
+                href={`/letters-printables/generate?constituentId=${d.constituent.id}&donationId=${d.id}`}
+                className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-green-700 bg-green-50 border border-green-200 rounded-md hover:bg-green-100"
+              >
+                Letter
+              </Link>
+              <Link
+                href={`/communications?new=1&source=donation&constituentId=${d.constituent.id}&donationId=${d.id}`}
+                className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100"
+              >
+                Email Draft
+              </Link>
+              <Link
+                href={`/tasks?focus=my&constituentId=${d.constituent.id}`}
+                className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100"
+              >
+                Call Task
+              </Link>
+              <Link
+                href={`/automations?source=donation&constituentId=${d.constituent.id}&donationId=${d.id}`}
+                className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100"
+              >
+                Start Path
+              </Link>
+              {onMarkThanked && !d.acknowledgmentSentAt && (
+                <button
+                  onClick={() => onMarkThanked(d.id)}
+                  disabled={acknowledgingDonationId === d.id}
+                  className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-md hover:bg-amber-100 disabled:opacity-60"
+                >
+                  {acknowledgingDonationId === d.id ? "Saving..." : "Mark Thanked"}
+                </button>
+              )}
+            </div>
           </article>
         ))}
       </div>
@@ -127,7 +170,7 @@ export default function DonationTable({ donations, onDelete }: Props) {
             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Fund / Campaign</th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Method</th>
             <SortHeader label="Status" col="status" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide w-28">Actions</th>
+            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide w-72">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -141,6 +184,17 @@ export default function DonationTable({ donations, onDelete }: Props) {
                 {d.constituent.email && (
                   <div className="text-xs text-gray-400">{d.constituent.email}</div>
                 )}
+                <div className="mt-1 text-[11px]">
+                  {d.acknowledgmentSentAt ? (
+                    <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 font-medium text-green-700">
+                      Thanked {formatDate(d.acknowledgmentSentAt)}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700">
+                      Needs acknowledgment
+                    </span>
+                  )}
+                </div>
               </td>
               <td className="px-4 py-3">
                 <span className="font-semibold text-gray-900">{formatCurrency(d.amount)}</span>
@@ -160,7 +214,7 @@ export default function DonationTable({ donations, onDelete }: Props) {
                 </span>
               </td>
               <td className="px-4 py-3 text-right">
-                <div className="flex items-center gap-1 justify-end">
+                <div className="flex items-center gap-1 justify-end flex-wrap">
                   <Link
                     href={`/donations/${d.id}/edit`}
                     className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50 hover:border-gray-300 transition-colors"
@@ -179,6 +233,41 @@ export default function DonationTable({ donations, onDelete }: Props) {
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
+                    </button>
+                  )}
+                </div>
+                <div className="mt-1 flex items-center gap-1 justify-end flex-wrap">
+                  <Link
+                    href={`/letters-printables/generate?constituentId=${d.constituent.id}&donationId=${d.id}`}
+                    className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-green-700 bg-green-50 border border-green-200 rounded-md hover:bg-green-100"
+                  >
+                    Letter
+                  </Link>
+                  <Link
+                    href={`/communications?new=1&source=donation&constituentId=${d.constituent.id}&donationId=${d.id}`}
+                    className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100"
+                  >
+                    Email Draft
+                  </Link>
+                  <Link
+                    href={`/tasks?focus=my&constituentId=${d.constituent.id}`}
+                    className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100"
+                  >
+                    Call Task
+                  </Link>
+                  <Link
+                    href={`/automations?source=donation&constituentId=${d.constituent.id}&donationId=${d.id}`}
+                    className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100"
+                  >
+                    Start Path
+                  </Link>
+                  {onMarkThanked && !d.acknowledgmentSentAt && (
+                    <button
+                      onClick={() => onMarkThanked(d.id)}
+                      disabled={acknowledgingDonationId === d.id}
+                      className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-md hover:bg-amber-100 disabled:opacity-60"
+                    >
+                      {acknowledgingDonationId === d.id ? "Saving..." : "Mark Thanked"}
                     </button>
                   )}
                 </div>

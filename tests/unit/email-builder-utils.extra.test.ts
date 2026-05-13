@@ -66,6 +66,18 @@ describe("createDefaultBlock", () => {
     expect(createDefaultBlock("aiText").type).toBe("aiText");
     expect(createDefaultBlock("aiButton").type).toBe("aiButton");
   });
+
+  it("creates donor-specific stewardship and compliance blocks", () => {
+    expect(createDefaultBlock("donorThankYou").type).toBe("donorThankYou");
+    expect(createDefaultBlock("donationReceipt").type).toBe("donationReceipt");
+    expect(createDefaultBlock("givingSummary").type).toBe("givingSummary");
+    expect(createDefaultBlock("donationCta").type).toBe("donationCta");
+    expect(createDefaultBlock("monthlyDonorInvitation").type).toBe("monthlyDonorInvitation");
+    expect(createDefaultBlock("lapsedDonorReengagement").type).toBe("lapsedDonorReengagement");
+    expect(createDefaultBlock("firstTimeDonorWelcome").type).toBe("firstTimeDonorWelcome");
+    expect(createDefaultBlock("staffSignature").type).toBe("staffSignature");
+    expect(createDefaultBlock("footerCompliance").type).toBe("footerCompliance");
+  });
 });
 
 describe("createTemplateFromPreset", () => {
@@ -122,5 +134,20 @@ describe("generateEmailHtml / generatePlainText", () => {
     };
     const text = generatePlainText(tpl);
     expect(text).toContain("Reserve My Seat");
+  });
+
+  it("renders donor thank-you and footer compliance content in HTML", () => {
+    const tpl = {
+      backgroundColor: "#fff",
+      contentWidth: 600,
+      fontFamily: "Arial",
+      blocks: [
+        createDefaultBlock("donorThankYou"),
+        createDefaultBlock("footerCompliance"),
+      ],
+    };
+    const html = generateEmailHtml(tpl);
+    expect(html).toContain("Thank You for Your Generosity");
+    expect(html).toContain("Unsubscribe");
   });
 });

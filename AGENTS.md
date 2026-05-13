@@ -471,6 +471,59 @@ Status labels in donor docs and readiness summaries must stay restricted to:
 - Not Implemented
 <!-- END:donorcrm-stabilization-rules -->
 
+<!-- BEGIN:donor-engagement-system-rules -->
+## Donor Engagement System Rules
+
+DonorCRM communications features must be implemented as one connected engagement system.
+
+- Communications is the central outreach workspace for campaigns, send queue, and communication log views.
+- Email Builder is editor-only. Launch it from communications campaign context rather than treating it as a standalone workflow.
+- Letters and Printables owns print/mail/PDF workflows. Letter-to-email handoff must use the existing generated-letter to email-draft bridge.
+- Steward Paths orchestrates outreach by creating or advancing tasks, letters, and drafts in existing systems. Do not create a second outreach engine.
+- Tasks represent human follow-up work; Activities are the timeline source of truth for what happened.
+- Use shared user-facing status language across channels when possible:
+  - Draft
+  - Needs Review
+  - Approved
+  - Scheduled
+  - Sent
+  - Generated
+  - Printed
+  - Mailed
+  - Completed
+  - Failed
+  - Canceled
+  - Archived
+- Default outbound behavior is draft-first and review-first. Never auto-send by default.
+- Respect communication preferences (doNotEmail, emailOptOut, doNotMail, doNotCall, doNotContact) and do not silently override.
+- For donor communication claims, document persistence evidence in:
+  - `docs/DONOR_ENGAGEMENT_SYSTEM.md`
+  - `docs/DONOR_CRM_COMMUNICATIONS_AUDIT.md`
+  - `docs/status/features.md`
+  - `docs/status/production-readiness-checklist.md`
+<!-- END:donor-engagement-system-rules -->
+
+<!-- BEGIN:donor-grants-workspace-rules -->
+## Donor Grants Workspace Rules
+
+DonorCRM Grants must be implemented as a grant research, writing, deadlines, reminders, and case-file workspace.
+
+- Grant opportunities are not donation ledger records.
+- Do not model grants as generic sales/deal pipeline objects in UX language.
+- Prefer grant-specific language: Research, Requirements, Writing, Submission, Decision, Report, Renewal.
+- The Grants workspace owns opportunity research, funder notes, requirements, reminders, writing tasks, and resources.
+- Award money actually received must be recorded through Donations using a separate grant-received entry flow.
+- Do not auto-create donation records when grants are created or moved to Awarded.
+- If a grant page links to Donations, treat it as a handoff action only and keep financial source-of-truth in Donations.
+- Grant reminders/tasks should remain clearly labeled as grant work when surfaced outside Grants.
+- Do not store secrets (portal passwords/tokens) in grant notes/resources; use secure vault tooling for secrets.
+- Keep documentation current when grant behavior changes:
+  - `docs/DONOR_CRM_GRANTS_AUDIT.md`
+  - `docs/DONOR_CRM_GRANTS_RESEARCH_WORKSPACE.md`
+  - `docs/status/features.md`
+  - `docs/status/production-readiness-checklist.md`
+<!-- END:donor-grants-workspace-rules -->
+
 <!-- BEGIN:production-readiness-tracking-rules -->
 ## Production Readiness Tracking Rules
 
@@ -489,3 +542,51 @@ Status labels for release tracking must be exactly:
 
 If a route or workflow is scaffolded, unstable, or only suitable for demos, do not mark it as Working in release-readiness summaries.
 <!-- END:production-readiness-tracking-rules -->
+
+<!-- BEGIN:readiness-audit-rules -->
+## Readiness Audit Rules
+
+When running a readiness audit, treat command evidence as the source of truth and avoid inferred claims.
+
+- Always run and record this validation set when requested for full readiness checks:
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm typecheck:web`
+  - `pnpm typecheck:server`
+  - `pnpm test:smoke`
+  - `pnpm test:e2e`
+  - `pnpm test:e2e:mobile`
+  - `pnpm test:e2e:livecom`
+  - `pnpm test`
+  - `pnpm test:coverage`
+  - `pnpm build`
+  - `pnpm build:server`
+  - `pnpm db:generate`
+  - `pnpm db:verify:linux-casing`
+- Store dated command artifacts under `docs/status/audit-artifacts/YYYY-MM-DD/` and keep a machine-readable `command-summary.jsonl` with command, UTC start/end, exit code, and log path.
+- Publish dated audit docs for each pass and link them from `docs/status/production-readiness-checklist.md`.
+- Never claim production-ready when any required lane is Broken.
+- Environment failures (for example unreachable host/port, OS file lock behavior) must be documented as real blockers unless rerun evidence proves resolution.
+- Keep release-readiness labels restricted to:
+  - Working
+  - Partially Working
+  - Demo Only
+  - Broken
+  - Not Implemented
+- If evidence is missing for a lane, mark it as Partially Working or Broken rather than assuming Working.
+<!-- END:readiness-audit-rules -->
+
+<!-- BEGIN:donor-email-builder-rules -->
+## Donor Email Builder Rules
+
+DonorCRM Email Builder is a campaign studio, not a generic page builder.
+
+- Keep the three-panel studio structure: Block Library, Canvas, Inspector.
+- Keep draft-first behavior explicit in UI and save payloads.
+- Raw HTML editing for narrative blocks must stay optional and hidden by default.
+- Prefer rich-text authoring controls for text and AI text blocks.
+- New donor blocks should use nonprofit stewardship language and merge-token readiness.
+- Compliance footer behavior must remain visible in review workflows before broad sends.
+- Status labels in builder flows must use shared language: Draft, Needs Review, Ready to Send, Scheduled, Sent.
+- Do not auto-send by default; preserve explicit review/test/send actions.
+<!-- END:donor-email-builder-rules -->

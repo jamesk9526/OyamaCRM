@@ -190,6 +190,93 @@ enum EmailDeliveryEventType {
   BOUNCED
 }
 
+enum EmailPurpose {
+  MARKETING
+  FUNDRAISING
+  NEWSLETTER
+  EVENT_PROMOTION
+  RECEIPT
+  THANK_YOU
+  TRANSACTIONAL
+  ADMINISTRATIVE
+  PERSONAL
+}
+
+enum EmailSubscriptionStatus {
+  SUBSCRIBED
+  UNSUBSCRIBED
+  PARTIALLY_SUBSCRIBED
+  BOUNCED
+  SUPPRESSED
+  PENDING_CONFIRMATION
+  UNKNOWN
+}
+
+enum EmailCategory {
+  NEWSLETTER
+  FUNDRAISING_APPEAL
+  EVENT_INVITATION
+  VOLUNTEER_UPDATES
+  PRAYER_MINISTRY_UPDATES
+  RECEIPTS
+  THANK_YOU_EMAILS
+  GRANT_SPONSOR_COMMUNICATION
+  ADMINISTRATIVE_NOTICE
+  PERSONAL_STAFF_EMAIL
+}
+
+enum EmailPreferenceStatus {
+  SUBSCRIBED
+  UNSUBSCRIBED
+}
+
+enum EmailSuppressionReason {
+  UNSUBSCRIBED
+  DO_NOT_CONTACT
+  HARD_BOUNCE
+  SPAM_COMPLAINT
+  INVALID_EMAIL
+  MANUAL_SUPPRESSION
+  DECEASED
+  DUPLICATE_SUPPRESSED
+  IMPORTED_OPT_OUT
+  LEGAL_PRIVACY_REQUEST
+}
+
+enum EmailConsentEventType {
+  OPT_IN
+  OPT_OUT
+  PREFERENCE_UPDATED
+  SUPPRESSED
+  RESUBSCRIBED
+  DOUBLE_OPT_IN_CONFIRMED
+}
+
+enum EmailRecipientEligibilityStatus {
+  ELIGIBLE
+  SKIPPED_UNSUBSCRIBED
+  SKIPPED_CATEGORY_OPT_OUT
+  SKIPPED_SUPPRESSED
+  SKIPPED_DO_NOT_CONTACT
+  SKIPPED_HARD_BOUNCE
+  SKIPPED_MISSING_EMAIL
+  SKIPPED_INVALID_EMAIL
+  SKIPPED_DUPLICATE_EMAIL
+}
+
+enum EmailDeliveryStatus {
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  HARD_BOUNCED
+  SOFT_BOUNCED
+  SPAM_COMPLAINT
+  UNSUBSCRIBED
+  DROPPED
+  DEFERRED
+}
+
 enum ActivityType {
   DONATION
   TASK_COMPLETED
@@ -279,6 +366,13 @@ model Organization {
   qbSyncQueueItems    QBSyncQueueItem[]
   emailRecipientLists EmailRecipientList[]
   emailDeliveryEvents EmailCampaignDeliveryEvent[]
+  emailSubscriptions EmailSubscription[]
+  emailPreferences EmailPreference[]
+  emailSuppressions EmailSuppression[]
+  emailConsentEvents EmailConsentEvent[]
+  emailUnsubscribeTokens EmailUnsubscribeToken[]
+  emailSendRecipients EmailSendRecipient[]
+  emailStatusEvents EmailDeliveryEvent[]
   hrmLocations        HrmLocation[]
   hrmMessages         HrmMessage[]
   hrmSettings         HrmSetting?
@@ -458,6 +552,10 @@ model Constituent {
 
   // ─── Donor CRM Letters & Printables relations ──────────────────────────
   generatedLetters GeneratedLetter[]
+  emailSubscriptions EmailSubscription[]
+  emailConsentEvents EmailConsentEvent[]
+  emailSuppressions EmailSuppression[]
+  emailSendRecipients EmailSendRecipient[]
 }
 
 model Household {
@@ -1648,6 +1746,7 @@ model EmailCampaign {
   organizationId String
   name           String
   subject        String
+  purpose        EmailPurpose        @default(MARKETING)
   previewText    String?
   fromName       String              @default("OyamaCRM")
   fromEmail      String              @default("noreply@oyamacrm.org")
@@ -1673,6 +1772,8 @@ model EmailCampaign {
 
   organization   Organization                 @relation(fields: [organizationId], references: [id])
   deliveryEvents EmailCampaignDeliveryEvent[]
+  emailSendRecipients EmailSendRecipient[]
+  deliveryStatusEvents EmailDeliveryEvent[]
   generatedLetters GeneratedLetter[]
 }
 
@@ -1724,6 +1825,156 @@ model EmailCampaignDeliveryEvent {
   @@unique([campaignId, recipientEmail, eventType], map: "ecd_campaign_recipient_event_uk")
   @@index([campaignId, eventType, eventAt])
   @@index([campaignId, recipientEmail])
+}
+
+model EmailSubscription {
+  id             String                  @id @default(cuid())
+  organizationId String
+  constituentId  String?
+  email          String
+  globalStatus   EmailSubscriptionStatus @default(UNKNOWN)
+  source         String?
+  subscribedAt   DateTime?
+  unsubscribedAt DateTime?
+  confirmedAt    DateTime?
+  createdById    String?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  constituent  Constituent?      @relation(fields: [constituentId], references: [id], onDelete: SetNull)
+  preferences  EmailPreference[]
+  consentEvents EmailConsentEvent[]
+  unsubscribeTokens EmailUnsubscribeToken[]
+  sendRecipients EmailSendRecipient[]
+
+  @@unique([organizationId, email], map: "es_org_email_uk")
+  @@index([organizationId, globalStatus])
+  @@index([constituentId])
+}
+
+model EmailPreference {
+  id             String                @id @default(cuid())
+  organizationId String
+  subscriptionId String
+  category       EmailCategory
+  status         EmailPreferenceStatus @default(SUBSCRIBED)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  subscription EmailSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, category], map: "ep_subscription_category_uk")
+  @@index([organizationId, category, status])
+}
+
+model EmailSuppression {
+  id             String                 @id @default(cuid())
+  organizationId String
+  constituentId  String?
+  email          String
+  reason         EmailSuppressionReason
+  source         String?
+  active         Boolean                @default(true)
+  notes          String?                @db.Text
+  createdById    String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  constituent  Constituent? @relation(fields: [constituentId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, email, active])
+  @@index([organizationId, reason, active])
+}
+
+model EmailConsentEvent {
+  id             String               @id @default(cuid())
+  organizationId String
+  constituentId  String?
+  subscriptionId String?
+  email          String
+  eventType      EmailConsentEventType
+  category       EmailCategory?
+  source         String?
+  ipAddress      String?
+  userAgent      String?
+  consentText    String?              @db.Text
+  createdById    String?
+  metadata       Json?
+  createdAt      DateTime             @default(now())
+
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  constituent  Constituent?      @relation(fields: [constituentId], references: [id], onDelete: SetNull)
+  subscription EmailSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, email, createdAt])
+  @@index([organizationId, eventType, category])
+}
+
+model EmailUnsubscribeToken {
+  id             String       @id @default(cuid())
+  organizationId String
+  subscriptionId String
+  tokenHash      String       @unique
+  email          String
+  category       EmailCategory?
+  campaignId     String?
+  expiresAt      DateTime?
+  usedAt         DateTime?
+  createdAt      DateTime     @default(now())
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  subscription EmailSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  campaign     EmailCampaign?   @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, email])
+  @@index([expiresAt])
+}
+
+model EmailSendRecipient {
+  id                 String                          @id @default(cuid())
+  organizationId     String
+  campaignId         String
+  subscriptionId     String?
+  constituentId      String?
+  email              String
+  category           EmailCategory?
+  purpose            EmailPurpose
+  eligibilityStatus  EmailRecipientEligibilityStatus @default(ELIGIBLE)
+  ineligibilityReason String?
+  queuedAt           DateTime?
+  sentAt             DateTime?
+  createdAt          DateTime                        @default(now())
+  updatedAt          DateTime                        @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id])
+  campaign     EmailCampaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  subscription EmailSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  constituent  Constituent?       @relation(fields: [constituentId], references: [id], onDelete: SetNull)
+  deliveryEvents EmailDeliveryEvent[]
+
+  @@unique([campaignId, email], map: "esr_campaign_email_uk")
+  @@index([organizationId, campaignId, eligibilityStatus])
+}
+
+model EmailDeliveryEvent {
+  id              String             @id @default(cuid())
+  organizationId  String
+  sendRecipientId String
+  campaignId      String?
+  eventType       EmailDeliveryStatus
+  eventAt         DateTime           @default(now())
+  metadata        Json?
+  createdAt       DateTime           @default(now())
+
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  sendRecipient EmailSendRecipient @relation(fields: [sendRecipientId], references: [id], onDelete: Cascade)
+  campaign     EmailCampaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([sendRecipientId, eventType, eventAt])
+  @@index([campaignId, eventType, eventAt])
 }
 
 // ─── Custom Fields ────────────────────────────────────────────────────────────

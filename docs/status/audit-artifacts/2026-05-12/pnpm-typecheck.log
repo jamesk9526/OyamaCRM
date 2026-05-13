@@ -1,0 +1,17 @@
+=== START pnpm-typecheck ===
+START_UTC: 2026-05-13T04:19:01.3199850Z
+COMMAND: pnpm typecheck
+
+> agents-create-oyamam-crm-workspace@0.3.0 typecheck C:\Users\James\Documents\GitHub\OyamaCRM
+> pnpm typecheck:web && pnpm typecheck:server
+
+
+> agents-create-oyamam-crm-workspace@0.3.0 typecheck:web C:\Users\James\Documents\GitHub\OyamaCRM
+> tsc --noEmit
+
+
+> agents-create-oyamam-crm-workspace@0.3.0 typecheck:server C:\Users\James\Documents\GitHub\OyamaCRM
+> tsc --project server/tsconfig.json --noEmit
+
+END_UTC: 2026-05-13T04:19:12.5399158Z
+EXIT_CODE: 0

@@ -1,4 +1,4 @@
-/** GrantsCommandPanel highlights urgent pipeline work and high-level grant health signals. */
+/** GrantsCommandPanel highlights urgent grant-writing work and case-file health signals. */
 "use client";
 
 import Link from "next/link";
@@ -80,9 +80,9 @@ export default function GrantsCommandPanel({ grants, onCreateGrant }: GrantsComm
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-green-700">Command Panel</p>
-          <h2 className="text-lg font-semibold text-gray-900 mt-1">Pipeline Health Snapshot</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mt-1">Grant Workspace Snapshot</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Focus the team on deadline risk, ownership gaps, and high-value opportunities.
+            Focus the team on deadline risk, ownership gaps, and high-impact applications.
           </p>
         </div>
         <button
@@ -97,13 +97,13 @@ export default function GrantsCommandPanel({ grants, onCreateGrant }: GrantsComm
         <HealthCard
           label="Overdue"
           value={String(overdue.length)}
-          helper="Past application or LOI deadline"
+          helper="Past LOI, application, or review date"
           tone={overdue.length > 0 ? "danger" : "neutral"}
         />
         <HealthCard
           label="Due in 14 Days"
           value={String(dueSoon.length)}
-          helper="Needs immediate drafting and review"
+          helper="Needs immediate writing and review"
           tone={dueSoon.length > 0 ? "warn" : "neutral"}
         />
         <HealthCard
@@ -113,9 +113,9 @@ export default function GrantsCommandPanel({ grants, onCreateGrant }: GrantsComm
           tone={unassigned.length > 0 ? "warn" : "good"}
         />
         <HealthCard
-          label="High-Value Active"
+          label="High-Request Active"
           value={fmt$(highValueInMotion.reduce((sum, grant) => sum + Number(grant.amountRequested ?? 0), 0))}
-          helper="Requested value >= $50k"
+          helper="Requested amount >= $50k"
           tone={highValueInMotion.length > 0 ? "good" : "neutral"}
         />
       </div>

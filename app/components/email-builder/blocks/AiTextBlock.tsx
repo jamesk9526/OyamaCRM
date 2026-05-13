@@ -2,13 +2,16 @@
 "use client";
 
 import type { AiTextBlock as AiTextBlockData } from "@/app/lib/email-builder-types";
+import RichTextEditor from "@/app/components/email-builder/RichTextEditor";
 
 interface Props {
   block: AiTextBlockData;
+  editable?: boolean;
+  onChangeContent?: (content: string) => void;
 }
 
 /** Renders generated AI text and keeps a subtle tone badge for editor clarity. */
-export default function AiTextBlock({ block }: Props) {
+export default function AiTextBlock({ block, editable = false, onChangeContent }: Props) {
   return (
     <div style={{ padding: block.padding, position: "relative" }}>
       <span
@@ -29,7 +32,15 @@ export default function AiTextBlock({ block }: Props) {
       >
         AI {block.tone}
       </span>
-      <div dangerouslySetInnerHTML={{ __html: block.content }} style={{ color: "#1f2937", lineHeight: 1.5 }} />
+      {editable ? (
+        <RichTextEditor
+          value={block.content}
+          onChange={(content) => onChangeContent?.(content)}
+          minHeight={140}
+        />
+      ) : (
+        <div dangerouslySetInnerHTML={{ __html: block.content }} style={{ color: "#1f2937", lineHeight: 1.5 }} />
+      )}
     </div>
   );
 }

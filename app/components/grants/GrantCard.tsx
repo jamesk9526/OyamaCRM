@@ -1,6 +1,6 @@
 /**
  * StatusBadge — renders a colored pill for a grant status.
- * GrantCard — compact card shown in the pipeline/list views.
+ * GrantCard — compact card shown in research-board and grant-library views.
  */
 "use client";
 
@@ -53,7 +53,7 @@ function daysUntil(date: string | null): number | null {
 
 /**
  * GrantCard — compact card showing funder, status, amounts, and upcoming deadlines.
- * Links to the full grant detail page.
+ * Links to the full grant case-file workspace page.
  */
 export default function GrantCard({ grant, onEdit }: GrantCardProps) {
   const requested = Number(grant.amountRequested ?? 0);

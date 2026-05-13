@@ -1,7 +1,7 @@
 /**
- * AddGrantModal — modal form for creating or editing a grant.
+ * AddGrantModal — modal form for creating or editing a grant case-file record.
  * Fetches the funder list so the user can pick one via dropdown.
- * On creation, the API auto-seeds default writing sections.
+ * On creation, the API auto-seeds writing sections and optional case-file helper rows.
  */
 "use client";
 
@@ -9,6 +9,12 @@ import { useState, useEffect } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import type { Grant, GrantFunder, GrantStatus } from "./types";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
+
+type UserOption = {
+  id: string;
+  firstName: string;
+  lastName: string;
+};
 
 interface Props {
   /** Existing grant for edit mode; undefined = create mode. */
@@ -19,17 +25,17 @@ interface Props {
 
 /** All selectable grant statuses shown in the form dropdown. */
 const STATUS_OPTIONS: { value: GrantStatus; label: string }[] = [
-  { value: "IDEA",               label: "Idea" },
-  { value: "RESEARCH",           label: "Research" },
-  { value: "LOI_DRAFT",          label: "LOI Draft" },
+  { value: "IDEA",               label: "Watching" },
+  { value: "RESEARCH",           label: "Researching" },
+  { value: "LOI_DRAFT",          label: "LOI Needed" },
   { value: "LOI_SUBMITTED",      label: "LOI Submitted" },
-  { value: "PROPOSAL_DRAFT",     label: "Proposal Draft" },
-  { value: "PROPOSAL_SUBMITTED", label: "Proposal Submitted" },
-  { value: "UNDER_REVIEW",       label: "Under Review" },
+  { value: "PROPOSAL_DRAFT",     label: "Application In Progress" },
+  { value: "PROPOSAL_SUBMITTED", label: "Submitted" },
+  { value: "UNDER_REVIEW",       label: "Awaiting Decision" },
   { value: "AWARDED",            label: "Awarded" },
-  { value: "REJECTED",           label: "Rejected" },
-  { value: "WITHDRAWN",          label: "Withdrawn" },
-  { value: "CLOSED",             label: "Closed" },
+  { value: "REJECTED",           label: "Declined" },
+  { value: "WITHDRAWN",          label: "Closed" },
+  { value: "CLOSED",             label: "Archived" },
 ];
 
 /** Convert an ISO date string to the YYYY-MM-DD format expected by <input type="date">. */
@@ -42,6 +48,7 @@ function toDateInput(v: string | null | undefined): string {
 export default function AddGrantModal({ grant: initial, onClose, onSaved }: Props) {
   const isEdit = !!initial;
   const [funders, setFunders] = useState<GrantFunder[]>([]);
+  const [users, setUsers] = useState<UserOption[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,6 +56,7 @@ export default function AddGrantModal({ grant: initial, onClose, onSaved }: Prop
   const [title, setTitle] = useState(initial?.title ?? "");
   const [funderId, setFunderId] = useState(initial?.funderId ?? "");
   const [programArea, setProgramArea] = useState(initial?.programArea ?? "");
+  const [assigneeId, setAssigneeId] = useState(initial?.assigneeId ?? "");
   const [status, setStatus] = useState<GrantStatus>(initial?.status ?? "IDEA");
   const [amountRequested, setAmountRequested] = useState(String(initial?.amountRequested ?? ""));
   const [amountAwarded, setAmountAwarded] = useState(String(initial?.amountAwarded ?? ""));
@@ -56,11 +64,18 @@ export default function AddGrantModal({ grant: initial, onClose, onSaved }: Prop
   const [loiDeadline, setLoiDeadline] = useState(toDateInput(initial?.loiDeadline));
   const [applicationDeadline, setApplicationDeadline] = useState(toDateInput(initial?.applicationDeadline));
   const [reportingDeadline, setReportingDeadline] = useState(toDateInput(initial?.reportingDeadline));
-  const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [reminderDate, setReminderDate] = useState("");
+  const [applicationPortalUrl, setApplicationPortalUrl] = useState("");
+  const [eligibilityNotes, setEligibilityNotes] = useState(initial?.internalNotes ?? "");
+  const [researchNotes, setResearchNotes] = useState(initial?.notes ?? "");
+  const [requiredDocuments, setRequiredDocuments] = useState("");
 
   // Load funder list on mount
   useEffect(() => {
     apiFetch<GrantFunder[]>("/api/grants/funders").then(setFunders).catch(() => {});
+    apiFetch<{ items?: UserOption[] }>("/api/users")
+      .then((response) => setUsers(response.items ?? []))
+      .catch(() => setUsers([]));
   }, []);
 
   /** Submit: POST (create) or PATCH (update). */
@@ -76,6 +91,7 @@ export default function AddGrantModal({ grant: initial, onClose, onSaved }: Prop
         title: title.trim(),
         funderId,
         programArea: programArea.trim() || undefined,
+        assigneeId: assigneeId || null,
         status,
         amountRequested: amountRequested ? Number(amountRequested) : undefined,
         amountAwarded:   amountAwarded   ? Number(amountAwarded)   : undefined,
@@ -83,7 +99,8 @@ export default function AddGrantModal({ grant: initial, onClose, onSaved }: Prop
         loiDeadline:          loiDeadline          || null,
         applicationDeadline:  applicationDeadline  || null,
         reportingDeadline:    reportingDeadline     || null,
-        notes: notes.trim() || undefined,
+        notes: researchNotes.trim() || undefined,
+        internalNotes: eligibilityNotes.trim() || undefined,
       };
 
       let result: Grant;
@@ -91,6 +108,60 @@ export default function AddGrantModal({ grant: initial, onClose, onSaved }: Prop
         result = await apiFetch<Grant>(`/api/grants/${initial!.id}`, { method: "PATCH", body: JSON.stringify(body) });
       } else {
         result = await apiFetch<Grant>("/api/grants", { method: "POST", body: JSON.stringify(body) });
+
+        // Seed helper case-file rows for the new grant workspace.
+        if (reminderDate) {
+          await apiFetch(`/api/grants/${result.id}/case-items`, {
+            method: "POST",
+            body: JSON.stringify({
+              kind: "REMINDER",
+              title: "Primary grant reminder",
+              description: "Initial reminder captured during grant setup.",
+              status: "PENDING",
+              dueAt: reminderDate,
+              remindAt: reminderDate,
+              assignedToId: assigneeId || undefined,
+              reminderType: "Custom Reminder",
+              priority: "MEDIUM",
+            }),
+          }).catch(() => {});
+        }
+
+        if (applicationPortalUrl.trim()) {
+          await apiFetch(`/api/grants/${result.id}/case-items`, {
+            method: "POST",
+            body: JSON.stringify({
+              kind: "RESOURCE",
+              title: "Application Portal",
+              description: "Primary funder application link.",
+              status: "ACTIVE",
+              resourceType: "Portal",
+              url: applicationPortalUrl.trim(),
+              pinned: true,
+            }),
+          }).catch(() => {});
+        }
+
+        const requirementRows = requiredDocuments
+          .split("\n")
+          .map((row) => row.trim())
+          .filter(Boolean)
+          .slice(0, 20);
+
+        for (const requirementTitle of requirementRows) {
+          await apiFetch(`/api/grants/${result.id}/case-items`, {
+            method: "POST",
+            body: JSON.stringify({
+              kind: "REQUIREMENT",
+              title: requirementTitle,
+              description: "Required grant application item",
+              status: "NOT_STARTED",
+              assignedToId: assigneeId || undefined,
+              dueAt: applicationDeadline || undefined,
+              priority: "MEDIUM",
+            }),
+          }).catch(() => {});
+        }
       }
       onSaved(result);
     } catch (err) {
@@ -103,13 +174,13 @@ export default function AddGrantModal({ grant: initial, onClose, onSaved }: Prop
   return (
     <WorkspaceSetupModal
       title={isEdit ? "Edit Grant" : "New Grant Opportunity"}
-      subtitle="Manage grant pipeline details, deadlines, and amounts with a unified CRM workflow modal."
-      checklist={["1. Select funder", "2. Define status and amounts", "3. Save grant opportunity"]}
+      subtitle="Capture a complete grant research case file with deadlines, writing ownership, reminders, and resources."
+      checklist={["1. Select funder and writer", "2. Add deadlines, portal, and notes", "3. Save case file and reminders"]}
       onClose={onClose}
       maxWidthClassName="max-w-6xl"
     >
       <div className="px-6 py-5 max-h-[85vh] overflow-y-auto">
-        <h3 className="text-lg font-semibold text-gray-900">Grant Details</h3>
+        <h3 className="text-lg font-semibold text-gray-900">Grant Research Case File</h3>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="mt-4 space-y-5">
@@ -121,7 +192,7 @@ export default function AddGrantModal({ grant: initial, onClose, onSaved }: Prop
 
           {/* Title */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Grant Title <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Grant Opportunity Name <span className="text-red-500">*</span></label>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -149,7 +220,7 @@ export default function AddGrantModal({ grant: initial, onClose, onSaved }: Prop
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Program Area</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Program / Purpose</label>
               <input
                 value={programArea}
                 onChange={(e) => setProgramArea(e.target.value)}
@@ -157,6 +228,41 @@ export default function AddGrantModal({ grant: initial, onClose, onSaved }: Prop
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Grant Writer</label>
+              <select
+                value={assigneeId}
+                onChange={(e) => setAssigneeId(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="">— Unassigned —</option>
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>{user.firstName} {user.lastName}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Primary Reminder Date</label>
+              <input
+                type="date"
+                value={reminderDate}
+                onChange={(e) => setReminderDate(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Application Portal URL</label>
+            <input
+              value={applicationPortalUrl}
+              onChange={(e) => setApplicationPortalUrl(e.target.value)}
+              placeholder="https://"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
           </div>
 
           {/* Status + Amounts */}
@@ -193,7 +299,7 @@ export default function AddGrantModal({ grant: initial, onClose, onSaved }: Prop
                 step="100"
                 value={amountAwarded}
                 onChange={(e) => setAmountAwarded(e.target.value)}
-                placeholder="0"
+                placeholder="Optional until decision is recorded"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
@@ -245,16 +351,42 @@ export default function AddGrantModal({ grant: initial, onClose, onSaved }: Prop
             </div>
           </div>
 
-          {/* Notes */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              placeholder="Any notes about this grant opportunity..."
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
-            />
+          {/* Research and requirement context */}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Eligibility Notes</label>
+              <textarea
+                value={eligibilityNotes}
+                onChange={(e) => setEligibilityNotes(e.target.value)}
+                rows={2}
+                placeholder="Eligibility fit, restrictions, required match, and geographic notes"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Research Notes</label>
+              <textarea
+                value={researchNotes}
+                onChange={(e) => setResearchNotes(e.target.value)}
+                rows={3}
+                placeholder="Mission fit, funder priorities, strategy notes, and writing context"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Required Documents (one per line)</label>
+              <textarea
+                value={requiredDocuments}
+                onChange={(e) => setRequiredDocuments(e.target.value)}
+                rows={3}
+                placeholder="LOI\nProgram budget\nOrganization budget\nIRS letter\nBoard list"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+              />
+            </div>
+
+            <p className="text-xs text-gray-500">Security note: do not store passwords in grant resources or notes.</p>
           </div>
 
           {/* Footer */}
@@ -271,7 +403,7 @@ export default function AddGrantModal({ grant: initial, onClose, onSaved }: Prop
               disabled={saving}
               className="px-5 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
             >
-              {saving ? "Saving…" : isEdit ? "Save Changes" : "Create Grant"}
+              {saving ? "Saving…" : isEdit ? "Save Case File" : "Create Grant Case File"}
             </button>
           </div>
         </form>

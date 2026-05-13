@@ -6,5 +6,165 @@
 - Environments: .env.production, .env
 
   Creating an optimized production build ...
-Γ£ô Compiled successfully in 7.5s
+Γ£ô Compiled successfully in 6.3s
   Running TypeScript ...
+  Finished TypeScript in 20.9s ...
+  Collecting page data using 23 workers ...
+  Generating static pages using 23 workers (0/116) ...
+  Generating static pages using 23 workers (29/116) 
+  Generating static pages using 23 workers (58/116) 
+  Generating static pages using 23 workers (87/116) 
+Γ£ô Generating static pages using 23 workers (116/116) in 817ms
+  Finalizing page optimization ...
+
+Route (app)
+Γöî Γùï /
+Γö£ Γùï /_not-found
+Γö£ Γùï /apple-icon.png
+Γö£ Γùï /apps
+Γö£ Γùï /apps/trivia
+Γö£ ╞Æ /apps/trivia/display/[eventId]
+Γö£ Γùï /apps/trivia/events
+Γö£ ╞Æ /apps/trivia/events/[eventId]/answer-key
+Γö£ ╞Æ /apps/trivia/events/[eventId]/builder
+Γö£ ╞Æ /apps/trivia/events/[eventId]/host
+Γö£ ╞Æ /apps/trivia/events/[eventId]/scores
+Γö£ Γùï /apps/trivia/events/new
+Γö£ Γùï /automations
+Γö£ Γùï /board
+Γö£ Γùï /campaigns
+Γö£ ╞Æ /campaigns/[id]
+Γö£ Γùï /communications
+Γö£ ╞Æ /communications/[campaignId]
+Γö£ Γùï /compassion/activities
+Γö£ Γùï /compassion/appointments
+Γö£ Γùï /compassion/assessments
+Γö£ Γùï /compassion/care-plans
+Γö£ Γùï /compassion/cases
+Γö£ Γùï /compassion/clients
+Γö£ ╞Æ /compassion/clients/[id]
+Γö£ Γùï /compassion/communications
+Γö£ Γùï /compassion/dashboard
+Γö£ Γùï /compassion/dashboards
+Γö£ Γùï /compassion/data-tools
+Γö£ Γùï /compassion/families
+Γö£ Γùï /compassion/follow-ups
+Γö£ Γùï /compassion/import/clients
+Γö£ ╞Æ /compassion/public/appointments/[token]
+Γö£ Γùï /compassion/reports
+Γö£ Γùï /compassion/settings
+Γö£ Γùï /compassion/settings/staff
+Γö£ Γùï /compassion/tasks
+Γö£ Γùï /constituents
+Γö£ ╞Æ /constituents/[id]
+Γö£ ╞Æ /constituents/[id]/edit
+Γö£ Γùï /constituents/new
+Γö£ Γùï /custom-fields
+Γö£ Γùï /data-tools
+Γö£ Γùï /data-tools/import
+Γö£ Γùï /data-tools/import/donation
+Γö£ Γùï /donations
+Γö£ ╞Æ /donations/[id]/edit
+Γö£ Γùï /donations/new
+Γö£ ╞Æ /email-builder
+Γö£ Γùï /events
+Γö£ ╞Æ /events/[eventId]
+Γö£ ╞Æ /events/[eventId]/check-in
+Γö£ ╞Æ /events/[eventId]/communications
+Γö£ ╞Æ /events/[eventId]/files
+Γö£ ╞Æ /events/[eventId]/fundraising
+Γö£ ╞Æ /events/[eventId]/guests
+Γö£ ╞Æ /events/[eventId]/orders
+Γö£ ╞Æ /events/[eventId]/overview
+Γö£ ╞Æ /events/[eventId]/reports
+Γö£ ╞Æ /events/[eventId]/settings
+Γö£ ╞Æ /events/[eventId]/sponsors
+Γö£ ╞Æ /events/[eventId]/tables
+Γö£ ╞Æ /events/[eventId]/tasks
+Γö£ ╞Æ /events/[eventId]/tickets
+Γö£ ╞Æ /events/[eventId]/volunteers
+Γö£ Γùï /events/check-in
+Γö£ Γùï /events/communications
+Γö£ Γùï /events/events
+Γö£ Γùï /events/files
+Γö£ Γùï /events/fundraising
+Γö£ Γùï /events/guests
+Γö£ Γùï /events/orders
+Γö£ Γùï /events/page-builder
+Γö£ Γùï /events/reports
+Γö£ Γùï /events/settings
+Γö£ Γùï /events/setup
+Γö£ Γùï /events/sponsors
+Γö£ Γùï /events/tables
+Γö£ Γùï /events/tasks
+Γö£ Γùï /events/templates
+Γö£ Γùï /events/tickets
+Γö£ Γùï /events/volunteers
+Γö£ Γùï /events/workspace
+Γö£ Γùï /grants
+Γö£ ╞Æ /grants/[id]
+Γö£ ╞Æ /help
+Γö£ ╞Æ /help/[slug]
+Γö£ Γùï /hrm
+Γö£ Γùï /hrm/locations
+Γö£ Γùï /hrm/messages
+Γö£ Γùï /hrm/people
+Γö£ Γùï /hrm/scheduling
+Γö£ Γùï /hrm/settings
+Γö£ Γùï /icon.png
+Γö£ Γùï /letters-printables
+Γö£ Γùï /letters-printables/branding
+Γö£ Γùï /letters-printables/generate
+Γö£ Γùï /letters-printables/generated
+Γö£ Γùï /letters-printables/signatures
+Γö£ Γùï /letters-printables/templates
+Γö£ ╞Æ /letters-printables/templates/[templateId]
+Γö£ Γùï /letters-printables/templates/new
+Γö£ Γùï /livecom
+Γö£ Γùï /login
+Γö£ Γùï /meetings
+Γö£ Γùï /ogentic
+Γö£ Γùï /payments
+Γö£ Γùï /quickbooks-sync
+Γö£ Γùï /reports
+Γö£ Γùï /settings
+Γö£ Γùï /settings/ai
+Γö£ Γùï /settings/audit
+Γö£ Γùï /settings/branding
+Γö£ Γùï /settings/compassion
+Γö£ Γùï /settings/desktop-app
+Γö£ Γùï /settings/donor
+Γö£ Γùï /settings/email
+Γö£ Γùï /settings/events
+Γö£ Γùï /settings/forms
+Γö£ Γùï /settings/import-export
+Γö£ Γùï /settings/integrations
+Γö£ Γùï /settings/meetings
+Γö£ Γùï /settings/modules
+Γö£ Γùï /settings/organization
+Γö£ Γùï /settings/plugins
+Γö£ Γùï /settings/project-status
+Γö£ Γùï /settings/roles
+Γö£ Γùï /settings/scheduling
+Γö£ Γùï /settings/security
+Γö£ Γùï /settings/site-embeds
+Γö£ Γùï /settings/system
+Γö£ Γùï /settings/system-status
+Γö£ Γùï /settings/tasks
+Γö£ Γùï /settings/users
+Γö£ Γùï /settings/workspaces
+Γö£ Γùï /setup
+Γö£ Γùï /steward-ai-workspace
+Γö£ Γùï /steward-signals
+Γö£ Γùï /tasks
+Γö£ Γùï /volunteers
+Γö£ Γùï /watchdog
+Γö£ Γùï /watchdog/feedback-tickets
+Γö£ Γùï /webmaster
+Γö£ ╞Æ /webmaster/[workspace]
+Γöö Γùï /webmaster/builder
+
+
+Γùï  (Static)   prerendered as static content
+╞Æ  (Dynamic)  server-rendered on demand
+

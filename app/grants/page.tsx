@@ -1,5 +1,5 @@
 /**
- * /grants — Grant Management workspace with command panel, board, and list views.
+ * /grants — Grant research workspace with command panel, board, and library views.
  * Adds triage-first controls (search, scope, sorting, risk focus) for daily grant operations.
  */
 "use client";
@@ -12,10 +12,10 @@ import GrantCard from "@/app/components/grants/GrantCard";
 import AddGrantModal from "@/app/components/grants/AddGrantModal";
 import FunderManager from "@/app/components/grants/FunderManager";
 import GrantsCommandPanel from "@/app/components/grants/GrantsCommandPanel";
-import type { Grant, GrantStatus } from "@/app/components/grants/types";
+import type { Grant, GrantStatus, GrantWorkspaceCaseItem } from "@/app/components/grants/types";
 import { PIPELINE_STAGES, TERMINAL_STAGES, STATUS_META, fmt$ } from "@/app/components/grants/types";
 
-type View = "pipeline" | "list" | "funders";
+type View = "board" | "library" | "deadlines" | "tasks" | "funders";
 type ScopeFilter = "ALL" | "ACTIVE" | "TERMINAL" | GrantStatus;
 type SortMode = "DEADLINE_ASC" | "DEADLINE_DESC" | "UPDATED_DESC" | "AMOUNT_DESC" | "TITLE_ASC";
 
@@ -30,6 +30,16 @@ function getDaysUntilDeadline(grant: Grant): number | null {
   if (!primaryDeadline) return null;
   const diffMs = new Date(primaryDeadline).getTime() - Date.now();
   return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+}
+
+/** Formats a date string for compact workspace list rows. */
+function formatDateLabel(value: string | null | undefined): string {
+  if (!value) return "-";
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 /** Flags grants that need immediate operator attention. */
@@ -87,8 +97,9 @@ function matchesSearch(grant: Grant, query: string): boolean {
 /** GrantsPage — the main grant management hub. */
 export default function GrantsPage() {
   const [grants, setGrants] = useState<Grant[]>([]);
+  const [workspaceCaseItems, setWorkspaceCaseItems] = useState<GrantWorkspaceCaseItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<View>("pipeline");
+  const [view, setView] = useState<View>("board");
   const [showAdd, setShowAdd] = useState(false);
   const [statsRefresh, setStatsRefresh] = useState(0);
   const [showTerminal, setShowTerminal] = useState(false);
@@ -100,8 +111,12 @@ export default function GrantsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiFetch<Grant[]>("/api/grants");
-      setGrants(Array.isArray(data) ? data : []);
+      const [grantsData, caseItemsData] = await Promise.all([
+        apiFetch<Grant[]>("/api/grants"),
+        apiFetch<GrantWorkspaceCaseItem[]>("/api/grants/workspace/case-items"),
+      ]);
+      setGrants(Array.isArray(grantsData) ? grantsData : []);
+      setWorkspaceCaseItems(Array.isArray(caseItemsData) ? caseItemsData : []);
     } catch { /* silent */ } finally {
       setLoading(false);
     }
@@ -171,6 +186,25 @@ export default function GrantsPage() {
   const overloadedLanes = pipelineSummary.filter((lane) => lane.count >= 6).length;
   const activeLaneCount = pipelineSummary.filter((lane) => lane.count > 0).length;
 
+  const deadlineItems = workspaceCaseItems
+    .filter((item) => item.kind === "REMINDER" || (item.kind === "REQUIREMENT" && item.status !== "COMPLETED"))
+    .filter((item) => item.dueAt)
+    .sort((a, b) => new Date(a.dueAt ?? "").getTime() - new Date(b.dueAt ?? "").getTime())
+    .slice(0, 40);
+
+  const taskItems = workspaceCaseItems
+    .filter((item) => item.kind === "TASK")
+    .filter((item) => {
+      const status = (item.status ?? "").toUpperCase();
+      return status !== "COMPLETED" && status !== "CANCELED";
+    })
+    .sort((a, b) => {
+      const aDue = a.dueAt ? new Date(a.dueAt).getTime() : Number.POSITIVE_INFINITY;
+      const bDue = b.dueAt ? new Date(b.dueAt).getTime() : Number.POSITIVE_INFINITY;
+      return aDue - bDue;
+    })
+    .slice(0, 40);
+
   return (
     <div className="p-6 space-y-6 min-h-screen">
       {/* Workspace header */}
@@ -178,9 +212,9 @@ export default function GrantsPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-green-700">DonorCRM • Grants</p>
-            <h1 className="text-2xl font-bold text-gray-900 mt-1">Grant Management Workspace</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mt-1">Grant Research & Deadlines Workspace</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Triage deadlines, advance proposal writing, and keep funder relationships moving.
+              Manage opportunities, writing tasks, reminders, requirements, resources, and submission planning.
             </p>
           </div>
           <button
@@ -190,9 +224,16 @@ export default function GrantsPage() {
             <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
             </svg>
-            New Grant
+            Add Grant Opportunity
           </button>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Boundary Reminder</p>
+        <p className="mt-1 text-sm text-blue-900">
+          Grant opportunities and writing work live here. Award money received is recorded separately in Donations using a grant-received entry.
+        </p>
       </div>
 
       {/* Stat cards */}
@@ -222,8 +263,8 @@ export default function GrantsPage() {
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               <option value="ALL">All statuses</option>
-              <option value="ACTIVE">Active pipeline</option>
-              <option value="TERMINAL">Completed/outcomes</option>
+              <option value="ACTIVE">Active applications</option>
+              <option value="TERMINAL">Decisions/closed</option>
               {Object.entries(STATUS_META).map(([status, meta]) => (
                 <option key={status} value={status}>{meta.label}</option>
               ))}
@@ -282,32 +323,39 @@ export default function GrantsPage() {
           <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
             <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Requested in view</p>
             <p className="text-lg font-semibold text-gray-900">{fmt$(requestedInView)}</p>
+            <p className="text-[11px] text-gray-500 mt-0.5">Potential awards, not received revenue</p>
           </div>
         </div>
       </section>
 
       {/* View toggle */}
       <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit">
-        {(["pipeline", "list", "funders"] as View[]).map((v) => (
+        {([
+          { key: "board", label: "Research Board" },
+          { key: "library", label: "Grant Library" },
+          { key: "deadlines", label: "Deadlines" },
+          { key: "tasks", label: "My Grant Tasks" },
+          { key: "funders", label: "Funders" },
+        ] as { key: View; label: string }[]).map((viewOption) => (
           <button
-            key={v}
-            onClick={() => setView(v)}
+            key={viewOption.key}
+            onClick={() => setView(viewOption.key)}
             className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors capitalize ${
-              view === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              view === viewOption.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
             }`}
           >
-            {v === "funders" ? "Funders" : v === "pipeline" ? "Pipeline" : "List"}
+            {viewOption.label}
           </button>
         ))}
       </div>
 
-      {/* ── Pipeline view ── */}
-      {view === "pipeline" && (
+      {/* ── Research board view ── */}
+      {view === "board" && (
         <div className="space-y-4">
           <div className="rounded-xl border border-gray-200 bg-white p-4">
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>
-                <p className="text-xs uppercase tracking-wide font-semibold text-gray-500">Pipeline Layout</p>
+                <p className="text-xs uppercase tracking-wide font-semibold text-gray-500">Research Board Layout</p>
                 <p className="text-sm text-gray-700 mt-1">
                   {activeLaneCount} active stage{activeLaneCount !== 1 ? "s" : ""} populated,
                   {" "}{overloadedLanes} lane{overloadedLanes !== 1 ? "s" : ""} overloaded (6+ grants)
@@ -377,7 +425,7 @@ export default function GrantsPage() {
 
           {!loading && activeGrants.length === 0 && (
             <div className="rounded-xl border border-gray-200 bg-white px-6 py-10 text-center">
-              <p className="text-sm font-medium text-gray-700">No active pipeline grants match current filters.</p>
+              <p className="text-sm font-medium text-gray-700">No active grant opportunities match current filters.</p>
               <p className="text-xs text-gray-500 mt-1">Adjust filters or create a new grant to continue.</p>
             </div>
           )}
@@ -404,8 +452,8 @@ export default function GrantsPage() {
         </div>
       )}
 
-      {/* ── List view ── */}
-      {view === "list" && (
+      {/* ── Grant library view ── */}
+      {view === "library" && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-sm text-gray-400">Loading…</div>
@@ -469,6 +517,100 @@ export default function GrantsPage() {
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* ── Deadlines view ── */}
+      {view === "deadlines" && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          {loading ? (
+            <div className="p-8 text-center text-sm text-gray-400">Loading…</div>
+          ) : deadlineItems.length === 0 ? (
+            <div className="p-10 text-center text-sm text-gray-500">No upcoming grant reminders or requirement due dates yet.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  {[
+                    "Grant",
+                    "Item",
+                    "Type",
+                    "Status",
+                    "Due",
+                    "Owner",
+                    "",
+                  ].map((header) => (
+                    <th key={header} className="text-left text-xs font-semibold text-gray-500 px-4 py-3">{header}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {deadlineItems.map((item) => (
+                  <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 text-gray-900 font-medium">{item.grant.title}</td>
+                    <td className="px-4 py-3 text-gray-700">{item.title}</td>
+                    <td className="px-4 py-3 text-gray-500">{item.kind}</td>
+                    <td className="px-4 py-3 text-gray-500">{item.status ?? "PENDING"}</td>
+                    <td className="px-4 py-3 text-gray-700">{formatDateLabel(item.dueAt)}</td>
+                    <td className="px-4 py-3 text-gray-500">{item.assignedToName ?? "Unassigned"}</td>
+                    <td className="px-4 py-3">
+                      <Link href={`/grants/${item.grant.id}`} className="text-xs text-green-700 hover:underline">
+                        Open
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* ── Tasks view ── */}
+      {view === "tasks" && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          {loading ? (
+            <div className="p-8 text-center text-sm text-gray-400">Loading…</div>
+          ) : taskItems.length === 0 ? (
+            <div className="p-10 text-center text-sm text-gray-500">No active grant tasks yet. Add tasks inside a grant case file.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  {[
+                    "Grant",
+                    "Task",
+                    "Task Type",
+                    "Priority",
+                    "Status",
+                    "Due",
+                    "Owner",
+                    "",
+                  ].map((header) => (
+                    <th key={header} className="text-left text-xs font-semibold text-gray-500 px-4 py-3">{header}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {taskItems.map((item) => (
+                  <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 text-gray-900 font-medium">{item.grant.title}</td>
+                    <td className="px-4 py-3 text-gray-700">{item.title}</td>
+                    <td className="px-4 py-3 text-gray-500">{item.taskType ?? "Other"}</td>
+                    <td className="px-4 py-3 text-gray-500">{item.priority ?? "MEDIUM"}</td>
+                    <td className="px-4 py-3 text-gray-500">{item.status ?? "NOT_STARTED"}</td>
+                    <td className="px-4 py-3 text-gray-700">{formatDateLabel(item.dueAt)}</td>
+                    <td className="px-4 py-3 text-gray-500">{item.assignedToName ?? "Unassigned"}</td>
+                    <td className="px-4 py-3">
+                      <Link href={`/grants/${item.grant.id}`} className="text-xs text-green-700 hover:underline">
+                        Open
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}

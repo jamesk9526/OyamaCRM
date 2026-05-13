@@ -95,6 +95,22 @@ These are registered in `server/src/lib/permissions.ts` and surfaced in the sett
 - Worker processing marks failed enrollments and captures failure messages.
 - Avoid auto-send defaults in donor workflows; require human review for outbound communications unless explicitly approved.
 
+## Donor Engagement Integration (2026-05-12)
+
+Steward Paths should orchestrate existing engagement tools, not replace them.
+
+Current integration expectations:
+
+- Email work should route through draft-first workflows and communications review.
+- Letter generation should use shared letters execution logic and generated-letter records.
+- Task creation should represent manual follow-up and remain visible in task workflows.
+- Timeline events should preserve step-level history and failure/success context.
+
+Current UI status:
+
+- Steward Paths page now includes visual sequence language improvements (status legend and sequence-node cards).
+- Full drag/drop visual canvas builder is still Partially Working and remains on the roadmap.
+
 ## Generate Letter Step
 
 `GENERATE_LETTER` is now a supported sequence step type.

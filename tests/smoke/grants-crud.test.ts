@@ -10,6 +10,7 @@ let app: Awaited<typeof import("@/server/src/index")>["default"];
 let token = "";
 let funderId = "";
 let grantId = "";
+let caseItemId = "";
 
 beforeAll(async () => {
   const mod = await import("@/server/src/index");
@@ -104,6 +105,8 @@ describe("grants and funders CRUD", () => {
     expect(res.body.id).toBeTruthy();
     expect(res.body.title).toBe("Smoke Test Grant");
     expect(res.body.status).toBe("RESEARCH");
+    expect(res.body.donationId).toBeUndefined();
+    expect(res.body.receiptNumber).toBeUndefined();
     grantId = res.body.id;
   });
 
@@ -149,6 +152,62 @@ describe("grants and funders CRUD", () => {
       .send({ content: "This is the smoke-test executive summary.", completed: false });
     expect(res.status).toBe(200);
     expect(res.body.content).toContain("smoke-test");
+  });
+
+  it("creates a reminder case item for the grant", async () => {
+    expect(grantId).toBeTruthy();
+    const due = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const res = await request(app)
+      .post(`/api/grants/${grantId}/case-items`)
+      .set(auth())
+      .send({
+        kind: "REMINDER",
+        title: "Smoke reminder",
+        description: "Reminder from smoke test",
+        status: "PENDING",
+        dueAt: due,
+        remindAt: due,
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.id).toBeTruthy();
+    expect(res.body.kind).toBe("REMINDER");
+    caseItemId = res.body.id;
+  });
+
+  it("creates a resource case item for the grant", async () => {
+    expect(grantId).toBeTruthy();
+    const res = await request(app)
+      .post(`/api/grants/${grantId}/case-items`)
+      .set(auth())
+      .send({
+        kind: "RESOURCE",
+        title: "Application portal",
+        status: "ACTIVE",
+        resourceType: "Portal",
+        url: "https://example.org/grants/smoke",
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.kind).toBe("RESOURCE");
+    expect(res.body.url).toContain("example.org");
+  });
+
+  it("lists case items for one grant", async () => {
+    expect(grantId).toBeTruthy();
+    const res = await request(app).get(`/api/grants/${grantId}/case-items`).set(auth());
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThan(0);
+  });
+
+  it("updates case item status", async () => {
+    expect(grantId).toBeTruthy();
+    expect(caseItemId).toBeTruthy();
+    const res = await request(app)
+      .patch(`/api/grants/${grantId}/case-items/${caseItemId}`)
+      .set(auth())
+      .send({ status: "COMPLETED" });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("COMPLETED");
   });
 
   it("lists grant sections", async () => {

@@ -2,6 +2,7 @@ export type DonationRow = {
   id: string;
   amount: string;
   date: string;
+  acknowledgmentSentAt?: string | null;
   paymentMethod: string;
   status: string;
   isRecurring: boolean;

@@ -34,6 +34,27 @@ const LETTER_GENERATED_STATUSES = ["DRAFT", "GENERATED", "PRINTED", "MAILED", "E
 const LETTER_LOGO_MODES = ["ORGANIZATION_DEFAULT", "CUSTOM", "NONE"] as const;
 const LETTER_CRM_SCOPES = ["DONOR", "EVENTS", "COMPASSION", "GLOBAL"] as const;
 const LETTER_ALIGNMENT = ["LEFT", "CENTER", "RIGHT", "NONE"] as const;
+const PRINT_QUEUE_STATUSES = ["GENERATED", "NEEDS_REVIEW", "APPROVED", "QUEUED_FOR_PRINT", "PRINTED", "FAILED", "CANCELED", "ARCHIVED"] as const;
+const MAIL_QUEUE_STATUSES = ["QUEUED_FOR_MAIL", "MAILED", "RETURNED", "ADDRESS_ISSUE", "COMPLETED", "CANCELED", "ARCHIVED"] as const;
+const LETTER_PRIORITY = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
+
+type PrintQueueStatus = (typeof PRINT_QUEUE_STATUSES)[number];
+type MailQueueStatus = (typeof MAIL_QUEUE_STATUSES)[number];
+type LetterPriority = (typeof LETTER_PRIORITY)[number];
+
+interface GeneratedLetterQueueMetadata {
+  printStatus?: PrintQueueStatus;
+  mailStatus?: MailQueueStatus;
+  reviewStatus?: "NEEDS_REVIEW" | "APPROVED";
+  priority?: LetterPriority;
+  batchId?: string;
+  statusNote?: string;
+  returnReason?: string;
+  queuedForPrintAt?: string;
+  queuedForMailAt?: string;
+  returnedAt?: string;
+  updatedByUserId?: string;
+}
 
 router.use(requireAuth);
 
@@ -65,6 +86,72 @@ function asJsonObject(value: unknown): Prisma.InputJsonValue | undefined {
   } catch {
     return undefined;
   }
+}
+
+/** Reads queue metadata from GeneratedLetter.metadataJson with safe defaults. */
+function readQueueMetadata(value: unknown): GeneratedLetterQueueMetadata {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const asObject = value as Record<string, unknown>;
+  const queue = asObject.queue;
+  if (!queue || typeof queue !== "object" || Array.isArray(queue)) return {};
+
+  const raw = queue as Record<string, unknown>;
+  return {
+    printStatus: parseEnum(raw.printStatus, PRINT_QUEUE_STATUSES) ?? undefined,
+    mailStatus: parseEnum(raw.mailStatus, MAIL_QUEUE_STATUSES) ?? undefined,
+    reviewStatus: parseEnum(raw.reviewStatus, ["NEEDS_REVIEW", "APPROVED"] as const) ?? undefined,
+    priority: parseEnum(raw.priority, LETTER_PRIORITY) ?? undefined,
+    batchId: typeof raw.batchId === "string" ? raw.batchId : undefined,
+    statusNote: typeof raw.statusNote === "string" ? raw.statusNote : undefined,
+    returnReason: typeof raw.returnReason === "string" ? raw.returnReason : undefined,
+    queuedForPrintAt: typeof raw.queuedForPrintAt === "string" ? raw.queuedForPrintAt : undefined,
+    queuedForMailAt: typeof raw.queuedForMailAt === "string" ? raw.queuedForMailAt : undefined,
+    returnedAt: typeof raw.returnedAt === "string" ? raw.returnedAt : undefined,
+    updatedByUserId: typeof raw.updatedByUserId === "string" ? raw.updatedByUserId : undefined,
+  };
+}
+
+/** Writes queue metadata back to metadataJson while preserving existing non-queue fields. */
+function buildMetadataWithQueue(existing: unknown, queue: GeneratedLetterQueueMetadata): Prisma.InputJsonValue {
+  const safeBase = existing && typeof existing === "object" && !Array.isArray(existing)
+    ? { ...(existing as Record<string, unknown>) }
+    : {};
+
+  return {
+    ...safeBase,
+    queue,
+  } satisfies Prisma.InputJsonValue;
+}
+
+/** Derives print queue status from explicit queue metadata and legacy generated-letter status. */
+function derivePrintQueueStatus(letterStatus: string, queue: GeneratedLetterQueueMetadata): PrintQueueStatus {
+  if (queue.printStatus) return queue.printStatus;
+  if (letterStatus === "PRINTED") return "PRINTED";
+  if (letterStatus === "ARCHIVED") return "ARCHIVED";
+  return "GENERATED";
+}
+
+/** Derives mail queue status from explicit queue metadata and legacy generated-letter status. */
+function deriveMailQueueStatus(letterStatus: string, queue: GeneratedLetterQueueMetadata): MailQueueStatus {
+  if (queue.mailStatus) return queue.mailStatus;
+  if (letterStatus === "MAILED") return "MAILED";
+  return "QUEUED_FOR_MAIL";
+}
+
+/** True when address fields appear complete enough for mail-queue fulfillment. */
+function hasCompleteMailAddress(constituent: {
+  addressLine1?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+} | null | undefined): boolean {
+  if (!constituent) return false;
+  return Boolean(
+    constituent.addressLine1?.trim()
+    && constituent.city?.trim()
+    && constituent.state?.trim()
+    && constituent.zip?.trim(),
+  );
 }
 
 /** Parses a positive integer value with fallback and min/max bounds. */
@@ -115,6 +202,48 @@ router.get("/dashboard", requirePermission("letters.view"), async (req, res) => 
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
+  const weekStart = new Date();
+  weekStart.setDate(weekStart.getDate() - 7);
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const queueRows = await prisma.generatedLetter.findMany({
+    where: { organizationId },
+    select: {
+      status: true,
+      metadataJson: true,
+      printedAt: true,
+      mailedAt: true,
+      emailDraftCreatedAt: true,
+    },
+    take: 4000,
+  });
+
+  const queueStats = queueRows.reduce((acc, row) => {
+    const queue = readQueueMetadata(row.metadataJson);
+    const printStatus = derivePrintQueueStatus(row.status, queue);
+    const mailStatus = deriveMailQueueStatus(row.status, queue);
+
+    if (printStatus === "NEEDS_REVIEW" || row.status === "GENERATED") acc.needsReview += 1;
+    if (printStatus === "QUEUED_FOR_PRINT") acc.queuedForPrint += 1;
+    if (row.printedAt && row.printedAt >= todayStart) acc.printedToday += 1;
+    if (mailStatus === "QUEUED_FOR_MAIL" || row.status === "PRINTED") acc.queuedForMail += 1;
+    if (row.mailedAt && row.mailedAt >= weekStart) acc.mailedThisWeek += 1;
+    if (mailStatus === "ADDRESS_ISSUE") acc.addressIssues += 1;
+    if (queue.statusNote?.toLowerCase().includes("pdf export failed")) acc.pdfExportFailures += 1;
+    if (row.emailDraftCreatedAt) acc.emailDraftsCreated += 1;
+
+    return acc;
+  }, {
+    needsReview: 0,
+    queuedForPrint: 0,
+    printedToday: 0,
+    queuedForMail: 0,
+    mailedThisWeek: 0,
+    addressIssues: 0,
+    pdfExportFailures: 0,
+    emailDraftsCreated: 0,
+  });
 
   const [activeTemplates, generatedThisMonth, thankYouPending, taxReceiptsGenerated, emailDrafts, recentlyUsed] = await Promise.all([
     prisma.letterTemplate.count({ where: { organizationId, status: "ACTIVE" } }),
@@ -136,6 +265,14 @@ router.get("/dashboard", requirePermission("letters.view"), async (req, res) => 
     thankYouPending,
     taxReceiptsGenerated,
     emailDrafts,
+    needsReview: queueStats.needsReview,
+    queuedForPrint: queueStats.queuedForPrint,
+    printedToday: queueStats.printedToday,
+    queuedForMail: queueStats.queuedForMail,
+    mailedThisWeek: queueStats.mailedThisWeek,
+    addressIssues: queueStats.addressIssues,
+    pdfExportFailures: queueStats.pdfExportFailures,
+    emailDraftsCreated: queueStats.emailDraftsCreated,
     recentlyUsedTemplates: recentlyUsed,
     batchGenerationStatus: "PARTIAL",
     pdfExportStatus: "PARTIAL",
@@ -1290,6 +1427,372 @@ router.post("/generated/:id/create-email-draft", requirePermission("letters.crea
   });
 });
 
+/** GET /api/letters/generated/queue/print — Lists print queue records with derived queue metadata. */
+router.get("/generated/queue/print", requirePermission("letters.view"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const filterStatus = parseEnum(req.query.queueStatus, PRINT_QUEUE_STATUSES);
+  const limit = parsePositiveInt(req.query.limit, 300, 1, 1000);
+
+  const rows = await prisma.generatedLetter.findMany({
+    where: {
+      organizationId,
+      status: { in: ["GENERATED", "PRINTED", "MAILED", "ARCHIVED"] },
+    },
+    include: {
+      template: { select: { id: true, name: true, category: true } },
+      constituent: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          addressLine1: true,
+          city: true,
+          state: true,
+          zip: true,
+          doNotMail: true,
+        },
+      },
+      donation: { select: { id: true, amount: true, date: true } },
+      generatedBy: { select: { id: true, firstName: true, lastName: true } },
+    },
+    orderBy: { generatedAt: "desc" },
+    take: limit,
+  });
+
+  const mapped = rows.map((row) => {
+    const queue = readQueueMetadata(row.metadataJson);
+    const queueStatus = derivePrintQueueStatus(row.status, queue);
+    const addressComplete = hasCompleteMailAddress(row.constituent);
+
+    return {
+      ...row,
+      queueStatus,
+      reviewStatus: queue.reviewStatus ?? (row.status === "GENERATED" ? "NEEDS_REVIEW" : "APPROVED"),
+      priority: queue.priority ?? "NORMAL",
+      batchId: queue.batchId ?? null,
+      statusNote: queue.statusNote ?? null,
+      addressComplete,
+    };
+  }).filter((row) => (filterStatus ? row.queueStatus === filterStatus : true));
+
+  res.json(mapped);
+});
+
+/** GET /api/letters/generated/queue/mail — Lists mail queue records with address readiness checks. */
+router.get("/generated/queue/mail", requirePermission("letters.view"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const filterStatus = parseEnum(req.query.queueStatus, MAIL_QUEUE_STATUSES);
+  const limit = parsePositiveInt(req.query.limit, 300, 1, 1000);
+
+  const rows = await prisma.generatedLetter.findMany({
+    where: {
+      organizationId,
+      status: { in: ["PRINTED", "MAILED", "ARCHIVED", "GENERATED"] },
+    },
+    include: {
+      template: { select: { id: true, name: true, category: true } },
+      constituent: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          addressLine1: true,
+          addressLine2: true,
+          city: true,
+          state: true,
+          zip: true,
+          doNotMail: true,
+        },
+      },
+      donation: { select: { id: true, amount: true, date: true } },
+      generatedBy: { select: { id: true, firstName: true, lastName: true } },
+    },
+    orderBy: { generatedAt: "desc" },
+    take: limit,
+  });
+
+  const mapped = rows.map((row) => {
+    const queue = readQueueMetadata(row.metadataJson);
+    const queueStatus = deriveMailQueueStatus(row.status, queue);
+    const addressComplete = hasCompleteMailAddress(row.constituent);
+
+    return {
+      ...row,
+      queueStatus,
+      priority: queue.priority ?? "NORMAL",
+      batchId: queue.batchId ?? null,
+      statusNote: queue.statusNote ?? null,
+      returnReason: queue.returnReason ?? null,
+      returnedAt: queue.returnedAt ?? null,
+      addressComplete,
+      addressWarning: addressComplete ? null : "Address incomplete - cannot mark ready to mail",
+    };
+  }).filter((row) => (filterStatus ? row.queueStatus === filterStatus : true));
+
+  res.json(mapped);
+});
+
+/** POST /api/letters/generated/queue/print/actions — Applies one bulk print-queue action to selected letters. */
+router.post("/generated/queue/print/actions", requirePermission("letters.generate"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const action = parseEnum(req.body?.action, ["APPROVE", "QUEUE_FOR_PRINT", "MARK_PRINTED", "MOVE_TO_MAIL_QUEUE", "CANCEL", "ARCHIVE"] as const);
+  if (!action) {
+    res.status(400).json({ error: { code: "INVALID_ACTION", message: "Invalid print queue action." } });
+    return;
+  }
+
+  const ids = Array.isArray(req.body?.letterIds)
+    ? req.body.letterIds.map((value: unknown) => String(value)).filter(Boolean)
+    : [];
+  if (ids.length === 0) {
+    res.status(400).json({ error: { code: "LETTER_IDS_REQUIRED", message: "letterIds is required." } });
+    return;
+  }
+
+  const note = typeof req.body?.note === "string" ? req.body.note.trim() : undefined;
+  const priority = parseEnum(req.body?.priority, LETTER_PRIORITY) ?? undefined;
+  const batchId = typeof req.body?.batchId === "string" ? req.body.batchId.trim() : undefined;
+
+  const rows = await prisma.generatedLetter.findMany({
+    where: { organizationId, id: { in: ids } },
+    select: { id: true, status: true, metadataJson: true, constituentId: true },
+  });
+
+  const now = new Date();
+  for (const row of rows) {
+    const currentQueue = readQueueMetadata(row.metadataJson);
+    const nextQueue: GeneratedLetterQueueMetadata = {
+      ...currentQueue,
+      updatedByUserId: userId,
+      statusNote: note ?? currentQueue.statusNote,
+      priority: priority ?? currentQueue.priority ?? "NORMAL",
+      batchId: batchId || currentQueue.batchId,
+    };
+
+    let nextStatus = row.status;
+    if (action === "APPROVE") {
+      nextQueue.reviewStatus = "APPROVED";
+      nextQueue.printStatus = "APPROVED";
+    }
+    if (action === "QUEUE_FOR_PRINT") {
+      nextQueue.reviewStatus = "APPROVED";
+      nextQueue.printStatus = "QUEUED_FOR_PRINT";
+      nextQueue.queuedForPrintAt = now.toISOString();
+    }
+    if (action === "MARK_PRINTED") {
+      nextQueue.reviewStatus = "APPROVED";
+      nextQueue.printStatus = "PRINTED";
+      nextStatus = "PRINTED";
+    }
+    if (action === "MOVE_TO_MAIL_QUEUE") {
+      nextQueue.reviewStatus = "APPROVED";
+      nextQueue.printStatus = "PRINTED";
+      nextQueue.mailStatus = "QUEUED_FOR_MAIL";
+      nextQueue.queuedForMailAt = now.toISOString();
+    }
+    if (action === "CANCEL") {
+      nextQueue.printStatus = "CANCELED";
+      nextQueue.mailStatus = "CANCELED";
+    }
+    if (action === "ARCHIVE") {
+      nextQueue.printStatus = "ARCHIVED";
+      nextQueue.mailStatus = "ARCHIVED";
+      nextStatus = "ARCHIVED";
+    }
+
+    await prisma.generatedLetter.update({
+      where: { id: row.id },
+      data: {
+        status: nextStatus as never,
+        printedAt: action === "MARK_PRINTED" ? now : undefined,
+        metadataJson: buildMetadataWithQueue(row.metadataJson, nextQueue),
+      },
+    });
+
+    if (row.constituentId) {
+      await prisma.activity.create({
+        data: {
+          constituentId: row.constituentId,
+          type: "NOTE",
+          description: `Letter print-queue action: ${action.toLowerCase().replace(/_/g, " ")}`,
+          metadata: {
+            source: "letters-printables",
+            communicationType: "printed_letter",
+            letterId: row.id,
+            action,
+            note,
+          },
+          userId,
+        },
+      });
+    }
+  }
+
+  await logAudit({
+    action: "LETTER_PRINT_QUEUE_BULK_ACTION",
+    entity: "GeneratedLetter",
+    organizationId,
+    userId,
+    metadata: {
+      action,
+      count: rows.length,
+      note,
+      batchId,
+      priority,
+    },
+  });
+
+  res.json({ success: true, updatedCount: rows.length, action });
+});
+
+/** POST /api/letters/generated/queue/mail/actions — Applies one bulk mail-queue action to selected letters. */
+router.post("/generated/queue/mail/actions", requirePermission("letters.generate"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const action = parseEnum(req.body?.action, ["QUEUE_FOR_MAIL", "MARK_MAILED", "MARK_RETURNED", "ADDRESS_ISSUE", "REPRINT", "ARCHIVE"] as const);
+  if (!action) {
+    res.status(400).json({ error: { code: "INVALID_ACTION", message: "Invalid mail queue action." } });
+    return;
+  }
+
+  const ids = Array.isArray(req.body?.letterIds)
+    ? req.body.letterIds.map((value: unknown) => String(value)).filter(Boolean)
+    : [];
+  if (ids.length === 0) {
+    res.status(400).json({ error: { code: "LETTER_IDS_REQUIRED", message: "letterIds is required." } });
+    return;
+  }
+
+  const note = typeof req.body?.note === "string" ? req.body.note.trim() : undefined;
+  const returnReason = typeof req.body?.returnReason === "string" ? req.body.returnReason.trim() : undefined;
+
+  const rows = await prisma.generatedLetter.findMany({
+    where: { organizationId, id: { in: ids } },
+    select: {
+      id: true,
+      status: true,
+      metadataJson: true,
+      constituentId: true,
+      constituent: {
+        select: {
+          addressLine1: true,
+          city: true,
+          state: true,
+          zip: true,
+        },
+      },
+    },
+  });
+
+  const now = new Date();
+  for (const row of rows) {
+    const currentQueue = readQueueMetadata(row.metadataJson);
+    const nextQueue: GeneratedLetterQueueMetadata = {
+      ...currentQueue,
+      updatedByUserId: userId,
+      statusNote: note ?? currentQueue.statusNote,
+    };
+
+    let nextStatus = row.status;
+    if (action === "QUEUE_FOR_MAIL") {
+      const addressComplete = hasCompleteMailAddress(row.constituent);
+      if (!addressComplete) {
+        nextQueue.mailStatus = "ADDRESS_ISSUE";
+      } else {
+        nextQueue.mailStatus = "QUEUED_FOR_MAIL";
+        nextQueue.queuedForMailAt = now.toISOString();
+      }
+    }
+    if (action === "MARK_MAILED") {
+      nextQueue.mailStatus = "MAILED";
+      nextStatus = "MAILED";
+    }
+    if (action === "MARK_RETURNED") {
+      nextQueue.mailStatus = "RETURNED";
+      nextQueue.returnReason = returnReason || "Returned mail";
+      nextQueue.returnedAt = now.toISOString();
+    }
+    if (action === "ADDRESS_ISSUE") {
+      nextQueue.mailStatus = "ADDRESS_ISSUE";
+    }
+    if (action === "REPRINT") {
+      nextQueue.printStatus = "QUEUED_FOR_PRINT";
+      nextQueue.mailStatus = "QUEUED_FOR_MAIL";
+      nextQueue.queuedForPrintAt = now.toISOString();
+      nextStatus = "GENERATED";
+    }
+    if (action === "ARCHIVE") {
+      nextQueue.mailStatus = "ARCHIVED";
+      nextQueue.printStatus = "ARCHIVED";
+      nextStatus = "ARCHIVED";
+    }
+
+    await prisma.generatedLetter.update({
+      where: { id: row.id },
+      data: {
+        status: nextStatus as never,
+        mailedAt: action === "MARK_MAILED" ? now : undefined,
+        metadataJson: buildMetadataWithQueue(row.metadataJson, nextQueue),
+      },
+    });
+
+    if (row.constituentId) {
+      await prisma.activity.create({
+        data: {
+          constituentId: row.constituentId,
+          type: "NOTE",
+          description: `Letter mail-queue action: ${action.toLowerCase().replace(/_/g, " ")}`,
+          metadata: {
+            source: "letters-printables",
+            communicationType: "printed_letter",
+            letterId: row.id,
+            action,
+            note,
+            returnReason,
+          },
+          userId,
+        },
+      });
+    }
+  }
+
+  await logAudit({
+    action: "LETTER_MAIL_QUEUE_BULK_ACTION",
+    entity: "GeneratedLetter",
+    organizationId,
+    userId,
+    metadata: {
+      action,
+      count: rows.length,
+      note,
+      returnReason,
+    },
+  });
+
+  res.json({ success: true, updatedCount: rows.length, action });
+});
+
 /** POST /api/letters/generated/:id/export-pdf — Returns explicit partial notice until PDF engine is wired. */
 router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf"), async (req, res) => {
   const organizationId = await requireOrganizationId(req);
@@ -1325,13 +1828,201 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
   });
 });
 
-/** POST /api/letters/generated/batch — Returns explicit partial notice for future batch architecture. */
-router.post("/generated/batch", requirePermission("letters.generate_batch"), async (_req, res) => {
-  res.status(501).json({
-    error: {
-      code: "BATCH_GENERATION_PARTIAL",
-      message: "Batch generation is planned but not fully implemented in this pass.",
+/** POST /api/letters/generated/batch — Generates letters in bulk with eligibility checks and skip reasons. */
+router.post("/generated/batch", requirePermission("letters.generate_batch"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const templateId = typeof req.body?.templateId === "string" ? req.body.templateId : "";
+  if (!templateId) {
+    res.status(400).json({ error: { code: "TEMPLATE_REQUIRED", message: "templateId is required." } });
+    return;
+  }
+
+  const template = await getTemplateForGeneration(organizationId, templateId);
+  if (!template) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Template not found." } });
+    return;
+  }
+
+  const dryRun = req.body?.dryRun === true;
+  const addToPrintQueue = req.body?.addToPrintQueue !== false;
+  const dedupeHousehold = req.body?.dedupeHousehold === true;
+  const year = typeof req.body?.year === "number"
+    ? req.body.year
+    : Number.parseInt(String(req.body?.year ?? ""), 10);
+
+  const requestedIds = Array.isArray(req.body?.constituentIds)
+    ? req.body.constituentIds.map((value: unknown) => String(value)).filter(Boolean)
+    : [];
+
+  const filterType = parseEnum(req.body?.filterType, ["ALL", "ACTIVE", "LAPSED", "NEW", "MAJOR_DONOR", "MONTHLY_DONOR"] as const) ?? "ALL";
+
+  const candidates = requestedIds.length > 0
+    ? await prisma.constituent.findMany({
+      where: {
+        organizationId,
+        id: { in: requestedIds },
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        donorStatus: true,
+        householdId: true,
+        doNotMail: true,
+        addressLine1: true,
+        city: true,
+        state: true,
+        zip: true,
+      },
+      take: 4000,
+    })
+    : await prisma.constituent.findMany({
+      where: {
+        organizationId,
+        ...(filterType === "ALL" ? {} : { donorStatus: filterType }),
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        donorStatus: true,
+        householdId: true,
+        doNotMail: true,
+        addressLine1: true,
+        city: true,
+        state: true,
+        zip: true,
+      },
+      take: 4000,
+    });
+
+  const seenHouseholds = new Set<string>();
+  const skipped: Array<{ constituentId: string; reason: string }> = [];
+  const generatedIds: string[] = [];
+  const generatedSample: Array<{ id: string; constituentId: string; constituentName: string }> = [];
+
+  for (const candidate of candidates) {
+    if (candidate.doNotMail) {
+      skipped.push({ constituentId: candidate.id, reason: "DO_NOT_MAIL" });
+      continue;
+    }
+
+    if (!hasCompleteMailAddress(candidate)) {
+      skipped.push({ constituentId: candidate.id, reason: "MISSING_ADDRESS" });
+      continue;
+    }
+
+    if (dedupeHousehold && candidate.householdId) {
+      if (seenHouseholds.has(candidate.householdId)) {
+        skipped.push({ constituentId: candidate.id, reason: "DUPLICATE_HOUSEHOLD" });
+        continue;
+      }
+      seenHouseholds.add(candidate.householdId);
+    }
+
+    const preview = await resolveLetterMergeContext({
+      organizationId,
+      template,
+      constituentId: candidate.id,
+      year: Number.isFinite(year) ? year : undefined,
+      actorUserId: userId,
+    });
+
+    if (preview.unsupportedFields.length > 0) {
+      skipped.push({ constituentId: candidate.id, reason: "UNSUPPORTED_MERGE_FIELDS" });
+      continue;
+    }
+
+    if (preview.mergedPrintBody.includes("{{")) {
+      skipped.push({ constituentId: candidate.id, reason: "MISSING_REQUIRED_MERGE_DATA" });
+      continue;
+    }
+
+    if (dryRun) {
+      generatedSample.push({
+        id: "dry-run",
+        constituentId: candidate.id,
+        constituentName: `${candidate.firstName} ${candidate.lastName}`.trim(),
+      });
+      continue;
+    }
+
+    const generated = await generateLetterFromTemplate({
+      organizationId,
+      templateId,
+      actorUserId: userId,
+      constituentId: candidate.id,
+      year: Number.isFinite(year) ? year : undefined,
+    });
+
+    if (!generated) {
+      skipped.push({ constituentId: candidate.id, reason: "GENERATION_FAILED" });
+      continue;
+    }
+
+    generatedIds.push(generated.generated.id);
+    generatedSample.push({
+      id: generated.generated.id,
+      constituentId: candidate.id,
+      constituentName: `${candidate.firstName} ${candidate.lastName}`.trim(),
+    });
+
+    if (addToPrintQueue) {
+      const queue: GeneratedLetterQueueMetadata = {
+        printStatus: "QUEUED_FOR_PRINT",
+        reviewStatus: "APPROVED",
+        priority: "NORMAL",
+        queuedForPrintAt: new Date().toISOString(),
+        updatedByUserId: userId,
+      };
+
+      await prisma.generatedLetter.update({
+        where: { id: generated.generated.id },
+        data: {
+          metadataJson: buildMetadataWithQueue(generated.generated.metadataJson, queue),
+        },
+      });
+    }
+  }
+
+  const skippedByReason = skipped.reduce<Record<string, number>>((acc, item) => {
+    acc[item.reason] = (acc[item.reason] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  await logAudit({
+    action: "LETTER_BATCH_GENERATION_RUN",
+    entity: "LetterTemplate",
+    entityId: templateId,
+    organizationId,
+    userId,
+    metadata: {
+      dryRun,
+      filterType,
+      selectedCount: candidates.length,
+      generatedCount: generatedIds.length,
+      skippedCount: skipped.length,
+      skippedByReason,
     },
+  });
+
+  res.json({
+    dryRun,
+    templateId,
+    totalSelected: candidates.length,
+    eligible: candidates.length - skipped.length,
+    generatedCount: generatedIds.length,
+    skippedCount: skipped.length,
+    skippedByReason,
+    skipped,
+    generated: generatedSample.slice(0, 200),
+    addToPrintQueue,
   });
 });
 

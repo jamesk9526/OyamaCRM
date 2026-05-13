@@ -45,6 +45,26 @@ OyamaCRM is **one platform with five integrated modules**, each purpose-built fo
 
 ---
 
+## Release Readiness Snapshot (2026-05-12 Audit Run)
+
+Current release gate status: Broken
+
+Latest command evidence shows:
+
+- Working: `typecheck`, `typecheck:web`, `typecheck:server`, `test:smoke` (151/151), `test` (337/337), `test:coverage`, `build`, `build:server`, `db:verify:linux-casing`
+- Broken: `lint` (13 errors), `test:e2e`, `test:e2e:mobile`, `test:e2e:livecom`, `db:generate` (Windows Prisma DLL rename `EPERM`)
+
+Readiness source of truth and dated evidence:
+
+- Release checklist: [docs/status/production-readiness-checklist.md](docs/status/production-readiness-checklist.md)
+- Full audit: [docs/status/readiness-audit-2026-05-12.md](docs/status/readiness-audit-2026-05-12.md)
+- Testing audit: [docs/status/testing-coverage-audit-2026-05-12.md](docs/status/testing-coverage-audit-2026-05-12.md)
+- E2E audit: [docs/status/e2e-coverage-audit-2026-05-12.md](docs/status/e2e-coverage-audit-2026-05-12.md)
+- Smoke audit: [docs/status/smoke-coverage-audit-2026-05-12.md](docs/status/smoke-coverage-audit-2026-05-12.md)
+- Build/typecheck audit: [docs/status/build-and-typecheck-audit-2026-05-12.md](docs/status/build-and-typecheck-audit-2026-05-12.md)
+
+---
+
 ## 📸 Screenshots
 
 ### Authentication
@@ -73,7 +93,7 @@ OyamaCRM is **one platform with five integrated modules**, each purpose-built fo
 #### Campaigns — Fundraising Campaigns & Goal Tracking
 ![Campaigns](README_SCREENSHOTS/08-campaigns.png)
 
-#### Grants — Grant Pipeline & Funder Management
+#### Grants — Grant Research, Deadlines, and Writing Workspace
 ![Grants](README_SCREENSHOTS/09-grants-pipeline.png)
 
 #### Tasks — Stewardship Workflow & Due Dates
@@ -117,6 +137,12 @@ DonorCRM is being actively hardened to function as a daily stewardship command c
 Current donor-specific implementation and readiness references:
 
 - Donor audit: [docs/DONOR_CRM_AUDIT.md](docs/DONOR_CRM_AUDIT.md)
+- Donor engagement architecture: [docs/DONOR_ENGAGEMENT_SYSTEM.md](docs/DONOR_ENGAGEMENT_SYSTEM.md)
+- Donor communications audit: [docs/DONOR_CRM_COMMUNICATIONS_AUDIT.md](docs/DONOR_CRM_COMMUNICATIONS_AUDIT.md)
+- Donor email builder notes: [docs/DONOR_CRM_EMAIL_BUILDER.md](docs/DONOR_CRM_EMAIL_BUILDER.md)
+- Donor letters and printables notes: [docs/DONOR_CRM_LETTERS_PRINTABLES.md](docs/DONOR_CRM_LETTERS_PRINTABLES.md)
+- Donor grants workspace design: [docs/DONOR_CRM_GRANTS_RESEARCH_WORKSPACE.md](docs/DONOR_CRM_GRANTS_RESEARCH_WORKSPACE.md)
+- Donor grants audit: [docs/DONOR_CRM_GRANTS_AUDIT.md](docs/DONOR_CRM_GRANTS_AUDIT.md)
 - Command center guidance: [docs/DONOR_CRM_STEWARDSHIP_COMMAND_CENTER.md](docs/DONOR_CRM_STEWARDSHIP_COMMAND_CENTER.md)
 - Donor sidebar IA: [docs/DONOR_CRM_SIDEBAR_NAVIGATION.md](docs/DONOR_CRM_SIDEBAR_NAVIGATION.md)
 - Feature status matrix: [docs/status/features.md](docs/status/features.md)
@@ -162,6 +188,8 @@ Current donor-specific implementation and readiness references:
 
 ### Communications
 - HTML email builder with reusable templates
+- Donor campaign studio workflow: Audience -> Design -> Personalize -> Review -> Schedule
+- Donor-specific block library for stewardship, giving, and compliance content
 - Segmented audience targeting
 - Campaign scheduling and send queue
 - Delivery event tracking: sent, opened, clicked, bounced, unsubscribed

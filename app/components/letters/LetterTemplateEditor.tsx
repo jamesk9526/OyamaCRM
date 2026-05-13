@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 import LettersWorkspaceNav from "@/app/components/letters/LettersWorkspaceNav";
+import FormLetterRichEditor from "@/app/components/letters/FormLetterRichEditor";
 import PrintLayoutBuilder from "@/app/components/letters/PrintLayoutBuilder";
 import { bodyToPrintLayout, parsePrintLayout, printLayoutToBody } from "@/app/components/letters/print-layout-utils";
 import type { FooterPreset, HeaderPreset, MergeFieldSection, PrintLayoutDocument, SignatureBlock } from "@/app/components/letters/types";
@@ -82,6 +83,8 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
     mergedEmailBody: string | null;
     unsupportedFields: string[];
   } | null>(null);
+  const [printInsertHandler, setPrintInsertHandler] = useState<((token: string) => void) | null>(null);
+  const [emailInsertHandler, setEmailInsertHandler] = useState<((token: string) => void) | null>(null);
   const [printEditorMode, setPrintEditorMode] = useState<PrintEditorMode>(VISUAL_PRINT_BUILDER_ENABLED ? "VISUAL" : "TEXT");
   const [printLayout, setPrintLayout] = useState<PrintLayoutDocument>([]);
 
@@ -148,6 +151,12 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
 
   /** Inserts one merge token into the active body editor. */
   function insertField(token: string) {
+    const handler = fieldTarget === "print" ? printInsertHandler : emailInsertHandler;
+    if (handler) {
+      handler(token);
+      return;
+    }
+
     if (fieldTarget === "print") {
       update("printBody", `${form.printBody}${form.printBody ? "\n" : ""}${token}`);
     } else {
@@ -362,21 +371,26 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
           {VISUAL_PRINT_BUILDER_ENABLED && printEditorMode === "VISUAL" ? (
             <PrintLayoutBuilder value={printLayout} onChange={updatePrintLayout} />
           ) : (
-            <label className="block text-sm text-gray-700">
-              Print Body
-              <textarea
+            <div className="space-y-3">
+              <FormLetterRichEditor
                 value={form.printBody}
-                onChange={(event) => {
-                  const nextBody = event.target.value;
+                placeholder="Write the printable letter body with merge fields and page-break markers..."
+                onChange={(nextBody) => {
                   update("printBody", nextBody);
                   if (VISUAL_PRINT_BUILDER_ENABLED) {
                     setPrintLayout(bodyToPrintLayout(nextBody));
                   }
                 }}
-                rows={14}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm"
+                onRegisterInsert={(handler) => setPrintInsertHandler(() => handler)}
               />
-            </label>
+
+              <div className="rounded-xl border border-gray-300 bg-gray-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Print-Ready Page Preview (8.5 x 11)</p>
+                <div className="mx-auto mt-3 w-full max-w-[816px] rounded border border-gray-300 bg-white p-10 shadow-sm">
+                  <div className="min-h-[720px] text-[14px] leading-6 text-gray-900 [&_hr[data-page-break='true']]:my-8 [&_hr[data-page-break='true']]:border-t-2 [&_hr[data-page-break='true']]:border-dashed [&_hr[data-page-break='true']]:border-gray-400" dangerouslySetInnerHTML={{ __html: form.printBody || "<p class='text-gray-400'>Letter preview will appear here.</p>" }} />
+                </div>
+              </div>
+            </div>
           )}
         </section>
       )}
@@ -391,10 +405,13 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
             Email Subject
             <input value={form.emailSubject} onChange={(event) => update("emailSubject", event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
           </label>
-          <label className="block text-sm text-gray-700">
-            Email Body
-            <textarea value={form.emailBody} onChange={(event) => update("emailBody", event.target.value)} rows={14} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm" />
-          </label>
+          <FormLetterRichEditor
+            value={form.emailBody}
+            placeholder="Write the email adaptation of this letter template..."
+            minHeight={220}
+            onChange={(nextBody) => update("emailBody", nextBody)}
+            onRegisterInsert={(handler) => setEmailInsertHandler(() => handler)}
+          />
         </section>
       )}
 
@@ -482,11 +499,11 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
             <div className="grid gap-3 lg:grid-cols-2">
               <div className="rounded-lg border border-gray-200 p-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Print Preview</p>
-                <pre className="mt-2 text-xs text-gray-700 whitespace-pre-wrap">{previewResult.mergedPrintBody}</pre>
+                <div className="mt-2 rounded border border-gray-200 bg-white p-4 text-sm text-gray-800 [&_hr[data-page-break='true']]:my-6 [&_hr[data-page-break='true']]:border-t-2 [&_hr[data-page-break='true']]:border-dashed [&_hr[data-page-break='true']]:border-gray-400" dangerouslySetInnerHTML={{ __html: previewResult.mergedPrintBody }} />
               </div>
               <div className="rounded-lg border border-gray-200 p-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Email Preview</p>
-                <pre className="mt-2 text-xs text-gray-700 whitespace-pre-wrap">{previewResult.mergedEmailBody || "No email body configured."}</pre>
+                <div className="mt-2 rounded border border-gray-200 bg-white p-4 text-sm text-gray-800" dangerouslySetInnerHTML={{ __html: previewResult.mergedEmailBody || "<p>No email body configured.</p>" }} />
               </div>
               {previewResult.unsupportedFields.length > 0 && (
                 <div className="lg:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">

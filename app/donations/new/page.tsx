@@ -6,6 +6,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import DonationForm from "@/app/components/donations/DonationForm";
 import { apiFetch } from "@/app/lib/auth-client";
 
@@ -21,6 +22,7 @@ interface SelectData {
 
 /** New Donation page — loads form options then renders DonationForm in create mode. */
 export default function NewDonationPage() {
+  const searchParams = useSearchParams();
   const [selectData, setSelectData] = useState<SelectData>({
     constituents: [],
     campaigns:    [],
@@ -50,6 +52,22 @@ export default function NewDonationPage() {
     load();
   }, []);
 
+  const source = searchParams.get("source") ?? "";
+  const grantTitle = searchParams.get("grantTitle") ?? "";
+  const funderName = searchParams.get("funderName") ?? "";
+  const suggestedAmount = searchParams.get("suggestedAmount") ?? "";
+
+  const grantPrefill = source === "grant-award"
+    ? {
+        amount: suggestedAmount && !Number.isNaN(Number(suggestedAmount)) ? String(Number(suggestedAmount)) : "",
+        notes: [
+          grantTitle ? `Grant opportunity: ${grantTitle}` : "",
+          funderName ? `Funder: ${funderName}` : "",
+          "Recorded from Grants workspace. Financial ledger source-of-truth remains Donations.",
+        ].filter(Boolean).join("\n"),
+      }
+    : undefined;
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
@@ -57,11 +75,18 @@ export default function NewDonationPage() {
         <p className="text-sm text-gray-500 mt-0.5">Enter a new donation or gift</p>
       </div>
 
+      {source === "grant-award" && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          Recording a received grant in Donations. This does not convert the grant workspace record into revenue automatically.
+        </div>
+      )}
+
       {loading ? (
         <div className="py-16 text-center text-gray-400 text-sm animate-pulse">Loading form…</div>
       ) : (
         <DonationForm
           mode="create"
+          defaultValues={grantPrefill}
           constituents={selectData.constituents}
           campaigns={selectData.campaigns}
           designations={selectData.designations}

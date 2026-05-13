@@ -14,9 +14,25 @@ import { useCallback } from 'react';
 import type {
   EmailBlock,
   EmailTemplate,
+  HeadingBlock,
   TextBlock,
   QuoteBlock,
   ImpactStatBlock,
+  ImpactStoryBlock,
+  ImpactGridBlock,
+  ProgressBlock,
+  TimelineBlock,
+  CalloutBlock,
+  FeatureListBlock,
+  DonorThankYouBlock,
+  DonationReceiptBlock,
+  GivingSummaryBlock,
+  DonationCtaBlock,
+  MonthlyDonorInvitationBlock,
+  LapsedDonorReengagementBlock,
+  FirstTimeDonorWelcomeBlock,
+  StaffSignatureBlock,
+  FooterComplianceBlock,
   ImageBlock,
   VideoBlock,
   ButtonBlock,
@@ -29,6 +45,7 @@ import type {
   SocialPlatform,
 } from '@/app/lib/email-builder-types';
 import { parseVideoUrl } from '@/app/lib/email-builder-utils';
+import RichTextEditor from '@/app/components/email-builder/RichTextEditor';
 
 // ─── Shared field primitives ──────────────────────────────────────────────────
 
@@ -66,12 +83,13 @@ function TextEditor({
 }) {
   return (
     <>
-      <Field label="Content (HTML)">
-        <textarea
-          className={`${inputCls} font-mono text-xs`}
-          rows={6}
+      <Field label="Content">
+        <RichTextEditor
           value={block.content}
-          onChange={(e) => onUpdate({ content: e.target.value })}
+          onChange={(content) => onUpdate({ content })}
+          htmlEnabled={!!block.htmlEditingEnabled}
+          onToggleHtmlEnabled={(enabled) => onUpdate({ htmlEditingEnabled: enabled })}
+          htmlLabel="Enable raw HTML editor for this block"
         />
       </Field>
       <Field label="Font Size (px)">
@@ -110,6 +128,80 @@ function TextEditor({
           <option value="center">Center</option>
           <option value="right">Right</option>
         </select>
+      </Field>
+      <Field label="Padding (px)">
+        <input
+          type="number"
+          className={inputCls}
+          min={0}
+          max={100}
+          value={block.padding}
+          onChange={(e) => onUpdate({ padding: Number(e.target.value) })}
+        />
+      </Field>
+    </>
+  );
+}
+
+function HeadingEditor({
+  block,
+  onUpdate,
+}: {
+  block: HeadingBlock;
+  onUpdate: (partial: Partial<HeadingBlock>) => void;
+}) {
+  return (
+    <>
+      <Field label="Eyebrow">
+        <input
+          type="text"
+          className={inputCls}
+          value={block.eyebrow ?? ''}
+          onChange={(e) => onUpdate({ eyebrow: e.target.value || undefined })}
+        />
+      </Field>
+      <Field label="Title">
+        <input
+          type="text"
+          className={inputCls}
+          value={block.title}
+          onChange={(e) => onUpdate({ title: e.target.value })}
+        />
+      </Field>
+      <Field label="Subtitle">
+        <textarea
+          className={inputCls}
+          rows={3}
+          value={block.subtitle ?? ''}
+          onChange={(e) => onUpdate({ subtitle: e.target.value || undefined })}
+        />
+      </Field>
+      <Field label="Alignment">
+        <select
+          className={selectCls}
+          value={block.align}
+          onChange={(e) => onUpdate({ align: e.target.value as HeadingBlock['align'] })}
+        >
+          <option value="left">Left</option>
+          <option value="center">Center</option>
+          <option value="right">Right</option>
+        </select>
+      </Field>
+      <Field label="Text Color">
+        <div className="flex gap-2">
+          <input
+            type="color"
+            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
+            value={block.textColor}
+            onChange={(e) => onUpdate({ textColor: e.target.value })}
+          />
+          <input
+            type="text"
+            className={`${inputCls} flex-1`}
+            value={block.textColor}
+            onChange={(e) => onUpdate({ textColor: e.target.value })}
+          />
+        </div>
       </Field>
       <Field label="Padding (px)">
         <input
@@ -251,6 +343,696 @@ function ImpactStatEditor({
           onChange={(e) => onUpdate({ padding: Number(e.target.value) })}
         />
       </Field>
+    </>
+  );
+}
+
+function ImpactGridEditor({
+  block,
+  onUpdate,
+}: {
+  block: ImpactGridBlock;
+  onUpdate: (partial: Partial<ImpactGridBlock>) => void;
+}) {
+  const serializedItems = block.items.map((item) => `${item.value}|${item.label}`).join('\n');
+
+  return (
+    <>
+      <Field label="Title">
+        <input
+          type="text"
+          className={inputCls}
+          value={block.title ?? ''}
+          onChange={(e) => onUpdate({ title: e.target.value || undefined })}
+        />
+      </Field>
+      <Field label="Metrics" hint="One per line: value|label">
+        <textarea
+          className={`${inputCls} font-mono text-xs`}
+          rows={6}
+          value={serializedItems}
+          onChange={(e) => {
+            const items = e.target.value
+              .split('\n')
+              .map((line) => line.trim())
+              .filter(Boolean)
+              .map((line) => {
+                const [value, ...labelParts] = line.split('|');
+                return {
+                  value: value?.trim() ?? '',
+                  label: labelParts.join('|').trim() || 'Impact',
+                };
+              })
+              .slice(0, 4);
+            onUpdate({ items });
+          }}
+        />
+      </Field>
+      <Field label="Card Color">
+        <div className="flex gap-2">
+          <input
+            type="color"
+            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
+            value={block.bgColor}
+            onChange={(e) => onUpdate({ bgColor: e.target.value })}
+          />
+          <input
+            type="text"
+            className={`${inputCls} flex-1`}
+            value={block.bgColor}
+            onChange={(e) => onUpdate({ bgColor: e.target.value })}
+          />
+        </div>
+      </Field>
+      <Field label="Accent Color">
+        <div className="flex gap-2">
+          <input
+            type="color"
+            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
+            value={block.accentColor}
+            onChange={(e) => onUpdate({ accentColor: e.target.value })}
+          />
+          <input
+            type="text"
+            className={`${inputCls} flex-1`}
+            value={block.accentColor}
+            onChange={(e) => onUpdate({ accentColor: e.target.value })}
+          />
+        </div>
+      </Field>
+      <Field label="Text Color">
+        <div className="flex gap-2">
+          <input
+            type="color"
+            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
+            value={block.textColor}
+            onChange={(e) => onUpdate({ textColor: e.target.value })}
+          />
+          <input
+            type="text"
+            className={`${inputCls} flex-1`}
+            value={block.textColor}
+            onChange={(e) => onUpdate({ textColor: e.target.value })}
+          />
+        </div>
+      </Field>
+      <Field label="Padding (px)">
+        <input
+          type="number"
+          className={inputCls}
+          min={0}
+          max={100}
+          value={block.padding}
+          onChange={(e) => onUpdate({ padding: Number(e.target.value) })}
+        />
+      </Field>
+    </>
+  );
+}
+
+function ProgressEditor({
+  block,
+  onUpdate,
+}: {
+  block: ProgressBlock;
+  onUpdate: (partial: Partial<ProgressBlock>) => void;
+}) {
+  return (
+    <>
+      <Field label="Label">
+        <input
+          type="text"
+          className={inputCls}
+          value={block.label}
+          onChange={(e) => onUpdate({ label: e.target.value })}
+        />
+      </Field>
+      <Field label="Current Amount">
+        <input
+          type="number"
+          className={inputCls}
+          min={0}
+          value={block.current}
+          onChange={(e) => onUpdate({ current: Number(e.target.value) })}
+        />
+      </Field>
+      <Field label="Goal Amount">
+        <input
+          type="number"
+          className={inputCls}
+          min={1}
+          value={block.goal}
+          onChange={(e) => onUpdate({ goal: Number(e.target.value) })}
+        />
+      </Field>
+      <Field label="Bar Color">
+        <div className="flex gap-2">
+          <input
+            type="color"
+            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
+            value={block.barColor}
+            onChange={(e) => onUpdate({ barColor: e.target.value })}
+          />
+          <input
+            type="text"
+            className={`${inputCls} flex-1`}
+            value={block.barColor}
+            onChange={(e) => onUpdate({ barColor: e.target.value })}
+          />
+        </div>
+      </Field>
+      <Field label="Track Color">
+        <div className="flex gap-2">
+          <input
+            type="color"
+            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
+            value={block.trackColor}
+            onChange={(e) => onUpdate({ trackColor: e.target.value })}
+          />
+          <input
+            type="text"
+            className={`${inputCls} flex-1`}
+            value={block.trackColor}
+            onChange={(e) => onUpdate({ trackColor: e.target.value })}
+          />
+        </div>
+      </Field>
+      <Field label="Text Color">
+        <div className="flex gap-2">
+          <input
+            type="color"
+            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
+            value={block.textColor}
+            onChange={(e) => onUpdate({ textColor: e.target.value })}
+          />
+          <input
+            type="text"
+            className={`${inputCls} flex-1`}
+            value={block.textColor}
+            onChange={(e) => onUpdate({ textColor: e.target.value })}
+          />
+        </div>
+      </Field>
+      <Field label="Padding (px)">
+        <input
+          type="number"
+          className={inputCls}
+          min={0}
+          max={100}
+          value={block.padding}
+          onChange={(e) => onUpdate({ padding: Number(e.target.value) })}
+        />
+      </Field>
+    </>
+  );
+}
+
+function TimelineEditor({
+  block,
+  onUpdate,
+}: {
+  block: TimelineBlock;
+  onUpdate: (partial: Partial<TimelineBlock>) => void;
+}) {
+  const serializedItems = block.items.map((item) => `${item.title}|${item.detail ?? ''}`).join('\n');
+
+  return (
+    <>
+      <Field label="Title">
+        <input
+          type="text"
+          className={inputCls}
+          value={block.title ?? ''}
+          onChange={(e) => onUpdate({ title: e.target.value || undefined })}
+        />
+      </Field>
+      <Field label="Timeline Items" hint="One per line: title|detail">
+        <textarea
+          className={`${inputCls} font-mono text-xs`}
+          rows={7}
+          value={serializedItems}
+          onChange={(e) => {
+            const items = e.target.value
+              .split('\n')
+              .map((line) => line.trim())
+              .filter(Boolean)
+              .map((line) => {
+                const [title, ...detailParts] = line.split('|');
+                return {
+                  title: title?.trim() ?? 'Milestone',
+                  detail: detailParts.join('|').trim() || undefined,
+                };
+              })
+              .slice(0, 6);
+            onUpdate({ items });
+          }}
+        />
+      </Field>
+      <Field label="Accent Color">
+        <div className="flex gap-2">
+          <input
+            type="color"
+            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
+            value={block.accentColor}
+            onChange={(e) => onUpdate({ accentColor: e.target.value })}
+          />
+          <input
+            type="text"
+            className={`${inputCls} flex-1`}
+            value={block.accentColor}
+            onChange={(e) => onUpdate({ accentColor: e.target.value })}
+          />
+        </div>
+      </Field>
+      <Field label="Text Color">
+        <div className="flex gap-2">
+          <input
+            type="color"
+            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
+            value={block.textColor}
+            onChange={(e) => onUpdate({ textColor: e.target.value })}
+          />
+          <input
+            type="text"
+            className={`${inputCls} flex-1`}
+            value={block.textColor}
+            onChange={(e) => onUpdate({ textColor: e.target.value })}
+          />
+        </div>
+      </Field>
+      <Field label="Padding (px)">
+        <input
+          type="number"
+          className={inputCls}
+          min={0}
+          max={100}
+          value={block.padding}
+          onChange={(e) => onUpdate({ padding: Number(e.target.value) })}
+        />
+      </Field>
+    </>
+  );
+}
+
+function CalloutEditor({
+  block,
+  onUpdate,
+}: {
+  block: CalloutBlock;
+  onUpdate: (partial: Partial<CalloutBlock>) => void;
+}) {
+  return (
+    <>
+      <Field label="Title">
+        <input
+          type="text"
+          className={inputCls}
+          value={block.title}
+          onChange={(e) => onUpdate({ title: e.target.value })}
+        />
+      </Field>
+      <Field label="Body">
+        <textarea
+          className={inputCls}
+          rows={5}
+          value={block.body}
+          onChange={(e) => onUpdate({ body: e.target.value })}
+        />
+      </Field>
+      <Field label="Background Color">
+        <div className="flex gap-2">
+          <input
+            type="color"
+            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
+            value={block.bgColor}
+            onChange={(e) => onUpdate({ bgColor: e.target.value })}
+          />
+          <input
+            type="text"
+            className={`${inputCls} flex-1`}
+            value={block.bgColor}
+            onChange={(e) => onUpdate({ bgColor: e.target.value })}
+          />
+        </div>
+      </Field>
+      <Field label="Border Color">
+        <div className="flex gap-2">
+          <input
+            type="color"
+            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
+            value={block.borderColor}
+            onChange={(e) => onUpdate({ borderColor: e.target.value })}
+          />
+          <input
+            type="text"
+            className={`${inputCls} flex-1`}
+            value={block.borderColor}
+            onChange={(e) => onUpdate({ borderColor: e.target.value })}
+          />
+        </div>
+      </Field>
+      <Field label="Text Color">
+        <div className="flex gap-2">
+          <input
+            type="color"
+            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
+            value={block.textColor}
+            onChange={(e) => onUpdate({ textColor: e.target.value })}
+          />
+          <input
+            type="text"
+            className={`${inputCls} flex-1`}
+            value={block.textColor}
+            onChange={(e) => onUpdate({ textColor: e.target.value })}
+          />
+        </div>
+      </Field>
+      <Field label="Padding (px)">
+        <input
+          type="number"
+          className={inputCls}
+          min={0}
+          max={100}
+          value={block.padding}
+          onChange={(e) => onUpdate({ padding: Number(e.target.value) })}
+        />
+      </Field>
+    </>
+  );
+}
+
+function FeatureListEditor({
+  block,
+  onUpdate,
+}: {
+  block: FeatureListBlock;
+  onUpdate: (partial: Partial<FeatureListBlock>) => void;
+}) {
+  return (
+    <>
+      <Field label="Title">
+        <input
+          type="text"
+          className={inputCls}
+          value={block.title ?? ''}
+          onChange={(e) => onUpdate({ title: e.target.value || undefined })}
+        />
+      </Field>
+      <Field label="List Items" hint="One item per line">
+        <textarea
+          className={inputCls}
+          rows={7}
+          value={block.items.join('\n')}
+          onChange={(e) => onUpdate({ items: e.target.value.split('\n').map((line) => line.trim()).filter(Boolean).slice(0, 8) })}
+        />
+      </Field>
+      <Field label="Bullet Color">
+        <div className="flex gap-2">
+          <input
+            type="color"
+            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
+            value={block.bulletColor}
+            onChange={(e) => onUpdate({ bulletColor: e.target.value })}
+          />
+          <input
+            type="text"
+            className={`${inputCls} flex-1`}
+            value={block.bulletColor}
+            onChange={(e) => onUpdate({ bulletColor: e.target.value })}
+          />
+        </div>
+      </Field>
+      <Field label="Text Color">
+        <div className="flex gap-2">
+          <input
+            type="color"
+            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
+            value={block.textColor}
+            onChange={(e) => onUpdate({ textColor: e.target.value })}
+          />
+          <input
+            type="text"
+            className={`${inputCls} flex-1`}
+            value={block.textColor}
+            onChange={(e) => onUpdate({ textColor: e.target.value })}
+          />
+        </div>
+      </Field>
+      <Field label="Padding (px)">
+        <input
+          type="number"
+          className={inputCls}
+          min={0}
+          max={100}
+          value={block.padding}
+          onChange={(e) => onUpdate({ padding: Number(e.target.value) })}
+        />
+      </Field>
+    </>
+  );
+}
+
+function ImpactStoryEditor({
+  block,
+  onUpdate,
+}: {
+  block: ImpactStoryBlock;
+  onUpdate: (partial: Partial<ImpactStoryBlock>) => void;
+}) {
+  return (
+    <>
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        Use only approved, privacy-safe stories. Do not include protected client-identifying details.
+      </div>
+      <Field label="Headline">
+        <input type="text" className={inputCls} value={block.headline} onChange={(e) => onUpdate({ headline: e.target.value })} />
+      </Field>
+      <Field label="Story Text">
+        <textarea className={inputCls} rows={5} value={block.story} onChange={(e) => onUpdate({ story: e.target.value })} />
+      </Field>
+      <Field label="Client-safe name or pseudonym">
+        <input type="text" className={inputCls} value={block.pseudonym ?? ''} onChange={(e) => onUpdate({ pseudonym: e.target.value || undefined })} />
+      </Field>
+      <Field label="Image URL (optional)">
+        <input type="url" className={inputCls} value={block.imageUrl ?? ''} onChange={(e) => onUpdate({ imageUrl: e.target.value || undefined })} />
+      </Field>
+      <Field label="Impact Outcome">
+        <textarea className={inputCls} rows={3} value={block.outcome} onChange={(e) => onUpdate({ outcome: e.target.value })} />
+      </Field>
+      <Field label="CTA Label">
+        <input type="text" className={inputCls} value={block.ctaLabel ?? ''} onChange={(e) => onUpdate({ ctaLabel: e.target.value || undefined })} />
+      </Field>
+      <Field label="CTA URL">
+        <input type="url" className={inputCls} value={block.ctaUrl ?? ''} onChange={(e) => onUpdate({ ctaUrl: e.target.value || undefined })} />
+      </Field>
+    </>
+  );
+}
+
+function DonorThankYouEditor({
+  block,
+  onUpdate,
+}: {
+  block: DonorThankYouBlock;
+  onUpdate: (partial: Partial<DonorThankYouBlock>) => void;
+}) {
+  return (
+    <>
+      <Field label="Thank-you Headline">
+        <input type="text" className={inputCls} value={block.headline} onChange={(e) => onUpdate({ headline: e.target.value })} />
+      </Field>
+      <Field label="Gift Amount Merge Field">
+        <input type="text" className={inputCls} value={block.giftAmountToken} onChange={(e) => onUpdate({ giftAmountToken: e.target.value })} />
+      </Field>
+      <Field label="Gift Date Merge Field">
+        <input type="text" className={inputCls} value={block.giftDateToken} onChange={(e) => onUpdate({ giftDateToken: e.target.value })} />
+      </Field>
+      <Field label="Campaign/Designation Merge Field">
+        <input type="text" className={inputCls} value={block.campaignToken} onChange={(e) => onUpdate({ campaignToken: e.target.value })} />
+      </Field>
+      <Field label="Short Thank-you Message">
+        <textarea className={inputCls} rows={4} value={block.thankYouMessage} onChange={(e) => onUpdate({ thankYouMessage: e.target.value })} />
+      </Field>
+      <Field label="Staff Signature">
+        <input type="text" className={inputCls} value={block.staffSignature} onChange={(e) => onUpdate({ staffSignature: e.target.value })} />
+      </Field>
+    </>
+  );
+}
+
+function DonationReceiptEditor({
+  block,
+  onUpdate,
+}: {
+  block: DonationReceiptBlock;
+  onUpdate: (partial: Partial<DonationReceiptBlock>) => void;
+}) {
+  return (
+    <>
+      <Field label="Donor Name">
+        <input type="text" className={inputCls} value={block.donorNameToken} onChange={(e) => onUpdate({ donorNameToken: e.target.value })} />
+      </Field>
+      <Field label="Gift Amount">
+        <input type="text" className={inputCls} value={block.giftAmountToken} onChange={(e) => onUpdate({ giftAmountToken: e.target.value })} />
+      </Field>
+      <Field label="Gift Date">
+        <input type="text" className={inputCls} value={block.giftDateToken} onChange={(e) => onUpdate({ giftDateToken: e.target.value })} />
+      </Field>
+      <Field label="Receipt Number">
+        <input type="text" className={inputCls} value={block.receiptNumberToken} onChange={(e) => onUpdate({ receiptNumberToken: e.target.value })} />
+      </Field>
+      <Field label="Tax-Deductible Amount">
+        <input type="text" className={inputCls} value={block.taxDeductibleToken} onChange={(e) => onUpdate({ taxDeductibleToken: e.target.value })} />
+      </Field>
+      <Field label="Designation/Fund">
+        <input type="text" className={inputCls} value={block.designationToken} onChange={(e) => onUpdate({ designationToken: e.target.value })} />
+      </Field>
+      <Field label="Organization Tax ID">
+        <input type="text" className={inputCls} value={block.organizationTaxIdToken} onChange={(e) => onUpdate({ organizationTaxIdToken: e.target.value })} />
+      </Field>
+      <Field label="Goods/Services Statement">
+        <textarea className={inputCls} rows={3} value={block.goodsServicesStatement} onChange={(e) => onUpdate({ goodsServicesStatement: e.target.value })} />
+      </Field>
+    </>
+  );
+}
+
+function GivingSummaryEditor({
+  block,
+  onUpdate,
+}: {
+  block: GivingSummaryBlock;
+  onUpdate: (partial: Partial<GivingSummaryBlock>) => void;
+}) {
+  return (
+    <>
+      <Field label="Year Token"><input type="text" className={inputCls} value={block.yearToken} onChange={(e) => onUpdate({ yearToken: e.target.value })} /></Field>
+      <Field label="Total Giving Token"><input type="text" className={inputCls} value={block.totalGivingToken} onChange={(e) => onUpdate({ totalGivingToken: e.target.value })} /></Field>
+      <Field label="Number of Gifts Token"><input type="text" className={inputCls} value={block.giftCountToken} onChange={(e) => onUpdate({ giftCountToken: e.target.value })} /></Field>
+      <Field label="First Gift Date Token"><input type="text" className={inputCls} value={block.firstGiftDateToken} onChange={(e) => onUpdate({ firstGiftDateToken: e.target.value })} /></Field>
+      <Field label="Last Gift Date Token"><input type="text" className={inputCls} value={block.lastGiftDateToken} onChange={(e) => onUpdate({ lastGiftDateToken: e.target.value })} /></Field>
+      <Field label="Campaigns Supported Token"><input type="text" className={inputCls} value={block.campaignsSupportedToken} onChange={(e) => onUpdate({ campaignsSupportedToken: e.target.value })} /></Field>
+    </>
+  );
+}
+
+function DonationCtaEditor({
+  block,
+  onUpdate,
+}: {
+  block: DonationCtaBlock;
+  onUpdate: (partial: Partial<DonationCtaBlock>) => void;
+}) {
+  return (
+    <>
+      <Field label="Headline"><input type="text" className={inputCls} value={block.headline} onChange={(e) => onUpdate({ headline: e.target.value })} /></Field>
+      <Field label="Appeal Text"><textarea className={inputCls} rows={4} value={block.appealText} onChange={(e) => onUpdate({ appealText: e.target.value })} /></Field>
+      <Field label="Suggested Gift Buttons" hint="One amount per line">
+        <textarea className={inputCls} rows={5} value={block.suggestedAmounts.join('\n')} onChange={(e) => onUpdate({ suggestedAmounts: e.target.value.split('\n').map((line) => line.trim()).filter(Boolean).slice(0, 8) })} />
+      </Field>
+      <Field label="Button Text"><input type="text" className={inputCls} value={block.buttonLabel} onChange={(e) => onUpdate({ buttonLabel: e.target.value })} /></Field>
+      <Field label="Button URL"><input type="url" className={inputCls} value={block.buttonUrl} onChange={(e) => onUpdate({ buttonUrl: e.target.value })} /></Field>
+    </>
+  );
+}
+
+function MonthlyDonorInvitationEditor({
+  block,
+  onUpdate,
+}: {
+  block: MonthlyDonorInvitationBlock;
+  onUpdate: (partial: Partial<MonthlyDonorInvitationBlock>) => void;
+}) {
+  return (
+    <>
+      <Field label="Headline"><input type="text" className={inputCls} value={block.headline} onChange={(e) => onUpdate({ headline: e.target.value })} /></Field>
+      <Field label="Invitation Message"><textarea className={inputCls} rows={4} value={block.message} onChange={(e) => onUpdate({ message: e.target.value })} /></Field>
+      <Field label="Suggested Monthly Amounts" hint="One amount per line">
+        <textarea className={inputCls} rows={4} value={block.suggestedMonthlyAmounts.join('\n')} onChange={(e) => onUpdate({ suggestedMonthlyAmounts: e.target.value.split('\n').map((line) => line.trim()).filter(Boolean).slice(0, 8) })} />
+      </Field>
+      <Field label="Benefit Bullets" hint="One bullet per line">
+        <textarea className={inputCls} rows={4} value={block.benefitBullets.join('\n')} onChange={(e) => onUpdate({ benefitBullets: e.target.value.split('\n').map((line) => line.trim()).filter(Boolean).slice(0, 8) })} />
+      </Field>
+      <Field label="CTA Label"><input type="text" className={inputCls} value={block.ctaLabel} onChange={(e) => onUpdate({ ctaLabel: e.target.value })} /></Field>
+      <Field label="CTA URL"><input type="url" className={inputCls} value={block.ctaUrl} onChange={(e) => onUpdate({ ctaUrl: e.target.value })} /></Field>
+    </>
+  );
+}
+
+function LapsedDonorReengagementEditor({
+  block,
+  onUpdate,
+}: {
+  block: LapsedDonorReengagementBlock;
+  onUpdate: (partial: Partial<LapsedDonorReengagementBlock>) => void;
+}) {
+  return (
+    <>
+      <Field label="Warm Greeting"><input type="text" className={inputCls} value={block.greeting} onChange={(e) => onUpdate({ greeting: e.target.value })} /></Field>
+      <Field label="Last Gift Date Merge Field"><input type="text" className={inputCls} value={block.lastGiftDateToken} onChange={(e) => onUpdate({ lastGiftDateToken: e.target.value })} /></Field>
+      <Field label="Re-Engagement Message"><textarea className={inputCls} rows={4} value={block.message} onChange={(e) => onUpdate({ message: e.target.value })} /></Field>
+      <Field label="Impact Reminder"><textarea className={inputCls} rows={3} value={block.impactReminder} onChange={(e) => onUpdate({ impactReminder: e.target.value })} /></Field>
+      <Field label="CTA Label"><input type="text" className={inputCls} value={block.ctaLabel} onChange={(e) => onUpdate({ ctaLabel: e.target.value })} /></Field>
+      <Field label="CTA URL"><input type="url" className={inputCls} value={block.ctaUrl} onChange={(e) => onUpdate({ ctaUrl: e.target.value })} /></Field>
+    </>
+  );
+}
+
+function FirstTimeDonorWelcomeEditor({
+  block,
+  onUpdate,
+}: {
+  block: FirstTimeDonorWelcomeBlock;
+  onUpdate: (partial: Partial<FirstTimeDonorWelcomeBlock>) => void;
+}) {
+  return (
+    <>
+      <Field label="Welcome Headline"><input type="text" className={inputCls} value={block.headline} onChange={(e) => onUpdate({ headline: e.target.value })} /></Field>
+      <Field label="Mission Introduction"><textarea className={inputCls} rows={3} value={block.missionIntro} onChange={(e) => onUpdate({ missionIntro: e.target.value })} /></Field>
+      <Field label="What To Expect Next"><textarea className={inputCls} rows={3} value={block.whatToExpect} onChange={(e) => onUpdate({ whatToExpect: e.target.value })} /></Field>
+      <Field label="Contact Person"><input type="text" className={inputCls} value={block.contactPerson} onChange={(e) => onUpdate({ contactPerson: e.target.value })} /></Field>
+      <Field label="CTA Label"><input type="text" className={inputCls} value={block.ctaLabel} onChange={(e) => onUpdate({ ctaLabel: e.target.value })} /></Field>
+      <Field label="CTA URL"><input type="url" className={inputCls} value={block.ctaUrl} onChange={(e) => onUpdate({ ctaUrl: e.target.value })} /></Field>
+    </>
+  );
+}
+
+function StaffSignatureEditor({
+  block,
+  onUpdate,
+}: {
+  block: StaffSignatureBlock;
+  onUpdate: (partial: Partial<StaffSignatureBlock>) => void;
+}) {
+  return (
+    <>
+      <Field label="Name Token"><input type="text" className={inputCls} value={block.nameToken} onChange={(e) => onUpdate({ nameToken: e.target.value })} /></Field>
+      <Field label="Title Token"><input type="text" className={inputCls} value={block.titleToken} onChange={(e) => onUpdate({ titleToken: e.target.value })} /></Field>
+      <Field label="Phone Token"><input type="text" className={inputCls} value={block.phoneToken} onChange={(e) => onUpdate({ phoneToken: e.target.value })} /></Field>
+      <Field label="Email Token"><input type="text" className={inputCls} value={block.emailToken} onChange={(e) => onUpdate({ emailToken: e.target.value })} /></Field>
+      <Field label="Organization Token"><input type="text" className={inputCls} value={block.organizationToken} onChange={(e) => onUpdate({ organizationToken: e.target.value })} /></Field>
+      <Field label="Signature Image URL"><input type="url" className={inputCls} value={block.signatureImageUrl ?? ''} onChange={(e) => onUpdate({ signatureImageUrl: e.target.value || undefined })} /></Field>
+      <Field label="Headshot URL"><input type="url" className={inputCls} value={block.headshotUrl ?? ''} onChange={(e) => onUpdate({ headshotUrl: e.target.value || undefined })} /></Field>
+    </>
+  );
+}
+
+function FooterComplianceEditor({
+  block,
+  onUpdate,
+}: {
+  block: FooterComplianceBlock;
+  onUpdate: (partial: Partial<FooterComplianceBlock>) => void;
+}) {
+  return (
+    <>
+      <Field label="Organization Name"><input type="text" className={inputCls} value={block.organizationNameToken} onChange={(e) => onUpdate({ organizationNameToken: e.target.value })} /></Field>
+      <Field label="Address"><input type="text" className={inputCls} value={block.addressToken} onChange={(e) => onUpdate({ addressToken: e.target.value })} /></Field>
+      <Field label="Phone"><input type="text" className={inputCls} value={block.phoneToken} onChange={(e) => onUpdate({ phoneToken: e.target.value })} /></Field>
+      <Field label="Website"><input type="text" className={inputCls} value={block.websiteToken} onChange={(e) => onUpdate({ websiteToken: e.target.value })} /></Field>
+      <Field label="Unsubscribe Link"><input type="text" className={inputCls} value={block.unsubscribeToken} onChange={(e) => onUpdate({ unsubscribeToken: e.target.value })} /></Field>
+      <Field label="Manage Preferences Link"><input type="text" className={inputCls} value={block.managePreferencesToken} onChange={(e) => onUpdate({ managePreferencesToken: e.target.value })} /></Field>
+      <Field label="Tax ID (optional)"><input type="text" className={inputCls} value={block.taxIdToken ?? ''} onChange={(e) => onUpdate({ taxIdToken: e.target.value || undefined })} /></Field>
     </>
   );
 }
@@ -531,12 +1313,13 @@ function AiTextEditor({
       >
         {generating ? 'Generating AI Text...' : 'Generate with AI'}
       </button>
-      <Field label="Generated HTML Content">
-        <textarea
-          className={`${inputCls} font-mono text-xs`}
-          rows={7}
+      <Field label="Generated Content">
+        <RichTextEditor
           value={block.content}
-          onChange={(e) => onUpdate({ content: e.target.value })}
+          onChange={(content) => onUpdate({ content })}
+          htmlEnabled={!!block.htmlEditingEnabled}
+          onToggleHtmlEnabled={(enabled) => onUpdate({ htmlEditingEnabled: enabled })}
+          htmlLabel="Enable raw HTML editor for this AI block"
         />
       </Field>
       <Field label="Padding (px)">
@@ -985,6 +1768,7 @@ interface Props {
   onUpdateTemplate: (partial: Partial<EmailTemplate>) => void;
   onGenerateAiBlock?: (id: string) => void;
   aiGeneratingBlockId?: string | null;
+  embedded?: boolean;
 }
 
 /**
@@ -998,6 +1782,7 @@ export default function BlockEditor({
   onUpdateTemplate,
   onGenerateAiBlock,
   aiGeneratingBlockId,
+  embedded = false,
 }: Props) {
   /* Stable update helper so child editors don't need the block id. */
   const update = useCallback(
@@ -1007,8 +1792,8 @@ export default function BlockEditor({
     [selectedBlock, onUpdateBlock]
   );
 
-  return (
-    <aside className="w-[300px] shrink-0 bg-white border-l border-gray-200 flex flex-col overflow-hidden">
+  const content = (
+    <>
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200 bg-white shrink-0">
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -1033,6 +1818,12 @@ export default function BlockEditor({
                 onUpdate={update as (p: Partial<TextBlock>) => void}
               />
             )}
+            {selectedBlock.type === 'heading' && (
+              <HeadingEditor
+                block={selectedBlock as HeadingBlock}
+                onUpdate={update as (p: Partial<HeadingBlock>) => void}
+              />
+            )}
             {selectedBlock.type === 'quote' && (
               <QuoteEditor
                 block={selectedBlock as QuoteBlock}
@@ -1043,6 +1834,96 @@ export default function BlockEditor({
               <ImpactStatEditor
                 block={selectedBlock as ImpactStatBlock}
                 onUpdate={update as (p: Partial<ImpactStatBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'impactStory' && (
+              <ImpactStoryEditor
+                block={selectedBlock as ImpactStoryBlock}
+                onUpdate={update as (p: Partial<ImpactStoryBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'impactGrid' && (
+              <ImpactGridEditor
+                block={selectedBlock as ImpactGridBlock}
+                onUpdate={update as (p: Partial<ImpactGridBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'progress' && (
+              <ProgressEditor
+                block={selectedBlock as ProgressBlock}
+                onUpdate={update as (p: Partial<ProgressBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'timeline' && (
+              <TimelineEditor
+                block={selectedBlock as TimelineBlock}
+                onUpdate={update as (p: Partial<TimelineBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'callout' && (
+              <CalloutEditor
+                block={selectedBlock as CalloutBlock}
+                onUpdate={update as (p: Partial<CalloutBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'featureList' && (
+              <FeatureListEditor
+                block={selectedBlock as FeatureListBlock}
+                onUpdate={update as (p: Partial<FeatureListBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'donorThankYou' && (
+              <DonorThankYouEditor
+                block={selectedBlock as DonorThankYouBlock}
+                onUpdate={update as (p: Partial<DonorThankYouBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'donationReceipt' && (
+              <DonationReceiptEditor
+                block={selectedBlock as DonationReceiptBlock}
+                onUpdate={update as (p: Partial<DonationReceiptBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'givingSummary' && (
+              <GivingSummaryEditor
+                block={selectedBlock as GivingSummaryBlock}
+                onUpdate={update as (p: Partial<GivingSummaryBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'donationCta' && (
+              <DonationCtaEditor
+                block={selectedBlock as DonationCtaBlock}
+                onUpdate={update as (p: Partial<DonationCtaBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'monthlyDonorInvitation' && (
+              <MonthlyDonorInvitationEditor
+                block={selectedBlock as MonthlyDonorInvitationBlock}
+                onUpdate={update as (p: Partial<MonthlyDonorInvitationBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'lapsedDonorReengagement' && (
+              <LapsedDonorReengagementEditor
+                block={selectedBlock as LapsedDonorReengagementBlock}
+                onUpdate={update as (p: Partial<LapsedDonorReengagementBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'firstTimeDonorWelcome' && (
+              <FirstTimeDonorWelcomeEditor
+                block={selectedBlock as FirstTimeDonorWelcomeBlock}
+                onUpdate={update as (p: Partial<FirstTimeDonorWelcomeBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'staffSignature' && (
+              <StaffSignatureEditor
+                block={selectedBlock as StaffSignatureBlock}
+                onUpdate={update as (p: Partial<StaffSignatureBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'footerCompliance' && (
+              <FooterComplianceEditor
+                block={selectedBlock as FooterComplianceBlock}
+                onUpdate={update as (p: Partial<FooterComplianceBlock>) => void}
               />
             )}
             {selectedBlock.type === 'image' && (
@@ -1106,6 +1987,16 @@ export default function BlockEditor({
           </>
         )}
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="flex h-full flex-col overflow-hidden">{content}</div>;
+  }
+
+  return (
+    <aside className="w-[300px] shrink-0 bg-white border-l border-gray-200 flex flex-col overflow-hidden">
+      {content}
     </aside>
   );
 }

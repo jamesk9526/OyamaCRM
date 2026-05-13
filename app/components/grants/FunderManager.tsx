@@ -14,7 +14,7 @@ const FUNDER_TYPES: { value: GrantFunderType; label: string }[] = [
   { value: "CORPORATE",          label: "Corporate / Business" },
   { value: "COMMUNITY",          label: "Community Foundation" },
   { value: "FAITH_BASED",        label: "Faith-Based" },
-  { value: "INDIVIDUAL",         label: "Individual Donor" },
+  { value: "INDIVIDUAL",         label: "Individual Philanthropist" },
   { value: "OTHER",              label: "Other" },
 ];
 
@@ -173,7 +173,7 @@ export default function FunderManager() {
     CORPORATE: "Corporate",
     COMMUNITY: "Community Foundation",
     FAITH_BASED: "Faith-Based",
-    INDIVIDUAL: "Individual",
+    INDIVIDUAL: "Individual Philanthropist",
     OTHER: "Other",
   };
 
