@@ -1,5 +1,7 @@
 -- AlterTable
-ALTER TABLE `emailcampaign` ADD COLUMN `purpose` ENUM('MARKETING', 'FUNDRAISING', 'NEWSLETTER', 'EVENT_PROMOTION', 'RECEIPT', 'THANK_YOU', 'TRANSACTIONAL', 'ADMINISTRATIVE', 'PERSONAL') NOT NULL DEFAULT 'MARKETING';
+-- NOTE: The EmailCampaign table is created in migration 20260509022557_add_constituent_external_id.
+-- Keep exact table casing (`EmailCampaign`) for Linux/MySQL deployments with case-sensitive table names.
+ALTER TABLE `EmailCampaign` ADD COLUMN `purpose` ENUM('MARKETING', 'FUNDRAISING', 'NEWSLETTER', 'EVENT_PROMOTION', 'RECEIPT', 'THANK_YOU', 'TRANSACTIONAL', 'ADMINISTRATIVE', 'PERSONAL') NOT NULL DEFAULT 'MARKETING';
 
 -- CreateTable
 CREATE TABLE `EmailSubscription` (

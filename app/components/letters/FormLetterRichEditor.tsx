@@ -1,7 +1,7 @@
 /** TipTap-based form letter editor with merge-token insertion, print-safe controls, and optional raw HTML mode. */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Color from "@tiptap/extension-color";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
@@ -94,6 +94,12 @@ export default function FormLetterRichEditor({
     },
   });
 
+  const editorRef = useRef(editor);
+
+  useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
+
   // Keep editor content synchronized when parent state updates externally.
   useEffect(() => {
     if (!editor) return;
@@ -103,17 +109,20 @@ export default function FormLetterRichEditor({
 
   // Register token insertion callback so parent merge-field panels can insert at cursor.
   useEffect(() => {
-    if (!onRegisterInsert || !editor) return;
+    if (!onRegisterInsert) return;
 
     // Insert tokens as inline code to make merge placeholders visually distinct in authoring mode.
     onRegisterInsert((token) => {
-      editor
+      const currentEditor = editorRef.current;
+      if (!currentEditor || currentEditor.isDestroyed) return;
+
+      currentEditor
         .chain()
         .focus()
         .insertContent([{ type: "text", text: token, marks: [{ type: "code" }] }])
         .run();
     });
-  }, [editor, onRegisterInsert]);
+  }, [onRegisterInsert]);
 
   /** Prompts for link URL and applies or removes link mark at current selection. */
   function handleSetLink() {

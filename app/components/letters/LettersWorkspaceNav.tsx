@@ -7,11 +7,11 @@ import { usePathname } from "next/navigation";
 const WORKFLOW_STEPS = [
   { href: "/letters-printables", label: "1. Dashboard" },
   { href: "/letters-printables/templates", label: "2. Templates" },
-  { href: "/letters-printables/generate", label: "3. Generate Single" },
-  { href: "/letters-printables/batches", label: "4. Generate Batch" },
+  { href: "/letters-printables/generated", label: "3. Generated Media" },
+  { href: "/letters-printables/generate", label: "4. Generate" },
   { href: "/letters-printables/print-queue", label: "5. Print Queue" },
   { href: "/letters-printables/mail-queue", label: "6. Mail Queue" },
-  { href: "/letters-printables/generated", label: "7. Generated History" },
+  { href: "/letters-printables/batches", label: "7. Batches" },
 ] as const;
 
 const SUPPORT_LINKS = [
@@ -83,57 +83,9 @@ export default function LettersWorkspaceNav() {
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="space-y-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Letters Workflow</p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {WORKFLOW_STEPS.map((link) => {
-                const active = link.href === "/letters-printables"
-                  ? pathname === link.href
-                  : pathname.startsWith(link.href);
-
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                      active
-                        ? "border-green-600 bg-green-50 text-green-700"
-                        : "border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-800"
-                    }`}
-                  >
-                    {link.label}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Workspace Setup</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {SUPPORT_LINKS.map((link) => {
-                const active = pathname.startsWith(link.href);
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
-                      active
-                        ? "border-green-600 bg-green-50 text-green-700"
-                        : "border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-800"
-                    }`}
-                  >
-                    {link.label}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        <aside className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_290px]">
+        <section className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Workspace Guidance</p>
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">{guidance.title}</p>
           <ol className="mt-2 space-y-1 text-xs text-gray-600 list-decimal pl-4">
             {guidance.steps.map((step) => (
@@ -141,6 +93,51 @@ export default function LettersWorkspaceNav() {
             ))}
           </ol>
           <p className="mt-3 text-[11px] text-gray-500">Follow each numbered step to reduce handoff errors.</p>
+        </section>
+
+        <aside className="rounded-lg border border-gray-200 bg-white p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Letters Tools</p>
+          <div className="mt-2 space-y-2">
+            {WORKFLOW_STEPS.map((link) => {
+              const active = link.href === "/letters-printables"
+                ? pathname === link.href
+                : pathname.startsWith(link.href);
+
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`block rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    active
+                      ? "border-green-600 bg-green-50 text-green-700"
+                      : "border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-800"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </div>
+
+          <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-gray-500">Setup</p>
+          <div className="mt-2 space-y-2">
+            {SUPPORT_LINKS.map((link) => {
+              const active = pathname.startsWith(link.href);
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`block rounded-md border px-3 py-2 text-xs font-medium transition-colors ${
+                    active
+                      ? "border-green-600 bg-green-50 text-green-700"
+                      : "border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-800"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </div>
         </aside>
       </div>
     </div>

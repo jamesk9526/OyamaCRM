@@ -278,19 +278,10 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
 
       <LettersWorkspaceNav />
 
-      <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-3">
-        {EDITOR_TABS.map((entry) => (
-          <button
-            key={entry}
-            onClick={() => setTab(entry)}
-            className={`px-3 py-1.5 rounded-full text-sm border ${tab === entry ? "border-green-600 bg-green-50 text-green-700" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}
-          >
-            {entry[0].toUpperCase() + entry.slice(1)}
-          </button>
-        ))}
-      </div>
-
       {error && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{error}</div>}
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-4">
 
       {tab === "setup" && (
         <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
@@ -438,34 +429,6 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
         </section>
       )}
 
-      {tab === "merge" && (
-        <section className="rounded-xl border border-gray-200 bg-white p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-900">Merge Fields</h2>
-            <p className="text-xs text-gray-500">Click a token to insert it into the print editor.</p>
-          </div>
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
-            {mergeSections.map((section) => (
-              <div key={section.key} className="rounded-lg border border-gray-200 p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">{section.label}</p>
-                {section.sensitive && <p className="text-[11px] text-amber-700 mt-1">Sensitive giving data</p>}
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {section.fields.map((field) => (
-                    <button
-                      key={field}
-                      onClick={() => insertField(field)}
-                      className="px-2 py-1 text-xs rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
-                    >
-                      {field}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
       {tab === "preview" && (
         <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
           <h2 className="text-sm font-semibold text-gray-900">Merge Preview</h2>
@@ -492,6 +455,73 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
           )}
         </section>
       )}
+
+      {tab === "merge" && (
+        <section className="rounded-xl border border-gray-200 bg-white p-4">
+          <h2 className="text-sm font-semibold text-gray-900">Merge Tools Are In The Right Sidebar</h2>
+          <p className="mt-1 text-xs text-gray-500">Use the right panel to insert merge fields and run preview without leaving the editor.</p>
+        </section>
+      )}
+        </div>
+
+        <aside className="h-fit rounded-xl border border-gray-200 bg-white p-4 space-y-4 xl:sticky xl:top-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Template Studio</p>
+            <div className="mt-2 space-y-2">
+              {EDITOR_TABS.map((entry) => (
+                <button
+                  key={entry}
+                  onClick={() => setTab(entry)}
+                  className={`w-full rounded-lg border px-3 py-2 text-left text-sm font-medium ${tab === entry ? "border-green-600 bg-green-50 text-green-700" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}
+                >
+                  {entry[0].toUpperCase() + entry.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Preview Context</p>
+            <div className="mt-2 space-y-2">
+              <input placeholder="Constituent ID" value={previewConstituentId} onChange={(event) => setPreviewConstituentId(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs" />
+              <input placeholder="Donation ID (optional)" value={previewDonationId} onChange={(event) => setPreviewDonationId(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs" />
+              <input placeholder="Year" value={previewYear} onChange={(event) => setPreviewYear(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs" />
+              <button onClick={() => void runPreview()} className="w-full rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700">Run Merged Preview</button>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Merge Fields</p>
+            <div className="mt-2 max-h-[360px] space-y-2 overflow-auto pr-1">
+              {mergeSections.map((section) => (
+                <div key={section.key} className="rounded-lg border border-gray-200 p-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">{section.label}</p>
+                  {section.sensitive && <p className="mt-1 text-[10px] text-amber-700">Sensitive</p>}
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {section.fields.slice(0, 8).map((field) => (
+                      <button
+                        key={field}
+                        onClick={() => insertField(field)}
+                        className="rounded border border-gray-300 px-2 py-1 text-[10px] text-gray-700 hover:bg-gray-50"
+                      >
+                        {field}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Generated Media</p>
+            <p className="mt-1 text-[11px] text-gray-600">Templates are reusable. Generated media stays donor-specific and reviewable in its own queue.</p>
+            <div className="mt-2 flex gap-2">
+              <Link href="/letters-printables/generated" className="rounded-md border border-gray-300 px-2.5 py-1.5 text-[11px] text-gray-700 hover:bg-gray-50">Open Generated Media</Link>
+            </div>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }

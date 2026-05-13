@@ -548,6 +548,16 @@ Status labels for release tracking must be exactly:
 If a route or workflow is scaffolded, unstable, or only suitable for demos, do not mark it as Working in release-readiness summaries.
 <!-- END:production-readiness-tracking-rules -->
 
+<!-- BEGIN:mysql-prisma-casing-rules -->
+## MySQL Prisma Table Casing Rules
+
+- MySQL table names in raw SQL migrations must exactly match Prisma-generated table names, including letter casing.
+- Before editing `ALTER TABLE` statements, verify the model's real table identifier from `prisma/schema.prisma` (`@@map` if present) and from the migration that created the table.
+- Do not assume lowercase table names for Prisma models on Linux hosts; `EmailCampaign` and `emailcampaign` are different tables in case-sensitive environments.
+- If a migration fails with MySQL `1146` for a known model table, check casing first before adding create-table SQL.
+- Never add duplicate tables to work around casing mismatches.
+<!-- END:mysql-prisma-casing-rules -->
+
 <!-- BEGIN:readiness-audit-rules -->
 ## Readiness Audit Rules
 

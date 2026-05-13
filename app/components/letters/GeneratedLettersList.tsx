@@ -73,11 +73,11 @@ export default function GeneratedLettersList() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Generated Letters</h1>
-          <p className="mt-0.5 text-sm text-gray-500">Track print status and mail status for generated communication records.</p>
+          <h1 className="text-xl font-semibold text-gray-900">Generated Media</h1>
+          <p className="mt-0.5 text-sm text-gray-500">Track, preview, and fulfill donor-specific generated outputs through print and mail queues.</p>
         </div>
         <Link href="/letters-printables/generate" className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700">
-          Generate New Letter
+          Generate New Media
         </Link>
       </div>
 

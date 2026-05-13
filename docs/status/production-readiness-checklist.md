@@ -20,6 +20,19 @@ Status: Broken
 
 Recommendation: Do not mark OyamaCRM production-ready yet.
 
+## Migration Incident (2026-05-13)
+
+| Item | Result | Status | Evidence |
+|---|---|---|---|
+| Prisma migration `20260513144533_add_email_campaign_purpose_and_compliance_models` | Failed with `P3018` / MySQL `1146` because migration referenced lowercase `emailcampaign` while existing table is `EmailCampaign` | Broken | `prisma/migrations/20260513144533_add_email_campaign_purpose_and_compliance_models/migration.sql` |
+| Migration fix | Updated migration to alter `EmailCampaign` with exact casing and added dependency note to prior create-table migration (`20260509022557_add_constituent_external_id`) | Working | `prisma/migrations/20260513144533_add_email_campaign_purpose_and_compliance_models/migration.sql` |
+
+Notes:
+
+- No duplicate EmailCampaign table was created.
+- If `EmailCampaign` does not exist in an environment, migration order is broken and prior migrations must be applied first.
+- Linux/MySQL deployments must preserve exact Prisma-generated table name casing.
+
 ## Latest Validation Run (2026-05-12)
 
 | Validation | Result | Status | Evidence |
