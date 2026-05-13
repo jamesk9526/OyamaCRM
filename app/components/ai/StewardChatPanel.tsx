@@ -292,6 +292,23 @@ function buildEmptyThread(title: string): ChatThread {
   };
 }
 
+/** Returns true when two message lists are structurally equivalent for persistence purposes. */
+function areMessagesEquivalent(left: UiMessage[], right: UiMessage[]): boolean {
+  if (left.length !== right.length) return false;
+
+  return left.every((message, index) => {
+    const next = right[index];
+    return message.id === next.id
+      && message.role === next.role
+      && message.content === next.content
+      && message.createdAt === next.createdAt
+      && message.toolsUsed === next.toolsUsed
+      && message.provider === next.provider
+      && message.responseMode === next.responseMode
+      && message.runtimeMode === next.runtimeMode;
+  });
+}
+
 /** StewardChatPanel renders either a docked panel or a full workspace chat experience. */
 export default function StewardChatPanel({
   open,
@@ -369,24 +386,41 @@ export default function StewardChatPanel({
 
   /** Persists updated active-thread messages in local thread state. */
   useEffect(() => {
-    if (!threadsHydrated || !activeThreadId) return;
+    if (!threadsHydrated || !activeThreadId || sending) return;
+
+    const normalizedMessages = messages.slice(-CHAT_HISTORY_LIMIT);
+    const nextTitle = inferThreadTitle(messages, activeThread?.title ?? "Chat");
 
     const timer = window.setTimeout(() => {
-      setThreads((current) => current.map((thread) => {
-        if (thread.id !== activeThreadId) return thread;
-        return {
-          ...thread,
-          title: inferThreadTitle(messages, thread.title),
-          updatedAt: new Date().toISOString(),
-          messages: messages.slice(-CHAT_HISTORY_LIMIT),
-        };
-      }));
+      setThreads((current) => {
+        let changed = false;
+
+        const nextThreads = current.map((thread) => {
+          if (thread.id !== activeThreadId) return thread;
+
+          const titleChanged = thread.title !== nextTitle;
+          const messagesChanged = !areMessagesEquivalent(thread.messages, normalizedMessages);
+          if (!titleChanged && !messagesChanged) {
+            return thread;
+          }
+
+          changed = true;
+          return {
+            ...thread,
+            title: nextTitle,
+            updatedAt: new Date().toISOString(),
+            messages: normalizedMessages,
+          };
+        });
+
+        return changed ? nextThreads : current;
+      });
     }, 0);
 
     return () => {
       window.clearTimeout(timer);
     };
-  }, [messages, activeThreadId, threadsHydrated]);
+  }, [messages, activeThread, activeThreadId, threadsHydrated, sending]);
 
   /** Persists multi-thread chat history whenever thread state changes. */
   useEffect(() => {

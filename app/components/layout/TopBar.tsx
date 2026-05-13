@@ -725,6 +725,7 @@ export default function TopBar() {
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
   const [topBarReactiveGlow, setTopBarReactiveGlow] = useState(false);
   const [mobileQuickOpen, setMobileQuickOpen] = useState(false);
+  const reactiveGlowFrameRef = useRef<number | null>(null);
   const reactiveGlowTimeoutRef = useRef<number | null>(null);
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
   const chromeButtonBase = "w-10 h-10 md:w-9 md:h-9 rounded-xl border border-white/20 bg-white/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-sm flex items-center justify-center transition-all";
@@ -788,11 +789,13 @@ export default function TopBar() {
 
   /** Briefly pulses module accent glow to acknowledge meaningful workspace actions. */
   const triggerTopBarReactiveGlow = useCallback(() => {
+    if (reactiveGlowFrameRef.current) {
+      window.cancelAnimationFrame(reactiveGlowFrameRef.current);
+    }
     if (reactiveGlowTimeoutRef.current) {
       window.clearTimeout(reactiveGlowTimeoutRef.current);
     }
-    setTopBarReactiveGlow(false);
-    window.requestAnimationFrame(() => {
+    reactiveGlowFrameRef.current = window.requestAnimationFrame(() => {
       setTopBarReactiveGlow(true);
       reactiveGlowTimeoutRef.current = window.setTimeout(() => {
         setTopBarReactiveGlow(false);
@@ -886,6 +889,9 @@ export default function TopBar() {
 
   useEffect(() => {
     return () => {
+      if (reactiveGlowFrameRef.current) {
+        window.cancelAnimationFrame(reactiveGlowFrameRef.current);
+      }
       if (reactiveGlowTimeoutRef.current) {
         window.clearTimeout(reactiveGlowTimeoutRef.current);
       }

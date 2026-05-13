@@ -1,0 +1,50 @@
+
+> agents-create-oyamam-crm-workspace@0.3.0 typecheck:server C:\Users\James\Documents\GitHub\OyamaCRM
+> tsc --project server/tsconfig.json --noEmit
+
+server/src/routes/auth.ts(302,9): error TS2322: Type 'MfaChallengeConfig' is not assignable to type 'NullableJsonNullValueInput | InputJsonValue | undefined'.
+  Type 'MfaChallengeConfig' is not assignable to type 'InputJsonObject'.
+    Index signature for type 'string' is missing in type 'MfaChallengeConfig'.
+server/src/routes/auth.ts(306,9): error TS2322: Type 'MfaChallengeConfig' is not assignable to type 'NullableJsonNullValueInput | InputJsonValue | undefined'.
+  Type 'MfaChallengeConfig' is not assignable to type 'InputJsonObject'.
+    Index signature for type 'string' is missing in type 'MfaChallengeConfig'.
+server/src/routes/auth.ts(513,7): error TS2322: Type 'PasswordResetTokenConfig' is not assignable to type 'NullableJsonNullValueInput | InputJsonValue | undefined'.
+  Type 'PasswordResetTokenConfig' is not assignable to type 'InputJsonObject'.
+    Index signature for type 'string' is missing in type 'PasswordResetTokenConfig'.
+server/src/routes/auth.ts(517,7): error TS2322: Type 'PasswordResetTokenConfig' is not assignable to type 'NullableJsonNullValueInput | InputJsonValue | undefined'.
+  Type 'PasswordResetTokenConfig' is not assignable to type 'InputJsonObject'.
+    Index signature for type 'string' is missing in type 'PasswordResetTokenConfig'.
+server/src/routes/communications-ai.ts(292,9): error TS2353: Object literal may only specify known properties, and 'headline' does not exist in type 'BuilderBlockDraft'.
+server/src/routes/communications-ai.ts(440,7): error TS2353: Object literal may only specify known properties, and 'bulletColor' does not exist in type 'BuilderBlockDraft'.
+server/src/routes/communications-ai.ts(449,7): error TS2353: Object literal may only specify known properties, and 'headline' does not exist in type 'BuilderBlockDraft'.
+server/src/routes/communications-ai.ts(467,7): error TS2353: Object literal may only specify known properties, and 'headline' does not exist in type 'BuilderBlockDraft'.
+server/src/routes/donations.ts(592,73): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+server/src/routes/donations.ts(704,73): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+server/src/routes/donations.ts(778,73): error TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.
+  Type 'string[]' is not assignable to type 'string'.
+server/src/routes/donations.ts(811,7): error TS2353: Object literal may only specify known properties, and 'metadataJson' does not exist in type 'Without<StewardPathEnrollmentCreateInput, StewardPathEnrollmentUncheckedCreateInput> & StewardPathEnrollmentUncheckedCreateInput'.
+server/src/routes/email-campaigns.ts(495,6): error TS2550: Property 'replaceAll' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2021' or later.
+server/src/routes/email-campaigns.ts(605,5): error TS2322: Type '{ organizationId: string; campaignId: string; subscriptionId: string | null; constituentId: string | null; email: string; category: EmailCategory; purpose: EmailPurpose; eligibilityStatus: string; ineligibilityReason: string | null; queuedAt: Date | null; sentAt: null; }[]' is not assignable to type 'EmailSendRecipientCreateManyInput | EmailSendRecipientCreateManyInput[]'.
+  Type '{ organizationId: string; campaignId: string; subscriptionId: string | null; constituentId: string | null; email: string; category: EmailCategory; purpose: EmailPurpose; eligibilityStatus: string; ineligibilityReason: string | null; queuedAt: Date | null; sentAt: null; }[]' is not assignable to type 'EmailSendRecipientCreateManyInput[]'.
+    Type '{ organizationId: string; campaignId: string; subscriptionId: string | null; constituentId: string | null; email: string; category: $Enums.EmailCategory; purpose: $Enums.EmailPurpose; eligibilityStatus: string; ineligibilityReason: string | null; queuedAt: Date | null; sentAt: null; }' is not assignable to type 'EmailSendRecipientCreateManyInput'.
+      Types of property 'eligibilityStatus' are incompatible.
+        Type 'string' is not assignable to type 'EmailRecipientEligibilityStatus | undefined'.
+server/src/routes/letters.ts(376,15): error TS2352: Conversion of type 'LettersWorkflowPolicy' to type 'InputJsonValue' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'LettersWorkflowPolicy' is not comparable to type 'InputJsonObject'.
+    Index signature for type 'string' is missing in type 'LettersWorkflowPolicy'.
+server/src/routes/letters.ts(380,15): error TS2352: Conversion of type 'LettersWorkflowPolicy' to type 'InputJsonValue' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'LettersWorkflowPolicy' is not comparable to type 'InputJsonObject'.
+    Index signature for type 'string' is missing in type 'LettersWorkflowPolicy'.
+server/src/routes/letters.ts(390,5): error TS2322: Type 'LettersWorkflowPolicy' is not assignable to type 'Record<string, unknown>'.
+  Index signature for type 'string' is missing in type 'LettersWorkflowPolicy'.
+server/src/routes/settings.ts(399,5): error TS2322: Type 'AuthSecuritySettings' is not assignable to type 'Record<string, unknown>'.
+  Index signature for type 'string' is missing in type 'AuthSecuritySettings'.
+server/src/services/auth-security.ts(78,7): error TS2322: Type 'AuthSecuritySettings' is not assignable to type 'NullableJsonNullValueInput | InputJsonValue | undefined'.
+  Type 'AuthSecuritySettings' is not assignable to type 'InputJsonObject'.
+    Index signature for type 'string' is missing in type 'AuthSecuritySettings'.
+server/src/services/auth-security.ts(82,7): error TS2322: Type 'AuthSecuritySettings' is not assignable to type 'NullableJsonNullValueInput | InputJsonValue | undefined'.
+  Type 'AuthSecuritySettings' is not assignable to type 'InputJsonObject'.
+    Index signature for type 'string' is missing in type 'AuthSecuritySettings'.
+ΓÇëELIFECYCLEΓÇë Command failed with exit code 2.

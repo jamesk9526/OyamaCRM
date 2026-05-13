@@ -1773,6 +1773,7 @@ model EmailCampaign {
   organization   Organization                 @relation(fields: [organizationId], references: [id])
   deliveryEvents EmailCampaignDeliveryEvent[]
   emailSendRecipients EmailSendRecipient[]
+  emailUnsubscribeTokens EmailUnsubscribeToken[]
   deliveryStatusEvents EmailDeliveryEvent[]
   generatedLetters GeneratedLetter[]
 }

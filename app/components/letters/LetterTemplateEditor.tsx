@@ -87,6 +87,11 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
   const [printEditorMode, setPrintEditorMode] = useState<PrintEditorMode>(VISUAL_PRINT_BUILDER_ENABLED ? "VISUAL" : "TEXT");
   const [printLayout, setPrintLayout] = useState<PrintLayoutDocument>([]);
 
+  /** Registers the print merge-token insertion callback without creating a new function each render. */
+  const handleRegisterPrintInsert = useCallback((handler: (token: string) => void) => {
+    setPrintInsertHandler(() => handler);
+  }, []);
+
   const isEdit = Boolean(templateId);
 
   const loadSupports = useCallback(async () => {
@@ -378,7 +383,7 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
                     setPrintLayout(bodyToPrintLayout(nextBody));
                   }
                 }}
-                onRegisterInsert={(handler) => setPrintInsertHandler(() => handler)}
+                onRegisterInsert={handleRegisterPrintInsert}
               />
 
               <div className="rounded-xl border border-gray-300 bg-gray-50 p-4">
