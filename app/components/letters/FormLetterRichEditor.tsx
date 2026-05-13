@@ -6,12 +6,12 @@ import Color from "@tiptap/extension-color";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
-import Table from "@tiptap/extension-table";
+import { Table } from "@tiptap/extension-table";
 import TableCell from "@tiptap/extension-table-cell";
 import TableHeader from "@tiptap/extension-table-header";
 import TableRow from "@tiptap/extension-table-row";
 import TextAlign from "@tiptap/extension-text-align";
-import TextStyle from "@tiptap/extension-text-style";
+import { TextStyle } from "@tiptap/extension-text-style";
 import Underline from "@tiptap/extension-underline";
 import StarterKit from "@tiptap/starter-kit";
 import { EditorContent, useEditor } from "@tiptap/react";
@@ -38,10 +38,10 @@ function ToolbarButton({ label, active = false, onClick }: ToolbarButtonProps) {
       type="button"
       onClick={onClick}
       className={[
-        "rounded border px-2 py-1 text-xs font-semibold transition-colors",
+        "rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors",
         active
           ? "border-green-600 bg-green-50 text-green-700"
-          : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50",
+          : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
       ].join(" ")}
     >
       {label}
@@ -94,12 +94,14 @@ export default function FormLetterRichEditor({
     },
   });
 
+  // Keep editor content synchronized when parent state updates externally.
   useEffect(() => {
     if (!editor) return;
     if (value === editor.getHTML()) return;
     editor.commands.setContent(value, { emitUpdate: false });
   }, [editor, value]);
 
+  // Register token insertion callback so parent merge-field panels can insert at cursor.
   useEffect(() => {
     if (!onRegisterInsert || !editor) return;
 
@@ -165,47 +167,55 @@ export default function FormLetterRichEditor({
         />
       ) : (
         <>
-          <div className="space-y-2 rounded border border-gray-200 bg-white p-2">
-            <div className="flex flex-wrap gap-1">
-              <ToolbarButton label="Bold" active={!!editor?.isActive("bold")} onClick={() => editor?.chain().focus().toggleBold().run()} />
-              <ToolbarButton label="Italic" active={!!editor?.isActive("italic")} onClick={() => editor?.chain().focus().toggleItalic().run()} />
-              <ToolbarButton label="Underline" active={!!editor?.isActive("underline")} onClick={() => editor?.chain().focus().toggleUnderline().run()} />
-              <ToolbarButton label="H1" active={!!editor?.isActive("heading", { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} />
-              <ToolbarButton label="H2" active={!!editor?.isActive("heading", { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} />
-              <ToolbarButton label="H3" active={!!editor?.isActive("heading", { level: 3 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()} />
-              <ToolbarButton label="Clear" onClick={() => editor?.chain().focus().clearNodes().unsetAllMarks().run()} />
+          <div className="sticky top-2 z-10 rounded border border-gray-300 bg-gradient-to-b from-white to-gray-50 p-2 shadow-sm">
+            <div className="mb-2 border-b border-gray-200 pb-1">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Home Ribbon</p>
             </div>
+            <div className="flex flex-wrap items-start gap-2">
+              <div className="flex flex-wrap gap-1 rounded-md border border-gray-200 bg-white p-1">
+                <ToolbarButton label="Bold" active={!!editor?.isActive("bold")} onClick={() => editor?.chain().focus().toggleBold().run()} />
+                <ToolbarButton label="Italic" active={!!editor?.isActive("italic")} onClick={() => editor?.chain().focus().toggleItalic().run()} />
+                <ToolbarButton label="Underline" active={!!editor?.isActive("underline")} onClick={() => editor?.chain().focus().toggleUnderline().run()} />
+                <ToolbarButton label="Clear" onClick={() => editor?.chain().focus().clearNodes().unsetAllMarks().run()} />
+              </div>
 
-            <div className="flex flex-wrap gap-1">
-              <ToolbarButton label="Bullets" active={!!editor?.isActive("bulletList")} onClick={() => editor?.chain().focus().toggleBulletList().run()} />
-              <ToolbarButton label="Numbered" active={!!editor?.isActive("orderedList")} onClick={() => editor?.chain().focus().toggleOrderedList().run()} />
-              <ToolbarButton label="Quote" active={!!editor?.isActive("blockquote")} onClick={() => editor?.chain().focus().toggleBlockquote().run()} />
-              <ToolbarButton label="Left" active={!!editor?.isActive({ textAlign: "left" })} onClick={() => editor?.chain().focus().setTextAlign("left").run()} />
-              <ToolbarButton label="Center" active={!!editor?.isActive({ textAlign: "center" })} onClick={() => editor?.chain().focus().setTextAlign("center").run()} />
-              <ToolbarButton label="Right" active={!!editor?.isActive({ textAlign: "right" })} onClick={() => editor?.chain().focus().setTextAlign("right").run()} />
-            </div>
+              <div className="flex flex-wrap gap-1 rounded-md border border-gray-200 bg-white p-1">
+                <ToolbarButton label="H1" active={!!editor?.isActive("heading", { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} />
+                <ToolbarButton label="H2" active={!!editor?.isActive("heading", { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} />
+                <ToolbarButton label="H3" active={!!editor?.isActive("heading", { level: 3 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()} />
+                <ToolbarButton label="Bullets" active={!!editor?.isActive("bulletList")} onClick={() => editor?.chain().focus().toggleBulletList().run()} />
+                <ToolbarButton label="Numbered" active={!!editor?.isActive("orderedList")} onClick={() => editor?.chain().focus().toggleOrderedList().run()} />
+              </div>
 
-            <div className="flex flex-wrap gap-1">
-              <ToolbarButton label="Link" active={!!editor?.isActive("link")} onClick={handleSetLink} />
-              <ToolbarButton label="Image" onClick={insertImageFromUrl} />
-              <ToolbarButton label="Table" onClick={() => editor?.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: true }).run()} />
-              <ToolbarButton label="Add Row" onClick={() => editor?.chain().focus().addRowAfter().run()} />
-              <ToolbarButton label="Add Col" onClick={() => editor?.chain().focus().addColumnAfter().run()} />
-              <ToolbarButton label="Page Break" onClick={insertPageBreakMarker} />
-              <ToolbarButton label="HR" onClick={() => editor?.chain().focus().setHorizontalRule().run()} />
-            </div>
+              <div className="flex flex-wrap gap-1 rounded-md border border-gray-200 bg-white p-1">
+                <ToolbarButton label="Left" active={!!editor?.isActive({ textAlign: "left" })} onClick={() => editor?.chain().focus().setTextAlign("left").run()} />
+                <ToolbarButton label="Center" active={!!editor?.isActive({ textAlign: "center" })} onClick={() => editor?.chain().focus().setTextAlign("center").run()} />
+                <ToolbarButton label="Right" active={!!editor?.isActive({ textAlign: "right" })} onClick={() => editor?.chain().focus().setTextAlign("right").run()} />
+                <ToolbarButton label="Quote" active={!!editor?.isActive("blockquote")} onClick={() => editor?.chain().focus().toggleBlockquote().run()} />
+              </div>
 
-            <div className="flex flex-wrap gap-1">
-              <ToolbarButton label="Undo" onClick={() => editor?.chain().focus().undo().run()} />
-              <ToolbarButton label="Redo" onClick={() => editor?.chain().focus().redo().run()} />
-              <label className="ml-auto flex items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] text-gray-600">
-                Text Color
-                <input
-                  type="color"
-                  onChange={(event) => editor?.chain().focus().setColor(event.target.value).run()}
-                  className="h-5 w-7 rounded border border-gray-300"
-                />
-              </label>
+              <div className="flex flex-wrap gap-1 rounded-md border border-gray-200 bg-white p-1">
+                <ToolbarButton label="Link" active={!!editor?.isActive("link")} onClick={handleSetLink} />
+                <ToolbarButton label="Image" onClick={insertImageFromUrl} />
+                <ToolbarButton label="Table" onClick={() => editor?.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: true }).run()} />
+                <ToolbarButton label="Add Row" onClick={() => editor?.chain().focus().addRowAfter().run()} />
+                <ToolbarButton label="Add Col" onClick={() => editor?.chain().focus().addColumnAfter().run()} />
+                <ToolbarButton label="Page Break" onClick={insertPageBreakMarker} />
+                <ToolbarButton label="HR" onClick={() => editor?.chain().focus().setHorizontalRule().run()} />
+              </div>
+
+              <div className="ml-auto flex flex-wrap gap-1 rounded-md border border-gray-200 bg-white p-1">
+                <ToolbarButton label="Undo" onClick={() => editor?.chain().focus().undo().run()} />
+                <ToolbarButton label="Redo" onClick={() => editor?.chain().focus().redo().run()} />
+                <label className="flex items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] text-gray-600">
+                  Text Color
+                  <input
+                    type="color"
+                    onChange={(event) => editor?.chain().focus().setColor(event.target.value).run()}
+                    className="h-5 w-7 rounded border border-gray-300"
+                  />
+                </label>
+              </div>
             </div>
           </div>
 

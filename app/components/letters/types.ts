@@ -89,6 +89,14 @@ export interface LetterDashboardStats {
   thankYouPending: number;
   taxReceiptsGenerated: number;
   emailDrafts: number;
+  needsReview: number;
+  queuedForPrint: number;
+  printedToday: number;
+  queuedForMail: number;
+  mailedThisWeek: number;
+  addressIssues: number;
+  pdfExportFailures: number;
+  emailDraftsCreated: number;
   recentlyUsedTemplates: Array<{
     id: string;
     name: string;
@@ -98,4 +106,54 @@ export interface LetterDashboardStats {
   }>;
   batchGenerationStatus: string;
   pdfExportStatus: string;
+}
+
+export interface LetterQueuePerson {
+  id: string;
+  firstName: string;
+  lastName: string;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  doNotMail?: boolean | null;
+}
+
+export interface LetterQueueTemplateRef {
+  id: string;
+  name: string;
+  category: string;
+}
+
+export interface LetterPrintQueueItem {
+  id: string;
+  status: string;
+  generatedAt: string;
+  printedAt?: string | null;
+  queueStatus: string;
+  reviewStatus: string;
+  priority: string;
+  batchId?: string | null;
+  statusNote?: string | null;
+  addressComplete: boolean;
+  constituent?: LetterQueuePerson | null;
+  template?: LetterQueueTemplateRef | null;
+}
+
+export interface LetterMailQueueItem {
+  id: string;
+  status: string;
+  generatedAt: string;
+  mailedAt?: string | null;
+  queueStatus: string;
+  priority: string;
+  batchId?: string | null;
+  statusNote?: string | null;
+  returnReason?: string | null;
+  returnedAt?: string | null;
+  addressComplete: boolean;
+  addressWarning?: string | null;
+  constituent?: LetterQueuePerson | null;
+  template?: LetterQueueTemplateRef | null;
 }

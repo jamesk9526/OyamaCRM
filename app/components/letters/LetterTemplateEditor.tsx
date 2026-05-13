@@ -11,7 +11,7 @@ import PrintLayoutBuilder from "@/app/components/letters/PrintLayoutBuilder";
 import { bodyToPrintLayout, parsePrintLayout, printLayoutToBody } from "@/app/components/letters/print-layout-utils";
 import type { FooterPreset, HeaderPreset, MergeFieldSection, PrintLayoutDocument, SignatureBlock } from "@/app/components/letters/types";
 
-const EDITOR_TABS = ["setup", "print", "email", "branding", "merge", "preview"] as const;
+const EDITOR_TABS = ["setup", "print", "branding", "merge", "preview"] as const;
 
 type EditorTab = (typeof EDITOR_TABS)[number];
 type PrintEditorMode = "TEXT" | "VISUAL";
@@ -74,7 +74,7 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
   const [headerPresets, setHeaderPresets] = useState<HeaderPreset[]>([]);
   const [footerPresets, setFooterPresets] = useState<FooterPreset[]>([]);
   const [signatures, setSignatures] = useState<SignatureBlock[]>([]);
-  const [fieldTarget, setFieldTarget] = useState<"print" | "email">("print");
+  const [fieldTarget, setFieldTarget] = useState<"print">("print");
   const [previewConstituentId, setPreviewConstituentId] = useState("");
   const [previewDonationId, setPreviewDonationId] = useState("");
   const [previewYear, setPreviewYear] = useState(String(new Date().getFullYear()));
@@ -84,7 +84,6 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
     unsupportedFields: string[];
   } | null>(null);
   const [printInsertHandler, setPrintInsertHandler] = useState<((token: string) => void) | null>(null);
-  const [emailInsertHandler, setEmailInsertHandler] = useState<((token: string) => void) | null>(null);
   const [printEditorMode, setPrintEditorMode] = useState<PrintEditorMode>(VISUAL_PRINT_BUILDER_ENABLED ? "VISUAL" : "TEXT");
   const [printLayout, setPrintLayout] = useState<PrintLayoutDocument>([]);
 
@@ -151,7 +150,7 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
 
   /** Inserts one merge token into the active body editor. */
   function insertField(token: string) {
-    const handler = fieldTarget === "print" ? printInsertHandler : emailInsertHandler;
+    const handler = printInsertHandler;
     if (handler) {
       handler(token);
       return;
@@ -159,8 +158,6 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
 
     if (fieldTarget === "print") {
       update("printBody", `${form.printBody}${form.printBody ? "\n" : ""}${token}`);
-    } else {
-      update("emailBody", `${form.emailBody}${form.emailBody ? "\n" : ""}${token}`);
     }
   }
 
@@ -174,8 +171,8 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
         printLayoutJson: printLayout.length > 0 ? printLayout : null,
         description: form.description || null,
         printSubject: form.printSubject || null,
-        emailSubject: form.emailSubject || null,
-        emailBody: form.emailBody || null,
+        emailSubject: null,
+        emailBody: null,
         headerPresetId: form.headerPresetId || null,
         footerPresetId: form.footerPresetId || null,
         signatureBlockId: form.signatureBlockId || null,
@@ -260,7 +257,7 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
-          <p className="mt-0.5 text-sm text-gray-500">Build reusable donor communication templates for print and email delivery.</p>
+          <p className="mt-0.5 text-sm text-gray-500">Build reusable donor letter templates for print and mailing workflows.</p>
         </div>
         <div className="flex items-center gap-2">
           <Link href="/letters-printables/templates" className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Back</Link>
@@ -395,26 +392,6 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
         </section>
       )}
 
-      {tab === "email" && (
-        <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-900">Email Content</h2>
-            <button onClick={() => setFieldTarget("email")} className="text-xs text-green-700">Insert merge fields into email body</button>
-          </div>
-          <label className="block text-sm text-gray-700">
-            Email Subject
-            <input value={form.emailSubject} onChange={(event) => update("emailSubject", event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
-          </label>
-          <FormLetterRichEditor
-            value={form.emailBody}
-            placeholder="Write the email adaptation of this letter template..."
-            minHeight={220}
-            onChange={(nextBody) => update("emailBody", nextBody)}
-            onRegisterInsert={(handler) => setEmailInsertHandler(() => handler)}
-          />
-        </section>
-      )}
-
       {tab === "branding" && (
         <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
           <h2 className="text-sm font-semibold text-gray-900">Branding & Signature</h2>
@@ -460,7 +437,7 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
         <section className="rounded-xl border border-gray-200 bg-white p-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-900">Merge Fields</h2>
-            <p className="text-xs text-gray-500">Click a token to insert it into the selected editor.</p>
+            <p className="text-xs text-gray-500">Click a token to insert it into the print editor.</p>
           </div>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             {mergeSections.map((section) => (
@@ -496,17 +473,13 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
           <button onClick={() => void runPreview()} className="px-4 py-2 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700">Run Preview</button>
 
           {previewResult && (
-            <div className="grid gap-3 lg:grid-cols-2">
+            <div className="grid gap-3">
               <div className="rounded-lg border border-gray-200 p-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Print Preview</p>
                 <div className="mt-2 rounded border border-gray-200 bg-white p-4 text-sm text-gray-800 [&_hr[data-page-break='true']]:my-6 [&_hr[data-page-break='true']]:border-t-2 [&_hr[data-page-break='true']]:border-dashed [&_hr[data-page-break='true']]:border-gray-400" dangerouslySetInnerHTML={{ __html: previewResult.mergedPrintBody }} />
               </div>
-              <div className="rounded-lg border border-gray-200 p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Email Preview</p>
-                <div className="mt-2 rounded border border-gray-200 bg-white p-4 text-sm text-gray-800" dangerouslySetInnerHTML={{ __html: previewResult.mergedEmailBody || "<p>No email body configured.</p>" }} />
-              </div>
               {previewResult.unsupportedFields.length > 0 && (
-                <div className="lg:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
                   Unsupported fields: {previewResult.unsupportedFields.join(", ")}
                 </div>
               )}

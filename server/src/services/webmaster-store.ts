@@ -7,14 +7,42 @@ import { prisma } from "../lib/prisma.js";
 
 export type WebmasterSiteStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
 export type WebmasterPageStatus = "DRAFT" | "REVIEW_READY" | "PUBLISHED" | "ARCHIVED";
+export type WebmasterSiteType =
+  | "MAIN_SITE"
+  | "LANDING_SITE"
+  | "TEMPORARY_SITE"
+  | "EVENT_SITE"
+  | "DONATION_SITE"
+  | "CAMPAIGN_SITE"
+  | "PARTNER_PORTAL"
+  | "CLIENT_RESOURCE_SITE"
+  | "INTERNAL_SITE"
+  | "MICROSITE"
+  | "BLOG_SITE";
+
+export type WebmasterConnectedModule = "donor" | "events" | "compassion" | "communications" | "webmaster" | "platform";
 
 export interface WebmasterSiteRecord {
   id: string;
   organizationId: string;
   createdById: string | null;
+  ownerId: string | null;
   name: string;
   slug: string;
+  siteType: WebmasterSiteType;
+  sitePurpose: string | null;
+  connectedModule: WebmasterConnectedModule | null;
+  connectedRecordId: string | null;
   domain: string | null;
+  subdomain: string | null;
+  launchStatus: "NOT_READY" | "REVIEW_READY" | "READY_TO_LAUNCH" | "LIVE";
+  seoHealthScore: number | null;
+  publishingTarget: string | null;
+  launchDate: string | null;
+  expiresAt: string | null;
+  archivedAt: string | null;
+  lastPublishedAt: string | null;
+  publishedVersionId: string | null;
   description: string | null;
   status: WebmasterSiteStatus;
   pageCount: number;
@@ -43,6 +71,26 @@ export interface WebmasterPageRecord {
 
 let schemaReady = false;
 
+/** Adds one column only when missing, compatible with MySQL variants lacking IF NOT EXISTS. */
+async function ensureColumnExists(tableName: string, columnName: string, definition: string): Promise<void> {
+  const rows = await prisma.$queryRawUnsafe<Array<{ count: number }>>(
+    `
+      SELECT COUNT(*) AS count
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = ?
+        AND COLUMN_NAME = ?
+    `,
+    tableName,
+    columnName,
+  );
+
+  const exists = Number(rows[0]?.count ?? 0) > 0;
+  if (exists) return;
+
+  await prisma.$executeRawUnsafe(`ALTER TABLE ${tableName} ADD COLUMN ${definition}`);
+}
+
 /** Safely converts DB timestamps to ISO strings. */
 function toIso(value: unknown): string {
   return new Date(String(value)).toISOString();
@@ -57,9 +105,23 @@ export async function ensureWebmasterSchema(): Promise<void> {
       id VARCHAR(64) NOT NULL PRIMARY KEY,
       organization_id VARCHAR(64) NOT NULL,
       created_by_id VARCHAR(64) NULL,
+      owner_id VARCHAR(64) NULL,
       site_name VARCHAR(255) NOT NULL,
       site_slug VARCHAR(180) NOT NULL,
+      site_type VARCHAR(64) NOT NULL DEFAULT 'MAIN_SITE',
+      site_purpose TEXT NULL,
+      connected_module VARCHAR(64) NULL,
+      connected_record_id VARCHAR(128) NULL,
       domain VARCHAR(255) NULL,
+      subdomain VARCHAR(255) NULL,
+      launch_status VARCHAR(64) NOT NULL DEFAULT 'NOT_READY',
+      seo_health_score INT NULL,
+      publishing_target VARCHAR(128) NULL,
+      launch_date DATETIME NULL,
+      expires_at DATETIME NULL,
+      archived_at DATETIME NULL,
+      last_published_at DATETIME NULL,
+      published_version_id VARCHAR(128) NULL,
       description TEXT NULL,
       site_status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -93,6 +155,21 @@ export async function ensureWebmasterSchema(): Promise<void> {
     )
   `);
 
+  await ensureColumnExists("webmaster_sites", "owner_id", "owner_id VARCHAR(64) NULL");
+  await ensureColumnExists("webmaster_sites", "site_type", "site_type VARCHAR(64) NOT NULL DEFAULT 'MAIN_SITE'");
+  await ensureColumnExists("webmaster_sites", "site_purpose", "site_purpose TEXT NULL");
+  await ensureColumnExists("webmaster_sites", "connected_module", "connected_module VARCHAR(64) NULL");
+  await ensureColumnExists("webmaster_sites", "connected_record_id", "connected_record_id VARCHAR(128) NULL");
+  await ensureColumnExists("webmaster_sites", "subdomain", "subdomain VARCHAR(255) NULL");
+  await ensureColumnExists("webmaster_sites", "launch_status", "launch_status VARCHAR(64) NOT NULL DEFAULT 'NOT_READY'");
+  await ensureColumnExists("webmaster_sites", "seo_health_score", "seo_health_score INT NULL");
+  await ensureColumnExists("webmaster_sites", "publishing_target", "publishing_target VARCHAR(128) NULL");
+  await ensureColumnExists("webmaster_sites", "launch_date", "launch_date DATETIME NULL");
+  await ensureColumnExists("webmaster_sites", "expires_at", "expires_at DATETIME NULL");
+  await ensureColumnExists("webmaster_sites", "archived_at", "archived_at DATETIME NULL");
+  await ensureColumnExists("webmaster_sites", "last_published_at", "last_published_at DATETIME NULL");
+  await ensureColumnExists("webmaster_sites", "published_version_id", "published_version_id VARCHAR(128) NULL");
+
   schemaReady = true;
 }
 
@@ -102,9 +179,23 @@ function mapSiteRow(row: Record<string, unknown>): WebmasterSiteRecord {
     id: String(row.id),
     organizationId: String(row.organization_id),
     createdById: row.created_by_id ? String(row.created_by_id) : null,
+    ownerId: row.owner_id ? String(row.owner_id) : null,
     name: String(row.site_name),
     slug: String(row.site_slug),
+    siteType: String(row.site_type ?? "MAIN_SITE") as WebmasterSiteType,
+    sitePurpose: row.site_purpose ? String(row.site_purpose) : null,
+    connectedModule: row.connected_module ? (String(row.connected_module) as WebmasterConnectedModule) : null,
+    connectedRecordId: row.connected_record_id ? String(row.connected_record_id) : null,
     domain: row.domain ? String(row.domain) : null,
+    subdomain: row.subdomain ? String(row.subdomain) : null,
+    launchStatus: String(row.launch_status ?? "NOT_READY") as WebmasterSiteRecord["launchStatus"],
+    seoHealthScore: row.seo_health_score === null || row.seo_health_score === undefined ? null : Number(row.seo_health_score),
+    publishingTarget: row.publishing_target ? String(row.publishing_target) : null,
+    launchDate: row.launch_date ? toIso(row.launch_date) : null,
+    expiresAt: row.expires_at ? toIso(row.expires_at) : null,
+    archivedAt: row.archived_at ? toIso(row.archived_at) : null,
+    lastPublishedAt: row.last_published_at ? toIso(row.last_published_at) : null,
+    publishedVersionId: row.published_version_id ? String(row.published_version_id) : null,
     description: row.description ? String(row.description) : null,
     status: String(row.site_status) as WebmasterSiteStatus,
     pageCount: Number(row.page_count ?? 0),
@@ -140,6 +231,9 @@ export async function listWebmasterSites(params: {
   organizationId: string;
   query?: string;
   status?: WebmasterSiteStatus;
+  siteType?: WebmasterSiteType;
+  connectedModule?: WebmasterConnectedModule;
+  ownerId?: string;
   limit?: number;
 }): Promise<WebmasterSiteRecord[]> {
   await ensureWebmasterSchema();
@@ -148,21 +242,36 @@ export async function listWebmasterSites(params: {
   const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
     `
       SELECT s.id, s.organization_id, s.created_by_id, s.site_name, s.site_slug, s.domain, s.description,
+             s.owner_id, s.site_type, s.site_purpose, s.connected_module, s.connected_record_id, s.subdomain,
+             s.launch_status, s.seo_health_score, s.publishing_target, s.launch_date, s.expires_at, s.archived_at,
+             s.last_published_at, s.published_version_id,
              s.site_status, s.created_at, s.updated_at, COUNT(p.id) AS page_count
       FROM webmaster_sites s
       LEFT JOIN webmaster_pages p ON p.site_id = s.id
       WHERE s.organization_id = ?
         AND (? = '' OR s.site_status = ?)
+        AND (? = '' OR s.site_type = ?)
+        AND (? = '' OR IFNULL(s.connected_module, '') = ?)
+        AND (? = '' OR IFNULL(s.owner_id, '') = ?)
         AND (
           ? = '' OR s.site_name LIKE CONCAT('%', ?, '%') OR s.site_slug LIKE CONCAT('%', ?, '%') OR IFNULL(s.domain, '') LIKE CONCAT('%', ?, '%')
         )
-      GROUP BY s.id, s.organization_id, s.created_by_id, s.site_name, s.site_slug, s.domain, s.description, s.site_status, s.created_at, s.updated_at
+      GROUP BY s.id, s.organization_id, s.created_by_id, s.owner_id, s.site_name, s.site_slug, s.site_type,
+               s.site_purpose, s.connected_module, s.connected_record_id, s.domain, s.subdomain, s.launch_status,
+               s.seo_health_score, s.publishing_target, s.launch_date, s.expires_at, s.archived_at, s.last_published_at,
+               s.published_version_id, s.description, s.site_status, s.created_at, s.updated_at
       ORDER BY s.updated_at DESC, s.site_name ASC
       LIMIT ?
     `,
     params.organizationId,
     params.status ?? "",
     params.status ?? "",
+    params.siteType ?? "",
+    params.siteType ?? "",
+    params.connectedModule ?? "",
+    params.connectedModule ?? "",
+    params.ownerId ?? "",
+    params.ownerId ?? "",
     params.query ?? "",
     params.query ?? "",
     params.query ?? "",
@@ -186,9 +295,22 @@ export async function getWebmasterSiteById(params: {
 export async function createWebmasterSite(params: {
   organizationId: string;
   createdById?: string;
+  ownerId?: string;
   name: string;
   slug: string;
+  siteType?: WebmasterSiteType;
+  sitePurpose?: string;
+  connectedModule?: WebmasterConnectedModule;
+  connectedRecordId?: string;
   domain?: string;
+  subdomain?: string;
+  launchStatus?: WebmasterSiteRecord["launchStatus"];
+  seoHealthScore?: number | null;
+  publishingTarget?: string;
+  launchDate?: string;
+  expiresAt?: string;
+  lastPublishedAt?: string;
+  publishedVersionId?: string;
   description?: string;
   status?: WebmasterSiteStatus;
 }): Promise<WebmasterSiteRecord> {
@@ -198,15 +320,31 @@ export async function createWebmasterSite(params: {
   await prisma.$executeRawUnsafe(
     `
       INSERT INTO webmaster_sites
-      (id, organization_id, created_by_id, site_name, site_slug, domain, description, site_status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      (id, organization_id, created_by_id, owner_id, site_name, site_slug, site_type, site_purpose, connected_module, connected_record_id,
+       domain, subdomain, launch_status, seo_health_score, publishing_target, launch_date, expires_at, archived_at, last_published_at,
+       published_version_id, description, site_status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     id,
     params.organizationId,
     params.createdById ?? null,
+    params.ownerId ?? params.createdById ?? null,
     params.name,
     params.slug,
+    params.siteType ?? "MAIN_SITE",
+    params.sitePurpose?.trim() || null,
+    params.connectedModule ?? null,
+    params.connectedRecordId?.trim() || null,
     params.domain?.trim() || null,
+    params.subdomain?.trim() || null,
+    params.launchStatus ?? "NOT_READY",
+    params.seoHealthScore ?? null,
+    params.publishingTarget?.trim() || null,
+    params.launchDate ? new Date(params.launchDate) : null,
+    params.expiresAt ? new Date(params.expiresAt) : null,
+    params.status === "ARCHIVED" ? new Date() : null,
+    params.lastPublishedAt ? new Date(params.lastPublishedAt) : null,
+    params.publishedVersionId?.trim() || null,
     params.description?.trim() || null,
     params.status ?? "DRAFT",
   );
@@ -216,6 +354,145 @@ export async function createWebmasterSite(params: {
     throw new Error("Created site could not be reloaded.");
   }
   return created;
+}
+
+/** Updates mutable site metadata with non-destructive archival support. */
+export async function updateWebmasterSite(params: {
+  organizationId: string;
+  siteId: string;
+  ownerId?: string;
+  name?: string;
+  slug?: string;
+  siteType?: WebmasterSiteType;
+  sitePurpose?: string;
+  connectedModule?: WebmasterConnectedModule | null;
+  connectedRecordId?: string | null;
+  domain?: string | null;
+  subdomain?: string | null;
+  launchStatus?: WebmasterSiteRecord["launchStatus"];
+  seoHealthScore?: number | null;
+  publishingTarget?: string | null;
+  launchDate?: string | null;
+  expiresAt?: string | null;
+  lastPublishedAt?: string | null;
+  publishedVersionId?: string | null;
+  description?: string;
+  status?: WebmasterSiteStatus;
+}): Promise<WebmasterSiteRecord> {
+  await ensureWebmasterSchema();
+
+  await prisma.$executeRawUnsafe(
+    `
+      UPDATE webmaster_sites
+      SET owner_id = COALESCE(?, owner_id),
+          site_name = COALESCE(?, site_name),
+          site_slug = COALESCE(?, site_slug),
+          site_type = COALESCE(?, site_type),
+          site_purpose = COALESCE(?, site_purpose),
+          connected_module = COALESCE(?, connected_module),
+          connected_record_id = COALESCE(?, connected_record_id),
+          domain = COALESCE(?, domain),
+          subdomain = COALESCE(?, subdomain),
+          launch_status = COALESCE(?, launch_status),
+          seo_health_score = COALESCE(?, seo_health_score),
+          publishing_target = COALESCE(?, publishing_target),
+          launch_date = COALESCE(?, launch_date),
+          expires_at = COALESCE(?, expires_at),
+          last_published_at = COALESCE(?, last_published_at),
+          published_version_id = COALESCE(?, published_version_id),
+          description = COALESCE(?, description),
+          site_status = COALESCE(?, site_status),
+          archived_at = CASE
+            WHEN ? = 'ARCHIVED' THEN IFNULL(archived_at, CURRENT_TIMESTAMP)
+            WHEN ? = 'ACTIVE' THEN NULL
+            ELSE archived_at
+          END,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE organization_id = ? AND id = ?
+    `,
+    params.ownerId ?? null,
+    params.name ?? null,
+    params.slug ?? null,
+    params.siteType ?? null,
+    params.sitePurpose ?? null,
+    params.connectedModule ?? null,
+    params.connectedRecordId ?? null,
+    params.domain ?? null,
+    params.subdomain ?? null,
+    params.launchStatus ?? null,
+    params.seoHealthScore ?? null,
+    params.publishingTarget ?? null,
+    params.launchDate ? new Date(params.launchDate) : null,
+    params.expiresAt ? new Date(params.expiresAt) : null,
+    params.lastPublishedAt ? new Date(params.lastPublishedAt) : null,
+    params.publishedVersionId ?? null,
+    params.description ?? null,
+    params.status ?? null,
+    params.status ?? null,
+    params.status ?? null,
+    params.organizationId,
+    params.siteId,
+  );
+
+  const updated = await getWebmasterSiteById({ organizationId: params.organizationId, siteId: params.siteId });
+  if (!updated) throw new Error("Updated site could not be reloaded.");
+  return updated;
+}
+
+/** Duplicates one site and all pages as a safe non-destructive clone. */
+export async function duplicateWebmasterSite(params: {
+  organizationId: string;
+  sourceSiteId: string;
+  createdById?: string;
+  name?: string;
+  slug?: string;
+}): Promise<WebmasterSiteRecord> {
+  await ensureWebmasterSchema();
+  const source = await getWebmasterSiteById({ organizationId: params.organizationId, siteId: params.sourceSiteId });
+  if (!source) throw new Error("Source site not found.");
+
+  const newSite = await createWebmasterSite({
+    organizationId: params.organizationId,
+    createdById: params.createdById,
+    ownerId: source.ownerId ?? params.createdById,
+    name: params.name ?? `${source.name} Copy`,
+    slug: params.slug ?? `${source.slug}-copy-${Date.now().toString().slice(-5)}`,
+    siteType: source.siteType,
+    sitePurpose: source.sitePurpose ?? undefined,
+    connectedModule: source.connectedModule ?? undefined,
+    connectedRecordId: source.connectedRecordId ?? undefined,
+    domain: undefined,
+    subdomain: undefined,
+    launchStatus: "NOT_READY",
+    seoHealthScore: source.seoHealthScore,
+    publishingTarget: source.publishingTarget ?? undefined,
+    description: source.description ?? undefined,
+    status: "DRAFT",
+  });
+
+  const sourcePages = await listWebmasterPages({
+    organizationId: params.organizationId,
+    siteId: source.id,
+    limit: 500,
+  });
+
+  for (const page of sourcePages) {
+    await createWebmasterPage({
+      organizationId: params.organizationId,
+      siteId: newSite.id,
+      createdById: params.createdById,
+      updatedById: params.createdById,
+      title: page.title,
+      slug: `${page.slug}-${Date.now().toString().slice(-4)}`,
+      path: `${page.path}-copy-${Date.now().toString().slice(-4)}`,
+      status: "DRAFT",
+      seoTitle: page.seoTitle ?? undefined,
+      seoDescription: page.seoDescription ?? undefined,
+      contentJson: page.contentJson ?? undefined,
+    });
+  }
+
+  return newSite;
 }
 
 /** Lists pages under one site. */

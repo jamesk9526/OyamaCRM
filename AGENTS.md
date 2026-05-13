@@ -479,6 +479,8 @@ DonorCRM communications features must be implemented as one connected engagement
 - Communications is the central outreach workspace for campaigns, send queue, and communication log views.
 - Email Builder is editor-only. Launch it from communications campaign context rather than treating it as a standalone workflow.
 - Letters and Printables owns print/mail/PDF workflows. Letter-to-email handoff must use the existing generated-letter to email-draft bridge.
+- Letters and Printables queue operations should flow as: Needs Review -> Approved -> Queued For Print -> Printed -> Queued For Mail -> Mailed.
+- Queue operations should use explicit permissions (`letters.manage_print_queue`, `letters.manage_mail_queue`) instead of broad workflow permissions.
 - Steward Paths orchestrates outreach by creating or advancing tasks, letters, and drafts in existing systems. Do not create a second outreach engine.
 - Tasks represent human follow-up work; Activities are the timeline source of truth for what happened.
 - Use shared user-facing status language across channels when possible:
@@ -499,6 +501,9 @@ DonorCRM communications features must be implemented as one connected engagement
 - For donor communication claims, document persistence evidence in:
   - `docs/DONOR_ENGAGEMENT_SYSTEM.md`
   - `docs/DONOR_CRM_COMMUNICATIONS_AUDIT.md`
+  - `docs/DONOR_CRM_LETTERS_PRINTABLES_PRODUCTION_PLAN.md`
+  - `docs/DONOR_CRM_PRINT_QUEUE.md`
+  - `docs/DONOR_CRM_FORM_LETTER_EDITOR.md`
   - `docs/status/features.md`
   - `docs/status/production-readiness-checklist.md`
 <!-- END:donor-engagement-system-rules -->
@@ -590,3 +595,27 @@ DonorCRM Email Builder is a campaign studio, not a generic page builder.
 - Status labels in builder flows must use shared language: Draft, Needs Review, Ready to Send, Scheduled, Sent.
 - Do not auto-send by default; preserve explicit review/test/send actions.
 <!-- END:donor-email-builder-rules -->
+
+<!-- BEGIN:oyama-webmaster-command-center-rules -->
+## OyamaWebMaster Command Center Rules
+
+OyamaWebMaster is the platform website command center and publishing layer.
+
+- Treat OyamaWebMaster as an app-level site manager, not a disconnected demo page builder.
+- Site records must include clear lifecycle and context metadata (type, owner, module linkage, launch readiness, publish linkage).
+- Site lifecycle operations must be non-destructive by default: archive, restore, duplicate first.
+- Avoid hard-delete flows for site and page operations unless explicit retention policy and backup controls are present.
+- Keep CRM source-of-truth boundaries intact:
+  - Donor data stays owned by donor APIs/models.
+  - Compassion client data stays owned by compassion APIs/models.
+  - Event data stays owned by events APIs/models.
+- Cross-module linkage in Webmaster should use references (`connected_module`, `connected_record_id`) rather than data copying.
+- Publishing claims must stay honest:
+  - If preflight validation, target deployment, or rollback history is missing, mark workflows as Partially Working or Not Implemented.
+- Required Webmaster architecture docs:
+  - `docs/OYAMA_WEBMASTER_REBUILD_PLAN.md`
+  - `docs/OYAMA_WEBMASTER_SITE_TYPES.md`
+  - `docs/OYAMA_WEBMASTER_PUBLISHING_ARCHITECTURE.md`
+  - `docs/OYAMA_WEBMASTER_CRM_INTEGRATION.md`
+  - `docs/OYAMA_WEBMASTER_DATA_SAFETY.md`
+<!-- END:oyama-webmaster-command-center-rules -->

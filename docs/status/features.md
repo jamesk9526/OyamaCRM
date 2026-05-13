@@ -92,9 +92,9 @@ This document treats a feature as complete only when it uses real data, saves co
 | Donor CRM | Grants research workspace | Partially Working | Real API Data | Grants route/module now supports case-file reminders/tasks/resources/requirements and donation handoff separation from grant records. | Add dedicated grant calendar view and expanded cross-grant workload/reporting surfaces. |
 | Donor CRM | Tasks | Working | Real API Data | `app/tasks/page.tsx` is backed by `/api/tasks` CRUD. | Add task templates and bulk assignment from segment results. |
 | Donor CRM | Communications campaign CRUD | Partially Working | Mixed Real/Demo Data | Email campaign records are persisted via `/api/email-campaigns`; delivery analytics are simulated in current flow. | Add provider webhook ingestion for delivery/open/click metrics and unsubscribe events. |
-| Donor CRM | Letters & Printables workspace | Partially Working | Real API Data | New `/api/letters` routes plus `/letters-printables` UI now support template CRUD, merge preview, single-letter generation, constituent timeline logging, and email draft creation. | Wire true server-side PDF rendering/export and batch generation queue workflows. |
+| Donor CRM | Letters & Printables workspace | Partially Working | Real API Data | `/api/letters` plus `/letters-printables` now support template CRUD, rich letter authoring, merge preview, single-letter generation, batch generation, print queue actions, mail queue actions, timeline logging, email draft creation, and persisted workflow policy settings via `/api/letters/workflow-settings`. | Wire true server-side PDF rendering/export and enforce workflow policy settings in queue execution lanes. |
 | Donor CRM | Steward Paths (automation + sequence workflows) | Partially Working | Real API Data | Legacy `/api/automations` trigger/action rules remain active, and new sequence APIs at `/api/steward-paths` now support template steps, enrollments, timeline, draft email review, and due-step processing in the worker. | Add full sequence builder UI, branch/status-change execution, and retry/backoff operations tooling. |
-| Donor CRM | Email/newsletter builder | Partially Working | Mixed Real/Demo Data | Builder stores structure/content in DB; advanced merge fields/media pipeline are incomplete. | Add merge fields, media uploads, and timeline writeback per recipient. |
+| Donor CRM | Email/newsletter builder | Partially Working | Mixed Real/Demo Data | Builder stores structure/content in DB and now includes strict review checks for unknown/malformed merge tokens; advanced saved sections/history and provider validation lanes remain incomplete. | Add reusable sections, revision history, and delivery/timeline writeback per recipient. |
 | Donor CRM | Reports | Working | Real API Data | `app/reports/page.tsx` consumes summary/monthly/retention/top donor/campaign APIs. | Add scheduled report delivery and server-side export jobs. |
 | Donor CRM | Import wizard (constituents + donations) | Working | Real API Data | Import wizard posts to `/api/constituents/import`; donation wizard posts to `/api/donations/import`. | Add import history and rollback tooling. |
 | Donor CRM | Merge workflow | Demo Only | Static Demo UI | `app/data-tools/merge/MergeWorkflow.tsx` is preview-first and not yet wired to merge endpoint writes. | Implement backend merge endpoint and explicit conflict resolution. |
@@ -109,7 +109,7 @@ This document treats a feature as complete only when it uses real data, saves co
 | Events CRM | Tickets, sponsors, communications, tasks, volunteers, files, settings | Demo Only | Static Demo UI | These routes use `app/components/events/EventsWorkspacePage.tsx` with static metrics/text only. | Build dedicated APIs and replace each scaffold with live data pages. |
 | Events CRM | Public ticketing page + hosted checkout | Not Implemented | Unknown / Needs Verification | No public ticket storefront route/API is currently wired. | Implement event ticket type CRUD + public registration page generation. |
 | OyamaWatchdog | Security feed + encrypted vault + admin controls | Partially Working | External DB + Real API Data | `/watchdog` module and `/api/watchdog/*` routes are scaffolded with encrypted secret storage and permission key checks. | Add full permission matrix UI, runbook actions, and production-ready health/alert wiring. |
-| OyamaWebMaster | Section-first website builder dashboard + shell | Partially Working | Real API Data + Builder Shell | `/webmaster` now includes real website management actions, quick page creation, and a visual builder shell with persisted section content save/load via `/api/webmaster`. | Expand templates, CMS/forms, export, preflight, and publish targets/rollback. |
+| OyamaWebMaster | Website command center + site manager + builder shell | Partially Working | Real API Data + Builder Shell | `/webmaster` now includes persisted site metadata, type-based filtering, archive/restore/duplicate lifecycle APIs, quick page creation, and visual builder shell persistence via `/api/webmaster`. | Expand templates, CMS/forms, preflight checks, publish targets, version history, and rollback controls. |
 | Platform | Authentication + session | Working | Real API Data | JWT auth, refresh, logout, and `/api/auth/me` are active. | Add MFA, session list, and revocation UI. |
 | Platform | Users management | Working | Real API Data | Settings users page is wired to `/api/users` CRUD + password reset. | Add invite flow and user onboarding emails. |
 | Platform | Audit logs | Working | Real API Data | Settings audit page reads `/api/audit-logs` with filter/pagination. | Add exports and saved filter presets. |
@@ -147,8 +147,9 @@ This document treats a feature as complete only when it uses real data, saves co
 
 ### OyamaWebMaster
 
-- **UI shell confirmed:** route shell and starter dashboard are active (`app/webmaster/*`, `app/components/webmaster/WebmasterStarterDashboard.tsx`).
-- **Not yet implemented:** no persisted website templates/pages/publishing APIs currently exist.
+- **Real data confirmed:** persisted site/page records and site lifecycle APIs are active (`server/src/routes/webmaster.ts`, `server/src/services/webmaster-store.ts`).
+- **Partially working:** dashboard site manager and visual builder shell are active (`app/webmaster/*`, `app/components/webmaster/WebmasterStarterDashboard.tsx`) with lifecycle actions and metadata visibility.
+- **Not implemented:** production publish targets, rollback history/version table, and full preflight validation pipeline.
 
 ## Major Planned TODOs (Requested Additions)
 
@@ -176,7 +177,7 @@ This document treats a feature as complete only when it uses real data, saves co
 | donor.tasks | Working | `app/tasks/page.tsx` + `/api/tasks` | Task CRUD and bulk assignment live. |
 | donor.meetings | Working | `app/meetings/page.tsx` + `/api/meetings` | Scheduling and completion flows are live. |
 | donor.communications | Partially Working | `app/communications/*` + `/api/email-campaigns` | Core persistence is live; delivery telemetry depth varies by provider setup. |
-| donor.lettersPrintables | Partially Working | `app/letters-printables/*` + `/api/letters` | Single-letter flow is functional; PDF/batch remains partial. |
+| donor.lettersPrintables | Partially Working | `app/letters-printables/*` + `/api/letters` | Single and batch generation plus print/mail queue workflows are functional; server-side PDF export remains partial. |
 | donor.livecom | Working | `app/livecom/page.tsx` + `/api/livecom` | Interaction capture writes to timeline activity. |
 | donor.stewardPaths | Partially Working | `app/automations/page.tsx`, `/api/automations`, `/api/steward-paths` | Legacy and sequence workflows run together; builder depth still growing. |
 | donor.stewardSignals | Partially Working | `app/steward-signals/page.tsx` + `/api/steward-signals` | Suggestion-first insights; keep human review required. |

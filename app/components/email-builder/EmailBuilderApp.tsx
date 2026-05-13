@@ -41,6 +41,12 @@ import BlockEditor   from './BlockEditor';
 import EmailPreview  from './EmailPreview';
 import { apiFetch } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import {
+  DEFAULT_BRANDING_SETTINGS,
+  fetchBrandingSettings,
+  formatBrandingAddress,
+  type BrandingSettings,
+} from "@/app/lib/branding-settings";
 
 const MERGE_TOKEN_GROUPS = {
   Donor: [
@@ -84,6 +90,71 @@ const MERGE_TOKEN_GROUPS = {
     "{{managePreferencesUrl}}",
   ],
 } as const;
+
+const EMAIL_BUILDER_MERGE_TOKEN_CATALOG = new Set<string>([
+  ...Object.values(MERGE_TOKEN_GROUPS).flat(),
+  "{{receiptNumber}}",
+  "{{currentYear}}",
+  "{{currentDate}}",
+  "{{donationUrl}}",
+  "{{donationAmount}}",
+  "{{organizationAddress}}",
+]);
+
+interface MergeTokenValidationResult {
+  unknownTokens: string[];
+  malformedBraceCount: number;
+}
+
+/** Normalizes merge token text to canonical {{tokenName}} shape for validation checks. */
+function canonicalizeMergeToken(token: string): string {
+  return `{{${token.replace(/\{\{|\}\}/g, "").trim()}}}`;
+}
+
+/** Recursively collects string values from one object so merge token scans include nested block data. */
+function collectStringValues(value: unknown, acc: string[]): void {
+  if (typeof value === "string") {
+    acc.push(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((entry) => collectStringValues(entry, acc));
+    return;
+  }
+  if (value && typeof value === "object") {
+    Object.values(value as Record<string, unknown>).forEach((entry) => collectStringValues(entry, acc));
+  }
+}
+
+/** Validates merge tokens used in template blocks and flags unknown or malformed placeholders. */
+function validateTemplateMergeTokens(template: EmailTemplate): MergeTokenValidationResult {
+  const allStrings: string[] = [];
+  collectStringValues(template.blocks, allStrings);
+
+  const unknown = new Set<string>();
+  let malformedBraceCount = 0;
+
+  allStrings.forEach((text) => {
+    const openCount = (text.match(/\{\{/g) ?? []).length;
+    const closeCount = (text.match(/\}\}/g) ?? []).length;
+    if (openCount !== closeCount) {
+      malformedBraceCount += Math.abs(openCount - closeCount);
+    }
+
+    const matches = text.match(/\{\{[^{}]+\}\}/g) ?? [];
+    matches.forEach((token) => {
+      const canonical = canonicalizeMergeToken(token);
+      if (!EMAIL_BUILDER_MERGE_TOKEN_CATALOG.has(canonical)) {
+        unknown.add(canonical);
+      }
+    });
+  });
+
+  return {
+    unknownTokens: Array.from(unknown).sort(),
+    malformedBraceCount,
+  };
+}
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -137,9 +208,17 @@ function toBoundedNumber(value: unknown, fallback: number, min: number, max: num
 function hydrateGeneratedBlock(raw: Record<string, unknown>): EmailBlock {
   const candidateType = String(raw.type ?? "text");
   const allowedTypes: BlockType[] = [
+    "heading",
     "text",
     "quote",
     "impactStat",
+    "callout",
+    "progress",
+    "featureList",
+    "donorThankYou",
+    "donationCta",
+    "staffSignature",
+    "footerCompliance",
     "image",
     "video",
     "button",
@@ -164,6 +243,19 @@ function hydrateGeneratedBlock(raw: Record<string, unknown>): EmailBlock {
     } as EmailBlock;
   }
 
+  if (type === "heading") {
+    return {
+      ...base,
+      type,
+      eyebrow: raw.eyebrow ? String(raw.eyebrow) : undefined,
+      title: String(raw.title ?? "Campaign Update"),
+      subtitle: raw.subtitle ? String(raw.subtitle) : undefined,
+      align: raw.align === "center" || raw.align === "right" ? raw.align : "left",
+      textColor: String(raw.textColor ?? "#111827"),
+      padding: toBoundedNumber(raw.padding, 18, 0, 100),
+    } as EmailBlock;
+  }
+
   if (type === "impactStat") {
     return {
       ...base,
@@ -173,6 +265,118 @@ function hydrateGeneratedBlock(raw: Record<string, unknown>): EmailBlock {
       sublabel: raw.sublabel ? String(raw.sublabel) : undefined,
       bgColor: String(raw.bgColor ?? "#ecfdf3"),
       textColor: String(raw.textColor ?? "#14532d"),
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+    } as EmailBlock;
+  }
+
+  if (type === "callout") {
+    return {
+      ...base,
+      type,
+      title: String(raw.title ?? "Impact Highlight"),
+      body: String(raw.body ?? "Share one concise impact story here."),
+      bgColor: String(raw.bgColor ?? "#eff6ff"),
+      borderColor: String(raw.borderColor ?? "#2563eb"),
+      textColor: String(raw.textColor ?? "#1e3a8a"),
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+    } as EmailBlock;
+  }
+
+  if (type === "progress") {
+    return {
+      ...base,
+      type,
+      label: String(raw.label ?? "Campaign Progress"),
+      current: toBoundedNumber(raw.current, 0, 0, 100000000),
+      goal: Math.max(1, toBoundedNumber(raw.goal, 100, 1, 100000000)),
+      barColor: String(raw.barColor ?? "#16a34a"),
+      trackColor: String(raw.trackColor ?? "#d1fae5"),
+      textColor: String(raw.textColor ?? "#14532d"),
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+    } as EmailBlock;
+  }
+
+  if (type === "featureList") {
+    const items = Array.isArray(raw.items)
+      ? raw.items.map((item) => String(item).trim()).filter(Boolean).slice(0, 8)
+      : [];
+    return {
+      ...base,
+      type,
+      title: raw.title ? String(raw.title) : undefined,
+      items: items.length > 0 ? items : ["Program support", "Community care", "Sustained impact"],
+      dollarFraming: raw.dollarFraming ? String(raw.dollarFraming) : undefined,
+      bulletColor: String(raw.bulletColor ?? "#16a34a"),
+      textColor: String(raw.textColor ?? "#1f2937"),
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+    } as EmailBlock;
+  }
+
+  if (type === "donorThankYou") {
+    return {
+      ...base,
+      type,
+      headline: String(raw.headline ?? "Thank you for your generosity"),
+      thankYouMessage: String(raw.thankYouMessage ?? "Your support makes this mission possible."),
+      giftAmountToken: String(raw.giftAmountToken ?? "{{lastGiftAmount}}"),
+      giftDateToken: String(raw.giftDateToken ?? "{{lastGiftDate}}"),
+      campaignToken: String(raw.campaignToken ?? "{{campaignName}}"),
+      staffSignature: String(raw.staffSignature ?? "{{staffName}}"),
+      bgColor: String(raw.bgColor ?? "#ecfdf3"),
+      textColor: String(raw.textColor ?? "#14532d"),
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+    } as EmailBlock;
+  }
+
+  if (type === "donationCta") {
+    const suggestedAmounts = Array.isArray(raw.suggestedAmounts)
+      ? raw.suggestedAmounts.map((item) => String(item).trim()).filter(Boolean).slice(0, 6)
+      : [];
+    return {
+      ...base,
+      type,
+      headline: String(raw.headline ?? "Keep this work going"),
+      appealText: String(raw.appealText ?? raw.content ?? "Your next gift helps continue this momentum."),
+      buttonLabel: String(raw.buttonLabel ?? "Give Today"),
+      buttonUrl: String(raw.buttonUrl ?? raw.href ?? "https://"),
+      suggestedAmounts: suggestedAmounts.length > 0 ? suggestedAmounts : ["$25", "$50", "$100"],
+      bgColor: String(raw.bgColor ?? "#ecfdf3"),
+      textColor: String(raw.textColor ?? "#14532d"),
+      buttonColor: String(raw.buttonColor ?? "#16a34a"),
+      buttonTextColor: String(raw.buttonTextColor ?? "#ffffff"),
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+    } as EmailBlock;
+  }
+
+  if (type === "staffSignature") {
+    return {
+      ...base,
+      type,
+      nameToken: String(raw.nameToken ?? "{{staffName}}"),
+      titleToken: String(raw.titleToken ?? "{{staffTitle}}"),
+      phoneToken: String(raw.phoneToken ?? "{{organizationPhone}}"),
+      emailToken: String(raw.emailToken ?? "{{staffEmail}}"),
+      organizationToken: String(raw.organizationToken ?? "{{organizationName}}"),
+      signatureImageUrl: raw.signatureImageUrl ? String(raw.signatureImageUrl) : undefined,
+      headshotUrl: raw.headshotUrl ? String(raw.headshotUrl) : undefined,
+      textColor: String(raw.textColor ?? "#1f2937"),
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+    } as EmailBlock;
+  }
+
+  if (type === "footerCompliance") {
+    return {
+      ...base,
+      type,
+      organizationNameToken: String(raw.organizationNameToken ?? "{{organizationName}}"),
+      addressToken: String(raw.addressToken ?? "{{addressBlock}}"),
+      phoneToken: String(raw.phoneToken ?? "{{organizationPhone}}"),
+      websiteToken: String(raw.websiteToken ?? "{{organizationWebsite}}"),
+      unsubscribeToken: String(raw.unsubscribeToken ?? "{{unsubscribeUrl}}"),
+      managePreferencesToken: String(raw.managePreferencesToken ?? "{{managePreferencesUrl}}"),
+      taxIdToken: raw.taxIdToken ? String(raw.taxIdToken) : undefined,
+      bgColor: String(raw.bgColor ?? "#f9fafb"),
+      textColor: String(raw.textColor ?? "#4b5563"),
       padding: toBoundedNumber(raw.padding, 16, 0, 100),
     } as EmailBlock;
   }
@@ -235,6 +439,35 @@ function hydrateGeneratedBlock(raw: Record<string, unknown>): EmailBlock {
     } as EmailBlock;
   }
 
+  if (type === "social") {
+    const links = Array.isArray(raw.links)
+      ? raw.links
+        .map((link) => ({
+          platform: String((link as { platform?: unknown })?.platform ?? ""),
+          url: String((link as { url?: unknown })?.url ?? "").trim(),
+        }))
+        .filter((link) =>
+          ["facebook", "twitter", "instagram", "linkedin", "youtube"].includes(link.platform)
+          && link.url,
+        )
+      : [];
+    return {
+      ...base,
+      type,
+      links: links.length > 0
+        ? links.map((link) => ({ platform: link.platform as "facebook" | "twitter" | "instagram" | "linkedin" | "youtube", url: link.url }))
+        : base.type === "social"
+          ? base.links
+          : [
+            { platform: "facebook", url: "https://facebook.com" },
+            { platform: "instagram", url: "https://instagram.com" },
+            { platform: "linkedin", url: "https://linkedin.com" },
+          ],
+      align: raw.align === "left" || raw.align === "right" ? raw.align : "center",
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+    } as EmailBlock;
+  }
+
   return {
     ...base,
     type: "text",
@@ -260,6 +493,62 @@ function DragGhost({ label }: { label: string }) {
       + {label}
     </div>
   );
+}
+
+/** Applies branding defaults to template-level style settings used across the email canvas. */
+function applyBrandingToTemplate(template: EmailTemplate, branding: BrandingSettings): EmailTemplate {
+  return {
+    ...template,
+    backgroundColor: branding.emailBackgroundColor || template.backgroundColor,
+    contentWidth: branding.emailContentWidth || template.contentWidth,
+    fontFamily: branding.emailFontFamily || template.fontFamily,
+  };
+}
+
+/** Applies branding accents to newly created blocks so the palette starts on-brand. */
+function applyBrandingToBlock(block: EmailBlock, branding: BrandingSettings): EmailBlock {
+  switch (block.type) {
+    case 'button':
+      return { ...block, bgColor: branding.primaryColor || block.bgColor };
+    case 'aiButton':
+      return { ...block, bgColor: branding.primaryColor || block.bgColor };
+    case 'impactGrid':
+      return { ...block, accentColor: branding.primaryColor || block.accentColor };
+    case 'progress':
+      return { ...block, barColor: branding.primaryColor || block.barColor };
+    case 'donationCta':
+      return { ...block, buttonColor: branding.primaryColor || block.buttonColor };
+    case 'featureList':
+      return { ...block, bulletColor: branding.primaryColor || block.bulletColor };
+    case 'timeline':
+      return { ...block, accentColor: branding.primaryColor || block.accentColor };
+    case 'social': {
+      const links = [...block.links];
+      if (branding.socialFacebook) {
+        const idx = links.findIndex((link) => link.platform === 'facebook');
+        if (idx >= 0) links[idx] = { ...links[idx], url: branding.socialFacebook };
+      }
+      if (branding.socialInstagram) {
+        const idx = links.findIndex((link) => link.platform === 'instagram');
+        if (idx >= 0) links[idx] = { ...links[idx], url: branding.socialInstagram };
+      }
+      if (branding.socialLinkedIn) {
+        const idx = links.findIndex((link) => link.platform === 'linkedin');
+        if (idx >= 0) links[idx] = { ...links[idx], url: branding.socialLinkedIn };
+      }
+      if (branding.socialYoutube) {
+        const idx = links.findIndex((link) => link.platform === 'youtube');
+        if (idx >= 0) links[idx] = { ...links[idx], url: branding.socialYoutube };
+      }
+      return { ...block, links };
+    }
+    case 'image':
+      if (block.src.trim()) return block;
+      if (!branding.logoUrl.trim()) return block;
+      return { ...block, src: branding.logoUrl, alt: `${branding.organizationDisplayName || 'Organization'} logo` };
+    default:
+      return block;
+  }
 }
 
 // ─── EmailBuilderApp ──────────────────────────────────────────────────────────
@@ -294,6 +583,7 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
   const [sendingTest, setSendingTest] = useState(false);
   const [testStatus, setTestStatus] = useState<string | null>(null);
   const [activeSidebarTab, setActiveSidebarTab] = useState<SidebarTab>('block');
+  const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
   const dirtyRef = useRef(false);
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -312,6 +602,29 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
   /* Start in loading state when a campaignId is present so the first render
      shows the spinner without a synchronous setState call in the effect. */
   const [loading,   setLoading]   = useState(Boolean(campaignId));
+
+  /** Loads organization branding defaults once auth is ready so builder defaults stay consistent. */
+  useEffect(() => {
+    if (authLoading) return;
+
+    fetchBrandingSettings()
+      .then((payload) => {
+        setBranding(payload);
+        setTemplate((current) => {
+          // Only auto-apply branding if the local template still appears untouched.
+          const isUntouchedDefault =
+            current.blocks.length === 1 &&
+            current.blocks[0]?.type === 'text' &&
+            current.backgroundColor === '#f5f5f5' &&
+            current.contentWidth === 600;
+          if (!isUntouchedDefault) return current;
+          return applyBrandingToTemplate(current, payload);
+        });
+      })
+      .catch(() => {
+        // Keep builder resilient when branding settings fail to load.
+      });
+  }, [authLoading]);
 
   // Wait for auth to finish refreshing before fetching — avoids the race where
   // the in-memory access token is still null when this effect fires on page load.
@@ -432,7 +745,7 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
     if (origin === 'palette') {
       /* ── Drop from palette: create a new block ── */
       const blockType = active.data.current?.blockType as BlockType;
-      const newBlock  = createDefaultBlock(blockType);
+      const newBlock  = applyBrandingToBlock(createDefaultBlock(blockType), branding);
 
       setTemplate((prev) => {
         const blocks = [...prev.blocks];
@@ -501,14 +814,14 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
 
   /** Replaces the current canvas with a starter preset template. */
   const applyPreset = () => {
-    const next = createTemplateFromPreset(preset);
+    const next = applyBrandingToTemplate(createTemplateFromPreset(preset), branding);
     setTemplate(next);
     setSelectedId(next.blocks[0]?.id ?? null);
     markDirty();
   };
 
-  /** Generates a full email template draft from Communications AI and replaces the current canvas. */
-  const generateFullTemplateWithAi = useCallback(async () => {
+  /** Generates a full email template draft from Communications AI and optionally saves it immediately as draft. */
+  const generateFullTemplateWithAi = useCallback(async (options?: { saveDraft?: boolean }) => {
     if (aiBusy) return;
 
     setAiBusy(true);
@@ -525,29 +838,74 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
       });
 
       const draftTemplate = response.template;
-      const generatedBlocks = Array.isArray(draftTemplate.blocks)
-        ? draftTemplate.blocks.map((block) => hydrateGeneratedBlock(block)).slice(0, 24)
+      let generatedBlocks = Array.isArray(draftTemplate.blocks)
+        ? draftTemplate.blocks.map((block) => applyBrandingToBlock(hydrateGeneratedBlock(block), branding)).slice(0, 24)
         : [];
+
+      // Ensure compliance-friendly drafts include footerCompliance for review-first workflows.
+      if (!generatedBlocks.some((block) => block.type === 'footerCompliance')) {
+        generatedBlocks = [
+          ...generatedBlocks,
+          applyBrandingToBlock(createDefaultBlock('footerCompliance'), branding),
+        ];
+      }
 
       if (generatedBlocks.length === 0) {
         throw new Error("AI returned no blocks. Try a more specific brief.");
       }
 
-      setTemplate({
+      const nextTemplate = applyBrandingToTemplate({
         backgroundColor: String(draftTemplate.backgroundColor ?? "#f5f5f5"),
         contentWidth: toBoundedNumber(draftTemplate.contentWidth, 600, 420, 760),
         fontFamily: String(draftTemplate.fontFamily ?? "Arial, Helvetica, sans-serif"),
         blocks: generatedBlocks,
-      });
+      }, branding);
+
+      setTemplate(nextTemplate);
       setSelectedId(generatedBlocks[0]?.id ?? null);
       setAiModelUsed(response.sourceModel);
-      markDirty();
+
+      if (options?.saveDraft && campaignId) {
+        const bodyHtml = generateEmailHtml(nextTemplate);
+        const bodyText = generatePlainText(nextTemplate);
+        await apiFetch(`/api/email-campaigns/${campaignId}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            name: campaignName.trim() || 'Email Campaign',
+            subject: subjectLine.trim() || campaignName.trim() || 'Email Campaign',
+            previewText: previewText.trim() || undefined,
+            bodyHtml,
+            bodyText,
+            purpose: campaignPurpose,
+            templateJson: JSON.stringify(nextTemplate),
+            preparationStatus: 'DRAFT',
+          }),
+        });
+        dirtyRef.current = false;
+        setDirty(false);
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3650);
+      } else {
+        markDirty();
+      }
     } catch (error) {
       setAiError(error instanceof Error ? error.message : "AI template generation failed.");
     } finally {
       setAiBusy(false);
     }
-  }, [aiAudience, aiBrief, aiBusy, aiTone, campaignName, markDirty]);
+  }, [
+    aiAudience,
+    aiBrief,
+    aiBusy,
+    aiTone,
+    branding,
+    campaignId,
+    campaignName,
+    campaignPurpose,
+    markDirty,
+    previewText,
+    subjectLine,
+  ]);
 
   /** Regenerates one selected AI block payload based on the block's own stored prompt. */
   const generateSelectedAiBlock = useCallback(async (blockId: string) => {
@@ -758,10 +1116,15 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
     if (block.type === 'impactStory') return !!block.ctaLabel && !block.ctaUrl;
     return false;
   });
+  const mergeTokenValidation = useMemo(() => validateTemplateMergeTokens(template), [template]);
   const requiresCompliance = COMPLIANCE_REQUIRED_PURPOSES.has(campaignPurpose);
   const reviewChecks = [
     { label: 'Subject line added', pass: subjectLine.trim().length > 0 },
     { label: 'Preview text added', pass: previewText.trim().length > 0 },
+    {
+      label: 'Merge tokens are recognized and well-formed',
+      pass: mergeTokenValidation.unknownTokens.length === 0 && mergeTokenValidation.malformedBraceCount === 0,
+    },
     ...(requiresCompliance
       ? [
         { label: 'Footer compliance block present', pass: hasFooterCompliance },
@@ -1087,6 +1450,24 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
                 </div>
 
                 <div className="space-y-2 rounded-lg border border-gray-200 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Branding Defaults</p>
+                  <p className="text-sm font-semibold text-gray-800">{branding.organizationDisplayName || 'Organization branding not configured'}</p>
+                  {branding.tagline && <p className="text-xs text-gray-600">{branding.tagline}</p>}
+                  <div className="flex items-center gap-2 pt-1">
+                    <span className="h-4 w-4 rounded-full border border-gray-200" style={{ backgroundColor: branding.primaryColor }} />
+                    <span className="text-xs text-gray-600">Primary {branding.primaryColor}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-4 w-4 rounded-full border border-gray-200" style={{ backgroundColor: branding.accentColor }} />
+                    <span className="text-xs text-gray-600">Accent {branding.accentColor}</span>
+                  </div>
+                  {branding.contactEmail && <p className="text-xs text-gray-600">Email: {branding.contactEmail}</p>}
+                  {branding.contactPhone && <p className="text-xs text-gray-600">Phone: {branding.contactPhone}</p>}
+                  {formatBrandingAddress(branding) && <p className="text-xs text-gray-600">Address: {formatBrandingAddress(branding)}</p>}
+                  <p className="text-[11px] text-gray-500">Auto-collected from Settings to Branding.</p>
+                </div>
+
+                <div className="space-y-2 rounded-lg border border-gray-200 p-3">
                   <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Test Send</p>
                   <input
                     value={testEmail}
@@ -1166,6 +1547,20 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
                   ))}
                 </div>
 
+                {(mergeTokenValidation.unknownTokens.length > 0 || mergeTokenValidation.malformedBraceCount > 0) && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-1">
+                    {mergeTokenValidation.malformedBraceCount > 0 && (
+                      <p>Malformed merge braces detected: {mergeTokenValidation.malformedBraceCount}</p>
+                    )}
+                    {mergeTokenValidation.unknownTokens.length > 0 && (
+                      <p title={mergeTokenValidation.unknownTokens.join(', ')}>
+                        Unknown merge tokens: {mergeTokenValidation.unknownTokens.slice(0, 3).join(', ')}
+                        {mergeTokenValidation.unknownTokens.length > 3 ? '...' : ''}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {requiresCompliance && !hasFooterCompliance && (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
                     Add the Footer Compliance block from the Block Library to satisfy unsubscribe and contact requirements.
@@ -1207,14 +1602,24 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
                   <option value="celebratory">Celebratory Tone</option>
                   <option value="urgent">Urgent Tone</option>
                 </select>
-                <button
-                  type="button"
-                  onClick={() => void generateFullTemplateWithAi()}
-                  disabled={aiBusy || loading || authLoading || !user || !aiBrief.trim()}
-                  className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60"
-                >
-                  {aiBusy ? 'Generating Full Email...' : 'Generate Full Email'}
-                </button>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => void generateFullTemplateWithAi()}
+                    disabled={aiBusy || loading || authLoading || !user || !aiBrief.trim()}
+                    className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60"
+                  >
+                    {aiBusy ? 'Generating...' : 'Generate Draft'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void generateFullTemplateWithAi({ saveDraft: true })}
+                    disabled={aiBusy || loading || authLoading || !user || !campaignId || !aiBrief.trim()}
+                    className="w-full rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 hover:bg-green-100 disabled:opacity-60"
+                  >
+                    {aiBusy ? 'Generating...' : 'Generate + Save Draft'}
+                  </button>
+                </div>
 
                 {!authLoading && !user && (
                   <p className="text-xs text-amber-700">Sign in again to use Communications AI generation.</p>

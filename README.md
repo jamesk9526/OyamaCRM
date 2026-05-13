@@ -65,6 +65,25 @@ Readiness source of truth and dated evidence:
 
 ---
 
+## OyamaWebMaster Command Center (Current)
+
+OyamaWebMaster now includes a real persisted site manager foundation inside OyamaCRM:
+
+- Site metadata and type taxonomy (main, landing, event, donation, temporary, and more)
+- Lifecycle controls: archive, restore, duplicate (safe and non-destructive)
+- Site manager filtering by status, type, module, and query
+- Persisted page records connected to site context
+
+Current architecture docs:
+
+- [docs/OYAMA_WEBMASTER_REBUILD_PLAN.md](docs/OYAMA_WEBMASTER_REBUILD_PLAN.md)
+- [docs/OYAMA_WEBMASTER_SITE_TYPES.md](docs/OYAMA_WEBMASTER_SITE_TYPES.md)
+- [docs/OYAMA_WEBMASTER_PUBLISHING_ARCHITECTURE.md](docs/OYAMA_WEBMASTER_PUBLISHING_ARCHITECTURE.md)
+- [docs/OYAMA_WEBMASTER_CRM_INTEGRATION.md](docs/OYAMA_WEBMASTER_CRM_INTEGRATION.md)
+- [docs/OYAMA_WEBMASTER_DATA_SAFETY.md](docs/OYAMA_WEBMASTER_DATA_SAFETY.md)
+
+---
+
 ## 📸 Screenshots
 
 ### Authentication
@@ -141,6 +160,9 @@ Current donor-specific implementation and readiness references:
 - Donor communications audit: [docs/DONOR_CRM_COMMUNICATIONS_AUDIT.md](docs/DONOR_CRM_COMMUNICATIONS_AUDIT.md)
 - Donor email builder notes: [docs/DONOR_CRM_EMAIL_BUILDER.md](docs/DONOR_CRM_EMAIL_BUILDER.md)
 - Donor letters and printables notes: [docs/DONOR_CRM_LETTERS_PRINTABLES.md](docs/DONOR_CRM_LETTERS_PRINTABLES.md)
+- Donor letters production plan: [docs/DONOR_CRM_LETTERS_PRINTABLES_PRODUCTION_PLAN.md](docs/DONOR_CRM_LETTERS_PRINTABLES_PRODUCTION_PLAN.md)
+- Donor print/mail queue guide: [docs/DONOR_CRM_PRINT_QUEUE.md](docs/DONOR_CRM_PRINT_QUEUE.md)
+- Donor form-letter editor guide: [docs/DONOR_CRM_FORM_LETTER_EDITOR.md](docs/DONOR_CRM_FORM_LETTER_EDITOR.md)
 - Donor grants workspace design: [docs/DONOR_CRM_GRANTS_RESEARCH_WORKSPACE.md](docs/DONOR_CRM_GRANTS_RESEARCH_WORKSPACE.md)
 - Donor grants audit: [docs/DONOR_CRM_GRANTS_AUDIT.md](docs/DONOR_CRM_GRANTS_AUDIT.md)
 - Command center guidance: [docs/DONOR_CRM_STEWARDSHIP_COMMAND_CENTER.md](docs/DONOR_CRM_STEWARDSHIP_COMMAND_CENTER.md)

@@ -2,11 +2,11 @@
 
 ## Summary
 
-The Donor CRM now includes a dedicated Letters & Printables workspace at `/letters-printables` for building donor-facing letter templates, generating individualized letters, preparing print workflows, and creating email drafts tied to communication history.
+The Donor CRM Letters & Printables workspace at `/letters-printables` supports template authoring, single and batch generation, print queue operations, mail queue operations, and letter-to-email draft handoff.
 
 ## Scope
 
-This workspace is Donor CRM-focused and uses the green Donor CRM shell.
+This workspace is Donor CRM-only and uses the green DonorCRM shell.
 
 Implemented routes:
 
@@ -15,9 +15,13 @@ Implemented routes:
 - `/letters-printables/templates/new`
 - `/letters-printables/templates/[templateId]`
 - `/letters-printables/generate`
+- `/letters-printables/batches`
+- `/letters-printables/print-queue`
+- `/letters-printables/mail-queue`
 - `/letters-printables/generated`
 - `/letters-printables/signatures`
 - `/letters-printables/branding`
+- `/letters-printables/settings`
 
 ## Backend API
 
@@ -48,8 +52,12 @@ Implemented endpoints:
 - `POST /generated`
 - `PATCH /generated/:id/status`
 - `POST /generated/:id/create-email-draft`
-- `POST /generated/:id/export-pdf` (returns partial-implementation notice)
-- `POST /generated/batch` (returns partial-implementation notice)
+- `GET /generated/queue/print`
+- `GET /generated/queue/mail`
+- `POST /generated/queue/print/actions`
+- `POST /generated/queue/mail/actions`
+- `POST /generated/batch`
+- `POST /generated/:id/export-pdf` (returns explicit partial-implementation notice)
 
 `GET /generated` supports trace-aware filters for unified workflow navigation:
 
@@ -59,13 +67,13 @@ Implemented endpoints:
 
 ## Communication History Integration
 
-When a letter is generated or advanced in status, Activity timeline entries are written for the linked constituent.
+When letters are generated or moved through key queue/status actions, constituent timeline activity events are recorded.
 
-When an email draft is created from a generated letter, an EmailCampaign draft is created and linked to the generated letter.
+When an email draft is created from a generated letter, a linked `EmailCampaign` draft is created for Communications workflows.
 
 ## Permission Keys
 
-Letters permissions are managed through existing user permission overrides:
+Letters permissions include:
 
 - `letters.view`
 - `letters.create`
@@ -73,6 +81,8 @@ Letters permissions are managed through existing user permission overrides:
 - `letters.archive`
 - `letters.generate`
 - `letters.generate_batch`
+- `letters.manage_print_queue`
+- `letters.manage_mail_queue`
 - `letters.manage_signatures`
 - `letters.manage_branding`
 - `letters.create_email_draft`
@@ -80,7 +90,7 @@ Letters permissions are managed through existing user permission overrides:
 - `letters.view_sensitive_merge_data`
 - `letters.manage_all`
 
-Sensitive merge groups (gift and year fields) are filtered out unless `letters.view_sensitive_merge_data` is granted.
+Sensitive merge groups (gift and year fields) are filtered unless `letters.view_sensitive_merge_data` is granted.
 
 ## Current Status
 
@@ -89,28 +99,32 @@ Status: Partially Working
 Working now:
 
 - Template CRUD and duplication/archive
+- TipTap-based rich form-letter editor in template text modes (print and email)
+- Inline merge token insertion at editor cursor
+- Single-letter merge preview and generation
+- Batch generation with dry-run, skip reasons, household dedupe option, and optional queue handoff
+- Print queue list and bulk actions (approve, queue, mark printed, move to mail queue, cancel, archive)
+- Mail queue list and bulk actions (queue for mail, mark mailed, mark returned, address issue, reprint, archive)
 - Signature/header/footer preset CRUD (create/update/list)
-- Single-letter merge preview + generation
 - Constituent-profile letter history panel
 - Email draft creation from generated letter
-- Timeline + audit logging for key letter events
-- Visual Print Content builder foundation (drag/drop block editor) with backward-compatible printBody flattening
+- Timeline and audit logging for key letter and queue events
 - Shared letter execution service reused by letters API and steward-path letter steps
-- Steward-generated letters can link to created tasks for cross-navigation between Tasks and Generated Letters views
-
-Feature flag for visual editor:
-
-- `NEXT_PUBLIC_FEATURE_LETTERS_VISUAL_BUILDER=true` enables the visual Print Content mode in the template editor.
-- When disabled, the legacy text-area editor remains the default behavior.
 
 Partially implemented:
 
-- PDF export endpoint currently returns an explicit partial status response
-- Batch generation endpoint currently returns an explicit partial status response
+- Server-side PDF rendering/export pipeline (`POST /generated/:id/export-pdf`) is still explicit partial status
+- Workflow settings persistence APIs are not yet wired (settings page is guidance-only)
+
+## Notes
+
+Feature flag:
+
+- `NEXT_PUBLIC_FEATURE_LETTERS_VISUAL_BUILDER=true` enables visual print layout mode in the template editor.
+- When disabled, the TipTap text authoring path remains available.
 
 ## Next Steps
 
-1. Wire server-side PDF rendering pipeline and file delivery.
-2. Add true batch generation workflows with queue and progress states.
-3. Expand template builder UX with richer editor controls and inline merge insertion at cursor.
-4. Add focused UI tests for template editor and generated-letter state transitions.
+1. Implement server-side PDF rendering and file storage/delivery with retry/error tracking.
+2. Add queue policy persistence (approval rules, SLA defaults, and assignment metadata).
+3. Expand queue-focused tests across API and e2e operations for print and mail transitions.

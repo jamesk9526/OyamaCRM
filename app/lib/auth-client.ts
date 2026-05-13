@@ -18,6 +18,21 @@ export interface AuthUser {
   avatarUrl?: string | null;
 }
 
+export interface LoginMfaChallenge {
+  mfaRequired: true;
+  mfaTicket: string;
+  destinationHint: string;
+  expiresAt: string;
+}
+
+export interface LoginSuccess {
+  mfaRequired?: false;
+  accessToken: string;
+  user: AuthUser;
+}
+
+export type LoginResponse = LoginSuccess | LoginMfaChallenge;
+
 // ─── In-memory token store ─────────────────────────────────────────────────
 
 let _accessToken: string | null = null;
@@ -35,7 +50,7 @@ export function getAccessToken(): string | null {
 
 // ─── Login ─────────────────────────────────────────────────────────────────
 
-export async function login(email: string, password: string): Promise<AuthUser> {
+export async function login(email: string, password: string): Promise<LoginResponse> {
   const res = await fetch(`${API_BASE}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -48,8 +63,58 @@ export async function login(email: string, password: string): Promise<AuthUser> 
     throw new Error(body?.error?.message ?? "Login failed");
   }
 
+  if (body?.data?.mfaRequired) {
+    return body.data as LoginMfaChallenge;
+  }
+
+  setAccessToken(body.data.accessToken);
+  return body.data as LoginSuccess;
+}
+
+/** Completes one email-based MFA login challenge and returns authenticated user profile. */
+export async function verifyEmailMfa(ticket: string, code: string): Promise<AuthUser> {
+  const res = await fetch(`${API_BASE}/api/auth/mfa/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ ticket, code }),
+  });
+
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(body?.error?.message ?? "MFA verification failed");
+  }
+
   setAccessToken(body.data.accessToken);
   return body.data.user as AuthUser;
+}
+
+/** Requests one password reset email. Response is intentionally generic for account privacy. */
+export async function requestPasswordReset(email: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.error?.message ?? "Failed to request password reset");
+  }
+}
+
+/** Resets password with one-time token issued by forgot-password flow. */
+export async function resetPasswordWithToken(token: string, newPassword: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ token, newPassword }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(body?.error?.message ?? "Failed to reset password");
+  }
 }
 
 // ─── Refresh ───────────────────────────────────────────────────────────────

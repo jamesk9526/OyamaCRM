@@ -57,7 +57,7 @@ export default function LetterTemplatesList() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Template Library</h1>
-          <p className="mt-0.5 text-sm text-gray-500">Versioned donor letter templates with reusable print and email content.</p>
+          <p className="mt-0.5 text-sm text-gray-500">Versioned donor letter templates with reusable print and mailing content.</p>
         </div>
         <Link
           href="/letters-printables/templates/new"

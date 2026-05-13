@@ -1,12 +1,19 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { AuthUser, login, logout, refreshAccessToken, fetchMe } from "@/app/lib/auth-client";
+import {
+  AuthUser,
+  LoginMfaChallenge,
+  login,
+  logout,
+  refreshAccessToken,
+  fetchMe,
+} from "@/app/lib/auth-client";
 
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ mfaRequired: false } | LoginMfaChallenge>;
   signOut: () => Promise<void>;
 }
 
@@ -47,9 +54,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function signIn(email: string, password: string) {
-    const u = await login(email, password);
+    const loginResult = await login(email, password);
+    if ("mfaRequired" in loginResult && loginResult.mfaRequired) {
+      return loginResult;
+    }
+
+    const u = loginResult.user;
     restoreSessionPromise = Promise.resolve(u);
     setUser(u);
+    return { mfaRequired: false } as const;
   }
 
   async function signOut() {

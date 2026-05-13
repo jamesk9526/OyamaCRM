@@ -1,4 +1,4 @@
-/** Generated letters list with status updates and communication actions. */
+/** Generated letters list with print and mail workflow actions. */
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -8,7 +8,7 @@ import { apiFetch } from "@/app/lib/auth-client";
 import LettersWorkspaceNav from "@/app/components/letters/LettersWorkspaceNav";
 import type { GeneratedLetterSummary } from "@/app/components/letters/types";
 
-const STATUS_OPTIONS = ["ALL", "GENERATED", "PRINTED", "MAILED", "EMAIL_DRAFT_CREATED", "EMAIL_SENT", "ARCHIVED"] as const;
+const STATUS_OPTIONS = ["ALL", "GENERATED", "PRINTED", "MAILED", "ARCHIVED"] as const;
 
 /** Lists generated letter instances and supports downstream workflow actions. */
 export default function GeneratedLettersList() {
@@ -57,17 +57,6 @@ export default function GeneratedLettersList() {
     }
   }
 
-  /** Creates communication draft from one generated letter. */
-  async function createEmailDraft(letterId: string) {
-    setWorkingId(letterId);
-    try {
-      await apiFetch(`/api/letters/generated/${letterId}/create-email-draft`, { method: "POST" });
-      await load();
-    } finally {
-      setWorkingId(null);
-    }
-  }
-
   /** Requests PDF export endpoint; currently returns partial implementation notice from backend. */
   async function exportPdf(letterId: string) {
     setWorkingId(letterId);
@@ -85,7 +74,7 @@ export default function GeneratedLettersList() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Generated Letters</h1>
-          <p className="mt-0.5 text-sm text-gray-500">Track print status, mail status, and email drafts from generated communication records.</p>
+          <p className="mt-0.5 text-sm text-gray-500">Track print status and mail status for generated communication records.</p>
         </div>
         <Link href="/letters-printables/generate" className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700">
           Generate New Letter
@@ -165,18 +154,6 @@ export default function GeneratedLettersList() {
                   >
                     Mark Mailed
                   </button>
-                  <button
-                    onClick={() => void createEmailDraft(letter.id)}
-                    disabled={workingId === letter.id}
-                    className="px-3 py-1.5 text-xs rounded border border-green-300 text-green-700 hover:bg-green-50 disabled:opacity-60"
-                  >
-                    Create Email Draft
-                  </button>
-                  {letter.emailCampaignId && (
-                    <Link href={`/communications/${letter.emailCampaignId}`} className="px-3 py-1.5 text-xs rounded border border-blue-300 text-blue-700 hover:bg-blue-50">
-                      Open Draft
-                    </Link>
-                  )}
                   <button
                     onClick={() => void exportPdf(letter.id)}
                     disabled={workingId === letter.id}

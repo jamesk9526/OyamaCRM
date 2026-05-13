@@ -72,8 +72,28 @@ describe("auth-client", () => {
       );
 
       const result = await login("a@b.com", "pw");
-      expect(result).toEqual(user);
+      expect("user" in result && result.user).toEqual(user);
       expect(getAccessToken()).toBe("tok-1");
+    });
+
+    it("returns MFA challenge without storing an access token when MFA is required", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          jsonResponse({
+            data: {
+              mfaRequired: true,
+              mfaTicket: "ticket-1",
+              destinationHint: "ab***@org.org",
+              expiresAt: new Date().toISOString(),
+            },
+          }),
+        ),
+      );
+
+      const result = await login("a@b.com", "pw");
+      expect("mfaRequired" in result && result.mfaRequired).toBe(true);
+      expect(getAccessToken()).toBeNull();
     });
 
     it("throws the server-supplied error message on failure", async () => {

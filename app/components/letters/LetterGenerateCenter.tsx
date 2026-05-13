@@ -10,7 +10,6 @@ import type { LetterTemplateSummary } from "@/app/components/letters/types";
 
 interface DraftPreview {
   mergedPrintBody: string;
-  mergedEmailBody: string | null;
   unsupportedFields: string[];
 }
 
@@ -53,6 +52,7 @@ export default function LetterGenerateCenter() {
     }
   }, [templateId]);
 
+  // Load active templates once so users can immediately preview/generate.
   useEffect(() => {
     void loadTemplates();
   }, [loadTemplates]);
@@ -127,9 +127,14 @@ export default function LetterGenerateCenter() {
           <h1 className="text-xl font-semibold text-gray-900">Generate Letter</h1>
           <p className="mt-0.5 text-sm text-gray-500">Generate one donor letter now and track it in communication history.</p>
         </div>
-        <Link href="/letters-printables/generated" className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
-          View Generated Letters
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/letters-printables/batches" className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+            Batch Generate
+          </Link>
+          <Link href="/letters-printables/generated" className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+            View Generated Letters
+          </Link>
+        </div>
       </div>
 
       <LettersWorkspaceNav />
@@ -189,14 +194,10 @@ export default function LetterGenerateCenter() {
       {preview && (
         <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
           <h2 className="text-sm font-semibold text-gray-900">Preview</h2>
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid gap-3">
             <div className="rounded-lg border border-gray-200 p-3">
               <p className="text-xs uppercase tracking-wide text-gray-500">Print</p>
-              <pre className="mt-2 whitespace-pre-wrap text-xs text-gray-700">{preview.mergedPrintBody}</pre>
-            </div>
-            <div className="rounded-lg border border-gray-200 p-3">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Email</p>
-              <pre className="mt-2 whitespace-pre-wrap text-xs text-gray-700">{preview.mergedEmailBody || "No email content"}</pre>
+              <div className="mt-2 rounded border border-gray-200 bg-white p-4 text-sm text-gray-800 [&_hr[data-page-break='true']]:my-6 [&_hr[data-page-break='true']]:border-t-2 [&_hr[data-page-break='true']]:border-dashed [&_hr[data-page-break='true']]:border-gray-400" dangerouslySetInnerHTML={{ __html: preview.mergedPrintBody }} />
             </div>
           </div>
           {preview.unsupportedFields.length > 0 && (

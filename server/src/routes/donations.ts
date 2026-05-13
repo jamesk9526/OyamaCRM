@@ -56,6 +56,118 @@ const INCLUDE = {
   designation: { select: { id: true, name: true } },
 };
 
+interface DonationQuickActionContext {
+  id: string;
+  date: Date;
+  amount: Prisma.Decimal;
+  paymentMethod: string;
+  campaignId: string | null;
+  designationId: string | null;
+  constituent: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string | null;
+  };
+  campaign: {
+    id: string;
+    name: string;
+  } | null;
+  designation: {
+    id: string;
+    name: string;
+  } | null;
+}
+
+/** Formats donation date into YYYY-MM-DD for deterministic task/draft naming. */
+function formatDonationDateForLabel(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/** Formats one donation amount with fixed dollars and cents for generated labels. */
+function formatDonationAmountForLabel(amount: Prisma.Decimal): string {
+  return Number(amount).toFixed(2);
+}
+
+/** Loads one donation with linked constituent/campaign/designation context for quick actions. */
+async function loadDonationQuickActionContext(organizationId: string, donationId: string): Promise<DonationQuickActionContext | null> {
+  return prisma.donation.findFirst({
+    where: {
+      id: donationId,
+      ...donationOrgWhere(organizationId),
+    },
+    select: {
+      id: true,
+      date: true,
+      amount: true,
+      paymentMethod: true,
+      campaignId: true,
+      designationId: true,
+      constituent: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      campaign: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      designation: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+}
+
+/** Resolves the best available donor steward path template for quick enrollment actions. */
+async function resolveDefaultDonationPathTemplate(organizationId: string) {
+  const preferred = await prisma.stewardPath.findFirst({
+    where: {
+      organizationId,
+      status: "ACTIVE",
+      crmScope: { in: ["DONOR", "GLOBAL"] },
+      targetType: { in: ["CONSTITUENT", "DONOR"] },
+      steps: { some: { isActive: true } },
+    },
+    include: {
+      steps: {
+        where: { isActive: true },
+        orderBy: { orderIndex: "asc" },
+        take: 1,
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  if (preferred) return preferred;
+
+  return prisma.stewardPath.findFirst({
+    where: {
+      organizationId,
+      status: { in: ["DRAFT", "PAUSED"] },
+      crmScope: { in: ["DONOR", "GLOBAL"] },
+      targetType: { in: ["CONSTITUENT", "DONOR"] },
+      steps: { some: { isActive: true } },
+    },
+    include: {
+      steps: {
+        where: { isActive: true },
+        orderBy: { orderIndex: "asc" },
+        take: 1,
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+}
+
 type DonationFilterQuery = {
   constituentId?: string;
   campaignId?: string;
@@ -466,6 +578,297 @@ router.put("/:id", async (req, res) => {
   await recalculateConstituentGivingRollups(donation.constituentId);
 
   res.json(donation);
+});
+
+/** POST /api/donations/:id/quick-actions/email-draft — Creates an auto-named email draft campaign and returns builder URL. */
+router.post("/:id/quick-actions/email-draft", requirePermission("edit:communications"), async (req, res) => {
+  const userId = req.user?.sub;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId || !userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const donation = await loadDonationQuickActionContext(organizationId, req.params.id);
+  if (!donation) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Donation not found" } });
+    return;
+  }
+
+  if (!donation.constituent.email) {
+    res.status(400).json({ error: { code: "MISSING_EMAIL", message: "Constituent email is required to create an email draft." } });
+    return;
+  }
+
+  const settings = await prisma.organizationSettings.findUnique({
+    where: { organizationId },
+    select: { smtpFromName: true, smtpFromEmail: true },
+  });
+
+  const donorFullName = `${donation.constituent.firstName} ${donation.constituent.lastName}`.trim();
+  const dateLabel = formatDonationDateForLabel(donation.date);
+  const amountLabel = formatDonationAmountForLabel(donation.amount);
+  const campaignName = `Donation Follow-up: ${donorFullName} - $${amountLabel} - ${dateLabel}`;
+  const subject = `Thank you for your gift, ${donation.constituent.firstName}`;
+  const previewText = `Donation acknowledgment for $${amountLabel} received ${dateLabel}.`;
+
+  const audienceFilter = JSON.stringify({
+    type: "individual",
+    recipientEmail: donation.constituent.email,
+    recipientConstituentId: donation.constituent.id,
+    source: "donation-quick-action",
+    donationId: donation.id,
+    _sharing: {
+      ownerId: userId,
+      sharedWithOrganization: false,
+    },
+    _workflow: {
+      preparationStatus: "DRAFT",
+    },
+  });
+
+  const bodyText = [
+    `Hi ${donation.constituent.firstName},`,
+    "",
+    `Thank you for your generous donation of $${amountLabel} on ${dateLabel}.`,
+    donation.designation?.name ? `Designation: ${donation.designation.name}` : "",
+    donation.campaign?.name ? `Campaign: ${donation.campaign.name}` : "",
+    "",
+    "We are grateful for your support.",
+    "",
+    "With gratitude,",
+    "{{staffName}}",
+  ].filter(Boolean).join("\n");
+
+  const campaign = await prisma.emailCampaign.create({
+    data: {
+      organizationId,
+      name: campaignName,
+      subject,
+      purpose: "THANK_YOU",
+      previewText,
+      fromName: settings?.smtpFromName || "OyamaCRM",
+      fromEmail: settings?.smtpFromEmail || "noreply@oyamacrm.org",
+      bodyText,
+      bodyHtml: `<p>${bodyText.replace(/\n/g, "<br />")}</p>`,
+      audienceFilter,
+      status: "DRAFT",
+    },
+    select: { id: true },
+  });
+
+  await prisma.activity.create({
+    data: {
+      constituentId: donation.constituent.id,
+      donationId: donation.id,
+      userId,
+      type: "NOTE",
+      description: `Email draft created from donation quick action: ${campaignName}`,
+      metadata: {
+        source: "api/donations:quick-action-email-draft",
+        campaignId: campaign.id,
+      },
+    },
+  });
+
+  await logAudit({
+    action: "DONATION_EMAIL_DRAFT_CREATED",
+    entity: "EmailCampaign",
+    entityId: campaign.id,
+    userId,
+    organizationId,
+    metadata: {
+      donationId: donation.id,
+      constituentId: donation.constituent.id,
+      campaignName,
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.status(201).json({
+    campaignId: campaign.id,
+    redirectTo: `/email-builder?campaign=${encodeURIComponent(campaign.id)}&returnTo=${encodeURIComponent(`/communications/${campaign.id}`)}`,
+  });
+});
+
+/** POST /api/donations/:id/quick-actions/call-task — Creates an auto-named call task and returns task workspace URL. */
+router.post("/:id/quick-actions/call-task", requirePermission("edit:tasks"), async (req, res) => {
+  const userId = req.user?.sub;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId || !userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const donation = await loadDonationQuickActionContext(organizationId, req.params.id);
+  if (!donation) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Donation not found" } });
+    return;
+  }
+
+  const dateLabel = formatDonationDateForLabel(donation.date);
+  const amountLabel = formatDonationAmountForLabel(donation.amount);
+  const donorFullName = `${donation.constituent.firstName} ${donation.constituent.lastName}`.trim();
+  const taskTitle = `Call ${donorFullName} - Thank for $${amountLabel} (${dateLabel})`;
+
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + 1);
+
+  const task = await prisma.task.create({
+    data: {
+      title: taskTitle,
+      description: `Donation follow-up call for ${donorFullName}.${donation.campaign?.name ? ` Campaign: ${donation.campaign.name}.` : ""}${donation.designation?.name ? ` Designation: ${donation.designation.name}.` : ""}`,
+      type: "CALL",
+      status: "PENDING",
+      priority: "HIGH",
+      dueDate,
+      constituentId: donation.constituent.id,
+      createdById: userId,
+      assigneeId: userId,
+    },
+    select: { id: true },
+  });
+
+  await prisma.activity.create({
+    data: {
+      constituentId: donation.constituent.id,
+      donationId: donation.id,
+      userId,
+      taskId: task.id,
+      type: "NOTE",
+      description: `Call task created from donation quick action: ${taskTitle}`,
+      metadata: {
+        source: "api/donations:quick-action-call-task",
+        taskId: task.id,
+      },
+    },
+  });
+
+  await logAudit({
+    action: "DONATION_CALL_TASK_CREATED",
+    entity: "Task",
+    entityId: task.id,
+    userId,
+    organizationId,
+    metadata: {
+      donationId: donation.id,
+      constituentId: donation.constituent.id,
+      taskTitle,
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.status(201).json({
+    taskId: task.id,
+    redirectTo: `/tasks?focus=my&taskId=${encodeURIComponent(task.id)}`,
+  });
+});
+
+/** POST /api/donations/:id/quick-actions/start-path — Enrolls donor into default path with auto metadata and returns workflow URL. */
+router.post("/:id/quick-actions/start-path", requirePermission("steward_paths.enroll"), async (req, res) => {
+  const userId = req.user?.sub;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId || !userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const donation = await loadDonationQuickActionContext(organizationId, req.params.id);
+  if (!donation) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Donation not found" } });
+    return;
+  }
+
+  const pathTemplate = await resolveDefaultDonationPathTemplate(organizationId);
+  if (!pathTemplate || pathTemplate.steps.length === 0) {
+    res.status(400).json({
+      error: {
+        code: "PATH_TEMPLATE_REQUIRED",
+        message: "No active donor steward path template with steps is available.",
+      },
+    });
+    return;
+  }
+
+  const amountLabel = formatDonationAmountForLabel(donation.amount);
+  const dateLabel = formatDonationDateForLabel(donation.date);
+  const donorFullName = `${donation.constituent.firstName} ${donation.constituent.lastName}`.trim();
+  const enrollmentLabel = `${pathTemplate.name} - ${donorFullName} - $${amountLabel} (${dateLabel})`;
+
+  const enrollment = await prisma.stewardPathEnrollment.create({
+    data: {
+      organizationId,
+      pathId: pathTemplate.id,
+      targetType: pathTemplate.targetType,
+      targetId: donation.constituent.id,
+      constituentId: donation.constituent.id,
+      ownerUserId: pathTemplate.defaultOwnerId ?? userId,
+      currentStepId: pathTemplate.steps[0]?.id ?? null,
+      nextStepDueAt: new Date(),
+      status: "ACTIVE",
+      metadataJson: {
+        source: "donation-quick-action",
+        donationId: donation.id,
+        campaignId: donation.campaignId,
+        designationId: donation.designationId,
+        enrollmentLabel,
+      },
+    },
+    select: { id: true, pathId: true },
+  });
+
+  await prisma.stewardPathTimelineEvent.create({
+    data: {
+      enrollmentId: enrollment.id,
+      stepId: pathTemplate.steps[0]?.id ?? null,
+      eventType: "PATH_STARTED",
+      message: `Enrollment started from donation quick action: ${enrollmentLabel}`,
+      createdByUserId: userId,
+      metadataJson: {
+        donationId: donation.id,
+        source: "donation-quick-action",
+      },
+    },
+  });
+
+  await prisma.activity.create({
+    data: {
+      constituentId: donation.constituent.id,
+      donationId: donation.id,
+      userId,
+      type: "NOTE",
+      description: `Steward path started from donation quick action: ${enrollmentLabel}`,
+      metadata: {
+        source: "api/donations:quick-action-start-path",
+        pathId: enrollment.pathId,
+        enrollmentId: enrollment.id,
+      },
+    },
+  });
+
+  await logAudit({
+    action: "DONATION_STEWARD_PATH_STARTED",
+    entity: "StewardPathEnrollment",
+    entityId: enrollment.id,
+    userId,
+    organizationId,
+    metadata: {
+      donationId: donation.id,
+      constituentId: donation.constituent.id,
+      pathId: enrollment.pathId,
+      enrollmentLabel,
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.status(201).json({
+    enrollmentId: enrollment.id,
+    pathId: enrollment.pathId,
+    redirectTo: `/automations?source=donation&constituentId=${encodeURIComponent(donation.constituent.id)}&donationId=${encodeURIComponent(donation.id)}&enrollmentId=${encodeURIComponent(enrollment.id)}`,
+  });
 });
 
 /**

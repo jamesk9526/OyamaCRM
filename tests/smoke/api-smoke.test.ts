@@ -300,4 +300,141 @@ describe("API smoke tests", () => {
       .set(auth);
     expect(archived.status).toBe(204);
   });
+
+  it("runs batch generation and processes print/mail queue actions", async () => {
+    const auth = { Authorization: `Bearer ${authToken}` };
+    let createdConstituentId: string | null = null;
+
+    const template = await request(app)
+      .post("/api/letters/templates")
+      .set(auth)
+      .send({
+        name: `Smoke Batch Letter ${Date.now()}`,
+        category: "THANK_YOU",
+        status: "ACTIVE",
+        printBody: "Dear {{donor.firstName}}, thank you for supporting {{organization.name}}.",
+        emailBody: "Thank you {{donor.firstName}}.",
+      });
+    expect(template.status).toBe(201);
+    const templateId = template.body.id as string;
+    expect(templateId).toBeTruthy();
+
+    const constituents = await request(app)
+      .get("/api/constituents")
+      .set(auth);
+    expect(constituents.status).toBe(200);
+    let candidate = (constituents.body as Array<{
+      id: string;
+      doNotMail?: boolean;
+      addressLine1?: string | null;
+      city?: string | null;
+      state?: string | null;
+      zip?: string | null;
+    }>).find((row) => Boolean(row.addressLine1 && row.city && row.state && row.zip && !row.doNotMail));
+
+    // Create one temporary, address-complete constituent when seeded data does not provide one.
+    if (!candidate?.id) {
+      const createdConstituent = await request(app)
+        .post("/api/constituents")
+        .set(auth)
+        .send({
+          firstName: "Smoke",
+          lastName: `Batch ${Date.now()}`,
+          email: `smoke-batch-${Date.now()}@example.org`,
+          addressLine1: "100 Main St",
+          city: "Springfield",
+          state: "IL",
+          zip: "62701",
+          type: "DONOR",
+        });
+      expect(createdConstituent.status).toBe(201);
+      createdConstituentId = createdConstituent.body.id as string;
+      candidate = {
+        id: createdConstituentId,
+        addressLine1: "100 Main St",
+        city: "Springfield",
+        state: "IL",
+        zip: "62701",
+        doNotMail: false,
+      };
+    }
+
+    expect(candidate?.id).toBeTruthy();
+
+    const batch = await request(app)
+      .post("/api/letters/generated/batch")
+      .set(auth)
+      .send({
+        templateId,
+        constituentIds: [candidate?.id],
+        dryRun: false,
+        addToPrintQueue: true,
+        dedupeHousehold: false,
+      });
+    expect(batch.status).toBe(200);
+    expect(batch.body.generatedCount).toBeGreaterThanOrEqual(1);
+
+    const generatedId = (batch.body.generated as Array<{ id: string }>)?.[0]?.id;
+    expect(generatedId).toBeTruthy();
+
+    const printQueue = await request(app)
+      .get("/api/letters/generated/queue/print?queueStatus=QUEUED_FOR_PRINT")
+      .set(auth);
+    expect(printQueue.status).toBe(200);
+    const printRow = (printQueue.body as Array<{ id: string }>).find((row) => row.id === generatedId);
+    expect(printRow).toBeTruthy();
+
+    const markPrinted = await request(app)
+      .post("/api/letters/generated/queue/print/actions")
+      .set(auth)
+      .send({
+        action: "MARK_PRINTED",
+        letterIds: [generatedId],
+      });
+    expect(markPrinted.status).toBe(200);
+
+    const toMailQueue = await request(app)
+      .post("/api/letters/generated/queue/print/actions")
+      .set(auth)
+      .send({
+        action: "MOVE_TO_MAIL_QUEUE",
+        letterIds: [generatedId],
+      });
+    expect(toMailQueue.status).toBe(200);
+
+    const mailQueue = await request(app)
+      .get("/api/letters/generated/queue/mail?queueStatus=QUEUED_FOR_MAIL")
+      .set(auth);
+    expect(mailQueue.status).toBe(200);
+    const mailRow = (mailQueue.body as Array<{ id: string }>).find((row) => row.id === generatedId);
+    expect(mailRow).toBeTruthy();
+
+    const mailed = await request(app)
+      .post("/api/letters/generated/queue/mail/actions")
+      .set(auth)
+      .send({
+        action: "MARK_MAILED",
+        letterIds: [generatedId],
+      });
+    expect(mailed.status).toBe(200);
+
+    const generated = await request(app)
+      .get(`/api/letters/generated?status=MAILED`)
+      .set(auth);
+    expect(generated.status).toBe(200);
+    const mailedRow = (generated.body as Array<{ id: string }>).find((row) => row.id === generatedId);
+    expect(mailedRow).toBeTruthy();
+
+    const archivedTemplate = await request(app)
+      .delete(`/api/letters/templates/${templateId}`)
+      .set(auth);
+    expect(archivedTemplate.status).toBe(204);
+
+    if (createdConstituentId) {
+      const deletedConstituent = await request(app)
+        .delete(`/api/constituents/${createdConstituentId}`)
+        .set(auth);
+      expect(deletedConstituent.status).toBe(204);
+    }
+  });
 });

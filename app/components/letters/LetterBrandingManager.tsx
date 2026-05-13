@@ -62,7 +62,7 @@ export default function LetterBrandingManager() {
         showOrganizationName: true,
         showAddress: true,
         showPhone: true,
-        showEmail: true,
+        showEmail: false,
         showWebsite: true,
       }),
     });
@@ -92,7 +92,7 @@ export default function LetterBrandingManager() {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-semibold text-gray-900">Branding Presets</h1>
-        <p className="mt-0.5 text-sm text-gray-500">Configure reusable letter header/footer styles for donor communications.</p>
+        <p className="mt-0.5 text-sm text-gray-500">Configure reusable letter header/footer styles for print and mail workflows.</p>
       </div>
 
       <LettersWorkspaceNav />

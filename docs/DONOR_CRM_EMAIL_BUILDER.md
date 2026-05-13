@@ -72,7 +72,7 @@ Document the current Email Builder implementation, workflow relationship to Comm
 | AI full-template and block generation | Partially Working | Generates draft structures; quality and governance depend on prompting and review. |
 | Saved sections library | Not Implemented | No persisted saved-sections registry yet. |
 | Version history and restore | Not Implemented | No revision timeline yet. |
-| Merge field validation before send | Partially Working | Merge tokens are available; strict pre-send validation is not fully centralized yet. |
+| Merge field validation before send | Working | Review tab now enforces recognized merge-token checks and malformed brace detection with actionable warnings. |
 
 ## Safety Constraints
 
@@ -88,7 +88,7 @@ Document the current Email Builder implementation, workflow relationship to Comm
 
 ## Next Improvements
 
-1. Add strict merge-field validation with actionable warnings before send.
-2. Add reusable saved-sections library.
-3. Add revision history with restore.
-4. Add richer mobile-preview controls and consistency checks.
+1. Add reusable saved-sections library.
+2. Add revision history with restore.
+3. Add richer mobile-preview controls and consistency checks.
+4. Add provider-side render/lint and inbox preview integration.

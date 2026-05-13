@@ -37,10 +37,24 @@ const LETTER_ALIGNMENT = ["LEFT", "CENTER", "RIGHT", "NONE"] as const;
 const PRINT_QUEUE_STATUSES = ["GENERATED", "NEEDS_REVIEW", "APPROVED", "QUEUED_FOR_PRINT", "PRINTED", "FAILED", "CANCELED", "ARCHIVED"] as const;
 const MAIL_QUEUE_STATUSES = ["QUEUED_FOR_MAIL", "MAILED", "RETURNED", "ADDRESS_ISSUE", "COMPLETED", "CANCELED", "ARCHIVED"] as const;
 const LETTER_PRIORITY = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
+const LETTER_WORKFLOW_POLICY_PLUGIN_KEY = "letters-workflow-settings";
+const PDF_FALLBACK_MODES = ["BROWSER_PRINT", "SERVER_RENDER"] as const;
 
 type PrintQueueStatus = (typeof PRINT_QUEUE_STATUSES)[number];
 type MailQueueStatus = (typeof MAIL_QUEUE_STATUSES)[number];
 type LetterPriority = (typeof LETTER_PRIORITY)[number];
+type PdfFallbackMode = (typeof PDF_FALLBACK_MODES)[number];
+
+interface LettersWorkflowPolicy {
+  autoQueueBatchToPrint: boolean;
+  requirePrintApproval: boolean;
+  defaultPriority: LetterPriority;
+  mailingSlaDays: number;
+  allowDirectMailQueue: boolean;
+  enableAddressValidationGate: boolean;
+  pdfFallbackMode: PdfFallbackMode;
+  notes: string;
+}
 
 interface GeneratedLetterQueueMetadata {
   printStatus?: PrintQueueStatus;
@@ -117,10 +131,12 @@ function buildMetadataWithQueue(existing: unknown, queue: GeneratedLetterQueueMe
     ? { ...(existing as Record<string, unknown>) }
     : {};
 
-  return {
+  const queueJson = JSON.parse(JSON.stringify(queue)) as Prisma.InputJsonValue;
+
+  return JSON.parse(JSON.stringify({
     ...safeBase,
-    queue,
-  } satisfies Prisma.InputJsonValue;
+    queue: queueJson,
+  })) as Prisma.InputJsonValue;
 }
 
 /** Derives print queue status from explicit queue metadata and legacy generated-letter status. */
@@ -159,6 +175,41 @@ function parsePositiveInt(value: unknown, fallback: number, min = 1, max = 500):
   const parsed = typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(Math.max(parsed, min), max);
+}
+
+/** Default workflow policy values for print/mail operations and PDF fallback behavior. */
+function defaultLettersWorkflowPolicy(): LettersWorkflowPolicy {
+  return {
+    autoQueueBatchToPrint: true,
+    requirePrintApproval: true,
+    defaultPriority: "NORMAL",
+    mailingSlaDays: 7,
+    allowDirectMailQueue: false,
+    enableAddressValidationGate: true,
+    pdfFallbackMode: "BROWSER_PRINT",
+    notes: "",
+  };
+}
+
+/** Normalizes unknown workflow policy payloads to safe persisted values. */
+function normalizeLettersWorkflowPolicy(input: unknown): LettersWorkflowPolicy {
+  const defaults = defaultLettersWorkflowPolicy();
+  const raw = input && typeof input === "object" && !Array.isArray(input)
+    ? (input as Record<string, unknown>)
+    : {};
+
+  return {
+    autoQueueBatchToPrint: typeof raw.autoQueueBatchToPrint === "boolean" ? raw.autoQueueBatchToPrint : defaults.autoQueueBatchToPrint,
+    requirePrintApproval: typeof raw.requirePrintApproval === "boolean" ? raw.requirePrintApproval : defaults.requirePrintApproval,
+    defaultPriority: parseEnum(raw.defaultPriority, LETTER_PRIORITY) ?? defaults.defaultPriority,
+    mailingSlaDays: parsePositiveInt(raw.mailingSlaDays, defaults.mailingSlaDays, 1, 30),
+    allowDirectMailQueue: typeof raw.allowDirectMailQueue === "boolean" ? raw.allowDirectMailQueue : defaults.allowDirectMailQueue,
+    enableAddressValidationGate: typeof raw.enableAddressValidationGate === "boolean"
+      ? raw.enableAddressValidationGate
+      : defaults.enableAddressValidationGate,
+    pdfFallbackMode: parseEnum(raw.pdfFallbackMode, PDF_FALLBACK_MODES) ?? defaults.pdfFallbackMode,
+    notes: typeof raw.notes === "string" ? raw.notes.trim().slice(0, 600) : defaults.notes,
+  };
 }
 
 /** Converts line-break text into simple HTML paragraphs for email draft creation. */
@@ -277,6 +328,69 @@ router.get("/dashboard", requirePermission("letters.view"), async (req, res) => 
     batchGenerationStatus: "PARTIAL",
     pdfExportStatus: "PARTIAL",
   });
+});
+
+/** GET /api/letters/workflow-settings — Returns persisted letters workflow policy controls. */
+router.get("/workflow-settings", requirePermission("letters.view"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const setting = await prisma.pluginSetting.findUnique({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: LETTER_WORKFLOW_POLICY_PLUGIN_KEY,
+      },
+    },
+    select: { config: true },
+  });
+
+  res.json(normalizeLettersWorkflowPolicy(setting?.config));
+});
+
+/** PUT /api/letters/workflow-settings — Persists queue and workflow policy controls. */
+router.put("/workflow-settings", requirePermission("letters.manage_branding"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const normalized = normalizeLettersWorkflowPolicy(req.body);
+
+  await prisma.pluginSetting.upsert({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: LETTER_WORKFLOW_POLICY_PLUGIN_KEY,
+      },
+    },
+    create: {
+      organizationId,
+      pluginKey: LETTER_WORKFLOW_POLICY_PLUGIN_KEY,
+      enabled: true,
+      config: normalized as Prisma.InputJsonValue,
+    },
+    update: {
+      enabled: true,
+      config: normalized as Prisma.InputJsonValue,
+    },
+  });
+
+  await logAudit({
+    action: "LETTERS_WORKFLOW_SETTINGS_UPDATED",
+    entity: "PluginSetting",
+    entityId: organizationId,
+    organizationId,
+    userId,
+    metadata: normalized,
+  });
+
+  res.json(normalized);
 });
 
 /** GET /api/letters/merge-fields — Returns merge field catalog and sensitivity flags. */
@@ -1543,7 +1657,7 @@ router.get("/generated/queue/mail", requirePermission("letters.view"), async (re
 });
 
 /** POST /api/letters/generated/queue/print/actions — Applies one bulk print-queue action to selected letters. */
-router.post("/generated/queue/print/actions", requirePermission("letters.generate"), async (req, res) => {
+router.post("/generated/queue/print/actions", requirePermission("letters.manage_print_queue"), async (req, res) => {
   const organizationId = await requireOrganizationId(req);
   const userId = req.user?.sub;
   if (!organizationId || !userId) {
@@ -1662,7 +1776,7 @@ router.post("/generated/queue/print/actions", requirePermission("letters.generat
 });
 
 /** POST /api/letters/generated/queue/mail/actions — Applies one bulk mail-queue action to selected letters. */
-router.post("/generated/queue/mail/actions", requirePermission("letters.generate"), async (req, res) => {
+router.post("/generated/queue/mail/actions", requirePermission("letters.manage_mail_queue"), async (req, res) => {
   const organizationId = await requireOrganizationId(req);
   const userId = req.user?.sub;
   if (!organizationId || !userId) {
@@ -1861,6 +1975,8 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
     : [];
 
   const filterType = parseEnum(req.body?.filterType, ["ALL", "ACTIVE", "LAPSED", "NEW", "MAJOR_DONOR", "MONTHLY_DONOR"] as const) ?? "ALL";
+  const donorStatusFilter = filterType === "ALL" || filterType === "MONTHLY_DONOR" ? undefined : filterType;
+  const recurringFilter = filterType === "MONTHLY_DONOR" ? { donations: { some: { isRecurring: true } } } : {};
 
   const candidates = requestedIds.length > 0
     ? await prisma.constituent.findMany({
@@ -1885,7 +2001,8 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
     : await prisma.constituent.findMany({
       where: {
         organizationId,
-        ...(filterType === "ALL" ? {} : { donorStatus: filterType }),
+        ...(donorStatusFilter ? { donorStatus: donorStatusFilter } : {}),
+        ...recurringFilter,
       },
       select: {
         id: true,

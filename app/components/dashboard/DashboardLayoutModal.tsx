@@ -2,6 +2,7 @@
 /** DashboardLayoutModal manages widget order, visibility, and revenue widget settings. */
 
 import { useRef, useState } from "react";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 export interface WidgetMeta {
   id: string;
@@ -117,11 +118,21 @@ export default function DashboardLayoutModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <WorkspaceSetupModal
+      title="Customize Layout"
+      subtitle="Reorder, hide, and tune dashboard widgets for your stewardship workflow."
+      checklist={[
+        "1. Reorder visible widgets",
+        "2. Toggle widget visibility",
+        "3. Save revenue progress preferences",
+      ]}
+      onClose={onClose}
+      maxWidthClassName="max-w-5xl"
+    >
+      <div>
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">Customize Dashboard</h2>
+            <h2 className="text-base font-semibold text-gray-900">Customize Layout</h2>
             <p className="mt-0.5 text-xs text-gray-400">Reorder, hide, and restore widgets for your workflow</p>
           </div>
           <button
@@ -331,6 +342,6 @@ export default function DashboardLayoutModal({
           </button>
         </div>
       </div>
-    </div>
+    </WorkspaceSetupModal>
   );
 }

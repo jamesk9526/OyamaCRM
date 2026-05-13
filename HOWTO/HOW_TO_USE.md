@@ -64,9 +64,10 @@ Use the dated audit docs for details:
 
 1. Go to Letters & Printables.
 2. Create or open a template in Templates.
-3. Use Generate to produce a constituent-specific letter from a template.
-4. In Generated, mark status as Printed or Mailed as fulfillment happens.
-5. If an email version is needed, use Create Email Draft and continue in Communications.
+3. Use Generate for one-off letters or Batch Generate for grouped runs.
+4. Use Print Queue for review, approval, and print transitions.
+5. Use Mail Queue for mailed, returned, and address-issue workflows.
+6. If an email version is needed, use Create Email Draft and continue in Communications.
 
 ### Communications hub workflow
 
@@ -125,6 +126,25 @@ Use Communications as the donor outreach control center:
 3. Toggle check-in status at the door.
 4. Monitor checked-in count and payment issue indicators.
 
+## Daily Workflow: OyamaWebMaster
+
+### Site manager lifecycle workflow
+
+1. Go to OyamaWebMaster.
+2. Create a site with the correct site type (Main, Landing, Event, Donation, Temporary, etc.).
+3. Set domain and purpose metadata so teams know ownership and intent.
+4. Use Site Manager filters to review only the sites relevant to your team.
+5. Open the visual builder from the site card to edit pages.
+6. Use Duplicate before major redesign work.
+7. Use Archive (not deletion) for retired sites.
+8. Use Restore when archived sites need to return to draft workflow.
+
+### Safety guidance
+
+1. Do not treat site links as data ownership transfers between modules.
+2. Keep donor/client/event records in their module systems of record.
+3. Wait for explicit publish target and rollback tooling before production launch claims.
+
 ## Important Incomplete or Risky Areas
 
 Use this section as an operations safety list.
@@ -136,7 +156,7 @@ Use this section as an operations safety list.
 | Grants research workspace paths | Partially Working | Use grants for research, requirements, reminders, tasks, writing, and resources. Record received grant money separately in Donations. |
 | Compassion full-name search | Partially Working | If full-name search misses records, search by last name or first name separately. |
 | Compassion appointment matcher queue | Not Implemented | Public bookings sync to the staff calendar now, but manual triage is still required until matcher/review queue ships. |
-| Letters PDF export + batch generation | Partially Working | Use single-letter generation and browser print/PDF until full export and batch pipeline ships. |
+| Letters PDF export | Partially Working | Use browser print/PDF fallback until server-side PDF rendering ships. |
 | Some module tabs and tools | Not Implemented | Follow in-app in-development warnings and do not rely on those tabs for live operations. |
 
 ## DonorCRM Daily Stewardship Operations
@@ -156,6 +176,9 @@ Donor references for staff and implementers:
 - [docs/DONOR_CRM_COMMUNICATIONS_AUDIT.md](docs/DONOR_CRM_COMMUNICATIONS_AUDIT.md)
 - [docs/DONOR_CRM_EMAIL_BUILDER.md](docs/DONOR_CRM_EMAIL_BUILDER.md)
 - [docs/DONOR_CRM_LETTERS_PRINTABLES.md](docs/DONOR_CRM_LETTERS_PRINTABLES.md)
+- [docs/DONOR_CRM_LETTERS_PRINTABLES_PRODUCTION_PLAN.md](docs/DONOR_CRM_LETTERS_PRINTABLES_PRODUCTION_PLAN.md)
+- [docs/DONOR_CRM_PRINT_QUEUE.md](docs/DONOR_CRM_PRINT_QUEUE.md)
+- [docs/DONOR_CRM_FORM_LETTER_EDITOR.md](docs/DONOR_CRM_FORM_LETTER_EDITOR.md)
 - [docs/DONOR_CRM_GRANTS_RESEARCH_WORKSPACE.md](docs/DONOR_CRM_GRANTS_RESEARCH_WORKSPACE.md)
 - [docs/DONOR_CRM_GRANTS_AUDIT.md](docs/DONOR_CRM_GRANTS_AUDIT.md)
 - [docs/DONOR_CRM_STEWARDSHIP_COMMAND_CENTER.md](docs/DONOR_CRM_STEWARDSHIP_COMMAND_CENTER.md)
@@ -165,7 +188,7 @@ Donor references for staff and implementers:
 ## What To Use For Live Operations Right Now
 
 1. Donor core workflows: constituents, donations, campaigns, tasks.
-2. Donor communication workflows: letters template creation, single-letter generation, and email draft handoff.
+2. Donor communication workflows: letters template creation, single and batch generation, print/mail queues, and email draft handoff.
 3. Compassion core workflows: clients, cases, appointments, public slot-based scheduling.
 4. Events core workflows: event registry, check-in, tables, guests with caution on known crash path.
 

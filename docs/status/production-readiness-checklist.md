@@ -61,8 +61,8 @@ Detailed dated reports:
    - Added summary counters and separate Done / Not Done sections
 4. Donor CRM Letters & Printables workspace now has live API + UI foundation.
    - Routes: app/letters-printables/* and server/src/routes/letters.ts
-   - Timeline + communications integration: generated letters log Activity events and can create linked EmailCampaign drafts
-   - Current status: Partially Working (single-letter workflows are live; PDF export and batch generation are explicit partial endpoints)
+   - Timeline + communications integration: generated letters and queue actions log Activity events and can create linked EmailCampaign drafts
+   - Current status: Partially Working (template authoring, single generation, batch generation, print queue, and mail queue are live; server-side PDF export remains partial)
 5. Shared CRM sidebar navigation architecture implemented for core modules.
    - Shared renderer: app/components/layout/CrmSidebar.tsx
    - Config map: app/components/layout/sidebar-configs.tsx
@@ -88,6 +88,15 @@ Detailed dated reports:
    - Grant-specific permission keys added and enforced in `server/src/lib/permissions.ts` and grants routes
    - Donations handoff flow for received awards added in `app/donations/new/page.tsx` (no automatic donation creation from grants)
    - Grants audit/workspace docs added: `docs/DONOR_CRM_GRANTS_AUDIT.md`, `docs/DONOR_CRM_GRANTS_RESEARCH_WORKSPACE.md`
+9. OyamaWebMaster command-center foundation pass (safe lifecycle and site metadata model).
+   - Store schema evolved additively in `server/src/services/webmaster-store.ts` with site manager metadata fields and launch/publish tracking columns
+   - Site lifecycle APIs added in `server/src/routes/webmaster.ts`: site update, archive, restore, duplicate
+   - Dashboard upgraded in `app/components/webmaster/WebmasterStarterDashboard.tsx` with site-type filters, search, and lifecycle actions
+   - Architecture docs added: `docs/OYAMA_WEBMASTER_REBUILD_PLAN.md`, `docs/OYAMA_WEBMASTER_SITE_TYPES.md`, `docs/OYAMA_WEBMASTER_PUBLISHING_ARCHITECTURE.md`, `docs/OYAMA_WEBMASTER_CRM_INTEGRATION.md`, `docs/OYAMA_WEBMASTER_DATA_SAFETY.md`
+10. Donor engagement production-hardening pass for letters and email builder.
+   - Letters workflow policy persistence added via `GET/PUT /api/letters/workflow-settings` in `server/src/routes/letters.ts`.
+   - Letters workflow settings UI switched from static TODO guidance to API-backed controls in `app/components/letters/LetterWorkflowSettingsPage.tsx`.
+   - Email builder review gate now validates merge-token integrity (unknown tokens + malformed braces) in `app/components/email-builder/EmailBuilderApp.tsx`.
 
 ## Done Now Checklist
 

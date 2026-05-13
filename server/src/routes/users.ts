@@ -22,6 +22,20 @@ import { requireRole } from "../middleware/requireRole.js";
 
 const router: ExpressRouter = Router();
 
+/** Returns one policy error for weak passwords, otherwise null. */
+function getPasswordPolicyIssue(password: string): string | null {
+  if (password.length < 10) return "Password must be at least 10 characters.";
+  const hasLower = /[a-z]/.test(password);
+  const hasUpper = /[A-Z]/.test(password);
+  const hasDigit = /\d/.test(password);
+  const hasSymbol = /[^A-Za-z0-9]/.test(password);
+  const categoryCount = [hasLower, hasUpper, hasDigit, hasSymbol].filter(Boolean).length;
+  if (categoryCount < 3) {
+    return "Password must include at least 3 of: lowercase, uppercase, number, symbol.";
+  }
+  return null;
+}
+
 // All user management routes require authentication.
 router.use(requireAuth);
 
@@ -113,6 +127,14 @@ router.post("/", requireRole("admin"), async (req: Request, res: Response) => {
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     res.status(409).json({ error: { code: "CONFLICT", message: "A user with that email already exists" } });
+    return;
+  }
+
+  const passwordIssue = getPasswordPolicyIssue(password);
+  if (passwordIssue) {
+    res.status(400).json({
+      error: { code: "WEAK_PASSWORD", message: passwordIssue },
+    });
     return;
   }
 
@@ -215,9 +237,10 @@ router.patch("/:id/password", requireRole("admin"), async (req: Request, res: Re
   const id = req.params.id as string;
   const { password } = req.body as { password: string };
 
-  if (!password || password.length < 8) {
+  const passwordIssue = !password ? "Password is required." : getPasswordPolicyIssue(password);
+  if (passwordIssue) {
     res.status(400).json({
-      error: { code: "VALIDATION_ERROR", message: "Password must be at least 8 characters" },
+      error: { code: "WEAK_PASSWORD", message: passwordIssue },
     });
     return;
   }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import DonationTable from "@/app/components/donations/DonationTable";
 import { DonationRow, formatCurrency } from "@/app/components/donations/donation-utils";
 import { apiFetch } from "@/app/lib/auth-client";
@@ -28,6 +29,7 @@ function getCurrentYearDateInputs(): { from: string; to: string } {
 }
 
 export default function DonationsPage() {
+  const router = useRouter();
   const defaultRange = getCurrentYearDateInputs();
   const [donations, setDonations] = useState<DonationRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -36,6 +38,7 @@ export default function DonationsPage() {
   const [apiDown, setApiDown] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [acknowledgingDonationId, setAcknowledgingDonationId] = useState<string | null>(null);
+  const [actionBusyDonationId, setActionBusyDonationId] = useState<string | null>(null);
 
   const [page, setPage] = useState(1);
   const [allYears, setAllYears] = useState(false);
@@ -118,6 +121,57 @@ export default function DonationsPage() {
       alert("Failed to mark this donation as thanked. Please try again.");
     } finally {
       setAcknowledgingDonationId(null);
+    }
+  }
+
+  /** Creates one donation-scoped email draft and opens Email Builder on the created draft campaign. */
+  async function handleCreateEmailDraft(id: string) {
+    setActionBusyDonationId(id);
+    try {
+      const payload = await apiFetch<{ redirectTo: string }>(`/api/donations/${id}/quick-actions/email-draft`, {
+        method: "POST",
+      });
+      if (payload.redirectTo) {
+        router.push(payload.redirectTo);
+      }
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to create email draft.");
+    } finally {
+      setActionBusyDonationId(null);
+    }
+  }
+
+  /** Creates one donation follow-up call task with auto title and navigates to Tasks workspace. */
+  async function handleCreateCallTask(id: string) {
+    setActionBusyDonationId(id);
+    try {
+      const payload = await apiFetch<{ redirectTo: string }>(`/api/donations/${id}/quick-actions/call-task`, {
+        method: "POST",
+      });
+      if (payload.redirectTo) {
+        router.push(payload.redirectTo);
+      }
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to create call task.");
+    } finally {
+      setActionBusyDonationId(null);
+    }
+  }
+
+  /** Enrolls donor in default steward path and opens automations view for follow-up. */
+  async function handleStartPath(id: string) {
+    setActionBusyDonationId(id);
+    try {
+      const payload = await apiFetch<{ redirectTo: string }>(`/api/donations/${id}/quick-actions/start-path`, {
+        method: "POST",
+      });
+      if (payload.redirectTo) {
+        router.push(payload.redirectTo);
+      }
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to start path.");
+    } finally {
+      setActionBusyDonationId(null);
     }
   }
 
@@ -215,7 +269,11 @@ export default function DonationsPage() {
             donations={donations}
             onDelete={handleDelete}
             onMarkThanked={handleMarkThanked}
+            onCreateEmailDraft={handleCreateEmailDraft}
+            onCreateCallTask={handleCreateCallTask}
+            onStartPath={handleStartPath}
             acknowledgingDonationId={acknowledgingDonationId}
+            actionBusyDonationId={actionBusyDonationId}
           />
         )}
       </div>

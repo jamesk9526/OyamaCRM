@@ -17,6 +17,10 @@ import {
 } from "../lib/reset-verification.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
+import {
+  getAuthSecuritySettingsForOrganization,
+  saveAuthSecuritySettingsForOrganization,
+} from "../services/auth-security.js";
 import { resetCrmInstallation } from "../services/reset-crm.js";
 
 const router = Router();
@@ -57,6 +61,44 @@ interface WorkspaceSettingsPayload {
   compassionEnabled?: boolean;
   showModuleSwitcher?: boolean;
   defaultWorkspace?: WorkspaceDefault;
+}
+
+interface AuthSecurityPayload {
+  emailMfaEnabled?: boolean;
+  passwordResetEnabled?: boolean;
+  mfaCodeTtlMinutes?: number;
+  passwordResetTtlMinutes?: number;
+}
+
+interface BrandingSettingsPayload {
+  primaryColor?: string;
+  accentColor?: string;
+  emailBackgroundColor?: string;
+  emailFontFamily?: string;
+  emailContentWidth?: number;
+  logoUrl?: string;
+  logoSquareUrl?: string;
+  organizationDisplayName?: string;
+  legalOrganizationName?: string;
+  tagline?: string;
+  missionStatement?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  websiteUrl?: string;
+  streetAddress1?: string;
+  streetAddress2?: string;
+  city?: string;
+  stateProvince?: string;
+  postalCode?: string;
+  country?: string;
+  locationName?: string;
+  taxId?: string;
+  footerLegalText?: string;
+  socialFacebook?: string;
+  socialInstagram?: string;
+  socialLinkedIn?: string;
+  socialYoutube?: string;
+  socialX?: string;
 }
 
 interface ResetPayload {
@@ -101,6 +143,90 @@ function getEnvSmtpDefaults() {
 function valueOrEnv(value: string | null | undefined, envValue: string): string {
   const trimmed = (value ?? "").trim();
   return trimmed || envValue;
+}
+
+const BRANDING_PLUGIN_KEY = "organization-branding";
+
+/** Safe defaults for organization-wide branding settings consumed across modules. */
+function getDefaultBrandingSettings() {
+  return {
+    primaryColor: "#16a34a",
+    accentColor: "#0f766e",
+    emailBackgroundColor: "#f5f5f5",
+    emailFontFamily: "Arial, Helvetica, sans-serif",
+    emailContentWidth: 600,
+    logoUrl: "",
+    logoSquareUrl: "",
+    organizationDisplayName: "",
+    legalOrganizationName: "",
+    tagline: "",
+    missionStatement: "",
+    contactEmail: "",
+    contactPhone: "",
+    websiteUrl: "",
+    streetAddress1: "",
+    streetAddress2: "",
+    city: "",
+    stateProvince: "",
+    postalCode: "",
+    country: "",
+    locationName: "",
+    taxId: "",
+    footerLegalText: "",
+    socialFacebook: "",
+    socialInstagram: "",
+    socialLinkedIn: "",
+    socialYoutube: "",
+    socialX: "",
+  };
+}
+
+/** Ensures branding payload is normalized and bounded before persistence/use. */
+function normalizeBrandingPayload(input: unknown) {
+  const defaults = getDefaultBrandingSettings();
+  const raw = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+
+  const sanitizeString = (value: unknown, fallback = "") => String(value ?? fallback).trim();
+  const sanitizeHex = (value: unknown, fallback: string) => {
+    const next = sanitizeString(value, fallback);
+    return /^#[0-9a-fA-F]{6}$/.test(next) ? next : fallback;
+  };
+  const sanitizeWidth = (value: unknown, fallback: number) => {
+    const parsed = Number.parseInt(String(value ?? ""), 10);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.min(760, Math.max(420, parsed));
+  };
+
+  return {
+    primaryColor: sanitizeHex(raw.primaryColor, defaults.primaryColor),
+    accentColor: sanitizeHex(raw.accentColor, defaults.accentColor),
+    emailBackgroundColor: sanitizeHex(raw.emailBackgroundColor, defaults.emailBackgroundColor),
+    emailFontFamily: sanitizeString(raw.emailFontFamily, defaults.emailFontFamily),
+    emailContentWidth: sanitizeWidth(raw.emailContentWidth, defaults.emailContentWidth),
+    logoUrl: sanitizeString(raw.logoUrl),
+    logoSquareUrl: sanitizeString(raw.logoSquareUrl),
+    organizationDisplayName: sanitizeString(raw.organizationDisplayName),
+    legalOrganizationName: sanitizeString(raw.legalOrganizationName),
+    tagline: sanitizeString(raw.tagline),
+    missionStatement: sanitizeString(raw.missionStatement),
+    contactEmail: sanitizeString(raw.contactEmail),
+    contactPhone: sanitizeString(raw.contactPhone),
+    websiteUrl: sanitizeString(raw.websiteUrl),
+    streetAddress1: sanitizeString(raw.streetAddress1),
+    streetAddress2: sanitizeString(raw.streetAddress2),
+    city: sanitizeString(raw.city),
+    stateProvince: sanitizeString(raw.stateProvince),
+    postalCode: sanitizeString(raw.postalCode),
+    country: sanitizeString(raw.country),
+    locationName: sanitizeString(raw.locationName),
+    taxId: sanitizeString(raw.taxId),
+    footerLegalText: sanitizeString(raw.footerLegalText),
+    socialFacebook: sanitizeString(raw.socialFacebook),
+    socialInstagram: sanitizeString(raw.socialInstagram),
+    socialLinkedIn: sanitizeString(raw.socialLinkedIn),
+    socialYoutube: sanitizeString(raw.socialYoutube),
+    socialX: sanitizeString(raw.socialX),
+  };
 }
 
 /**
@@ -240,6 +366,122 @@ router.put("/workspaces", requireAuth, requireRole("admin"), async (req: Request
     });
   } catch {
     return res.status(500).json({ error: { code: "WORKSPACE_SETTINGS_WRITE_FAILED", message: "Failed to save workspace settings" } });
+  }
+});
+
+/** GET /api/settings/security/auth — Returns auth policy settings (MFA + password reset). */
+router.get("/security/auth", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+  const organizationId = await resolveSettingsOrganizationId(req);
+  if (!organizationId) {
+    return res.status(404).json({ error: { code: "SETTINGS_NOT_READY", message: "No organization configured." } });
+  }
+
+  const settings = await getAuthSecuritySettingsForOrganization(organizationId);
+  return res.json(settings);
+});
+
+/** PUT /api/settings/security/auth — Persists auth policy settings (MFA + password reset). */
+router.put("/security/auth", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+  const organizationId = await resolveSettingsOrganizationId(req);
+  if (!organizationId) {
+    return res.status(404).json({ error: { code: "SETTINGS_NOT_READY", message: "No organization configured." } });
+  }
+
+  const body = req.body as AuthSecurityPayload;
+  const settings = await saveAuthSecuritySettingsForOrganization(organizationId, body);
+
+  await logAudit({
+    action: "AUTH_SECURITY_SETTINGS_UPDATED",
+    entity: "PluginSetting",
+    entityId: organizationId,
+    userId: req.user?.sub,
+    organizationId,
+    metadata: settings,
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  return res.json(settings);
+});
+
+/** GET /api/settings/branding — Returns organization branding defaults used by Email Builder and related tools. */
+router.get("/branding", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const organizationId = await resolveSettingsOrganizationId(req);
+    if (!organizationId) {
+      return res.json(getDefaultBrandingSettings());
+    }
+
+    const [organization, setting] = await Promise.all([
+      prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } }),
+      prisma.pluginSetting.findUnique({
+        where: {
+          organizationId_pluginKey: {
+            organizationId,
+            pluginKey: BRANDING_PLUGIN_KEY,
+          },
+        },
+      }),
+    ]);
+
+    const normalized = normalizeBrandingPayload(setting?.config ?? {});
+    const displayName = normalized.organizationDisplayName || organization?.name || "";
+
+    return res.json({
+      ...normalized,
+      organizationDisplayName: displayName,
+      legalOrganizationName: normalized.legalOrganizationName || displayName,
+    });
+  } catch {
+    return res.status(500).json({ error: { code: "BRANDING_SETTINGS_READ_FAILED", message: "Failed to load branding settings" } });
+  }
+});
+
+/** PUT /api/settings/branding — Persists organization branding defaults for downstream consumers. Admin-only. */
+router.put("/branding", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await resolveSettingsOrganizationId(req);
+    if (!organizationId) {
+      return res.status(404).json({ error: { code: "SETTINGS_NOT_READY", message: "No organization has been configured yet." } });
+    }
+
+    const normalized = normalizeBrandingPayload(req.body as BrandingSettingsPayload);
+
+    await prisma.pluginSetting.upsert({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: BRANDING_PLUGIN_KEY,
+        },
+      },
+      create: {
+        organizationId,
+        pluginKey: BRANDING_PLUGIN_KEY,
+        enabled: true,
+        config: normalized,
+      },
+      update: {
+        enabled: true,
+        config: normalized,
+      },
+    });
+
+    await logAudit({
+      action: "BRANDING_SETTINGS_UPDATED",
+      entity: "PluginSetting",
+      entityId: organizationId,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: {
+        fields: Object.keys(normalized),
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    return res.json(normalized);
+  } catch {
+    return res.status(500).json({ error: { code: "BRANDING_SETTINGS_WRITE_FAILED", message: "Failed to save branding settings" } });
   }
 });
 

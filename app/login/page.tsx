@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useState, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import { verifyEmailMfa, type LoginMfaChallenge } from "@/app/lib/auth-client";
 import { fetchWorkspaceSettings, resolveWorkspaceLandingPath } from "@/app/lib/workspace-settings";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -19,6 +20,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [checkingSetup, setCheckingSetup] = useState(true);
+  const [mfaChallenge, setMfaChallenge] = useState<LoginMfaChallenge | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
 
   /**
    * On mount: check whether setup has been completed.
@@ -54,11 +57,33 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      await signIn(email, password);
+      const loginResult = await signIn(email, password);
+      if (loginResult.mfaRequired) {
+        setMfaChallenge(loginResult);
+        return;
+      }
+
       const workspaceSettings = await fetchWorkspaceSettings();
       router.replace(resolveWorkspaceLandingPath(workspaceSettings));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /** Verifies one email MFA code and completes sign-in. */
+  async function handleMfaSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!mfaChallenge) return;
+    setError(null);
+    setLoading(true);
+    try {
+      await verifyEmailMfa(mfaChallenge.mfaTicket, mfaCode);
+      const workspaceSettings = await fetchWorkspaceSettings();
+      router.replace(resolveWorkspaceLandingPath(workspaceSettings));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "MFA verification failed");
     } finally {
       setLoading(false);
     }
@@ -145,7 +170,8 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            {!mfaChallenge ? (
+              <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="mb-1.5 block text-xs font-semibold tracking-[0.05em] text-slate-300">Email address</label>
                 <input
@@ -196,7 +222,52 @@ export default function LoginPage() {
                   "Sign in"
                 )}
               </button>
+
+              <div className="text-right">
+                <a href="/login/forgot-password" className="text-xs text-green-300 hover:text-green-200">
+                  Forgot password?
+                </a>
+              </div>
             </form>
+            ) : (
+              <form onSubmit={handleMfaSubmit} className="space-y-4">
+                <p className="text-sm text-slate-300">
+                  Enter the 6-digit code sent to <span className="font-semibold text-slate-100">{mfaChallenge.destinationHint}</span>.
+                </p>
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold tracking-[0.05em] text-slate-300">Verification code</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    value={mfaCode}
+                    onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                    required
+                    placeholder="123456"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-sm text-slate-100 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-500/30"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading || mfaCode.length !== 6}
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-700 to-green-500 py-2.5 text-sm font-semibold text-white shadow-lg shadow-green-900/30 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {loading ? "Verifying..." : "Verify and sign in"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMfaChallenge(null);
+                    setMfaCode("");
+                    setError(null);
+                  }}
+                  className="w-full rounded-xl border border-slate-700 px-3.5 py-2 text-sm text-slate-200 hover:bg-slate-800"
+                >
+                  Back to login
+                </button>
+              </form>
+            )}
 
             <div className="mt-6 flex items-center justify-center gap-1.5 border-t border-white/10 pt-5 text-xs text-slate-400">
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">

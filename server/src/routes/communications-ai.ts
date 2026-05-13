@@ -16,9 +16,19 @@ const router = Router();
 const STEWARD_AI_PLUGIN_KEY = "steward_ai";
 
 type SupportedBuilderBlockKind =
+  | "heading"
   | "text"
   | "quote"
   | "impactStat"
+  | "callout"
+  | "progress"
+  | "featureList"
+  | "donorThankYou"
+  | "donationCta"
+  | "staffSignature"
+  | "footerCompliance"
+  | "image"
+  | "social"
   | "button"
   | "aiText"
   | "aiButton"
@@ -47,6 +57,9 @@ interface BuilderTemplateDraft {
 
 interface BuilderBlockDraft {
   type?: SupportedBuilderBlockKind;
+  eyebrow?: string;
+  title?: string;
+  subtitle?: string;
   content?: string;
   fontSize?: number;
   color?: string;
@@ -65,6 +78,39 @@ interface BuilderBlockDraft {
   borderRadius?: number;
   thickness?: number;
   height?: number;
+  current?: number;
+  goal?: number;
+  barColor?: string;
+  trackColor?: string;
+  body?: string;
+  borderColor?: string;
+  items?: string[];
+  buttonLabel?: string;
+  buttonUrl?: string;
+  buttonColor?: string;
+  buttonTextColor?: string;
+  suggestedAmounts?: string[];
+  thankYouMessage?: string;
+  giftAmountToken?: string;
+  giftDateToken?: string;
+  campaignToken?: string;
+  staffSignature?: string;
+  organizationNameToken?: string;
+  addressToken?: string;
+  phoneToken?: string;
+  websiteToken?: string;
+  unsubscribeToken?: string;
+  managePreferencesToken?: string;
+  taxIdToken?: string;
+  nameToken?: string;
+  titleToken?: string;
+  phoneTokenSecondary?: string;
+  emailToken?: string;
+  organizationToken?: string;
+  src?: string;
+  alt?: string;
+  width?: number;
+  links?: Array<{ platform?: "facebook" | "twitter" | "instagram" | "linkedin" | "youtube"; url?: string }>;
 }
 
 interface AiRunOutcome {
@@ -174,6 +220,11 @@ function buildDeterministicTemplateFallback(options: {
   audience?: string;
   tone?: string;
   goal: string;
+  primaryColor?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  websiteUrl?: string;
+  addressLine?: string;
 }) {
   const audience = String(options.audience ?? "Supporters").trim() || "Supporters";
   const campaignName = String(options.campaignName ?? "Community Update").trim() || "Community Update";
@@ -185,8 +236,17 @@ function buildDeterministicTemplateFallback(options: {
     fontFamily: "Arial, Helvetica, sans-serif",
     blocks: [
       normalizeDraftBlock({
+        type: "heading",
+        eyebrow: "Community Update",
+        title: campaignName,
+        subtitle: `A ${tone} message for ${audience}`,
+        align: "left",
+        textColor: "#111827",
+        padding: 18,
+      }),
+      normalizeDraftBlock({
         type: "text",
-        content: `<h1>${campaignName}</h1><p>Dear ${audience},</p><p>Thank you for investing in ${options.organizationName}. Your support continues to create measurable impact.</p>`,
+        content: `<p>Dear ${audience},</p><p>Thank you for investing in ${options.organizationName}. Your support continues to create measurable impact.</p>`,
         fontSize: 16,
         color: "#333333",
         align: "left",
@@ -202,6 +262,25 @@ function buildDeterministicTemplateFallback(options: {
         padding: 16,
       }),
       normalizeDraftBlock({
+        type: "callout",
+        title: "What you made possible",
+        body: "Local families received practical care and follow-up support this week because of donor partnership.",
+        bgColor: "#eff6ff",
+        borderColor: "#2563eb",
+        textColor: "#1e3a8a",
+        padding: 16,
+      }),
+      normalizeDraftBlock({
+        type: "progress",
+        label: "Current campaign progress",
+        current: 65,
+        goal: 100,
+        barColor: options.primaryColor || "#16a34a",
+        trackColor: "#d1fae5",
+        textColor: "#14532d",
+        padding: 16,
+      }),
+      normalizeDraftBlock({
         type: "aiText",
         prompt: `Write ${tone} stewardship copy for: ${options.goal}`,
         tone: tone === "urgent" || tone === "celebratory" || tone === "informative" ? tone : "warm",
@@ -209,10 +288,46 @@ function buildDeterministicTemplateFallback(options: {
         padding: 16,
       }),
       normalizeDraftBlock({
+        type: "donationCta",
+        headline: "Keep this momentum going",
+        appealText: "Your next gift helps continue this work without interruption.",
+        buttonLabel: "Give Today",
+        buttonUrl: "https://",
+        suggestedAmounts: ["$25", "$50", "$100", "$250"],
+        bgColor: "#ecfdf3",
+        textColor: "#14532d",
+        buttonColor: options.primaryColor || "#16a34a",
+        buttonTextColor: "#ffffff",
+        padding: 16,
+      }),
+      normalizeDraftBlock({
+        type: "staffSignature",
+        nameToken: "{{staffName}}",
+        titleToken: "{{staffTitle}}",
+        phoneTokenSecondary: options.contactPhone || "{{organizationPhone}}",
+        emailToken: options.contactEmail || "{{staffEmail}}",
+        organizationToken: options.organizationName,
+        textColor: "#1f2937",
+        padding: 16,
+      }),
+      normalizeDraftBlock({
+        type: "footerCompliance",
+        organizationNameToken: options.organizationName,
+        addressToken: options.addressLine || "{{addressBlock}}",
+        phoneToken: options.contactPhone || "{{organizationPhone}}",
+        websiteToken: options.websiteUrl || "{{organizationWebsite}}",
+        unsubscribeToken: "{{unsubscribeUrl}}",
+        managePreferencesToken: "{{managePreferencesUrl}}",
+        taxIdToken: "{{organizationTaxId}}",
+        bgColor: "#f9fafb",
+        textColor: "#4b5563",
+        padding: 16,
+      }),
+      normalizeDraftBlock({
         type: "button",
         label: "See Your Impact",
         href: "https://",
-        bgColor: "#16a34a",
+        bgColor: options.primaryColor || "#16a34a",
         textColor: "#ffffff",
         align: "center",
         borderRadius: 6,
@@ -255,6 +370,18 @@ function buildDeterministicBlockFallback(options: {
 function normalizeDraftBlock(block: BuilderBlockDraft): BuilderBlockDraft {
   const type = block.type;
 
+  if (type === "heading") {
+    return {
+      type,
+      eyebrow: block.eyebrow ? String(block.eyebrow) : undefined,
+      title: String(block.title ?? "Campaign Update"),
+      subtitle: block.subtitle ? String(block.subtitle) : undefined,
+      align: block.align === "center" || block.align === "right" ? block.align : "left",
+      textColor: safeColor(block.textColor, "#111827"),
+      padding: boundedInt(block.padding, 18, 0, 100),
+    };
+  }
+
   if (type === "quote") {
     return {
       type,
@@ -273,6 +400,150 @@ function normalizeDraftBlock(block: BuilderBlockDraft): BuilderBlockDraft {
       sublabel: block.sublabel ? String(block.sublabel) : undefined,
       bgColor: safeColor(block.bgColor, "#ecfdf3"),
       textColor: safeColor(block.textColor, "#14532d"),
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
+  if (type === "callout") {
+    return {
+      type,
+      title: String(block.title ?? "Impact Highlight"),
+      body: String(block.body ?? "Share one meaningful story or update for supporters."),
+      bgColor: safeColor(block.bgColor, "#eff6ff"),
+      borderColor: safeColor(block.borderColor, "#2563eb"),
+      textColor: safeColor(block.textColor, "#1e3a8a"),
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
+  if (type === "progress") {
+    return {
+      type,
+      label: String(block.label ?? "Campaign Progress"),
+      current: boundedInt(block.current, 0, 0, 100000000),
+      goal: Math.max(1, boundedInt(block.goal, 100, 1, 100000000)),
+      barColor: safeColor(block.barColor, "#16a34a"),
+      trackColor: safeColor(block.trackColor, "#d1fae5"),
+      textColor: safeColor(block.textColor, "#14532d"),
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
+  if (type === "featureList") {
+    const safeItems = Array.isArray(block.items)
+      ? block.items.map((item) => String(item).trim()).filter(Boolean).slice(0, 8)
+      : [];
+    return {
+      type,
+      title: block.title ? String(block.title) : "What your support funds",
+      items: safeItems.length > 0 ? safeItems : ["Critical direct services", "Community follow-up care", "Long-term support planning"],
+      bulletColor: safeColor(block.bgColor, "#16a34a"),
+      textColor: safeColor(block.textColor, "#1f2937"),
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
+  if (type === "donorThankYou") {
+    return {
+      type,
+      headline: String(block.title ?? "Thank you for your generosity"),
+      thankYouMessage: String(block.thankYouMessage ?? "Your support is making a measurable difference right now."),
+      giftAmountToken: String(block.giftAmountToken ?? "{{lastGiftAmount}}"),
+      giftDateToken: String(block.giftDateToken ?? "{{lastGiftDate}}"),
+      campaignToken: String(block.campaignToken ?? "{{campaignName}}"),
+      staffSignature: String(block.staffSignature ?? "{{staffName}}"),
+      bgColor: safeColor(block.bgColor, "#ecfdf3"),
+      textColor: safeColor(block.textColor, "#14532d"),
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
+  if (type === "donationCta") {
+    const amounts = Array.isArray(block.suggestedAmounts)
+      ? block.suggestedAmounts.map((item) => String(item).trim()).filter(Boolean).slice(0, 6)
+      : [];
+    return {
+      type,
+      headline: String(block.title ?? "Keep this work moving"),
+      appealText: String(block.content ?? "Your gift today helps us continue serving families immediately."),
+      buttonLabel: String(block.buttonLabel ?? "Give Today"),
+      buttonUrl: String(block.buttonUrl ?? block.href ?? "https://"),
+      suggestedAmounts: amounts.length > 0 ? amounts : ["$25", "$50", "$100"],
+      bgColor: safeColor(block.bgColor, "#ecfdf3"),
+      textColor: safeColor(block.textColor, "#14532d"),
+      buttonColor: safeColor(block.buttonColor, "#16a34a"),
+      buttonTextColor: safeColor(block.buttonTextColor, "#ffffff"),
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
+  if (type === "staffSignature") {
+    return {
+      type,
+      nameToken: String(block.nameToken ?? "{{staffName}}"),
+      titleToken: String(block.titleToken ?? "{{staffTitle}}"),
+      phoneToken: String(block.phoneTokenSecondary ?? "{{organizationPhone}}"),
+      emailToken: String(block.emailToken ?? "{{staffEmail}}"),
+      organizationToken: String(block.organizationToken ?? "{{organizationName}}"),
+      textColor: safeColor(block.textColor, "#1f2937"),
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
+  if (type === "footerCompliance") {
+    return {
+      type,
+      organizationNameToken: String(block.organizationNameToken ?? "{{organizationName}}"),
+      addressToken: String(block.addressToken ?? "{{addressBlock}}"),
+      phoneToken: String(block.phoneToken ?? "{{organizationPhone}}"),
+      websiteToken: String(block.websiteToken ?? "{{organizationWebsite}}"),
+      unsubscribeToken: String(block.unsubscribeToken ?? "{{unsubscribeUrl}}"),
+      managePreferencesToken: String(block.managePreferencesToken ?? "{{managePreferencesUrl}}"),
+      taxIdToken: String(block.taxIdToken ?? "{{organizationTaxId}}"),
+      bgColor: safeColor(block.bgColor, "#f9fafb"),
+      textColor: safeColor(block.textColor, "#4b5563"),
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
+  if (type === "image") {
+    return {
+      type,
+      src: String(block.src ?? ""),
+      alt: String(block.alt ?? "Campaign image"),
+      width: boundedInt(block.width, 100, 10, 100),
+      align: block.align === "left" || block.align === "right" ? block.align : "center",
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
+  if (type === "social") {
+    const links = Array.isArray(block.links)
+      ? block.links
+        .map((link) => ({
+          platform: link?.platform,
+          url: String(link?.url ?? "").trim(),
+        }))
+        .filter((link) =>
+          (link.platform === "facebook"
+            || link.platform === "twitter"
+            || link.platform === "instagram"
+            || link.platform === "linkedin"
+            || link.platform === "youtube")
+          && Boolean(link.url),
+        )
+      : [];
+
+    return {
+      type,
+      links: links.length > 0
+        ? links
+        : [
+          { platform: "facebook", url: "https://facebook.com" },
+          { platform: "instagram", url: "https://instagram.com" },
+          { platform: "linkedin", url: "https://linkedin.com" },
+        ],
+      align: block.align === "left" || block.align === "right" ? block.align : "center",
       padding: boundedInt(block.padding, 16, 0, 100),
     };
   }
@@ -368,13 +639,42 @@ async function loadCommunicationsAiRuntime(organizationId: string) {
 
 /** Builds shared contextual lines for nonprofit-aware communications prompting. */
 async function loadOrganizationPromptContext(organizationId: string) {
-  const organization = await prisma.organization.findUnique({
-    where: { id: organizationId },
-    select: { name: true },
-  });
+  const [organization, brandingSetting] = await Promise.all([
+    prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { name: true },
+    }),
+    prisma.pluginSetting.findUnique({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: "organization-branding",
+        },
+      },
+      select: { config: true },
+    }),
+  ]);
+
+  const branding = brandingSetting?.config && typeof brandingSetting.config === "object"
+    ? (brandingSetting.config as Record<string, unknown>)
+    : {};
+
+  const asText = (value: unknown) => String(value ?? "").trim();
+  const addressLine = [
+    asText(branding.streetAddress1),
+    asText(branding.streetAddress2),
+    [asText(branding.city), asText(branding.stateProvince)].filter(Boolean).join(", "),
+    asText(branding.postalCode),
+    asText(branding.country),
+  ].filter(Boolean).join(" | ");
 
   return {
     organizationName: organization?.name?.trim() || "Our Nonprofit",
+    primaryColor: asText(branding.primaryColor) || "#16a34a",
+    contactEmail: asText(branding.contactEmail),
+    contactPhone: asText(branding.contactPhone),
+    websiteUrl: asText(branding.websiteUrl),
+    addressLine,
   };
 }
 
@@ -409,7 +709,9 @@ router.post("/email-builder/generate-template", async (req, res) => {
   const systemPrompt = [
     "You generate nonprofit fundraising email templates as strict JSON.",
     "Return JSON only. Do not include markdown code fences.",
-    "Use block types only from: text, quote, impactStat, button, aiText, aiButton, divider, spacer.",
+    "Use block types only from: heading, text, quote, impactStat, callout, progress, featureList, donorThankYou, donationCta, staffSignature, footerCompliance, image, social, button, aiText, aiButton, divider, spacer.",
+    "Create a complete draft that is ready for a human to edit, usually 7-12 blocks.",
+    "Include footerCompliance and at least one clear CTA button.",
     "Ensure content is donor-safe, factual in tone, and action-oriented.",
   ].join(" ");
 
@@ -425,14 +727,46 @@ router.post("/email-builder/generate-template", async (req, res) => {
       fontFamily: "Arial, Helvetica, sans-serif",
       blocks: [
         {
-          type: "text",
-          content: "<h1>...</h1><p>...</p>",
-          fontSize: 16,
-          color: "#333333",
+          type: "heading",
+          title: "...",
           align: "left",
+          textColor: "#111827",
+          padding: 18,
+        },
+        {
+          type: "donationCta",
+          headline: "...",
+          appealText: "...",
+          buttonLabel: "Give Today",
+          buttonUrl: "https://",
+          suggestedAmounts: ["$25", "$50", "$100"],
+          bgColor: "#ecfdf3",
+          textColor: "#14532d",
+          buttonColor: context.primaryColor,
+          buttonTextColor: "#ffffff",
+          padding: 16,
+        },
+        {
+          type: "footerCompliance",
+          organizationNameToken: context.organizationName,
+          addressToken: context.addressLine || "{{addressBlock}}",
+          phoneToken: context.contactPhone || "{{organizationPhone}}",
+          websiteToken: context.websiteUrl || "{{organizationWebsite}}",
+          unsubscribeToken: "{{unsubscribeUrl}}",
+          managePreferencesToken: "{{managePreferencesUrl}}",
+          taxIdToken: "{{organizationTaxId}}",
+          bgColor: "#f9fafb",
+          textColor: "#4b5563",
           padding: 16,
         },
       ],
+    },
+    branding: {
+      primaryColor: context.primaryColor,
+      contactEmail: context.contactEmail,
+      contactPhone: context.contactPhone,
+      websiteUrl: context.websiteUrl,
+      addressLine: context.addressLine,
     },
   };
 
@@ -470,6 +804,11 @@ router.post("/email-builder/generate-template", async (req, res) => {
       audience: payload.audience,
       tone: payload.tone,
       goal,
+      primaryColor: context.primaryColor,
+      contactEmail: context.contactEmail,
+      contactPhone: context.contactPhone,
+      websiteUrl: context.websiteUrl,
+      addressLine: context.addressLine,
     });
   } else {
     const draft = parsed as BuilderTemplateDraft;
@@ -484,6 +823,11 @@ router.post("/email-builder/generate-template", async (req, res) => {
         audience: payload.audience,
         tone: payload.tone,
         goal,
+        primaryColor: context.primaryColor,
+        contactEmail: context.contactEmail,
+        contactPhone: context.contactPhone,
+        websiteUrl: context.websiteUrl,
+        addressLine: context.addressLine,
       });
     } else {
       normalizedTemplate = {

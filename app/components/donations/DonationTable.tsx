@@ -10,7 +10,11 @@ interface Props {
   donations: DonationRow[];
   onDelete?: (id: string) => void;
   onMarkThanked?: (id: string) => void;
+  onCreateEmailDraft?: (id: string) => void;
+  onCreateCallTask?: (id: string) => void;
+  onStartPath?: (id: string) => void;
   acknowledgingDonationId?: string | null;
+  actionBusyDonationId?: string | null;
 }
 
 function SortHeader({
@@ -37,7 +41,16 @@ function SortHeader({
   );
 }
 
-export default function DonationTable({ donations, onDelete, onMarkThanked, acknowledgingDonationId }: Props) {
+export default function DonationTable({
+  donations,
+  onDelete,
+  onMarkThanked,
+  onCreateEmailDraft,
+  onCreateCallTask,
+  onStartPath,
+  acknowledgingDonationId,
+  actionBusyDonationId,
+}: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -128,24 +141,30 @@ export default function DonationTable({ donations, onDelete, onMarkThanked, ackn
               >
                 Letter
               </Link>
-              <Link
-                href={`/communications?new=1&source=donation&constituentId=${d.constituent.id}&donationId=${d.id}`}
-                className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100"
+              <button
+                type="button"
+                onClick={() => onCreateEmailDraft?.(d.id)}
+                disabled={!onCreateEmailDraft || actionBusyDonationId === d.id}
+                className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 disabled:opacity-60"
               >
-                Email Draft
-              </Link>
-              <Link
-                href={`/tasks?focus=my&constituentId=${d.constituent.id}`}
-                className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100"
+                {actionBusyDonationId === d.id ? "Creating..." : "Email Draft"}
+              </button>
+              <button
+                type="button"
+                onClick={() => onCreateCallTask?.(d.id)}
+                disabled={!onCreateCallTask || actionBusyDonationId === d.id}
+                className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 disabled:opacity-60"
               >
                 Call Task
-              </Link>
-              <Link
-                href={`/automations?source=donation&constituentId=${d.constituent.id}&donationId=${d.id}`}
-                className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100"
+              </button>
+              <button
+                type="button"
+                onClick={() => onStartPath?.(d.id)}
+                disabled={!onStartPath || actionBusyDonationId === d.id}
+                className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 disabled:opacity-60"
               >
                 Start Path
-              </Link>
+              </button>
               {onMarkThanked && !d.acknowledgmentSentAt && (
                 <button
                   onClick={() => onMarkThanked(d.id)}
@@ -243,24 +262,30 @@ export default function DonationTable({ donations, onDelete, onMarkThanked, ackn
                   >
                     Letter
                   </Link>
-                  <Link
-                    href={`/communications?new=1&source=donation&constituentId=${d.constituent.id}&donationId=${d.id}`}
-                    className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100"
+                  <button
+                    type="button"
+                    onClick={() => onCreateEmailDraft?.(d.id)}
+                    disabled={!onCreateEmailDraft || actionBusyDonationId === d.id}
+                    className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 disabled:opacity-60"
                   >
-                    Email Draft
-                  </Link>
-                  <Link
-                    href={`/tasks?focus=my&constituentId=${d.constituent.id}`}
-                    className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100"
+                    {actionBusyDonationId === d.id ? "Creating..." : "Email Draft"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onCreateCallTask?.(d.id)}
+                    disabled={!onCreateCallTask || actionBusyDonationId === d.id}
+                    className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 disabled:opacity-60"
                   >
                     Call Task
-                  </Link>
-                  <Link
-                    href={`/automations?source=donation&constituentId=${d.constituent.id}&donationId=${d.id}`}
-                    className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100"
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onStartPath?.(d.id)}
+                    disabled={!onStartPath || actionBusyDonationId === d.id}
+                    className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 disabled:opacity-60"
                   >
                     Start Path
-                  </Link>
+                  </button>
                   {onMarkThanked && !d.acknowledgmentSentAt && (
                     <button
                       onClick={() => onMarkThanked(d.id)}

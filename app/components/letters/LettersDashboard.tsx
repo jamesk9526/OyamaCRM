@@ -26,6 +26,7 @@ export default function LettersDashboard() {
     }
   }, []);
 
+  // Fetch dashboard stats on initial render and whenever the loader callback changes.
   useEffect(() => {
     void load();
   }, [load]);
@@ -35,7 +36,7 @@ export default function LettersDashboard() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Letters & Printables</h1>
-          <p className="mt-0.5 text-sm text-gray-500">Create polished donor letters, print packets, and email-ready drafts from one workspace.</p>
+          <p className="mt-0.5 text-sm text-gray-500">Create polished donor letters, manage print packets, and complete mailing workflows.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
@@ -61,13 +62,16 @@ export default function LettersDashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
-          { label: "Active Templates", value: stats?.activeTemplates },
+          { label: "Needs Review", value: stats?.needsReview },
+          { label: "Queued For Print", value: stats?.queuedForPrint },
+          { label: "Printed Today", value: stats?.printedToday },
+          { label: "Queued For Mail", value: stats?.queuedForMail },
+          { label: "Mailed This Week", value: stats?.mailedThisWeek },
+          { label: "Address Issues", value: stats?.addressIssues },
+          { label: "PDF Export Failures", value: stats?.pdfExportFailures },
           { label: "Generated This Month", value: stats?.generatedThisMonth },
-          { label: "Thank-You Pending", value: stats?.thankYouPending },
-          { label: "Tax Receipts", value: stats?.taxReceiptsGenerated },
-          { label: "Email Drafts", value: stats?.emailDrafts },
         ].map((card) => (
           <div key={card.label} className="rounded-xl border border-gray-200 bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{card.label}</p>
@@ -75,6 +79,24 @@ export default function LettersDashboard() {
           </div>
         ))}
       </div>
+
+      <section className="rounded-xl border border-gray-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-gray-900">Queue Operations</h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Link href="/letters-printables/print-queue" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+            Open Print Queue
+          </Link>
+          <Link href="/letters-printables/mail-queue" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+            Open Mail Queue
+          </Link>
+          <Link href="/letters-printables/batches" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+            Run Batch Generation
+          </Link>
+          <Link href="/letters-printables/generated" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+            Review Generated Letters
+          </Link>
+        </div>
+      </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4">
         <div className="flex items-center justify-between gap-3">
@@ -106,7 +128,7 @@ export default function LettersDashboard() {
       <section className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Implementation Status</p>
         <p className="mt-1 text-sm text-blue-900">
-          Batch generation and server-side PDF export are partially implemented. Use single-letter generation and browser print/PDF as the current production path.
+          Batch generation and queue workflows are now working. Server-side PDF export remains partially implemented, so browser print/PDF is still the supported export path.
         </p>
       </section>
     </div>

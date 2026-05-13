@@ -88,7 +88,7 @@ const SECTIONS: PaletteItem['section'][] = [
 
 /**
  * Left panel — shows all draggable block-type cards grouped by section.
- * Width is fixed at 240 px (set by the parent layout).
+ * Width is fixed at 288 px (set by the component class).
  */
 export default function BlockPalette() {
   const [query, setQuery] = useState('');
@@ -122,7 +122,7 @@ export default function BlockPalette() {
   );
 
   return (
-    <aside className="w-60 shrink-0 bg-gray-50 border-r border-gray-200 flex flex-col overflow-y-auto">
+    <aside className="w-72 shrink-0 bg-gray-50 border-r border-gray-200 flex flex-col overflow-y-auto">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200 bg-white space-y-2">
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">

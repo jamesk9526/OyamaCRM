@@ -9,10 +9,14 @@ import { logAudit } from "../lib/audit.js";
 import {
   createWebmasterPage,
   createWebmasterSite,
+  duplicateWebmasterSite,
   getWebmasterPageById,
   getWebmasterSiteById,
   listWebmasterPages,
   listWebmasterSites,
+  WebmasterConnectedModule,
+  WebmasterSiteType,
+  updateWebmasterSite,
   updateWebmasterPage,
 } from "../services/webmaster-store.js";
 
@@ -44,6 +48,34 @@ function isDuplicateEntryError(error: unknown): boolean {
   return maybeMessage.includes("Duplicate entry") || maybeMessage.includes("ER_DUP_ENTRY");
 }
 
+/** Parses a query/body value as a valid site type. */
+function parseSiteType(value: unknown): WebmasterSiteType | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const normalized = value.trim().toUpperCase();
+  const allowed: WebmasterSiteType[] = [
+    "MAIN_SITE",
+    "LANDING_SITE",
+    "TEMPORARY_SITE",
+    "EVENT_SITE",
+    "DONATION_SITE",
+    "CAMPAIGN_SITE",
+    "PARTNER_PORTAL",
+    "CLIENT_RESOURCE_SITE",
+    "INTERNAL_SITE",
+    "MICROSITE",
+    "BLOG_SITE",
+  ];
+  return allowed.includes(normalized as WebmasterSiteType) ? (normalized as WebmasterSiteType) : undefined;
+}
+
+/** Parses a query/body value as a valid connected module. */
+function parseConnectedModule(value: unknown): WebmasterConnectedModule | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const normalized = value.trim().toLowerCase();
+  const allowed: WebmasterConnectedModule[] = ["donor", "events", "compassion", "communications", "webmaster", "platform"];
+  return allowed.includes(normalized as WebmasterConnectedModule) ? (normalized as WebmasterConnectedModule) : undefined;
+}
+
 /**
  * GET /api/webmaster/sites
  * Lists persisted website records for the active organization.
@@ -57,11 +89,17 @@ router.get("/sites", async (req, res) => {
 
   const query = String(req.query.q ?? "").trim();
   const status = String(req.query.status ?? "").trim();
+  const siteType = parseSiteType(req.query.type);
+  const connectedModule = parseConnectedModule(req.query.module);
+  const ownerId = String(req.query.ownerId ?? "").trim();
 
   const items = await listWebmasterSites({
     organizationId,
     query,
     status: status ? (status as "DRAFT" | "ACTIVE" | "ARCHIVED") : undefined,
+    siteType,
+    connectedModule,
+    ownerId: ownerId || undefined,
     limit: 100,
   });
 
@@ -87,7 +125,16 @@ router.post("/sites", async (req, res) => {
   const body = req.body as {
     name?: string;
     slug?: string;
+    siteType?: WebmasterSiteType;
+    sitePurpose?: string;
+    connectedModule?: WebmasterConnectedModule;
+    connectedRecordId?: string;
     domain?: string;
+    subdomain?: string;
+    launchStatus?: "NOT_READY" | "REVIEW_READY" | "READY_TO_LAUNCH" | "LIVE";
+    launchDate?: string;
+    expiresAt?: string;
+    publishingTarget?: string;
     description?: string;
     status?: "DRAFT" | "ACTIVE" | "ARCHIVED";
   };
@@ -109,9 +156,19 @@ router.post("/sites", async (req, res) => {
     const created = await createWebmasterSite({
       organizationId,
       createdById: req.user?.sub,
+      ownerId: req.user?.sub,
       name,
       slug,
+      siteType: parseSiteType(body.siteType) ?? "MAIN_SITE",
+      sitePurpose: body.sitePurpose,
+      connectedModule: parseConnectedModule(body.connectedModule),
+      connectedRecordId: body.connectedRecordId,
       domain: body.domain,
+      subdomain: body.subdomain,
+      launchStatus: body.launchStatus,
+      launchDate: body.launchDate,
+      expiresAt: body.expiresAt,
+      publishingTarget: body.publishingTarget,
       description: body.description,
       status: body.status ?? "DRAFT",
     });
@@ -124,6 +181,7 @@ router.post("/sites", async (req, res) => {
       organizationId,
       metadata: {
         slug: created.slug,
+        siteType: created.siteType,
         status: created.status,
         domain: created.domain,
       },
@@ -135,6 +193,234 @@ router.post("/sites", async (req, res) => {
   } catch (error) {
     if (isDuplicateEntryError(error)) {
       res.status(409).json({ error: { code: "WEBMASTER_SITE_CONFLICT", message: "Site slug already exists." } });
+      return;
+    }
+    throw error;
+  }
+});
+
+/**
+ * PATCH /api/webmaster/sites/:siteId
+ * Updates persisted site metadata and lifecycle state.
+ */
+router.patch("/sites/:siteId", async (req, res) => {
+  if (!canWrite(req.user?.role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Insufficient role for Webmaster write actions." } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const siteId = req.params.siteId;
+  const existing = await getWebmasterSiteById({ organizationId, siteId });
+  if (!existing) {
+    res.status(404).json({ error: { code: "WEBMASTER_SITE_NOT_FOUND", message: "Site not found." } });
+    return;
+  }
+
+  const body = req.body as {
+    name?: string;
+    slug?: string;
+    siteType?: WebmasterSiteType;
+    sitePurpose?: string;
+    connectedModule?: WebmasterConnectedModule | null;
+    connectedRecordId?: string | null;
+    domain?: string | null;
+    subdomain?: string | null;
+    launchStatus?: "NOT_READY" | "REVIEW_READY" | "READY_TO_LAUNCH" | "LIVE";
+    seoHealthScore?: number | null;
+    publishingTarget?: string | null;
+    launchDate?: string | null;
+    expiresAt?: string | null;
+    lastPublishedAt?: string | null;
+    publishedVersionId?: string | null;
+    description?: string;
+    status?: "DRAFT" | "ACTIVE" | "ARCHIVED";
+  };
+
+  try {
+    const updated = await updateWebmasterSite({
+      organizationId,
+      siteId,
+      name: body.name?.trim(),
+      slug: body.slug ? toSlug(body.slug) : undefined,
+      siteType: parseSiteType(body.siteType),
+      sitePurpose: body.sitePurpose,
+      connectedModule: body.connectedModule === null ? null : parseConnectedModule(body.connectedModule),
+      connectedRecordId: body.connectedRecordId,
+      domain: body.domain,
+      subdomain: body.subdomain,
+      launchStatus: body.launchStatus,
+      seoHealthScore: body.seoHealthScore,
+      publishingTarget: body.publishingTarget,
+      launchDate: body.launchDate,
+      expiresAt: body.expiresAt,
+      lastPublishedAt: body.lastPublishedAt,
+      publishedVersionId: body.publishedVersionId,
+      description: body.description,
+      status: body.status,
+    });
+
+    await logAudit({
+      action: "WEBMASTER_SITE_UPDATED",
+      entity: "WebmasterSite",
+      entityId: updated.id,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: {
+        previousStatus: existing.status,
+        status: updated.status,
+        siteType: updated.siteType,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.json({ item: updated });
+  } catch (error) {
+    if (isDuplicateEntryError(error)) {
+      res.status(409).json({ error: { code: "WEBMASTER_SITE_CONFLICT", message: "Updated site slug conflicts with another site." } });
+      return;
+    }
+    throw error;
+  }
+});
+
+/**
+ * POST /api/webmaster/sites/:siteId/archive
+ * Soft-archives a site without deleting pages.
+ */
+router.post("/sites/:siteId/archive", async (req, res) => {
+  if (!canWrite(req.user?.role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Insufficient role for Webmaster write actions." } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const siteId = req.params.siteId;
+  const existing = await getWebmasterSiteById({ organizationId, siteId });
+  if (!existing) {
+    res.status(404).json({ error: { code: "WEBMASTER_SITE_NOT_FOUND", message: "Site not found." } });
+    return;
+  }
+
+  const updated = await updateWebmasterSite({ organizationId, siteId, status: "ARCHIVED" });
+
+  await logAudit({
+    action: "WEBMASTER_SITE_ARCHIVED",
+    entity: "WebmasterSite",
+    entityId: siteId,
+    userId: req.user?.sub,
+    organizationId,
+    metadata: { previousStatus: existing.status },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({ item: updated });
+});
+
+/**
+ * POST /api/webmaster/sites/:siteId/restore
+ * Restores an archived site back to active drafting lifecycle.
+ */
+router.post("/sites/:siteId/restore", async (req, res) => {
+  if (!canWrite(req.user?.role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Insufficient role for Webmaster write actions." } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const siteId = req.params.siteId;
+  const existing = await getWebmasterSiteById({ organizationId, siteId });
+  if (!existing) {
+    res.status(404).json({ error: { code: "WEBMASTER_SITE_NOT_FOUND", message: "Site not found." } });
+    return;
+  }
+
+  const updated = await updateWebmasterSite({
+    organizationId,
+    siteId,
+    status: existing.status === "ARCHIVED" ? "DRAFT" : existing.status,
+  });
+
+  await logAudit({
+    action: "WEBMASTER_SITE_RESTORED",
+    entity: "WebmasterSite",
+    entityId: siteId,
+    userId: req.user?.sub,
+    organizationId,
+    metadata: { previousStatus: existing.status, status: updated.status },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({ item: updated });
+});
+
+/**
+ * POST /api/webmaster/sites/:siteId/duplicate
+ * Creates a safe duplicate of a site and its pages.
+ */
+router.post("/sites/:siteId/duplicate", async (req, res) => {
+  if (!canWrite(req.user?.role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Insufficient role for Webmaster write actions." } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const siteId = req.params.siteId;
+  const existing = await getWebmasterSiteById({ organizationId, siteId });
+  if (!existing) {
+    res.status(404).json({ error: { code: "WEBMASTER_SITE_NOT_FOUND", message: "Site not found." } });
+    return;
+  }
+
+  const body = req.body as { name?: string; slug?: string };
+
+  try {
+    const created = await duplicateWebmasterSite({
+      organizationId,
+      sourceSiteId: siteId,
+      createdById: req.user?.sub,
+      name: body.name?.trim(),
+      slug: body.slug ? toSlug(body.slug) : undefined,
+    });
+
+    await logAudit({
+      action: "WEBMASTER_SITE_DUPLICATED",
+      entity: "WebmasterSite",
+      entityId: created.id,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: { sourceSiteId: existing.id, sourceSlug: existing.slug, duplicateSlug: created.slug },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.status(201).json({ item: created });
+  } catch (error) {
+    if (isDuplicateEntryError(error)) {
+      res.status(409).json({ error: { code: "WEBMASTER_SITE_CONFLICT", message: "Duplicate site slug already exists." } });
       return;
     }
     throw error;
