@@ -15,6 +15,47 @@ import {
 import { prisma } from "../lib/prisma.js";
 import { generateLetterFromTemplate } from "./letters-execution.js";
 
+/**
+ * Local mirror of the BranchOperator type from `app/lib/engagement-orchestration.ts`.
+ *
+ * The shared module lives outside the server tsconfig rootDir, so we cannot
+ * import directly. The semantics MUST stay in sync with the shared helpers
+ * (the same operators are evaluated by `evaluateBranchRule` below). When
+ * adding a new operator, update both files together.
+ */
+type BranchOperator = "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "in" | "not_in";
+
+/**
+ * Local mirror of `evaluateBranchRule` from `app/lib/engagement-orchestration.ts`.
+ * Same algorithm, kept in sync deliberately. Both modules are unit tested.
+ */
+function evaluateBranchRule(
+  input: number | string | null | undefined,
+  rule: { operator: BranchOperator; value: number | string | Array<number | string> },
+): boolean {
+  if (rule.operator === "in" || rule.operator === "not_in") {
+    if (!Array.isArray(rule.value)) return false;
+    const list = rule.value.map((v) => (typeof v === "string" ? v.toLowerCase() : v));
+    const target = typeof input === "string" ? input.toLowerCase() : input;
+    const hit = target == null ? false : list.includes(target);
+    return rule.operator === "in" ? hit : !hit;
+  }
+  if (rule.operator === "eq" || rule.operator === "neq") {
+    const a = typeof input === "string" ? input.toLowerCase() : input;
+    const b = typeof rule.value === "string" ? rule.value.toLowerCase() : rule.value;
+    const equal = a === b;
+    return rule.operator === "eq" ? equal : !equal;
+  }
+  if (typeof input !== "number" || typeof rule.value !== "number") return false;
+  switch (rule.operator) {
+    case "gt": return input > rule.value;
+    case "gte": return input >= rule.value;
+    case "lt": return input < rule.value;
+    case "lte": return input <= rule.value;
+    default: return false;
+  }
+}
+
 interface ProcessDueOptions {
   organizationId?: string;
   limit?: number;
@@ -90,6 +131,13 @@ interface EnrollmentContext {
       totalLifetimeGiving: unknown;
       lastGiftAmount: unknown;
       lastGiftDate: Date | null;
+      donorStatus: "NEW" | "ACTIVE" | "LAPSED" | "MAJOR_DONOR" | "DECEASED";
+      engagementScore: number;
+      doNotEmail: boolean;
+      emailOptOut: boolean;
+      doNotMail: boolean;
+      doNotCall: boolean;
+      doNotContact: boolean;
     } | null;
   };
   run: StewardPathStepRun;
@@ -119,6 +167,13 @@ export async function processDueStewardPathEnrollments(options: ProcessDueOption
           totalLifetimeGiving: true,
           lastGiftAmount: true,
           lastGiftDate: true,
+          donorStatus: true,
+          engagementScore: true,
+          doNotEmail: true,
+          emailOptOut: true,
+          doNotMail: true,
+          doNotCall: true,
+          doNotContact: true,
         },
       },
     },
@@ -187,6 +242,13 @@ export async function completeCurrentManualStep(enrollmentId: string, userId?: s
           totalLifetimeGiving: true,
           lastGiftAmount: true,
           lastGiftDate: true,
+          donorStatus: true,
+          engagementScore: true,
+          doNotEmail: true,
+          emailOptOut: true,
+          doNotMail: true,
+          doNotCall: true,
+          doNotContact: true,
         },
       },
     },
@@ -269,19 +331,10 @@ async function processEnrollmentStep(ctx: EnrollmentContext, now: Date, userId?:
       await processInternalNoteStep(ctx, now, userId);
       break;
     case "STATUS_CHANGE":
+      await processStatusChangeStep(ctx, now, userId);
+      break;
     case "BRANCH_PLACEHOLDER":
-      await prisma.stewardPathStepRun.update({
-        where: { id: run.id },
-        data: { status: "SKIPPED", completedAt: now },
-      });
-      await createTimelineEvent({
-        enrollmentId: enrollment.id,
-        stepId: step.id,
-        eventType: "STEP_SKIPPED",
-        message: `${step.name} is a placeholder and was skipped.`,
-        createdByUserId: userId,
-      });
-      await advanceEnrollment(enrollment.id, enrollment.path.id, step.id, userId);
+      await processBranchStep(ctx, now, userId);
       break;
     default:
       await prisma.stewardPathStepRun.update({
@@ -827,17 +880,328 @@ async function processInternalNoteStep(ctx: EnrollmentContext, now: Date, userId
   await advanceEnrollment(enrollment.id, enrollment.path.id, step.id, userId);
 }
 
-/** Moves enrollment to next active step or marks enrollment completed. */
-async function advanceEnrollment(enrollmentId: string, pathId: string, currentStepId: string, userId?: string): Promise<void> {
+/**
+ * Applies a status change to the enrolled constituent (Phase 5).
+ *
+ * Supported `configJson` fields:
+ * - `targetField`: which constituent field to update.
+ *   Allowed values: "donorStatus" | "engagementScore" | "doNotEmail"
+ *   | "emailOptOut" | "doNotMail" | "doNotCall" | "doNotContact".
+ * - `value`: new value for the field. For `donorStatus` must be one of the
+ *   `DonorStatus` enum values (NEW, ACTIVE, LAPSED, MAJOR_DONOR, DECEASED).
+ *   For `engagementScore` must be a number 0-100. For do-not-* / opt-out flags
+ *   must be a boolean.
+ *
+ * The step is a no-op (logged + skipped) when the enrollment is not linked to
+ * a constituent. Invalid configurations fail the step with a descriptive error
+ * so the run history surfaces the problem instead of silently passing.
+ */
+async function processStatusChangeStep(ctx: EnrollmentContext, now: Date, userId?: string): Promise<void> {
+  const { enrollment, run } = ctx;
+  const step = enrollment.currentStep!;
+  const cfg = toRecord(step.configJson);
+  const targetField = typeof cfg.targetField === "string" ? cfg.targetField : "";
+  const value = (cfg as Record<string, unknown>).value;
+
+  if (!enrollment.constituentId) {
+    await prisma.stewardPathStepRun.update({
+      where: { id: run.id },
+      data: {
+        status: "SKIPPED",
+        startedAt: now,
+        completedAt: now,
+        resultJson: { skippedReason: "no_constituent_link" },
+      },
+    });
+    await createTimelineEvent({
+      enrollmentId: enrollment.id,
+      stepId: step.id,
+      eventType: "STEP_SKIPPED",
+      message: `${step.name} skipped: enrollment is not linked to a constituent.`,
+      createdByUserId: userId,
+    });
+    await advanceEnrollment(enrollment.id, enrollment.path.id, step.id, userId);
+    return;
+  }
+
+  const updateData = buildStatusChangeUpdate(targetField, value);
+
+  await prisma.constituent.update({
+    where: { id: enrollment.constituentId },
+    data: updateData,
+  });
+
+  await prisma.stewardPathStepRun.update({
+    where: { id: run.id },
+    data: {
+      status: "COMPLETED",
+      startedAt: now,
+      completedAt: now,
+      resultJson: { targetField, value: value as Prisma.InputJsonValue ?? null },
+    },
+  });
+
+  await prisma.activity.create({
+    data: {
+      constituentId: enrollment.constituentId,
+      type: "NOTE",
+      userId,
+      description: `Steward Path "${enrollment.path.name}" updated ${targetField} to ${String(value)}.`,
+      metadata: {
+        source: "steward-paths",
+        kind: "status_change",
+        enrollmentId: enrollment.id,
+        stepId: step.id,
+        pathId: enrollment.path.id,
+        targetField,
+        value: value as Prisma.InputJsonValue ?? null,
+      },
+    },
+  });
+
+  await createTimelineEvent({
+    enrollmentId: enrollment.id,
+    stepId: step.id,
+    eventType: "STEP_COMPLETED",
+    message: `Updated ${targetField} → ${String(value)} on linked constituent.`,
+    createdByUserId: userId,
+    metadataJson: { targetField, value: value as Prisma.InputJsonValue ?? null },
+  });
+
+  await advanceEnrollment(enrollment.id, enrollment.path.id, step.id, userId);
+}
+
+/**
+ * Allowed targetField values for STATUS_CHANGE step. Listed explicitly so we
+ * never write to an arbitrary column from configJson.
+ */
+const STATUS_CHANGE_ALLOWED_FIELDS = new Set([
+  "donorStatus",
+  "engagementScore",
+  "doNotEmail",
+  "emailOptOut",
+  "doNotMail",
+  "doNotCall",
+  "doNotContact",
+]);
+
+const DONOR_STATUS_VALUES = new Set(["NEW", "ACTIVE", "LAPSED", "MAJOR_DONOR", "DECEASED"]);
+
+/**
+ * Builds a Prisma update payload for a STATUS_CHANGE step.
+ *
+ * Throws `Error` when the field is not in the allow-list or the value is the
+ * wrong shape so the step run is recorded as FAILED with a useful message.
+ */
+export function buildStatusChangeUpdate(targetField: string, value: unknown): Prisma.ConstituentUpdateInput {
+  if (!STATUS_CHANGE_ALLOWED_FIELDS.has(targetField)) {
+    throw new Error(`STATUS_CHANGE step targetField "${targetField}" is not allowed.`);
+  }
+
+  if (targetField === "donorStatus") {
+    if (typeof value !== "string" || !DONOR_STATUS_VALUES.has(value)) {
+      throw new Error(`STATUS_CHANGE donorStatus value must be one of NEW/ACTIVE/LAPSED/MAJOR_DONOR/DECEASED (got ${String(value)}).`);
+    }
+    return { donorStatus: value as "NEW" | "ACTIVE" | "LAPSED" | "MAJOR_DONOR" | "DECEASED" };
+  }
+
+  if (targetField === "engagementScore") {
+    let numeric: number;
+    if (typeof value === "number") {
+      numeric = value;
+    } else if (typeof value === "string" && value.trim() !== "") {
+      numeric = Number(value);
+    } else {
+      throw new Error(`STATUS_CHANGE engagementScore must be a number 0-100 (got ${String(value)}).`);
+    }
+    if (!Number.isFinite(numeric) || numeric < 0 || numeric > 100) {
+      throw new Error(`STATUS_CHANGE engagementScore must be a number 0-100 (got ${String(value)}).`);
+    }
+    return { engagementScore: Math.round(numeric) };
+  }
+
+  // Boolean preference flags share the same shape.
+  if (typeof value !== "boolean") {
+    throw new Error(`STATUS_CHANGE ${targetField} must be a boolean (got ${String(value)}).`);
+  }
+  return { [targetField]: value } as Prisma.ConstituentUpdateInput;
+}
+
+/**
+ * Branch step (Phase 5).
+ *
+ * The schema has no per-step "branch out-edge" column, so branching is
+ * expressed as a `skipUntilOrderIndex` in `configJson`. The branch step
+ * evaluates a condition against the enrollment context and:
+ *
+ * - On match: skips ahead by setting the next current step to the configured
+ *   `whenTrueAdvanceToOrderIndex` (or simply continues if not set).
+ * - On non-match: skips ahead to `whenFalseAdvanceToOrderIndex`, or if not
+ *   set, simply continues to the next sequential step.
+ *
+ * Supported config:
+ * - `condition`: { field, operator, value }
+ *   - `field`: "lastGiftAmount" | "totalLifetimeGiving" | "engagementScore"
+ *     | "donorStatus" | "doNotEmail" | "emailOptOut" | "doNotMail"
+ *     | "doNotCall" | "doNotContact"
+ *   - `operator`: see BranchOperator (eq, neq, gt, gte, lt, lte, in, not_in)
+ *   - `value`: comparable scalar or array
+ * - `whenTrueAdvanceToOrderIndex`: number | undefined
+ * - `whenFalseAdvanceToOrderIndex`: number | undefined
+ *
+ * If the condition is missing or invalid the step fails so the path author
+ * gets feedback in the run history.
+ */
+async function processBranchStep(ctx: EnrollmentContext, now: Date, userId?: string): Promise<void> {
+  const { enrollment, run } = ctx;
+  const step = enrollment.currentStep!;
+  const cfg = toRecord(step.configJson);
+  const conditionRaw = cfg.condition;
+  if (!conditionRaw || typeof conditionRaw !== "object" || Array.isArray(conditionRaw)) {
+    throw new Error("BRANCH step requires config.condition { field, operator, value }.");
+  }
+  const condition = conditionRaw as Record<string, unknown>;
+  const field = typeof condition.field === "string" ? condition.field : "";
+  const operator = typeof condition.operator === "string" ? (condition.operator as BranchOperator) : "eq";
+  const compareValue = condition.value as number | string | Array<number | string>;
+
+  const observed = readBranchableField(enrollment, field);
+  const matched = evaluateBranchRule(observed as number | string | null | undefined, { operator, value: compareValue });
+
+  await prisma.stewardPathStepRun.update({
+    where: { id: run.id },
+    data: {
+      status: "COMPLETED",
+      startedAt: now,
+      completedAt: now,
+      resultJson: { field, operator, compareValue: compareValue as Prisma.InputJsonValue, matched, observed: observed as Prisma.InputJsonValue ?? null },
+    },
+  });
+
+  await createTimelineEvent({
+    enrollmentId: enrollment.id,
+    stepId: step.id,
+    eventType: "STEP_COMPLETED",
+    message: matched
+      ? `Branch matched on ${field} ${operator}. Following matched path.`
+      : `Branch did not match on ${field} ${operator}. Following non-matched path.`,
+    createdByUserId: userId,
+    metadataJson: { matched, field, operator },
+  });
+
+  const targetOrderIndex = matched
+    ? coerceOrderIndex(cfg.whenTrueAdvanceToOrderIndex)
+    : coerceOrderIndex(cfg.whenFalseAdvanceToOrderIndex);
+
+  await advanceEnrollment(enrollment.id, enrollment.path.id, step.id, userId, targetOrderIndex);
+}
+
+/**
+ * Reads a comparable scalar from the enrollment context for branching.
+ *
+ * Returns `null` when the field is not branchable in this context (no
+ * constituent linked, unknown field name, or missing data). Callers must not
+ * substitute a default — `evaluateBranchRule` handles `null`/`undefined`
+ * inputs explicitly so missing data evaluates to "no match" rather than a
+ * silent false positive.
+ *
+ * String fields (donorStatus) are compared case-insensitively by
+ * `evaluateBranchRule` for the `eq`, `neq`, `in`, `not_in` operators.
+ */
+function readBranchableField(
+  enrollment: EnrollmentContext["enrollment"],
+  field: string,
+): number | string | null {
+  const c = enrollment.constituent;
+  if (!c) return null;
+  switch (field) {
+    case "lastGiftAmount":
+      return numberOrNull(c.lastGiftAmount);
+    case "totalLifetimeGiving":
+      return numberOrNull(c.totalLifetimeGiving);
+    case "engagementScore":
+      return typeof c.engagementScore === "number" ? c.engagementScore : null;
+    case "donorStatus":
+      return typeof c.donorStatus === "string" ? c.donorStatus : null;
+    // Boolean preference flags are surfaced as the string "true"/"false" so
+    // they work with the shared `evaluateBranchRule` operator set, which is
+    // typed `number | string` (no native boolean operand). Authors who branch
+    // on these fields write `value: "true"` or `value: "false"` in configJson.
+    case "doNotEmail":
+      return c.doNotEmail ? "true" : "false";
+    case "emailOptOut":
+      return c.emailOptOut ? "true" : "false";
+    case "doNotMail":
+      return c.doNotMail ? "true" : "false";
+    case "doNotCall":
+      return c.doNotCall ? "true" : "false";
+    case "doNotContact":
+      return c.doNotContact ? "true" : "false";
+    default:
+      return null;
+  }
+}
+
+function coerceOrderIndex(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.floor(value);
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return Math.floor(parsed);
+  }
+  return undefined;
+}
+
+/**
+ * Coerces a value to a finite number or returns null.
+ *
+ * Handles the Prisma `Decimal` and `BigInt` types that may appear on monetary
+ * fields like `lastGiftAmount` / `totalLifetimeGiving` — both expose a usable
+ * `toString()`. Returns null for anything that does not yield a finite number.
+ */
+function numberOrNull(value: unknown): number | null {
+  if (value == null) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "bigint") {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (typeof value === "object" && value && "toString" in value) {
+    const n = Number(String(value));
+    return Number.isFinite(n) ? n : null;
+  }
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Moves enrollment to the next active step or marks enrollment completed.
+ *
+ * When `targetOrderIndex` is provided (used by branch steps), advancement
+ * jumps to the first active step with an `orderIndex` >= the target, instead
+ * of continuing strictly to the next sequential step. If the target is past
+ * the end of the path, the enrollment is marked completed.
+ */
+async function advanceEnrollment(
+  enrollmentId: string,
+  pathId: string,
+  currentStepId: string,
+  userId?: string,
+  targetOrderIndex?: number,
+): Promise<void> {
   const now = new Date();
   const steps = await prisma.stewardPathStep.findMany({
     where: { pathId, isActive: true },
     orderBy: { orderIndex: "asc" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, orderIndex: true },
   });
 
-  const currentIdx = steps.findIndex((step) => step.id === currentStepId);
-  const nextStep = currentIdx >= 0 ? steps[currentIdx + 1] : null;
+  let nextStep: { id: string; name: string; orderIndex: number } | null = null;
+  if (typeof targetOrderIndex === "number") {
+    nextStep = steps.find((step) => step.orderIndex >= targetOrderIndex && step.id !== currentStepId) ?? null;
+  } else {
+    const currentIdx = steps.findIndex((step) => step.id === currentStepId);
+    nextStep = currentIdx >= 0 ? steps[currentIdx + 1] ?? null : null;
+  }
 
   if (!nextStep) {
     await prisma.stewardPathEnrollment.update({

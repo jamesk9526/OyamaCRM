@@ -51,12 +51,12 @@ export const PALETTE_ITEMS: NodePaletteItem[] = [
   // Donor data
   { kind: "donor.add_tag", category: "donor-data", label: "Add tag", summary: "Tag the donor.", readiness: "partially-working" },
   { kind: "donor.remove_tag", category: "donor-data", label: "Remove tag", summary: "Untag the donor.", readiness: "partially-working" },
-  { kind: "donor.update_status", category: "donor-data", label: "Update donor status", summary: "Change donor status field.", readiness: "not-implemented" },
-  { kind: "donor.adjust_engagement_stage", category: "donor-data", label: "Adjust engagement stage", summary: "Move donor along the journey.", readiness: "not-implemented" },
+  { kind: "donor.update_status", category: "donor-data", label: "Update donor status", summary: "Change donor status field (uses STATUS_CHANGE step).", readiness: "working" },
+  { kind: "donor.adjust_engagement_score", category: "donor-data", label: "Adjust engagement score", summary: "Set the engagement score 0-100 (uses STATUS_CHANGE step).", readiness: "working" },
   { kind: "donor.add_note", category: "donor-data", label: "Add note", summary: "Append an internal note.", readiness: "working" },
 
   // Logic
-  { kind: "logic.if_else", category: "logic", label: "If/else branch", summary: "Split the path on a condition.", readiness: "not-implemented" },
+  { kind: "logic.if_else", category: "logic", label: "If/else branch", summary: "Split the path on a condition (uses BRANCH_PLACEHOLDER step).", readiness: "working" },
   { kind: "logic.segment_condition", category: "logic", label: "Donor segment condition", summary: "Branch by segment membership.", readiness: "not-implemented" },
   { kind: "logic.donation_amount_condition", category: "logic", label: "Donation amount condition", summary: "Branch by gift size.", readiness: "not-implemented" },
   { kind: "logic.communication_preference_condition", category: "logic", label: "Communication preference condition", summary: "Branch by opt-in/out flags.", readiness: "partially-working" },

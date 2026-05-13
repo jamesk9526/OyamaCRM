@@ -2,6 +2,17 @@
 
 _Last deep audit: 2026-05-13_
 
+## 2026-05-13 Donor Engagement Unified System Refactor — Phase 5 (BRANCH and STATUS_CHANGE step execution)
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| `STATUS_CHANGE` step execution | Working | `server/src/services/steward-paths-sequence-engine.ts` `processStatusChangeStep`, `buildStatusChangeUpdate`, `tests/unit/steward-paths-status-change.test.ts` | Updates the linked constituent's `donorStatus` (enum-validated), `engagementScore` (0-100, rounded), or one of the boolean preference flags (`doNotEmail`, `emailOptOut`, `doNotMail`, `doNotCall`, `doNotContact`). Field is allow-listed; invalid configs fail the step with descriptive errors. Writes a `NOTE` activity (with `metadata.kind = "status_change"`) and a timeline event. Skips cleanly when enrollment has no constituent. 16 unit tests. |
+| `BRANCH_PLACEHOLDER` step execution | Working | `server/src/services/steward-paths-sequence-engine.ts` `processBranchStep` | Evaluates `configJson.condition` (`field`, `operator`, `value`) against the enrollment's constituent context using the same `evaluateBranchRule` semantics as `app/lib/engagement-orchestration.ts` (mirrored in-engine because the server tsconfig rootDir excludes `app/`). On match, jumps to `whenTrueAdvanceToOrderIndex`; otherwise to `whenFalseAdvanceToOrderIndex`; if either is omitted, advances sequentially. Records `matched`, `field`, `operator`, `compareValue`, and `observed` in the run result for auditability. |
+| `advanceEnrollment` jump-to-order-index support | Working | `server/src/services/steward-paths-sequence-engine.ts` `advanceEnrollment` | New optional `targetOrderIndex` parameter lets branch steps skip ahead. Backwards compatible — existing call sites omit the parameter and behave exactly as before (next sequential step). |
+| Branch operator parity between engine and shared helper | Working | `server/src/services/steward-paths-sequence-engine.ts` (in-file `evaluateBranchRule`), `app/lib/engagement-orchestration.ts`, `tests/unit/engagement-orchestration.test.ts` | Engine keeps a documented in-file mirror because of the server tsconfig rootDir boundary; algorithms are identical. Both surfaces support `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `not_in` with case-insensitive string compare. |
+| Sequence engine cutover to single shared helper module | Partially Working | `server/src/services/steward-paths-sequence-engine.ts` | The mirror keeps semantics in sync without crossing the server tsconfig boundary. A future "shared package" pass can collapse them; not blocking. |
+| New step types (wait-until-date, weekday/time, tag mutations, manual approval, retry, notify, stop) | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts`, `app/components/steward-paths/palette-catalog.ts` | Palette items exist with honest "Partially Working / Not Implemented" badges; engine processors are not yet implemented. |
+
 ## 2026-05-13 Donor Engagement Unified System Refactor — Phase 4 partial (visual builder skeleton)
 
 | Area | Status | Evidence | Notes |

@@ -30,7 +30,10 @@ Phase 1 (audit + docs), Phase 2 (UI relabeling, shared status vocabulary), and P
 | Canonical `/steward-paths` URL (redirect wrapper) | Working | `app/steward-paths/page.tsx` |
 | Steward Paths visual builder skeleton (palette/canvas/inspector) at `/steward-paths/builder` | Working | `app/steward-paths/builder/page.tsx`, `app/components/steward-paths/*` |
 | Visual builder persistence (save/load) | Not Implemented | Skeleton edits document in memory only; save/run buttons disabled with tooltip |
-| Steward Paths real branching / status-change / auto-send | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts`; planned in Phase 5 |
+| `STATUS_CHANGE` step execution | Working | `server/src/services/steward-paths-sequence-engine.ts` `processStatusChangeStep`/`buildStatusChangeUpdate`; 16 unit tests in `tests/unit/steward-paths-status-change.test.ts` |
+| `BRANCH_PLACEHOLDER` step execution (eq/neq/gt/gte/lt/lte/in/not_in) | Working | `server/src/services/steward-paths-sequence-engine.ts` `processBranchStep`; algorithm mirrored from `app/lib/engagement-orchestration.ts` (covered by `tests/unit/engagement-orchestration.test.ts`) |
+| New Phase-5 step types (wait-until-date, weekday/time, tag mutations, manual approval, retry, notify, stop) | Not Implemented | Palette items exist with honest readiness badges; processors not yet wired |
+| Auto-send email step | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts` `processSendEmailStep` intentionally routes through draft-first behavior |
 | Sequence engine cutover to shared helpers | Not Implemented | Engine still uses private `addDuration`; planned with the visual builder cutover so parity tests ship together |
 | Legacy `stewardPathsEngine.ts` retirement | Not Implemented | Legacy and sequence engines coexist intentionally until parity is confirmed in Phase 3 cutover |
 
