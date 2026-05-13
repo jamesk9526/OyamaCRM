@@ -222,6 +222,7 @@ interface StewardPathRun {
   automationName: string;
   trigger: string;
   source: string;
+  status: "SUCCESS" | "FAILED";
   actionsAttempted: number;
   actionsSucceeded: number;
   actionsFailed: number;
@@ -237,6 +238,16 @@ interface StewardPathRun {
   }>;
 }
 
+interface RunDiagnostics {
+  totalRuns: number;
+  failedRuns: number;
+  failureRate: number;
+  runsLast24h: number;
+  byTrigger: Array<{ trigger: string; count: number }>;
+  bySource: Array<{ source: string; count: number }>;
+  lastFailedRuns: StewardPathRun[];
+}
+
 export default function AutomationsPage() {
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -249,6 +260,11 @@ export default function AutomationsPage() {
   const [editingAutomationId, setEditingAutomationId] = useState<string | null>(null);
   const [presets, setPresets] = useState<AutomationPreset[]>([]);
   const [runs, setRuns] = useState<StewardPathRun[]>([]);
+  const [runDiagnostics, setRunDiagnostics] = useState<RunDiagnostics | null>(null);
+  const [runStatusFilter, setRunStatusFilter] = useState<"ALL" | "SUCCESS" | "FAILED">("ALL");
+  const [runTriggerFilter, setRunTriggerFilter] = useState("ALL");
+  const [runSourceFilter, setRunSourceFilter] = useState("ALL");
+  const [retryingRunId, setRetryingRunId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"paths" | "history">("paths");
   const stewardSuggestions = getStewardSuggestions(automations);
   const editingAutomation = editingAutomationId
@@ -259,14 +275,24 @@ export default function AutomationsPage() {
   const loadRuns = useCallback(async () => {
     setRunsLoading(true);
     try {
-      const runData = await apiFetch<StewardPathRun[]>("/api/automations/runs?limit=60");
+      const params = new URLSearchParams({ limit: "60" });
+      if (runStatusFilter !== "ALL") params.set("status", runStatusFilter);
+      if (runTriggerFilter !== "ALL") params.set("trigger", runTriggerFilter);
+      if (runSourceFilter !== "ALL") params.set("source", runSourceFilter);
+
+      const [runData, diagnostics] = await Promise.all([
+        apiFetch<StewardPathRun[]>(`/api/automations/runs?${params.toString()}`),
+        apiFetch<RunDiagnostics>("/api/automations/runs/diagnostics"),
+      ]);
       setRuns(Array.isArray(runData) ? runData : []);
+      setRunDiagnostics(diagnostics);
     } catch {
       setRuns([]);
+      setRunDiagnostics(null);
     } finally {
       setRunsLoading(false);
     }
-  }, []);
+  }, [runSourceFilter, runStatusFilter, runTriggerFilter]);
 
   /** Fetch all automations from the API */
   const load = useCallback(async () => {
@@ -287,8 +313,11 @@ export default function AutomationsPage() {
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  useEffect(() => {
     loadRuns();
-  }, [load, loadRuns]);
+  }, [loadRuns]);
 
   /** Toggle the enabled state of an automation */
   async function toggle(a: Automation) {
@@ -323,6 +352,18 @@ export default function AutomationsPage() {
     if (!confirm("Delete this automation? This cannot be undone.")) return;
     await apiFetch(`/api/automations/${id}`, { method: "DELETE" });
     setAutomations((prev) => prev.filter((x) => x.id !== id));
+  }
+
+  /** Retries one failed Steward Path run using original trigger context. */
+  async function retryRun(runId: string) {
+    setRetryingRunId(runId);
+    try {
+      await apiFetch(`/api/automations/runs/${runId}/retry`, { method: "POST" });
+      await loadRuns();
+      await load();
+    } finally {
+      setRetryingRunId(null);
+    }
   }
 
   /** Toggle whether this Steward Path is visible to other users in the organization. */
@@ -526,6 +567,68 @@ export default function AutomationsPage() {
             </button>
           </div>
 
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/70">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <select
+                value={runStatusFilter}
+                onChange={(event) => setRunStatusFilter(event.target.value as "ALL" | "SUCCESS" | "FAILED")}
+                className="px-3 py-2 text-xs border border-gray-300 rounded-md bg-white"
+              >
+                <option value="ALL">All statuses</option>
+                <option value="FAILED">Failed</option>
+                <option value="SUCCESS">Success</option>
+              </select>
+              <select
+                value={runTriggerFilter}
+                onChange={(event) => setRunTriggerFilter(event.target.value)}
+                className="px-3 py-2 text-xs border border-gray-300 rounded-md bg-white"
+              >
+                <option value="ALL">All triggers</option>
+                {Object.keys(TRIGGER_LABELS).map((triggerKey) => (
+                  <option key={triggerKey} value={triggerKey}>{TRIGGER_LABELS[triggerKey]}</option>
+                ))}
+              </select>
+              <select
+                value={runSourceFilter}
+                onChange={(event) => setRunSourceFilter(event.target.value)}
+                className="px-3 py-2 text-xs border border-gray-300 rounded-md bg-white"
+              >
+                <option value="ALL">All sources</option>
+                <option value="manual">manual</option>
+                <option value="manual_retry">manual_retry</option>
+                <option value="queue">queue</option>
+                <option value="unknown">unknown</option>
+              </select>
+              <button
+                onClick={() => {
+                  setRunStatusFilter("ALL");
+                  setRunTriggerFilter("ALL");
+                  setRunSourceFilter("ALL");
+                }}
+                className="px-3 py-2 text-xs font-medium rounded-md border border-gray-300 hover:bg-white"
+              >
+                Clear filters
+              </button>
+            </div>
+
+            {runDiagnostics && (
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <div className="rounded-md border border-gray-200 bg-white px-3 py-2">
+                  <p className="text-[11px] uppercase tracking-wide text-gray-500">Total Runs</p>
+                  <p className="text-sm font-semibold text-gray-900">{runDiagnostics.totalRuns}</p>
+                </div>
+                <div className="rounded-md border border-gray-200 bg-white px-3 py-2">
+                  <p className="text-[11px] uppercase tracking-wide text-gray-500">Failed Runs</p>
+                  <p className="text-sm font-semibold text-red-600">{runDiagnostics.failedRuns} ({runDiagnostics.failureRate}%)</p>
+                </div>
+                <div className="rounded-md border border-gray-200 bg-white px-3 py-2">
+                  <p className="text-[11px] uppercase tracking-wide text-gray-500">Runs (24h)</p>
+                  <p className="text-sm font-semibold text-gray-900">{runDiagnostics.runsLast24h}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
           {runsLoading ? (
             <div className="p-4 space-y-3">
               {Array.from({ length: 4 }).map((_, i) => (
@@ -547,6 +650,9 @@ export default function AutomationsPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-gray-500">{run.source}</p>
+                      <p className={`text-xs mt-1 font-semibold ${run.status === "FAILED" ? "text-red-600" : "text-green-700"}`}>
+                        {run.status}
+                      </p>
                       <p className="text-xs mt-1">
                         <span className="text-green-700 font-semibold">{run.actionsSucceeded} passed</span>
                         <span className="text-gray-400"> · </span>
@@ -570,6 +676,18 @@ export default function AutomationsPage() {
                       </div>
                     ))}
                   </div>
+
+                  {run.status === "FAILED" && (
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        onClick={() => retryRun(run.id)}
+                        disabled={retryingRunId === run.id}
+                        className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-60"
+                      >
+                        {retryingRunId === run.id ? "Retrying..." : "Retry Run"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

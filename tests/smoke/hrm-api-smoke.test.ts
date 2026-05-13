@@ -16,12 +16,12 @@ function authGet(path: string) {
 }
 
 /** Sends one authenticated POST request using the seeded admin user token. */
-function authPost(path: string, body: unknown) {
+function authPost(path: string, body: string | object | undefined) {
   return request(app).post(path).set("Authorization", `Bearer ${authToken}`).send(body);
 }
 
 /** Sends one authenticated PATCH request using the seeded admin user token. */
-function authPatch(path: string, body: unknown) {
+function authPatch(path: string, body: string | object | undefined) {
   return request(app).patch(path).set("Authorization", `Bearer ${authToken}`).send(body);
 }
 

@@ -105,6 +105,23 @@ Use this section as an operations safety list.
 | Letters PDF export + batch generation | Partially Working | Use single-letter generation and browser print/PDF until full export and batch pipeline ships. |
 | Some module tabs and tools | Not Implemented | Follow in-app in-development warnings and do not rely on those tabs for live operations. |
 
+## DonorCRM Daily Stewardship Operations
+
+Use DonorCRM as the daily stewardship command center:
+
+1. Start in Dashboard and review follow-up metrics first.
+2. Open donor profiles from high-priority queues.
+3. Confirm donation acknowledgment state.
+4. Generate letters and optional email drafts.
+5. Create and complete follow-up tasks.
+
+Donor references for staff and implementers:
+
+- [docs/DONOR_CRM_AUDIT.md](docs/DONOR_CRM_AUDIT.md)
+- [docs/DONOR_CRM_STEWARDSHIP_COMMAND_CENTER.md](docs/DONOR_CRM_STEWARDSHIP_COMMAND_CENTER.md)
+- [docs/DONOR_CRM_SIDEBAR_NAVIGATION.md](docs/DONOR_CRM_SIDEBAR_NAVIGATION.md)
+- [docs/status/features.md](docs/status/features.md)
+
 ## What To Use For Live Operations Right Now
 
 1. Donor core workflows: constituents, donations, campaigns, tasks.

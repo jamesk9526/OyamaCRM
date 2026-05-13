@@ -1,0 +1,14 @@
+
+> agents-create-oyamam-crm-workspace@0.3.0 test:e2e C:\Users\James\Documents\GitHub\OyamaCRM
+> node tests/e2e/ui-production-smoke.mjs
+
+E2E production smoke failed: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3650/login
+Call log:
+  - navigating to "http://localhost:3650/login", waiting until "domcontentloaded"
+
+    at loginViaUi (C:\Users\James\Documents\GitHub\OyamaCRM\tests\e2e\ui-production-smoke.mjs:272:14)
+    at runBrowserChecks (C:\Users\James\Documents\GitHub\OyamaCRM\tests\e2e\ui-production-smoke.mjs:311:11)
+    at async main (C:\Users\James\Documents\GitHub\OyamaCRM\tests\e2e\ui-production-smoke.mjs:376:3) {
+  name: 'Error'
+}
+ΓÇëELIFECYCLEΓÇë Command failed with exit code 1.

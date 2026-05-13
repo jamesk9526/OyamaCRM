@@ -51,7 +51,7 @@ export default function EmailPreview({ template, onClose }: Props) {
   return (
     /* Backdrop */
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
       onClick={onClose}
     >
       {/* Modal panel — stop click propagation so backdrop close doesn't fire */}

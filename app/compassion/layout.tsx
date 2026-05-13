@@ -86,7 +86,7 @@ export default function CompassionLayout({ children }: { children: React.ReactNo
               className="absolute inset-0 bg-black/35"
             />
             <div className="absolute inset-y-0 left-0 w-64 max-w-[86vw] shadow-2xl">
-              <CompassionSidebar />
+              <CompassionSidebar forceExpanded />
             </div>
           </div>
         )}

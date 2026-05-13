@@ -20,6 +20,55 @@ import { requirePermission } from "../middleware/requirePermission.js";
 
 const router = Router();
 
+interface StewardshipTaskTemplate {
+  id: string;
+  name: string;
+  title: string;
+  type: string;
+  priority: string;
+  description: string;
+  dueInDays: number;
+}
+
+const STEWARDSHIP_TASK_TEMPLATES: StewardshipTaskTemplate[] = [
+  {
+    id: "same-day-thank-you-call",
+    name: "Same-day thank-you call",
+    title: "Call donor to thank them for their recent gift",
+    type: "CALL",
+    priority: "HIGH",
+    description: "Thank the donor personally, confirm designation intent, and capture any follow-up commitments.",
+    dueInDays: 1,
+  },
+  {
+    id: "impact-follow-up",
+    name: "30-day impact follow-up",
+    title: "Share 30-day impact update with donor",
+    type: "FOLLOW_UP",
+    priority: "MEDIUM",
+    description: "Send a concise impact note highlighting outcomes and invite continued engagement.",
+    dueInDays: 30,
+  },
+  {
+    id: "major-donor-stewardship",
+    name: "Major donor stewardship check-in",
+    title: "Schedule stewardship check-in with major donor",
+    type: "MEETING",
+    priority: "URGENT",
+    description: "Coordinate a personal stewardship meeting with leadership and prepare tailored talking points.",
+    dueInDays: 7,
+  },
+  {
+    id: "lapsed-reactivation",
+    name: "Lapsed donor reactivation",
+    title: "Email lapsed donor with re-engagement message",
+    type: "EMAIL",
+    priority: "MEDIUM",
+    description: "Acknowledge past support and share one concrete reason to re-engage this quarter.",
+    dueInDays: 3,
+  },
+];
+
 // All task routes require authentication.
 router.use(requireAuth);
 
@@ -51,6 +100,11 @@ function taskOrganizationWhere(organizationId: string) {
     ],
   };
 }
+
+/** GET /api/tasks/templates — Return built-in stewardship task templates for task creation workflows. */
+router.get("/templates", async (_req, res) => {
+  res.json(STEWARDSHIP_TASK_TEMPLATES);
+});
 
 /** GET /api/tasks — Paginated task list. Filterable by assigneeId, status, and constituentId. */
 router.get("/", async (req, res) => {
@@ -243,6 +297,109 @@ router.patch("/:id", async (req, res) => {
   }
 
   res.json(task);
+});
+
+/**
+ * POST /api/tasks/bulk-assign
+ * Reassigns many tasks to one assignee in one action and writes timeline notes for linked constituents.
+ */
+router.post("/bulk-assign", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const assigneeId = typeof req.body?.assigneeId === "string" ? req.body.assigneeId : "";
+  const taskIdsRaw: unknown[] = Array.isArray(req.body?.taskIds) ? req.body.taskIds : [];
+  const taskIds = Array.from(new Set(taskIdsRaw.filter((value): value is string => typeof value === "string" && value.trim().length > 0)));
+
+  if (!assigneeId) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "assigneeId is required" } });
+    return;
+  }
+  if (taskIds.length === 0) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "taskIds must contain at least one task id" } });
+    return;
+  }
+
+  const assignee = await prisma.user.findFirst({ where: { id: assigneeId, organizationId }, select: { id: true, firstName: true, lastName: true } });
+  if (!assignee) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid assigneeId for your organization" } });
+    return;
+  }
+
+  const tasks = await prisma.task.findMany({
+    where: {
+      id: { in: taskIds },
+      ...taskOrganizationWhere(organizationId),
+    },
+    select: {
+      id: true,
+      title: true,
+      createdById: true,
+      assigneeId: true,
+      constituentId: true,
+    },
+  });
+
+  if (tasks.length === 0) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "No matching tasks found" } });
+    return;
+  }
+
+  const unauthorized = tasks.filter((task) => !canAccessTask(task, userId, role));
+  if (unauthorized.length > 0) {
+    res.status(403).json({
+      error: {
+        code: "FORBIDDEN",
+        message: "One or more tasks are outside your access scope",
+      },
+    });
+    return;
+  }
+
+  const idsToUpdate = tasks.map((task) => task.id);
+  const reassignedByName = `user:${userId}`;
+  const assigneeName = `${assignee.firstName} ${assignee.lastName}`.trim();
+
+  await prisma.task.updateMany({
+    where: { id: { in: idsToUpdate } },
+    data: {
+      assigneeId: assignee.id,
+    },
+  });
+
+  const activityRows = tasks
+    .filter((task) => Boolean(task.constituentId))
+    .map((task) => ({
+      constituentId: task.constituentId as string,
+      taskId: task.id,
+      userId,
+      type: "NOTE" as const,
+      description: `Task reassigned: ${task.title} -> ${assigneeName}`,
+      metadata: {
+        source: "api/tasks:bulk-assign",
+        reassignedBy: reassignedByName,
+        assigneeId: assignee.id,
+        assigneeName,
+      },
+    }));
+
+  if (activityRows.length > 0) {
+    await prisma.activity.createMany({ data: activityRows });
+  }
+
+  res.json({
+    updatedCount: idsToUpdate.length,
+    assignee: { id: assignee.id, name: assigneeName },
+  });
 });
 
 /** DELETE /api/tasks/:id — Delete a task permanently (owner/assignee/admin). */

@@ -2,6 +2,8 @@
 
 This document defines the new sequence-based Steward Paths engine that runs alongside the legacy trigger/action automations.
 
+Current implementation priority is donor stewardship flows first (DonorCRM), with non-donor scopes expanding only when the donor loop is stable and fully documented.
+
 ## Scope
 
 The sequence engine adds deterministic engagement workflows with explicit enrollment state:
@@ -91,6 +93,7 @@ These are registered in `server/src/lib/permissions.ts` and surfaced in the sett
 - Email flow is draft-first by default. `SEND_EMAIL` currently routes through draft behavior.
 - Enrollment/step transitions are written to timeline events for auditability.
 - Worker processing marks failed enrollments and captures failure messages.
+- Avoid auto-send defaults in donor workflows; require human review for outbound communications unless explicitly approved.
 
 ## Generate Letter Step
 

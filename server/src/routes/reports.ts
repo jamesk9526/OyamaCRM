@@ -82,6 +82,31 @@ function campaignOverlapYearFilter(year: number) {
   };
 }
 
+/** Returns report freshness metadata for UI badges and API clients. */
+function buildFreshnessMetadata(dataThrough: Date = new Date()) {
+  return {
+    generatedAt: new Date().toISOString(),
+    dataThrough: dataThrough.toISOString(),
+  };
+}
+
+/** Escapes one CSV cell for safe spreadsheet output. */
+function csvCell(value: unknown): string {
+  const raw = String(value ?? "");
+  if (raw.includes(",") || raw.includes("\"") || raw.includes("\n")) {
+    return `"${raw.replace(/\"/g, '""')}"`;
+  }
+  return raw;
+}
+
+/** Serializes row objects into CSV text. */
+function buildCsv(rows: Array<Record<string, unknown>>): string {
+  if (rows.length === 0) return "";
+  const headers = Object.keys(rows[0]);
+  const lines = rows.map((row) => headers.map((header) => csvCell(row[header])).join(","));
+  return [headers.join(","), ...lines].join("\n");
+}
+
 /**
  * GET /api/reports/summary — Return high-level org-wide KPIs for the dashboard header cards.
  * Runs all aggregation queries concurrently to minimise response latency.
@@ -103,6 +128,7 @@ router.get("/summary", async (req, res) => {
       activeGoalTotal: 0,
       pendingTasks: 0,
       overdueTasks: 0,
+      freshness: buildFreshnessMetadata(),
     });
     return;
   }
@@ -225,7 +251,95 @@ router.get("/summary", async (req, res) => {
     activeGoalTotal: Number(activeCampaignGoal._sum.goal ?? 0),
     pendingTasks,
     overdueTasks,
+    freshness: buildFreshnessMetadata(new Date()),
   });
+});
+
+/**
+ * GET /api/reports/exports/summary.csv
+ * Exports summary KPIs to CSV. Permission-gated to users who can export org data.
+ */
+router.get("/exports/summary.csv", requirePermission("export:data"), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const now = new Date();
+  const thisYear = now.getFullYear();
+  const ytd = await prisma.donation.aggregate({
+    where: completedDonationWhere(organizationId, { gte: new Date(thisYear, 0, 1), lte: now }),
+    _sum: { amount: true },
+    _count: true,
+  });
+  const activeCampaigns = await prisma.campaign.count({ where: { organizationId, active: true } });
+  const pendingTasks = await prisma.task.count({ where: { status: "PENDING", ...taskOrganizationWhere(organizationId) } });
+  const overdueTasks = await prisma.task.count({
+    where: { status: "PENDING", dueDate: { lt: now }, ...taskOrganizationWhere(organizationId) },
+  });
+
+  const freshness = buildFreshnessMetadata(now);
+  const csv = buildCsv([
+    {
+      year: thisYear,
+      ytdAmount: Number(ytd._sum.amount ?? 0),
+      ytdCount: ytd._count,
+      activeCampaigns,
+      pendingTasks,
+      overdueTasks,
+      generatedAt: freshness.generatedAt,
+      dataThrough: freshness.dataThrough,
+    },
+  ]);
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename=reports-summary-${thisYear}.csv`);
+  res.status(200).send(csv);
+});
+
+/**
+ * GET /api/reports/exports/giving-by-month.csv?year=YYYY
+ * Exports monthly giving totals to CSV for offline reporting.
+ */
+router.get("/exports/giving-by-month.csv", requirePermission("export:data"), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const yearQuery = Number.parseInt(String(req.query.year ?? new Date().getFullYear()), 10);
+  const year = Number.isFinite(yearQuery) ? yearQuery : new Date().getFullYear();
+  const start = new Date(year, 0, 1);
+  const end = new Date(year + 1, 0, 1);
+  const donations = await prisma.donation.findMany({
+    where: completedDonationWhere(organizationId, { gte: start, lt: end }),
+    select: { date: true, amount: true },
+  });
+
+  const byMonth = Array.from({ length: 12 }, (_, monthIndex) => {
+    const month = monthIndex + 1;
+    const amount = donations
+      .filter((donation) => donation.date.getMonth() + 1 === month)
+      .reduce((sum, donation) => sum + Number(donation.amount), 0);
+    return { month, amount };
+  });
+
+  const freshness = buildFreshnessMetadata(new Date());
+  const csv = buildCsv(
+    byMonth.map((row) => ({
+      year,
+      month: row.month,
+      amount: row.amount,
+      generatedAt: freshness.generatedAt,
+      dataThrough: freshness.dataThrough,
+    }))
+  );
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename=giving-by-month-${year}.csv`);
+  res.status(200).send(csv);
 });
 
 /**

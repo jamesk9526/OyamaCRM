@@ -1,6 +1,6 @@
 # Production Readiness Checklist
 
-Last updated: 2026-05-12
+Last updated: 2026-05-12 (evening validation pass)
 
 This file is the release-gate source of truth for production readiness.
 
@@ -20,13 +20,15 @@ Status: Broken
 
 Recommendation: Do not mark OyamaCRM production-ready yet.
 
-## Latest Validation Run (2026-05-11)
+## Latest Validation Run (2026-05-12)
 
 | Validation | Result | Status | Evidence |
 |---|---|---|---|
-| pnpm test:smoke | 143 passed, 0 failed | Working | Tests executed across 13 smoke files |
-| pnpm test:e2e | Passed | Working | UI production smoke route sweep passed with exit code 0 |
-| pnpm build | Failed | Broken | Type error at app/compassion/settings/page.tsx:601 (AppointmentWidgetConfig cast) |
+| pnpm test:smoke | 147 passed, 0 failed | Working | 13 test files passed; warning noise from express-rate-limit trust-proxy validation appeared but did not fail tests |
+| pnpm test:e2e | Passed (last known) | Working | Latest documented UI production smoke route sweep passed |
+| pnpm build | Passed | Working | Next.js build completed and generated all routes |
+| pnpm typecheck | Failed | Broken | TS2345 errors in tests/smoke/hrm-api-smoke.test.ts at lines 20 and 25 |
+| pnpm lint | Inconclusive in full-repo mode | Partially Working | Lint run is dominated by REFERANCE_SOFTWARE artifact scanning and did not complete in bounded run window |
 
 ## Partial Implementations Completed In This Pass
 
@@ -44,6 +46,12 @@ Recommendation: Do not mark OyamaCRM production-ready yet.
    - Routes: app/letters-printables/* and server/src/routes/letters.ts
    - Timeline + communications integration: generated letters log Activity events and can create linked EmailCampaign drafts
    - Current status: Partially Working (single-letter workflows are live; PDF export and batch generation are explicit partial endpoints)
+5. Shared CRM sidebar navigation architecture implemented for core modules.
+   - Shared renderer: app/components/layout/CrmSidebar.tsx
+   - Config map: app/components/layout/sidebar-configs.tsx
+   - Module wrappers: Donor, Compassion, Events, HRM, Watchdog now use grouped config metadata and icon-only collapsed mode
+   - Persisted state keys: oyamacrm.sidebar.<module>.collapsed
+   - Current status: Partially Working (role-aware visibility is active; front-end fine-grained permission overrides are still TODO)
 
 ## Done Now Checklist
 
@@ -60,7 +68,7 @@ Recommendation: Do not mark OyamaCRM production-ready yet.
 |---|---|---|
 | Workspace permissions are enforced | Not Implemented | Module-level workspace policy checks are not consistently enforced |
 | Tests cover critical workflows | Partially Working | Smoke and e2e pass, but broader regression depth still needs expansion |
-| Lint/type/build pipelines are green | Broken | Production build currently fails in Compassion settings typing |
+| Lint/type/build pipelines are green | Broken | Build is green, but typecheck fails in HRM smoke typing and lint scope is not stabilized |
 | Payment/webhook endpoints are idempotent | Not Implemented | Provider webhooks are not implemented yet |
 | Backup/restore process is documented | Not Implemented | Recovery runbook is still missing |
 | RBAC is enforced server-side | Partially Working | Coverage exists but not complete for all sensitive endpoints |
@@ -68,8 +76,9 @@ Recommendation: Do not mark OyamaCRM production-ready yet.
 
 ## Release Gate Exit Criteria
 
-1. Fix build failure in app/compassion/settings/page.tsx type conversion logic.
-2. Keep release checks green on re-run: pnpm test:smoke, pnpm test:e2e, pnpm build.
-3. Finish workspace-level permission enforcement across donor, compassion, events, and apps scopes.
-4. Add idempotent payment/webhook integration coverage.
-5. Add and validate backup/restore runbook documentation.
+1. Fix typecheck failure in tests/smoke/hrm-api-smoke.test.ts (unknown to typed argument mismatch at lines 20 and 25).
+2. Stabilize lint scope so full lint run completes in bounded CI time (exclude or isolate reference software artifact trees).
+3. Keep release checks green on re-run: pnpm test:smoke, pnpm test:e2e, pnpm build, pnpm typecheck, and stabilized lint.
+4. Finish workspace-level permission enforcement across donor, compassion, events, and apps scopes.
+5. Add idempotent payment/webhook integration coverage.
+6. Add and validate backup/restore runbook documentation.

@@ -81,7 +81,7 @@ export default function HrmLayout({ children }: { children: React.ReactNode }) {
               className="absolute inset-0 bg-black/35"
             />
             <div className="absolute inset-y-0 left-0 w-60 max-w-[86vw] shadow-2xl">
-              <HrmSidebar />
+              <HrmSidebar forceExpanded />
             </div>
           </div>
         )}

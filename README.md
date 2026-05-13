@@ -55,63 +55,71 @@ OyamaCRM is **one platform with five integrated modules**, each purpose-built fo
 #### Dashboard — Fundraising & Stewardship Overview
 ![DonorCRM Dashboard](README_SCREENSHOTS/02-donor-dashboard.png)
 
+#### Steward AI Panel — Workspace Guidance
+![Steward AI](README_SCREENSHOTS/03-dashboard-ai-open.png)
+
 #### Constituents — Donor Management & Profiles
-![Constituents](README_SCREENSHOTS/03-constituents.png)
+![Constituents](README_SCREENSHOTS/04-constituents-list.png)
+
+#### Constituent Detail — Giving, Notes, and Timeline
+![Constituent Detail](README_SCREENSHOTS/05-constituent-detail.png)
 
 #### Donations — Gift Entry, Ledger & Receipt Generation
-![Donations](README_SCREENSHOTS/04-donations.png)
+![Donations](README_SCREENSHOTS/06-donations.png)
+
+#### Donation Add Form — Structured Gift Capture
+![Donation Form](README_SCREENSHOTS/07-donation-add-form.png)
 
 #### Campaigns — Fundraising Campaigns & Goal Tracking
-![Campaigns](README_SCREENSHOTS/05-campaigns.png)
+![Campaigns](README_SCREENSHOTS/08-campaigns.png)
 
 #### Grants — Grant Pipeline & Funder Management
-![Grants](README_SCREENSHOTS/06-grants.png)
+![Grants](README_SCREENSHOTS/09-grants-pipeline.png)
 
 #### Tasks — Stewardship Workflow & Due Dates
-![Tasks](README_SCREENSHOTS/07-tasks.png)
-
-#### Meetings — Donor Engagement & Meeting Tracking
-![Meetings](README_SCREENSHOTS/08-meetings.png)
+![Tasks](README_SCREENSHOTS/10-tasks.png)
 
 #### Communications — Email Campaigns & Outreach
-![Communications](README_SCREENSHOTS/09-communications.png)
-
-#### Steward Signals — Intelligent Donor Alerts
-![Steward Signals](README_SCREENSHOTS/10-steward-signals.png)
-
-#### Volunteers — Volunteer Management & Engagement
-![Volunteers](README_SCREENSHOTS/11-volunteers.png)
+![Communications](README_SCREENSHOTS/11-communications.png)
 
 #### Reports — Analytics, Dashboards & Exports
 ![Reports](README_SCREENSHOTS/12-reports.png)
 
-### Data Tools
-#### CSV Import Wizard — Bulk Donor & Donation Import
-![Data Import](README_SCREENSHOTS/13-data-import.png)
-
-### OyamaEvents Module — Gala & Event Management
-![Events](README_SCREENSHOTS/14-events.png)
-
 ### OyamaCompassion Module — Client Care Management
-![Compassion Dashboard](README_SCREENSHOTS/15-compassion-dashboard.png)
+![Compassion Dashboard](README_SCREENSHOTS/13-compassion-dashboard.png)
 
 #### Client Profiles & Care Records
-![Compassion Clients](README_SCREENSHOTS/16-compassion-clients.png)
+![Compassion Clients](README_SCREENSHOTS/14-compassion-clients.png)
 
 ### OyamaWatchdog Module — Security & Compliance
-![Watchdog Security Feed](README_SCREENSHOTS/17-watchdog.png)
+![Watchdog Security Feed](README_SCREENSHOTS/15-watchdog.png)
 
-### OyamaWebMaster Module — Visual Website Builder
-![WebMaster Dashboard](README_SCREENSHOTS/18-webmaster.png)
+### Easy Desktop Application
+![Desktop App Login](README_SCREENSHOTS/Desktop%20(1).png)
+![Desktop App Setup](README_SCREENSHOTS/Desktop%20(2).png)
 
-### Administration
-![Settings & User Management](README_SCREENSHOTS/19-settings.png)
+> Screenshot pack refreshed from `easy_prep_tools/Static_site_demo_website/assets/screenshots`.
 
 ---
 
 ## 🟢 DonorCRM — Fundraising & Donor Stewardship
 
 > A calm, professional workspace for managing constituents, donations, campaigns, tasks, and retention — built specifically for nonprofits, not adapted from a generic sales CRM.
+
+### Stewardship Command Center Focus
+
+DonorCRM is being actively hardened to function as a daily stewardship command center where staff can quickly answer:
+
+- How are we doing?
+- Who needs attention?
+- What should we do next?
+
+Current donor-specific implementation and readiness references:
+
+- Donor audit: [docs/DONOR_CRM_AUDIT.md](docs/DONOR_CRM_AUDIT.md)
+- Command center guidance: [docs/DONOR_CRM_STEWARDSHIP_COMMAND_CENTER.md](docs/DONOR_CRM_STEWARDSHIP_COMMAND_CENTER.md)
+- Donor sidebar IA: [docs/DONOR_CRM_SIDEBAR_NAVIGATION.md](docs/DONOR_CRM_SIDEBAR_NAVIGATION.md)
+- Feature status matrix: [docs/status/features.md](docs/status/features.md)
 
 <details>
 <summary><strong>Full Feature List</strong></summary>

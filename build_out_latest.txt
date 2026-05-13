@@ -1,0 +1,10 @@
+
+> agents-create-oyamam-crm-workspace@0.3.0 build C:\Users\James\Documents\GitHub\OyamaCRM
+> next build
+
+Γû▓ Next.js 16.2.5 (Turbopack)
+- Environments: .env.production, .env
+
+  Creating an optimized production build ...
+Γ£ô Compiled successfully in 7.5s
+  Running TypeScript ...

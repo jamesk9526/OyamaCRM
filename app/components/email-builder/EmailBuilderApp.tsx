@@ -234,7 +234,10 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
   const [aiError,        setAiError]         = useState<string | null>(null);
   const [aiModelUsed,    setAiModelUsed]     = useState<string | null>(null);
   const [aiGeneratingBlockId, setAiGeneratingBlockId] = useState<string | null>(null);
+  const [mediaUploading, setMediaUploading] = useState(false);
+  const [mediaError, setMediaError] = useState<string | null>(null);
   const dirtyRef = useRef(false);
+  const mediaInputRef = useRef<HTMLInputElement | null>(null);
 
   /** Marks the template as having unsaved local edits and updates the dirty ref synchronously. */
   const markDirty = useCallback(() => {
@@ -545,6 +548,56 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
     }
   };
 
+  /** Uploads one media file to the campaign media endpoint and inserts an image block with that URL. */
+  const handleMediaFilePicked = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!campaignId) {
+      setMediaError("Open this editor from a campaign before uploading media.");
+      return;
+    }
+
+    setMediaUploading(true);
+    setMediaError(null);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? ""));
+        reader.onerror = () => reject(new Error("Failed to read selected file"));
+        reader.readAsDataURL(file);
+      });
+
+      const media = await apiFetch<{ url: string }>(`/api/email-campaigns/${campaignId}/media`, {
+        method: "POST",
+        body: JSON.stringify({
+          fileName: file.name,
+          mimeType: file.type || "application/octet-stream",
+          dataBase64: base64,
+        }),
+      });
+
+      const imageBlock = createDefaultBlock("image");
+      const nextImageBlock: EmailBlock = {
+        id: imageBlock.id,
+        type: "image",
+        src: media.url,
+        alt: file.name,
+        width: 100,
+        align: "center",
+        padding: 16,
+      };
+
+      setTemplate((prev) => ({ ...prev, blocks: [...prev.blocks, nextImageBlock] }));
+      setSelectedId(nextImageBlock.id);
+      markDirty();
+    } catch (error) {
+      setMediaError(error instanceof Error ? error.message : "Media upload failed.");
+    } finally {
+      event.target.value = "";
+      setMediaUploading(false);
+    }
+  }, [campaignId, markDirty]);
+
   // ── Derived ────────────────────────────────────────────────────────────────
 
   const selectedBlock = template.blocks.find((b) => b.id === selectedId) ?? null;
@@ -643,6 +696,11 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
                 ⚠ {saveError}
               </span>
             )}
+            {mediaError && (
+              <span className="text-xs text-red-500 max-w-xs truncate" title={mediaError}>
+                ⚠ {mediaError}
+              </span>
+            )}
 
             {/* Block count badge */}
             <span className="text-xs text-gray-400">
@@ -678,6 +736,25 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
                 Duplicate block
               </button>
             )}
+
+            <input
+              ref={mediaInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(event) => {
+                void handleMediaFilePicked(event);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => mediaInputRef.current?.click()}
+              disabled={mediaUploading || !campaignId}
+              className="text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
+              title="Upload image and add it to the email canvas"
+            >
+              {mediaUploading ? "Uploading..." : "Upload Image"}
+            </button>
 
             <div className="hidden items-center gap-1 xl:flex">
               {MERGE_TOKENS.map((token) => (

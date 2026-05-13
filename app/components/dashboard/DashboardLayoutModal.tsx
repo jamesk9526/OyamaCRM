@@ -141,7 +141,7 @@ export default function DashboardLayoutModal({
             <div className="space-y-1.5">
               {activeOrder.map((id, idx) => {
                 const meta = metaMap[id];
-                const isOver = dragOverIdx === idx && dragFrom.current !== idx;
+                const isOver = dragOverIdx === idx;
                 return (
                   <div
                     key={id}

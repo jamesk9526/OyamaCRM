@@ -26,6 +26,7 @@ import TopDonorsWidget from "./components/dashboard/TopDonorsWidget";
 import MeetingsWidget from "./components/dashboard/MeetingsWidget";
 import CampaignGoalHealthWidget from "./components/dashboard/CampaignGoalHealthWidget";
 import EngagementPulseWidget from "./components/dashboard/EngagementPulseWidget";
+import StewardshipAttentionWidget from "./components/dashboard/StewardshipAttentionWidget";
 import DashboardLayoutModal, { type RevenueGoalMode, type RevenueProgressSource } from "./components/dashboard/DashboardLayoutModal";
 import { apiFetch } from "@/app/lib/auth-client";
 
@@ -49,6 +50,10 @@ interface Summary {
   activeGoalTotal: number;
   pendingTasks: number;
   overdueTasks: number;
+  freshness?: {
+    generatedAt: string;
+    dataThrough: string;
+  };
 }
 
 interface RetentionData {
@@ -75,6 +80,7 @@ const DEFAULT_WIDGET_ORDER = [
   "goal-health",
   "retention",
   "engagement-pulse",
+  "stewardship-attention",
   "top-donors",
   "weekly-stats",
   "giving-trend",
@@ -91,6 +97,7 @@ const WIDGET_META = [
   { id: "goal-health", label: "Campaign Goal Health", description: "Goal gap and campaign attainment" },
   { id: "retention", label: "Donor Retention", description: "Year-over-year retention rate" },
   { id: "engagement-pulse", label: "Engagement Pulse", description: "Stewardship workload and activity" },
+  { id: "stewardship-attention", label: "Stewardship Attention", description: "Who needs follow-up today" },
   { id: "top-donors", label: "Top Donors", description: "By lifetime giving amount" },
   { id: "weekly-stats", label: "This Week", description: "Weekly donation activity summary" },
   { id: "giving-trend", label: "Giving Trend", description: "Monthly giving totals chart" },
@@ -404,6 +411,12 @@ export default function DashboardPage() {
             />
           </DashboardWidget>
         );
+      case "stewardship-attention":
+        return (
+          <DashboardWidget key={id} id={id} title="Stewardship Attention" subtitle="Unthanked, lapsed, and welcome follow-up" {...editProps}>
+            <StewardshipAttentionWidget newDonorsThisMonth={summary?.newDonorsThisMonth ?? 0} loading={loading} />
+          </DashboardWidget>
+        );
       case "top-donors":
         return (
           <DashboardWidget key={id} id={id} title="Top Donors" subtitle="By lifetime giving" {...editProps}>
@@ -465,6 +478,11 @@ export default function DashboardPage() {
             <p className="text-xs text-gray-400">
               Refreshed {lastRefreshed.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
             </p>
+            {summary?.freshness?.dataThrough && (
+              <p className="text-[11px] text-gray-400">
+                Data through {new Date(summary.freshness.dataThrough).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+              </p>
+            )}
             <button
               onClick={load}
               className="text-xs text-green-600 hover:text-green-700 font-medium mt-0.5 transition-colors"

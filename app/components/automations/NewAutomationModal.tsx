@@ -194,7 +194,7 @@ export default function NewAutomationModal({ onClose, onCreated }: NewAutomation
 
   return (
     /* Backdrop */
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-4xl bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden">
         <div className="grid lg:grid-cols-[260px_1fr]">
           <aside className={`relative bg-gradient-to-b ${theme.sidebarGradient} text-white p-5`}>

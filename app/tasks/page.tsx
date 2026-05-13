@@ -41,6 +41,12 @@ interface NotificationItem {
   priority: "low" | "medium" | "high";
 }
 
+interface UserOption {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
 type FocusMode = "my" | "team" | "followups";
 
 const TASK_TYPES = ["CALL", "EMAIL", "MAIL", "MEETING", "THANK_YOU", "FOLLOW_UP", "OTHER"];
@@ -84,6 +90,10 @@ export default function TasksPage() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [notificationsError, setNotificationsError] = useState<string | null>(null);
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [bulkAssigneeId, setBulkAssigneeId] = useState("");
+  const [bulkAssigning, setBulkAssigning] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
 
   const highlightTaskId = useMemo(() => (queryTaskId ? String(queryTaskId) : null), [queryTaskId]);
 
@@ -154,6 +164,28 @@ export default function TasksPage() {
     };
   }, [loadNotifications]);
 
+  /** Load assignable users for bulk reassignment workflows. */
+  useEffect(() => {
+    let active = true;
+    void apiFetch<{ items?: UserOption[] }>("/api/users")
+      .then((data) => {
+        if (!active) return;
+        const userItems = data.items ?? [];
+        setUsers(userItems);
+        if (!bulkAssigneeId && user?.id) {
+          setBulkAssigneeId(user.id);
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        setUsers([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user?.id, bulkAssigneeId]);
+
   /** Mark a task as COMPLETED via PATCH */
   async function handleComplete(id: string) {
     await apiFetch(`/api/tasks/${id}`, {
@@ -167,6 +199,34 @@ export default function TasksPage() {
   async function handleDelete(id: string) {
     await apiFetch(`/api/tasks/${id}`, { method: "DELETE" });
     loadTasks();
+  }
+
+  /** Bulk-assign visible pending/in-progress tasks to one assignee. */
+  async function handleBulkAssignVisible() {
+    const reassignableTaskIds = tasks
+      .filter((task) => task.status === "PENDING" || task.status === "IN_PROGRESS")
+      .map((task) => task.id);
+
+    if (!bulkAssigneeId || reassignableTaskIds.length === 0) return;
+
+    setBulkAssigning(true);
+    setBulkMessage(null);
+    try {
+      const response = await apiFetch<{ updatedCount: number; assignee?: { name?: string } }>("/api/tasks/bulk-assign", {
+        method: "POST",
+        body: JSON.stringify({
+          assigneeId: bulkAssigneeId,
+          taskIds: reassignableTaskIds,
+        }),
+      });
+      const assigneeName = response.assignee?.name ?? "selected assignee";
+      setBulkMessage(`Reassigned ${response.updatedCount} tasks to ${assigneeName}.`);
+      await loadTasks();
+    } catch (err) {
+      setBulkMessage(err instanceof Error ? err.message : "Bulk assignment failed.");
+    } finally {
+      setBulkAssigning(false);
+    }
   }
 
   const pending = tasks.filter((t) => t.status === "PENDING").length;
@@ -306,6 +366,35 @@ export default function TasksPage() {
             Clear filters
           </button>
         )}
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Bulk Assignment</p>
+            <select
+              value={bulkAssigneeId}
+              onChange={(e) => setBulkAssigneeId(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              <option value="">Select assignee</option>
+              {users.map((userItem) => (
+                <option key={userItem.id} value={userItem.id}>{userItem.firstName} {userItem.lastName}</option>
+              ))}
+            </select>
+          </div>
+          <button
+            onClick={handleBulkAssignVisible}
+            disabled={bulkAssigning || !bulkAssigneeId || tasks.filter((task) => task.status === "PENDING" || task.status === "IN_PROGRESS").length === 0}
+            className="px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-60 transition-colors"
+          >
+            {bulkAssigning ? "Assigning..." : "Assign Visible Pending"}
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-gray-500">
+          Reassigns all visible tasks that are still pending or in progress.
+        </p>
+        {bulkMessage && <p className="mt-2 text-xs text-gray-700">{bulkMessage}</p>}
       </div>
 
       {error && (

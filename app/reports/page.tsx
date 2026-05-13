@@ -61,6 +61,10 @@ interface Summary {
   activeGoalTotal: number;
   pendingTasks: number;
   overdueTasks: number;
+  freshness?: {
+    generatedAt: string;
+    dataThrough: string;
+  };
 }
 
 /** Inner summary object from GET /api/reports/board-summary */
@@ -1096,6 +1100,12 @@ export default function ReportsPage() {
     }
   }
 
+  /** Triggers a server-generated CSV export for permission-gated report downloads. */
+  function handleServerExport() {
+    const scope = new URLSearchParams({ year: String(year) });
+    window.location.href = `/api/reports/exports/giving-by-month.csv?${scope.toString()}`;
+  }
+
   // ── Derived values ────────────────────────────────────────────────────────
 
   /** Total number of constituents across all segments (for percentage bars). */
@@ -1118,6 +1128,11 @@ export default function ReportsPage() {
           <p className="text-sm text-gray-500 mt-0.5">
             OyamaREPORTIT CRM for donor, events, compassion, and OGentic reporting workflows
           </p>
+          {summary?.freshness?.dataThrough && (
+            <p className="text-xs text-gray-400 mt-1">
+              Data freshness: through {fmtDate(summary.freshness.dataThrough)} at {new Date(summary.freshness.generatedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {/* Include Grants toggle — applies to all revenue figures across all tabs */}
@@ -1167,6 +1182,12 @@ export default function ReportsPage() {
             className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-green-700 transition-colors"
           >
             ↓ Export CSV
+          </button>
+          <button
+            onClick={handleServerExport}
+            className="inline-flex items-center gap-1.5 rounded-md border border-green-200 bg-white px-4 py-1.5 text-sm font-medium text-green-700 hover:bg-green-50 transition-colors"
+          >
+            Download Server CSV
           </button>
         </div>
       </div>

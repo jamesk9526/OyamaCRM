@@ -15,6 +15,9 @@
  * @module routes/email-campaigns
  */
 import { Router } from "express";
+import { randomUUID } from "crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import nodemailer from "nodemailer";
 import type { Prisma } from "@prisma/client";
 import { resolveOrganizationId } from "../lib/organization.js";
@@ -453,6 +456,80 @@ async function createDeliveryEvents(params: {
   });
 }
 
+/** Writes recipient-level timeline rows after a campaign send so constituent history stays complete. */
+async function writeRecipientTimelineActivities(params: {
+  organizationId: string;
+  campaignId: string;
+  campaignName: string;
+  subject: string;
+  recipients: string[];
+  trigger: "MANUAL" | "QUEUE";
+  sendMode: CampaignSendMode;
+  audienceType: string;
+}) {
+  const normalizedRecipients = Array.from(new Set(params.recipients.map((email) => email.trim().toLowerCase())));
+  if (normalizedRecipients.length === 0) return;
+
+  const constituents = await prisma.constituent.findMany({
+    where: {
+      organizationId: params.organizationId,
+      email: {
+        in: normalizedRecipients,
+      },
+    },
+    select: {
+      id: true,
+      email: true,
+    },
+  });
+
+  if (constituents.length === 0) return;
+
+  const byEmail = new Map<string, string>();
+  for (const constituent of constituents) {
+    const email = constituent.email?.trim().toLowerCase();
+    if (!email) continue;
+    byEmail.set(email, constituent.id);
+  }
+
+  const activityRows = normalizedRecipients.flatMap((recipientEmail) => {
+    const constituentId = byEmail.get(recipientEmail);
+    if (!constituentId) return [];
+
+    return [{
+      constituentId,
+      type: "EMAIL_SENT" as const,
+      description: `Campaign delivered: ${params.campaignName}`,
+      metadata: {
+        source: "api/email-campaigns:send",
+        campaignId: params.campaignId,
+        campaignName: params.campaignName,
+        subject: params.subject,
+        recipientEmail,
+        trigger: params.trigger,
+        sendMode: params.sendMode,
+        audienceType: params.audienceType,
+      },
+    }];
+  });
+
+  if (activityRows.length === 0) return;
+  await prisma.activity.createMany({ data: activityRows });
+}
+
+/** Safely chooses a file extension from mime type or original file name for campaign media storage. */
+function resolveMediaExtension(mimeType: string, fileName: string): string {
+  const safeMime = mimeType.toLowerCase();
+  if (safeMime.includes("jpeg")) return "jpg";
+  if (safeMime.includes("png")) return "png";
+  if (safeMime.includes("gif")) return "gif";
+  if (safeMime.includes("webp")) return "webp";
+  if (safeMime.includes("svg")) return "svg";
+
+  const extFromName = path.extname(fileName || "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  return extFromName || "bin";
+}
+
 /** Rebuilds campaign-level delivery counters from event rows. */
 async function recalculateCampaignDeliveryStats(campaignId: string) {
   const [queued, delivered, opened, clicked, bounced] = await Promise.all([
@@ -607,6 +684,17 @@ export async function sendCampaignNow(
       },
     });
 
+    await writeRecipientTimelineActivities({
+      organizationId: campaign.organizationId,
+      campaignId: campaign.id,
+      campaignName: campaign.name,
+      subject: campaign.subject || campaign.name,
+      recipients: to,
+      trigger,
+      sendMode: recipientPlan.sendMode,
+      audienceType: recipientPlan.audienceType,
+    });
+
     const updated = await prisma.emailCampaign.update({
       where: { id: campaign.id },
       data: {
@@ -754,6 +842,92 @@ router.get("/:id/send-log", async (req, res) => {
         }
       : null,
   })));
+});
+
+/**
+ * POST /api/email-campaigns/:id/media
+ * Description: Uploads one media file for an email campaign and returns a static asset URL for template blocks.
+ * Body: { fileName: string, mimeType: string, dataBase64: string }
+ */
+router.post("/:id/media", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({
+    where: {
+      id: req.params.id,
+      organizationId,
+    },
+    select: { id: true, name: true, audienceFilter: true },
+  });
+  if (!campaign) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  if (!canManageCampaign(parseCampaignAudienceFilter(campaign.audienceFilter).sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to modify this campaign" } });
+    return;
+  }
+
+  const fileName = typeof req.body?.fileName === "string" ? req.body.fileName.trim() : "";
+  const mimeType = typeof req.body?.mimeType === "string" ? req.body.mimeType.trim() : "application/octet-stream";
+  const dataBase64 = typeof req.body?.dataBase64 === "string" ? req.body.dataBase64.trim() : "";
+  if (!fileName || !dataBase64) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "fileName and dataBase64 are required" } });
+    return;
+  }
+
+  const normalizedData = dataBase64.includes(",") ? dataBase64.split(",").pop() ?? "" : dataBase64;
+  const buffer = Buffer.from(normalizedData, "base64");
+  if (!buffer || buffer.byteLength === 0) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid base64 payload" } });
+    return;
+  }
+
+  const maxBytes = 5 * 1024 * 1024;
+  if (buffer.byteLength > maxBytes) {
+    res.status(413).json({ error: { code: "PAYLOAD_TOO_LARGE", message: "Media upload must be 5MB or smaller" } });
+    return;
+  }
+
+  const ext = resolveMediaExtension(mimeType, fileName);
+  const safeName = `${randomUUID()}.${ext}`;
+  const uploadDir = path.resolve(process.cwd(), "public", "uploads", "email-media", organizationId);
+  const targetPath = path.join(uploadDir, safeName);
+
+  await mkdir(uploadDir, { recursive: true });
+  await writeFile(targetPath, buffer);
+
+  const publicUrl = `/uploads/email-media/${organizationId}/${safeName}`;
+
+  await prisma.auditLog.create({
+    data: {
+      organizationId,
+      userId,
+      action: "EMAIL_CAMPAIGN_MEDIA_UPLOADED",
+      entity: "EmailCampaign",
+      entityId: campaign.id,
+      metadata: {
+        fileName,
+        mimeType,
+        sizeBytes: buffer.byteLength,
+        publicUrl,
+      },
+    },
+  });
+
+  res.status(201).json({
+    url: publicUrl,
+    fileName,
+    mimeType,
+    sizeBytes: buffer.byteLength,
+  });
 });
 
 /**

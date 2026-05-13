@@ -449,6 +449,28 @@ await logAudit(req, { action: "..." });
 - The `PluginProvider` refetches on `refresh()` — call it after any enable/disable/connect/disconnect action
 <!-- END:quickbooks-plugin-rules -->
 
+<!-- BEGIN:donorcrm-stabilization-rules -->
+## DonorCRM Stabilization Rules
+
+When a task is explicitly DonorCRM-only, follow these boundaries:
+
+- Do not expand scope into Compassion, Events, HRM, Watchdog, WebMaster, or standalone apps unless a DonorCRM workflow already depends on a shared system.
+- Use audit-first passes: document current behavior before changing route contracts, schema fields, or navigation semantics.
+- Do not casually rename donor routes or Prisma donor fields used by reports, imports, and smoke tests.
+- Keep donor workflows production-safe by preferring small, composable changes over broad rewrites.
+- Treat dashboard, constituents, donations, campaigns, tasks, communications, letters/printables, reports, steward paths, and donor follow-up as one connected stewardship loop.
+- For donor insight features (including Steward Signals), use suggestion language and require human review for outbound actions.
+- Keep DonorCRM feature status tracking updated in `docs/status/features.md` and donor audit updates in `docs/DONOR_CRM_AUDIT.md`.
+
+Status labels in donor docs and readiness summaries must stay restricted to:
+
+- Working
+- Partially Working
+- Demo Only
+- Broken
+- Not Implemented
+<!-- END:donorcrm-stabilization-rules -->
+
 <!-- BEGIN:production-readiness-tracking-rules -->
 ## Production Readiness Tracking Rules
 

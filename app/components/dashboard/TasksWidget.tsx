@@ -26,6 +26,7 @@ interface TaskItem {
 
 export default function TasksWidget() {
   const { user } = useAuth();
+  const userId = user?.id ?? null;
   const [filter, setFilter] = useState<"all" | "my">("all");
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,8 +42,8 @@ export default function TasksWidget() {
       // Tasks API returns { items: [...], total }
       const nextTasks = Array.isArray(data) ? data : ((data as { items?: TaskItem[] }).items ?? []);
       // Defensive local guard so MY view remains truthful even if backend ignores scope.
-      if (filter === "my" && user?.id) {
-        setTasks(nextTasks.filter((task) => task.assigneeId === user.id || task.createdById === user.id));
+      if (filter === "my" && userId) {
+        setTasks(nextTasks.filter((task) => task.assigneeId === userId || task.createdById === userId));
       } else {
         setTasks(nextTasks);
       }
@@ -52,7 +53,7 @@ export default function TasksWidget() {
     } finally {
       setLoading(false);
     }
-  }, [filter, user?.id]);
+  }, [filter, userId]);
 
   useEffect(() => { load(); }, [load]);
 

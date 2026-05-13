@@ -1,0 +1,367 @@
+
+> agents-create-oyamam-crm-workspace@0.3.0 test:smoke C:\Users\James\Documents\GitHub\OyamaCRM
+> vitest run tests/smoke
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.5 [39m[90mC:/Users/James/Documents/GitHub/OyamaCRM[39m
+
+[90mstdout[2m | tests/smoke/donations-crud.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ multiple files { path: ['.env.local', '.env'] }
+
+[90mstdout[2m | tests/smoke/livecom-workflow.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ override existing { override: true }
+
+[90mstdout[2m | tests/smoke/api-smoke.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γùê secrets for agents [www.dotenvx.com]
+
+[90mstdout[2m | tests/smoke/grants-crud.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ override existing { override: true }
+
+[90mstdout[2m | tests/smoke/critical-hardening.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ multiple files { path: ['.env.local', '.env'] }
+
+[90mstdout[2m | tests/smoke/site-embeds-smoke.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ custom filepath { path: '/custom/path/.env' }
+
+[90mstdout[2m | tests/smoke/routes-workflow.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîü auth for agents [www.vestauth.com]
+
+[90mstdout[2m | tests/smoke/compassion-appointments-workspace.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ suppress logs { quiet: true }
+
+[90mstdout[2m | tests/smoke/events-crud.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γùê secrets for agents [www.dotenvx.com]
+
+[90mstdout[2m | tests/smoke/hrm-api-smoke.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ enable debugging { debug: true }
+
+[90mstdout[2m | tests/smoke/feedback-ticketing-smoke.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ suppress logs { quiet: true }
+
+[90mstdout[2m | tests/smoke/compassion-public-scheduling-smoke.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γùê secrets for agents [www.dotenvx.com]
+
+[90mstdout[2m | tests/smoke/reports-smoke.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γùê secrets for agents [www.dotenvx.com]
+
+stderr | tests/smoke/events-crud.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/donations-crud.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/grants-crud.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/livecom-workflow.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/site-embeds-smoke.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/api-smoke.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/critical-hardening.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/compassion-appointments-workspace.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/feedback-ticketing-smoke.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/reports-smoke.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/routes-workflow.test.ts > route workflow smoke > authenticates seeded admin user
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/hrm-api-smoke.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/compassion-public-scheduling-smoke.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/events-crud.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/site-embeds-smoke.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/critical-hardening.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/grants-crud.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/donations-crud.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/livecom-workflow.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/api-smoke.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/feedback-ticketing-smoke.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/routes-workflow.test.ts > route workflow smoke > authenticates seeded admin user
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/hrm-api-smoke.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/compassion-appointments-workspace.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/compassion-public-scheduling-smoke.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+stderr | tests/smoke/reports-smoke.test.ts
+ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+    at Object.trustProxy (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:334:13)
+    at Object.wrappedValidations.<computed> [as trustProxy] (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:675:22)
+    at Object.keyGenerator (file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:781:20)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:864:32
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/node_modules/.pnpm/express-rate-limit@8.5.1_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs:825:5 {
+  code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+}
+
+ [32mΓ£ô[39m tests/smoke/livecom-workflow.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 3177[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/site-embeds-smoke.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 3223[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/events-crud.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 3215[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/critical-hardening.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 3285[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/hrm-api-smoke.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 3306[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/grants-crud.test.ts [2m([22m[2m17 tests[22m[2m)[22m[33m 3346[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/reports-smoke.test.ts [2m([22m[2m37 tests[22m[2m)[22m[33m 3372[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/compassion-appointments-workspace.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 3443[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/compassion-public-scheduling-smoke.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 3580[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/feedback-ticketing-smoke.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 3911[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/routes-workflow.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 3917[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m authenticates seeded admin user [33m 553[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/donations-crud.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 3964[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m creates a new donation and returns 201 [33m 746[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/api-smoke.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 3981[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m processes GENERATE_LETTER step and creates linked task [33m 374[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m13 passed[39m[22m[90m (13)[39m
+[2m      Tests [22m [1m[32m147 passed[39m[22m[90m (147)[39m
+[2m   Start at [22m 22:32:58
+[2m   Duration [22m 4.77s[2m (transform 9.61s, setup 0ms, import 4.65s, tests 45.72s, environment 3ms)[22m
+

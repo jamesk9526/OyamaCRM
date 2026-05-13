@@ -24,6 +24,16 @@ interface ConstituentOption {
   lastName: string;
 }
 
+interface StewardshipTaskTemplate {
+  id: string;
+  name: string;
+  title: string;
+  type: string;
+  priority: string;
+  description: string;
+  dueInDays: number;
+}
+
 interface Props {
   onClose: () => void;
   onCreated: () => void;
@@ -42,6 +52,8 @@ export default function NewTaskModal({ onClose, onCreated, defaultAssigneeId, de
   const [constituentId, setConstituentId] = useState("");
   const [users, setUsers] = useState<UserOption[]>([]);
   const [constituents, setConstituents] = useState<ConstituentOption[]>([]);
+  const [templates, setTemplates] = useState<StewardshipTaskTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [loadingLookups, setLoadingLookups] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +69,7 @@ export default function NewTaskModal({ onClose, onCreated, defaultAssigneeId, de
           apiFetch<{ items?: UserOption[] }>("/api/users"),
           apiFetch<ConstituentOption[]>("/api/constituents?limit=100"),
         ]);
+        const templatesResult = await apiFetch<StewardshipTaskTemplate[]>("/api/tasks/templates");
 
         if (!active) return;
 
@@ -71,6 +84,8 @@ export default function NewTaskModal({ onClose, onCreated, defaultAssigneeId, de
         } else {
           setConstituents([]);
         }
+
+        setTemplates(Array.isArray(templatesResult) ? templatesResult : []);
       } finally {
         if (active) setLoadingLookups(false);
       }
@@ -82,6 +97,21 @@ export default function NewTaskModal({ onClose, onCreated, defaultAssigneeId, de
       active = false;
     };
   }, []);
+
+  /** Applies one stewardship template to quickly populate common fields. */
+  function applyTemplate(templateId: string) {
+    setSelectedTemplateId(templateId);
+    const selectedTemplate = templates.find((template) => template.id === templateId);
+    if (!selectedTemplate) return;
+    setTitle(selectedTemplate.title);
+    setType(selectedTemplate.type);
+    setPriority(selectedTemplate.priority);
+    setDescription(selectedTemplate.description);
+
+    const dueAt = new Date();
+    dueAt.setDate(dueAt.getDate() + Math.max(0, selectedTemplate.dueInDays));
+    setDueDate(dueAt.toISOString().slice(0, 10));
+  }
 
   /** Submit new task to the API */
   async function handleSubmit(e: React.FormEvent) {
@@ -131,6 +161,25 @@ export default function NewTaskModal({ onClose, onCreated, defaultAssigneeId, de
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               placeholder="Follow up with donor..."
             />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Stewardship Template</label>
+            <select
+              value={selectedTemplateId}
+              onChange={(e) => applyTemplate(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+              disabled={loadingLookups}
+            >
+              <option value="">Custom task</option>
+              {templates.map((template) => (
+                <option key={template.id} value={template.id}>{template.name}</option>
+              ))}
+            </select>
+            {selectedTemplateId && (
+              <p className="mt-1 text-xs text-gray-500">
+                Template prefilled title, type, priority, description, and due date.
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">Type</label>

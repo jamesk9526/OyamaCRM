@@ -30,7 +30,7 @@ export default function SystemStatusPage() {
           <Link href="/settings/project-status" className="text-green-700 hover:underline">
             Open Project Status Audit
           </Link>
-          .
+          . Feature rows now include Copilot-ready implementation prompts for non-Working items.
         </p>
       </div>
 

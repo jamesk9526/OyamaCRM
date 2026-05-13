@@ -150,6 +150,12 @@ Acceptance checks:
 
 - No clipped action controls at 360px height-constrained viewport.
 
+Status update (2026-05-13): In Progress
+
+- Improved topbar mobile behavior in:
+	- app/components/layout/TopBar.tsx
+- Mobile-only changes added for two-row topbar composition, prioritized controls, larger touch targets, and a quick-actions menu while preserving md+ desktop behavior.
+
 ## Phase 4 - Workflow Verification And Regression Gates
 
 Goal:

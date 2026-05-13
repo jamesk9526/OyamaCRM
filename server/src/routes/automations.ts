@@ -229,6 +229,7 @@ interface RunHistoryItem {
   automationName: string;
   trigger: string;
   source: string;
+  status: "SUCCESS" | "FAILED";
   actionsAttempted: number;
   actionsSucceeded: number;
   actionsFailed: number;
@@ -265,6 +266,19 @@ function asNumber(value: unknown, fallback = 0): number {
   return fallback;
 }
 
+/** Converts unknown query input to ISO date when valid, otherwise null. */
+function asDate(value: unknown): Date | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+/** Normalizes run status from attempted/succeeded counters. */
+function runStatus(item: { actionsAttempted: number; actionsSucceeded: number }): "SUCCESS" | "FAILED" {
+  if (item.actionsAttempted <= 0) return "SUCCESS";
+  return item.actionsSucceeded < item.actionsAttempted ? "FAILED" : "SUCCESS";
+}
+
 /** Converts audit logs into normalized run history items. */
 function mapRunLogsToHistory(logs: Array<{ id: string; entityId: string | null; createdAt: Date; metadata: unknown }>, nameMap: Map<string, string>): RunHistoryItem[] {
   return logs.map((log) => {
@@ -290,6 +304,7 @@ function mapRunLogsToHistory(logs: Array<{ id: string; entityId: string | null; 
       automationName: asString(md.automationName, nameMap.get(automationId) ?? "Steward Path"),
       trigger: asString(md.trigger, "UNKNOWN"),
       source: asString(md.source, "unknown"),
+      status: runStatus({ actionsAttempted, actionsSucceeded }),
       actionsAttempted,
       actionsSucceeded,
       actionsFailed: Math.max(actionsAttempted - actionsSucceeded, 0),
@@ -322,6 +337,11 @@ router.get("/runs", async (req, res) => {
 
   const parsedLimit = Number.parseInt((req.query.limit as string) ?? "50", 10);
   const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 200) : 50;
+  const sourceFilter = typeof req.query.source === "string" ? req.query.source.trim().toLowerCase() : "";
+  const triggerFilter = typeof req.query.trigger === "string" ? req.query.trigger.trim().toUpperCase() : "";
+  const statusFilter = typeof req.query.status === "string" ? req.query.status.trim().toUpperCase() : "";
+  const from = asDate(req.query.from);
+  const to = asDate(req.query.to);
 
   const automationsForAccess = await prisma.automation.findMany({
     where: { organizationId },
@@ -343,7 +363,7 @@ router.get("/runs", async (req, res) => {
       entityId: { in: visibleIds },
     },
     orderBy: { createdAt: "desc" },
-    take: limit,
+    take: Math.max(limit * 4, 200),
     select: {
       id: true,
       entityId: true,
@@ -353,7 +373,178 @@ router.get("/runs", async (req, res) => {
   });
 
   const nameMap = new Map(visibleAutomations.map((a) => [a.id, a.name]));
-  res.json(mapRunLogsToHistory(logs, nameMap));
+  const filtered = mapRunLogsToHistory(logs, nameMap)
+    .filter((run) => (sourceFilter ? run.source.toLowerCase() === sourceFilter : true))
+    .filter((run) => (triggerFilter ? run.trigger.toUpperCase() === triggerFilter : true))
+    .filter((run) => (statusFilter === "FAILED" || statusFilter === "SUCCESS" ? run.status === statusFilter : true))
+    .filter((run) => (from ? new Date(run.createdAt) >= from : true))
+    .filter((run) => (to ? new Date(run.createdAt) <= to : true))
+    .slice(0, limit);
+
+  res.json(filtered);
+});
+
+/**
+ * GET /api/automations/runs/diagnostics
+ * Returns operations diagnostics for Steward Path runs (failure rate, trigger/source breakdown, recent failures).
+ */
+router.get("/runs/diagnostics", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json({
+      totalRuns: 0,
+      failedRuns: 0,
+      failureRate: 0,
+      runsLast24h: 0,
+      byTrigger: [],
+      bySource: [],
+      lastFailedRuns: [],
+    });
+    return;
+  }
+
+  const automationsForAccess = await prisma.automation.findMany({
+    where: { organizationId },
+    select: { id: true, name: true, triggerConfig: true },
+  });
+  const visibleAutomations = automationsForAccess.filter((automation) =>
+    canAccessAutomation(parseAutomationSharing(automation.triggerConfig), userId, role)
+  );
+  const visibleIds = visibleAutomations.map((automation) => automation.id);
+  if (visibleIds.length === 0) {
+    res.json({
+      totalRuns: 0,
+      failedRuns: 0,
+      failureRate: 0,
+      runsLast24h: 0,
+      byTrigger: [],
+      bySource: [],
+      lastFailedRuns: [],
+    });
+    return;
+  }
+
+  const logs = await prisma.auditLog.findMany({
+    where: {
+      organizationId,
+      action: "STEWARD_PATH_RUN",
+      entityId: { in: visibleIds },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 500,
+    select: {
+      id: true,
+      entityId: true,
+      metadata: true,
+      createdAt: true,
+    },
+  });
+
+  const nameMap = new Map(visibleAutomations.map((a) => [a.id, a.name]));
+  const runs = mapRunLogsToHistory(logs, nameMap);
+  const failedRuns = runs.filter((run) => run.status === "FAILED");
+  const now = Date.now();
+  const dayAgo = now - 24 * 60 * 60 * 1000;
+
+  const byTriggerMap = new Map<string, number>();
+  const bySourceMap = new Map<string, number>();
+  for (const run of runs) {
+    byTriggerMap.set(run.trigger, (byTriggerMap.get(run.trigger) ?? 0) + 1);
+    bySourceMap.set(run.source, (bySourceMap.get(run.source) ?? 0) + 1);
+  }
+
+  res.json({
+    totalRuns: runs.length,
+    failedRuns: failedRuns.length,
+    failureRate: runs.length > 0 ? Number(((failedRuns.length / runs.length) * 100).toFixed(1)) : 0,
+    runsLast24h: runs.filter((run) => new Date(run.createdAt).getTime() >= dayAgo).length,
+    byTrigger: Array.from(byTriggerMap.entries()).map(([trigger, count]) => ({ trigger, count })),
+    bySource: Array.from(bySourceMap.entries()).map(([source, count]) => ({ source, count })),
+    lastFailedRuns: failedRuns.slice(0, 5),
+  });
+});
+
+/**
+ * POST /api/automations/runs/:runId/retry
+ * Replays one historical Steward Path run with its original trigger context.
+ */
+router.post("/runs/:runId/retry", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured for this installation." } });
+    return;
+  }
+
+  const runLog = await prisma.auditLog.findFirst({
+    where: {
+      id: req.params.runId,
+      organizationId,
+      action: "STEWARD_PATH_RUN",
+    },
+    select: {
+      id: true,
+      entityId: true,
+      metadata: true,
+    },
+  });
+  if (!runLog) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Run not found" } });
+    return;
+  }
+
+  const metadata = jsonObject(runLog.metadata);
+  const automationId = asString(metadata.automationId, runLog.entityId ?? "");
+  const trigger = parseAutomationTrigger(metadata.trigger);
+  if (!trigger) {
+    res.status(400).json({ error: { code: "INVALID_TRIGGER", message: "Run trigger metadata is missing or invalid" } });
+    return;
+  }
+
+  const automation = await prisma.automation.findFirst({
+    where: {
+      id: automationId,
+      organizationId,
+    },
+    select: { id: true, triggerConfig: true },
+  });
+  if (!automation) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Automation not found for this run" } });
+    return;
+  }
+  if (!canAccessAutomation(parseAutomationSharing(automation.triggerConfig), userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to retry this run" } });
+    return;
+  }
+
+  const retryResult = await executeStewardPathsForTrigger({
+    organizationId,
+    trigger,
+    constituentId: asString(metadata.constituentId, "") || undefined,
+    donationId: asString(metadata.donationId, "") || undefined,
+    taskId: asString(metadata.taskId, "") || undefined,
+    userId,
+    source: "manual_retry",
+  });
+
+  res.status(201).json({
+    retriedRunId: req.params.runId,
+    trigger,
+    retryResult,
+  });
 });
 
 /**

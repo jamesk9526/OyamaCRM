@@ -128,7 +128,7 @@ export function FeedbackModal({ open, moduleKey, pathname, onClose }: FeedbackMo
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center px-3 py-6">
-      <div className="absolute inset-0 bg-slate-900/55 backdrop-blur-[2px]" onClick={handleClose} />
+      <div className="absolute inset-0 bg-slate-900/55" onClick={handleClose} />
 
       <div className="relative w-full max-w-3xl rounded-2xl border border-slate-200 bg-white shadow-[0_30px_70px_rgba(15,23,42,0.35)] overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-emerald-50">

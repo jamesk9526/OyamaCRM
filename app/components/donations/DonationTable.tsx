@@ -11,6 +11,30 @@ interface Props {
   onDelete?: (id: string) => void;
 }
 
+function SortHeader({
+  label,
+  col,
+  sortKey,
+  sortDir,
+  onToggle,
+}: {
+  label: string;
+  col: SortKey;
+  sortKey: SortKey;
+  sortDir: "asc" | "desc";
+  onToggle: (key: SortKey) => void;
+}) {
+  const active = sortKey === col;
+  return (
+    <th
+      className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:text-green-600"
+      onClick={() => onToggle(col)}
+    >
+      {label}{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
+    </th>
+  );
+}
+
 export default function DonationTable({ donations, onDelete }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -27,18 +51,6 @@ export default function DonationTable({ donations, onDelete }: Props) {
   function toggle(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortKey(key); setSortDir("desc"); }
-  }
-
-  function Th({ label, col }: { label: string; col: SortKey }) {
-    const active = sortKey === col;
-    return (
-      <th
-        className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:text-green-600"
-        onClick={() => toggle(col)}
-      >
-        {label}{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
-      </th>
-    );
   }
 
   if (!sorted.length) {
@@ -109,12 +121,12 @@ export default function DonationTable({ donations, onDelete }: Props) {
       <table className="w-full text-sm">
         <thead className="bg-gray-50 border-b border-gray-200">
           <tr>
-            <Th label="Date" col="date" />
-            <Th label="Donor" col="constituent" />
-            <Th label="Amount" col="amount" />
+            <SortHeader label="Date" col="date" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
+            <SortHeader label="Donor" col="constituent" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
+            <SortHeader label="Amount" col="amount" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Fund / Campaign</th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Method</th>
-            <Th label="Status" col="status" />
+            <SortHeader label="Status" col="status" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
             <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide w-28">Actions</th>
           </tr>
         </thead>
