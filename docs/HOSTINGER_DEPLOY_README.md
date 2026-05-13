@@ -214,6 +214,39 @@ If errors mention missing models/enums such as `letterTemplate`, `generatedLette
 		pnpm build
 		pnpm build:server
 
+### 6.6 Prisma P3009 failed migration (`20260513144533_add_email_campaign_purpose_and_compliance_models`)
+
+Symptom:
+
+		Error: P3009
+		migrate found failed migrations in the target database...
+		The `20260513144533_add_email_campaign_purpose_and_compliance_models` migration ... failed
+
+Cause:
+
+- A previous migration SQL used lowercase `emailcampaign` while the real Prisma table is `EmailCampaign`.
+- Linux/MySQL hosts can be case-sensitive for table names.
+
+Server-safe fix (no reset):
+
+		cd ~/htdocs/<APP_DIRECTORY>
+		git fetch origin
+		git checkout main
+		git pull --ff-only
+		pnpm install --frozen-lockfile
+		pnpm prisma migrate status
+		pnpm prisma migrate resolve --rolled-back 20260513144533_add_email_campaign_purpose_and_compliance_models
+		pnpm prisma migrate deploy
+		pnpm prisma generate
+		pnpm build
+		pnpm build:server
+
+Notes:
+
+- Do not run `pnpm prisma migrate dev` on production.
+- Do not create a duplicate email campaign table (`emailcampaign` vs `EmailCampaign`).
+- If deploy still fails with missing `EmailCampaign`, migration history is out of order in that environment and earlier migrations were not fully applied.
+
 ### 6.5 pnpm fetch 404 for caniuse-lite
 
 Symptom:
