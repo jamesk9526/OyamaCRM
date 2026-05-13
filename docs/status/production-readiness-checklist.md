@@ -14,6 +14,22 @@ Use only these status labels:
 - Broken
 - Not Implemented
 
+## Donor Engagement Unified System Refactor (2026-05-13)
+
+Phase 1 of the unified donor engagement refactor landed as documentation only. Application code, schema, and routes were not changed in this pass.
+
+| Item | Status | Evidence |
+|---|---|---|
+| Incremental workspace refactor permission in AGENTS.md | Working | `AGENTS.md` `incremental-workspace-refactor-rules` |
+| Unified donor engagement refactor plan | Working | `docs/DONOR_ENGAGEMENT_UNIFIED_SYSTEM_REFACTOR.md` |
+| Steward Paths visual node-based builder | Not Implemented | `app/automations/page.tsx` is the current Steward Paths surface; planned in Phase 4 of the refactor doc |
+| Steward Paths real branching / status-change / auto-send | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts`; planned in Phase 5 |
+| Letters tab inside Communications collapsed to a link card | Not Implemented | Planned in Phase 2 of the refactor doc |
+| Shared engagement status vocabulary applied across UI chips | Partially Working | Vocabulary defined in `docs/DONOR_ENGAGEMENT_SYSTEM.md`; UI rollout planned in Phase 2 |
+| Legacy `stewardPathsEngine.ts` retirement | Not Implemented | Legacy and sequence engines coexist intentionally until parity is confirmed in Phase 3 |
+
+This refactor must follow the new `incremental-workspace-refactor-rules` in `AGENTS.md`: no destructive migration in a single pass, public route compatibility preserved (redirects/wrappers when routes move), draft-first / review-first / opt-out / audit defaults preserved, and no working feature removed until the replacement has equal or better behavior.
+
 ## Current Gate Decision
 
 Status: Broken

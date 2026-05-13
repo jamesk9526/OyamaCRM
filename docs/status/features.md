@@ -2,6 +2,32 @@
 
 _Last deep audit: 2026-05-13_
 
+## 2026-05-13 Donor Engagement Unified System Refactor — Phase 1 (audit + docs)
+
+Status labels used in this section are restricted to:
+
+- Working
+- Partially Working
+- Demo Only
+- Broken
+- Not Implemented
+
+This pass is documentation-only. No application code, schema, or routes were changed. Phase 2 onward will land incrementally per `docs/DONOR_ENGAGEMENT_UNIFIED_SYSTEM_REFACTOR.md`.
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Incremental workspace refactor permission | Working | `AGENTS.md` `incremental-workspace-refactor-rules` | New rule explicitly allows controlled, test-backed workspace refactors with backwards-compatibility safeguards. |
+| Unified donor engagement refactor plan | Working | `docs/DONOR_ENGAGEMENT_UNIFIED_SYSTEM_REFACTOR.md` | Documents current state, ownership boundaries, backwards-compatibility contract, phased plan, test plan, and risks. |
+| Steward Paths visual node-based builder | Not Implemented | `app/automations/page.tsx`, no `app/components/steward-paths/` directory | Current page is structured-card automation list; visual builder skeleton planned in Phase 4. |
+| Steward Paths `BRANCH_PLACEHOLDER` execution | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts` | Step is skipped at runtime; planned for Phase 5. |
+| Steward Paths `STATUS_CHANGE` execution | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts` | Step is skipped at runtime; planned for Phase 5. |
+| Steward Paths `SEND_EMAIL` auto-send | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts` | Step routes through draft-first behavior; auto-send remains gated by `email_auto_send` permission and intentionally not enabled. |
+| Letters tab inside Communications (overlap) | Partially Working | `app/communications/page.tsx` | Letters tab still rendered alongside email tabs; Phase 2 will replace with a discovery card linking to `/letters-printables`. |
+| Letters & Printables print/mail workflows | Partially Working | `server/src/routes/letters.ts`, `app/components/letters/*` | Templates, generated, queue actions, batch, and letter→email-draft bridge are real; PDF export remains partial. |
+| Communications email lifecycle | Partially Working | `app/communications/page.tsx`, `server/src/routes/email-campaigns.ts` | Campaign CRUD/scheduling/send/delivery events live; deeper log filtering and export remain partial. |
+| Shared engagement status vocabulary surfaced in UI | Partially Working | `docs/DONOR_ENGAGEMENT_SYSTEM.md` | Vocabulary defined; not yet applied consistently across all channel chips — planned for Phase 2. |
+| Legacy `stewardPathsEngine.ts` retirement | Not Implemented | `server/src/services/stewardPathsEngine.ts`, `server/src/services/steward-paths-worker.ts` | Legacy and sequence engines coexist intentionally; retirement is not started until Phase 3 confirms parity. |
+
 ## 2026-05-12 Readiness Audit Refresh
 
 This file remains useful for feature context, but release-readiness authority is:

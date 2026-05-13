@@ -606,6 +606,47 @@ DonorCRM Email Builder is a campaign studio, not a generic page builder.
 - Do not auto-send by default; preserve explicit review/test/send actions.
 <!-- END:donor-email-builder-rules -->
 
+<!-- BEGIN:incremental-workspace-refactor-rules -->
+## Incremental Workspace Refactor Rules
+
+Workspace boundaries (DonorCRM, Compassion CRM, Events, Webmaster, Steward Paths, Communications, Letters & Printables, Tasks, Activities, etc.) are **not frozen**. Agents are explicitly allowed to refactor how a workspace is shaped when the current structure blocks a cleaner product design or causes duplicated/confusing user flows.
+
+**Prefer incremental refactors over patching confusing architecture forever.**
+
+Refactors must be controlled, test-backed, and safe. The following rules apply to any workspace-shape change:
+
+### What agents MAY do
+- Split monolithic components into smaller ones, or merge fragmented ones that should be one.
+- Rename **internal** concepts, types, services, and component names for clarity.
+- Introduce new service layers, shared contracts, or orchestration interfaces between workspaces (for example a shared engagement-item contract between Steward Paths, Communications, and Letters).
+- Replace an old workspace flow with a clearer unified flow, in stages, while the old flow keeps working.
+- Move pages or components when the new location better matches ownership boundaries, with redirects/wrappers preserving the old URL.
+- Reorganize sidebar/topbar entries when navigation no longer matches the real product structure.
+
+### What agents MUST do for every refactor pass
+1. **Current-state audit notes** — write down what actually exists today (routes, components, services, models, status), not what was planned.
+2. **Migration plan** — list the small phases, what each phase changes, and the rollback story.
+3. **Code changes** — keep each pass small enough that a reviewer can reason about it.
+4. **Tests** — add or update unit/smoke/e2e coverage for the new behavior, and regression checks that the old surfaces still work where they have not yet been replaced.
+5. **Updated docs/status files** — every refactor pass updates `docs/status/features.md` and `docs/status/production-readiness-checklist.md` with honest status labels (`Working`, `Partially Working`, `Demo Only`, `Broken`, `Not Implemented`).
+6. **A clear list of what remains partial** — never leave a half-removed system without a follow-up note.
+
+### Safety constraints (non-negotiable)
+- **Public route compatibility**: Do not break public URLs in a single pass. When a route moves, add a redirect or compatibility wrapper (Next.js redirect, route handler shim, or thin page that re-exports the new component) and keep it until the new path is documented and discoverable.
+- **Database migrations stay safe**: Never drop a column, table, enum value, or index in the same pass that introduces the replacement. Use additive-then-cutover-then-cleanup phases. Migration name casing must match Prisma table names (see `mysql-prisma-casing-rules`).
+- **Do not remove a working feature until the replacement has equal or better behavior.** "Equal or better" means same persistence guarantees, same permissions, same audit/timeline write-backs, same draft-first/review-first defaults, and at least the same test coverage.
+- **Do not silently break data contracts**: API request/response shapes consumed by other surfaces (UI, worker, integrations, importers, embeds) must keep working, or change with a versioned contract and an explicit migration note.
+- **Preserve safety defaults**: draft-first, review-first, communication-preference checks, opt-out enforcement, and audit logging must survive every refactor pass.
+- **Do not ship a refactor that downgrades a status** in `docs/status/production-readiness-checklist.md` from `Working` to `Broken` without an explicit rollback or hotfix plan in the same PR.
+
+### Modularity clarification
+The `modular-architecture-rules` still apply: keep components small, keep `"use client"` boundaries narrow, keep pages thin. **Modularity does not mean "never change the shape of a workspace."** It means that when the shape changes, the new shape is also modular.
+
+### When the refactor crosses a CRM-module boundary
+- DonorCRM, Compassion CRM, Events CRM, Webmaster, and standalone apps still own their own data and language (see `module-rules`, `compassion-crm-rules`, `standalone-app-boundary-rules`, `events-crm-boundary-rules`, `oyama-webmaster-command-center-rules`).
+- Cross-module refactors must use **references and shared contracts**, not data copying, and must respect each module's permission and privacy rules.
+<!-- END:incremental-workspace-refactor-rules -->
+
 <!-- BEGIN:oyama-webmaster-command-center-rules -->
 ## OyamaWebMaster Command Center Rules
 
