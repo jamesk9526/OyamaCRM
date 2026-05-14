@@ -2,10 +2,12 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import OpportunityEnginePlaceholderTable from "@/app/components/steward/OpportunityEnginePlaceholderTable";
 import StewardSignalsSummaryCards from "@/app/components/steward/StewardSignalsSummaryCards";
 import StewardLapseRadarPanel from "@/app/components/steward/StewardLapseRadarPanel";
 import StewardTaskSuggestionsTable from "@/app/components/steward/StewardTaskSuggestionsTable";
+import { apiFetch } from "@/app/lib/auth-client";
 
 /**
  * StewardSignalsPage provides a UI-first foundation for:
@@ -18,6 +20,30 @@ import StewardTaskSuggestionsTable from "@/app/components/steward/StewardTaskSug
  * explicitly confirm-first and read-first for safe stewardship operations.
  */
 export default function StewardSignalsPage() {
+  const [rebuilding, setRebuilding] = useState(false);
+  const [rebuildNotice, setRebuildNotice] = useState<string | null>(null);
+  const [rebuildError, setRebuildError] = useState<string | null>(null);
+
+  async function handleRecalculateSignals() {
+    setRebuilding(true);
+    setRebuildNotice(null);
+    setRebuildError(null);
+
+    try {
+      const response = await apiFetch<{ data?: { reason?: string } }>("/api/steward-signals/index/rebuild", {
+        method: "POST",
+      });
+
+      const reason = response?.data?.reason ?? "Signals rebuild completed.";
+      setRebuildNotice(reason);
+      window.dispatchEvent(new CustomEvent("steward-signals:analysis-rebuilt"));
+    } catch (error) {
+      setRebuildError(error instanceof Error ? error.message : "Failed to rebuild Steward Signals index.");
+    } finally {
+      setRebuilding(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -28,8 +54,12 @@ export default function StewardSignalsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50 transition-colors">
-            Recalculate Signals
+          <button
+            onClick={() => void handleRecalculateSignals()}
+            disabled={rebuilding}
+            className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50 transition-colors disabled:opacity-60"
+          >
+            {rebuilding ? "Recalculating..." : "Recalculate Signals"}
           </button>
           <Link
             href="/automations"
@@ -39,6 +69,18 @@ export default function StewardSignalsPage() {
           </Link>
         </div>
       </header>
+
+      {rebuildNotice && (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
+          {rebuildNotice}
+        </div>
+      )}
+
+      {rebuildError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          {rebuildError}
+        </div>
+      )}
 
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
         <p className="text-sm font-semibold text-amber-900">In Development Notice</p>

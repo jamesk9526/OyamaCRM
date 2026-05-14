@@ -291,6 +291,34 @@ function formatReplyByMode(options: {
   ].join("\n\n");
 }
 
+/** Builds a deterministic response directly from retrieved CRM context when model output is empty. */
+function buildFallbackReplyFromContext(options: {
+  mode: StewardChatMode;
+  moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>;
+  scopePath: string;
+  userQuery: string;
+  retrieval: StewardContextResult;
+}): string {
+  const contextLines = options.retrieval.contextText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .filter((line) => !line.includes("authoritative JSON"))
+    .slice(0, 10);
+
+  const fallbackEvidence = contextLines.length > 0
+    ? contextLines.map((line, index) => `${index + 1}. ${line.replace(/^-\s*/, "")}`).join("\n")
+    : "1. Retrieval context was unavailable for this request.";
+
+  return [
+    `Model output was empty, so this ${options.mode} response is generated from live CRM retrieval data for ${options.moduleKey}.`,
+    `Scope: ${options.scopePath}`,
+    options.userQuery ? `Request: ${options.userQuery}` : "",
+    "Grounded CRM snapshot:",
+    fallbackEvidence,
+  ].filter(Boolean).join("\n\n");
+}
+
 /** Picks the effective thinking model, falling back to the primary model when unset. */
 function resolveThinkingModel(config: ReturnType<typeof parseStewardAiConfig>): string {
   return String(config.thinkingModel || config.model).trim() || config.model;
@@ -484,10 +512,20 @@ async function buildDonorContext(params: {
   tokens: string[];
   scopePath: string;
 }): Promise<StewardContextResult> {
-  const toolsUsed: string[] = ["donor.constituentLookup", "donor.workQueueSnapshot", "donor.topDonorSnapshot"];
+  const toolsUsed: string[] = [
+    "donor.constituentLookup",
+    "donor.workQueueSnapshot",
+    "donor.topDonorSnapshot",
+    "donor.givingSummarySnapshot",
+    "donor.segmentSnapshot",
+  ];
 
-  const donorMatches = params.tokens.length > 0
-    ? await prisma.constituent.findMany({
+  const now = new Date();
+  const yearStart = new Date(now.getFullYear(), 0, 1);
+  const last90Days = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+  const donorMatchesPromise = params.tokens.length > 0
+    ? prisma.constituent.findMany({
         where: {
           organizationId: params.organizationId,
           OR: params.tokens.flatMap((token) => ([
@@ -506,53 +544,124 @@ async function buildDonorContext(params: {
         },
         take: 6,
       })
-    : [];
+    : Promise.resolve([]);
 
-  const pendingTaskCount = await prisma.task.count({
-    where: {
-      status: "PENDING",
-      OR: [
-        { constituent: { organizationId: params.organizationId } },
-        { meeting: { organizationId: params.organizationId } },
-        { createdBy: { organizationId: params.organizationId } },
-        { assignee: { organizationId: params.organizationId } },
+  const [
+    donorMatches,
+    pendingTaskCount,
+    upcomingMeetings,
+    topDonors,
+    donorSegments,
+    ytdGiving,
+    ytdGiftCount,
+    rolling90Giving,
+    rolling90GiftCount,
+    recentDonations,
+  ] = await Promise.all([
+    donorMatchesPromise,
+    prisma.task.count({
+      where: {
+        status: "PENDING",
+        OR: [
+          { constituent: { organizationId: params.organizationId } },
+          { meeting: { organizationId: params.organizationId } },
+          { createdBy: { organizationId: params.organizationId } },
+          { assignee: { organizationId: params.organizationId } },
+        ],
+      },
+    }),
+    prisma.meeting.findMany({
+      where: {
+        organizationId: params.organizationId,
+        status: "SCHEDULED",
+      },
+      select: {
+        id: true,
+        title: true,
+        startTime: true,
+      },
+      orderBy: { startTime: "asc" },
+      take: 5,
+    }),
+    prisma.constituent.findMany({
+      where: {
+        organizationId: params.organizationId,
+        totalLifetimeGiving: { gt: 0 },
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        donorStatus: true,
+        totalLifetimeGiving: true,
+        lastGiftDate: true,
+      },
+      orderBy: [
+        { totalLifetimeGiving: "desc" },
+        { lastGiftDate: "desc" },
       ],
-    },
-  });
-
-  const upcomingMeetings = await prisma.meeting.findMany({
-    where: {
-      organizationId: params.organizationId,
-      status: "SCHEDULED",
-    },
-    select: {
-      id: true,
-      title: true,
-      startTime: true,
-    },
-    orderBy: { startTime: "asc" },
-    take: 5,
-  });
-
-  const topDonors = await prisma.constituent.findMany({
-    where: {
-      organizationId: params.organizationId,
-      totalLifetimeGiving: { gt: 0 },
-    },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      donorStatus: true,
-      totalLifetimeGiving: true,
-      lastGiftDate: true,
-    },
-    orderBy: [
-      { totalLifetimeGiving: "desc" },
-      { lastGiftDate: "desc" },
-    ],
-    take: 8,
-  });
+      take: 8,
+    }),
+    prisma.constituent.groupBy({
+      by: ["donorStatus"],
+      where: { organizationId: params.organizationId },
+      _count: { _all: true },
+    }),
+    prisma.donation.aggregate({
+      where: {
+        constituent: { organizationId: params.organizationId },
+        status: "COMPLETED",
+        date: { gte: yearStart },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.donation.count({
+      where: {
+        constituent: { organizationId: params.organizationId },
+        status: "COMPLETED",
+        date: { gte: yearStart },
+      },
+    }),
+    prisma.donation.aggregate({
+      where: {
+        constituent: { organizationId: params.organizationId },
+        status: "COMPLETED",
+        date: { gte: last90Days },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.donation.count({
+      where: {
+        constituent: { organizationId: params.organizationId },
+        status: "COMPLETED",
+        date: { gte: last90Days },
+      },
+    }),
+    prisma.donation.findMany({
+      where: {
+        constituent: { organizationId: params.organizationId },
+        status: "COMPLETED",
+      },
+      select: {
+        id: true,
+        amount: true,
+        date: true,
+        constituent: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+        campaign: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: { date: "desc" },
+      take: 8,
+    }),
+  ]);
 
   const topDonorLeaderboard = topDonors.map((donor, index) => ({
     rank: index + 1,
@@ -564,9 +673,16 @@ async function buildDonorContext(params: {
 
   const lines = [
     `Donor scope path: ${params.scopePath}`,
+    `YTD completed donations: ${ytdGiftCount.toLocaleString()} totaling ${formatGivingAmount(ytdGiving._sum.amount ?? 0)}`,
+    `Last 90 days completed donations: ${rolling90GiftCount.toLocaleString()} totaling ${formatGivingAmount(rolling90Giving._sum.amount ?? 0)}`,
     `Pending tasks in queue: ${pendingTaskCount}`,
     `Upcoming meetings: ${upcomingMeetings.length}`,
+    `Donor segments: ${donorSegments.map((entry) => `${entry.donorStatus}=${entry._count._all}`).join(", ") || "none"}`,
     ...upcomingMeetings.map((meeting) => `- Meeting: ${meeting.title} at ${meeting.startTime.toISOString()}`),
+    `Recent completed donations: ${recentDonations.length}`,
+    ...recentDonations.map((donation) =>
+      `- Gift ${donation.date.toISOString().slice(0, 10)} ${formatGivingAmount(donation.amount)} from ${donation.constituent.firstName} ${donation.constituent.lastName}${donation.campaign?.name ? ` (campaign: ${donation.campaign.name})` : ""}`
+    ),
     `Top donors by lifetime giving: ${topDonors.length}`,
     `Top donor leaderboard (authoritative JSON): ${JSON.stringify(topDonorLeaderboard)}`,
     ...topDonors.map((donor, index) =>
@@ -585,6 +701,8 @@ async function buildDonorContext(params: {
       ...topDonors.slice(0, 5).map((donor) => `${donor.firstName} ${donor.lastName}`),
       ...donorMatches.slice(0, 4).map((donor) => `${donor.firstName} ${donor.lastName}`),
       ...upcomingMeetings.slice(0, 3).map((meeting) => `Meeting: ${meeting.title}`),
+      ...recentDonations.slice(0, 4).map((donation) => `Donation ${donation.id}`),
+      ...donorSegments.slice(0, 4).map((entry) => `Segment ${entry.donorStatus}: ${entry._count._all}`),
     ],
   };
 }
@@ -1396,25 +1514,46 @@ router.post("/chat/stream", async (req, res) => {
     });
 
     const toolsUsed = [...retrieval.toolsUsed, ...agenticPreparation.toolsUsed];
-    const provider = agenticPreparation.stageSummaries.length > 0 ? "ollama-agentic" : "ollama";
+    let provider = agenticPreparation.stageSummaries.length > 0 ? "ollama-agentic" : "ollama";
+    let completion: { content: string; model: string };
 
-    const completion = await runStewardAiChatStream(
-      config,
-      [
-        { role: "system", content: runtimeSystemPrompt },
-        ...normalizedMessages,
-      ],
-      {
-        onDelta: (delta) => {
-          res.write(`${JSON.stringify({ type: "chunk", delta })}\n`);
-        },
+    try {
+      completion = await runStewardAiChatStream(
+        config,
+        [
+          { role: "system", content: runtimeSystemPrompt },
+          ...normalizedMessages,
+        ],
+        {
+          onDelta: (delta) => {
+            res.write(`${JSON.stringify({ type: "chunk", delta })}\n`);
+          },
+        }
+      );
+    } catch (streamError) {
+      const message = streamError instanceof Error ? streamError.message : "";
+      if (!/empty assistant response/i.test(message)) {
+        throw streamError;
       }
-    );
+
+      completion = {
+        content: buildFallbackReplyFromContext({
+          mode,
+          moduleKey,
+          scopePath,
+          userQuery: latestUserMessage,
+          retrieval,
+        }),
+        model: config.model,
+      };
+      provider = "crm-fallback";
+      toolsUsed.push("fallback.emptyAssistantResponse");
+    }
 
     const templatedReply = formatReplyByMode({
       mode,
       reply: completion.content,
-      toolsUsed: retrieval.toolsUsed,
+      toolsUsed,
       recordsUsed: retrieval.recordsUsed,
     });
 
@@ -1425,7 +1564,7 @@ router.post("/chat/stream", async (req, res) => {
       userId: req.user?.sub,
       organizationId,
       metadata: {
-        provider: "ollama",
+        provider,
         aiMode: config.mode,
         model: completion.model,
         thinkingModel: config.thinkingModel,
@@ -1559,17 +1698,38 @@ router.post("/chat", async (req, res) => {
     });
 
     const toolsUsed = [...retrieval.toolsUsed, ...agenticPreparation.toolsUsed];
-    const provider = agenticPreparation.stageSummaries.length > 0 ? "ollama-agentic" : "ollama";
+    let provider = agenticPreparation.stageSummaries.length > 0 ? "ollama-agentic" : "ollama";
+    let completion: { content: string; model: string };
 
-    const completion = await runStewardAiChat(config, [
-      { role: "system", content: runtimeSystemPrompt },
-      ...normalizedMessages,
-    ]);
+    try {
+      completion = await runStewardAiChat(config, [
+        { role: "system", content: runtimeSystemPrompt },
+        ...normalizedMessages,
+      ]);
+    } catch (chatError) {
+      const message = chatError instanceof Error ? chatError.message : "";
+      if (!/empty assistant response/i.test(message)) {
+        throw chatError;
+      }
+
+      completion = {
+        content: buildFallbackReplyFromContext({
+          mode,
+          moduleKey,
+          scopePath,
+          userQuery: latestUserMessage,
+          retrieval,
+        }),
+        model: config.model,
+      };
+      provider = "crm-fallback";
+      toolsUsed.push("fallback.emptyAssistantResponse");
+    }
 
     const templatedReply = formatReplyByMode({
       mode,
       reply: completion.content,
-      toolsUsed: retrieval.toolsUsed,
+      toolsUsed,
       recordsUsed: retrieval.recordsUsed,
     });
 
@@ -1580,7 +1740,7 @@ router.post("/chat", async (req, res) => {
       userId: req.user?.sub,
       organizationId,
       metadata: {
-        provider: "ollama",
+        provider,
         aiMode: config.mode,
         model: completion.model,
         thinkingModel: config.thinkingModel,

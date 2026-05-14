@@ -21,6 +21,7 @@ import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
+import { parseStewardAiConfig, runStewardAiChat } from "../services/steward-ai-ollama.js";
 
 const router = Router();
 const STEWARD_SIGNALS_INDEX_PLUGIN_KEY = "steward_signals_index";
@@ -146,6 +147,103 @@ function asNumber(value: unknown, fallback = 0): number {
 /** Best-effort conversion from unknown to string. */
 function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
+}
+
+/** Escapes HTML-sensitive characters for safe rich-text body construction. */
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** Converts plain-text email copy into simple paragraph-based HTML. */
+function bodyTextToHtml(bodyText: string): string {
+  const paragraphs = bodyText
+    .split(/\n\s*\n/g)
+    .map((chunk) => chunk.trim())
+    .filter((chunk) => chunk.length > 0)
+    .slice(0, 14);
+
+  if (paragraphs.length === 0) {
+    return "<p>Hello,</p><p>Thank you for your support.</p>";
+  }
+
+  return paragraphs
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`)
+    .join("");
+}
+
+interface ParsedEmailDraft {
+  subject: string;
+  previewText: string;
+  bodyText: string;
+}
+
+/** Parses AI-generated draft content, preferring explicit JSON payloads with safe fallbacks. */
+function parseGeneratedDraft(raw: string, donorFirstName: string): ParsedEmailDraft {
+  const fallback: ParsedEmailDraft = {
+    subject: `Thank you for your continued partnership`,
+    previewText: `Steward Signals generated a draft for review before sending.`,
+    bodyText: [
+      `Dear ${donorFirstName},`,
+      "",
+      "Thank you for your support. This draft was generated from Steward Signals and requires staff review before sending.",
+    ].join("\n"),
+  };
+
+  const cleaned = String(raw ?? "").trim();
+  if (!cleaned) return fallback;
+
+  const directJsonMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (directJsonMatch) {
+    try {
+      const parsed = JSON.parse(directJsonMatch[0]) as Partial<ParsedEmailDraft>;
+      const subject = asString(parsed.subject, "").trim() || fallback.subject;
+      const previewText = asString(parsed.previewText, "").trim() || fallback.previewText;
+      const bodyText = asString(parsed.bodyText, "").trim() || fallback.bodyText;
+      return {
+        subject: subject.slice(0, 180),
+        previewText: previewText.slice(0, 220),
+        bodyText: bodyText.slice(0, 6000),
+      };
+    } catch {
+      // Fall through to heuristic parsing.
+    }
+  }
+
+  const heuristicLines = cleaned
+    .replace(/```json|```/gi, "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  const subjectLine = heuristicLines.find((line) => /^subject\s*:/i.test(line));
+  const previewLine = heuristicLines.find((line) => /^preview\s*text\s*:/i.test(line));
+  const bodyStart = heuristicLines.findIndex((line) => /^body\s*text\s*:/i.test(line));
+
+  const subject = subjectLine ? subjectLine.replace(/^subject\s*:/i, "").trim() : fallback.subject;
+  const previewText = previewLine ? previewLine.replace(/^preview\s*text\s*:/i, "").trim() : fallback.previewText;
+
+  const bodyText = bodyStart >= 0
+    ? heuristicLines.slice(bodyStart + 1).join("\n").trim()
+    : cleaned;
+
+  return {
+    subject: (subject || fallback.subject).slice(0, 180),
+    previewText: (previewText || fallback.previewText).slice(0, 220),
+    bodyText: (bodyText || fallback.bodyText).slice(0, 6000),
+  };
+}
+
+/** Returns a user-facing label for opportunity kind values embedded in opportunity IDs. */
+function opportunityKindLabel(kind: string): string {
+  if (kind === "second-gift") return "Second Gift Invitation";
+  if (kind === "lapse-follow-up") return "Lapsed Donor Reconnect";
+  if (kind === "major-stewardship") return "Major Gift Stewardship";
+  return "Stewardship Follow-Up";
 }
 
 /** Keeps numeric scores bounded in an inclusive range. */
@@ -1512,24 +1610,126 @@ router.post("/opportunities/:id/draft-email", async (req, res) => {
 
   const constituent = await prisma.constituent.findFirst({
     where: { id: parsed.constituentId, organizationId },
-    select: { id: true, firstName: true, lastName: true, email: true },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      donorStatus: true,
+      giftCount: true,
+      lastGiftDate: true,
+      lastGiftAmount: true,
+      totalLifetimeGiving: true,
+      doNotEmail: true,
+      doNotCall: true,
+      doNotMail: true,
+    },
   });
   if (!constituent) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Constituent not found for opportunity." } });
     return;
   }
 
+  const [aiSetting, recentDonations, openTaskCount] = await Promise.all([
+    prisma.pluginSetting.findUnique({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: STEWARD_AI_PLUGIN_KEY,
+        },
+      },
+      select: {
+        config: true,
+      },
+    }),
+    prisma.donation.findMany({
+      where: {
+        constituentId: constituent.id,
+        status: "COMPLETED",
+      },
+      select: {
+        amount: true,
+        date: true,
+        campaign: { select: { name: true } },
+      },
+      orderBy: { date: "desc" },
+      take: 5,
+    }),
+    prisma.task.count({
+      where: {
+        constituentId: constituent.id,
+        status: { in: ["PENDING", "IN_PROGRESS"] },
+      },
+    }),
+  ]);
+
+  const aiConfig = parseStewardAiConfig(aiSetting?.config ?? {});
+  const opportunityLabel = opportunityKindLabel(parsed.kind);
+  const channelHint = constituent.doNotEmail
+    ? (constituent.doNotCall ? "mail-first" : "phone-first")
+    : "email-first";
+
+  const donationHistoryLines = recentDonations.length > 0
+    ? recentDonations.map((donation) =>
+      `- ${donation.date.toISOString().slice(0, 10)}: $${asNumber(donation.amount, 0).toLocaleString()}${donation.campaign?.name ? ` (${donation.campaign.name})` : ""}`
+    ).join("\n")
+    : "- No completed donations in recent history.";
+
+  const draftPrompt = [
+    "You are Steward AI generating a nonprofit donor outreach draft for internal review.",
+    "Return JSON only with keys: subject, previewText, bodyText.",
+    "Constraints:",
+    "- Keep donor-first gratitude tone, specific but not over-claiming impact.",
+    "- Body text must be plain text with short paragraphs.",
+    "- Do not claim any action already happened.",
+    "- Keep subject under 80 chars and preview under 140 chars.",
+    "Context:",
+    `Donor: ${constituent.firstName} ${constituent.lastName}`,
+    `Opportunity: ${opportunityLabel}`,
+    `Donor status: ${constituent.donorStatus}`,
+    `Gift count: ${constituent.giftCount}`,
+    `Lifetime giving: $${asNumber(constituent.totalLifetimeGiving, 0).toLocaleString()}`,
+    `Last gift date: ${constituent.lastGiftDate ? constituent.lastGiftDate.toISOString().slice(0, 10) : "unknown"}`,
+    `Last gift amount: $${asNumber(constituent.lastGiftAmount, 0).toLocaleString()}`,
+    `Open stewardship tasks: ${openTaskCount}`,
+    `Communication constraints: doNotEmail=${constituent.doNotEmail}; doNotCall=${constituent.doNotCall}; doNotMail=${constituent.doNotMail}; preferred=${channelHint}`,
+    "Recent donations:",
+    donationHistoryLines,
+  ].join("\n");
+
+  let generatedDraft = parseGeneratedDraft("", constituent.firstName);
+  let aiGenerated = false;
+  let aiModelUsed: string | null = null;
+  let aiGenerationError: string | null = null;
+
+  try {
+    const aiResult = await runStewardAiChat(
+      aiConfig,
+      [{ role: "user", content: draftPrompt }],
+      {
+        model: aiConfig.model,
+        temperature: 0.28,
+        maxTokens: 900,
+      }
+    );
+    generatedDraft = parseGeneratedDraft(aiResult.content, constituent.firstName);
+    aiGenerated = true;
+    aiModelUsed = aiResult.model;
+  } catch (error) {
+    aiGenerationError = error instanceof Error ? error.message : "AI generation failed.";
+  }
+
   const campaign = await prisma.emailCampaign.create({
     data: {
       organizationId,
       name: `Steward Draft: ${constituent.firstName} ${constituent.lastName}`,
-      subject: `Thank you for your continued partnership`,
-      previewText: `Steward Signals generated a draft for review before sending.`,
+      subject: generatedDraft.subject,
+      previewText: generatedDraft.previewText,
       fromName: "OyamaCRM Steward",
       fromEmail: "noreply@oyamacrm.org",
       replyToEmail: "support@oyamacrm.org",
-      bodyHtml: `<p>Dear ${constituent.firstName},</p><p>Thank you for your support. This draft was generated from Steward Signals and requires staff review before sending.</p>`,
-      bodyText: `Dear ${constituent.firstName},\n\nThank you for your support. This draft was generated from Steward Signals and requires staff review before sending.`,
+      bodyHtml: bodyTextToHtml(generatedDraft.bodyText),
+      bodyText: generatedDraft.bodyText,
       audienceFilter: JSON.stringify({ constituentIds: [constituent.id], source: "steward-signals" }),
       status: "DRAFT",
     },
@@ -1552,6 +1752,9 @@ router.post("/opportunities/:id/draft-email", async (req, res) => {
       opportunityId: req.params.id,
       constituentId: constituent.id,
       kind: parsed.kind,
+      aiGenerated,
+      aiModelUsed,
+      aiGenerationError,
     },
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
@@ -1562,7 +1765,9 @@ router.post("/opportunities/:id/draft-email", async (req, res) => {
   res.status(201).json({
     success: true,
     draft: campaign,
-    message: "Email draft created from opportunity with explicit confirmation.",
+    message: aiGenerated
+      ? "AI-generated email draft created from opportunity with explicit confirmation."
+      : "Draft email created with fallback template after AI generation issue.",
   });
 });
 

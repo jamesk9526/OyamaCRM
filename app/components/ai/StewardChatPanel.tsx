@@ -852,7 +852,7 @@ export default function StewardChatPanel({
 
   const panelClassName = isWorkspaceMode
     ? "h-full rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col overflow-hidden"
-    : `pointer-events-auto rounded-[22px] border border-slate-800/70 bg-white/96 shadow-[0_32px_80px_rgba(15,23,42,0.25)] backdrop-blur-md flex flex-col overflow-hidden transition-[height,width] duration-200 ${isMaximizedMode ? "w-full max-w-none h-full" : isPopoutMode ? "w-full max-w-none h-full" : "w-full max-w-[760px] h-[min(78vh,760px)] max-h-full"}`;
+    : `pointer-events-auto rounded-[22px] border border-slate-200 bg-white shadow-[0_22px_48px_rgba(15,23,42,0.14)] flex flex-col overflow-hidden transition-[height,width] duration-200 ${isMaximizedMode ? "w-full max-w-none h-full" : isPopoutMode ? "w-full max-w-none h-full" : "w-full max-w-[760px] h-[min(78vh,760px)] max-h-full"}`;
   const panelStyle = isWorkspaceMode
     ? undefined
     : isDockMinimized
@@ -869,18 +869,18 @@ export default function StewardChatPanel({
         <button
           type="button"
           onClick={() => setIsMinimized(false)}
-          className="pointer-events-auto px-5 py-2 rounded-full border border-slate-700 bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 shadow-[0_16px_34px_rgba(2,6,23,0.45)]"
+          className="pointer-events-auto px-5 py-2 rounded-full border border-emerald-200 bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 shadow-[0_12px_28px_rgba(22,163,74,0.28)]"
           title="Open chat"
         >
           Open Chat
         </button>
       ) : (
       <aside className={panelClassName} style={panelStyle}>
-        <header className={`px-4 border-b ${isWorkspaceMode ? "border-slate-200 bg-white" : "border-slate-700/80 bg-gradient-to-r from-[#0f172a] via-[#18253a] to-[#0f172a]"} ${isDockMinimized ? "py-1.5" : "py-2"}`}>
+        <header className={`px-4 border-b border-slate-200 bg-white ${isDockMinimized ? "py-1.5" : "py-2"}`}>
           <div className="flex items-center justify-between gap-2.5">
             <div>
-              <h2 className={`text-[13px] font-semibold leading-tight ${isWorkspaceMode ? "text-slate-900" : "text-white"}`}>Steward</h2>
-              <p className={`text-[11px] leading-tight ${isWorkspaceMode ? "text-slate-600" : "text-slate-300"}`}>
+              <h2 className="text-[13px] font-semibold leading-tight text-slate-900">Steward</h2>
+              <p className="text-[11px] leading-tight text-slate-600">
                 Ask, analyze, summarize, and act across your CRM.
               </p>
             </div>
@@ -889,19 +889,19 @@ export default function StewardChatPanel({
                 <button
                   type="button"
                   onClick={() => setConversationsOpen((current) => !current)}
-                  className={`h-7 px-2.5 rounded-lg border text-[11px] font-medium ${conversationsOpen ? "border-emerald-400/60 bg-emerald-500/12 text-emerald-100" : "border-white/12 bg-white/8 text-slate-100 hover:bg-white/14"}`}
+                  className={`h-7 px-2.5 rounded-lg border text-[11px] font-medium ${conversationsOpen ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"}`}
                   title="Open conversations"
                 >
                   Chats
                 </button>
               )}
-              <span className={`text-[11px] px-2 py-0.5 rounded-full border ${aiConfig?.enabled ? (isWorkspaceMode ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-emerald-400/30 bg-emerald-500/10 text-emerald-200") : (isWorkspaceMode ? "border-amber-200 bg-amber-50 text-amber-700" : "border-amber-400/30 bg-amber-500/10 text-amber-200")}`}>
+              <span className={`text-[11px] px-2 py-0.5 rounded-full border ${aiConfig?.enabled ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
                 {aiConfig?.enabled ? `${aiConfig.mode === "local" ? "Local" : "Remote"} Ollama` : "Needs Setup"}
               </span>
               {!isWorkspaceMode && (
                 <Link
                   href={workspaceHref}
-                  className="h-6.5 px-2 rounded-md border border-white/12 bg-white/8 text-slate-100 hover:bg-white/14 text-[11px] font-medium flex items-center"
+                  className="h-6.5 px-2 rounded-md border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-[11px] font-medium flex items-center"
                   title="Open StewardAIWorkspace"
                 >
                   Workspace
@@ -910,7 +910,7 @@ export default function StewardChatPanel({
               {!isWorkspaceMode && !isPopoutMode && (
                 <button
                   onClick={() => onDisplayModeChange?.("popout")}
-                  className="h-7 px-2 rounded-lg border border-white/12 bg-white/8 text-slate-100 hover:bg-white/14 text-[11px]"
+                  className="h-7 px-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-[11px]"
                   title="Open in-app popout"
                 >
                   Popout
@@ -919,7 +919,7 @@ export default function StewardChatPanel({
               {!isWorkspaceMode && isPopoutMode && (
                 <button
                   onClick={() => onDisplayModeChange?.("dock-right")}
-                  className="h-7 px-2 rounded-lg border border-white/12 bg-white/8 text-slate-100 hover:bg-white/14 text-[11px]"
+                  className="h-7 px-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-[11px]"
                   title="Return to dock"
                 >
                   Dock
@@ -928,7 +928,7 @@ export default function StewardChatPanel({
               {!isWorkspaceMode && !isMaximizedMode && (
                 <button
                   onClick={() => onDisplayModeChange?.("maximized")}
-                  className="h-7 px-2 rounded-lg border border-white/12 bg-white/8 text-slate-100 hover:bg-white/14 text-[11px]"
+                  className="h-7 px-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-[11px]"
                   title="Maximize Steward"
                 >
                   Max
@@ -937,7 +937,7 @@ export default function StewardChatPanel({
               {!isWorkspaceMode && isMaximizedMode && (
                 <button
                   onClick={() => onDisplayModeChange?.("dock-right")}
-                  className="h-7 px-2 rounded-lg border border-white/12 bg-white/8 text-slate-100 hover:bg-white/14 text-[11px]"
+                  className="h-7 px-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-[11px]"
                   title="Return to dock"
                 >
                   Return
@@ -946,7 +946,7 @@ export default function StewardChatPanel({
               {!isWorkspaceMode && (
                 <button
                   onClick={() => setIsMinimized((current) => !current)}
-                  className="h-7 w-7 rounded-lg border border-white/12 bg-white/8 text-slate-100 hover:bg-white/14"
+                  className="h-7 w-7 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
                   title={isDockMinimized ? "Expand Steward" : "Minimize Steward"}
                 >
                   {isDockMinimized ? "▢" : "—"}
@@ -955,7 +955,7 @@ export default function StewardChatPanel({
               {!isWorkspaceMode && (
                 <button
                   onClick={onClose}
-                  className="h-7 w-7 rounded-lg border border-white/12 bg-white/8 text-slate-100 hover:bg-white/14"
+                  className="h-7 w-7 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
                   title="Close Steward"
                 >
                   ×
@@ -964,17 +964,17 @@ export default function StewardChatPanel({
             </div>
           </div>
 
-          <div className={`mt-1.5 flex items-center justify-between gap-2 text-[10px] ${isWorkspaceMode ? "text-slate-500" : "text-slate-300"}`}>
+          <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-slate-500">
             <span>Module: <span className="font-medium capitalize">{moduleKey}</span></span>
             <span>{modelUsed ? `Model: ${modelUsed}` : "Model not used yet"}</span>
           </div>
 
           {!isDockMinimized && (
-            <div className={`mt-1.5 text-[11px] flex items-center justify-between gap-2 ${isWorkspaceMode ? "text-slate-500" : "text-slate-300"}`}>
+            <div className="mt-1.5 text-[11px] flex items-center justify-between gap-2 text-slate-500">
               <span>
                 Scope:{" "}
                 {scopeHref ? (
-                  <Link href={scopeHref} className={isWorkspaceMode ? "text-emerald-700 hover:text-emerald-800 hover:underline" : "text-emerald-300 hover:text-emerald-200 hover:underline"}>
+                  <Link href={scopeHref} className="text-emerald-700 hover:text-emerald-800 hover:underline">
                     {scopePath}
                   </Link>
                 ) : (
@@ -982,13 +982,13 @@ export default function StewardChatPanel({
                 )}
               </span>
               <div className="flex items-center gap-3">
-                <button onClick={clearHistory} className={isWorkspaceMode ? "text-slate-600 hover:text-slate-900" : "text-slate-300 hover:text-white"}>
+                <button onClick={clearHistory} className="text-slate-600 hover:text-slate-900">
                   Clear
                 </button>
-                <button onClick={exportHistory} className={isWorkspaceMode ? "text-slate-600 hover:text-slate-900" : "text-slate-300 hover:text-white"}>
+                <button onClick={exportHistory} className="text-slate-600 hover:text-slate-900">
                   Export
                 </button>
-                <Link href="/settings/ai" className={isWorkspaceMode ? "text-emerald-700 font-medium hover:text-emerald-800 hover:underline" : "text-emerald-300 font-medium hover:text-emerald-200 hover:underline"}>
+                <Link href="/settings/ai" className="text-emerald-700 font-medium hover:text-emerald-800 hover:underline">
                   AI Settings
                 </Link>
                 {isWorkspaceMode && (

@@ -46,9 +46,32 @@ interface OllamaTagsResponse {
 
 interface OllamaChatResponse {
   model?: string;
+  response?: string;
+  output_text?: string;
+  choices?: Array<{
+    text?: string;
+    message?: {
+      role?: string;
+      content?: string;
+      reasoning_content?: string;
+    };
+    delta?: {
+      content?: string;
+      reasoning_content?: string;
+    };
+  }>;
+  data?: {
+    response?: string;
+    message?: {
+      content?: string;
+      reasoning_content?: string;
+    };
+  };
   message?: {
     role?: string;
     content?: string;
+    reasoning_content?: string;
+    thinking?: string;
   };
 }
 
@@ -56,9 +79,24 @@ interface OllamaChatStreamResponse {
   model?: string;
   done?: boolean;
   error?: string;
+  response?: string;
+  output_text?: string;
+  choices?: Array<{
+    text?: string;
+    message?: {
+      content?: string;
+      reasoning_content?: string;
+    };
+    delta?: {
+      content?: string;
+      reasoning_content?: string;
+    };
+  }>;
   message?: {
     role?: string;
     content?: string;
+    reasoning_content?: string;
+    thinking?: string;
   };
 }
 
@@ -164,6 +202,80 @@ function buildMergedMessages(config: StewardAiConfig, messages: StewardAiChatMes
   ];
 }
 
+/** Safely reads a nested payload value from object/array structures. */
+function readNestedValue(root: unknown, path: string[]): unknown {
+  let current: unknown = root;
+
+  for (const segment of path) {
+    if (current === null || current === undefined) return undefined;
+
+    if (Array.isArray(current)) {
+      const index = Number.parseInt(segment, 10);
+      if (!Number.isFinite(index) || index < 0 || index >= current.length) return undefined;
+      current = current[index];
+      continue;
+    }
+
+    if (typeof current !== "object") return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+
+  return current;
+}
+
+/** Extracts final assistant text from multiple compatible payload shapes. */
+function extractAssistantContent(payload: unknown): string {
+  const paths = [
+    ["message", "content"],
+    ["message", "reasoning_content"],
+    ["message", "thinking"],
+    ["response"],
+    ["output_text"],
+    ["data", "message", "content"],
+    ["data", "message", "reasoning_content"],
+    ["data", "response"],
+    ["choices", "0", "message", "content"],
+    ["choices", "0", "message", "reasoning_content"],
+    ["choices", "0", "delta", "content"],
+    ["choices", "0", "delta", "reasoning_content"],
+    ["choices", "0", "text"],
+  ];
+
+  for (const path of paths) {
+    const value = readNestedValue(payload, path);
+    if (typeof value === "string") {
+      const normalized = value.trim();
+      if (normalized.length > 0) return normalized;
+    }
+  }
+
+  return "";
+}
+
+/** Extracts a stream delta token from compatible streaming payloads without trimming spacing. */
+function extractStreamDelta(payload: unknown): string {
+  const paths = [
+    ["message", "content"],
+    ["message", "reasoning_content"],
+    ["response"],
+    ["output_text"],
+    ["choices", "0", "delta", "content"],
+    ["choices", "0", "delta", "reasoning_content"],
+    ["choices", "0", "message", "content"],
+    ["choices", "0", "message", "reasoning_content"],
+    ["choices", "0", "text"],
+  ];
+
+  for (const path of paths) {
+    const value = readNestedValue(payload, path);
+    if (typeof value === "string" && value.length > 0) {
+      return value;
+    }
+  }
+
+  return "";
+}
+
 /** Executes a JSON request against the configured Ollama endpoint with timeout handling. */
 async function ollamaJsonRequest<T>(
   config: StewardAiConfig,
@@ -248,7 +360,7 @@ export async function runStewardAiChat(
     }),
   });
 
-  const content = data.message?.content?.trim();
+  const content = extractAssistantContent(data);
   if (!content) {
     throw new Error("Ollama returned an empty assistant response.");
   }
@@ -293,6 +405,11 @@ export async function runStewardAiChatStream(
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
+      if (response.status === 401) {
+        throw new Error(
+          `Ollama request failed (401): ${body.slice(0, 240)}. Verify AI Settings API key matches the Desktop Bridge API key.`
+        );
+      }
       throw new Error(`Ollama request failed (${response.status}): ${body.slice(0, 240)}`);
     }
 
@@ -306,6 +423,7 @@ export async function runStewardAiChatStream(
     let fullText = "";
     let model = selectedModel;
     let done = false;
+    let finalEventPayload: unknown = null;
 
     while (!done) {
       const { value, done: streamDone } = await reader.read();
@@ -320,7 +438,15 @@ export async function runStewardAiChatStream(
 
         if (!line) continue;
 
-        const event = JSON.parse(line) as OllamaChatStreamResponse;
+        const normalizedLine = line.startsWith("data:") ? line.slice(5).trim() : line;
+        if (!normalizedLine) continue;
+        if (normalizedLine === "[DONE]") {
+          done = true;
+          continue;
+        }
+
+        const event = JSON.parse(normalizedLine) as OllamaChatStreamResponse;
+        finalEventPayload = event;
         if (event.error) {
           throw new Error(`Ollama stream error: ${event.error}`);
         }
@@ -329,7 +455,7 @@ export async function runStewardAiChatStream(
           model = event.model;
         }
 
-        const delta = String(event.message?.content ?? "");
+        const delta = extractStreamDelta(event);
         if (delta) {
           fullText += delta;
           options.onDelta?.(delta);
@@ -338,6 +464,34 @@ export async function runStewardAiChatStream(
         if (event.done) {
           done = true;
         }
+      }
+    }
+
+    const trailing = buffer.trim();
+    if (trailing.length > 0) {
+      try {
+        const normalizedTrailing = trailing.startsWith("data:") ? trailing.slice(5).trim() : trailing;
+        if (normalizedTrailing && normalizedTrailing !== "[DONE]") {
+          const trailingEvent = JSON.parse(normalizedTrailing) as OllamaChatStreamResponse;
+          finalEventPayload = trailingEvent;
+          const delta = extractStreamDelta(trailingEvent);
+          if (delta) {
+            fullText += delta;
+            options.onDelta?.(delta);
+          }
+          if (trailingEvent.model) {
+            model = trailingEvent.model;
+          }
+        }
+      } catch {
+        // Ignore unparsable trailing bytes and fall back to collected deltas.
+      }
+    }
+
+    if (!fullText.trim() && finalEventPayload) {
+      const finalContent = extractAssistantContent(finalEventPayload);
+      if (finalContent) {
+        fullText = finalContent;
       }
     }
 
