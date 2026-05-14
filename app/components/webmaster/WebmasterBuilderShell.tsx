@@ -1,6 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  closestCenter,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 import FeatureDevelopmentDialog from "@/app/components/webmaster/FeatureDevelopmentDialog";
@@ -43,8 +57,118 @@ interface SaveState {
   detail?: string;
 }
 
+interface BuilderBlockTemplate {
+  id: string;
+  type: string;
+  name: string;
+  description: string;
+  content: Record<string, unknown>;
+}
+
+interface BlockLocation {
+  sectionId: string;
+  sectionIndex: number;
+  blockIndex: number;
+}
+
+const BUILDER_BLOCK_TEMPLATES: BuilderBlockTemplate[] = [
+  {
+    id: "paragraph",
+    type: "text",
+    name: "Paragraph",
+    description: "Body copy and supporting content.",
+    content: { text: "Add your copy here.", level: "p" },
+  },
+  {
+    id: "heading",
+    type: "text",
+    name: "Heading",
+    description: "A clear section headline.",
+    content: { text: "Section heading", level: "h2" },
+  },
+  {
+    id: "button",
+    type: "button",
+    name: "Button",
+    description: "Primary call-to-action button.",
+    content: { text: "Learn more", href: "#" },
+  },
+  {
+    id: "image",
+    type: "image",
+    name: "Image",
+    description: "Visual content with alt text.",
+    content: { src: "", alt: "Website image" },
+  },
+  {
+    id: "faq-item",
+    type: "faq-item",
+    name: "FAQ Item",
+    description: "Question and answer item.",
+    content: { question: "Frequently asked question", answer: "Helpful answer for this question." },
+  },
+];
+
 function createId(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function createBlockFromTemplate(templateId: string): BlockInstance {
+  const template = BUILDER_BLOCK_TEMPLATES.find((entry) => entry.id === templateId) ?? BUILDER_BLOCK_TEMPLATES[0];
+  return {
+    id: createId(),
+    type: template.type,
+    content: { ...template.content },
+  };
+}
+
+function getBlockDisplayText(block: BlockInstance): string {
+  if (typeof block.content.text === "string" && block.content.text.trim()) {
+    return block.content.text;
+  }
+
+  if (typeof block.content.question === "string" && block.content.question.trim()) {
+    return block.content.question;
+  }
+
+  return block.type;
+}
+
+function findBlockLocation(document: BuilderDocument, blockId: string): BlockLocation | null {
+  for (let sectionIndex = 0; sectionIndex < document.sections.length; sectionIndex += 1) {
+    const section = document.sections[sectionIndex];
+    const blockIndex = section.blocks.findIndex((block) => block.id === blockId);
+    if (blockIndex >= 0) {
+      return {
+        sectionId: section.id,
+        sectionIndex,
+        blockIndex,
+      };
+    }
+  }
+
+  return null;
+}
+
+function resolveDropTarget(document: BuilderDocument, overId: string): BlockLocation | null {
+  if (overId.startsWith("section:")) {
+    const targetSectionId = overId.slice("section:".length);
+    const sectionIndex = document.sections.findIndex((section) => section.id === targetSectionId);
+    if (sectionIndex < 0) return null;
+
+    return {
+      sectionId: targetSectionId,
+      sectionIndex,
+      blockIndex: document.sections[sectionIndex].blocks.length,
+    };
+  }
+
+  if (overId.startsWith("block:")) {
+    const blockId = overId.slice("block:".length);
+    return findBlockLocation(document, blockId);
+  }
+
+  return null;
 }
 
 function toSlug(value: string): string {
@@ -109,8 +233,14 @@ export default function WebmasterBuilderShell() {
   const [history, setHistory] = useState<BuilderDocument[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [featureNotice, setFeatureNotice] = useState<{ title: string; detail: string } | null>(null);
+  const [activeDragLabel, setActiveDragLabel] = useState<string | null>(null);
 
   const manifests = useMemo(() => listSectionManifests(), []);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    }),
+  );
 
   const loadSites = useCallback(async () => {
     const data = await apiFetch<{ items: WebmasterSite[] }>("/api/webmaster/sites");
@@ -258,6 +388,45 @@ export default function WebmasterBuilderShell() {
     router.replace(`/webmaster/builder?siteId=${nextPage.siteId}&pageId=${nextPage.id}`);
   }
 
+  async function createStarterPage() {
+    if (!selectedSiteId) return;
+
+    try {
+      const payload = {
+        title: "Home",
+        slug: "home",
+        path: "/",
+        status: "DRAFT" as const,
+        seoTitle: "Home",
+        seoDescription: "Starter page created from the visual builder.",
+        contentJson: {
+          version: 1,
+          sections: createDefaultPageSections(),
+        },
+      };
+
+      const data = await apiFetch<{ item: WebmasterPage }>(`/api/webmaster/sites/${selectedSiteId}/pages`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      const createdPage = data.item;
+      const nextPages = await loadPages(selectedSiteId);
+      const selected = nextPages.find((page) => page.id === createdPage.id) ?? createdPage;
+
+      setSelectedPageId(selected.id);
+      setPageSettings(defaultPageSettings(selected));
+      const parsed = parseBuilderDocument(selected.contentJson);
+      setDocument(parsed);
+      setHistory([parsed]);
+      setHistoryIndex(0);
+      setSaveState({ status: "idle" });
+      router.replace(`/webmaster/builder?siteId=${selectedSiteId}&pageId=${selected.id}`);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to create a starter page.");
+    }
+  }
+
   function addSection(type: string) {
     if (!document) return;
 
@@ -335,6 +504,175 @@ export default function WebmasterBuilderShell() {
       ...section,
       blocks: section.blocks.map((block) => (block.id === blockId ? updater(block) : block)),
     }));
+  }
+
+  function addBlockToSection(sectionId: string, templateId: string, insertionIndex?: number) {
+    if (!document) return;
+
+    const section = document.sections.find((entry) => entry.id === sectionId);
+    if (!section) return;
+
+    const createdBlock = createBlockFromTemplate(templateId);
+    const insertAt = Math.max(0, Math.min(insertionIndex ?? section.blocks.length, section.blocks.length));
+
+    const nextSections = document.sections.map((entry) => {
+      if (entry.id !== sectionId) return entry;
+      const nextBlocks = [...entry.blocks];
+      nextBlocks.splice(insertAt, 0, createdBlock);
+      return { ...entry, blocks: nextBlocks };
+    });
+
+    commitDocument({ ...document, sections: nextSections });
+    setSelectedSectionId(sectionId);
+    setSelectedBlockId(createdBlock.id);
+  }
+
+  function removeBlock(sectionId: string, blockId: string) {
+    if (!document) return;
+
+    const nextSections = document.sections.map((section) => {
+      if (section.id !== sectionId) return section;
+      return {
+        ...section,
+        blocks: section.blocks.filter((block) => block.id !== blockId),
+      };
+    });
+
+    commitDocument({ ...document, sections: nextSections });
+
+    if (selectedBlockId === blockId) {
+      setSelectedBlockId(null);
+    }
+  }
+
+  function duplicateBlock(sectionId: string, blockId: string) {
+    if (!document) return;
+
+    const location = findBlockLocation(document, blockId);
+    if (!location || location.sectionId !== sectionId) return;
+
+    const sourceSection = document.sections[location.sectionIndex];
+    const sourceBlock = sourceSection.blocks[location.blockIndex];
+    if (!sourceBlock) return;
+
+    const clone: BlockInstance = {
+      ...sourceBlock,
+      id: createId(),
+      content: { ...sourceBlock.content },
+    };
+
+    const nextSections = document.sections.map((section) => {
+      if (section.id !== sectionId) return section;
+      const nextBlocks = [...section.blocks];
+      nextBlocks.splice(location.blockIndex + 1, 0, clone);
+      return { ...section, blocks: nextBlocks };
+    });
+
+    commitDocument({ ...document, sections: nextSections });
+    setSelectedSectionId(sectionId);
+    setSelectedBlockId(clone.id);
+  }
+
+  function moveBlockToTarget(blockId: string, target: BlockLocation) {
+    if (!document) return;
+
+    const source = findBlockLocation(document, blockId);
+    if (!source) return;
+
+    const nextSections = document.sections.map((section) => ({
+      ...section,
+      blocks: [...section.blocks],
+    }));
+
+    const sourceSection = nextSections[source.sectionIndex];
+    const targetSection = nextSections[target.sectionIndex];
+    if (!sourceSection || !targetSection) return;
+
+    const [moved] = sourceSection.blocks.splice(source.blockIndex, 1);
+    if (!moved) return;
+
+    let insertAt = target.blockIndex;
+    if (source.sectionId === target.sectionId && source.blockIndex < target.blockIndex) {
+      insertAt -= 1;
+    }
+
+    insertAt = Math.max(0, Math.min(insertAt, targetSection.blocks.length));
+    targetSection.blocks.splice(insertAt, 0, moved);
+
+    if (source.sectionId === target.sectionId && source.blockIndex === insertAt) {
+      return;
+    }
+
+    commitDocument({
+      ...document,
+      sections: nextSections,
+    });
+    setSelectedSectionId(target.sectionId);
+    setSelectedBlockId(moved.id);
+  }
+
+  function addPaletteBlockToSelectedSection(templateId: string) {
+    if (!document || document.sections.length === 0) return;
+
+    const targetSectionId = selectedSectionId ?? document.sections[0].id;
+    const targetSection = document.sections.find((section) => section.id === targetSectionId);
+    if (!targetSection) return;
+
+    addBlockToSection(targetSectionId, templateId, targetSection.blocks.length);
+  }
+
+  function handleDragStart(event: DragStartEvent) {
+    if (!document) return;
+
+    const activeId = String(event.active.id);
+    if (activeId.startsWith("palette:")) {
+      const templateId = activeId.slice("palette:".length);
+      const template = BUILDER_BLOCK_TEMPLATES.find((entry) => entry.id === templateId);
+      setActiveDragLabel(template ? `New ${template.name}` : "New Block");
+      return;
+    }
+
+    if (!activeId.startsWith("block:")) {
+      setActiveDragLabel(null);
+      return;
+    }
+
+    const blockId = activeId.slice("block:".length);
+    const location = findBlockLocation(document, blockId);
+    if (!location) {
+      setActiveDragLabel(null);
+      return;
+    }
+
+    const block = document.sections[location.sectionIndex]?.blocks[location.blockIndex] ?? null;
+    setActiveDragLabel(block ? getBlockDisplayText(block) : "Block");
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    if (!document) {
+      setActiveDragLabel(null);
+      return;
+    }
+
+    const activeId = String(event.active.id);
+    const overId = event.over ? String(event.over.id) : null;
+
+    setActiveDragLabel(null);
+
+    if (!overId) return;
+
+    const target = resolveDropTarget(document, overId);
+    if (!target) return;
+
+    if (activeId.startsWith("palette:")) {
+      const templateId = activeId.slice("palette:".length);
+      addBlockToSection(target.sectionId, templateId, target.blockIndex);
+      return;
+    }
+
+    if (activeId.startsWith("block:")) {
+      moveBlockToTarget(activeId.slice("block:".length), target);
+    }
   }
 
   function undo() {
@@ -493,97 +831,103 @@ export default function WebmasterBuilderShell() {
       </div>
 
       {!selectedPage || !pageSettings || !document ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
-          Select a website and page to begin editing in the builder shell.
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600 space-y-3">
+          <p>Select a website page to open the visual builder with sidebar tools and draggable blocks.</p>
+          {selectedSiteId ? (
+            <button
+              type="button"
+              onClick={() => void createStarterPage()}
+              className="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+            >
+              Create starter page
+            </button>
+          ) : null}
         </div>
       ) : (
-        <div className="grid grid-cols-12 gap-4">
-          <aside className="col-span-12 lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-3 space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Add Section</h2>
-            {manifests.map((manifest) => (
-              <button
-                key={manifest.type}
-                type="button"
-                onClick={() => addSection(manifest.type)}
-                className="w-full text-left rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-50"
-              >
-                <p className="text-sm font-medium text-slate-800">{manifest.name}</p>
-                <p className="text-xs text-slate-500 mt-0.5">{manifest.category}</p>
-              </button>
-            ))}
-          </aside>
-
-          <section className="col-span-12 lg:col-span-7 rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-semibold text-slate-900">{pageSettings.title}</h2>
-                <p className="text-xs text-slate-500">{selectedSite?.name} • {device} preview</p>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="grid grid-cols-12 gap-4">
+            <aside className="col-span-12 lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-3 space-y-4">
+              <div className="space-y-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Add Section</h2>
+                {manifests.map((manifest) => (
+                  <button
+                    key={manifest.type}
+                    type="button"
+                    onClick={() => addSection(manifest.type)}
+                    className="w-full text-left rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-50"
+                  >
+                    <p className="text-sm font-medium text-slate-800">{manifest.name}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{manifest.category}</p>
+                  </button>
+                ))}
               </div>
-              <span className="text-xs text-slate-500">{document.sections.length} sections</span>
-            </div>
 
-            <div className={`mx-auto rounded-xl border border-slate-200 bg-slate-50 p-3 ${device === "desktop" ? "max-w-full" : device === "tablet" ? "max-w-2xl" : "max-w-md"}`}>
-              <div className="space-y-3">
-                {document.sections.map((section) => {
-                  const manifest = getSectionManifest(section.type);
-                  const isSelected = selectedSectionId === section.id;
-
-                  return (
-                    <article
-                      key={section.id}
-                      className={`rounded-lg border p-3 ${isSelected ? "border-emerald-400 bg-emerald-50/50" : "border-slate-200 bg-white"}`}
-                      onClick={() => {
-                        setSelectedSectionId(section.id);
-                        setSelectedBlockId(null);
-                      }}
-                    >
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div>
-                          <p className="text-xs uppercase tracking-wide text-slate-500">{manifest?.name ?? section.type}</p>
-                          <p className="text-sm font-semibold text-slate-900">{section.label || manifest?.description}</p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button type="button" onClick={(e) => { e.stopPropagation(); moveSection(section.id, "up"); }} className="px-2 py-1 text-xs rounded border border-slate-300">↑</button>
-                          <button type="button" onClick={(e) => { e.stopPropagation(); moveSection(section.id, "down"); }} className="px-2 py-1 text-xs rounded border border-slate-300">↓</button>
-                          <button type="button" onClick={(e) => { e.stopPropagation(); duplicateSection(section.id); }} className="px-2 py-1 text-xs rounded border border-slate-300">Duplicate</button>
-                          <button type="button" onClick={(e) => { e.stopPropagation(); removeSection(section.id); }} className="px-2 py-1 text-xs rounded border border-rose-300 text-rose-700">Delete</button>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1">
-                        {section.blocks.map((block) => {
-                          const contentText = typeof block.content.text === "string"
-                            ? block.content.text
-                            : typeof block.content.question === "string"
-                              ? `${block.content.question}`
-                              : block.type;
-
-                          const isBlockSelected = selectedBlockId === block.id;
-
-                          return (
-                            <button
-                              key={block.id}
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedSectionId(section.id);
-                                setSelectedBlockId(block.id);
-                              }}
-                              className={`w-full text-left rounded-md px-2 py-1 text-sm border ${isBlockSelected ? "border-emerald-400 bg-white" : "border-slate-200 bg-slate-50"}`}
-                            >
-                              {contentText}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </article>
-                  );
-                })}
+              <div className="border-t border-slate-100 pt-3 space-y-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Content Blocks</h2>
+                <p className="text-[11px] text-slate-500">
+                  Drag blocks into the canvas, or tap to add to the selected section.
+                </p>
+                <div className="space-y-2">
+                  {BUILDER_BLOCK_TEMPLATES.map((template) => (
+                    <BuilderBlockPaletteItem
+                      key={template.id}
+                      template={template}
+                      onAdd={() => addPaletteBlockToSelectedSection(template.id)}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          </section>
+            </aside>
 
-          <aside className="col-span-12 lg:col-span-3 rounded-2xl border border-slate-200 bg-white p-4">
+            <section className="col-span-12 lg:col-span-7 rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">{pageSettings.title}</h2>
+                  <p className="text-xs text-slate-500">{selectedSite?.name} • {device} preview</p>
+                </div>
+                <span className="text-xs text-slate-500">{document.sections.length} sections</span>
+              </div>
+
+              <div className={`mx-auto rounded-xl border border-slate-200 bg-slate-50 p-3 ${device === "desktop" ? "max-w-full" : device === "tablet" ? "max-w-2xl" : "max-w-md"}`}>
+                <div className="space-y-3">
+                  {document.sections.map((section) => {
+                    const manifest = getSectionManifest(section.type);
+                    const isSectionSelected = selectedSectionId === section.id;
+
+                    return (
+                      <BuilderSectionCanvas
+                        key={section.id}
+                        section={section}
+                        title={manifest?.name ?? section.type}
+                        description={section.label || manifest?.description || "Section"}
+                        selectedSection={isSectionSelected}
+                        selectedBlockId={selectedBlockId}
+                        onSelectSection={() => {
+                          setSelectedSectionId(section.id);
+                          setSelectedBlockId(null);
+                        }}
+                        onSelectBlock={(blockId) => {
+                          setSelectedSectionId(section.id);
+                          setSelectedBlockId(blockId);
+                        }}
+                        onMoveSection={(direction) => moveSection(section.id, direction)}
+                        onDuplicateSection={() => duplicateSection(section.id)}
+                        onDeleteSection={() => removeSection(section.id)}
+                        onDuplicateBlock={(blockId) => duplicateBlock(section.id, blockId)}
+                        onDeleteBlock={(blockId) => removeBlock(section.id, blockId)}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+
+            <aside className="col-span-12 lg:col-span-3 rounded-2xl border border-slate-200 bg-white p-4">
             {selectedBlock && selectedSection ? (
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-slate-900">Block Settings</h3>
@@ -727,8 +1071,17 @@ export default function WebmasterBuilderShell() {
                 />
               </div>
             )}
-          </aside>
-        </div>
+            </aside>
+          </div>
+
+          <DragOverlay dropAnimation={null}>
+            {activeDragLabel ? (
+              <div className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 shadow-lg">
+                {activeDragLabel}
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       )}
 
       <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 flex flex-wrap items-center gap-4 text-xs text-slate-600">
@@ -739,6 +1092,234 @@ export default function WebmasterBuilderShell() {
         <span>Issues: {issueCount}</span>
         <span>Preview URL: {selectedSite?.domain ? `https://${selectedSite.domain}${pageSettings?.path ?? ""}` : "Domain not configured"}</span>
       </div>
+    </div>
+  );
+}
+
+function BuilderBlockPaletteItem({
+  template,
+  onAdd,
+}: {
+  template: BuilderBlockTemplate;
+  onAdd: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `palette:${template.id}`,
+  });
+
+  const style = transform
+    ? {
+      transform: CSS.Translate.toString(transform),
+    }
+    : undefined;
+
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      style={style}
+      onClick={onAdd}
+      className={`w-full rounded-lg border px-3 py-2 text-left transition-all ${isDragging ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium text-slate-800">{template.name}</p>
+          <p className="text-[11px] text-slate-500 mt-0.5">{template.description}</p>
+        </div>
+        <span
+          {...attributes}
+          {...listeners}
+          onClick={(event) => event.stopPropagation()}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-500 cursor-grab active:cursor-grabbing"
+          title="Drag to canvas"
+        >
+          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01" />
+          </svg>
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function BuilderSectionCanvas({
+  section,
+  title,
+  description,
+  selectedSection,
+  selectedBlockId,
+  onSelectSection,
+  onSelectBlock,
+  onMoveSection,
+  onDuplicateSection,
+  onDeleteSection,
+  onDuplicateBlock,
+  onDeleteBlock,
+}: {
+  section: SectionInstance;
+  title: string;
+  description: string;
+  selectedSection: boolean;
+  selectedBlockId: string | null;
+  onSelectSection: () => void;
+  onSelectBlock: (blockId: string) => void;
+  onMoveSection: (direction: "up" | "down") => void;
+  onDuplicateSection: () => void;
+  onDeleteSection: () => void;
+  onDuplicateBlock: (blockId: string) => void;
+  onDeleteBlock: (blockId: string) => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: `section:${section.id}` });
+
+  return (
+    <article
+      ref={setNodeRef}
+      className={`rounded-lg border p-3 transition-colors ${selectedSection ? "border-emerald-400 bg-emerald-50/40" : "border-slate-200 bg-white"} ${isOver ? "ring-2 ring-emerald-300" : ""}`}
+      onClick={onSelectSection}
+    >
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-500">{title}</p>
+          <p className="text-sm font-semibold text-slate-900">{description}</p>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onMoveSection("up");
+            }}
+            className="px-2 py-1 text-xs rounded border border-slate-300"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onMoveSection("down");
+            }}
+            className="px-2 py-1 text-xs rounded border border-slate-300"
+          >
+            ↓
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDuplicateSection();
+            }}
+            className="px-2 py-1 text-xs rounded border border-slate-300"
+          >
+            Duplicate
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDeleteSection();
+            }}
+            className="px-2 py-1 text-xs rounded border border-rose-300 text-rose-700"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+
+      <SortableContext items={section.blocks.map((block) => `block:${block.id}`)} strategy={verticalListSortingStrategy}>
+        <div className="space-y-1.5">
+          {section.blocks.length === 0 ? (
+            <div className="rounded-md border border-dashed border-emerald-300 bg-emerald-50/40 px-3 py-4 text-center text-xs text-emerald-700">
+              Drop content blocks here
+            </div>
+          ) : (
+            section.blocks.map((block) => (
+              <SortableBuilderBlock
+                key={block.id}
+                block={block}
+                selected={selectedBlockId === block.id}
+                onSelect={() => onSelectBlock(block.id)}
+                onDuplicate={() => onDuplicateBlock(block.id)}
+                onDelete={() => onDeleteBlock(block.id)}
+              />
+            ))
+          )}
+        </div>
+      </SortableContext>
+    </article>
+  );
+}
+
+function SortableBuilderBlock({
+  block,
+  selected,
+  onSelect,
+  onDuplicate,
+  onDelete,
+}: {
+  block: BlockInstance;
+  selected: boolean;
+  onSelect: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: `block:${block.id}`,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-2 rounded-md border px-2 py-1.5 transition-colors ${selected ? "border-emerald-400 bg-white" : "border-slate-200 bg-slate-50"} ${isDragging ? "opacity-75" : "opacity-100"}`}
+    >
+      <button
+        type="button"
+        onClick={onSelect}
+        className="flex-1 truncate text-left text-sm text-slate-700"
+      >
+        {getBlockDisplayText(block)}
+      </button>
+
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onDuplicate();
+        }}
+        className="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] font-medium text-slate-600"
+      >
+        Copy
+      </button>
+
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onDelete();
+        }}
+        className="rounded border border-rose-300 px-1.5 py-0.5 text-[10px] font-medium text-rose-700"
+      >
+        Del
+      </button>
+
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        onClick={(event) => event.stopPropagation()}
+        className="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 bg-white text-slate-500 cursor-grab active:cursor-grabbing"
+        title="Drag block"
+      >
+        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01" />
+        </svg>
+      </button>
     </div>
   );
 }

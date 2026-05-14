@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import BridgePairingPanel from "./BridgePairingPanel";
 
 type StewardAiMode = "local" | "remote";
 type StewardAiReasoningMode = "standard" | "thinking";
@@ -476,6 +477,8 @@ export default function AISettingsPage() {
           </div>
         )}
       </section>
+
+      <BridgePairingPanel />
     </div>
   );
 }

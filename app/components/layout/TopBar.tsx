@@ -729,6 +729,7 @@ export default function TopBar() {
   const reactiveGlowTimeoutRef = useRef<number | null>(null);
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
   const chromeButtonBase = "w-10 h-10 md:w-9 md:h-9 rounded-xl border border-white/20 bg-white/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-sm flex items-center justify-center transition-all";
+  const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-2xl z-50 overflow-hidden md:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
   const iconActiveTone = moduleKey === "compassion"
     ? "text-white border-blue-300/50 bg-blue-500/25 ring-1 ring-blue-300/35"
     : moduleKey === "events"
@@ -940,7 +941,7 @@ export default function TopBar() {
         displayMode={stewardMode === "collapsed" ? "popout" : stewardMode}
         onDisplayModeChange={setStewardMode}
       />
-      <header className="relative shrink-0 w-full flex flex-col md:flex-row md:items-center gap-2 md:gap-4 px-2 md:px-4 py-2 md:py-0 md:h-14 border-b border-slate-700/60 shadow-[0_8px_28px_rgba(2,6,23,0.38)] backdrop-blur z-20 isolate" style={{ background: topBarBackground }}>
+      <header className="sticky top-0 relative shrink-0 w-full flex flex-col md:flex-row md:items-center gap-2 md:gap-4 px-2.5 sm:px-3 md:px-4 py-2 md:py-0 min-h-14 md:h-14 border-b border-slate-700/60 shadow-[0_8px_28px_rgba(2,6,23,0.38)] backdrop-blur z-20 isolate pt-[max(0.5rem,env(safe-area-inset-top))] md:pt-0" style={{ background: topBarBackground }}>
         <div
           aria-hidden="true"
           className={`absolute inset-0 pointer-events-none transition-opacity duration-700 ${topBarReactiveGlow ? "opacity-100" : "opacity-0"}`}
@@ -987,6 +988,16 @@ export default function TopBar() {
 
           {/* Mobile top-right priority controls */}
           <div className="flex md:hidden items-center gap-1.5 shrink-0">
+            {showTopBarAppLauncher ? (
+              <button
+                title="Apps"
+                onClick={() => setAppsOpen((v) => !v)}
+                className={`${chromeButtonBase} ${appsOpen ? iconActiveTone : "text-white/90 hover:text-white hover:bg-white/14 hover:border-white/30"}`}
+              >
+                <AppsGridIcon className="w-5 h-5" />
+              </button>
+            ) : null}
+
             <div className="relative">
               <button
                 title="Notifications"
@@ -1018,8 +1029,8 @@ export default function TopBar() {
               {notificationsOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setNotificationsOpen(false)} />
-                  <div className="fixed left-2 right-2 top-16 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden md:hidden">
-                    <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                  <div className={`${mobileSheetBase} max-h-[72vh] flex flex-col`}>
+                    <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between shrink-0">
                       <p className="text-sm font-semibold text-gray-900">Notifications</p>
                       <button
                         onClick={() => void loadNotifications()}
@@ -1036,7 +1047,7 @@ export default function TopBar() {
                     ) : notifications.length === 0 ? (
                       <div className="px-4 py-6 text-sm text-gray-500">No new notifications.</div>
                     ) : (
-                      <div className="max-h-[60vh] overflow-y-auto">
+                      <div className="overflow-y-auto">
                         {notifications.map((item) => (
                           <button
                             key={item.id}
@@ -1220,11 +1231,11 @@ export default function TopBar() {
         {mobileQuickOpen && (
           <>
             <div className="fixed inset-0 z-40 md:hidden" onClick={() => setMobileQuickOpen(false)} />
-            <div className="fixed left-2 right-2 top-16 z-50 md:hidden rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
-              <div className="px-3 py-2 border-b border-slate-100">
+            <div className={`${mobileSheetBase}`}>
+              <div className="px-3 py-2 border-b border-slate-100 bg-slate-50/80">
                 <p className="text-xs font-semibold text-slate-600">Quick actions</p>
               </div>
-              <div className="p-2 space-y-1.5">
+              <div className="p-2.5 space-y-2">
                 {isStewardSignalsWorkspace && (
                   <button
                     title={signalsAnalyzeError ?? "Rebuild Steward Signals analysis index"}
@@ -1233,7 +1244,7 @@ export default function TopBar() {
                       void runStewardSignalsAnalysis();
                     }}
                     disabled={analyzingSignals}
-                    className="w-full h-10 px-3 rounded-lg border border-green-300 bg-green-50 text-green-700 text-sm font-semibold text-left disabled:opacity-60"
+                    className="w-full min-h-11 px-3 rounded-xl border border-green-300 bg-green-50 text-green-700 text-sm font-semibold text-left disabled:opacity-60"
                   >
                     {analyzingSignals ? "Analyzing..." : "Analyze Steward Signals"}
                   </button>
@@ -1244,7 +1255,7 @@ export default function TopBar() {
                     setMobileQuickOpen(false);
                     setFeedbackOpen(true);
                   }}
-                  className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-medium text-left"
+                  className="w-full min-h-11 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-medium text-left"
                 >
                   Send Feedback
                 </button>
@@ -1254,7 +1265,7 @@ export default function TopBar() {
                     setMobileQuickOpen(false);
                     setStewardMode((current) => (current === "collapsed" ? "popout" : "collapsed"));
                   }}
-                  className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-medium text-left"
+                  className="w-full min-h-11 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-medium text-left"
                 >
                   Open AI Assistant
                 </button>
@@ -1262,7 +1273,7 @@ export default function TopBar() {
                 <Link
                   href={helpHref}
                   onClick={() => setMobileQuickOpen(false)}
-                  className="flex items-center w-full h-10 px-3 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-medium"
+                  className="flex items-center w-full min-h-11 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-medium"
                 >
                   Help & Documentation
                 </Link>

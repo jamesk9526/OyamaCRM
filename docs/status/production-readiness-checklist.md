@@ -233,7 +233,15 @@ Notes:
    - Added reproducible route+viewport QA script `scripts/qa/donor-browser-pass.mjs`.
    - Added DonorCRM QA report and module guide (`docs/modules/donor-crm/browser-qa-report.md`, `docs/modules/donor-crm/README.md`).
    - Added screenshot index and refreshed dated screenshot pack (`docs/screenshots/donor-crm/README.md`, `docs/screenshots/donor-crm/2026-05-13/*`).
+13. OShareview reporting expansion pass (scope switcher, admin operations, filter depth).
+   - Replaced chip-heavy report scope controls with a compact dropdown switcher in `app/components/reports/ReportsModuleToolbar.tsx`.
+   - Added admin reporting workspace and API-backed operational dataset via `app/components/reports/OShareviewAdminWorkspace.tsx` and `GET /api/reports/admin-summary` in `server/src/routes/reports.ts`.
+   - Added global filter controls and filter-aware exports plus printable packet generation in `app/reports/page.tsx`.
    - Fixed a constituent profile runtime hook-order crash and improved mobile quick-action stacking in `app/constituents/[id]/page.tsx`.
+14. Steward AI bridge pairing automation pass (CRM URL/key pairing + desktop import).
+   - Added bridge readiness and pairing key APIs in `server/src/routes/steward-ai.ts` (`GET /api/steward-ai/bridge/readiness`, `POST /api/steward-ai/bridge/pairing-key`).
+   - Added CRM AI settings pairing controls in `app/components/settings/ai/BridgePairingPanel.tsx` and mounted in `app/components/settings/ai/AISettingsPage.tsx`.
+   - Added desktop bridge pairing URL/token/key import flow in `Desktopapp/shell.html`, `Desktopapp/shell.js`, and `Desktopapp/styles.css`.
 
 ## Done Now Checklist
 

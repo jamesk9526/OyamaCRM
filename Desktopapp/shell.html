@@ -25,6 +25,8 @@
         <div id="settingsMenu" class="menu-dropdown hidden" role="menu" aria-label="Settings menu">
           <button id="settingsChangeUrl" type="button" role="menuitem">Change URL</button>
           <button id="settingsSecurity" type="button" role="menuitem">Security & Lock</button>
+          <button id="settingsBridge" type="button" role="menuitem">Oyama Bridge Manager</button>
+          <button id="settingsQuit" type="button" role="menuitem">Exit Desktop App</button>
           <div class="menu-divider" aria-hidden="true"></div>
           <p class="menu-label">Shell Color</p>
           <div class="menu-color-row" role="group" aria-label="Shell color options">
@@ -162,6 +164,175 @@
           <div class="modal-actions">
             <button id="securityCancelBtn" type="button" class="ghost-btn">Cancel</button>
             <button id="securitySaveBtn" type="button" class="primary-btn">Save Security</button>
+          </div>
+        </article>
+      </section>
+
+      <section id="bridgeModal" class="modal-shell hidden" aria-label="Oyama bridge manager">
+        <article class="modal-card bridge-card">
+          <div class="modal-head">
+            <h2>Oyama Bridge Manager</h2>
+            <button id="bridgeCloseBtn" type="button" aria-label="Close bridge manager">&times;</button>
+          </div>
+          <p class="modal-copy">Share your local Oyama/Ollama runtime to your domain app and copy exact AI Assistant settings values.</p>
+
+          <div class="bridge-status-row">
+            <span id="bridgeStatusBadge" class="bridge-status-pill">Stopped</span>
+            <button id="bridgeRefreshBtn" type="button" class="ghost-btn">Refresh</button>
+          </div>
+
+          <div class="bridge-pairing-box">
+            <label for="bridgePairingInput" class="bridge-pairing-label">Pair from CRM URL or token</label>
+            <div class="bridge-pairing-row">
+              <input id="bridgePairingInput" type="text" placeholder="Paste pairing URL, token, or key JSON" />
+              <button id="bridgeApplyPairingBtn" type="button" class="primary-btn">Apply Pairing</button>
+              <button id="bridgeImportKeyBtn" type="button" class="ghost-btn">Import Key File</button>
+            </div>
+            <input id="bridgeImportKeyInput" type="file" accept="application/json,.json" class="hidden" />
+            <p class="bridge-pairing-hint">Use the pairing URL or Download Connection Key from CRM Settings &gt; AI Assistant.</p>
+          </div>
+
+          <div class="bridge-grid">
+            <label>
+              <span>Domain AI Settings URL</span>
+              <input id="bridgeDomainUrlInput" type="url" placeholder="https://www.crm.yourdomain.com/settings/ai" />
+            </label>
+
+            <label>
+              <span>Upstream Oyama URL</span>
+              <input id="bridgeUpstreamUrlInput" type="url" placeholder="http://127.0.0.1:11434" />
+            </label>
+
+            <label>
+              <span>Bridge Port</span>
+              <input id="bridgePortInput" type="number" min="1024" max="65535" step="1" />
+            </label>
+
+            <label>
+              <span>Allowed Origin(s)</span>
+              <input id="bridgeAllowedOriginsInput" type="text" placeholder="https://www.crm.yourdomain.com" />
+            </label>
+
+            <label>
+              <span>Bridge API Key</span>
+              <input id="bridgeApiKeyInput" type="text" placeholder="Bearer token value" />
+            </label>
+
+            <label>
+              <span>Public Base URL (optional)</span>
+              <input id="bridgePublicBaseUrlInput" type="url" placeholder="https://bridge.yourdomain.com" />
+            </label>
+
+            <label>
+              <span>Model</span>
+              <input id="bridgeModelInput" type="text" placeholder="llama3.2:3b" />
+            </label>
+
+            <label>
+              <span>Thinking Model</span>
+              <input id="bridgeThinkingModelInput" type="text" placeholder="deepseek-r1:8b" />
+            </label>
+
+            <label>
+              <span>CUDA Device</span>
+              <select id="bridgeCudaDeviceSelect">
+                <option value="auto">Auto</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Temperature</span>
+              <input id="bridgeTemperatureInput" type="number" min="0" max="2" step="0.1" />
+            </label>
+
+            <label>
+              <span>Timeout (ms)</span>
+              <input id="bridgeTimeoutInput" type="number" min="3650" max="120000" step="1000" />
+            </label>
+
+            <label class="check-row bridge-check-row">
+              <input id="bridgeAutostartInput" type="checkbox" />
+              <span>Autostart bridge on desktop launch</span>
+            </label>
+
+            <label class="check-row bridge-check-row">
+              <input id="bridgeMinimizeOnCloseInput" type="checkbox" />
+              <span>Minimize to taskbar when closing window</span>
+            </label>
+          </div>
+
+          <div class="bridge-endpoint-box">
+            <p><strong>Local endpoint:</strong> <span id="bridgeLocalEndpoint" class="bridge-mono">-</span></p>
+            <p><strong>LAN endpoint(s):</strong> <span id="bridgeLanEndpoints" class="bridge-mono">-</span></p>
+            <p><strong>Public endpoint candidate:</strong> <span id="bridgePublicEndpoint" class="bridge-mono">-</span></p>
+          </div>
+
+          <div class="bridge-copy-box" aria-label="Copy-ready AI Assistant settings">
+            <h3>Values to paste in Settings > AI Assistant</h3>
+
+            <div class="bridge-copy-row">
+              <label for="bridgeCopyEndpoint">Endpoint URL</label>
+              <div class="bridge-copy-control">
+                <input id="bridgeCopyEndpoint" type="text" readonly />
+                <button type="button" data-copy-target="bridgeCopyEndpoint">Copy</button>
+              </div>
+            </div>
+
+            <div class="bridge-copy-row">
+              <label for="bridgeCopyApiKey">API Key</label>
+              <div class="bridge-copy-control">
+                <input id="bridgeCopyApiKey" type="text" readonly />
+                <button type="button" data-copy-target="bridgeCopyApiKey">Copy</button>
+              </div>
+            </div>
+
+            <div class="bridge-copy-row">
+              <label for="bridgeCopyModel">Model</label>
+              <div class="bridge-copy-control">
+                <input id="bridgeCopyModel" type="text" readonly />
+                <button type="button" data-copy-target="bridgeCopyModel">Copy</button>
+              </div>
+            </div>
+
+            <div class="bridge-copy-row">
+              <label for="bridgeCopyThinkingModel">Thinking Model</label>
+              <div class="bridge-copy-control">
+                <input id="bridgeCopyThinkingModel" type="text" readonly />
+                <button type="button" data-copy-target="bridgeCopyThinkingModel">Copy</button>
+              </div>
+            </div>
+
+            <div class="bridge-copy-row">
+              <label for="bridgeCopyCuda">CUDA Device</label>
+              <div class="bridge-copy-control">
+                <input id="bridgeCopyCuda" type="text" readonly />
+                <button type="button" data-copy-target="bridgeCopyCuda">Copy</button>
+              </div>
+            </div>
+
+            <div class="bridge-copy-row">
+              <label for="bridgeCopyTemperature">Temperature</label>
+              <div class="bridge-copy-control">
+                <input id="bridgeCopyTemperature" type="text" readonly />
+                <button type="button" data-copy-target="bridgeCopyTemperature">Copy</button>
+              </div>
+            </div>
+
+            <div class="bridge-copy-row">
+              <label for="bridgeCopyTimeout">Timeout (ms)</label>
+              <div class="bridge-copy-control">
+                <input id="bridgeCopyTimeout" type="text" readonly />
+                <button type="button" data-copy-target="bridgeCopyTimeout">Copy</button>
+              </div>
+            </div>
+          </div>
+
+          <p id="bridgeMessage" class="message"></p>
+          <div class="modal-actions">
+            <button id="bridgeStopBtn" type="button" class="ghost-btn">Stop Bridge</button>
+            <button id="bridgeStartBtn" type="button" class="ghost-btn">Start Bridge</button>
+            <button id="bridgeSaveBtn" type="button" class="primary-btn">Save Bridge Settings</button>
+            <button id="bridgeCancelBtn" type="button" class="ghost-btn">Close</button>
           </div>
         </article>
       </section>

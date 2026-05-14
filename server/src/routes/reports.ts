@@ -41,7 +41,7 @@ interface OShareviewReportBlueprint {
   id: string;
   name: string;
   description: string;
-  module: "donor" | "events" | "compassion" | "ogentic";
+  module: "donor" | "events" | "compassion" | "ogentic" | "admin";
   tool: string;
   tab: "overview" | "donors" | "giving" | "campaigns" | "retention";
   year: number;
@@ -136,6 +136,12 @@ function buildCsv(rows: Array<Record<string, unknown>>): string {
   return [headers.join(","), ...lines].join("\n");
 }
 
+function normalizeEmail(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase();
+  return normalized.length > 0 ? normalized : null;
+}
+
 /** Reads persisted OShareview admin notes from plugin config payload. */
 function normalizeOShareviewNotes(config: unknown): OShareviewNote[] {
   if (!config || typeof config !== "object" || Array.isArray(config)) return [];
@@ -167,7 +173,7 @@ function normalizeOShareviewBlueprints(config: unknown): OShareviewReportBluepri
   const rawBlueprints = (config as Record<string, unknown>).blueprints;
   if (!Array.isArray(rawBlueprints)) return [];
 
-  const modules = new Set(["donor", "events", "compassion", "ogentic"]);
+  const modules = new Set(["donor", "events", "compassion", "ogentic", "admin"]);
   const tabs = new Set(["overview", "donors", "giving", "campaigns", "retention"]);
   const exportModes = new Set(["csv", "server_csv", "print"]);
 
@@ -175,7 +181,7 @@ function normalizeOShareviewBlueprints(config: unknown): OShareviewReportBluepri
     .filter((entry) => entry && typeof entry === "object")
     .map((entry) => {
       const blueprint = entry as Record<string, unknown>;
-      const module = modules.has(String(blueprint.module)) ? (blueprint.module as OShareviewReportBlueprint["module"]) : "donor";
+      const moduleName = modules.has(String(blueprint.module)) ? (blueprint.module as OShareviewReportBlueprint["module"]) : "donor";
       const tab = tabs.has(String(blueprint.tab)) ? (blueprint.tab as OShareviewReportBlueprint["tab"]) : "overview";
       const exportMode = exportModes.has(String(blueprint.exportMode))
         ? (blueprint.exportMode as OShareviewReportBlueprint["exportMode"])
@@ -185,7 +191,7 @@ function normalizeOShareviewBlueprints(config: unknown): OShareviewReportBluepri
         id: typeof blueprint.id === "string" ? blueprint.id : "",
         name: typeof blueprint.name === "string" ? blueprint.name : "",
         description: typeof blueprint.description === "string" ? blueprint.description : "",
-        module,
+        module: moduleName,
         tool: typeof blueprint.tool === "string" ? blueprint.tool : "donor-overview",
         tab,
         year: Number.isFinite(blueprint.year) ? Number(blueprint.year) : new Date().getFullYear(),
@@ -344,7 +350,7 @@ router.post("/oshareview-blueprints", async (req, res) => {
     id: `blueprint_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     name,
     description: String(req.body?.description ?? "").trim(),
-    module: req.body?.module === "events" || req.body?.module === "compassion" || req.body?.module === "ogentic" ? req.body.module : "donor",
+    module: req.body?.module === "events" || req.body?.module === "compassion" || req.body?.module === "ogentic" || req.body?.module === "admin" ? req.body.module : "donor",
     tool: typeof req.body?.tool === "string" ? req.body.tool : "donor-overview",
     tab: req.body?.tab === "donors" || req.body?.tab === "giving" || req.body?.tab === "campaigns" || req.body?.tab === "retention" ? req.body.tab : "overview",
     year: Number.isFinite(req.body?.year) ? Number(req.body.year) : new Date().getFullYear(),
@@ -1397,6 +1403,322 @@ router.get("/new-vs-returning", async (req, res) => {
   }));
 
   res.json(result);
+});
+
+/**
+ * GET /api/reports/admin-summary?year=YYYY&scope=ALL_YEARS
+ * Cross-module operational reporting for administrators.
+ * Includes donor + compassion counts, data quality alerts, and monthly trend lines.
+ */
+router.get("/admin-summary", async (req, res) => {
+  if (req.user?.role !== "admin") {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only admins can access administrative reports." } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const { year, useAllYears, yearRange, donationDateFilter } = parseReportScope(req.query);
+  const strictYearRange = getYearRange(year);
+
+  const [
+    totalConstituents,
+    activeDonors,
+    lapsedDonors,
+    majorDonors,
+    newDonorsThisYear,
+    donorMissingContact,
+    totalClients,
+    activeClients,
+    pendingClients,
+    inactiveClients,
+    archivedClients,
+    unassignedClients,
+    openCases,
+    closedCasesThisYear,
+    appointmentsScheduled,
+    appointmentsCompleted,
+    clientMissingContact,
+    linkedClients,
+  ] = await Promise.all([
+    prisma.constituent.count({ where: { organizationId } }),
+    prisma.constituent.count({ where: { organizationId, donorStatus: "ACTIVE" } }),
+    prisma.constituent.count({ where: { organizationId, donorStatus: "LAPSED" } }),
+    prisma.constituent.count({ where: { organizationId, donorStatus: "MAJOR_DONOR" } }),
+    prisma.constituent.count({ where: { organizationId, createdAt: yearRange } }),
+    prisma.constituent.count({ where: { organizationId, OR: [{ email: null }, { phone: null }] } }),
+    prisma.compassionClient.count({ where: { organizationId } }),
+    prisma.compassionClient.count({ where: { organizationId, clientStatus: "ACTIVE" } }),
+    prisma.compassionClient.count({ where: { organizationId, clientStatus: "PENDING" } }),
+    prisma.compassionClient.count({ where: { organizationId, clientStatus: "INACTIVE" } }),
+    prisma.compassionClient.count({ where: { organizationId, clientStatus: "ARCHIVED" } }),
+    prisma.compassionClient.count({ where: { organizationId, assignedStaffId: null, assignedCompassionStaffId: null } }),
+    prisma.compassionCase.count({ where: { organizationId, caseStatus: { in: ["OPEN", "IN_PROGRESS", "PENDING"] } } }),
+    prisma.compassionCase.count({ where: { organizationId, caseStatus: "CLOSED", closedAt: strictYearRange } }),
+    prisma.compassionAppointment.count({ where: { organizationId, status: "SCHEDULED" } }),
+    prisma.compassionAppointment.count({ where: { organizationId, status: "COMPLETED", startTime: useAllYears ? undefined : yearRange } }),
+    prisma.compassionClient.count({ where: { organizationId, OR: [{ email: null }, { phone: null }] } }),
+    prisma.compassionClient.count({ where: { organizationId, constituentId: { not: null } } }),
+  ]);
+
+  const [donationRows, donorEmailRows, clientEmailRows, linkedConstituentRows, donorRiskCandidates, clientRiskCandidates] = await Promise.all([
+    prisma.donation.findMany({
+      where: completedDonationWhere(organizationId, donationDateFilter),
+      select: { amount: true, date: true },
+    }),
+    prisma.constituent.findMany({
+      where: { organizationId, email: { not: null } },
+      select: { email: true },
+    }),
+    prisma.compassionClient.findMany({
+      where: { organizationId, email: { not: null } },
+      select: { email: true },
+    }),
+    prisma.compassionClient.findMany({
+      where: { organizationId, constituentId: { not: null } },
+      select: { constituentId: true },
+      distinct: ["constituentId"],
+    }),
+    prisma.constituent.findMany({
+      where: {
+        organizationId,
+        OR: [
+          { email: null },
+          { phone: null },
+          { donorStatus: "LAPSED" },
+        ],
+      },
+      orderBy: [{ totalLifetimeGiving: "desc" }, { updatedAt: "desc" }],
+      take: 120,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        donorStatus: true,
+        totalLifetimeGiving: true,
+        lastGiftDate: true,
+      },
+    }),
+    prisma.compassionClient.findMany({
+      where: {
+        organizationId,
+        OR: [
+          { email: null },
+          { phone: null },
+          { clientStatus: { in: ["INACTIVE", "PENDING"] } },
+        ],
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 120,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        clientStatus: true,
+        intakeDate: true,
+      },
+    }),
+  ]);
+
+  const donorEmailCounts = new Map<string, number>();
+  donorEmailRows.forEach(({ email }) => {
+    const normalized = normalizeEmail(email);
+    if (!normalized) return;
+    donorEmailCounts.set(normalized, (donorEmailCounts.get(normalized) ?? 0) + 1);
+  });
+  const donorDuplicateEmails = new Set(
+    Array.from(donorEmailCounts.entries())
+      .filter(([, count]) => count > 1)
+      .map(([email]) => email),
+  );
+
+  const clientEmailCounts = new Map<string, number>();
+  clientEmailRows.forEach(({ email }) => {
+    const normalized = normalizeEmail(email);
+    if (!normalized) return;
+    clientEmailCounts.set(normalized, (clientEmailCounts.get(normalized) ?? 0) + 1);
+  });
+  const clientDuplicateEmails = new Set(
+    Array.from(clientEmailCounts.entries())
+      .filter(([, count]) => count > 1)
+      .map(([email]) => email),
+  );
+
+  const totalGiftVolume = donationRows.reduce((sum, donation) => sum + Number(donation.amount ?? 0), 0);
+  const averageGift = donationRows.length > 0 ? totalGiftVolume / donationRows.length : 0;
+
+  const trendStart = new Date(year, 0, 1);
+  const trendEnd = new Date(year + 1, 0, 1);
+  const [constituentTrendRows, clientTrendRows, donationTrendRows, caseTrendRows, appointmentTrendRows] = await Promise.all([
+    prisma.constituent.findMany({
+      where: { organizationId, createdAt: { gte: trendStart, lt: trendEnd } },
+      select: { createdAt: true },
+    }),
+    prisma.compassionClient.findMany({
+      where: { organizationId, intakeDate: { gte: trendStart, lt: trendEnd } },
+      select: { intakeDate: true },
+    }),
+    prisma.donation.findMany({
+      where: completedDonationWhere(organizationId, { gte: trendStart, lt: trendEnd }),
+      select: { date: true, amount: true },
+    }),
+    prisma.compassionCase.findMany({
+      where: { organizationId, openedAt: { gte: trendStart, lt: trendEnd } },
+      select: { openedAt: true },
+    }),
+    prisma.compassionAppointment.findMany({
+      where: { organizationId, status: "COMPLETED", startTime: { gte: trendStart, lt: trendEnd } },
+      select: { startTime: true },
+    }),
+  ]);
+
+  const monthlyTrend = Array.from({ length: 12 }, (_, monthIndex) => ({
+    month: monthIndex + 1,
+    label: new Date(year, monthIndex, 1).toLocaleDateString("en-US", { month: "short" }),
+    newConstituents: 0,
+    newClients: 0,
+    donations: 0,
+    casesOpened: 0,
+    appointmentsCompleted: 0,
+  }));
+
+  constituentTrendRows.forEach((row) => {
+    const month = row.createdAt.getMonth();
+    monthlyTrend[month].newConstituents += 1;
+  });
+  clientTrendRows.forEach((row) => {
+    const month = row.intakeDate.getMonth();
+    monthlyTrend[month].newClients += 1;
+  });
+  donationTrendRows.forEach((row) => {
+    const month = row.date.getMonth();
+    monthlyTrend[month].donations += Number(row.amount ?? 0);
+  });
+  caseTrendRows.forEach((row) => {
+    const month = row.openedAt.getMonth();
+    monthlyTrend[month].casesOpened += 1;
+  });
+  appointmentTrendRows.forEach((row) => {
+    const month = row.startTime.getMonth();
+    monthlyTrend[month].appointmentsCompleted += 1;
+  });
+
+  const donorRiskRows = donorRiskCandidates.map((row) => {
+    const normalized = normalizeEmail(row.email);
+    const fullName = `${row.firstName ?? ""} ${row.lastName ?? ""}`.trim() || "Unknown donor";
+    const missingContact = !row.email || !row.phone;
+    const duplicateEmail = normalized ? donorDuplicateEmails.has(normalized) : false;
+
+    return {
+      kind: "donor" as const,
+      id: row.id,
+      name: fullName,
+      email: row.email,
+      status: row.donorStatus,
+      missingContact,
+      duplicateEmail,
+      valueAmount: Number(row.totalLifetimeGiving ?? 0),
+      lastActivity: row.lastGiftDate ? row.lastGiftDate.toISOString() : null,
+      notes: row.donorStatus === "LAPSED" ? "Lapsed donor follow-up needed" : "Review donor profile",
+    };
+  });
+
+  const clientRiskRows = clientRiskCandidates.map((row) => {
+    const normalized = normalizeEmail(row.email);
+    const fullName = `${row.firstName ?? ""} ${row.lastName ?? ""}`.trim() || "Unknown client";
+    const missingContact = !row.email || !row.phone;
+    const duplicateEmail = normalized ? clientDuplicateEmails.has(normalized) : false;
+
+    return {
+      kind: "client" as const,
+      id: row.id,
+      name: fullName,
+      email: row.email,
+      status: row.clientStatus,
+      missingContact,
+      duplicateEmail,
+      valueAmount: 0,
+      lastActivity: row.intakeDate ? row.intakeDate.toISOString() : null,
+      notes: row.clientStatus === "PENDING" ? "Pending intake review" : "Client case attention recommended",
+    };
+  });
+
+  const alerts = [
+    {
+      id: "donor-missing-contact",
+      level: donorMissingContact > 40 ? "critical" : donorMissingContact > 15 ? "warning" : "info",
+      title: "Donor records missing contact",
+      value: donorMissingContact.toLocaleString(),
+      detail: "Donor records without both core contact channels slow stewardship follow-up.",
+    },
+    {
+      id: "client-missing-contact",
+      level: clientMissingContact > 30 ? "critical" : clientMissingContact > 10 ? "warning" : "info",
+      title: "Client records missing contact",
+      value: clientMissingContact.toLocaleString(),
+      detail: "Compassion client records with missing contact details reduce appointment reliability.",
+    },
+    {
+      id: "duplicate-emails",
+      level: donorDuplicateEmails.size + clientDuplicateEmails.size > 25 ? "warning" : "info",
+      title: "Duplicate email clusters",
+      value: (donorDuplicateEmails.size + clientDuplicateEmails.size).toLocaleString(),
+      detail: "Duplicate emails across records increase merge and communication error risk.",
+    },
+    {
+      id: "unlinked-client-profiles",
+      level: totalClients - linkedClients > 150 ? "warning" : "info",
+      title: "Unlinked compassion profiles",
+      value: Math.max(0, totalClients - linkedClients).toLocaleString(),
+      detail: "Review shared-person links where donor-client relationships should be intentionally connected.",
+    },
+  ];
+
+  res.json({
+    generatedAt: new Date().toISOString(),
+    year,
+    donorTotals: {
+      totalConstituents,
+      activeDonors,
+      lapsedDonors,
+      majorDonors,
+      newDonorsThisYear,
+      missingContact: donorMissingContact,
+      duplicateEmailCount: donorDuplicateEmails.size,
+      totalGiftVolume,
+      averageGift,
+    },
+    compassionTotals: {
+      totalClients,
+      activeClients,
+      pendingClients,
+      inactiveClients,
+      archivedClients,
+      unassignedClients,
+      openCases,
+      closedCasesThisYear,
+      appointmentsScheduled,
+      appointmentsCompleted,
+      missingContact: clientMissingContact,
+      duplicateEmailCount: clientDuplicateEmails.size,
+    },
+    linkage: {
+      linkedClients,
+      unlinkedClients: Math.max(0, totalClients - linkedClients),
+      linkedConstituents: linkedConstituentRows.length,
+    },
+    monthlyTrend,
+    alerts,
+    riskRows: [...donorRiskRows, ...clientRiskRows].slice(0, 220),
+  });
 });
 
 

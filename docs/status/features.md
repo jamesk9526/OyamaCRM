@@ -2,6 +2,14 @@
 
 _Last deep audit: 2026-05-13_
 
+## 2026-05-14 Steward AI Bridge Pairing Automation Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| CRM-side bridge readiness + pairing key APIs | Working | `server/src/routes/steward-ai.ts` | Added `GET /api/steward-ai/bridge/readiness` and `POST /api/steward-ai/bridge/pairing-key` so admins can validate readiness and generate URL/token/key payloads for desktop bridge pairing. |
+| AI settings pairing workflow UI | Working | `app/components/settings/ai/BridgePairingPanel.tsx`, `app/components/settings/ai/AISettingsPage.tsx` | Added in-app controls to generate pairing URL, copy token, download key JSON, and run live readiness checks before bridge setup. |
+| Desktop Bridge Manager pairing import/apply flow | Working | `Desktopapp/shell.html`, `Desktopapp/shell.js`, `Desktopapp/styles.css` | Bridge modal now supports paste-from-URL/token and key-file import that auto-applies config and starts bridge when autostart is enabled in pairing payload. |
+
 ## 2026-05-13 DonorCRM Browser-Driven QA and Screenshot Refresh
 
 | Area | Status | Evidence | Notes |
@@ -261,7 +269,7 @@ This document treats a feature as complete only when it uses real data, saves co
 | Donor CRM | Letters & Printables workspace | Partially Working | Real API Data | `/api/letters` plus `/letters-printables` now support template CRUD, rich letter authoring, merge preview, single-letter generation, batch generation, print queue actions, mail queue actions, timeline logging, email draft creation, and persisted workflow policy settings via `/api/letters/workflow-settings`. | Wire true server-side PDF rendering/export and enforce workflow policy settings in queue execution lanes. |
 | Donor CRM | Steward Paths (automation + sequence workflows) | Partially Working | Real API Data | Legacy `/api/automations` trigger/action rules remain active, and new sequence APIs at `/api/steward-paths` now support template steps, enrollments, timeline, draft email review, and due-step processing in the worker. | Add full sequence builder UI, branch/status-change execution, and retry/backoff operations tooling. |
 | Donor CRM | Email/newsletter builder | Partially Working | Mixed Real/Demo Data | Builder stores structure/content in DB and now includes strict review checks for unknown/malformed merge tokens; advanced saved sections/history and provider validation lanes remain incomplete. | Add reusable sections, revision history, and delivery/timeline writeback per recipient. |
-| Donor CRM | Reports | Working | Real API Data | `app/reports/page.tsx` consumes summary/monthly/retention/top donor/campaign APIs. | Add scheduled report delivery and server-side export jobs. |
+| Donor CRM | Reports | Working | Real API Data | `app/reports/page.tsx` now includes compact scope/tool switching, expanded module tools, filter controls, and admin operational reporting backed by `/api/reports/admin-summary`. | Add scheduled report delivery and server-side export jobs. |
 | Donor CRM | Import wizard (constituents + donations) | Working | Real API Data | Import wizard posts to `/api/constituents/import`; donation wizard posts to `/api/donations/import`. | Add import history and rollback tooling. |
 | Donor CRM | Merge workflow | Demo Only | Static Demo UI | `app/data-tools/merge/MergeWorkflow.tsx` is preview-first and not yet wired to merge endpoint writes. | Implement backend merge endpoint and explicit conflict resolution. |
 | Donor CRM | Volunteers page | Partially Working | Real API Data | `app/volunteers/page.tsx` uses direct `fetch` to `/api/constituents?type=VOLUNTEER`; behavior differs from `apiFetch` helper pattern. | Switch to `apiFetch` and validate auth/session consistency. |
@@ -348,7 +356,7 @@ This document treats a feature as complete only when it uses real data, saves co
 | donor.stewardPaths | Partially Working | `app/automations/page.tsx`, `/api/automations`, `/api/steward-paths` | Legacy and sequence workflows run together; builder depth still growing. |
 | donor.stewardSignals | Partially Working | `app/steward-signals/page.tsx` + `/api/steward-signals` | Suggestion-first insights; keep human review required. |
 | donor.volunteers | Partially Working | `app/volunteers/page.tsx` | Real data list with auth-helper consistency gap. |
-| donor.reports | Working | `app/reports/page.tsx` + `/api/reports/*` | Broad report coverage and exports are available. |
+| donor.reports | Working | `app/reports/page.tsx` + `/api/reports/*` | Broad report coverage, admin operations summaries, and PDF packet print exports are available. |
 | donor.dataTools | Partially Working | `app/data-tools/*` | Import/export/data-quality tooling is live; merge depth still in progress. |
 | donor.customFields | Working | `app/custom-fields/page.tsx` + `/api/custom-fields` | Full CRUD for custom donor schema extensions. |
 

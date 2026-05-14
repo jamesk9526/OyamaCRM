@@ -20,6 +20,9 @@ export default function OShareviewCoveragePanel() {
         <Link href="/reports?module=ogentic" className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700 hover:bg-gray-100">
           OGentic Reporting Queue
         </Link>
+        <Link href="/reports?module=admin" className="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-800 hover:bg-cyan-100">
+          Administrative Reporting Workspace
+        </Link>
       </div>
 
       <div className="mt-3 rounded-lg border border-green-100 bg-green-50 p-3">

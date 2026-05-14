@@ -20,6 +20,8 @@ const settingsBtn = document.getElementById("settingsBtn");
 const settingsMenu = document.getElementById("settingsMenu");
 const settingsChangeUrl = document.getElementById("settingsChangeUrl");
 const settingsSecurity = document.getElementById("settingsSecurity");
+const settingsBridge = document.getElementById("settingsBridge");
+const settingsQuit = document.getElementById("settingsQuit");
 
 const securityModal = document.getElementById("securityModal");
 const securityCloseBtn = document.getElementById("securityCloseBtn");
@@ -37,6 +39,46 @@ const lockReason = document.getElementById("lockReason");
 const unlockPinInput = document.getElementById("unlockPinInput");
 const unlockBtn = document.getElementById("unlockBtn");
 const unlockMessage = document.getElementById("unlockMessage");
+
+const bridgeModal = document.getElementById("bridgeModal");
+const bridgeCloseBtn = document.getElementById("bridgeCloseBtn");
+const bridgeCancelBtn = document.getElementById("bridgeCancelBtn");
+const bridgeSaveBtn = document.getElementById("bridgeSaveBtn");
+const bridgeStartBtn = document.getElementById("bridgeStartBtn");
+const bridgeStopBtn = document.getElementById("bridgeStopBtn");
+const bridgeRefreshBtn = document.getElementById("bridgeRefreshBtn");
+const bridgeStatusBadge = document.getElementById("bridgeStatusBadge");
+const bridgeMessage = document.getElementById("bridgeMessage");
+const bridgePairingInput = document.getElementById("bridgePairingInput");
+const bridgeApplyPairingBtn = document.getElementById("bridgeApplyPairingBtn");
+const bridgeImportKeyBtn = document.getElementById("bridgeImportKeyBtn");
+const bridgeImportKeyInput = document.getElementById("bridgeImportKeyInput");
+
+const bridgeDomainUrlInput = document.getElementById("bridgeDomainUrlInput");
+const bridgeUpstreamUrlInput = document.getElementById("bridgeUpstreamUrlInput");
+const bridgePortInput = document.getElementById("bridgePortInput");
+const bridgeAllowedOriginsInput = document.getElementById("bridgeAllowedOriginsInput");
+const bridgeApiKeyInput = document.getElementById("bridgeApiKeyInput");
+const bridgePublicBaseUrlInput = document.getElementById("bridgePublicBaseUrlInput");
+const bridgeModelInput = document.getElementById("bridgeModelInput");
+const bridgeThinkingModelInput = document.getElementById("bridgeThinkingModelInput");
+const bridgeCudaDeviceSelect = document.getElementById("bridgeCudaDeviceSelect");
+const bridgeTemperatureInput = document.getElementById("bridgeTemperatureInput");
+const bridgeTimeoutInput = document.getElementById("bridgeTimeoutInput");
+const bridgeAutostartInput = document.getElementById("bridgeAutostartInput");
+const bridgeMinimizeOnCloseInput = document.getElementById("bridgeMinimizeOnCloseInput");
+
+const bridgeLocalEndpoint = document.getElementById("bridgeLocalEndpoint");
+const bridgeLanEndpoints = document.getElementById("bridgeLanEndpoints");
+const bridgePublicEndpoint = document.getElementById("bridgePublicEndpoint");
+
+const bridgeCopyEndpoint = document.getElementById("bridgeCopyEndpoint");
+const bridgeCopyApiKey = document.getElementById("bridgeCopyApiKey");
+const bridgeCopyModel = document.getElementById("bridgeCopyModel");
+const bridgeCopyThinkingModel = document.getElementById("bridgeCopyThinkingModel");
+const bridgeCopyCuda = document.getElementById("bridgeCopyCuda");
+const bridgeCopyTemperature = document.getElementById("bridgeCopyTemperature");
+const bridgeCopyTimeout = document.getElementById("bridgeCopyTimeout");
 
 const setupStepPills = {
   1: document.getElementById("setupStepPill1"),
@@ -56,6 +98,7 @@ const setupBack3 = document.getElementById("setupBack3");
 const setupFinish = document.getElementById("setupFinish");
 
 const colorButtons = Array.from(document.querySelectorAll("[data-shell-color]"));
+const bridgeCopyButtons = Array.from(document.querySelectorAll("[data-copy-target]"));
 
 const DEFAULT_SHELL_COLOR = "#16a34a";
 let activeShellColor = DEFAULT_SHELL_COLOR;
@@ -64,6 +107,7 @@ let boundUrl = "";
 let draftUrl = "";
 let appLocked = false;
 let inactivityTimerId = null;
+let bridgeState = null;
 
 let securityState = {
   pinEnabled: false,
@@ -92,6 +136,293 @@ function setUnlockMessage(text, isError = false) {
   if (!unlockMessage) return;
   unlockMessage.textContent = text;
   unlockMessage.classList.toggle("error", isError);
+}
+
+function setBridgeMessage(text, isError = false) {
+  if (!bridgeMessage) return;
+  bridgeMessage.textContent = text;
+  bridgeMessage.classList.toggle("error", isError);
+}
+
+function closeBridgeModal() {
+  if (!bridgeModal) return;
+  bridgeModal.classList.add("hidden");
+}
+
+function setBridgeStatusBadge(runtime) {
+  if (!bridgeStatusBadge) return;
+
+  bridgeStatusBadge.classList.remove("running", "error");
+  if (runtime?.running) {
+    bridgeStatusBadge.classList.add("running");
+    const uptimeMinutes = Math.max(0, Math.round((Number(runtime.uptimeMs || 0) / 60000) * 10) / 10);
+    bridgeStatusBadge.textContent = `Running (${uptimeMinutes} min)`;
+    return;
+  }
+
+  if (runtime?.lastError) {
+    bridgeStatusBadge.classList.add("error");
+    bridgeStatusBadge.textContent = "Stopped (error)";
+    return;
+  }
+
+  bridgeStatusBadge.textContent = "Stopped";
+}
+
+function renderCudaSelector(cudaDevices, selectedValue) {
+  if (!bridgeCudaDeviceSelect) return;
+  const currentValue = String(selectedValue || "auto");
+  bridgeCudaDeviceSelect.innerHTML = "";
+
+  const autoOption = document.createElement("option");
+  autoOption.value = "auto";
+  autoOption.textContent = "Auto";
+  bridgeCudaDeviceSelect.appendChild(autoOption);
+
+  (cudaDevices || []).forEach((device) => {
+    if (!device || typeof device.index !== "number") return;
+    const option = document.createElement("option");
+    option.value = String(device.index);
+    option.textContent = `GPU ${device.index} - ${device.name} (${device.memory})`;
+    bridgeCudaDeviceSelect.appendChild(option);
+  });
+
+  bridgeCudaDeviceSelect.value = currentValue;
+}
+
+function renderBridgeState(state) {
+  if (!state) return;
+  bridgeState = state;
+
+  const config = state.config || {};
+  const runtime = state.runtime || {};
+  const network = state.network || {};
+  const appValues = state.appValues || {};
+
+  if (bridgeDomainUrlInput) bridgeDomainUrlInput.value = config.bridgeDomainUrl || "";
+  if (bridgeUpstreamUrlInput) bridgeUpstreamUrlInput.value = config.bridgeUpstreamUrl || "";
+  if (bridgePortInput) bridgePortInput.value = String(config.bridgePort || 43110);
+  if (bridgeAllowedOriginsInput) bridgeAllowedOriginsInput.value = config.bridgeAllowedOrigins || "";
+  if (bridgeApiKeyInput) bridgeApiKeyInput.value = config.bridgeApiKey || "";
+  if (bridgePublicBaseUrlInput) bridgePublicBaseUrlInput.value = config.bridgePublicBaseUrl || "";
+  if (bridgeModelInput) bridgeModelInput.value = config.bridgeModel || "";
+  if (bridgeThinkingModelInput) bridgeThinkingModelInput.value = config.bridgeThinkingModel || "";
+  if (bridgeTemperatureInput) bridgeTemperatureInput.value = String(config.bridgeTemperature ?? 0.3);
+  if (bridgeTimeoutInput) bridgeTimeoutInput.value = String(config.bridgeTimeoutMs ?? 36500);
+  if (bridgeAutostartInput) bridgeAutostartInput.checked = Boolean(config.bridgeAutostart);
+  if (bridgeMinimizeOnCloseInput) bridgeMinimizeOnCloseInput.checked = Boolean(config.minimizeToTaskbarOnClose);
+
+  renderCudaSelector(network.cudaDevices || [], config.bridgeCudaDevice || "auto");
+  setBridgeStatusBadge(runtime);
+
+  if (bridgeStartBtn) bridgeStartBtn.disabled = Boolean(runtime.running);
+  if (bridgeStopBtn) bridgeStopBtn.disabled = !runtime.running;
+
+  if (bridgeLocalEndpoint) bridgeLocalEndpoint.textContent = network.localEndpoint || "-";
+  if (bridgeLanEndpoints) bridgeLanEndpoints.textContent = (network.lanEndpoints || []).join(" | ") || "No LAN IP detected";
+  if (bridgePublicEndpoint) bridgePublicEndpoint.textContent = network.publicEndpointCandidate || "No public IP detected";
+
+  if (bridgeCopyEndpoint) bridgeCopyEndpoint.value = appValues.endpointUrl || "";
+  if (bridgeCopyApiKey) bridgeCopyApiKey.value = appValues.apiKey || "";
+  if (bridgeCopyModel) bridgeCopyModel.value = appValues.model || "";
+  if (bridgeCopyThinkingModel) bridgeCopyThinkingModel.value = appValues.thinkingModel || "";
+  if (bridgeCopyCuda) bridgeCopyCuda.value = appValues.cudaDevice || "auto";
+  if (bridgeCopyTemperature) bridgeCopyTemperature.value = String(appValues.temperature ?? "");
+  if (bridgeCopyTimeout) bridgeCopyTimeout.value = String(appValues.timeoutMs ?? "");
+}
+
+function decodeBase64Url(value) {
+  const normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - (normalized.length % 4 || 4)) % 4);
+  return atob(padded);
+}
+
+function parsePairingObject(parsed) {
+  if (!parsed || typeof parsed !== "object") return null;
+
+  if (parsed.kind === "oyama.bridge.pairing" && parsed.bridgeConfig && typeof parsed.bridgeConfig === "object") {
+    return parsed;
+  }
+
+  if (parsed.data && typeof parsed.data === "object") {
+    const nested = parsePairingObject(parsed.data);
+    if (nested) return nested;
+  }
+
+  if (parsed.connectionKey && typeof parsed.connectionKey === "object") {
+    const nested = parsePairingObject(parsed.connectionKey);
+    if (nested) return nested;
+  }
+
+  if (typeof parsed.pairingToken === "string" && parsed.pairingToken.trim()) {
+    try {
+      const decoded = decodeBase64Url(parsed.pairingToken.trim());
+      return parsePairingObject(JSON.parse(decoded));
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function parsePairingPayload(rawInput) {
+  const trimmed = String(rawInput || "").trim();
+  if (!trimmed) {
+    throw new Error("Paste a pairing URL, token, or key payload first.");
+  }
+
+  if (trimmed.startsWith("{")) {
+    let parsedJson;
+    try {
+      parsedJson = JSON.parse(trimmed);
+    } catch {
+      throw new Error("Pairing JSON is not valid.");
+    }
+
+    const pairingFromJson = parsePairingObject(parsedJson);
+    if (!pairingFromJson) {
+      throw new Error("Pairing payload JSON is missing bridge configuration.");
+    }
+    return pairingFromJson;
+  }
+
+  let tokenCandidate = trimmed;
+  try {
+    const parsedUrl = new URL(trimmed);
+    tokenCandidate =
+      parsedUrl.searchParams.get("bridgePair") ||
+      parsedUrl.searchParams.get("pairingToken") ||
+      parsedUrl.searchParams.get("connectionKey") ||
+      "";
+    if (!tokenCandidate) {
+      throw new Error("Pairing URL does not include a bridgePair token.");
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("bridgePair token")) {
+      throw error;
+    }
+  }
+
+  try {
+    const decoded = decodeBase64Url(tokenCandidate);
+    const parsed = JSON.parse(decoded);
+    const pairingFromToken = parsePairingObject(parsed);
+    if (!pairingFromToken) {
+      throw new Error("Decoded pairing token does not contain bridge configuration.");
+    }
+    return pairingFromToken;
+  } catch {
+    throw new Error("Pairing token could not be decoded. Paste the full pairing URL or key JSON.");
+  }
+}
+
+async function applyBridgePairing(rawInput, sourceLabel = "Pairing") {
+  const pairing = parsePairingPayload(rawInput);
+  const bridgeConfig = pairing.bridgeConfig || {};
+
+  const configPayload = {
+    bridgeEnabled: true,
+    bridgeAutostart: bridgeConfig.bridgeAutostart !== false,
+    bridgeDomainUrl: String(bridgeConfig.bridgeDomainUrl || ""),
+    bridgeUpstreamUrl: String(bridgeConfig.bridgeUpstreamUrl || "http://127.0.0.1:11434"),
+    bridgePort: Number(bridgeConfig.bridgePort || 43110),
+    bridgeAllowedOrigins: String(bridgeConfig.bridgeAllowedOrigins || ""),
+    bridgeApiKey: String(bridgeConfig.bridgeApiKey || ""),
+    bridgePublicBaseUrl: String(bridgeConfig.bridgePublicBaseUrl || ""),
+    bridgeModel: String(bridgeConfig.bridgeModel || "llama3.2:3b"),
+    bridgeThinkingModel: String(bridgeConfig.bridgeThinkingModel || "deepseek-r1:8b"),
+    bridgeCudaDevice: String(bridgeConfig.bridgeCudaDevice || "auto"),
+    bridgeTemperature: Number(bridgeConfig.bridgeTemperature ?? 0.3),
+    bridgeTimeoutMs: Number(bridgeConfig.bridgeTimeoutMs || 36500),
+  };
+
+  const saveResult = await window.oyamaDesktop.setBridgeConfig(configPayload);
+  if (!saveResult.ok) {
+    throw new Error(saveResult.message || "Unable to apply pairing settings.");
+  }
+
+  renderBridgeState(saveResult.state);
+
+  if (configPayload.bridgeAutostart) {
+    const startResult = await window.oyamaDesktop.startBridge();
+    if (!startResult.ok) {
+      renderBridgeState(startResult.state || saveResult.state);
+      throw new Error(startResult.message || "Pairing applied but bridge failed to start.");
+    }
+    renderBridgeState(startResult.state);
+    setBridgeMessage(`${sourceLabel} applied. Bridge started and ready.`);
+    return;
+  }
+
+  setBridgeMessage(`${sourceLabel} applied. Click Start Bridge when ready.`);
+}
+
+async function refreshBridgeState(showMessage = false) {
+  const state = await window.oyamaDesktop.getBridgeState();
+  renderBridgeState(state);
+  if (showMessage) {
+    setBridgeMessage("Bridge state refreshed.");
+  }
+}
+
+async function openBridgeModal() {
+  if (!bridgeModal) return;
+  closeSettingsMenu();
+  bridgeModal.classList.remove("hidden");
+  setBridgeMessage("");
+  await refreshBridgeState(false);
+}
+
+async function saveBridgeSettings() {
+  const payload = {
+    minimizeToTaskbarOnClose: Boolean(bridgeMinimizeOnCloseInput?.checked),
+    bridgeAutostart: Boolean(bridgeAutostartInput?.checked),
+    bridgeDomainUrl: bridgeDomainUrlInput?.value || "",
+    bridgeUpstreamUrl: bridgeUpstreamUrlInput?.value || "",
+    bridgePort: Number(bridgePortInput?.value || "0"),
+    bridgeAllowedOrigins: bridgeAllowedOriginsInput?.value || "",
+    bridgeApiKey: bridgeApiKeyInput?.value || "",
+    bridgePublicBaseUrl: bridgePublicBaseUrlInput?.value || "",
+    bridgeModel: bridgeModelInput?.value || "",
+    bridgeThinkingModel: bridgeThinkingModelInput?.value || "",
+    bridgeCudaDevice: bridgeCudaDeviceSelect?.value || "auto",
+    bridgeTemperature: Number(bridgeTemperatureInput?.value || "0"),
+    bridgeTimeoutMs: Number(bridgeTimeoutInput?.value || "0"),
+  };
+
+  const result = await window.oyamaDesktop.setBridgeConfig(payload);
+  if (!result.ok) {
+    setBridgeMessage(result.message || "Unable to save bridge settings.", true);
+    return;
+  }
+
+  renderBridgeState(result.state);
+  setBridgeMessage("Bridge settings saved.");
+}
+
+async function startBridge() {
+  const result = await window.oyamaDesktop.startBridge();
+  if (!result.ok) {
+    setBridgeMessage(result.message || "Bridge failed to start.", true);
+    if (result.state) renderBridgeState(result.state);
+    return;
+  }
+
+  renderBridgeState(result.state);
+  setBridgeMessage("Bridge started. Use the Endpoint URL value in your domain AI settings.");
+}
+
+async function stopBridge() {
+  const result = await window.oyamaDesktop.stopBridge();
+  if (!result.ok) {
+    setBridgeMessage(result.message || "Bridge failed to stop.", true);
+    if (result.state) renderBridgeState(result.state);
+    return;
+  }
+
+  renderBridgeState(result.state);
+  setBridgeMessage("Bridge stopped.");
 }
 
 function openSecurityModal() {
@@ -481,6 +812,115 @@ if (settingsSecurity) {
   });
 }
 
+if (settingsBridge) {
+  settingsBridge.addEventListener("click", () => {
+    void openBridgeModal();
+  });
+}
+
+if (settingsQuit) {
+  settingsQuit.addEventListener("click", () => {
+    window.oyamaDesktop.quitApp();
+  });
+}
+
+if (bridgeCloseBtn) {
+  bridgeCloseBtn.addEventListener("click", () => {
+    closeBridgeModal();
+  });
+}
+
+if (bridgeCancelBtn) {
+  bridgeCancelBtn.addEventListener("click", () => {
+    closeBridgeModal();
+  });
+}
+
+if (bridgeRefreshBtn) {
+  bridgeRefreshBtn.addEventListener("click", () => {
+    void refreshBridgeState(true);
+  });
+}
+
+if (bridgeSaveBtn) {
+  bridgeSaveBtn.addEventListener("click", () => {
+    void saveBridgeSettings();
+  });
+}
+
+if (bridgeStartBtn) {
+  bridgeStartBtn.addEventListener("click", () => {
+    void startBridge();
+  });
+}
+
+if (bridgeStopBtn) {
+  bridgeStopBtn.addEventListener("click", () => {
+    void stopBridge();
+  });
+}
+
+if (bridgeApplyPairingBtn) {
+  bridgeApplyPairingBtn.addEventListener("click", () => {
+    void (async () => {
+      setBridgeMessage("");
+      try {
+        await applyBridgePairing(bridgePairingInput?.value || "", "Pairing URL");
+      } catch (error) {
+        setBridgeMessage(error instanceof Error ? error.message : "Pairing failed.", true);
+      }
+    })();
+  });
+}
+
+if (bridgeImportKeyBtn && bridgeImportKeyInput) {
+  bridgeImportKeyBtn.addEventListener("click", () => {
+    bridgeImportKeyInput.click();
+  });
+
+  bridgeImportKeyInput.addEventListener("change", () => {
+    void (async () => {
+      const file = bridgeImportKeyInput.files && bridgeImportKeyInput.files[0];
+      bridgeImportKeyInput.value = "";
+      if (!file) return;
+
+      setBridgeMessage("");
+
+      try {
+        const text = await file.text();
+        if (bridgePairingInput) {
+          bridgePairingInput.value = text;
+        }
+        await applyBridgePairing(text, "Connection key file");
+      } catch (error) {
+        setBridgeMessage(error instanceof Error ? error.message : "Connection key import failed.", true);
+      }
+    })();
+  });
+}
+
+bridgeCopyButtons.forEach((button) => {
+  button.addEventListener("click", async () => {
+    const targetId = button.getAttribute("data-copy-target");
+    if (!targetId) return;
+    const target = document.getElementById(targetId);
+    if (!(target instanceof HTMLInputElement)) return;
+
+    const value = target.value || "";
+    if (!value) {
+      setBridgeMessage("Nothing to copy yet.", true);
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(value);
+      setBridgeMessage(`Copied ${targetId.replace(/^bridgeCopy/, "")} value.`);
+    } catch {
+      setBridgeMessage("Clipboard copy failed. Select the text manually and copy.", true);
+    }
+  });
+});
+
 securityCloseBtn.addEventListener("click", () => {
   closeSecurityModal();
 });
@@ -573,6 +1013,10 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     if (!securityModal.classList.contains("hidden")) {
       closeSecurityModal();
+      return;
+    }
+    if (bridgeModal && !bridgeModal.classList.contains("hidden")) {
+      closeBridgeModal();
       return;
     }
     closeSettingsMenu();

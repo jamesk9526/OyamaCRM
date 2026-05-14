@@ -20,6 +20,7 @@ import OShareviewBlueprintsPanel, {
   type ReportTabId,
 } from "@/app/components/reports/OShareviewBlueprintsPanel";
 import OShareviewCoveragePanel from "@/app/components/reports/OShareviewCoveragePanel";
+import OShareviewAdminWorkspace from "@/app/components/reports/OShareviewAdminWorkspace";
 import { apiFetch } from "@/app/lib/auth-client";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -48,7 +49,7 @@ function parseTabId(rawTab: string | null): TabId {
 /** Resolves a safe reports workspace module id from URL query input. */
 function parseReportsModule(rawModule: string | null): ReportsWorkspaceModule {
   if (!rawModule) return "donor";
-  const validModules: ReportsWorkspaceModule[] = ["donor", "events", "compassion", "ogentic"];
+  const validModules: ReportsWorkspaceModule[] = ["donor", "events", "compassion", "ogentic", "admin"];
   return validModules.includes(rawModule as ReportsWorkspaceModule) ? (rawModule as ReportsWorkspaceModule) : "donor";
 }
 
@@ -288,6 +289,282 @@ function exportCSV(data: Record<string, unknown>[], filename: string): void {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+interface ReportPacketPayload {
+  title: string;
+  subtitle: string;
+  rows: Array<Record<string, unknown>>;
+  generatedAt: string;
+}
+
+function normalizeDownloadName(title: string): string {
+  return `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "report-packet"}.pdf`;
+}
+
+function toNumeric(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return null;
+  const cleaned = value.replace(/[^0-9.-]+/g, "");
+  if (!cleaned) return null;
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function pickRowLabel(row: Record<string, unknown>, fallback: string): string {
+  const text = Object.values(row).find((value) => typeof value === "string" && value.trim().length > 0);
+  if (!text) return fallback;
+  return String(text).slice(0, 42);
+}
+
+function pickRowValue(row: Record<string, unknown>): number | null {
+  const priorityKeys = ["Revenue", "Raised", "LifetimeGiving", "Amount", "Count", "Donors", "Gifts"];
+  for (const key of priorityKeys) {
+    if (!(key in row)) continue;
+    const numeric = toNumeric(row[key]);
+    if (numeric !== null) return numeric;
+  }
+
+  for (const value of Object.values(row)) {
+    const numeric = toNumeric(value);
+    if (numeric !== null) return numeric;
+  }
+
+  return null;
+}
+
+function buildPdfViewerHtml({
+  title,
+  generatedAt,
+  downloadName,
+  rowCount,
+  pdfUrl,
+}: {
+  title: string;
+  generatedAt: string;
+  downloadName: string;
+  rowCount: number;
+  pdfUrl: string;
+}): string {
+  const safeTitle = escapeHtml(title);
+  const safeGeneratedAt = escapeHtml(generatedAt);
+  const safeDownloadName = escapeHtml(downloadName);
+  const safePdfUrl = escapeHtml(pdfUrl);
+
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${safeTitle} - PDF Viewer</title>
+    <style>
+      :root { color-scheme: light; }
+      body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; background: #f8fafc; color: #0f172a; }
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 14px;
+        border-bottom: 1px solid #dbeafe;
+        background: linear-gradient(90deg, #ecfeff 0%, #f0fdf4 100%);
+      }
+      .meta { min-width: 0; }
+      .title { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .sub { margin-top: 2px; font-size: 11px; color: #475569; }
+      .actions { display: flex; align-items: center; gap: 8px; }
+      .btn {
+        border: 1px solid #94a3b8;
+        border-radius: 8px;
+        background: #ffffff;
+        padding: 7px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #0f172a;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .btn.primary { border-color: #16a34a; background: #16a34a; color: #ffffff; }
+      iframe {
+        display: block;
+        width: 100%;
+        height: calc(100vh - 60px);
+        border: 0;
+        background: #ffffff;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="meta">
+        <div class="title">${safeTitle}</div>
+        <div class="sub">Generated ${safeGeneratedAt} | ${rowCount} rows</div>
+      </div>
+      <div class="actions">
+        <a class="btn primary" href="${safePdfUrl}" download="${safeDownloadName}">Download PDF</a>
+        <button class="btn" type="button" onclick="window.print()">Print</button>
+      </div>
+    </header>
+    <iframe src="${safePdfUrl}#zoom=page-width" title="Report PDF Viewer"></iframe>
+  </body>
+</html>`;
+}
+
+async function buildReportPacketPdfBlob(packet: ReportPacketPayload): Promise<Blob> {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ unit: "pt", format: "letter", orientation: "landscape" });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 36;
+  const usableWidth = pageWidth - margin * 2;
+  let y = margin;
+
+  doc.setFillColor(236, 253, 245);
+  doc.rect(0, 0, pageWidth, 96, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(20);
+  doc.text(packet.title, margin, y + 24);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.setTextColor(51, 65, 85);
+  doc.text(packet.subtitle, margin, y + 44, { maxWidth: usableWidth });
+  doc.text(`Generated ${packet.generatedAt}`, margin, y + 62);
+  y = 110;
+
+  const values = packet.rows
+    .map((row) => pickRowValue(row))
+    .filter((value): value is number => value !== null);
+  const totalValue = values.reduce((sum, value) => sum + value, 0);
+  const avgValue = values.length > 0 ? totalValue / values.length : 0;
+  const stats = [
+    { label: "Rows", value: String(packet.rows.length) },
+    { label: "Total Value", value: `$${fmtCurrency(totalValue)}` },
+    { label: "Average", value: `$${fmtCurrency(avgValue)}` },
+  ];
+  const statCardWidth = (usableWidth - 16) / 3;
+  stats.forEach((stat, index) => {
+    const x = margin + index * (statCardWidth + 8);
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(x, y, statCardWidth, 50, 6, 6, "FD");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(71, 85, 105);
+    doc.text(stat.label, x + 10, y + 18);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(15, 23, 42);
+    doc.text(stat.value, x + 10, y + 36);
+  });
+  y += 66;
+
+  const chartRows = packet.rows
+    .map((row, index) => ({
+      label: pickRowLabel(row, `Row ${index + 1}`),
+      value: pickRowValue(row) ?? 0,
+    }))
+    .filter((entry) => entry.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(15, 23, 42);
+  doc.text("Visual Snapshot", margin, y);
+  y += 8;
+
+  const chartX = margin;
+  const chartY = y;
+  const chartHeight = 124;
+  const barAreaWidth = usableWidth - 180;
+  const chartMax = Math.max(...chartRows.map((entry) => entry.value), 1);
+  doc.setDrawColor(226, 232, 240);
+  doc.rect(chartX, chartY, usableWidth, chartHeight);
+
+  if (chartRows.length === 0) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(100, 116, 139);
+    doc.text("No numeric values available for charting.", chartX + 10, chartY + 20);
+  } else {
+    chartRows.forEach((entry, index) => {
+      const rowY = chartY + 16 + index * 14;
+      const barWidth = Math.max(6, Math.round((entry.value / chartMax) * barAreaWidth));
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(51, 65, 85);
+      doc.text(entry.label, chartX + 8, rowY);
+      doc.setFillColor(22, 163, 74);
+      doc.roundedRect(chartX + 122, rowY - 8, barWidth, 8, 2, 2, "F");
+      doc.setFont("helvetica", "bold");
+      doc.text(`$${fmtCurrency(entry.value)}`, chartX + 126 + barWidth, rowY);
+    });
+  }
+
+  y = chartY + chartHeight + 16;
+  const headers = packet.rows.length > 0 ? Object.keys(packet.rows[0]).slice(0, 6) : [];
+
+  if (headers.length === 0) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(100, 116, 139);
+    doc.text("No rows matched the current filters.", margin, y);
+    return doc.output("blob");
+  }
+
+  const drawTableHeader = () => {
+    const colWidth = usableWidth / headers.length;
+    doc.setFillColor(241, 245, 249);
+    doc.setDrawColor(203, 213, 225);
+    doc.rect(margin, y, usableWidth, 18, "FD");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(30, 41, 59);
+    headers.forEach((header, index) => {
+      doc.text(header, margin + index * colWidth + 4, y + 12, { maxWidth: colWidth - 8 });
+    });
+    y += 18;
+  };
+
+  drawTableHeader();
+
+  const rowHeight = 16;
+  const maxRows = 80;
+  const rowsToRender = packet.rows.slice(0, maxRows);
+  rowsToRender.forEach((row) => {
+    if (y + rowHeight > pageHeight - margin) {
+      doc.addPage();
+      y = margin;
+      drawTableHeader();
+    }
+    const colWidth = usableWidth / headers.length;
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(margin, y, usableWidth, rowHeight);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(51, 65, 85);
+    headers.forEach((header, index) => {
+      const raw = String(row[header] ?? "");
+      const clipped = raw.length > 44 ? `${raw.slice(0, 41)}...` : raw;
+      doc.text(clipped, margin + index * colWidth + 4, y + 11, { maxWidth: colWidth - 8 });
+    });
+    y += rowHeight;
+  });
+
+  return doc.output("blob");
 }
 
 // ─── Sub-Components ────────────────────────────────────────────────────────────
@@ -590,6 +867,9 @@ export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<TabId>(() => parseTabId(searchParams.get("tab")));
   const [year, setYear] = useState<number>(CURRENT_YEAR);
   const [allYears, setAllYears] = useState(false);
+  const [recordFilterText, setRecordFilterText] = useState("");
+  const [minValueFilter, setMinValueFilter] = useState<number>(0);
+  const [campaignStatusFilter, setCampaignStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [donorReportsError, setDonorReportsError] = useState<string | null>(null);
   const [lastLiveRefreshAt, setLastLiveRefreshAt] = useState<Date>(new Date());
 
@@ -1019,15 +1299,15 @@ export default function ReportsPage() {
       handleTabChange("overview");
       return;
     }
-    if (toolId === "donor-donors") {
+    if (toolId === "donor-donors" || toolId === "donor-segmentation") {
       handleTabChange("donors");
       return;
     }
-    if (toolId === "donor-giving") {
+    if (toolId === "donor-giving" || toolId === "donor-payment-methods") {
       handleTabChange("giving");
       return;
     }
-    if (toolId === "donor-campaigns") {
+    if (toolId === "donor-campaigns" || toolId === "donor-pipeline") {
       handleTabChange("campaigns");
       return;
     }
@@ -1044,7 +1324,7 @@ export default function ReportsPage() {
   function handleExport() {
     if (activeModule === "events") {
       exportCSV(
-        (eventsSummary?.topEvents ?? []).map((event) => ({
+        filteredEventsTopEvents.map((event) => ({
           Event: event.name,
           Type: event.type,
           Revenue: event.revenue,
@@ -1058,7 +1338,7 @@ export default function ReportsPage() {
 
     if (activeModule === "compassion") {
       exportCSV(
-        (compassionSummary?.appointmentsByType ?? []).map((row) => ({
+        filteredCompassionAppointments.map((row) => ({
           AppointmentType: row.label,
           Count: row.value,
         })),
@@ -1081,10 +1361,26 @@ export default function ReportsPage() {
       return;
     }
 
+    if (activeModule === "admin") {
+      exportCSV(
+        [
+          {
+            Module: "Admin",
+            Tool: activeTool,
+            Scope: scopeLabel,
+            Filter: recordFilterText.trim() || "none",
+            MinValue: minValueFilter,
+          },
+        ],
+        "admin-reporting-context.csv"
+      );
+      return;
+    }
+
     switch (activeTab) {
       case "overview":
         exportCSV(
-          topDonors.map((d) => ({
+          filteredTopDonors.map((d) => ({
             Name: `${d.firstName} ${d.lastName}`,
             Email: d.email ?? "",
             LifetimeGiving: Number(d.totalLifetimeGiving),
@@ -1096,7 +1392,7 @@ export default function ReportsPage() {
         break;
       case "donors":
         exportCSV(
-          lybunt.map((d) => ({
+          filteredLybunt.map((d) => ({
             Name: `${d.firstName} ${d.lastName}`,
             Email: d.email ?? "",
             LastGiftDate: d.lastGiftDate ?? "",
@@ -1119,7 +1415,7 @@ export default function ReportsPage() {
         break;
       case "campaigns":
         exportCSV(
-          campaigns.map((c) => ({
+          filteredCampaigns.map((c) => ({
             Campaign: c.name,
             Active: c.active ? "Yes" : "No",
             Goal: c.goal ?? "",
@@ -1133,7 +1429,7 @@ export default function ReportsPage() {
         break;
       case "retention":
         exportCSV(
-          lybunt.map((d) => ({
+          filteredLybunt.map((d) => ({
             Name: `${d.firstName} ${d.lastName}`,
             Email: d.email ?? "",
             LastGiftDate: d.lastGiftDate ?? "",
@@ -1149,12 +1445,160 @@ export default function ReportsPage() {
   /** Triggers a server-generated CSV export for permission-gated report downloads. */
   function handleServerExport() {
     const scope = new URLSearchParams({ year: String(year) });
-    window.location.href = `/api/reports/exports/giving-by-month.csv?${scope.toString()}`;
+    window.location.assign(`/api/reports/exports/giving-by-month.csv?${scope.toString()}`);
   }
 
-  /** Uses browser print to generate printable report packets from the current OShareview state. */
+  /** Uses a dedicated printable packet window for more reliable PDF generation workflows. */
   function handlePrintCurrentReport() {
-    window.print();
+    const generatedAt = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+    const scopeText = `${scopeLabel}${allYears ? "" : " scope"} | Filter: ${recordFilterText.trim() || "none"} | Min value: $${fmtCurrency(minValueFilter)}`;
+    let title = "OShareview Report Packet";
+    let rows: Array<Record<string, unknown>> = [];
+
+    if (activeModule === "events") {
+      title = "Events Reporting Packet";
+      rows = filteredEventsTopEvents.map((event) => ({
+        Event: event.name,
+        Type: event.type,
+        Revenue: `$${fmtCurrency(event.revenue)}`,
+        Guests: event.guests,
+        CheckedIn: event.checkedIn,
+        AttendanceRate: `${event.guests > 0 ? Math.round((event.checkedIn / event.guests) * 100) : 0}%`,
+      }));
+    } else if (activeModule === "compassion") {
+      title = "Compassion Reporting Packet";
+      rows = filteredCompassionAppointments.map((row) => ({
+        AppointmentType: row.label,
+        Count: row.value,
+      }));
+    } else if (activeModule === "ogentic") {
+      title = "OGentic Reporting Packet";
+      rows = [
+        {
+          Drafts: ogenticArtifactsCount.drafts,
+          Reports: ogenticArtifactsCount.reports,
+          Analyses: ogenticArtifactsCount.analyses,
+          Scope: scopeLabel,
+        },
+      ];
+    } else if (activeModule === "admin") {
+      title = "Administrative Reporting Packet";
+      rows = [
+        {
+          Module: "Admin",
+          Tool: activeTool,
+          Scope: scopeLabel,
+          Note: "Use Export CSV inside admin rows if this view is filtered to operational records.",
+        },
+      ];
+    } else {
+      switch (activeTab) {
+        case "overview":
+          title = "Top Donors Packet";
+          rows = filteredTopDonors.map((donor) => ({
+            Name: `${donor.firstName} ${donor.lastName}`,
+            Email: donor.email ?? "",
+            LifetimeGiving: `$${fmtCurrency(Number(donor.totalLifetimeGiving ?? 0))}`,
+            LastGift: fmtDate(donor.lastGiftDate),
+            Status: donor.donorStatus,
+          }));
+          break;
+        case "donors":
+          title = showSybunt ? "SYBUNT Packet" : "LYBUNT Packet";
+          rows = (showSybunt ? filteredSybunt : filteredLybunt).map((donor) => ({
+            Name: `${donor.firstName} ${donor.lastName}`,
+            Email: donor.email ?? "",
+            LastGiftDate: fmtDate(donor.lastGiftDate),
+            LastGiftAmount: `$${fmtCurrency(Number(donor.lastGiftAmount ?? 0))}`,
+            LifetimeGiving: `$${fmtCurrency(Number(donor.totalLifetimeGiving ?? 0))}`,
+            Status: donor.donorStatus,
+          }));
+          break;
+        case "giving":
+          title = `Year Comparison Packet (${year})`;
+          rows = yearComparison.map((row) => ({
+            Month: MONTHS_SHORT[row.month - 1],
+            [String(year)]: `$${fmtCurrency(row.thisYear)}`,
+            [String(year - 1)]: `$${fmtCurrency(row.lastYear)}`,
+          }));
+          break;
+        case "campaigns":
+          title = "Campaign Performance Packet";
+          rows = filteredCampaigns.map((campaign) => ({
+            Campaign: campaign.name,
+            Active: campaign.active ? "Yes" : "No",
+            Raised: `$${fmtCurrency(campaign.raised)}`,
+            Goal: campaign.goal ? `$${fmtCurrency(campaign.goal)}` : "",
+            Gifts: campaign.giftCount,
+            Donors: campaign.uniqueDonors,
+            AvgGift: `$${fmtCurrency(campaign.avgGift)}`,
+          }));
+          break;
+        case "retention":
+          title = "Retention Opportunity Packet";
+          rows = filteredLybunt.map((donor) => ({
+            Name: `${donor.firstName} ${donor.lastName}`,
+            Email: donor.email ?? "",
+            LastGiftDate: fmtDate(donor.lastGiftDate),
+            LifetimeGiving: `$${fmtCurrency(Number(donor.totalLifetimeGiving ?? 0))}`,
+            Status: donor.donorStatus,
+          }));
+          break;
+      }
+    }
+
+    const packet: ReportPacketPayload = {
+      title,
+      subtitle: scopeText,
+      rows,
+      generatedAt,
+    };
+
+    const loadingTitle = escapeHtml(`${title} - Preparing visual PDF...`);
+    const viewerWindow = window.open("", "_blank", "noopener,noreferrer,width=1320,height=900");
+    if (viewerWindow) {
+      viewerWindow.document.open();
+      viewerWindow.document.write(`<!doctype html><html><head><meta charset="utf-8" /><title>${loadingTitle}</title><style>body{font-family:Segoe UI,Arial,sans-serif;background:#f8fafc;color:#0f172a;margin:0;display:grid;place-items:center;height:100vh}.card{padding:24px 28px;border:1px solid #dbeafe;background:#ffffff;border-radius:12px;box-shadow:0 8px 24px rgba(15,23,42,.08)}.spinner{width:20px;height:20px;border:2px solid #bfdbfe;border-top-color:#16a34a;border-radius:999px;animation:spin 1s linear infinite;margin:0 auto 10px}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="card"><div class="spinner"></div><div>Building visual report PDF...</div></div></body></html>`);
+      viewerWindow.document.close();
+    }
+
+    void (async () => {
+      try {
+        const pdfBlob = await buildReportPacketPdfBlob(packet);
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        const downloadName = normalizeDownloadName(packet.title);
+        const viewerHtml = buildPdfViewerHtml({
+          title: packet.title,
+          generatedAt: packet.generatedAt,
+          downloadName,
+          rowCount: packet.rows.length,
+          pdfUrl,
+        });
+
+        if (viewerWindow && !viewerWindow.closed) {
+          viewerWindow.document.open();
+          viewerWindow.document.write(viewerHtml);
+          viewerWindow.document.close();
+          viewerWindow.focus();
+        } else {
+          // Same-tab fallback if popup opening is blocked.
+          window.location.assign(pdfUrl);
+        }
+
+        window.setTimeout(() => {
+          URL.revokeObjectURL(pdfUrl);
+        }, 10 * 60 * 1000);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown PDF generation error.";
+        if (viewerWindow && !viewerWindow.closed) {
+          viewerWindow.document.open();
+          viewerWindow.document.write(`<!doctype html><html><head><meta charset="utf-8" /><title>PDF Error</title><style>body{font-family:Segoe UI,Arial,sans-serif;background:#fef2f2;color:#7f1d1d;margin:0;display:grid;place-items:center;height:100vh}.card{padding:20px 22px;border:1px solid #fecaca;background:#fff1f2;border-radius:12px;max-width:580px}</style></head><body><div class="card"><strong>Unable to generate visual PDF.</strong><div style="margin-top:8px;">${escapeHtml(message)}</div></div></body></html>`);
+          viewerWindow.document.close();
+        } else {
+          window.alert("Unable to generate visual PDF packet.");
+        }
+      }
+    })();
   }
 
   function handleApplyBlueprint(blueprint: OShareviewReportBlueprint) {
@@ -1180,6 +1624,73 @@ export default function ReportsPage() {
   const segmentTotal = donorSegments
     ? Object.values(donorSegments).reduce((a, b) => a + b, 0)
     : 0;
+
+  const normalizedFilter = recordFilterText.trim().toLowerCase();
+
+  const filteredTopDonors = topDonors.filter((donor) => {
+    const fullName = `${donor.firstName} ${donor.lastName}`.toLowerCase();
+    const matchesQuery =
+      normalizedFilter.length === 0
+      || fullName.includes(normalizedFilter)
+      || (donor.email ?? "").toLowerCase().includes(normalizedFilter)
+      || donor.donorStatus.toLowerCase().includes(normalizedFilter);
+    const lifetimeGiving = Number(donor.totalLifetimeGiving ?? 0);
+    return matchesQuery && lifetimeGiving >= minValueFilter;
+  });
+
+  const filteredLybunt = lybunt.filter((donor) => {
+    const fullName = `${donor.firstName} ${donor.lastName}`.toLowerCase();
+    const matchesQuery =
+      normalizedFilter.length === 0
+      || fullName.includes(normalizedFilter)
+      || (donor.email ?? "").toLowerCase().includes(normalizedFilter)
+      || donor.donorStatus.toLowerCase().includes(normalizedFilter);
+    const lifetimeGiving = Number(donor.totalLifetimeGiving ?? 0);
+    return matchesQuery && lifetimeGiving >= minValueFilter;
+  });
+
+  const filteredSybunt = sybunt.filter((donor) => {
+    const fullName = `${donor.firstName} ${donor.lastName}`.toLowerCase();
+    const matchesQuery =
+      normalizedFilter.length === 0
+      || fullName.includes(normalizedFilter)
+      || (donor.email ?? "").toLowerCase().includes(normalizedFilter)
+      || donor.donorStatus.toLowerCase().includes(normalizedFilter);
+    const lifetimeGiving = Number(donor.totalLifetimeGiving ?? 0);
+    return matchesQuery && lifetimeGiving >= minValueFilter;
+  });
+
+  const filteredCampaigns = campaigns.filter((campaign) => {
+    const matchesQuery = normalizedFilter.length === 0 || campaign.name.toLowerCase().includes(normalizedFilter);
+    const matchesStatus =
+      campaignStatusFilter === "all"
+      || (campaignStatusFilter === "active" && campaign.active)
+      || (campaignStatusFilter === "inactive" && !campaign.active);
+    return matchesQuery && matchesStatus && campaign.raised >= minValueFilter;
+  });
+
+  const filteredEventsTopEvents = (eventsSummary?.topEvents ?? []).filter((event) => {
+    const matchesQuery =
+      normalizedFilter.length === 0
+      || event.name.toLowerCase().includes(normalizedFilter)
+      || event.type.toLowerCase().includes(normalizedFilter);
+    return matchesQuery && event.revenue >= minValueFilter;
+  });
+
+  const filteredCompassionCasesByType = (compassionSummary?.casesByType ?? []).filter((row) => {
+    if (normalizedFilter.length === 0) return true;
+    return row.label.toLowerCase().includes(normalizedFilter);
+  });
+
+  const filteredCompassionCasesByStatus = (compassionSummary?.casesByStatus ?? []).filter((row) => {
+    if (normalizedFilter.length === 0) return true;
+    return row.label.toLowerCase().includes(normalizedFilter);
+  });
+
+  const filteredCompassionAppointments = (compassionSummary?.appointmentsByType ?? []).filter((row) => {
+    if (normalizedFilter.length === 0) return true;
+    return row.label.toLowerCase().includes(normalizedFilter);
+  });
 
   /** Maximum payment amount (for scaling horizontal payment-method bars). */
   const maxPayment =
@@ -1356,7 +1867,7 @@ export default function ReportsPage() {
             {/* Top 5 donors */}
             <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100">
-                <h2 className="text-sm font-semibold text-gray-900">Top 5 Donors</h2>
+                <h2 className="text-sm font-semibold text-gray-900">Top Donors</h2>
               </div>
               <table className="w-full text-sm">
                 <thead>
@@ -1382,7 +1893,7 @@ export default function ReportsPage() {
                           ))}
                         </tr>
                       ))
-                    : topDonors.map((d) => (
+                    : filteredTopDonors.slice(0, 10).map((d) => (
                         <tr key={d.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-4 py-2.5">
                             <Link
@@ -1407,10 +1918,10 @@ export default function ReportsPage() {
                           </td>
                         </tr>
                       ))}
-                  {!loadingOverview && topDonors.length === 0 && (
+                  {!loadingOverview && filteredTopDonors.length === 0 && (
                     <tr>
                       <td colSpan={4} className="px-4 py-6 text-center text-gray-400 text-sm">
-                        No donor data yet.
+                        No donor rows match current filters.
                       </td>
                     </tr>
                   )}
@@ -1565,10 +2076,10 @@ export default function ReportsPage() {
                 </p>
               </div>
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">
-                {loadingDonors ? "…" : lybunt.length} donors
+                {loadingDonors ? "…" : filteredLybunt.length} donors
               </span>
             </div>
-            <LybuntTable donors={lybunt} loading={loadingDonors} />
+            <LybuntTable donors={filteredLybunt} loading={loadingDonors} />
           </div>
 
           {/* SYBUNT section (collapsible) */}
@@ -1584,7 +2095,7 @@ export default function ReportsPage() {
               </div>
               <div className="flex items-center gap-3">
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                  {loadingDonors ? "…" : sybunt.length} donors
+                  {loadingDonors ? "…" : filteredSybunt.length} donors
                 </span>
                 <button
                   onClick={() => setShowSybunt((v) => !v)}
@@ -1594,7 +2105,7 @@ export default function ReportsPage() {
                 </button>
               </div>
             </div>
-            {showSybunt && <LybuntTable donors={sybunt} loading={loadingDonors} />}
+            {showSybunt && <LybuntTable donors={filteredSybunt} loading={loadingDonors} />}
           </div>
 
           {/* New vs Returning stacked bar chart */}
@@ -1786,7 +2297,7 @@ export default function ReportsPage() {
             <span className="text-xs text-gray-500">
               {loadingCampaigns
                 ? "Loading…"
-                : `${campaigns.length} campaign${campaigns.length !== 1 ? "s" : ""}`}
+                  : `${filteredCampaigns.length} campaign${filteredCampaigns.length !== 1 ? "s" : ""}`}
             </span>
           </div>
 
@@ -1796,14 +2307,14 @@ export default function ReportsPage() {
                 <Sk key={i} className="h-36 w-full" />
               ))}
             </div>
-          ) : campaigns.length === 0 ? (
+          ) : filteredCampaigns.length === 0 ? (
             <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
               <p className="text-gray-400 text-sm">
-                No campaigns found. Create your first campaign to see performance data here.
+                No campaigns match the current filter set.
               </p>
             </div>
           ) : (
-            campaigns.map((c) => {
+            filteredCampaigns.map((c) => {
               const goalPct =
                 c.goal && c.goal > 0 ? Math.min(100, (c.raised / c.goal) * 100) : null;
               return (
@@ -1952,7 +2463,7 @@ export default function ReportsPage() {
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-2xl font-bold text-amber-600">
-                  {loadingDonors ? "…" : lybunt.length}
+                  {loadingDonors ? "…" : filteredLybunt.length}
                 </span>
                 <button
                   onClick={() => setActiveTab("donors")}
@@ -2024,7 +2535,7 @@ export default function ReportsPage() {
                     </div>
                   )}
 
-                  {activeTool === "events-top-events" && (
+                  {(activeTool === "events-top-events" || activeTool === "events-revenue") && (
                     <div className="mt-3 overflow-x-auto rounded-lg border border-gray-200">
                       <table className="w-full text-sm">
                         <thead className="bg-gray-50 border-b border-gray-200">
@@ -2035,7 +2546,7 @@ export default function ReportsPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {eventsSummary.topEvents.slice(0, 6).map((event) => (
+                          {filteredEventsTopEvents.slice(0, 8).map((event) => (
                             <tr key={event.id} className="border-b border-gray-100">
                               <td className="px-3 py-2 text-gray-800">{event.name}</td>
                               <td className="px-3 py-2 text-gray-700">${fmtCurrency(event.revenue)}</td>
@@ -2047,9 +2558,22 @@ export default function ReportsPage() {
                     </div>
                   )}
 
-                  {activeTool === "events-attendance" && (
+                  {activeTool === "events-revenue" && (
+                    <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+                      <p className="text-xs font-semibold text-emerald-900">Revenue Concentration</p>
+                      <p className="mt-1 text-xs text-emerald-800">
+                        Top event share: {
+                          filteredEventsTopEvents.length > 0 && eventsSummary.totalRevenue > 0
+                            ? `${Math.round((filteredEventsTopEvents[0].revenue / eventsSummary.totalRevenue) * 100)}%`
+                            : "0%"
+                        } of visible revenue.
+                      </p>
+                    </div>
+                  )}
+
+                  {(activeTool === "events-attendance" || activeTool === "events-operations") && (
                     <div className="mt-3 space-y-2">
-                      {eventsSummary.topEvents.slice(0, 5).map((event) => {
+                      {filteredEventsTopEvents.slice(0, 6).map((event) => {
                         const pct = event.guests > 0 ? Math.round((event.checkedIn / event.guests) * 100) : 0;
                         return (
                           <div key={`${event.id}-attendance`} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
@@ -2107,7 +2631,7 @@ export default function ReportsPage() {
                       <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
                         <p className="text-xs font-semibold text-gray-800">Cases by Type</p>
                         <div className="mt-2 space-y-1.5 text-xs text-gray-600">
-                          {compassionSummary.casesByType.slice(0, 6).map((row) => (
+                          {filteredCompassionCasesByType.slice(0, 8).map((row) => (
                             <div key={`type-${row.label}`} className="flex justify-between">
                               <span>{row.label}</span>
                               <span className="font-medium">{row.value}</span>
@@ -2118,7 +2642,7 @@ export default function ReportsPage() {
                       <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
                         <p className="text-xs font-semibold text-gray-800">Cases by Status</p>
                         <div className="mt-2 space-y-1.5 text-xs text-gray-600">
-                          {compassionSummary.casesByStatus.slice(0, 6).map((row) => (
+                          {filteredCompassionCasesByStatus.slice(0, 8).map((row) => (
                             <div key={`status-${row.label}`} className="flex justify-between">
                               <span>{row.label}</span>
                               <span className="font-medium">{row.value}</span>
@@ -2129,17 +2653,29 @@ export default function ReportsPage() {
                     </div>
                   )}
 
-                  {activeTool === "compassion-appointments" && (
+                  {(activeTool === "compassion-appointments" || activeTool === "compassion-intake" || activeTool === "compassion-outcomes") && (
                     <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
                       <p className="text-xs font-semibold text-gray-800">Appointments by Type</p>
                       <div className="mt-2 space-y-1.5 text-xs text-gray-600">
-                        {compassionSummary.appointmentsByType.slice(0, 8).map((row) => (
+                        {filteredCompassionAppointments.slice(0, 10).map((row) => (
                           <div key={`appt-${row.label}`} className="flex justify-between">
                             <span>{row.label}</span>
                             <span className="font-medium">{row.value}</span>
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {activeTool === "compassion-intake" && (
+                    <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs text-blue-900">
+                      New clients this month: {compassionSummary.kpis.newClientsThisMonth.toLocaleString()} | Appointments this month: {compassionSummary.kpis.appointmentsThisMonth.toLocaleString()}
+                    </div>
+                  )}
+
+                  {activeTool === "compassion-outcomes" && (
+                    <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900">
+                      Completed appointments this month: {compassionSummary.kpis.completedAppointmentsThisMonth.toLocaleString()} | Completion rate: {Math.round(compassionSummary.kpis.completionRate)}%
                     </div>
                   )}
                 </>
@@ -2178,7 +2714,24 @@ export default function ReportsPage() {
                   Board pack assembly is in progress. This tool will combine donor, events, and compassion report slices into one export.
                 </div>
               )}
+
+              {activeTool === "ogentic-sources" && (
+                <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
+                  Source-mix diagnostics are staged here for AI-generated drafts, analyses, and report artifact workflows.
+                </div>
+              )}
             </section>
+          )}
+
+          {activeModule === "admin" && (
+            <OShareviewAdminWorkspace
+              year={year}
+              allYears={allYears}
+              tool={activeTool}
+              filterText={recordFilterText}
+              minAmount={minValueFilter}
+              canViewAdmin={user?.role === "admin"}
+            />
           )}
         </div>
       )}
@@ -2234,6 +2787,32 @@ export default function ReportsPage() {
               Include all years
             </label>
 
+            <input
+              value={recordFilterText}
+              onChange={(eventInput) => setRecordFilterText(eventInput.target.value)}
+              placeholder="Filter records by name, status, or type"
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+
+            <input
+              type="number"
+              min={0}
+              value={Number.isFinite(minValueFilter) ? minValueFilter : 0}
+              onChange={(eventInput) => setMinValueFilter(Math.max(0, Number(eventInput.target.value || 0)))}
+              placeholder="Minimum value"
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+
+            <select
+              value={campaignStatusFilter}
+              onChange={(eventInput) => setCampaignStatusFilter(eventInput.target.value as "all" | "active" | "inactive")}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              <option value="all">Campaigns: All</option>
+              <option value="active">Campaigns: Active only</option>
+              <option value="inactive">Campaigns: Inactive only</option>
+            </select>
+
             <button
               onClick={handleExport}
               className="w-full rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors"
@@ -2250,7 +2829,7 @@ export default function ReportsPage() {
               onClick={handlePrintCurrentReport}
               className="w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              Print Current Report
+              Generate PDF Packet
             </button>
           </div>
 

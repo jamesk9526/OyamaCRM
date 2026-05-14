@@ -633,6 +633,155 @@ body {
   gap: 10px;
 }
 
+.bridge-card {
+  width: min(920px, 98vw);
+  max-height: 92vh;
+  overflow: auto;
+}
+
+.bridge-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bridge-pairing-box {
+  border: 1px solid #dbe4dd;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.bridge-pairing-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.bridge-pairing-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+}
+
+.bridge-pairing-row input {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+}
+
+.bridge-pairing-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.bridge-status-pill {
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #f3f4f6;
+  color: #475569;
+}
+
+.bridge-status-pill.running {
+  border-color: #86efac;
+  background: #dcfce7;
+  color: #166534;
+}
+
+.bridge-status-pill.error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.bridge-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.bridge-check-row {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px;
+  font-weight: 600;
+}
+
+.bridge-endpoint-box {
+  border: 1px solid #dbe4dd;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.bridge-endpoint-box p {
+  margin: 0;
+}
+
+.bridge-copy-box {
+  border: 1px solid #dbe4dd;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.bridge-copy-box h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.bridge-copy-row {
+  display: grid;
+  gap: 6px;
+}
+
+.bridge-copy-row label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.bridge-copy-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.bridge-copy-control input {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+}
+
+.bridge-copy-control button {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.bridge-copy-control button:hover {
+  background: #f8fafc;
+}
+
+.bridge-mono {
+  font-family: Consolas, "Courier New", monospace;
+}
+
 .lock-overlay {
   position: fixed;
   inset: 0;
@@ -699,6 +848,14 @@ body {
   }
 
   .security-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bridge-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bridge-pairing-row {
     grid-template-columns: 1fr;
   }
 }

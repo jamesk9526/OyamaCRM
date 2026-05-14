@@ -19,6 +19,7 @@
     "productName": "OyamaCRM Desktop",
     "files": [
       "main.js",
+      "bridge-server.js",
       "preload.js",
       "shell.html",
       "shell.js",

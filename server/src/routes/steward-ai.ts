@@ -1,5 +1,6 @@
 /** Steward AI API routes for config, health test, and chat completion. */
 import { Router } from "express";
+import crypto from "node:crypto";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { resolveOrganizationId } from "../lib/organization.js";
@@ -57,6 +58,55 @@ interface StewardAiUpdatePayload {
 
 interface StewardAiModelsQuery {
   endpointUrl?: string;
+}
+
+interface BridgePairingRequestPayload {
+  siteUrl?: string;
+}
+
+type ReadinessStatus = "Working" | "Partially Working" | "Broken";
+
+interface BridgeReadinessCheck {
+  id: string;
+  label: string;
+  status: ReadinessStatus;
+  detail: string;
+}
+
+interface BridgeReadinessPayload {
+  status: ReadinessStatus;
+  summary: string;
+  checks: BridgeReadinessCheck[];
+  testedAt: string;
+}
+
+interface BridgePairingKeyPayload {
+  version: 1;
+  kind: "oyama.bridge.pairing";
+  generatedAt: string;
+  expiresAt: string;
+  organizationId: string;
+  organizationName: string;
+  bridgeConfig: {
+    bridgeAutostart: boolean;
+    bridgeUpstreamUrl: string;
+    bridgePort: number;
+    bridgeApiKey: string;
+    bridgeAllowedOrigins: string;
+    bridgePublicBaseUrl: string;
+    bridgeDomainUrl: string;
+    bridgeModel: string;
+    bridgeThinkingModel: string;
+    bridgeCudaDevice: string;
+    bridgeTemperature: number;
+    bridgeTimeoutMs: number;
+  };
+  aiHints: {
+    mode: "remote";
+    endpointUrl: string;
+    model: string;
+    thinkingModel: string;
+  };
 }
 
 interface StewardAiChatPayload {
@@ -822,6 +872,151 @@ function toPublicConfig(enabled: boolean, config: ReturnType<typeof parseSteward
   };
 }
 
+function statusWeight(status: ReadinessStatus): number {
+  if (status === "Broken") return 2;
+  if (status === "Partially Working") return 1;
+  return 0;
+}
+
+function pickOverallStatus(checks: BridgeReadinessCheck[]): ReadinessStatus {
+  if (checks.some((check) => check.status === "Broken")) return "Broken";
+  if (checks.some((check) => check.status === "Partially Working")) return "Partially Working";
+  return "Working";
+}
+
+function createReadinessSummary(status: ReadinessStatus, checks: BridgeReadinessCheck[]): string {
+  const blocked = checks.filter((check) => check.status === "Broken").length;
+  const partial = checks.filter((check) => check.status === "Partially Working").length;
+
+  if (status === "Working") {
+    return "CRM online is ready for Oyama Bridge pairing.";
+  }
+
+  if (status === "Partially Working") {
+    return `Bridge setup is partially ready. ${partial} check(s) need attention before full pairing.`;
+  }
+
+  return `Bridge setup is blocked. ${blocked} critical check(s) must be fixed before pairing.`;
+}
+
+function normalizeSiteUrl(rawSiteUrl: unknown, req: import("express").Request): string {
+  const text = String(rawSiteUrl ?? "").trim();
+
+  if (text.length > 0) {
+    const parsed = new URL(text);
+    if (!parsed.protocol.startsWith("http")) {
+      throw new Error("Site URL must use http or https.");
+    }
+    return parsed.toString().replace(/\/+$/, "");
+  }
+
+  const originHeader = String(req.headers.origin || "").trim();
+  if (originHeader) {
+    const parsed = new URL(originHeader);
+    return parsed.toString().replace(/\/+$/, "");
+  }
+
+  const host = String(req.headers.host || "").trim();
+  if (!host) {
+    return "http://localhost:3000";
+  }
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").trim();
+  const proto = forwardedProto === "https" ? "https" : "http";
+  return `${proto}://${host}`;
+}
+
+async function buildBridgeReadinessPayload(options: {
+  enabled: boolean;
+  config: ReturnType<typeof parseStewardAiConfig>;
+  includeLiveTest: boolean;
+}): Promise<BridgeReadinessPayload> {
+  const checks: BridgeReadinessCheck[] = [];
+
+  checks.push({
+    id: "ai-enabled",
+    label: "Steward AI enabled",
+    status: options.enabled ? "Working" : "Broken",
+    detail: options.enabled
+      ? "AI runtime is enabled for chat and bridge calls."
+      : "Enable Steward AI before pairing with desktop bridge.",
+  });
+
+  checks.push({
+    id: "mode-remote",
+    label: "Remote mode selected",
+    status: options.config.mode === "remote" ? "Working" : "Partially Working",
+    detail: options.config.mode === "remote"
+      ? "Remote mode is active and compatible with desktop bridge relay."
+      : "Switch to Remote mode so CRM online uses the bridge endpoint.",
+  });
+
+  checks.push({
+    id: "endpoint-url",
+    label: "Endpoint URL configured",
+    status: options.config.endpointUrl.trim().length > 0 ? "Working" : "Broken",
+    detail: options.config.endpointUrl.trim().length > 0
+      ? `Current endpoint: ${options.config.endpointUrl}`
+      : "Set an endpoint URL before bridge pairing.",
+  });
+
+  checks.push({
+    id: "api-key",
+    label: "API key present",
+    status: options.config.apiKey ? "Working" : "Partially Working",
+    detail: options.config.apiKey
+      ? "API key is configured for secure bridge calls."
+      : "Add an API key for bridge authentication hardening.",
+  });
+
+  checks.push({
+    id: "model-configured",
+    label: "Model configured",
+    status: options.config.model.trim().length > 0 ? "Working" : "Broken",
+    detail: options.config.model.trim().length > 0
+      ? `Primary model: ${options.config.model}`
+      : "Select a model for chat responses.",
+  });
+
+  checks.push({
+    id: "thinking-model-configured",
+    label: "Thinking model configured",
+    status: options.config.thinkingModel.trim().length > 0 ? "Working" : "Partially Working",
+    detail: options.config.thinkingModel.trim().length > 0
+      ? `Thinking model: ${options.config.thinkingModel}`
+      : "Set a thinking model for multi-stage reasoning mode.",
+  });
+
+  if (options.includeLiveTest) {
+    const testStartedAt = Date.now();
+    try {
+      const result = await testStewardAiConnection(options.config);
+      checks.push({
+        id: "live-endpoint-test",
+        label: "Live endpoint reachability",
+        status: "Working",
+        detail: `Connected in ${Date.now() - testStartedAt}ms. Models detected: ${result.modelCount}.`,
+      });
+    } catch (error) {
+      checks.push({
+        id: "live-endpoint-test",
+        label: "Live endpoint reachability",
+        status: "Broken",
+        detail: error instanceof Error ? error.message : "Bridge endpoint health test failed.",
+      });
+    }
+  }
+
+  checks.sort((a, b) => statusWeight(b.status) - statusWeight(a.status));
+  const status = pickOverallStatus(checks);
+
+  return {
+    status,
+    summary: createReadinessSummary(status, checks),
+    checks,
+    testedAt: new Date().toISOString(),
+  };
+}
+
 /** GET /api/steward-ai/config — Returns saved AI provider config for the active organization. */
 router.get("/config", async (req, res) => {
   const organizationId = await resolveOrgId(req);
@@ -943,6 +1138,126 @@ router.post("/test", requireRole("admin"), async (req, res) => {
       },
     });
   }
+});
+
+/** GET /api/steward-ai/bridge/readiness — Reports if CRM online is ready for bridge runtime usage. */
+router.get("/bridge/readiness", requireRole("admin"), async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const includeLiveTest = String(req.query.live || "").toLowerCase() === "1" || String(req.query.live || "").toLowerCase() === "true";
+  const setting = await getStewardAiSetting(organizationId);
+  const config = parseStewardAiConfig(setting?.config ?? defaultStewardAiConfig());
+  const readiness = await buildBridgeReadinessPayload({
+    enabled: setting?.enabled ?? false,
+    config,
+    includeLiveTest,
+  });
+
+  res.json({
+    data: readiness,
+  });
+});
+
+/** POST /api/steward-ai/bridge/pairing-key — Generates one-step desktop pairing URL and downloadable key payload. */
+router.post("/bridge/pairing-key", requireRole("admin"), async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const payload = (req.body ?? {}) as BridgePairingRequestPayload;
+  let siteUrl: string;
+  try {
+    siteUrl = normalizeSiteUrl(payload.siteUrl, req);
+  } catch (error) {
+    res.status(400).json({
+      error: {
+        code: "INVALID_SITE_URL",
+        message: error instanceof Error ? error.message : "Site URL is invalid.",
+      },
+    });
+    return;
+  }
+
+  const setting = await getStewardAiSetting(organizationId);
+  const config = parseStewardAiConfig(setting?.config ?? defaultStewardAiConfig());
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { name: true },
+  });
+
+  const siteOrigin = new URL(siteUrl).origin;
+  const generatedAt = new Date();
+  const expiresAt = new Date(generatedAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const bridgeApiKey = `oyama-${crypto.randomBytes(18).toString("hex")}`;
+
+  const pairingPayload: BridgePairingKeyPayload = {
+    version: 1,
+    kind: "oyama.bridge.pairing",
+    generatedAt: generatedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    organizationId,
+    organizationName: organization?.name ?? "Organization",
+    bridgeConfig: {
+      bridgeAutostart: true,
+      bridgeUpstreamUrl: "http://127.0.0.1:11434",
+      bridgePort: 43110,
+      bridgeApiKey,
+      bridgeAllowedOrigins: siteOrigin,
+      bridgePublicBaseUrl: "",
+      bridgeDomainUrl: `${siteOrigin}/settings/ai`,
+      bridgeModel: config.model,
+      bridgeThinkingModel: config.thinkingModel,
+      bridgeCudaDevice: "auto",
+      bridgeTemperature: config.temperature,
+      bridgeTimeoutMs: config.timeoutMs,
+    },
+    aiHints: {
+      mode: "remote",
+      endpointUrl: "Set to your desktop bridge endpoint after pairing",
+      model: config.model,
+      thinkingModel: config.thinkingModel,
+    },
+  };
+
+  const pairingToken = Buffer.from(JSON.stringify(pairingPayload), "utf8").toString("base64url");
+  const pairingUrl = `${siteOrigin}/settings/ai?bridgePair=${encodeURIComponent(pairingToken)}`;
+  const readiness = await buildBridgeReadinessPayload({
+    enabled: setting?.enabled ?? false,
+    config,
+    includeLiveTest: false,
+  });
+
+  await logAudit({
+    action: "STEWARD_AI_BRIDGE_PAIRING_KEY_CREATED",
+    entity: "PluginSetting",
+    entityId: setting?.id ?? "steward_ai",
+    userId: req.user?.sub,
+    organizationId,
+    metadata: {
+      siteOrigin,
+      readinessStatus: readiness.status,
+      model: config.model,
+      thinkingModel: config.thinkingModel,
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({
+    data: {
+      pairingUrl,
+      pairingToken,
+      expiresAt: expiresAt.toISOString(),
+      connectionKey: pairingPayload,
+      readiness,
+    },
+  });
 });
 
 /** GET /api/steward-ai/models — Lists models from the configured local Ollama endpoint. Admin-only. */
