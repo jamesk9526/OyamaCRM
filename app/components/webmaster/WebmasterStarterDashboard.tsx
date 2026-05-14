@@ -258,10 +258,32 @@ export default function WebmasterStarterDashboard() {
       });
 
       await loadPagesForSite(selectedSiteId);
-      router.push(`/webmaster/builder?siteId=${selectedSiteId}&pageId=${data.item.id}`);
+      router.push(`/webmaster/editor?siteId=${selectedSiteId}&pageId=${data.item.id}`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to create page.");
     }
+  }
+
+  async function openSitePreview(siteId: string) {
+    let pages = pagesBySite[siteId];
+
+    if (!pages) {
+      try {
+        const response = await apiFetch<{ items: WebmasterPage[] }>(`/api/webmaster/sites/${siteId}/pages`);
+        pages = Array.isArray(response.items) ? response.items : [];
+        setPagesBySite((current) => ({ ...current, [siteId]: pages ?? [] }));
+      } catch {
+        pages = [];
+      }
+    }
+
+    const previewPage = (pages ?? []).find((page) => page.path === "/") ?? (pages ?? [])[0] ?? null;
+    if (!previewPage) {
+      router.push(`/webmaster/editor?siteId=${siteId}`);
+      return;
+    }
+
+    window.open(`/webmaster/preview/${siteId}/${previewPage.id}?draft=1`, "_blank", "noopener,noreferrer");
   }
 
   function openIncompleteFeature(title: string, detail: string) {
@@ -306,7 +328,7 @@ export default function WebmasterStarterDashboard() {
             type="button"
             onClick={() => {
               if (selectedSiteId) {
-                router.push(`/webmaster/builder?siteId=${selectedSiteId}`);
+                router.push(`/webmaster/editor?siteId=${selectedSiteId}`);
                 return;
               }
 
@@ -466,23 +488,22 @@ export default function WebmasterStarterDashboard() {
                   </div>
 
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <Link href={`/webmaster/builder?siteId=${site.id}`} className="px-3 py-1.5 text-xs rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
+                    <Link href={`/webmaster/editor?siteId=${site.id}`} className="px-3 py-1.5 text-xs rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
                       Edit
                     </Link>
                     <button
                       type="button"
-                      onClick={() => openIncompleteFeature("Preview Workspace", "Full preview server generation is still under development.")}
+                      onClick={() => void openSitePreview(site.id)}
                       className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
                     >
                       Preview
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => openIncompleteFeature("Publish Workflow", "Publish targets and rollback history are still being implemented.")}
+                    <Link
+                      href={`/webmaster/publishing?siteId=${site.id}`}
                       className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
                     >
-                      Publish
-                    </button>
+                      Open Publish Setup
+                    </Link>
                     <button
                       type="button"
                       onClick={() => openIncompleteFeature("Export Workflow", "Static ZIP and project JSON export are still being implemented.")}

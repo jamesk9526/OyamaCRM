@@ -2,6 +2,16 @@
 
 _Last deep audit: 2026-05-13_
 
+## 2026-05-14 OyamaWebMaster Full Visual Editor + Preview + Publishing Workspace Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Full-tab visual editor workspace | Partially Working | `app/webmaster/editor/page.tsx`, `app/components/webmaster/editor/*` | New editor layout includes top command bar, left tool rail, center live canvas, and right inspector with page/section/block editing. |
+| Shared page renderer for edit + preview | Working | `app/components/webmaster/rendering/WebmasterPageRenderer.tsx`, `WebmasterSectionRenderer.tsx`, `WebmasterBlockRenderer.tsx` | Canvas now renders page-like output instead of only section-card stacks; edit overlays appear only during active editing. |
+| Draft preview route | Working | `app/webmaster/preview/[siteId]/[pageId]/page.tsx`, `app/components/webmaster/WebmasterDraftPreviewPage.tsx` | Preview now opens a real draft route without editor chrome, supports desktop/tablet/mobile widths, and listens for editor save updates via BroadcastChannel. |
+| Publish readiness API + command center | Working | `server/src/routes/webmaster.ts`, `server/src/services/webmaster-publish-readiness.ts`, `app/webmaster/publishing/page.tsx`, `app/components/webmaster/WebmasterPublishingWorkspace.tsx` | Replaced generic publish warning path with readiness checklist workspace and site-level preflight endpoint. |
+| Publish execution and rollback execution | Not Implemented | `app/components/webmaster/WebmasterPublishingWorkspace.tsx`, `server/src/services/webmaster-publish-readiness.ts` | Workspace is real and actionable for readiness, but deployment execution and rollback actions remain intentionally disabled/not implemented. |
+
 ## 2026-05-14 Steward AI Bridge Pairing Automation Pass
 
 | Area | Status | Evidence | Notes |

@@ -98,6 +98,21 @@ function normalizeEndpointUrl(value: unknown, fallback: string): string {
   return endpoint.replace(/\/+$/, "");
 }
 
+/**
+ * Accepts either a raw token or a full "Bearer <token>" value and returns the token only.
+ * This prevents accidental "Bearer Bearer ..." auth headers when users paste full header values.
+ */
+function normalizeApiKey(value: unknown): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+
+  const bearerMatch = /^bearer\s+(.+)$/i.exec(raw);
+  if (!bearerMatch) return raw;
+
+  const token = bearerMatch[1].trim();
+  return token || null;
+}
+
 /** Parses persisted config JSON into a safe runtime config with defaults. */
 export function parseStewardAiConfig(rawConfig: unknown): StewardAiConfig {
   const config = rawConfig && typeof rawConfig === "object" ? (rawConfig as Record<string, unknown>) : {};
@@ -119,7 +134,7 @@ export function parseStewardAiConfig(rawConfig: unknown): StewardAiConfig {
     maxTokens: Math.round(toBoundedNumber(config.maxTokens, DEFAULT_CONFIG.maxTokens, 64, 4096)),
     timeoutMs: Math.round(toBoundedNumber(config.timeoutMs, DEFAULT_CONFIG.timeoutMs, 3650, 120000)),
     systemPrompt: String(config.systemPrompt ?? DEFAULT_CONFIG.systemPrompt).trim() || DEFAULT_CONFIG.systemPrompt,
-    apiKey: String(config.apiKey ?? "").trim() || null,
+    apiKey: normalizeApiKey(config.apiKey),
   };
 }
 
@@ -171,6 +186,11 @@ async function ollamaJsonRequest<T>(
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
+      if (response.status === 401) {
+        throw new Error(
+          `Ollama request failed (401): ${body.slice(0, 240)}. Verify AI Settings API key matches the Desktop Bridge API key.`
+        );
+      }
       throw new Error(`Ollama request failed (${response.status}): ${body.slice(0, 240)}`);
     }
 

@@ -7,7 +7,8 @@ import OyamaGradientIcon from "@/app/components/ui/OyamaGradientIcon";
 
 const NAV_ITEMS = [
   { href: "/webmaster", label: "Dashboard", icon: "growth-analytics" as const },
-  { href: "/webmaster/builder", label: "Builder", icon: "reporting-dashboard" as const },
+  { href: "/webmaster/editor", label: "Editor", icon: "reporting-dashboard" as const },
+  { href: "/webmaster/publishing", label: "Publishing", icon: "task-checklist" as const },
   { href: "/webmaster/templates", label: "Templates", icon: "contact-checklist" as const },
   { href: "/webmaster/cms", label: "CMS Collections", icon: "constituent-search" as const },
   { href: "/webmaster/assets", label: "Assets", icon: "donor-gift" as const },
@@ -55,7 +56,7 @@ export default function WebmasterSidebar() {
       </nav>
 
       <div className="border-t border-indigo-100 px-4 py-3">
-        <p className="text-[11px] text-gray-500">Section-first builder with save, preview, export, and publishing workflows.</p>
+        <p className="text-[11px] text-gray-500">Live visual editor with draft preview and publish-readiness workflow.</p>
       </div>
     </aside>
   );

@@ -21,6 +21,7 @@ import OShareviewBlueprintsPanel, {
 } from "@/app/components/reports/OShareviewBlueprintsPanel";
 import OShareviewCoveragePanel from "@/app/components/reports/OShareviewCoveragePanel";
 import OShareviewAdminWorkspace from "@/app/components/reports/OShareviewAdminWorkspace";
+import DonorPacketReportTool from "@/app/components/reports/DonorPacketReportTool";
 import { apiFetch } from "@/app/lib/auth-client";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -110,6 +111,9 @@ interface Retention {
   rate: number;
   year: number;
 }
+
+/** Multi-year retention point (same shape as yearly retention payload). */
+type RetentionTrendPoint = Retention;
 
 /** Top donor row from GET /api/reports/top-donors */
 interface TopDonor {
@@ -773,6 +777,73 @@ function NewVsReturningChart({ data }: { data: NewVsReturningDatum[] }) {
 }
 
 /**
+ * Multi-year donor retention trend line chart.
+ * X axis: year, Y axis: retention rate (0-100).
+ */
+function RetentionTrendChart({ data }: { data: RetentionTrendPoint[] }) {
+  const W = 720;
+  const H = 220;
+  const PAD_L = 44;
+  const PAD_R = 16;
+  const PAD_T = 12;
+  const PAD_B = 34;
+  const chartW = W - PAD_L - PAD_R;
+  const chartH = H - PAD_T - PAD_B;
+
+  const points = data.map((point, index) => {
+    const x = PAD_L + (index / Math.max(data.length - 1, 1)) * chartW;
+    const y = PAD_T + ((100 - Math.max(0, Math.min(100, point.rate))) / 100) * chartH;
+    return { ...point, x, y };
+  });
+
+  const linePath = points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+    .join(" ");
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 250 }}>
+        {[0, 25, 50, 75, 100].map((value) => {
+          const y = PAD_T + ((100 - value) / 100) * chartH;
+          return (
+            <g key={value}>
+              <line x1={PAD_L} y1={y} x2={W - PAD_R} y2={y} stroke="#e5e7eb" strokeWidth="0.75" />
+              <text x={PAD_L - 6} y={y + 3} textAnchor="end" fontSize="9" fill="#94a3b8">
+                {value}%
+              </text>
+            </g>
+          );
+        })}
+
+        <line
+          x1={PAD_L}
+          y1={PAD_T + chartH}
+          x2={W - PAD_R}
+          y2={PAD_T + chartH}
+          stroke="#cbd5e1"
+          strokeWidth="1"
+        />
+
+        {linePath ? <path d={linePath} fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" /> : null}
+
+        {points.map((point) => (
+          <g key={point.year}>
+            <circle cx={point.x} cy={point.y} r="4" fill="#16a34a" stroke="#ffffff" strokeWidth="1.5">
+              <title>
+                {point.year}: {point.rate}% ({point.retained}/{point.total})
+              </title>
+            </circle>
+            <text x={point.x} y={H - 8} textAnchor="middle" fontSize="9" fill="#64748b">
+              {point.year}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+/**
  * Reusable table for LYBUNT and SYBUNT donor lists.
  * Includes a "View Profile" link to the constituent detail page.
  */
@@ -902,6 +973,7 @@ export default function ReportsPage() {
   const [boardSummary, setBoardSummary] = useState<BoardSummary | null>(null);
   const [monthly, setMonthly] = useState<MonthlyDatum[]>([]);
   const [retention, setRetention] = useState<Retention | null>(null);
+  const [retentionTrend, setRetentionTrend] = useState<RetentionTrendPoint[]>([]);
   const [topDonors, setTopDonors] = useState<TopDonor[]>([]);
   const [donorSegments, setDonorSegments] = useState<DonorSegments | null>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
@@ -1071,8 +1143,26 @@ export default function ReportsPage() {
     if (isLoaded("retention", key)) return;
     markLoaded("retention", key);
     setLoadingRetention(true);
+    setDonorReportsError(null);
     try {
+      const trendStartYear = y - 4;
+      const trendYears = Array.from({ length: 5 }, (_, index) => trendStartYear + index);
+
+      const trendRows = await Promise.all(
+        trendYears.map((trendYear) => apiFetch<Retention>(`/api/reports/donor-retention?year=${trendYear}`))
+      );
+      const orderedTrend = trendRows.sort((a, b) => a.year - b.year);
+      setRetentionTrend(orderedTrend);
+
+      const selectedYearRetention = orderedTrend.find((row) => row.year === y) ?? null;
+      if (selectedYearRetention) {
+        setRetention(selectedYearRetention);
+      }
+
       await loadDonors(y);
+    } catch (err) {
+      setRetentionTrend([]);
+      setDonorReportsError(toErrorMessage(err, "Failed to load retention report data."));
     } finally {
       setLoadingRetention(false);
     }
@@ -1301,6 +1391,9 @@ export default function ReportsPage() {
     }
     if (toolId === "donor-donors" || toolId === "donor-segmentation") {
       handleTabChange("donors");
+      return;
+    }
+    if (toolId === "donor-donor-packet") {
       return;
     }
     if (toolId === "donor-giving" || toolId === "donor-payment-methods") {
@@ -1762,10 +1855,12 @@ export default function ReportsPage() {
               : "Report totals are scoped to all years. Retention and LYBUNT/SYBUNT remain year-based."}
           </p>
 
+      {activeTool === "donor-donor-packet" && <DonorPacketReportTool />}
+
       {/* ══════════════════════════════════════════════════════════════════════
           OVERVIEW TAB
           ══════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "overview" && (
+      {activeTool !== "donor-donor-packet" && activeTab === "overview" && (
         <div className="space-y-6">
           {/* 8 KPI cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -1980,7 +2075,7 @@ export default function ReportsPage() {
       {/* ══════════════════════════════════════════════════════════════════════
           DONORS TAB
           ══════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "donors" && (
+      {activeTool !== "donor-donor-packet" && activeTab === "donors" && (
         <div className="space-y-6">
           {/* Segment cards with percentage bars */}
           <div className="bg-white rounded-lg border border-gray-200 p-5">
@@ -2137,7 +2232,7 @@ export default function ReportsPage() {
       {/* ══════════════════════════════════════════════════════════════════════
           GIVING TAB
           ══════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "giving" && (
+      {activeTool !== "donor-donor-packet" && activeTab === "giving" && (
         <div className="space-y-6">
           {/* Year-over-year comparison SVG chart */}
           <div className="bg-white rounded-lg border border-gray-200 p-5">
@@ -2290,7 +2385,7 @@ export default function ReportsPage() {
       {/* ══════════════════════════════════════════════════════════════════════
           CAMPAIGNS TAB
           ══════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "campaigns" && (
+      {activeTool !== "donor-donor-packet" && activeTab === "campaigns" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-900">Campaign Performance — {scopeLabel}</h2>
@@ -2406,7 +2501,7 @@ export default function ReportsPage() {
       {/* ══════════════════════════════════════════════════════════════════════
           RETENTION TAB
           ══════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "retention" && (
+      {activeTool !== "donor-donor-packet" && activeTab === "retention" && (
         <div className="space-y-6">
           {/* Large retention rate display */}
           <div className="bg-white rounded-lg border border-gray-200 p-8">
@@ -2475,28 +2570,27 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          {/* Multi-year trend placeholder */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
-            <svg
-              className="w-12 h-12 mx-auto mb-3 text-gray-200"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-              />
-            </svg>
-            <h3 className="text-sm font-semibold text-gray-700 mb-1">
-              Retention Trend (Multi-Year)
-            </h3>
-            <p className="text-sm text-gray-400">
-              Historical retention trend will appear here as multiple years of giving data are
-              recorded.
+          {/* Multi-year retention trend */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">Retention Trend (Multi-Year)</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Year-over-year donor retention rate based on donors who gave in consecutive years.
             </p>
+
+            {loadingRetention ? (
+              <Sk className="h-48 w-full" />
+            ) : retentionTrend.filter((row) => row.total > 0).length >= 2 ? (
+              <>
+                <RetentionTrendChart data={retentionTrend} />
+                <p className="mt-3 text-xs text-gray-500">
+                  Showing {retentionTrend[0]?.year} to {retentionTrend[retentionTrend.length - 1]?.year}.
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-8">
+                Historical retention trend will appear here as multiple years of giving data are recorded.
+              </p>
+            )}
           </div>
         </div>
       )}

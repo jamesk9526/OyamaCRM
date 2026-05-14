@@ -1,6 +1,6 @@
 # OyamaWebMaster Publishing Architecture
 
-Last updated: 2026-05-13
+Last updated: 2026-05-14
 
 ## Objective
 
@@ -19,7 +19,9 @@ Provide a review-first publishing layer for all CRM-connected website experience
 3. Preflight Layer
 - Required checks before publish:
   - at least one page exists
+  - home page exists (`/`)
   - no required SEO fields missing for target pages
+  - page paths pass validation
   - domain/target profile present when required
   - no archived-site publish attempt
 
@@ -60,7 +62,19 @@ Each target should be configured per organization and validated before publish.
 ## Current Implementation Status
 
 - Site manager metadata and lifecycle APIs: Working
-- Draft page persistence and visual builder shell: Partially Working
-- Preflight endpoint: Not Implemented
+- Visual editor and draft preview routes: Partially Working
+- Preflight endpoint (`GET /api/webmaster/sites/:siteId/publish-readiness`): Working
+- Publishing workspace UI (`/webmaster/publishing`): Working
 - Publish execution worker: Not Implemented
 - Rollback controls: Not Implemented
+
+## Current Route Surfaces
+
+- `/webmaster/editor` and `/webmaster/editor?siteId=...&pageId=...`
+- `/webmaster/preview/[siteId]/[pageId]?draft=1`
+- `/webmaster/publishing`
+
+Builder compatibility routes currently redirect to editor:
+
+- `/webmaster/builder`
+- `/webmaster/page-builder`

@@ -1,6 +1,6 @@
 # OyamaWebMaster Rebuild Plan
 
-Last updated: 2026-05-13
+Last updated: 2026-05-14
 
 ## Goal
 
@@ -54,6 +54,8 @@ Rebuild OyamaWebMaster as a real website command center inside OyamaCRM with saf
 - Site manager metadata model: Working
 - Archive/restore/duplicate lifecycle: Working
 - Visual editor and page persistence: Partially Working
+- Draft preview route: Working
+- Publish readiness command center: Working
 - Template, CMS, publish targets, rollback UI: Partially Working
 - Production publishing pipeline: Not Implemented
 
@@ -61,6 +63,15 @@ Rebuild OyamaWebMaster as a real website command center inside OyamaCRM with saf
 
 1. Add `webmaster_publish_versions` table for immutable deployment history.
 2. Add publish queue APIs and worker execution model.
-3. Add preflight check endpoint for launch readiness scoring.
+3. Expand preflight checks and launch readiness scoring detail.
 4. Add environment-specific deployment target settings UI.
 5. Add explicit backup and restore workflows in the dashboard.
+
+## 2026-05-14 Implementation Snapshot
+
+- `/webmaster/editor` is now the primary visual editor workspace route.
+- `/webmaster/builder` and `/webmaster/page-builder` are compatibility redirects.
+- `/webmaster/preview/[siteId]/[pageId]` is a real draft preview route.
+- `/webmaster/publishing` is now a real readiness workspace.
+- `GET /api/webmaster/sites/:siteId/publish-readiness` is implemented for preflight checks.
+- Publish execution and rollback execution remain Not Implemented.

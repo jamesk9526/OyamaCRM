@@ -608,7 +608,9 @@ function showCrm(url) {
   setupPane.classList.add("hidden");
   crmPane.classList.remove("hidden");
   closeSettingsMenu();
-  boundUrlLabel.textContent = url;
+  if (boundUrlLabel) {
+    boundUrlLabel.textContent = url;
+  }
   if (crmView.getAttribute("src") !== url) {
     crmView.setAttribute("src", url);
   }
@@ -616,11 +618,14 @@ function showCrm(url) {
 }
 
 function setWebStatus(state, label) {
-  if (!webStatusDot || !webStatusLabel) return;
+  if (!webStatusDot) return;
 
   webStatusDot.classList.remove("loading", "online", "error");
   webStatusDot.classList.add(state);
-  webStatusLabel.textContent = label;
+  if (webStatusLabel) {
+    webStatusLabel.textContent = label;
+  }
+  webStatusDot.setAttribute("title", label);
 }
 
 function setLoadProgress(active) {
@@ -655,7 +660,7 @@ function bindWebviewEvents() {
     updateNavButtons();
 
     const activeUrl = crmView.getURL();
-    if (activeUrl) {
+    if (activeUrl && boundUrlLabel) {
       boundUrlLabel.textContent = activeUrl;
     }
   });
@@ -668,7 +673,7 @@ function bindWebviewEvents() {
 
   crmView.addEventListener("did-navigate", () => {
     const activeUrl = crmView.getURL();
-    if (activeUrl) {
+    if (activeUrl && boundUrlLabel) {
       boundUrlLabel.textContent = activeUrl;
     }
     updateNavButtons();
@@ -676,7 +681,7 @@ function bindWebviewEvents() {
 
   crmView.addEventListener("did-navigate-in-page", () => {
     const activeUrl = crmView.getURL();
-    if (activeUrl) {
+    if (activeUrl && boundUrlLabel) {
       boundUrlLabel.textContent = activeUrl;
     }
     updateNavButtons();
@@ -770,9 +775,11 @@ setupFinish.addEventListener("click", () => {
   finishSetupAndLaunch();
 });
 
-changeUrlBtn.addEventListener("click", () => {
-  showSetup(boundUrl, 2);
-});
+if (changeUrlBtn) {
+  changeUrlBtn.addEventListener("click", () => {
+    showSetup(boundUrl, 2);
+  });
+}
 
 if (navBackBtn) {
   navBackBtn.addEventListener("click", () => {

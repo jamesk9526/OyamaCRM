@@ -19,6 +19,7 @@ import {
   updateWebmasterSite,
   updateWebmasterPage,
 } from "../services/webmaster-store.js";
+import { buildWebmasterPublishReadinessReport } from "../services/webmaster-publish-readiness.js";
 
 const router = Router();
 
@@ -458,6 +459,33 @@ router.get("/sites/:siteId/pages", async (req, res) => {
   });
 
   res.json({ items });
+});
+
+/**
+ * GET /api/webmaster/sites/:siteId/publish-readiness
+ * Returns publish preflight readiness checks for a selected site.
+ */
+router.get("/sites/:siteId/publish-readiness", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const siteId = req.params.siteId;
+  const site = await getWebmasterSiteById({ organizationId, siteId });
+
+  if (!site) {
+    res.status(404).json({ error: { code: "WEBMASTER_SITE_NOT_FOUND", message: "Site not found." } });
+    return;
+  }
+
+  const pages = await listWebmasterPages({ organizationId, siteId, limit: 500 });
+  const readiness = buildWebmasterPublishReadinessReport({ site, pages });
+
+  res.json({
+    data: readiness,
+  });
 });
 
 /**

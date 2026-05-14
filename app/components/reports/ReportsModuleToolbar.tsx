@@ -7,6 +7,7 @@ export type ReportsWorkspaceModule = "donor" | "events" | "compassion" | "ogenti
 export type ReportsToolId =
   | "donor-overview"
   | "donor-donors"
+  | "donor-donor-packet"
   | "donor-giving"
   | "donor-campaigns"
   | "donor-retention"
@@ -62,6 +63,7 @@ const MODULE_TOOLS: Record<ReportsWorkspaceModule, ModuleToolDefinition[]> = {
   donor: [
     { id: "donor-overview", label: "Overview" },
     { id: "donor-donors", label: "Donors" },
+    { id: "donor-donor-packet", label: "Donor Packet" },
     { id: "donor-giving", label: "Giving" },
     { id: "donor-campaigns", label: "Campaigns" },
     { id: "donor-retention", label: "Retention" },

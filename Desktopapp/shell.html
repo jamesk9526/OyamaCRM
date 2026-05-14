@@ -12,11 +12,18 @@
         <img class="brand-mark" src="./assets/oyama-logo-mark.png" alt="OyamaCRM logo" />
         <div class="brand-text">
           <div class="brand-name">OyamaCRM</div>
-          <div class="brand-sub">Desktop</div>
         </div>
       </div>
 
       <div class="titlebar-spacer" aria-hidden="true"></div>
+
+      <div class="titlebar-web no-drag" aria-label="Web controls">
+        <button id="navBackBtn" class="shell-icon-btn" type="button" title="Back" aria-label="Go back">&#x2039;</button>
+        <button id="navForwardBtn" class="shell-icon-btn" type="button" title="Forward" aria-label="Go forward">&#x203A;</button>
+        <button id="navReloadBtn" class="shell-icon-btn" type="button" title="Reload" aria-label="Reload page">&#x21bb;</button>
+        <span id="webStatusDot" class="status-dot" aria-hidden="true"></span>
+        <span id="boundUrlLabel" class="url-pill compact" title="Current URL">Ready</span>
+      </div>
 
       <div class="titlebar-menu no-drag">
         <button id="settingsBtn" class="menu-btn" type="button" aria-haspopup="menu" aria-expanded="false">
@@ -105,18 +112,6 @@
       <section id="crmPane" class="crm-pane hidden">
         <webview id="crmView" class="crm-view" partition="persist:oyama-crm"></webview>
         <div class="webview-progress-track"><div id="webLoadBar" class="webview-progress-bar"></div></div>
-        <div class="crm-toolbar">
-          <div class="crm-toolbar-left">
-            <button id="navBackBtn" type="button" title="Back" aria-label="Go back">&#x2039;</button>
-            <button id="navForwardBtn" type="button" title="Forward" aria-label="Go forward">&#x203A;</button>
-            <button id="navReloadBtn" type="button" title="Reload" aria-label="Reload page">&#x21bb;</button>
-            <span id="boundUrlLabel" class="url-pill">Bound URL</span>
-          </div>
-          <div class="crm-toolbar-right">
-            <span class="status-pill"><span id="webStatusDot" class="status-dot"></span><span id="webStatusLabel">Ready</span></span>
-            <button id="changeUrlBtn" type="button">Change URL</button>
-          </div>
-        </div>
       </section>
 
       <section id="securityModal" class="modal-shell hidden" aria-label="Security settings">

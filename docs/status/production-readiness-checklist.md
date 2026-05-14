@@ -242,6 +242,12 @@ Notes:
    - Added bridge readiness and pairing key APIs in `server/src/routes/steward-ai.ts` (`GET /api/steward-ai/bridge/readiness`, `POST /api/steward-ai/bridge/pairing-key`).
    - Added CRM AI settings pairing controls in `app/components/settings/ai/BridgePairingPanel.tsx` and mounted in `app/components/settings/ai/AISettingsPage.tsx`.
    - Added desktop bridge pairing URL/token/key import flow in `Desktopapp/shell.html`, `Desktopapp/shell.js`, and `Desktopapp/styles.css`.
+15. OyamaWebMaster visual editor, draft preview, and publish readiness workspace pass.
+   - Added new editor route and workspace shell in `app/webmaster/editor/page.tsx` and `app/components/webmaster/editor/*` with top bar, left rail, live canvas, and inspector.
+   - Added shared rendering pipeline for editor and preview in `app/components/webmaster/rendering/*`.
+   - Added real draft preview route in `app/webmaster/preview/[siteId]/[pageId]/page.tsx` and `app/components/webmaster/WebmasterDraftPreviewPage.tsx`.
+   - Added publish readiness endpoint `GET /api/webmaster/sites/:siteId/publish-readiness` plus publishing workspace `app/webmaster/publishing/page.tsx` and `app/components/webmaster/WebmasterPublishingWorkspace.tsx`.
+   - Publish execution and rollback execution remain Not Implemented and are shown explicitly in publishing workflow status.
 
 ## Done Now Checklist
 
