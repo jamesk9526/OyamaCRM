@@ -29,6 +29,7 @@
       "index.html",
       "renderer.js",
       "styles.css",
+      "assets/**/*",
       "package.json"
     ],
     "directories": {

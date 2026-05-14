@@ -12,6 +12,8 @@
  *   GET  /api/quickbooks/status           — connection status + plugin state
  *   PUT  /api/quickbooks/plugin           — enable or disable the plugin
  *   GET  /api/quickbooks/auth-uri         — get OAuth authorization URL
+ *   GET  /api/quickbooks/runtime-config   — get runtime OAuth credential status
+ *   PUT  /api/quickbooks/runtime-config   — save runtime OAuth credentials
  *   GET  /api/quickbooks/callback         — handle OAuth callback (redirect target)
  *   POST /api/quickbooks/disconnect       — revoke tokens / disconnect
  *
@@ -34,6 +36,8 @@ import type { Prisma } from "@prisma/client";
 import { logAudit } from "../lib/audit.js";
 import {
   isQBConfigured,
+  getQBRuntimeStatus,
+  saveQBPluginCredentials,
   buildAuthUri,
   handleOAuthCallback,
   revokeTokens,
@@ -79,7 +83,8 @@ router.get("/status", async (req, res) => {
   try {
     const organizationId = await resolveOrg(req);
     const plugin = await getQBPlugin(organizationId);
-    const configured = isQBConfigured();
+    const runtime = await getQBRuntimeStatus(organizationId);
+    const configured = await isQBConfigured(organizationId);
     const config = plugin?.config as Record<string, unknown> | null;
 
     res.json({
@@ -88,7 +93,10 @@ router.get("/status", async (req, res) => {
         enabled: plugin?.enabled ?? false,
         connected: !!(config?.access_token),
         realmId: config?.realmId ?? null,
-        environment: process.env.QB_ENVIRONMENT ?? "sandbox",
+        environment: runtime.environment,
+        runtimeSource: runtime.source,
+        redirectUri: runtime.redirectUri,
+        clientIdPreview: runtime.clientIdPreview,
       },
     });
   } catch (err) {
@@ -135,6 +143,82 @@ router.put("/plugin", requireRole("admin"), async (req, res) => {
   }
 });
 
+/**
+ * GET /api/quickbooks/runtime-config
+ * Returns runtime credential metadata for plugin-level OAuth configuration.
+ */
+router.get("/runtime-config", requireRole("admin"), async (req, res) => {
+  try {
+    const organizationId = await resolveOrg(req);
+    const runtime = await getQBRuntimeStatus(organizationId);
+    return res.json({ data: runtime });
+  } catch (err) {
+    console.error("[QB] runtime-config GET error:", err);
+    return res.status(500).json({
+      error: { code: "QB_RUNTIME_CONFIG_ERROR", message: "Failed to retrieve QuickBooks runtime config." },
+    });
+  }
+});
+
+/**
+ * PUT /api/quickbooks/runtime-config
+ * Saves org-level OAuth client credentials used when env vars are unavailable.
+ */
+router.put("/runtime-config", requireRole("admin"), async (req, res) => {
+  try {
+    const organizationId = await resolveOrg(req);
+    const body = req.body as {
+      clientId?: string;
+      clientSecret?: string;
+      redirectUri?: string;
+      environment?: "sandbox" | "production";
+    };
+
+    const clientId = String(body.clientId ?? "").trim();
+    const clientSecret = String(body.clientSecret ?? "").trim();
+    const redirectUri = String(body.redirectUri ?? "").trim();
+    const environment = body.environment === "production" ? "production" : "sandbox";
+
+    if (!clientId || !clientSecret) {
+      return res.status(400).json({
+        error: {
+          code: "INVALID_INPUT",
+          message: "clientId and clientSecret are required.",
+        },
+      });
+    }
+
+    await saveQBPluginCredentials({
+      organizationId,
+      clientId,
+      clientSecret,
+      redirectUri,
+      environment,
+    });
+
+    await logAudit({
+      action: "QB_RUNTIME_CONFIG_SAVED",
+      entity: "PluginSetting",
+      entityId: organizationId,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: {
+        pluginKey: "quickbooks",
+        environment,
+        redirectUri,
+      },
+    });
+
+    const runtime = await getQBRuntimeStatus(organizationId);
+    return res.json({ data: runtime });
+  } catch (err) {
+    console.error("[QB] runtime-config PUT error:", err);
+    return res.status(500).json({
+      error: { code: "QB_RUNTIME_CONFIG_ERROR", message: "Failed to save QuickBooks runtime config." },
+    });
+  }
+});
+
 // ─── OAuth Flow ───────────────────────────────────────────────────────────────
 
 /**
@@ -143,16 +227,16 @@ router.put("/plugin", requireRole("admin"), async (req, res) => {
  */
 router.get("/auth-uri", requireRole("admin"), async (req, res) => {
   try {
-    if (!isQBConfigured()) {
+    const organizationId = await resolveOrg(req);
+    if (!(await isQBConfigured(organizationId))) {
       return res.status(503).json({
         error: {
           code: "QB_NOT_CONFIGURED",
-          message: "QB_CLIENT_ID and QB_CLIENT_SECRET must be set in environment variables.",
+          message: "QuickBooks runtime credentials are missing. Save credentials in Plugins or set env vars.",
         },
       });
     }
-    const organizationId = await resolveOrg(req);
-    const authUri = buildAuthUri(organizationId);
+    const authUri = await buildAuthUri(organizationId);
     return res.json({ data: { authUri } });
   } catch (err) {
     console.error("[QB] auth-uri error:", err);

@@ -10,6 +10,7 @@ export interface StewardAiConfig {
   thinkingModel: string;
   reasoningMode: StewardAiReasoningMode;
   agenticMultiStage: boolean;
+  chatHeadEnabled: boolean;
   temperature: number;
   maxTokens: number;
   timeoutMs: number;
@@ -107,16 +108,20 @@ const DEFAULT_CONFIG: StewardAiConfig = {
   thinkingModel: "deepseek-r1:8b",
   reasoningMode: "thinking",
   agenticMultiStage: true,
+  chatHeadEnabled: true,
   temperature: 0.3,
   maxTokens: 600,
   timeoutMs: 36500,
   systemPrompt: [
     "You are Steward, the AI assistant for OyamaCRM.",
-    "Primary goals: help staff make accurate, safe, and practical next decisions.",
-    "Always prioritize grounded answers over confident guesses.",
-    "If context is missing, say what is missing and ask for the minimum needed clarification.",
-    "Keep responses concise, scannable, and action-oriented.",
-    "For suggested write operations, remain confirm-first and clearly state what would change.",
+    "Primary goal: help nonprofit staff make accurate, safe, and practical next decisions in CRM workflows.",
+    "Reasoning policy for DeepSeek/thinking mode: think step-by-step internally, but return concise final answers with clear sections and explicit assumptions.",
+    "Grounding: prefer CRM facts in provided context; never invent records, IDs, dates, amounts, or donor history.",
+    "When context is missing, say exactly what is missing and ask only the minimum clarifying question needed.",
+    "Output style: short, scannable, action-oriented, and prioritized by impact and urgency.",
+    "For recommendations, include why, expected outcome, and first concrete next action.",
+    "Safety: for any write/update/delete/send action, stay confirm-first and clearly state what would change before execution.",
+    "Comms quality: for donor-facing drafts, keep tone warm, specific, truthful, and compliant with stated contact preferences.",
   ].join(" "),
   apiKey: null,
 };
@@ -168,6 +173,9 @@ export function parseStewardAiConfig(rawConfig: unknown): StewardAiConfig {
     agenticMultiStage: config.agenticMultiStage !== undefined
       ? Boolean(config.agenticMultiStage)
       : DEFAULT_CONFIG.agenticMultiStage,
+    chatHeadEnabled: config.chatHeadEnabled !== undefined
+      ? Boolean(config.chatHeadEnabled)
+      : DEFAULT_CONFIG.chatHeadEnabled,
     temperature: toBoundedNumber(config.temperature, DEFAULT_CONFIG.temperature, 0, 2),
     maxTokens: Math.round(toBoundedNumber(config.maxTokens, DEFAULT_CONFIG.maxTokens, 64, 4096)),
     timeoutMs: Math.round(toBoundedNumber(config.timeoutMs, DEFAULT_CONFIG.timeoutMs, 3650, 120000)),

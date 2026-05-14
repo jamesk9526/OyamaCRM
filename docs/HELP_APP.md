@@ -18,6 +18,7 @@ It provides searchable guides, walkthrough steps, image-backed instructions, and
 - Metadata filters for category, role, difficulty, and tags
 - Feature readiness messaging in articles
 - Basic feedback control (`Was this helpful?`)
+- Help Agent planner (`/api/help-agent/plan`) with runnable route actions from natural-language requests
 
 ## CRM Scoping Behavior
 
@@ -149,6 +150,28 @@ Future upgrade path:
 - server-side full-text search
 - semantic retrieval
 - Steward AI grounded RAG
+
+## Help Agent Planner
+
+Help Search now includes a lightweight Help Agent panel that accepts plain-language tasks and returns:
+
+- Scope-aware route suggestions using a curated route catalog
+- Confidence labels (`high`, `medium`, `low`)
+- Guided step list
+- Runnable actions (`open_route`, `open_help_article`, `open_help_search`)
+
+Planner backend:
+- `server/src/routes/help-agent.ts`
+- `server/src/services/help-agent.ts`
+
+Current safety constraints:
+- deterministic catalog/ranking logic (no freeform tool execution)
+- authenticated API route (`requireAuth`)
+- UI blocks non-local action targets (must start with `/`)
+
+Current UX constraints:
+- only route navigation/help actions are executable
+- destructive operations are intentionally out of scope for this first pass
 
 ## Steward AI Integration Path
 

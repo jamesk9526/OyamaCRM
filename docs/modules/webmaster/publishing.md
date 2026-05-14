@@ -25,6 +25,9 @@ Replace generic "Feature In Progress" publish warnings with a concrete publishin
 ## Backend Endpoint
 
 - GET /api/webmaster/sites/:siteId/publish-readiness
+- GET /api/webmaster/sites/:siteId/publish-versions
+- POST /api/webmaster/sites/:siteId/publish
+- POST /api/webmaster/sites/:siteId/rollback
 
 Readiness checks include:
 
@@ -39,16 +42,19 @@ Readiness checks include:
 
 ## Honest Execution Status
 
-The workspace is real and usable for readiness review, but:
+The workspace now supports confirmation-gated execution with persisted version history:
 
-- Publish execution: Not Implemented
-- Rollback execution: Not Implemented
+- Publish execution: Working
+- Rollback execution: Working
 
-The Publish button remains disabled with explicit status copy.
+Remaining gap:
+
+- External deployment target adapters are still Not Implemented.
 
 ## Current Status
 
 - Publish readiness workspace: Working
 - Preflight readiness endpoint: Working
-- Publish execution pipeline: Not Implemented
-- Rollback execution workflow: Not Implemented
+- Publish execution workflow: Working
+- Rollback execution workflow: Working
+- External target deployment pipeline: Not Implemented

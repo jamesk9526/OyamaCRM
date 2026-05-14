@@ -35,28 +35,98 @@ export interface QBDonationPayload {
   date: string; // YYYY-MM-DD
 }
 
+interface QBCredentials {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+  environment: "sandbox" | "production";
+  source: "env" | "plugin";
+}
+
+const DEFAULT_REDIRECT_URI = "http://localhost:4000/api/quickbooks/callback";
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+function readTokenPayload(config: unknown): QBTokenPayload | null {
+  const candidate = asRecord(config);
+  if (!candidate.access_token || !candidate.refresh_token) return null;
+  return {
+    token_type: String(candidate.token_type ?? "bearer"),
+    access_token: String(candidate.access_token),
+    refresh_token: String(candidate.refresh_token),
+    expires_in: Number(candidate.expires_in ?? 3600),
+    x_refresh_token_expires_in: Number(candidate.x_refresh_token_expires_in ?? 8726400),
+    realmId: String(candidate.realmId ?? ""),
+    createdAt: Number(candidate.createdAt ?? Date.now()),
+  };
+}
+
+function mergeConfig(existingConfig: unknown, partial: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...asRecord(existingConfig),
+    ...partial,
+  };
+}
+
+function readPluginCredentials(config: unknown): QBCredentials | null {
+  const candidate = asRecord(config);
+  const clientId = String(candidate.qbClientId ?? "").trim();
+  const clientSecret = String(candidate.qbClientSecret ?? "").trim();
+  if (!clientId || !clientSecret) return null;
+
+  const redirectUri = String(candidate.qbRedirectUri ?? DEFAULT_REDIRECT_URI).trim() || DEFAULT_REDIRECT_URI;
+  const environment = String(candidate.qbEnvironment ?? "sandbox") === "production" ? "production" : "sandbox";
+
+  return {
+    clientId,
+    clientSecret,
+    redirectUri,
+    environment,
+    source: "plugin",
+  };
+}
+
+function readEnvCredentials(): QBCredentials | null {
+  const clientId = String(process.env.QB_CLIENT_ID ?? "").trim();
+  const clientSecret = String(process.env.QB_CLIENT_SECRET ?? "").trim();
+  if (!clientId || !clientSecret) return null;
+
+  return {
+    clientId,
+    clientSecret,
+    redirectUri: String(process.env.QB_REDIRECT_URI ?? DEFAULT_REDIRECT_URI),
+    environment: (process.env.QB_ENVIRONMENT ?? "sandbox") === "production" ? "production" : "sandbox",
+    source: "env",
+  };
+}
+
+async function resolveCredentials(organizationId: string): Promise<QBCredentials | null> {
+  const envCredentials = readEnvCredentials();
+  if (envCredentials) return envCredentials;
+
+  const plugin = await prisma.pluginSetting.findUnique({
+    where: { organizationId_pluginKey: { organizationId, pluginKey: "quickbooks" } },
+    select: { config: true },
+  });
+
+  return readPluginCredentials(plugin?.config);
+}
+
 // ─── OAuthClient factory ──────────────────────────────────────────────────────
 
 /**
  * Creates a new OAuthClient configured from environment variables.
  * The client is stateless — tokens are stored externally in the DB.
  */
-function createOAuthClient(): InstanceType<typeof OAuthClient> {
-  const clientId = process.env.QB_CLIENT_ID ?? "";
-  const clientSecret = process.env.QB_CLIENT_SECRET ?? "";
-  const redirectUri = process.env.QB_REDIRECT_URI ?? "http://localhost:4000/api/quickbooks/callback";
-  const environment = (process.env.QB_ENVIRONMENT ?? "sandbox") as "sandbox" | "production";
-
-  if (!clientId || !clientSecret) {
-    // Log a warning — the plugin will show as "not configured" in the UI
-    console.warn("[QB] QB_CLIENT_ID or QB_CLIENT_SECRET not set. QuickBooks features will be unavailable.");
-  }
-
+function createOAuthClient(credentials: QBCredentials): InstanceType<typeof OAuthClient> {
   return new OAuthClient({
-    clientId,
-    clientSecret,
-    environment,
-    redirectUri,
+    clientId: credentials.clientId,
+    clientSecret: credentials.clientSecret,
+    environment: credentials.environment,
+    redirectUri: credentials.redirectUri,
     logging: process.env.NODE_ENV !== "production",
   });
 }
@@ -67,16 +137,82 @@ function createOAuthClient(): InstanceType<typeof OAuthClient> {
  * Returns true if QB OAuth credentials are present in the environment.
  * If false, the plugin cannot be used regardless of enabled status.
  */
-export function isQBConfigured(): boolean {
-  return !!(process.env.QB_CLIENT_ID && process.env.QB_CLIENT_SECRET);
+export async function isQBConfigured(organizationId: string): Promise<boolean> {
+  const credentials = await resolveCredentials(organizationId);
+  return Boolean(credentials);
+}
+
+export async function getQBRuntimeStatus(organizationId: string): Promise<{
+  configured: boolean;
+  source: "env" | "plugin" | null;
+  environment: "sandbox" | "production";
+  redirectUri: string;
+  clientIdPreview: string | null;
+}> {
+  const credentials = await resolveCredentials(organizationId);
+  if (!credentials) {
+    return {
+      configured: false,
+      source: null,
+      environment: "sandbox",
+      redirectUri: DEFAULT_REDIRECT_URI,
+      clientIdPreview: null,
+    };
+  }
+
+  return {
+    configured: true,
+    source: credentials.source,
+    environment: credentials.environment,
+    redirectUri: credentials.redirectUri,
+    clientIdPreview: credentials.clientId.length > 6
+      ? `${credentials.clientId.slice(0, 3)}...${credentials.clientId.slice(-3)}`
+      : credentials.clientId,
+  };
+}
+
+export async function saveQBPluginCredentials(params: {
+  organizationId: string;
+  clientId: string;
+  clientSecret: string;
+  redirectUri?: string;
+  environment?: "sandbox" | "production";
+}): Promise<void> {
+  const plugin = await prisma.pluginSetting.findUnique({
+    where: { organizationId_pluginKey: { organizationId: params.organizationId, pluginKey: "quickbooks" } },
+  });
+
+  const mergedConfig = mergeConfig(plugin?.config, {
+    qbClientId: params.clientId.trim(),
+    qbClientSecret: params.clientSecret.trim(),
+    qbRedirectUri: (params.redirectUri ?? DEFAULT_REDIRECT_URI).trim() || DEFAULT_REDIRECT_URI,
+    qbEnvironment: params.environment ?? "sandbox",
+  });
+
+  await prisma.pluginSetting.upsert({
+    where: { organizationId_pluginKey: { organizationId: params.organizationId, pluginKey: "quickbooks" } },
+    create: {
+      organizationId: params.organizationId,
+      pluginKey: "quickbooks",
+      enabled: plugin?.enabled ?? false,
+      config: mergedConfig as Prisma.InputJsonValue,
+    },
+    update: {
+      config: mergedConfig as Prisma.InputJsonValue,
+    },
+  });
 }
 
 /**
  * Builds the QuickBooks authorization URL to redirect the user to for OAuth consent.
  * The state param is the organizationId so we can route the callback correctly.
  */
-export function buildAuthUri(organizationId: string): string {
-  const client = createOAuthClient();
+export async function buildAuthUri(organizationId: string): Promise<string> {
+  const credentials = await resolveCredentials(organizationId);
+  if (!credentials) {
+    throw new Error("QuickBooks runtime credentials are missing.");
+  }
+  const client = createOAuthClient(credentials);
   return client.authorizeUri({
     scope: [OAuthClient.scopes.Accounting],
     state: organizationId,
@@ -93,7 +229,12 @@ export async function handleOAuthCallback(
   callbackUrl: string,
   organizationId: string
 ): Promise<QBTokenPayload> {
-  const client = createOAuthClient();
+  const credentials = await resolveCredentials(organizationId);
+  if (!credentials) {
+    throw new Error("QuickBooks runtime credentials are missing.");
+  }
+
+  const client = createOAuthClient(credentials);
 
   // Exchange the auth code for tokens
   const authResponse = await client.createToken(callbackUrl);
@@ -110,17 +251,23 @@ export async function handleOAuthCallback(
   };
 
   // Persist tokens — upsert so reconnecting overwrites old tokens
+  const existing = await prisma.pluginSetting.findUnique({
+    where: { organizationId_pluginKey: { organizationId, pluginKey: "quickbooks" } },
+  });
+
+  const mergedConfig = mergeConfig(existing?.config, payload as unknown as Record<string, unknown>);
+
   await prisma.pluginSetting.upsert({
     where: { organizationId_pluginKey: { organizationId, pluginKey: "quickbooks" } },
     create: {
       organizationId,
       pluginKey: "quickbooks",
       enabled: true,
-      config: payload as unknown as Prisma.InputJsonValue,
+      config: mergedConfig as Prisma.InputJsonValue,
     },
     update: {
       enabled: true,
-      config: payload as unknown as Prisma.InputJsonValue,
+      config: mergedConfig as Prisma.InputJsonValue,
     },
   });
 
@@ -142,8 +289,17 @@ export async function getAuthorizedClient(
     throw new Error("QuickBooks is not connected for this organization.");
   }
 
-  const stored = plugin.config as unknown as QBTokenPayload;
-  const client = createOAuthClient();
+  const stored = readTokenPayload(plugin.config);
+  if (!stored) {
+    throw new Error("QuickBooks is not connected for this organization.");
+  }
+
+  const credentials = await resolveCredentials(organizationId);
+  if (!credentials) {
+    throw new Error("QuickBooks runtime credentials are missing.");
+  }
+
+  const client = createOAuthClient(credentials);
 
   // Restore stored tokens into the client
   client.setToken({
@@ -172,7 +328,9 @@ export async function getAuthorizedClient(
     // Persist the refreshed tokens
     await prisma.pluginSetting.update({
       where: { organizationId_pluginKey: { organizationId, pluginKey: "quickbooks" } },
-      data: { config: updatedPayload as unknown as Prisma.InputJsonValue },
+      data: {
+        config: mergeConfig(plugin.config, updatedPayload as unknown as Record<string, unknown>) as Prisma.InputJsonValue,
+      },
     });
 
     client.setToken(updatedPayload as unknown as Record<string, unknown>);
@@ -195,7 +353,20 @@ export async function revokeTokens(organizationId: string): Promise<void> {
 
   await prisma.pluginSetting.update({
     where: { organizationId_pluginKey: { organizationId, pluginKey: "quickbooks" } },
-    data: { config: null as unknown as Prisma.InputJsonValue },
+    data: {
+      config: mergeConfig((await prisma.pluginSetting.findUnique({
+        where: { organizationId_pluginKey: { organizationId, pluginKey: "quickbooks" } },
+        select: { config: true },
+      }))?.config, {
+        token_type: null,
+        access_token: null,
+        refresh_token: null,
+        expires_in: null,
+        x_refresh_token_expires_in: null,
+        realmId: null,
+        createdAt: null,
+      }) as Prisma.InputJsonValue,
+    },
   });
 }
 
@@ -208,6 +379,11 @@ export async function pushDonationToQB(
   organizationId: string,
   donation: QBDonationPayload
 ): Promise<string> {
+  const credentials = await resolveCredentials(organizationId);
+  if (!credentials) {
+    throw new Error("QuickBooks runtime credentials are missing.");
+  }
+
   const client = await getAuthorizedClient(organizationId);
   const plugin = await prisma.pluginSetting.findUnique({
     where: { organizationId_pluginKey: { organizationId, pluginKey: "quickbooks" } },
@@ -215,8 +391,7 @@ export async function pushDonationToQB(
   const stored = plugin?.config as unknown as QBTokenPayload | null;
   const realmId = stored?.realmId ?? "";
 
-  const env = process.env.QB_ENVIRONMENT ?? "sandbox";
-  const baseUrl = env === "production"
+  const baseUrl = credentials.environment === "production"
     ? "https://quickbooks.api.intuit.com"
     : "https://sandbox-quickbooks.api.intuit.com";
 

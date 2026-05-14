@@ -68,3 +68,12 @@ export interface PublishReadinessData {
   lastPublishedVersionId: string | null;
   lastPublishedAt: string | null;
 }
+
+export interface WebmasterPublishVersion {
+  id: string;
+  siteId: string;
+  versionLabel: string;
+  note: string | null;
+  rollbackFromVersionId: string | null;
+  createdAt: string;
+}

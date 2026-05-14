@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePlugins } from "@/app/components/plugins/PluginProvider";
 import QBConnectionStatus from "@/app/components/quickbooks/QBConnectionStatus";
 import { apiFetch } from "@/app/lib/auth-client";
@@ -14,9 +14,22 @@ import { apiFetch } from "@/app/lib/auth-client";
  * Shows a QuickBooks card with enable toggle, connection status, and connect/disconnect actions.
  */
 export default function PluginsSettingsPage() {
-  const { qbConfigured, qbEnabled, loading, refresh } = usePlugins();
+  const { qbConfigured, qbEnabled, loading, refresh, qbRuntimeSource, qbRedirectUri, qbEnvironment, qbClientIdPreview } = usePlugins();
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [runtimeClientId, setRuntimeClientId] = useState("");
+  const [runtimeClientSecret, setRuntimeClientSecret] = useState("");
+  const [runtimeRedirectUri, setRuntimeRedirectUri] = useState("http://localhost:4000/api/quickbooks/callback");
+  const [runtimeEnvironment, setRuntimeEnvironment] = useState<"sandbox" | "production">("sandbox");
+
+  useEffect(() => {
+    if (qbRedirectUri) {
+      setRuntimeRedirectUri(qbRedirectUri);
+    }
+    if (qbEnvironment === "production" || qbEnvironment === "sandbox") {
+      setRuntimeEnvironment(qbEnvironment);
+    }
+  }, [qbRedirectUri, qbEnvironment]);
 
   /** Show a dismissing toast notification */
   function showToast(type: "success" | "error", message: string) {
@@ -49,6 +62,34 @@ export default function PluginsSettingsPage() {
       window.location.href = res.data.authUri;
     } catch (err) {
       showToast("error", err instanceof Error ? err.message : "Failed to start QuickBooks connection.");
+      setActionLoading(false);
+    }
+  }
+
+  /** Saves plugin-level runtime credentials so OAuth can be configured without server env vars. */
+  async function handleSaveRuntimeCredentials() {
+    if (!runtimeClientId.trim() || !runtimeClientSecret.trim()) {
+      showToast("error", "Client ID and Client Secret are required.");
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await apiFetch("/api/quickbooks/runtime-config", {
+        method: "PUT",
+        body: JSON.stringify({
+          clientId: runtimeClientId,
+          clientSecret: runtimeClientSecret,
+          redirectUri: runtimeRedirectUri,
+          environment: runtimeEnvironment,
+        }),
+      });
+      setRuntimeClientSecret("");
+      refresh();
+      showToast("success", "QuickBooks runtime credentials saved.");
+    } catch (err) {
+      showToast("error", err instanceof Error ? err.message : "Failed to save runtime credentials.");
+    } finally {
       setActionLoading(false);
     }
   }
@@ -133,6 +174,72 @@ export default function PluginsSettingsPage() {
 
         {/* Connection status and actions */}
         <div className="px-6 py-4 space-y-4">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Runtime OAuth Credentials</p>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Use this when server env vars are unavailable. Stored per organization in plugin settings.
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                Current source: {qbRuntimeSource ?? "none"}
+                {qbClientIdPreview ? ` · Client ID: ${qbClientIdPreview}` : ""}
+              </p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700">Client ID</span>
+                <input
+                  type="text"
+                  value={runtimeClientId}
+                  onChange={(event) => setRuntimeClientId(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                  placeholder="QuickBooks app client id"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700">Client Secret</span>
+                <input
+                  type="password"
+                  value={runtimeClientSecret}
+                  onChange={(event) => setRuntimeClientSecret(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                  placeholder="QuickBooks app client secret"
+                />
+              </label>
+              <label className="block md:col-span-2">
+                <span className="text-xs font-medium text-slate-700">Redirect URI</span>
+                <input
+                  type="text"
+                  value={runtimeRedirectUri}
+                  onChange={(event) => setRuntimeRedirectUri(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                  placeholder="http://localhost:4000/api/quickbooks/callback"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700">Environment</span>
+                <select
+                  value={runtimeEnvironment}
+                  onChange={(event) => setRuntimeEnvironment(event.target.value === "production" ? "production" : "sandbox")}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                >
+                  <option value="sandbox">Sandbox</option>
+                  <option value="production">Production</option>
+                </select>
+              </label>
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => void handleSaveRuntimeCredentials()}
+                disabled={actionLoading}
+                className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+              >
+                Save Runtime Credentials
+              </button>
+            </div>
+          </div>
+
           {loading ? (
             <div className="text-sm text-gray-400">Loading plugin status…</div>
           ) : (

@@ -18,6 +18,7 @@ interface StewardResponseRendererProps {
   content: string;
   structured?: StewardStructuredResponse;
   tone?: "dark" | "light";
+  onSuggestedAction?: (action: StewardSuggestedAction) => void | Promise<void>;
 }
 
 function renderArtifact(artifact: StewardArtifact): JSX.Element | null {
@@ -42,7 +43,13 @@ function renderArtifact(artifact: StewardArtifact): JSX.Element | null {
   return null;
 }
 
-function SuggestedActionsList({ actions }: { actions: StewardSuggestedAction[] }) {
+function SuggestedActionsList({
+  actions,
+  onSuggestedAction,
+}: {
+  actions: StewardSuggestedAction[];
+  onSuggestedAction?: (action: StewardSuggestedAction) => void | Promise<void>;
+}) {
   if (!actions || actions.length === 0) return null;
 
   return (
@@ -51,8 +58,16 @@ function SuggestedActionsList({ actions }: { actions: StewardSuggestedAction[] }
       <ul className="mt-1 space-y-1 text-xs text-slate-600">
         {actions.map((action, index) => (
           <li key={`${action.actionType}-${index}`} className="rounded border border-slate-200 bg-white px-2 py-1">
-            {action.label}
-            {action.requiresConfirmation ? " (confirmation required)" : ""}
+            <button
+              type="button"
+              onClick={() => {
+                void onSuggestedAction?.(action);
+              }}
+              className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-left text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+            >
+              {action.label}
+              {action.requiresConfirmation ? " (confirmation required)" : ""}
+            </button>
           </li>
         ))}
       </ul>
@@ -78,7 +93,12 @@ function EvidenceList({ evidence }: { evidence: StewardEvidenceItem[] }) {
   );
 }
 
-export default function StewardResponseRenderer({ content, structured, tone = "light" }: StewardResponseRendererProps) {
+export default function StewardResponseRenderer({
+  content,
+  structured,
+  tone = "light",
+  onSuggestedAction,
+}: StewardResponseRendererProps) {
   const hasArtifacts = Boolean(structured && structured.artifacts && structured.artifacts.length > 0);
   const markdown = structured?.replyMarkdown?.trim().length ? structured.replyMarkdown : content;
 
@@ -98,7 +118,7 @@ export default function StewardResponseRenderer({ content, structured, tone = "l
         <p className="text-[11px] text-amber-700">Structured output note: {structured.parseWarning}</p>
       )}
 
-      <SuggestedActionsList actions={structured?.suggestedActions || []} />
+      <SuggestedActionsList actions={structured?.suggestedActions || []} onSuggestedAction={onSuggestedAction} />
       <EvidenceList evidence={structured?.evidence || []} />
     </div>
   );

@@ -3,7 +3,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import HelpScopeBadge from "@/app/components/help/HelpScopeBadge";
+import { apiFetch } from "@/app/lib/auth-client";
 import {
   getContextualHelpSuggestions,
   getHelpFilterMetadata,
@@ -22,15 +24,35 @@ interface HelpWorkspaceProps {
   initialQuery?: string;
 }
 
+interface HelpAgentAction {
+  id: string;
+  label: string;
+  type: "open_route" | "open_help_article" | "open_help_search";
+  href: string;
+}
+
+interface HelpAgentPlan {
+  summary: string;
+  confidence: "high" | "medium" | "low";
+  steps: string[];
+  actions: HelpAgentAction[];
+}
+
 /**
  * HelpWorkspace provides the default Help App experience for list and search workflows.
  */
 export default function HelpWorkspace({ scope, scopePath, initialQuery = "" }: HelpWorkspaceProps) {
+  const router = useRouter();
   const [query, setQuery] = useState(initialQuery);
   const [category, setCategory] = useState("all");
   const [tag, setTag] = useState("all");
   const [difficulty, setDifficulty] = useState<HelpDifficulty | "any">("any");
   const [role, setRole] = useState<HelpRole | "any">("any");
+  const [agentQuery, setAgentQuery] = useState("");
+  const [agentLoading, setAgentLoading] = useState(false);
+  const [agentError, setAgentError] = useState<string | null>(null);
+  const [agentPlan, setAgentPlan] = useState<HelpAgentPlan | null>(null);
+  const [lastAgentQuery, setLastAgentQuery] = useState("");
 
   const metadata = useMemo(() => getHelpFilterMetadata(scope), [scope]);
   const quickSearches = [
@@ -63,6 +85,41 @@ export default function HelpWorkspace({ scope, scopePath, initialQuery = "" }: H
   useEffect(() => {
     setQuery(initialQuery);
   }, [initialQuery]);
+
+  const normalizedAgentQuery = agentQuery.trim();
+
+  async function runHelpAgentPlanner() {
+    if (agentLoading) return;
+    if (!normalizedAgentQuery) return;
+
+    setAgentLoading(true);
+    setAgentError(null);
+    try {
+      const response = await apiFetch<{ data: HelpAgentPlan }>("/api/help-agent/plan", {
+        method: "POST",
+        body: JSON.stringify({
+          query: normalizedAgentQuery,
+          scope,
+          scopePath,
+        }),
+      });
+      setLastAgentQuery(normalizedAgentQuery);
+      setAgentPlan(response.data);
+    } catch (error) {
+      setAgentError(error instanceof Error ? error.message : "Failed to run Help Agent.");
+    } finally {
+      setAgentLoading(false);
+    }
+  }
+
+  function runAgentAction(action: HelpAgentAction) {
+    // Actions should always be local routes from server planner.
+    if (!action.href.startsWith("/")) {
+      setAgentError("Blocked unsafe action target. Please try again.");
+      return;
+    }
+    router.push(action.href);
+  }
 
   return (
     <div className="space-y-5">
@@ -108,6 +165,95 @@ export default function HelpWorkspace({ scope, scopePath, initialQuery = "" }: H
         </div>
 
         <p className="mt-3 text-xs text-gray-500">Tip: partial phrases and minor typos are supported in search.</p>
+
+        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-emerald-900">Help Agent</h2>
+            <p className="mt-1 text-xs text-emerald-800">
+              Describe what you need done. Help Agent will plan steps and provide runnable actions.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              value={agentQuery}
+              onChange={(event) => setAgentQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void runHelpAgentPlanner();
+                }
+              }}
+              placeholder="Example: import a donor csv and resolve duplicates"
+              className="flex-1 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm text-gray-800"
+            />
+            <button
+              type="button"
+              onClick={() => void runHelpAgentPlanner()}
+              disabled={agentLoading || !normalizedAgentQuery}
+              className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {agentLoading ? "Planning..." : "Run Help Agent"}
+            </button>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {[
+              "import a donor csv and resolve duplicates",
+              "open event check-in tools",
+              "where do i add a new client",
+            ].map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => setAgentQuery(prompt)}
+                className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+
+          {agentError ? (
+            <p className="text-xs text-red-700">{agentError}</p>
+          ) : null}
+
+          {agentPlan ? (
+            <div className="rounded-lg border border-emerald-200 bg-white p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-gray-900">{agentPlan.summary}</p>
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-700">
+                  {agentPlan.confidence}
+                </span>
+              </div>
+
+              {lastAgentQuery ? (
+                <p className="text-[11px] text-gray-500">For: "{lastAgentQuery}"</p>
+              ) : null}
+
+              <div className="space-y-1">
+                {agentPlan.steps.map((step, index) => (
+                  <p key={`agent-step-${index}`} className="text-xs text-gray-700">
+                    {index + 1}. {step}
+                  </p>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                {agentPlan.actions.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    onClick={() => runAgentAction(action)}
+                    className="rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
       </header>
 
       <section className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">

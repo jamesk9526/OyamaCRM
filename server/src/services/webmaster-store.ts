@@ -69,6 +69,21 @@ export interface WebmasterPageRecord {
   updatedAt: string;
 }
 
+export interface WebmasterPublishVersionRecord {
+  id: string;
+  organizationId: string;
+  siteId: string;
+  versionLabel: string;
+  note: string | null;
+  rollbackFromVersionId: string | null;
+  snapshotJson: {
+    site: WebmasterSiteRecord;
+    pages: WebmasterPageRecord[];
+  };
+  createdById: string | null;
+  createdAt: string;
+}
+
 let schemaReady = false;
 
 /** Adds one column only when missing, compatible with MySQL variants lacking IF NOT EXISTS. */
@@ -155,6 +170,22 @@ export async function ensureWebmasterSchema(): Promise<void> {
     )
   `);
 
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS webmaster_publish_versions (
+      id VARCHAR(64) NOT NULL PRIMARY KEY,
+      organization_id VARCHAR(64) NOT NULL,
+      site_id VARCHAR(64) NOT NULL,
+      version_label VARCHAR(64) NOT NULL,
+      note TEXT NULL,
+      rollback_from_version_id VARCHAR(64) NULL,
+      snapshot_json LONGTEXT NOT NULL,
+      created_by_id VARCHAR(64) NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_webmaster_publish_versions_site (organization_id, site_id, created_at),
+      CONSTRAINT fk_webmaster_publish_versions_site FOREIGN KEY (site_id) REFERENCES webmaster_sites(id) ON DELETE CASCADE
+    )
+  `);
+
   await ensureColumnExists("webmaster_sites", "owner_id", "owner_id VARCHAR(64) NULL");
   await ensureColumnExists("webmaster_sites", "site_type", "site_type VARCHAR(64) NOT NULL DEFAULT 'MAIN_SITE'");
   await ensureColumnExists("webmaster_sites", "site_purpose", "site_purpose TEXT NULL");
@@ -223,6 +254,29 @@ function mapPageRow(row: Record<string, unknown>): WebmasterPageRecord {
     publishedAt: row.published_at ? toIso(row.published_at) : null,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
+  };
+}
+
+/** Maps one raw publish-version row into typed payload. */
+function mapPublishVersionRow(row: Record<string, unknown>): WebmasterPublishVersionRecord {
+  const rawSnapshot = row.snapshot_json ? JSON.parse(String(row.snapshot_json)) as {
+    site?: WebmasterSiteRecord;
+    pages?: WebmasterPageRecord[];
+  } : {};
+
+  return {
+    id: String(row.id),
+    organizationId: String(row.organization_id),
+    siteId: String(row.site_id),
+    versionLabel: String(row.version_label ?? ""),
+    note: row.note ? String(row.note) : null,
+    rollbackFromVersionId: row.rollback_from_version_id ? String(row.rollback_from_version_id) : null,
+    snapshotJson: {
+      site: rawSnapshot.site as WebmasterSiteRecord,
+      pages: Array.isArray(rawSnapshot.pages) ? rawSnapshot.pages : [],
+    },
+    createdById: row.created_by_id ? String(row.created_by_id) : null,
+    createdAt: toIso(row.created_at),
   };
 }
 
@@ -743,4 +797,93 @@ export async function listWebmasterSitesByStatus(params: {
     status: params.status,
     limit: params.limit,
   });
+}
+
+/** Persists one immutable publish snapshot for later rollback. */
+export async function createWebmasterPublishVersion(params: {
+  organizationId: string;
+  siteId: string;
+  createdById?: string;
+  note?: string;
+  rollbackFromVersionId?: string;
+}): Promise<WebmasterPublishVersionRecord> {
+  await ensureWebmasterSchema();
+
+  const site = await getWebmasterSiteById({ organizationId: params.organizationId, siteId: params.siteId });
+  if (!site) {
+    throw new Error("Site not found for publish snapshot.");
+  }
+
+  const pages = await listWebmasterPages({ organizationId: params.organizationId, siteId: params.siteId, limit: 500 });
+  const id = randomUUID();
+  const versionLabel = `v${Date.now()}`;
+
+  await prisma.$executeRawUnsafe(
+    `
+      INSERT INTO webmaster_publish_versions
+      (id, organization_id, site_id, version_label, note, rollback_from_version_id, snapshot_json, created_by_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    id,
+    params.organizationId,
+    params.siteId,
+    versionLabel,
+    params.note?.trim() || null,
+    params.rollbackFromVersionId?.trim() || null,
+    JSON.stringify({ site, pages }),
+    params.createdById ?? null,
+  );
+
+  const created = await getWebmasterPublishVersionById({ organizationId: params.organizationId, versionId: id });
+  if (!created) {
+    throw new Error("Publish version snapshot could not be reloaded.");
+  }
+
+  return created;
+}
+
+/** Lists publish version snapshots for one site. */
+export async function listWebmasterPublishVersions(params: {
+  organizationId: string;
+  siteId: string;
+  limit?: number;
+}): Promise<WebmasterPublishVersionRecord[]> {
+  await ensureWebmasterSchema();
+  const limit = Math.min(Math.max(params.limit ?? 30, 1), 120);
+
+  const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+    `
+      SELECT id, organization_id, site_id, version_label, note, rollback_from_version_id, snapshot_json, created_by_id, created_at
+      FROM webmaster_publish_versions
+      WHERE organization_id = ? AND site_id = ?
+      ORDER BY created_at DESC
+      LIMIT ?
+    `,
+    params.organizationId,
+    params.siteId,
+    limit,
+  );
+
+  return rows.map(mapPublishVersionRow);
+}
+
+/** Gets one publish-version snapshot scoped by organization. */
+export async function getWebmasterPublishVersionById(params: {
+  organizationId: string;
+  versionId: string;
+}): Promise<WebmasterPublishVersionRecord | null> {
+  await ensureWebmasterSchema();
+  const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+    `
+      SELECT id, organization_id, site_id, version_label, note, rollback_from_version_id, snapshot_json, created_by_id, created_at
+      FROM webmaster_publish_versions
+      WHERE organization_id = ? AND id = ?
+      LIMIT 1
+    `,
+    params.organizationId,
+    params.versionId,
+  );
+
+  if (rows.length === 0) return null;
+  return mapPublishVersionRow(rows[0]);
 }

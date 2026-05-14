@@ -6,16 +6,24 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 import { getReadinessBadgeClass } from "@/app/components/webmaster/editor/editor-utils";
-import type { PublishReadinessData, WebmasterSite } from "@/app/components/webmaster/editor/types";
+import type {
+  PublishReadinessData,
+  WebmasterPublishVersion,
+  WebmasterSite,
+} from "@/app/components/webmaster/editor/types";
 
 /** Publishing workspace replaces generic publish warning with concrete readiness workflow. */
 export default function WebmasterPublishingWorkspace() {
   const searchParams = useSearchParams();
   const [sites, setSites] = useState<WebmasterSite[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState("");
+  const [selectedRollbackVersionId, setSelectedRollbackVersionId] = useState("");
   const [readiness, setReadiness] = useState<PublishReadinessData | null>(null);
+  const [publishVersions, setPublishVersions] = useState<WebmasterPublishVersion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busyAction, setBusyAction] = useState<"publish" | "rollback" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const selectedSite = useMemo(
     () => sites.find((site) => site.id === selectedSiteId) ?? null,
@@ -36,6 +44,18 @@ export default function WebmasterPublishingWorkspace() {
     setReadiness(response.data);
   }
 
+  async function loadPublishVersions(siteId: string) {
+    if (!siteId) {
+      setPublishVersions([]);
+      setSelectedRollbackVersionId("");
+      return;
+    }
+    const response = await apiFetch<{ items: WebmasterPublishVersion[] }>(`/api/webmaster/sites/${siteId}/publish-versions`);
+    const items = Array.isArray(response.items) ? response.items : [];
+    setPublishVersions(items);
+    setSelectedRollbackVersionId((current) => current || items[0]?.id || "");
+  }
+
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -51,6 +71,7 @@ export default function WebmasterPublishingWorkspace() {
 
         setSelectedSiteId(initialSiteId);
         await loadReadiness(initialSiteId);
+        await loadPublishVersions(initialSiteId);
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : "Failed to load publishing workspace.");
       } finally {
@@ -64,12 +85,69 @@ export default function WebmasterPublishingWorkspace() {
     setSelectedSiteId(siteId);
     setLoading(true);
     setError(null);
+    setNotice(null);
     try {
       await loadReadiness(siteId);
+      await loadPublishVersions(siteId);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to load readiness.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handlePublish() {
+    if (!selectedSiteId || busyAction) return;
+    const approved = typeof window !== "undefined"
+      ? window.confirm("Publish this site now? This captures an immutable version snapshot.")
+      : false;
+    if (!approved) return;
+
+    setBusyAction("publish");
+    setError(null);
+    setNotice(null);
+    try {
+      await apiFetch(`/api/webmaster/sites/${selectedSiteId}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true }),
+      });
+      await loadReadiness(selectedSiteId);
+      await loadPublishVersions(selectedSiteId);
+      setNotice("Publish completed. A new immutable version snapshot was created.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Publish failed.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleRollback() {
+    if (!selectedSiteId || !selectedRollbackVersionId || busyAction) return;
+    const approved = typeof window !== "undefined"
+      ? window.confirm("Rollback to the selected publish version?")
+      : false;
+    if (!approved) return;
+
+    setBusyAction("rollback");
+    setError(null);
+    setNotice(null);
+    try {
+      await apiFetch(`/api/webmaster/sites/${selectedSiteId}/rollback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          confirm: true,
+          versionId: selectedRollbackVersionId,
+        }),
+      });
+      await loadReadiness(selectedSiteId);
+      await loadPublishVersions(selectedSiteId);
+      setNotice("Rollback completed and tracked as a new publish version record.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Rollback failed.");
+    } finally {
+      setBusyAction(null);
     }
   }
 
@@ -85,6 +163,10 @@ export default function WebmasterPublishingWorkspace() {
 
       {error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      ) : null}
+
+      {notice ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>
       ) : null}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
@@ -175,12 +257,41 @@ export default function WebmasterPublishingWorkspace() {
                 ) : null}
                 <button
                   type="button"
-                  disabled
-                  className="rounded-lg bg-slate-300 px-3 py-2 text-xs font-semibold text-slate-600"
-                  title="Publish execution is not implemented yet"
+                  onClick={() => void handlePublish()}
+                  disabled={!readiness.preflightPassed || busyAction !== null}
+                  className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+                  title={!readiness.preflightPassed ? "Fix preflight blockers before publishing." : "Publish now"}
                 >
-                  Publish Site (Not Implemented)
+                  {busyAction === "publish" ? "Publishing..." : "Publish Site"}
                 </button>
+              </div>
+
+              <div className="mt-4 rounded-lg border border-slate-200 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Rollback</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <select
+                    value={selectedRollbackVersionId}
+                    onChange={(event) => setSelectedRollbackVersionId(event.target.value)}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700"
+                  >
+                    {publishVersions.map((version) => (
+                      <option key={version.id} value={version.id}>
+                        {version.versionLabel} - {new Date(version.createdAt).toLocaleString()}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => void handleRollback()}
+                    disabled={!selectedRollbackVersionId || busyAction !== null}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {busyAction === "rollback" ? "Rolling back..." : "Rollback to Selected Version"}
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Rollback restores the selected snapshot and writes a new rollback version entry for audit history.
+                </p>
               </div>
             </div>
           </div>

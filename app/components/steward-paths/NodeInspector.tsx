@@ -496,6 +496,7 @@ export default function NodeInspector({
                   updateConfigEntries({
                     templateId: nextId,
                     templateName: selected?.name ?? "",
+                    templateStatus: selected?.status ?? "",
                   });
                 }}
                 className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
@@ -516,6 +517,16 @@ export default function NodeInspector({
                 placeholder="Open Letters & Printables to copy a template ID"
               />
             </label>
+            <div className="rounded-md border border-gray-200 bg-white p-2 text-[11px] text-gray-700 space-y-1">
+              <p><span className="font-semibold">Linked template:</span> {readString(activeNode.config, "templateName") || "Not linked"}</p>
+              <p><span className="font-semibold">Template status:</span> {readString(activeNode.config, "templateStatus") || "Unknown"}</p>
+              <a
+                href="/letters-printables"
+                className="inline-flex rounded-md border border-gray-300 px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Open Letters & Printables
+              </a>
+            </div>
             {templatesLoading ? <p className="text-[11px] text-gray-600">Loading templates...</p> : null}
             {templateError ? <p className="text-[11px] text-rose-700">{templateError}</p> : null}
           </div>
@@ -547,6 +558,7 @@ export default function NodeInspector({
                   updateConfigEntries({
                     campaignId: nextId,
                     campaignName: selected?.name ?? "",
+                    campaignStatus: selected?.status ?? "",
                   });
                 }}
                 className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
@@ -556,6 +568,16 @@ export default function NodeInspector({
                   <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
                 ))}
               </select>
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium text-gray-700">Campaign ID (manual override)</span>
+              <input
+                type="text"
+                value={readString(activeNode.config, "campaignId")}
+                onChange={(event) => updateConfig("campaignId", event.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                placeholder="Open Communications to copy campaign ID"
+              />
             </label>
             <label className="block">
               <span className="text-xs font-medium text-gray-700">Draft subject template</span>
@@ -632,6 +654,16 @@ export default function NodeInspector({
                 </label>
               </div>
             </div>
+            <div className="rounded-md border border-amber-300/80 bg-white p-2 text-[11px] text-amber-900 space-y-1">
+              <p><span className="font-semibold">Linked campaign:</span> {readString(activeNode.config, "campaignName") || "Not linked"}</p>
+              <p><span className="font-semibold">Campaign status:</span> {readString(activeNode.config, "campaignStatus") || "Unknown"}</p>
+              <a
+                href="/communications"
+                className="inline-flex rounded-md border border-amber-300 px-2 py-1 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
+              >
+                Open Communications
+              </a>
+            </div>
             {campaignsLoading ? <p className="text-[11px] text-gray-700">Loading campaigns...</p> : null}
             {campaignError ? <p className="text-[11px] text-rose-700">{campaignError}</p> : null}
           </div>
@@ -660,6 +692,7 @@ export default function NodeInspector({
                   updateConfigEntries({
                     campaignId: nextId,
                     campaignName: selected?.name ?? "",
+                    campaignStatus: selected?.status ?? "",
                   });
                 }}
                 className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
@@ -671,6 +704,16 @@ export default function NodeInspector({
               </select>
             </label>
             <label className="block">
+              <span className="text-xs font-medium text-gray-700">Campaign ID (manual override)</span>
+              <input
+                type="text"
+                value={readString(activeNode.config, "campaignId")}
+                onChange={(event) => updateConfig("campaignId", event.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                placeholder="Open Communications to copy campaign ID"
+              />
+            </label>
+            <label className="block">
               <span className="text-xs font-medium text-gray-700">Schedule send date/time (optional)</span>
               <input
                 type="datetime-local"
@@ -679,6 +722,16 @@ export default function NodeInspector({
                 className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
               />
             </label>
+            <div className="rounded-md border border-blue-300/80 bg-white p-2 text-[11px] text-blue-900 space-y-1">
+              <p><span className="font-semibold">Linked campaign:</span> {readString(activeNode.config, "campaignName") || "Not linked"}</p>
+              <p><span className="font-semibold">Campaign status:</span> {readString(activeNode.config, "campaignStatus") || "Unknown"}</p>
+              <a
+                href="/communications"
+                className="inline-flex rounded-md border border-blue-300 px-2 py-1 text-[11px] font-medium text-blue-900 hover:bg-blue-100"
+              >
+                Open Communications
+              </a>
+            </div>
             {campaignsLoading ? <p className="text-[11px] text-gray-700">Loading campaigns...</p> : null}
             {campaignError ? <p className="text-[11px] text-rose-700">{campaignError}</p> : null}
           </div>

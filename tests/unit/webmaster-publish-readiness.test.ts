@@ -126,6 +126,7 @@ describe("webmaster publish readiness", () => {
     expect(report.checks.some((check) => check.id === "seo-required-fields" && check.status === "Working")).toBe(true);
     expect(report.preflightPassed).toBe(true);
     expect(report.previewLink).toContain("/webmaster/preview/site-2/page-2?draft=1");
-    expect(report.publishExecutionStatus).toBe("Not Implemented");
+    expect(report.publishExecutionStatus).toBe("Working");
+    expect(report.rollbackStatus).toBe("Working");
   });
 });

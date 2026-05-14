@@ -34,6 +34,7 @@ interface StewardAiConfigResponse {
   thinkingModel: string;
   reasoningMode: StewardAiReasoningMode;
   agenticMultiStage: boolean;
+  chatHeadEnabled: boolean;
   temperature: number;
   maxTokens: number;
   timeoutMs: number;
@@ -49,6 +50,7 @@ interface StewardAiUpdatePayload {
   thinkingModel?: string;
   reasoningMode?: StewardAiReasoningMode;
   agenticMultiStage?: boolean;
+  chatHeadEnabled?: boolean;
   temperature?: number;
   maxTokens?: number;
   timeoutMs?: number;
@@ -148,6 +150,7 @@ interface StewardSuggestedActionPayload {
   label: string;
   actionType: string;
   requiresConfirmation: boolean;
+  payload?: Record<string, string | number | boolean | null>;
 }
 
 interface StewardEvidencePayload {
@@ -175,7 +178,11 @@ const ALLOWED_STEWARD_ARTIFACT_TYPES = new Set<StewardArtifactType>([
 
 const ALLOWED_SUGGESTED_ACTION_TYPES = new Set<string>([
   "open_report",
+  "open_donor",
   "copy",
+  "copy_donor_list",
+  "copy_csv",
+  "prepare_steward_loop",
   "communications.create_email_draft",
   "tasks.create_follow_up_task",
   "letters.create_letter_draft",
@@ -215,6 +222,41 @@ function sanitizeArtifactRows(rawRows: unknown): Array<Record<string, string | n
       return Object.keys(normalized).length > 0 ? normalized : null;
     })
     .filter((entry): entry is Record<string, string | number | null> => Boolean(entry));
+}
+
+function sanitizeActionPayload(rawPayload: unknown): Record<string, string | number | boolean | null> | undefined {
+  if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) {
+    return undefined;
+  }
+
+  const entries = Object.entries(rawPayload as Record<string, unknown>).slice(0, 20);
+  if (entries.length === 0) return undefined;
+
+  const sanitized: Record<string, string | number | boolean | null> = {};
+
+  for (const [key, value] of entries) {
+    const safeKey = asSafeText(key, "", 80);
+    if (!safeKey) continue;
+
+    if (value == null) {
+      sanitized[safeKey] = null;
+      continue;
+    }
+
+    if (typeof value === "boolean") {
+      sanitized[safeKey] = value;
+      continue;
+    }
+
+    if (typeof value === "number" && Number.isFinite(value)) {
+      sanitized[safeKey] = value;
+      continue;
+    }
+
+    sanitized[safeKey] = asSafeText(value, "", 300);
+  }
+
+  return Object.keys(sanitized).length > 0 ? sanitized : undefined;
 }
 
 function sanitizeArtifact(rawArtifact: unknown): Record<string, unknown> | null {
@@ -358,10 +400,13 @@ function normalizeStewardStructuredResponse(rawText: string, options: { debug: b
         const actionType = asSafeText(candidate.actionType, "", 80);
         if (!label || !actionType || !ALLOWED_SUGGESTED_ACTION_TYPES.has(actionType)) return null;
 
+        const payload = sanitizeActionPayload(candidate.payload);
+
         return {
           label,
           actionType,
           requiresConfirmation: candidate.requiresConfirmation !== false,
+          ...(payload ? { payload } : {}),
         };
       })
       .filter((action): action is StewardSuggestedActionPayload => Boolean(action))
@@ -1290,6 +1335,7 @@ function toPublicConfig(enabled: boolean, config: ReturnType<typeof parseSteward
     thinkingModel: config.thinkingModel,
     reasoningMode: config.reasoningMode,
     agenticMultiStage: config.agenticMultiStage,
+    chatHeadEnabled: config.chatHeadEnabled,
     temperature: config.temperature,
     maxTokens: config.maxTokens,
     timeoutMs: config.timeoutMs,
@@ -1479,6 +1525,7 @@ router.put("/config", requireRole("admin"), async (req, res) => {
     thinkingModel: payload.thinkingModel ?? existingConfig.thinkingModel,
     reasoningMode: payload.reasoningMode ?? existingConfig.reasoningMode,
     agenticMultiStage: payload.agenticMultiStage ?? existingConfig.agenticMultiStage,
+    chatHeadEnabled: payload.chatHeadEnabled ?? existingConfig.chatHeadEnabled,
     temperature: payload.temperature ?? existingConfig.temperature,
     maxTokens: payload.maxTokens ?? existingConfig.maxTokens,
     timeoutMs: payload.timeoutMs ?? existingConfig.timeoutMs,

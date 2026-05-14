@@ -488,10 +488,18 @@ function emitBridgeEvent(payload) {
 }
 
 function hideWindowToTray(targetWindow) {
-  if (!targetWindow || targetWindow.isDestroyed()) return;
+  if (!targetWindow || targetWindow.isDestroyed()) return false;
+  const trayInstance = createTray();
+  if (!trayInstance) {
+    // Packaged fallback: never hide the app if tray support is unavailable.
+    targetWindow.setSkipTaskbar(false);
+    targetWindow.minimize();
+    return false;
+  }
+
   targetWindow.setSkipTaskbar(true);
   targetWindow.hide();
-  createTray();
+  return true;
 }
 
 function showWindowFromTray() {
@@ -598,6 +606,11 @@ function createMainWindow(showImmediately = true) {
   }
 
   mainWindow.on("minimize", (event) => {
+    const config = readConfig();
+    if (!config.minimizeToTaskbarOnClose) {
+      return;
+    }
+
     event.preventDefault();
     hideWindowToTray(mainWindow);
   });
@@ -1056,7 +1069,13 @@ ipcMain.handle("oyama-bridge:stop", async () => {
 ipcMain.on("oyama-bridge:window-minimize", (event) => {
   const senderWindow = BrowserWindow.fromWebContents(event.sender);
   if (senderWindow && !senderWindow.isDestroyed()) {
-    hideWindowToTray(senderWindow);
+    const config = readConfig();
+    if (config.minimizeToTaskbarOnClose) {
+      hideWindowToTray(senderWindow);
+      return;
+    }
+
+    senderWindow.minimize();
   }
 });
 
@@ -1116,9 +1135,8 @@ app.whenReady().then(() => {
 
   createMainWindow(!shouldStartHidden);
   if (shouldStartHidden) {
-    createTray();
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.hide();
+      hideWindowToTray(mainWindow);
     }
   }
 

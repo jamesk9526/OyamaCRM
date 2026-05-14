@@ -25,29 +25,29 @@ Provide a review-first publishing layer for all CRM-connected website experience
   - domain/target profile present when required
   - no archived-site publish attempt
 
-4. Publish Layer (Planned)
+4. Publish Layer (Partially Working)
 - Publish request creates immutable version record.
-- Target adapter renders output package.
-- Deployment status updates progress and errors.
+- Draft pages are promoted to published status in CRM-owned storage.
+- External deployment target adapters are still pending.
 
-5. Rollback Layer (Planned)
+5. Rollback Layer (Partially Working)
 - Restore previously published version by ID.
 - Preserve full audit trail of rollback actions.
+- Restored pages are persisted in CRM-owned storage; external host rollback adapters are still pending.
 
-## Versioning Model (Planned)
+## Versioning Model
 
-Suggested table: `webmaster_publish_versions`
+Implemented table: `webmaster_publish_versions`
 
 - `id`
 - `organization_id`
 - `site_id`
-- `version_number`
-- `status` (`PENDING`, `IN_PROGRESS`, `SUCCEEDED`, `FAILED`, `ROLLED_BACK`)
-- `payload_json`
-- `artifact_uri`
-- `published_by_id`
+- `version_label`
+- `note`
+- `rollback_from_version_id`
+- `snapshot_json`
+- `created_by_id`
 - `created_at`
-- `completed_at`
 
 `webmaster_sites.published_version_id` should reference the active published version.
 
@@ -65,8 +65,9 @@ Each target should be configured per organization and validated before publish.
 - Visual editor and draft preview routes: Partially Working
 - Preflight endpoint (`GET /api/webmaster/sites/:siteId/publish-readiness`): Working
 - Publishing workspace UI (`/webmaster/publishing`): Working
-- Publish execution worker: Not Implemented
-- Rollback controls: Not Implemented
+- Publish execution APIs (`POST /api/webmaster/sites/:siteId/publish`): Working
+- Rollback APIs (`POST /api/webmaster/sites/:siteId/rollback`): Working
+- External deployment adapters: Not Implemented
 
 ## Current Route Surfaces
 

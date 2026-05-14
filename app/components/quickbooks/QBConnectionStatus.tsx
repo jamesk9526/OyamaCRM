@@ -26,7 +26,7 @@ interface Props {
  * @param loading      - Disables buttons during async operations
  */
 export default function QBConnectionStatus({ onConnect, onDisconnect, loading = false }: Props) {
-  const { qbConfigured, qbEnabled, qbConnected, qbRealmId, qbEnvironment } = usePlugins();
+  const { qbConfigured, qbEnabled, qbConnected, qbRealmId, qbEnvironment, qbRuntimeSource } = usePlugins();
 
   if (!qbConfigured) {
     return (
@@ -41,8 +41,9 @@ export default function QBConnectionStatus({ onConnect, onDisconnect, loading = 
         <div>
           <p className="text-sm font-medium text-gray-700">QuickBooks not configured</p>
           <p className="text-xs text-gray-500 mt-0.5">
-            Set <code className="font-mono">QB_CLIENT_ID</code> and <code className="font-mono">QB_CLIENT_SECRET</code>{" "}
-            environment variables on the server to enable this integration.
+            Add OAuth runtime credentials in Plugins (recommended) or set
+            <code className="font-mono"> QB_CLIENT_ID </code> and
+            <code className="font-mono"> QB_CLIENT_SECRET </code> server environment variables.
           </p>
         </div>
       </div>
@@ -67,6 +68,7 @@ export default function QBConnectionStatus({ onConnect, onDisconnect, loading = 
             <p className="text-sm font-medium text-yellow-800">Not connected to QuickBooks</p>
             <p className="text-xs text-yellow-700 mt-0.5">
               Authorize OyamaCRM to push donations to your QuickBooks {qbEnvironment} account.
+              {qbRuntimeSource ? ` Runtime source: ${qbRuntimeSource}.` : ""}
             </p>
           </div>
         </div>

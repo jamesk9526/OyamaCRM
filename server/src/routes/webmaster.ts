@@ -8,11 +8,14 @@ import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
 import {
   createWebmasterPage,
+  createWebmasterPublishVersion,
   createWebmasterSite,
   duplicateWebmasterSite,
   getWebmasterPageById,
+  getWebmasterPublishVersionById,
   getWebmasterSiteById,
   listWebmasterPages,
+  listWebmasterPublishVersions,
   listWebmasterSites,
   WebmasterConnectedModule,
   WebmasterSiteType,
@@ -485,6 +488,254 @@ router.get("/sites/:siteId/publish-readiness", async (req, res) => {
 
   res.json({
     data: readiness,
+  });
+});
+
+/**
+ * GET /api/webmaster/sites/:siteId/publish-versions
+ * Returns immutable publish snapshot history used for rollback.
+ */
+router.get("/sites/:siteId/publish-versions", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const siteId = req.params.siteId;
+  const site = await getWebmasterSiteById({ organizationId, siteId });
+  if (!site) {
+    res.status(404).json({ error: { code: "WEBMASTER_SITE_NOT_FOUND", message: "Site not found." } });
+    return;
+  }
+
+  const items = await listWebmasterPublishVersions({ organizationId, siteId, limit: 30 });
+  res.json({ items });
+});
+
+/**
+ * POST /api/webmaster/sites/:siteId/publish
+ * Creates immutable publish snapshot and marks draft pages as published.
+ */
+router.post("/sites/:siteId/publish", async (req, res) => {
+  if (!canWrite(req.user?.role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Insufficient role for Webmaster write actions." } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const siteId = req.params.siteId;
+  const site = await getWebmasterSiteById({ organizationId, siteId });
+  if (!site) {
+    res.status(404).json({ error: { code: "WEBMASTER_SITE_NOT_FOUND", message: "Site not found." } });
+    return;
+  }
+
+  const body = req.body as { confirm?: boolean; note?: string };
+  if (body.confirm !== true) {
+    res.status(400).json({
+      error: { code: "WEBMASTER_PUBLISH_CONFIRM_REQUIRED", message: "Set confirm=true to execute publish." },
+    });
+    return;
+  }
+
+  const pages = await listWebmasterPages({ organizationId, siteId, limit: 500 });
+  const readiness = buildWebmasterPublishReadinessReport({ site, pages });
+  if (!readiness.preflightPassed) {
+    res.status(409).json({
+      error: {
+        code: "WEBMASTER_PUBLISH_PREFLIGHT_FAILED",
+        message: "Publish preflight checks failed. Resolve blockers before publishing.",
+      },
+      data: readiness,
+    });
+    return;
+  }
+
+  for (const page of pages) {
+    if (page.status === "ARCHIVED") continue;
+    if (page.status !== "PUBLISHED") {
+      await updateWebmasterPage({
+        organizationId,
+        pageId: page.id,
+        status: "PUBLISHED",
+        updatedById: req.user?.sub,
+      });
+    }
+  }
+
+  const version = await createWebmasterPublishVersion({
+    organizationId,
+    siteId,
+    createdById: req.user?.sub,
+    note: body.note,
+  });
+
+  const updatedSite = await updateWebmasterSite({
+    organizationId,
+    siteId,
+    status: "ACTIVE",
+    lastPublishedAt: new Date().toISOString(),
+    publishedVersionId: version.id,
+  });
+
+  await logAudit({
+    action: "WEBMASTER_SITE_PUBLISHED",
+    entity: "WebmasterSite",
+    entityId: siteId,
+    userId: req.user?.sub,
+    organizationId,
+    metadata: {
+      publishedVersionId: version.id,
+      note: body.note ?? null,
+      pageCount: pages.length,
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({
+    item: {
+      site: updatedSite,
+      version,
+    },
+  });
+});
+
+/**
+ * POST /api/webmaster/sites/:siteId/rollback
+ * Restores page and site snapshot from selected publish version.
+ */
+router.post("/sites/:siteId/rollback", async (req, res) => {
+  if (!canWrite(req.user?.role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Insufficient role for Webmaster write actions." } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const siteId = req.params.siteId;
+  const site = await getWebmasterSiteById({ organizationId, siteId });
+  if (!site) {
+    res.status(404).json({ error: { code: "WEBMASTER_SITE_NOT_FOUND", message: "Site not found." } });
+    return;
+  }
+
+  const body = req.body as { confirm?: boolean; versionId?: string; note?: string };
+  if (body.confirm !== true) {
+    res.status(400).json({
+      error: { code: "WEBMASTER_ROLLBACK_CONFIRM_REQUIRED", message: "Set confirm=true to execute rollback." },
+    });
+    return;
+  }
+
+  const versionId = String(body.versionId ?? "").trim();
+  if (!versionId) {
+    res.status(400).json({ error: { code: "WEBMASTER_ROLLBACK_VERSION_REQUIRED", message: "versionId is required." } });
+    return;
+  }
+
+  const version = await getWebmasterPublishVersionById({ organizationId, versionId });
+  if (!version || version.siteId !== siteId) {
+    res.status(404).json({ error: { code: "WEBMASTER_PUBLISH_VERSION_NOT_FOUND", message: "Publish version not found." } });
+    return;
+  }
+
+  const snapshot = version.snapshotJson;
+  const snapshotPages = Array.isArray(snapshot.pages) ? snapshot.pages : [];
+  const currentPages = await listWebmasterPages({ organizationId, siteId, limit: 500 });
+  const currentById = new Map(currentPages.map((page) => [page.id, page]));
+
+  for (const currentPage of currentPages) {
+    const keep = snapshotPages.some((snapshotPage) => snapshotPage.id === currentPage.id);
+    if (!keep && currentPage.status !== "ARCHIVED") {
+      await updateWebmasterPage({
+        organizationId,
+        pageId: currentPage.id,
+        status: "ARCHIVED",
+        updatedById: req.user?.sub,
+      });
+    }
+  }
+
+  for (const snapshotPage of snapshotPages) {
+    const existingPage = currentById.get(snapshotPage.id);
+    if (existingPage) {
+      await updateWebmasterPage({
+        organizationId,
+        pageId: existingPage.id,
+        title: snapshotPage.title,
+        slug: snapshotPage.slug,
+        path: snapshotPage.path,
+        status: snapshotPage.status === "ARCHIVED" ? "ARCHIVED" : "PUBLISHED",
+        seoTitle: snapshotPage.seoTitle ?? undefined,
+        seoDescription: snapshotPage.seoDescription ?? undefined,
+        contentJson: snapshotPage.contentJson ?? undefined,
+        updatedById: req.user?.sub,
+      });
+      continue;
+    }
+
+    await createWebmasterPage({
+      organizationId,
+      siteId,
+      title: snapshotPage.title,
+      slug: `${snapshotPage.slug}-${Date.now().toString().slice(-4)}`,
+      path: `${snapshotPage.path}-restored-${Date.now().toString().slice(-4)}`,
+      status: snapshotPage.status === "ARCHIVED" ? "ARCHIVED" : "PUBLISHED",
+      seoTitle: snapshotPage.seoTitle ?? undefined,
+      seoDescription: snapshotPage.seoDescription ?? undefined,
+      contentJson: snapshotPage.contentJson ?? undefined,
+      createdById: req.user?.sub,
+      updatedById: req.user?.sub,
+    });
+  }
+
+  const rollbackVersion = await createWebmasterPublishVersion({
+    organizationId,
+    siteId,
+    createdById: req.user?.sub,
+    rollbackFromVersionId: versionId,
+    note: body.note ?? `Rollback to ${version.versionLabel}`,
+  });
+
+  const updatedSite = await updateWebmasterSite({
+    organizationId,
+    siteId,
+    lastPublishedAt: new Date().toISOString(),
+    publishedVersionId: rollbackVersion.id,
+    status: "ACTIVE",
+  });
+
+  await logAudit({
+    action: "WEBMASTER_SITE_ROLLBACK_EXECUTED",
+    entity: "WebmasterSite",
+    entityId: siteId,
+    userId: req.user?.sub,
+    organizationId,
+    metadata: {
+      targetVersionId: versionId,
+      rollbackVersionId: rollbackVersion.id,
+      note: body.note ?? null,
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({
+    item: {
+      site: updatedSite,
+      version: rollbackVersion,
+    },
   });
 });
 

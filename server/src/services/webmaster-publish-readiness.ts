@@ -138,15 +138,17 @@ export function buildWebmasterPublishReadinessReport(input: {
   checks.push({
     id: "publish-execution",
     label: "Publish execution adapter",
-    status: "Not Implemented",
-    detail: "Publish execution worker is not implemented yet. Use this workspace for readiness review.",
+    status: "Working",
+    detail: "Publish execution is enabled with immutable version snapshots and explicit confirmation.",
   });
 
   checks.push({
     id: "rollback-history",
     label: "Rollback execution",
-    status: "Not Implemented",
-    detail: "Rollback execution is not implemented yet. Version rollback UI is informational for now.",
+    status: "Working",
+    detail: site.publishedVersionId
+      ? "Rollback endpoint is available for saved publish versions."
+      : "Rollback endpoint is available. Create at least one publish version to use rollback.",
   });
 
   const lastPublishedAt = site.lastPublishedAt;
@@ -172,8 +174,8 @@ export function buildWebmasterPublishReadinessReport(input: {
     pagesWithInvalidPath,
     draftChangesSinceLastPublish,
     previewLink,
-    publishExecutionStatus: "Not Implemented",
-    rollbackStatus: "Not Implemented",
+    publishExecutionStatus: "Working",
+    rollbackStatus: "Working",
     lastPublishedVersionId: site.publishedVersionId,
     lastPublishedAt,
   };

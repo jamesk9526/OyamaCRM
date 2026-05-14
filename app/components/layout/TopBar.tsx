@@ -172,7 +172,7 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
       ? [
         { id: "quick-events-workspace", type: "tool", label: "Open Events Workspace", sublabel: "Select and manage event context", href: "/events/workspace", group: "tools" },
         { id: "quick-events-registry", type: "tool", label: "Open Events Registry", sublabel: "All events", href: "/events/events", group: "tools" },
-        { id: "quick-events-checkin", type: "tool", label: "Open Event Check-In", sublabel: "Guest arrival workflows", href: "/events/checkin", group: "tools" },
+        { id: "quick-events-checkin", type: "tool", label: "Open Event Check-In", sublabel: "Guest arrival workflows", href: "/events/check-in", group: "tools" },
         { id: "quick-help", type: "tool", label: "Open Help Center", sublabel: "Guides and walkthroughs", href: `/help?scope=events&scopePath=${encodeURIComponent(pathname || "/events")}`, group: "tools" },
       ]
       : moduleKey === "watchdog"
@@ -713,7 +713,7 @@ export default function TopBar() {
   const moduleKey = resolveTopBarModuleKey(pathname);
   const showTopBarAppLauncher = true;
   const [appsOpen, setAppsOpen] = useState(false);
-  const [stewardMode, setStewardMode] = useState<StewardPanelMode>("collapsed");
+  const [stewardMode, setStewardMode] = useState<StewardPanelMode>("dock-right");
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
@@ -861,10 +861,10 @@ export default function TopBar() {
     };
   }, [pathname]);
 
-  // Legacy compatibility: allow links like /?steward=open to open the popout Steward assistant.
+  // Legacy compatibility: allow links like /?steward=open to open the docked Steward assistant.
   useEffect(() => {
     if (searchParams.get("steward") !== "open") return;
-    setStewardMode((current) => (current === "collapsed" ? "popout" : current));
+    setStewardMode((current) => (current === "collapsed" ? "dock-right" : current));
   }, [searchParams]);
 
   // Keep assistant chat unobstructed by auxiliary topbar sheets when it is open.
@@ -939,7 +939,7 @@ export default function TopBar() {
     setMobileQuickOpen(false);
     setAppsOpen(false);
     setFeedbackOpen(false);
-    setStewardMode((current) => (current === "collapsed" ? "popout" : "collapsed"));
+    setStewardMode((current) => (current === "collapsed" ? "dock-right" : "collapsed"));
   }, []);
 
   return (
@@ -956,7 +956,7 @@ export default function TopBar() {
         onClose={() => setStewardMode("collapsed")}
         moduleKey={moduleKey}
         scopePath={pathname}
-        displayMode={stewardMode === "collapsed" ? "popout" : stewardMode}
+        displayMode={stewardMode === "collapsed" ? "dock-right" : stewardMode}
         onDisplayModeChange={setStewardMode}
       />
       <header className="sticky top-0 relative shrink-0 w-full flex flex-col md:flex-row md:items-center gap-2 md:gap-4 px-2.5 sm:px-3 md:px-4 py-2 md:py-0 min-h-14 md:h-14 border-b border-slate-700/60 shadow-[0_8px_28px_rgba(2,6,23,0.38)] backdrop-blur z-20 isolate pt-[max(0.5rem,env(safe-area-inset-top))] md:pt-0" style={{ background: topBarBackground }}>

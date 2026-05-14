@@ -2,6 +2,15 @@
 
 _Last deep audit: 2026-05-13_
 
+## 2026-05-13 Help Search Agentic Planner + UX Polish Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Help Agent planner API | Working | `server/src/routes/help-agent.ts`, `server/src/services/help-agent.ts`, `server/src/index.ts` | Added authenticated `POST /api/help-agent/plan` endpoint with deterministic scoped route catalog, confidence labels, and runnable action payloads. |
+| Help Search executable agent panel | Working | `app/components/help/HelpWorkspace.tsx` | Help workspace now supports plain-language planning, confidence/steps rendering, and one-click route/help action execution. |
+| Help Agent micro-UX and safety hardening | Working | `app/components/help/HelpWorkspace.tsx` | Added empty-query guard, duplicate-submit guard, prompt chips, last-query context, and local-route-only action guard. |
+| Events topbar quick action route correction | Working | `app/components/layout/TopBar.tsx` | Fixed quick action path from `/events/checkin` to canonical `/events/check-in`. |
+
 ## 2026-05-14 Steward Intelligence Vertical Slice Pass
 
 | Area | Status | Evidence | Notes |

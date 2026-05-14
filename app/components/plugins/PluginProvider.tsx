@@ -21,6 +21,12 @@ export interface PluginState {
   qbRealmId: string | null;
   /** "sandbox" or "production" */
   qbEnvironment: string;
+  /** Where runtime OAuth credentials come from: env or plugin config */
+  qbRuntimeSource: "env" | "plugin" | null;
+  /** OAuth callback URI currently used by runtime credentials */
+  qbRedirectUri: string | null;
+  /** Masked client id preview for UI diagnostics */
+  qbClientIdPreview: string | null;
   /** True while the initial status fetch is in progress */
   loading: boolean;
   /** Refetch plugin status (e.g. after connecting or disconnecting) */
@@ -33,6 +39,9 @@ const defaultState: PluginState = {
   qbConnected: false,
   qbRealmId: null,
   qbEnvironment: "sandbox",
+  qbRuntimeSource: null,
+  qbRedirectUri: null,
+  qbClientIdPreview: null,
   loading: true,
   refresh: () => {},
 };
@@ -73,6 +82,9 @@ export function PluginProvider({ children }: { children: ReactNode }) {
             connected: boolean;
             realmId: string | null;
             environment: string;
+            runtimeSource?: "env" | "plugin" | null;
+            redirectUri?: string | null;
+            clientIdPreview?: string | null;
           };
         };
         if (!cancelled) {
@@ -82,6 +94,9 @@ export function PluginProvider({ children }: { children: ReactNode }) {
             qbConnected: data.connected,
             qbRealmId: data.realmId,
             qbEnvironment: data.environment,
+            qbRuntimeSource: data.runtimeSource ?? null,
+            qbRedirectUri: data.redirectUri ?? null,
+            qbClientIdPreview: data.clientIdPreview ?? null,
             loading: false,
           });
         }

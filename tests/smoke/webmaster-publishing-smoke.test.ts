@@ -39,4 +39,33 @@ describe("webmaster publishing readiness smoke", () => {
     expect(Array.isArray(res.body?.data?.checks)).toBe(true);
     expect(typeof res.body?.data?.preflightPassed).toBe("boolean");
   });
+
+  it("requires explicit confirmation for publish execution", async () => {
+    const res = await request(app)
+      .post(`/api/webmaster/sites/${siteId}/publish`)
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ confirm: false });
+
+    expect(res.status).toBe(400);
+    expect(String(res.body?.error?.code ?? "")).toContain("CONFIRM_REQUIRED");
+  });
+
+  it("returns publish version list payload", async () => {
+    const res = await request(app)
+      .get(`/api/webmaster/sites/${siteId}/publish-versions`)
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body?.items)).toBe(true);
+  });
+
+  it("requires explicit confirmation for rollback execution", async () => {
+    const res = await request(app)
+      .post(`/api/webmaster/sites/${siteId}/rollback`)
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ confirm: false });
+
+    expect(res.status).toBe(400);
+    expect(String(res.body?.error?.code ?? "")).toContain("CONFIRM_REQUIRED");
+  });
 });
