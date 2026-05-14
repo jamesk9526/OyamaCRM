@@ -821,7 +821,8 @@ if (settingsSecurity) {
 
 if (settingsBridge) {
   settingsBridge.addEventListener("click", () => {
-    void openBridgeModal();
+    closeSettingsMenu();
+    void window.oyamaDesktop.openBridgeWindow();
   });
 }
 

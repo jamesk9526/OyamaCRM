@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Oyama Bridge Server</title>
+  <style>
+    :root {
+      --bg: #eef2f7;
+      --card: #ffffff;
+      --line: #d8e0ea;
+      --text: #0f172a;
+      --muted: #475569;
+      --green: #16a34a;
+      --red: #dc2626;
+      --amber: #f59e0b;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .titlebar {
+      height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px;
+      border-bottom: 1px solid var(--line);
+      background: #f8fafc;
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+
+    .title-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: var(--amber);
+    }
+
+    .dot.running { background: var(--green); }
+    .dot.error { background: var(--red); }
+
+    .title-actions,
+    .window-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      -webkit-app-region: no-drag;
+    }
+
+    button,
+    select,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      padding: 7px 11px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .btn:hover { background: #f8fafc; }
+    .btn.primary {
+      border-color: #16a34a;
+      background: #16a34a;
+      color: #fff;
+    }
+
+    .btn.primary:hover { background: #15803d; }
+    .btn.ghost {
+      background: #f8fafc;
+    }
+
+    .window-btn {
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .window-btn:hover { background: #f1f5f9; }
+
+    .layout {
+      height: calc(100vh - 38px);
+      padding: 12px;
+      display: grid;
+      grid-template-columns: minmax(480px, 1.15fr) minmax(360px, 0.85fr);
+      gap: 12px;
+    }
+
+    .column {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .card h2 {
+      margin: 0 0 6px;
+      font-size: 15px;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(110px, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px;
+      background: #f8fafc;
+    }
+
+    .metric .label {
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+
+    .metric .value {
+      font-size: 14px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .form-grid {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .field label {
+      font-size: 11px;
+      color: #475569;
+      font-weight: 600;
+    }
+
+    .field input,
+    .field select,
+    .mono-value {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 7px 9px;
+      color: #0f172a;
+      min-height: 34px;
+    }
+
+    .field.span-2 {
+      grid-column: span 2;
+    }
+
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #334155;
+      margin-top: 8px;
+    }
+
+    .endpoints {
+      margin-top: 10px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .endpoint {
+      font-size: 12px;
+      color: #334155;
+      display: grid;
+      grid-template-columns: 130px minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+    }
+
+    .mono-value {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      background: #f8fafc;
+    }
+
+    .copy-grid {
+      margin-top: 10px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .copy-row {
+      display: grid;
+      grid-template-columns: 110px minmax(0, 1fr) 68px;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .message {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #0f5132;
+      min-height: 16px;
+    }
+
+    .message.error {
+      color: #991b1b;
+    }
+
+    .request-log-card {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .request-log-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .request-log-wrap {
+      min-height: 0;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #f8fafc;
+      color: #475569;
+      text-align: left;
+      padding: 7px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    tbody td {
+      padding: 7px;
+      border-bottom: 1px solid #edf2f7;
+      vertical-align: top;
+      color: #0f172a;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 44px;
+      border-radius: 999px;
+      padding: 2px 7px;
+      font-size: 10px;
+      font-weight: 700;
+      border: 1px solid #d1d5db;
+      background: #f8fafc;
+      color: #334155;
+    }
+
+    .status-2 { background: #ecfdf3; color: #15803d; border-color: #bbf7d0; }
+    .status-4 { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+    .status-5 { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+
+    .empty {
+      padding: 18px;
+      font-size: 12px;
+      color: #64748b;
+      text-align: center;
+    }
+
+    @media (max-width: 1120px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="titlebar">
+    <div class="title-left">
+      <span id="bridgeRunningDot" class="dot" aria-hidden="true"></span>
+      <span>Oyama Bridge Server Console</span>
+    </div>
+    <div class="title-actions">
+      <button id="openMainWindowBtn" class="btn ghost" type="button">Open CRM Window</button>
+      <button id="setBridgeMainBtn" class="btn ghost" type="button">Use Bridge As Startup</button>
+    </div>
+    <div class="window-actions">
+      <button id="minBtn" class="window-btn" type="button" aria-label="Minimize">-</button>
+      <button id="maxBtn" class="window-btn" type="button" aria-label="Maximize">[]</button>
+      <button id="closeBtn" class="window-btn" type="button" aria-label="Close">x</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="column">
+      <article class="card">
+        <h2>Bridge Runtime</h2>
+        <p>Run this machine as your main AI bridge server and monitor traffic in real-time.</p>
+        <div class="metrics">
+          <div class="metric">
+            <div class="label">Status</div>
+            <div id="bridgeStatusValue" class="value">Stopped</div>
+          </div>
+          <div class="metric">
+            <div class="label">Requests</div>
+            <div id="bridgeRequestsValue" class="value">0</div>
+          </div>
+          <div class="metric">
+            <div class="label">Uptime</div>
+            <div id="bridgeUptimeValue" class="value">0m</div>
+          </div>
+        </div>
+        <div class="toolbar">
+          <button id="bridgeStartBtn" type="button" class="btn primary">Start Bridge</button>
+          <button id="bridgeStopBtn" type="button" class="btn">Stop Bridge</button>
+          <button id="bridgeRefreshBtn" type="button" class="btn ghost">Refresh</button>
+          <button id="clearLogBtn" type="button" class="btn ghost">Clear Display Log</button>
+        </div>
+        <p id="bridgeLastError" class="message"></p>
+      </article>
+
+      <article class="card">
+        <h2>Bridge Settings</h2>
+        <div class="form-grid">
+          <div class="field span-2">
+            <label for="bridgeDomainUrlInput">Domain AI Settings URL</label>
+            <input id="bridgeDomainUrlInput" type="url" placeholder="https://www.crm.yourdomain.com/settings/ai" />
+          </div>
+
+          <div class="field span-2">
+            <label for="bridgeUpstreamUrlInput">Upstream Oyama URL</label>
+            <input id="bridgeUpstreamUrlInput" type="url" placeholder="http://127.0.0.1:11434" />
+          </div>
+
+          <div class="field">
+            <label for="bridgePortInput">Bridge Port</label>
+            <input id="bridgePortInput" type="number" min="1024" max="65535" step="1" />
+          </div>
+
+          <div class="field">
+            <label for="bridgeAllowedOriginsInput">Allowed Origins</label>
+            <input id="bridgeAllowedOriginsInput" type="text" placeholder="https://www.crm.yourdomain.com" />
+          </div>
+
+          <div class="field span-2">
+            <label for="bridgeApiKeyInput">Bridge API Key</label>
+            <input id="bridgeApiKeyInput" type="text" />
+          </div>
+
+          <div class="field span-2">
+            <label for="bridgePublicBaseUrlInput">Public Base URL (optional)</label>
+            <input id="bridgePublicBaseUrlInput" type="url" placeholder="https://bridge.yourdomain.com" />
+          </div>
+
+          <div class="field">
+            <label for="bridgeModelInput">Model</label>
+            <input id="bridgeModelInput" type="text" />
+          </div>
+
+          <div class="field">
+            <label for="bridgeThinkingModelInput">Thinking Model</label>
+            <input id="bridgeThinkingModelInput" type="text" />
+          </div>
+
+          <div class="field">
+            <label for="bridgeCudaDeviceSelect">CUDA Device</label>
+            <select id="bridgeCudaDeviceSelect"></select>
+          </div>
+
+          <div class="field">
+            <label for="bridgeTemperatureInput">Temperature</label>
+            <input id="bridgeTemperatureInput" type="number" min="0" max="2" step="0.1" />
+          </div>
+
+          <div class="field">
+            <label for="bridgeTimeoutInput">Timeout (ms)</label>
+            <input id="bridgeTimeoutInput" type="number" min="3650" max="120000" step="1000" />
+          </div>
+
+          <div class="field">
+            <label for="startupPageSelect">Startup Main Page</label>
+            <select id="startupPageSelect">
+              <option value="crm">CRM Shell</option>
+              <option value="bridge">Bridge Server Console</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="check"><input id="bridgeAutostartInput" type="checkbox" /> Autostart bridge on desktop launch</label>
+        <label class="check"><input id="bridgeMinimizeOnCloseInput" type="checkbox" /> Minimize to taskbar on window close</label>
+
+        <div class="endpoints">
+          <div class="endpoint"><strong>Local endpoint</strong><span id="bridgeLocalEndpoint" class="mono-value">-</span></div>
+          <div class="endpoint"><strong>LAN endpoints</strong><span id="bridgeLanEndpoints" class="mono-value">-</span></div>
+          <div class="endpoint"><strong>Public candidate</strong><span id="bridgePublicEndpoint" class="mono-value">-</span></div>
+        </div>
+
+        <div class="toolbar">
+          <button id="bridgeSaveBtn" type="button" class="btn primary">Save Bridge Settings</button>
+        </div>
+        <p id="bridgeMessage" class="message"></p>
+      </article>
+    </section>
+
+    <section class="column">
+      <article class="card">
+        <h2>AI Assistant Copy Values</h2>
+        <p>Paste these values into CRM Settings and AI Assistant so clients can use this machine as the AI bridge server.</p>
+        <div class="copy-grid">
+          <div class="copy-row">
+            <span>Endpoint URL</span>
+            <input id="bridgeCopyEndpoint" class="mono-value" type="text" readonly />
+            <button class="btn ghost" data-copy-target="bridgeCopyEndpoint" type="button">Copy</button>
+          </div>
+          <div class="copy-row">
+            <span>API Key</span>
+            <input id="bridgeCopyApiKey" class="mono-value" type="text" readonly />
+            <button class="btn ghost" data-copy-target="bridgeCopyApiKey" type="button">Copy</button>
+          </div>
+          <div class="copy-row">
+            <span>Model</span>
+            <input id="bridgeCopyModel" class="mono-value" type="text" readonly />
+            <button class="btn ghost" data-copy-target="bridgeCopyModel" type="button">Copy</button>
+          </div>
+          <div class="copy-row">
+            <span>Thinking</span>
+            <input id="bridgeCopyThinkingModel" class="mono-value" type="text" readonly />
+            <button class="btn ghost" data-copy-target="bridgeCopyThinkingModel" type="button">Copy</button>
+          </div>
+          <div class="copy-row">
+            <span>CUDA</span>
+            <input id="bridgeCopyCuda" class="mono-value" type="text" readonly />
+            <button class="btn ghost" data-copy-target="bridgeCopyCuda" type="button">Copy</button>
+          </div>
+          <div class="copy-row">
+            <span>Temperature</span>
+            <input id="bridgeCopyTemperature" class="mono-value" type="text" readonly />
+            <button class="btn ghost" data-copy-target="bridgeCopyTemperature" type="button">Copy</button>
+          </div>
+          <div class="copy-row">
+            <span>Timeout</span>
+            <input id="bridgeCopyTimeout" class="mono-value" type="text" readonly />
+            <button class="btn ghost" data-copy-target="bridgeCopyTimeout" type="button">Copy</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="card request-log-card">
+        <div class="request-log-head">
+          <h2>Live Request Log</h2>
+          <span id="requestLogMeta" class="mono-value" style="max-width: 220px;">Waiting for traffic...</span>
+        </div>
+        <div class="request-log-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 70px;">Status</th>
+                <th style="width: 80px;">Method</th>
+                <th>Path</th>
+                <th style="width: 90px;">Latency</th>
+                <th style="width: 120px;">Time</th>
+              </tr>
+            </thead>
+            <tbody id="requestLogBody">
+              <tr><td class="empty" colspan="5">No bridge requests yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script src="./bridge.js"></script>
+</body>
+</html>

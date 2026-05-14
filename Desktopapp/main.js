@@ -9,9 +9,11 @@ const { execFile } = require("node:child_process");
 const { createBridgeServer } = require("./bridge-server");
 
 let mainWindow = null;
+let bridgeWindow = null;
 let bridgeManager = null;
 const DEFAULT_CONFIG = {
   boundUrl: "",
+  startupPage: "crm",
   shellColor: "#16a34a",
   pinEnabled: false,
   pinHash: "",
@@ -55,6 +57,11 @@ function readConfig() {
       writeConfig(merged);
     }
 
+    if (merged.startupPage !== "crm" && merged.startupPage !== "bridge") {
+      merged.startupPage = "crm";
+      writeConfig(merged);
+    }
+
     return merged;
   } catch {
     const fallback = {
@@ -64,6 +71,16 @@ function readConfig() {
     writeConfig(fallback);
     return fallback;
   }
+}
+
+function sendBridgeEventToWindow(targetWindow, payload) {
+  if (!targetWindow || targetWindow.isDestroyed()) return;
+  targetWindow.webContents.send("oyama:bridge-event", payload);
+}
+
+function emitBridgeEvent(payload) {
+  sendBridgeEventToWindow(mainWindow, payload);
+  sendBridgeEventToWindow(bridgeWindow, payload);
 }
 
 function writeConfig(nextConfig) {
@@ -166,6 +183,7 @@ function listCudaDevices() {
 
 function toBridgePublicConfig(config) {
   return {
+    startupPage: config.startupPage === "bridge" ? "bridge" : "crm",
     minimizeToTaskbarOnClose: Boolean(config.minimizeToTaskbarOnClose),
     bridgeEnabled: Boolean(config.bridgeEnabled),
     bridgeAutostart: Boolean(config.bridgeAutostart),
@@ -225,6 +243,12 @@ async function buildBridgeState() {
 }
 
 function createMainWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+    return mainWindow;
+  }
+
   const iconPath = path.join(__dirname, "assets", "icon.ico");
 
   mainWindow = new BrowserWindow({
@@ -246,6 +270,46 @@ function createMainWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, "shell.html"));
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
+
+  return mainWindow;
+}
+
+function createBridgeWindow() {
+  if (bridgeWindow && !bridgeWindow.isDestroyed()) {
+    if (bridgeWindow.isMinimized()) bridgeWindow.restore();
+    bridgeWindow.focus();
+    return bridgeWindow;
+  }
+
+  const iconPath = path.join(__dirname, "assets", "icon.ico");
+
+  bridgeWindow = new BrowserWindow({
+    width: 1260,
+    height: 860,
+    minWidth: 900,
+    minHeight: 620,
+    frame: false,
+    backgroundColor: "#eef2f7",
+    title: "Oyama Bridge Server",
+    icon: iconPath,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      webviewTag: false,
+    },
+  });
+
+  bridgeWindow.loadFile(path.join(__dirname, "bridge.html"));
+  bridgeWindow.on("closed", () => {
+    bridgeWindow = null;
+  });
+
+  return bridgeWindow;
 }
 
 ipcMain.handle("oyama:get-bound-url", () => {
@@ -350,6 +414,14 @@ ipcMain.handle("oyama:set-bridge-config", async (_event, payload) => {
   const next = { ...current };
 
   try {
+    if (Object.prototype.hasOwnProperty.call(payload, "startupPage")) {
+      const startupPage = String(payload.startupPage || "crm").trim().toLowerCase();
+      if (startupPage !== "crm" && startupPage !== "bridge") {
+        return { ok: false, message: "Startup page must be crm or bridge." };
+      }
+      next.startupPage = startupPage;
+    }
+
     if (Object.prototype.hasOwnProperty.call(payload, "minimizeToTaskbarOnClose")) {
       next.minimizeToTaskbarOnClose = Boolean(payload.minimizeToTaskbarOnClose);
     }
@@ -438,6 +510,10 @@ ipcMain.handle("oyama:set-bridge-config", async (_event, payload) => {
   }
 
   writeConfig(next);
+  emitBridgeEvent({
+    type: "config",
+    config: toBridgePublicConfig(next),
+  });
 
   if (bridgeManager && bridgeManager.getRuntimeState().running) {
     await bridgeManager.stop();
@@ -458,6 +534,16 @@ ipcMain.handle("oyama:set-bridge-config", async (_event, payload) => {
     ok: true,
     state: await buildBridgeState(),
   };
+});
+
+ipcMain.handle("oyama:open-bridge-window", () => {
+  createBridgeWindow();
+  return { ok: true };
+});
+
+ipcMain.handle("oyama:open-main-window", () => {
+  createMainWindow();
+  return { ok: true };
 });
 
 ipcMain.handle("oyama:bridge-start", async () => {
@@ -494,40 +580,53 @@ ipcMain.handle("oyama:bridge-stop", async () => {
   return { ok: true, state: await buildBridgeState() };
 });
 
-ipcMain.on("oyama:window-minimize", () => {
-  if (mainWindow) mainWindow.minimize();
-});
-
-ipcMain.on("oyama:window-toggle-maximize", () => {
-  if (!mainWindow) return;
-  if (mainWindow.isMaximized()) {
-    mainWindow.unmaximize();
-  } else {
-    mainWindow.maximize();
+ipcMain.on("oyama:window-minimize", (event) => {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  if (senderWindow && !senderWindow.isDestroyed()) {
+    senderWindow.minimize();
   }
 });
 
-ipcMain.on("oyama:window-close", () => {
-  if (!mainWindow) return;
+ipcMain.on("oyama:window-toggle-maximize", (event) => {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  if (!senderWindow || senderWindow.isDestroyed()) return;
+  if (senderWindow.isMaximized()) {
+    senderWindow.unmaximize();
+  } else {
+    senderWindow.maximize();
+  }
+});
+
+ipcMain.on("oyama:window-close", (event) => {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  if (!senderWindow || senderWindow.isDestroyed()) return;
   const config = readConfig();
   if (config.minimizeToTaskbarOnClose) {
-    mainWindow.minimize();
+    senderWindow.minimize();
     return;
   }
 
-  mainWindow.close();
+  senderWindow.close();
 });
 
 ipcMain.on("oyama:app-quit", () => {
   app.quit();
 });
 
-ipcMain.handle("oyama:window-is-maximized", () => {
-  return Boolean(mainWindow && mainWindow.isMaximized());
+ipcMain.handle("oyama:window-is-maximized", (event) => {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  return Boolean(senderWindow && !senderWindow.isDestroyed() && senderWindow.isMaximized());
 });
 
 app.whenReady().then(() => {
-  bridgeManager = createBridgeServer(() => readConfig());
+  bridgeManager = createBridgeServer(
+    () => readConfig(),
+    {
+      onEvent: (eventPayload) => {
+        emitBridgeEvent(eventPayload);
+      },
+    }
+  );
 
   const initialConfig = readConfig();
   if (initialConfig.bridgeAutostart || initialConfig.bridgeEnabled) {
@@ -536,11 +635,20 @@ app.whenReady().then(() => {
     });
   }
 
-  createMainWindow();
+  if (initialConfig.startupPage === "bridge") {
+    createBridgeWindow();
+  } else {
+    createMainWindow();
+  }
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
+      const currentConfig = readConfig();
+      if (currentConfig.startupPage === "bridge") {
+        createBridgeWindow();
+      } else {
+        createMainWindow();
+      }
     }
   });
 });

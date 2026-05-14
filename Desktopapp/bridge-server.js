@@ -3,6 +3,7 @@ const http = require("node:http");
 const https = require("node:https");
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
+const MAX_REQUEST_LOGS = 250;
 
 function parseAllowedOrigins(rawValue) {
   const text = String(rawValue || "").trim();
@@ -180,14 +181,60 @@ function injectCudaDeviceOptions(config, pathname, bodyBuffer) {
   }
 }
 
-function createBridgeServer(readConfig) {
+function createBridgeServer(readConfig, options = {}) {
   let server = null;
+  const eventListener = options && typeof options.onEvent === "function"
+    ? options.onEvent
+    : null;
   const runtime = {
     running: false,
     startedAt: null,
     requestCount: 0,
     lastError: null,
   };
+  const requestLog = [];
+
+  function emitEvent(payload) {
+    if (!eventListener) return;
+    try {
+      eventListener(payload);
+    } catch {
+      // Ignore renderer listener failures to keep bridge runtime healthy.
+    }
+  }
+
+  function pushRequestLog(entry) {
+    const normalizedEntry = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      timestamp: new Date().toISOString(),
+      method: String(entry.method || "GET").toUpperCase(),
+      path: String(entry.path || "/"),
+      statusCode: Number(entry.statusCode || 0),
+      durationMs: Number(entry.durationMs || 0),
+      origin: String(entry.origin || ""),
+      detail: String(entry.detail || ""),
+      upstreamUrl: String(entry.upstreamUrl || ""),
+    };
+
+    requestLog.unshift(normalizedEntry);
+    if (requestLog.length > MAX_REQUEST_LOGS) {
+      requestLog.length = MAX_REQUEST_LOGS;
+    }
+
+    emitEvent({
+      type: "request",
+      entry: normalizedEntry,
+      runtime: getRuntimeState(),
+    });
+  }
+
+  function emitRuntimeUpdate(reason) {
+    emitEvent({
+      type: "runtime",
+      reason,
+      runtime: getRuntimeState(),
+    });
+  }
 
   function getRuntimeState() {
     return {
@@ -196,24 +243,42 @@ function createBridgeServer(readConfig) {
       uptimeMs: runtime.startedAt ? Date.now() - runtime.startedAt : 0,
       requestCount: runtime.requestCount,
       lastError: runtime.lastError,
+      requestLog: requestLog.slice(0, MAX_REQUEST_LOGS),
     };
   }
 
   async function handleRequest(req, res) {
+    const startedAt = Date.now();
     const config = readConfig();
     const url = new URL(req.url || "/", "http://127.0.0.1");
     const allowedOrigins = parseAllowedOrigins(config.bridgeAllowedOrigins);
+    const requestPath = `${url.pathname}${url.search}`;
+    const requestOrigin = typeof req.headers.origin === "string" ? req.headers.origin : "";
+
+    function logRequest(statusCode, detail, upstreamUrl = "") {
+      pushRequestLog({
+        method: req.method || "GET",
+        path: requestPath,
+        statusCode,
+        durationMs: Date.now() - startedAt,
+        origin: requestOrigin,
+        detail,
+        upstreamUrl,
+      });
+    }
 
     if (!setCorsHeaders(req, res, allowedOrigins)) {
       res.statusCode = 403;
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify({ error: { message: "Origin is not allowed by bridge settings." } }));
+      logRequest(403, "Origin blocked by bridge allowlist.");
       return;
     }
 
     if (req.method === "OPTIONS") {
       res.statusCode = 204;
       res.end();
+      logRequest(204, "CORS preflight handled.");
       return;
     }
 
@@ -226,6 +291,7 @@ function createBridgeServer(readConfig) {
         upstream: config.bridgeUpstreamUrl,
         requestCount: runtime.requestCount,
       }));
+      logRequest(200, "Bridge health check.");
       return;
     }
 
@@ -233,6 +299,7 @@ function createBridgeServer(readConfig) {
       res.statusCode = 404;
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify({ error: { message: "Route not found. Use /api/* or /health." } }));
+      logRequest(404, "Unsupported route path.");
       return;
     }
 
@@ -240,6 +307,7 @@ function createBridgeServer(readConfig) {
       res.statusCode = 401;
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify({ error: { message: "Missing or invalid Bearer token." } }));
+      logRequest(401, "Unauthorized request (invalid/missing Bearer token).");
       return;
     }
 
@@ -258,6 +326,7 @@ function createBridgeServer(readConfig) {
       res.setHeader(key, value);
     }
     res.end(upstreamResult.body);
+    logRequest(upstreamResult.statusCode, "Forwarded to upstream runtime.", String(config.bridgeUpstreamUrl || ""));
   }
 
   function start() {
@@ -280,6 +349,16 @@ function createBridgeServer(readConfig) {
               message: runtime.lastError,
             },
           }));
+          pushRequestLog({
+            method: req.method || "GET",
+            path: String(req.url || "/"),
+            statusCode: 502,
+            durationMs: 0,
+            origin: typeof req.headers.origin === "string" ? req.headers.origin : "",
+            detail: runtime.lastError,
+            upstreamUrl: String(config.bridgeUpstreamUrl || ""),
+          });
+          emitRuntimeUpdate("request-error");
         });
       });
 
@@ -287,12 +366,15 @@ function createBridgeServer(readConfig) {
         runtime.lastError = error instanceof Error ? error.message : String(error);
         runtime.running = false;
         server = null;
+        emitRuntimeUpdate("startup-error");
         reject(error);
       });
 
       server.listen(Number(config.bridgePort), "0.0.0.0", () => {
         runtime.running = true;
         runtime.startedAt = Date.now();
+        runtime.lastError = null;
+        emitRuntimeUpdate("started");
         resolve(getRuntimeState());
       });
     });
@@ -302,6 +384,7 @@ function createBridgeServer(readConfig) {
     if (!server) {
       runtime.running = false;
       runtime.startedAt = null;
+      emitRuntimeUpdate("stopped");
       return Promise.resolve(getRuntimeState());
     }
 
@@ -312,6 +395,7 @@ function createBridgeServer(readConfig) {
       target.close(() => {
         runtime.running = false;
         runtime.startedAt = null;
+        emitRuntimeUpdate("stopped");
         resolve(getRuntimeState());
       });
     });
