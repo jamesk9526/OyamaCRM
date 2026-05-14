@@ -10,6 +10,7 @@
  *   staff          — create and edit individual records, view all data
  *   readonly       — view-only access across the application
  *   report_viewer  — board member access: simplified dashboard + reports only; no data editing
+ *   shareview_user — OShareview dashboard access: baseline statistics only
  *
  * A higher role always satisfies a lower-role requirement. For example,
  * requireRole("staff") will pass for admin, manager, and staff users.
@@ -22,7 +23,7 @@ import { Request, Response, NextFunction } from "express";
  * All valid role values in priority order (highest → lowest).
  * Used for hierarchy comparison — index 0 = highest privilege.
  */
-export const ROLE_HIERARCHY = ["admin", "manager", "staff", "readonly", "report_viewer"] as const;
+export const ROLE_HIERARCHY = ["admin", "manager", "staff", "readonly", "report_viewer", "shareview_user"] as const;
 
 /** Union type of all valid role strings. */
 export type UserRole = typeof ROLE_HIERARCHY[number];

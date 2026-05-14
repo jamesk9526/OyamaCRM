@@ -12,6 +12,7 @@ function mapModuleToFeedbackScope(moduleKey: TopBarModuleKey): FeedbackCrmScope 
   if (moduleKey === "webmaster") return "webmaster";
   if (moduleKey === "hrm") return "hrm";
   if (moduleKey === "reportit") return "reportit";
+  if (moduleKey === "password") return "other";
   return "unknown";
 }
 

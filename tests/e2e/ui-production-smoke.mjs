@@ -1,7 +1,7 @@
 // Browser-driven production-smoke script for critical cross-module UI workflows.
 import { chromium } from "playwright";
 
-const WEB_BASE = process.env.E2E_WEB_BASE_URL || "http://localhost:3650";
+const WEB_BASE = process.env.E2E_WEB_BASE_URL || "http://localhost:3000";
 const API_BASE = process.env.E2E_API_BASE_URL || "http://localhost:4000";
 
 /** Promise-based delay used by retry flows in this e2e script. */

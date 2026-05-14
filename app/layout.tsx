@@ -13,6 +13,23 @@ const geistSans = Geist({
 export const metadata: Metadata = {
   title: "OyamaCRM",
   description: "Nonprofit Donor Management",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    noarchive: true,
+    nosnippet: true,
+    noimageindex: true,
+    notranslate: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      noarchive: true,
+      nosnippet: true,
+      noimageindex: true,
+      notranslate: true,
+    },
+  },
 };
 
 export default function RootLayout({

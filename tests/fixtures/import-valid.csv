@@ -1,0 +1,4 @@
+firstName,lastName,email,phone,constituentType,totalLifetimeGiving
+Ava,Donor,ava.donor@example.org,555-111-2222,donor,1250
+Liam,Volunteer,liam.volunteer@example.org,555-222-3333,volunteer,0
+Noah,Member,noah.member@example.org,555-333-4444,member,75

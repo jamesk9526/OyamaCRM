@@ -115,12 +115,13 @@ export function canContactConstituent(
 }
 
 /** Supported branch comparison operators for if/else logic on numeric/string fields. */
-export type BranchOperator = "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "in" | "not_in";
+export type BranchOperator = "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "between" | "in" | "not_in";
 
 /** A single branch comparison rule. */
 export interface BranchRule {
   operator: BranchOperator;
   value: number | string | Array<number | string>;
+  valueTo?: number | string;
 }
 
 /**
@@ -144,6 +145,13 @@ export function evaluateBranchRule(input: number | string | null | undefined, ru
     const b = typeof rule.value === "string" ? rule.value.toLowerCase() : rule.value;
     const equal = a === b;
     return rule.operator === "eq" ? equal : !equal;
+  }
+
+  if (rule.operator === "between") {
+    const min = typeof rule.value === "number" ? rule.value : Number(rule.value);
+    const max = typeof rule.valueTo === "number" ? rule.valueTo : Number(rule.valueTo);
+    if (typeof input !== "number" || !Number.isFinite(min) || !Number.isFinite(max)) return false;
+    return input >= Math.min(min, max) && input <= Math.max(min, max);
   }
 
   // Remaining operators are numeric.

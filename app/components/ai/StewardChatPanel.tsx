@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import StewardMessageRenderer from "@/app/components/ai/StewardMessageRenderer";
 
-type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "reportit" | "hrm";
+type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview" | "hrm" | "password";
 type ChatMode = "ask" | "analyze" | "draft" | "action" | "help";
 export type StewardPanelMode = "collapsed" | "dock-right" | "popout" | "maximized";
 type StewardChatDisplayMode = "dock" | "dock-right" | "popout" | "maximized" | "workspace";
@@ -257,7 +257,7 @@ function promptsForModule(moduleKey: ModuleKey): string[] {
     ];
   }
 
-  if (moduleKey === "reportit") {
+  if (moduleKey === "oshareview") {
     return [
       "Summarize the most important reporting KPI changes.",
       "Which report tab should I review first this week?",
@@ -270,6 +270,14 @@ function promptsForModule(moduleKey: ModuleKey): string[] {
       "Summarize internal staffing priorities for today.",
       "Draft an internal announcement for all staff locations.",
       "What schedule conflicts should HRM resolve this week?",
+    ];
+  }
+
+  if (moduleKey === "password") {
+    return [
+      "Summarize vault entries that need sharing cleanup.",
+      "Draft secure credential rotation reminders for staff.",
+      "What password-sharing risks should we address first?",
     ];
   }
 

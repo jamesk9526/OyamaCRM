@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -17,6 +17,9 @@ import ConstituentNotesTab from "@/app/components/constituents/ConstituentNotesT
 import ConstituentLettersPanel from "@/app/components/constituents/ConstituentLettersPanel";
 import EmailPreferencePanel from "@/app/components/constituents/EmailPreferencePanel";
 import DonorStewardSignalsWidget from "@/app/components/steward/DonorStewardSignalsWidget";
+import WorkspaceControlRail from "@/app/components/workspace/WorkspaceControlRail";
+import WorkspaceFrame from "@/app/components/workspace/WorkspaceFrame";
+import type { WorkspaceControlGroup } from "@/app/components/workspace/workspace-types";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface HouseholdData {
@@ -114,6 +117,54 @@ export default function ConstituentDetailPage() {
   const [showGiftModal, setShowGiftModal] = useState(false);
   const [deletingDonationId, setDeletingDonationId] = useState<string | null>(null);
 
+  const isHousehold = constituent?.type === "HOUSEHOLD";
+
+  const tabs = useMemo(() => {
+    if (!constituent) {
+      return [
+        { key: "giving" as const, label: "Giving History" },
+        { key: "tasks" as const, label: "Tasks" },
+        { key: "timeline" as const, label: "Timeline" },
+        { key: "notes" as const, label: "Notes" },
+      ];
+    }
+
+    return [
+      ...(isHousehold ? [{ key: "household" as const, label: `Members (${constituent.headOf?.members?.length ?? 0})` }] : []),
+      { key: "giving" as const, label: `Giving History (${constituent.donations?.length ?? 0})` },
+      { key: "tasks" as const, label: `Tasks (${constituent.tasks?.length ?? 0})` },
+      { key: "timeline" as const, label: `Timeline (${constituent.activities?.length ?? 0})` },
+      { key: "notes" as const, label: "Notes" },
+    ];
+  }, [constituent, isHousehold]);
+
+  const railGroups = useMemo<WorkspaceControlGroup[]>(() => [
+    {
+      id: "workspace-views",
+      label: "Workspace Views",
+      items: tabs.map((tabItem) => ({
+        id: `view:${tabItem.key}`,
+        label: tabItem.label,
+        status: "Working",
+      })),
+    },
+    {
+      id: "related-workspaces",
+      label: "Related Workspaces",
+      items: [
+        { id: "related:communications", label: "Communications", href: `/communications?source=constituent&constituentId=${id}`, external: true, status: "Working" },
+        { id: "related:tasks", label: "Tasks", href: `/tasks?focus=my&constituentId=${id}`, external: true, status: "Working" },
+      ],
+    },
+    {
+      id: "quick-actions",
+      label: "Quick Actions",
+      items: [
+        { id: "action:record-gift", label: "Record Gift", status: "Working" },
+      ],
+    },
+  ], [id, tabs]);
+
   useEffect(() => {
     async function load() {
       try {
@@ -152,17 +203,31 @@ export default function ConstituentDetailPage() {
 
   const c = constituent;
   const fullName = `${c.prefix ? c.prefix + " " : ""}${c.firstName} ${c.lastName}`;
-  const isHousehold = c.type === "HOUSEHOLD";
 
-  const tabs = [
-    ...(isHousehold ? [{ key: "household" as const, label: `Members (${c.headOf?.members?.length ?? 0})` }] : []),
-    { key: "giving" as const, label: `Giving History (${c.donations?.length ?? 0})` },
-    { key: "tasks" as const, label: `Tasks (${c.tasks?.length ?? 0})` },
-    { key: "timeline" as const, label: `Timeline (${c.activities?.length ?? 0})` },
-    { key: "notes" as const, label: "Notes" },
-  ];
+  function handleRailSelect(itemId: string) {
+    if (itemId.startsWith("view:")) {
+      setTab(itemId.replace("view:", "") as typeof tab);
+      return;
+    }
+
+    if (itemId === "action:record-gift") {
+      setShowGiftModal(true);
+    }
+  }
 
   return (
+    <WorkspaceFrame
+      title={fullName}
+      description={`${typeLabel(c.type)} · ${statusLabel(c.donorStatus)}`}
+      controlRail={(
+        <WorkspaceControlRail
+          title="Constituent Controls"
+          groups={railGroups}
+          activeItem={`view:${tab}`}
+          onSelect={handleRailSelect}
+        />
+      )}
+    >
     <div className="space-y-5">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-sm text-gray-500">
@@ -209,47 +274,47 @@ export default function ConstituentDetailPage() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-stretch gap-2 flex-wrap w-full lg:w-auto">
             {/* Record Gift — primary stewardship action */}
             <button
               onClick={() => setShowGiftModal(true)}
-              className="px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5"
+              className="w-full sm:w-auto justify-center px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors inline-flex items-center gap-1.5"
             >
               💚 Record Gift
             </button>
             <Link
               href={`/letters-printables/generate?constituentId=${id}`}
-              className="px-4 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors"
+              className="w-full sm:w-auto text-center px-4 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors"
             >
               Generate Letter
             </Link>
             <Link
               href={`/communications?new=1&source=constituent&constituentId=${id}`}
-              className="px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+              className="w-full sm:w-auto text-center px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
             >
               Create Communication
             </Link>
             <Link
               href={`/automations?source=constituent&constituentId=${id}`}
-              className="px-3 py-2 text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
+              className="w-full sm:w-auto text-center px-3 py-2 text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
             >
               Start Steward Path
             </Link>
             <Link
               href={`/tasks?focus=my&constituentId=${id}`}
-              className="px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors"
+              className="w-full sm:w-auto text-center px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors"
             >
               Create Task
             </Link>
             <Link
               href={`/meetings?constituentId=${id}`}
-              className="px-3 py-2 text-sm font-medium text-sky-700 bg-sky-50 border border-sky-200 rounded-lg hover:bg-sky-100 transition-colors"
+              className="w-full sm:w-auto text-center px-3 py-2 text-sm font-medium text-sky-700 bg-sky-50 border border-sky-200 rounded-lg hover:bg-sky-100 transition-colors"
             >
               Schedule Meeting
             </Link>
             <Link
               href={`/constituents/${id}/edit`}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="w-full sm:w-auto text-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Edit
             </Link>
@@ -300,22 +365,6 @@ export default function ConstituentDetailPage() {
 
       {/* Tabbed detail */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="flex border-b border-gray-200 overflow-x-auto">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`px-5 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
-                tab === t.key
-                  ? "text-green-700 border-b-2 border-green-600"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
         <div className="p-5">
           {tab === "household" && c.headOf && (
             <HouseholdPanel householdId={c.headOf.id} headConstituentId={c.id} />
@@ -374,6 +423,7 @@ export default function ConstituentDetailPage() {
 
       <p className="text-xs text-gray-400">Record added {formatDate(c.createdAt)}</p>
     </div>
+    </WorkspaceFrame>
   );
 }
 

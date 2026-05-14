@@ -79,6 +79,14 @@ interface DonationQuickActionContext {
   } | null;
 }
 
+type DonationLoopActionStatus = "CREATED" | "REUSED" | "SKIPPED";
+
+interface DonationLoopActionResult {
+  status: DonationLoopActionStatus;
+  id?: string;
+  reason?: string;
+}
+
 /** Formats donation date into YYYY-MM-DD for deterministic task/draft naming. */
 function formatDonationDateForLabel(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -869,6 +877,306 @@ router.post("/:id/quick-actions/start-path", requirePermission("steward_paths.en
     redirectTo: `/automations?source=donation&constituentId=${encodeURIComponent(donation.constituent.id)}&donationId=${encodeURIComponent(donation.id)}&enrollmentId=${encodeURIComponent(enrollment.id)}`,
   });
 });
+
+/**
+ * POST /api/donations/:id/quick-actions/stewardship-loop — Executes a complete donation follow-up loop.
+ *
+ * The loop orchestrates existing stewardship actions in one call:
+ * 1) donation email draft (if donor email exists)
+ * 2) follow-up call task
+ * 3) donor steward path enrollment (when an eligible template exists)
+ *
+ * This route is intentionally idempotent-friendly for office workflows:
+ * - reuses existing draft campaign for this donation when present
+ * - reuses a recent matching open follow-up task
+ * - reuses active/paused enrollment on the same path for the donor
+ */
+router.post(
+  "/:id/quick-actions/stewardship-loop",
+  requirePermission("edit:communications"),
+  requirePermission("edit:tasks"),
+  requirePermission("steward_paths.enroll"),
+  async (req, res) => {
+    const userId = req.user?.sub;
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId || !userId) {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+      return;
+    }
+
+    const donation = await loadDonationQuickActionContext(organizationId, getRouteIdParam(req.params.id));
+    if (!donation) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Donation not found" } });
+      return;
+    }
+
+    const dateLabel = formatDonationDateForLabel(donation.date);
+    const amountLabel = formatDonationAmountForLabel(donation.amount);
+    const donorFullName = `${donation.constituent.firstName} ${donation.constituent.lastName}`.trim();
+
+    let emailDraft: DonationLoopActionResult = {
+      status: "SKIPPED",
+      reason: "Constituent has no email.",
+    };
+    let followUpTask: DonationLoopActionResult = {
+      status: "SKIPPED",
+      reason: "Task action was not attempted.",
+    };
+    let pathEnrollment: DonationLoopActionResult = {
+      status: "SKIPPED",
+      reason: "No eligible donor steward path template with steps.",
+    };
+
+    // Email draft step
+    if (donation.constituent.email) {
+      try {
+        const settings = await prisma.organizationSettings.findUnique({
+          where: { organizationId },
+          select: { smtpFromName: true, smtpFromEmail: true },
+        });
+
+        const campaignName = `Donation Follow-up: ${donorFullName} - $${amountLabel} - ${dateLabel}`;
+        const subject = `Thank you for your gift, ${donation.constituent.firstName}`;
+        const previewText = `Donation acknowledgment for $${amountLabel} received ${dateLabel}.`;
+        const audienceFilter = JSON.stringify({
+          type: "individual",
+          recipientEmail: donation.constituent.email,
+          recipientConstituentId: donation.constituent.id,
+          source: "donation-stewardship-loop",
+          donationId: donation.id,
+          _sharing: {
+            ownerId: userId,
+            sharedWithOrganization: false,
+          },
+          _workflow: {
+            preparationStatus: "DRAFT",
+          },
+        });
+
+        const existingCampaign = await prisma.emailCampaign.findFirst({
+          where: {
+            organizationId,
+            status: "DRAFT",
+            audienceFilter: { contains: `"donationId":"${donation.id}"` },
+          },
+          select: { id: true },
+        });
+
+        if (existingCampaign) {
+          emailDraft = {
+            status: "REUSED",
+            id: existingCampaign.id,
+          };
+        } else {
+          const bodyText = [
+            `Hi ${donation.constituent.firstName},`,
+            "",
+            `Thank you for your generous donation of $${amountLabel} on ${dateLabel}.`,
+            donation.designation?.name ? `Designation: ${donation.designation.name}` : "",
+            donation.campaign?.name ? `Campaign: ${donation.campaign.name}` : "",
+            "",
+            "We are grateful for your support.",
+            "",
+            "With gratitude,",
+            "{{staffName}}",
+          ].filter(Boolean).join("\n");
+
+          const campaign = await prisma.emailCampaign.create({
+            data: {
+              organizationId,
+              name: campaignName,
+              subject,
+              purpose: "THANK_YOU",
+              previewText,
+              fromName: settings?.smtpFromName || "OyamaCRM",
+              fromEmail: settings?.smtpFromEmail || "noreply@oyamacrm.org",
+              bodyText,
+              bodyHtml: `<p>${bodyText.replace(/\n/g, "<br />")}</p>`,
+              audienceFilter,
+              status: "DRAFT",
+            },
+            select: { id: true },
+          });
+
+          emailDraft = {
+            status: "CREATED",
+            id: campaign.id,
+          };
+        }
+      } catch (error) {
+        emailDraft = {
+          status: "SKIPPED",
+          reason: error instanceof Error ? error.message : "Failed to create draft.",
+        };
+      }
+    }
+
+    // Follow-up task step
+    try {
+      const taskTitle = `Call ${donorFullName} - Thank for $${amountLabel} (${dateLabel})`;
+      const dedupeWindowStart = new Date();
+      dedupeWindowStart.setDate(dedupeWindowStart.getDate() - 30);
+
+      const existingTask = await prisma.task.findFirst({
+        where: {
+          constituentId: donation.constituent.id,
+          title: taskTitle,
+          status: { in: ["PENDING", "IN_PROGRESS"] },
+          createdAt: { gte: dedupeWindowStart },
+        },
+        select: { id: true },
+      });
+
+      if (existingTask) {
+        followUpTask = {
+          status: "REUSED",
+          id: existingTask.id,
+        };
+      } else {
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 1);
+
+        const task = await prisma.task.create({
+          data: {
+            title: taskTitle,
+            description: `Donation follow-up call for ${donorFullName}.${donation.campaign?.name ? ` Campaign: ${donation.campaign.name}.` : ""}${donation.designation?.name ? ` Designation: ${donation.designation.name}.` : ""}`,
+            type: "CALL",
+            status: "PENDING",
+            priority: "HIGH",
+            dueDate,
+            constituentId: donation.constituent.id,
+            createdById: userId,
+            assigneeId: userId,
+          },
+          select: { id: true },
+        });
+
+        followUpTask = {
+          status: "CREATED",
+          id: task.id,
+        };
+      }
+    } catch (error) {
+      followUpTask = {
+        status: "SKIPPED",
+        reason: error instanceof Error ? error.message : "Failed to create follow-up task.",
+      };
+    }
+
+    // Steward path enrollment step
+    try {
+      const pathTemplate = await resolveDefaultDonationPathTemplate(organizationId);
+      if (pathTemplate && pathTemplate.steps.length > 0) {
+        const existingEnrollment = await prisma.stewardPathEnrollment.findFirst({
+          where: {
+            organizationId,
+            pathId: pathTemplate.id,
+            constituentId: donation.constituent.id,
+            status: { in: ["ACTIVE", "PAUSED"] },
+          },
+          select: { id: true, pathId: true },
+        });
+
+        if (existingEnrollment) {
+          pathEnrollment = {
+            status: "REUSED",
+            id: existingEnrollment.id,
+          };
+        } else {
+          const enrollment = await prisma.stewardPathEnrollment.create({
+            data: {
+              organizationId,
+              pathId: pathTemplate.id,
+              targetType: pathTemplate.targetType,
+              targetId: donation.constituent.id,
+              constituentId: donation.constituent.id,
+              ownerUserId: pathTemplate.defaultOwnerId ?? userId,
+              currentStepId: pathTemplate.steps[0]?.id ?? null,
+              nextStepDueAt: new Date(),
+              status: "ACTIVE",
+            },
+            select: { id: true, pathId: true },
+          });
+
+          await prisma.stewardPathTimelineEvent.create({
+            data: {
+              enrollmentId: enrollment.id,
+              stepId: pathTemplate.steps[0]?.id ?? null,
+              eventType: "PATH_STARTED",
+              message: `Enrollment started from donation stewardship loop for ${donorFullName}.`,
+              createdByUserId: userId,
+              metadataJson: {
+                donationId: donation.id,
+                source: "donation-stewardship-loop",
+              },
+            },
+          });
+
+          pathEnrollment = {
+            status: "CREATED",
+            id: enrollment.id,
+          };
+        }
+      }
+    } catch (error) {
+      pathEnrollment = {
+        status: "SKIPPED",
+        reason: error instanceof Error ? error.message : "Failed to start steward path.",
+      };
+    }
+
+    await prisma.activity.create({
+      data: {
+        constituentId: donation.constituent.id,
+        donationId: donation.id,
+        userId,
+        type: "NOTE",
+        description: `Donation stewardship loop executed for ${donorFullName}.`,
+        metadata: {
+          source: "api/donations:quick-action-stewardship-loop",
+          emailDraft,
+          followUpTask,
+          pathEnrollment,
+        } as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    await logAudit({
+      action: "DONATION_STEWARDSHIP_LOOP_EXECUTED",
+      entity: "Donation",
+      entityId: donation.id,
+      userId,
+      organizationId,
+      metadata: {
+        donationId: donation.id,
+        constituentId: donation.constituent.id,
+        emailDraft,
+        followUpTask,
+        pathEnrollment,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    let redirectTo = `/constituents/${encodeURIComponent(donation.constituent.id)}`;
+    if (emailDraft.id) {
+      redirectTo = `/email-builder?campaign=${encodeURIComponent(emailDraft.id)}&returnTo=${encodeURIComponent(`/communications/${emailDraft.id}`)}`;
+    } else if (followUpTask.id) {
+      redirectTo = `/tasks?focus=my&taskId=${encodeURIComponent(followUpTask.id)}`;
+    } else if (pathEnrollment.id) {
+      redirectTo = `/automations?source=donation&constituentId=${encodeURIComponent(donation.constituent.id)}&donationId=${encodeURIComponent(donation.id)}&enrollmentId=${encodeURIComponent(pathEnrollment.id)}`;
+    }
+
+    res.json({
+      donationId: donation.id,
+      constituentId: donation.constituent.id,
+      emailDraft,
+      followUpTask,
+      pathEnrollment,
+      redirectTo,
+    });
+  },
+);
 
 /**
  * PATCH /api/donations/:id/acknowledgment — Mark or reset donor acknowledgment state for one donation.

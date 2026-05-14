@@ -2,8 +2,14 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import CommunicationsSegmentsPanel from "@/app/components/communications/CommunicationsSegmentsPanel";
+import CommunicationsSettingsPanel from "@/app/components/communications/CommunicationsSettingsPanel";
+import CommunicationsTemplatesPanel from "@/app/components/communications/CommunicationsTemplatesPanel";
 import NewCampaignModal from "@/app/components/communications/NewCampaignModal";
+import WorkspaceControlRail from "@/app/components/workspace/WorkspaceControlRail";
+import WorkspaceFrame from "@/app/components/workspace/WorkspaceFrame";
+import { buildCommunicationsControlGroups } from "@/app/components/workspace/workspace-presets";
 import { apiFetch } from "@/app/lib/auth-client";
 
 type CampaignPreparationStatus = "NOT_STARTED" | "DRAFT" | "READY";
@@ -22,6 +28,9 @@ interface EmailCampaign {
   id: string;
   name: string;
   subject: string;
+  bodyHtml?: string | null;
+  bodyText?: string | null;
+  templateJson?: string | null;
   ownerId?: string | null;
   sharedWithOrganization?: boolean;
   preparationStatus?: CampaignPreparationStatus;
@@ -128,16 +137,16 @@ const PREPARATION_STATUS_CONFIG: Record<CampaignPreparationStatus, { label: stri
   READY: { label: "Ready", color: "bg-emerald-100 text-emerald-700" },
 };
 
-const WORKSPACE_TABS: Array<{ id: WorkspaceTab; label: string }> = [
-  { id: "overview", label: "Overview" },
-  { id: "email-campaigns", label: "Email Campaigns" },
-  { id: "email-drafts", label: "Email Drafts" },
-  { id: "letters", label: "Letters & Printables ↗" },
-  { id: "templates", label: "Templates" },
-  { id: "segments", label: "Segments" },
-  { id: "send-queue", label: "Send Queue" },
-  { id: "communication-log", label: "Communication Log" },
-  { id: "settings", label: "Settings" },
+const WORKSPACE_TABS: WorkspaceTab[] = [
+  "overview",
+  "email-campaigns",
+  "email-drafts",
+  "letters",
+  "templates",
+  "segments",
+  "send-queue",
+  "communication-log",
+  "settings",
 ];
 
 const REVIEW_REQUIRED_PATH_STATUSES = new Set(["DRAFT_CREATED", "READY_FOR_REVIEW"]);
@@ -189,6 +198,7 @@ function toCommonStatus(channel: "email" | "letter" | "pathDraft", status: strin
 /** CommunicationsPage is the donor outreach hub tying together campaigns, letters, drafts, and logs. */
 export default function CommunicationsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [campaigns, setCampaigns] = useState<EmailCampaign[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [lettersStats, setLettersStats] = useState<LetterDashboardStats | null>(null);
@@ -200,6 +210,7 @@ export default function CommunicationsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [showModal, setShowModal] = useState(false);
   const [sending, setSending] = useState<string | null>(null);
+  const [creatingFromTemplateId, setCreatingFromTemplateId] = useState<string | null>(null);
   const [sharingUpdateId, setSharingUpdateId] = useState<string | null>(null);
   const [preparationUpdateId, setPreparationUpdateId] = useState<string | null>(null);
 
@@ -228,6 +239,23 @@ export default function CommunicationsPage() {
     void load();
   }, [load]);
 
+  /** Optional query-driven view support for deep-linking to a workspace view. */
+  useEffect(() => {
+    const view = searchParams.get("view");
+    if (!view) return;
+    if (WORKSPACE_TABS.includes(view as WorkspaceTab)) {
+      setWorkspaceTab(view as WorkspaceTab);
+    }
+  }, [searchParams]);
+
+  /** Updates local workspace tab and keeps query view in sync for shareable links. */
+  function selectWorkspaceTab(nextTab: WorkspaceTab) {
+    setWorkspaceTab(nextTab);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("view", nextTab);
+    router.replace(`/communications?${params.toString()}`);
+  }
+
   async function sendNow(id: string) {
     setSending(id);
     try {
@@ -242,6 +270,39 @@ export default function CommunicationsPage() {
     if (!confirm("Delete this campaign?")) return;
     await apiFetch(`/api/email-campaigns/${id}`, { method: "DELETE" });
     await load();
+  }
+
+  /** Creates a new draft campaign by cloning content from an existing template-ready campaign. */
+  async function createCampaignFromTemplate(templateCampaignId: string) {
+    const source = campaigns.find((campaign) => campaign.id === templateCampaignId);
+    if (!source) return;
+
+    const cloneName = window.prompt("Name for the new campaign", `${source.name} Copy`)?.trim();
+    if (!cloneName) return;
+
+    setCreatingFromTemplateId(templateCampaignId);
+    try {
+      const created = await apiFetch<EmailCampaign>("/api/email-campaigns", {
+        method: "POST",
+        body: JSON.stringify({
+          name: cloneName,
+          subject: source.subject,
+          bodyHtml: source.bodyHtml ?? null,
+          bodyText: source.bodyText ?? null,
+          templateJson: source.templateJson ?? null,
+          fromName: source.fromName,
+          fromEmail: source.fromEmail,
+          audienceFilter: { type: "all" },
+          sharedWithOrganization: false,
+          preparationStatus: "DRAFT",
+        }),
+      });
+
+      await load();
+      openEditor(created.id);
+    } finally {
+      setCreatingFromTemplateId(null);
+    }
   }
 
   async function toggleCampaignVisibility(campaign: EmailCampaign) {
@@ -353,23 +414,74 @@ export default function CommunicationsPage() {
       .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
   }, [campaigns, generatedLetters, pathDrafts]);
 
+  const canOpenBuilder = campaigns.length > 0;
+
+  const railGroups = useMemo(
+    () => buildCommunicationsControlGroups({
+      activeView: workspaceTab,
+      campaignCount: campaigns.length,
+      draftsNeedingReview,
+      sendQueueCount: scheduledCampaigns.length,
+      communicationLogCount: communicationLog.length,
+      canOpenBuilder,
+    }),
+    [workspaceTab, campaigns.length, draftsNeedingReview, scheduledCampaigns.length, communicationLog.length, canOpenBuilder],
+  );
+
+  /** Handles local view switching and quick actions from the right-side control rail. */
+  function handleRailSelect(itemId: string) {
+    if (itemId.startsWith("view:")) {
+      const next = itemId.replace("view:", "") as WorkspaceTab;
+      if (WORKSPACE_TABS.includes(next)) selectWorkspaceTab(next);
+      return;
+    }
+
+    if (itemId === "action:new-campaign") {
+      setShowModal(true);
+      return;
+    }
+
+    if (itemId === "action:review-drafts") {
+      selectWorkspaceTab("email-drafts");
+      return;
+    }
+
+    if (itemId === "action:view-scheduled") {
+      selectWorkspaceTab("send-queue");
+      return;
+    }
+
+    if (itemId === "action:open-email-builder" && canOpenBuilder) {
+      const targetCampaign = campaigns.find((campaign) => campaign.status === "DRAFT") ?? campaigns[0];
+      if (targetCampaign) openEditor(targetCampaign.id);
+    }
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Communications</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Unified donor outreach hub for campaigns, letters, drafts, and stewardship history</p>
-        </div>
+    <WorkspaceFrame
+      title="Communications"
+      description="Unified donor outreach hub for campaigns, drafts, send queue, and communication history."
+      actions={(
         <button
           onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
+          className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           New Campaign
         </button>
-      </div>
+      )}
+      controlRail={(
+        <WorkspaceControlRail
+          title="Communications Control Rail"
+          groups={railGroups}
+          activeItem={`view:${workspaceTab}`}
+          onSelect={handleRailSelect}
+        />
+      )}
+    >
+      <div className="space-y-6">
 
       <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Donor Engagement System</p>
@@ -381,22 +493,6 @@ export default function CommunicationsPage() {
           Shared status language: Draft, Needs Review, Approved, Scheduled, Sent, Generated, Printed, Mailed, Completed, Failed, Canceled, Archived.
         </p>
       </section>
-
-      <div className="flex gap-1 border-b border-gray-200 overflow-x-auto">
-        {WORKSPACE_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setWorkspaceTab(tab.id)}
-            className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
-              workspaceTab === tab.id
-                ? "text-green-700 border-b-2 border-green-600"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
 
       {workspaceTab === "overview" && (
         <div className="space-y-4">
@@ -573,37 +669,18 @@ export default function CommunicationsPage() {
       )}
 
       {workspaceTab === "templates" && (
-        <div className="space-y-4">
-          <section className="rounded-xl border border-gray-200 bg-white p-4">
-            <h2 className="text-sm font-semibold text-gray-900">Template Relationship Model</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              Templates should define one donor message that can be used across print and email channels with shared merge fields and review controls.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Link href="/letters-printables/templates" className="px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-md hover:bg-green-100">Letter Templates</Link>
-              <Link href="/communications" className="px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100">Email Templates and Campaigns</Link>
-            </div>
-          </section>
-
-          <section className="rounded-xl border border-gray-200 bg-white p-4">
-            <h2 className="text-sm font-semibold text-gray-900">Recommended Donor Template Categories</h2>
-            <p className="mt-1 text-xs text-gray-500">Thank You, Receipt, Newsletter, Campaign Appeal, Lapsed Donor, New Donor Welcome, Monthly Donor, Major Donor, Sponsor, Event Follow-Up, Year-End, General Update.</p>
-          </section>
-        </div>
+        <CommunicationsTemplatesPanel
+          campaigns={campaigns}
+          creatingFromTemplateId={creatingFromTemplateId}
+          onOpenTemplate={openEditor}
+          onCreateFromTemplate={(campaignId) => {
+            void createCampaignFromTemplate(campaignId);
+          }}
+        />
       )}
 
       {workspaceTab === "segments" && (
-        <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-gray-900">Audience and Segment Planning</h2>
-          <p className="text-sm text-gray-600">
-            Segment workflows are partially implemented. Use campaign audience filters and stewardship task tags while deeper segment tooling continues.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/communications" className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">Open Campaign Audience Filters</Link>
-            <Link href="/tasks?focus=followups" className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">Open Follow-Up Tasks</Link>
-            <Link href="/steward-signals" className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">Open Steward Signals</Link>
-          </div>
-        </section>
+        <CommunicationsSegmentsPanel />
       )}
 
       {workspaceTab === "send-queue" && (
@@ -656,15 +733,7 @@ export default function CommunicationsPage() {
       )}
 
       {workspaceTab === "settings" && (
-        <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-gray-900">Communication Settings</h2>
-          <p className="text-sm text-gray-600">Sender configuration and integration readiness are managed in settings pages.</p>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/settings/integrations" className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">Integrations</Link>
-            <Link href="/settings/plugins" className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">Plugins</Link>
-            <Link href="/settings/system-status" className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">System Status</Link>
-          </div>
-        </section>
+        <CommunicationsSettingsPanel />
       )}
 
       {showModal && (
@@ -677,7 +746,8 @@ export default function CommunicationsPage() {
           }}
         />
       )}
-    </div>
+      </div>
+    </WorkspaceFrame>
   );
 }
 

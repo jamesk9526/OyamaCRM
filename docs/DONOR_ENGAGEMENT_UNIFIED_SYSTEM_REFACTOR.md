@@ -2,7 +2,33 @@
 
 Last updated: 2026-05-13
 Owner: DonorCRM stewardship engine
-Status of this document: Phase 1 (audit + plan) — no application code changes yet.
+Status of this document: Phase 4 continuation (visual canvas Working, branch persistence Partially Working).
+
+## 2026-05-13 Canonical Visual Steward Paths Pass
+
+Status labels used in this section are restricted to:
+
+- Working
+- Partially Working
+- Demo Only
+- Broken
+- Not Implemented
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Canonical route ownership moved to `/steward-paths` | Working | `app/steward-paths/page.tsx`, `app/components/steward-paths/StewardPathsWorkspacePage.tsx` | Saved Visual Paths list is now the primary workspace surface. |
+| Legacy `/automations` route deprecation behavior | Working | `app/automations/page.tsx` | Route now redirects to `/steward-paths?deprecated=automations` for compatibility. |
+| Saved visual path operations (enable/disable, share, duplicate, archive, test-run, history) | Working | `app/components/steward-paths/StewardPathsWorkspacePage.tsx`, `server/src/routes/steward-paths.ts` | Actions are API-backed and no longer legacy-automation-only controls. |
+| Builder edit route parity (`/steward-paths/builder/:id`) | Working | `app/steward-paths/builder/[id]/page.tsx`, `app/components/steward-paths/StewardPathBuilderPage.tsx` | Existing templates now load directly from route params. |
+| Path history route (`/steward-paths/:id/history`) | Working | `app/steward-paths/[id]/history/page.tsx`, `server/src/routes/steward-paths.ts` | Timeline entries show test-run and execution events by template context. |
+| Legacy automation migration endpoint | Working | `server/src/routes/steward-paths.ts` (`POST /api/steward-paths/migrations/automations`) | Imports legacy automations into draft steward-path templates with migration metadata. |
+| Visual inspector parity for linked email campaign/template controls | Partially Working | `app/components/steward-paths/NodeInspector.tsx` | Email node still exposes draft subject + safety guidance only; richer linked campaign/template controls remain pending. |
+
+Outstanding parity items from this pass:
+
+- Full inspector parity for linked email campaign selection/open-in-builder navigation.
+- Expanded letter/queue inspector actions by template name selection.
+- Fine-grained share authorization semantics beyond triggerConfig metadata bridge.
 
 ## Purpose
 
@@ -28,8 +54,9 @@ This audit reflects what exists in the repo as of 2026-05-13.
 - API: `server/src/routes/steward-paths.ts` (templates, steps, enrollments, timeline, drafts, `process-due`).
 - Engine: `server/src/services/steward-paths-sequence-engine.ts` (~1k LOC) with the legacy engine `server/src/services/stewardPathsEngine.ts` still present.
 - Worker: `server/src/services/steward-paths-worker.ts` polls `TASK_DUE` triggers, pledge timeline triggers, and `processDueStewardPathEnrollments`.
-- Step types currently supported in the enum: `DELAY`, `CREATE_TASK`, `GENERATE_LETTER`, `DRAFT_EMAIL`, `SEND_EMAIL` (routed as draft), `MANUAL_ACTION`, `INTERNAL_NOTE`, `STATUS_CHANGE` (placeholder), `BRANCH_PLACEHOLDER` (skipped).
-- UI today: `app/automations/page.tsx` is the "Steward Paths" surface. It shows automation rules and sequence cards; **there is no visual node-based builder yet.** No `app/components/steward-paths/` directory exists.
+- Step types currently supported in the enum: `DELAY`, `CREATE_TASK`, `GENERATE_LETTER`, `DRAFT_EMAIL`, `SEND_EMAIL` (routed as draft), `MANUAL_ACTION`, `INTERNAL_NOTE`, `STATUS_CHANGE`, `BRANCH_PLACEHOLDER`.
+- UI now includes `app/steward-paths/builder/page.tsx` with a visual map builder in `app/components/steward-paths/` (top workflow bar, palette, center map, branch lanes, connector add buttons, right inspector drawer).
+- Visual branch representation is Working in the builder. Branch persistence/activation is Partially Working and remains linear-only for safe API writes in this pass.
 - Permissions registered: `steward_paths.view|create|edit|activate|archive|enroll|pause|manage_all|process_due_steps|email_auto_send`.
 - Docs: `docs/STEWARD_PATHS_ENGAGEMENT_SEQUENCES.md`.
 
@@ -66,7 +93,7 @@ These are the overlaps the unified refactor must resolve:
 4. **"Send" semantics.** `SEND_EMAIL` step is implemented as draft-creation today. UI label and step name should match the safe behavior so users do not believe paths auto-send.
 5. **Automations vs Steward Paths.** The Steward Paths page lives at `app/automations/page.tsx` and lists `Automation` rules. The naming and the URL diverge from the product language.
 6. **Status vocabularies.** Backend enums (`StewardPathStatus`, `StewardPathStepRunStatus`, `StewardPathEmailDraftStatus`, generated-letter statuses, campaign statuses) are channel-specific. The shared user-facing status set is documented in `docs/DONOR_ENGAGEMENT_SYSTEM.md` but not consistently rendered yet.
-7. **No visual builder.** The product direction calls for a node-based workflow map (Palette / Canvas / Inspector). Today the path is built as ordered structured cards. This is acceptable as a fallback, but it must coexist with the visual builder when it lands.
+7. **Visual builder is now present but partial on persistence.** The product now has a node-based workflow map (Palette / Canvas / Inspector) with branch lanes and condition editing. Branch persistence remains linear-only in this phase and is explicitly blocked from activation when unsupported.
 
 ## Workspace Ownership (target state)
 
@@ -152,11 +179,12 @@ Each phase is one (or a few) PRs. Each phase ships its own audit notes, code, te
 - Refactor `steward-paths-sequence-engine.ts` step handlers to call shared service functions instead of inlining logic. Old engine entry points stay until parity is confirmed.
 - Add unit tests for: step config parsing, delay calculations, branch condition evaluation, communication-preference checks.
 
-### Phase 4 — Steward Paths visual builder (component skeleton)
-- Add `app/components/steward-paths/` with `StewardPathBuilderPage.tsx`, `WorkflowCanvas.tsx`, `NodePalette.tsx`, `NodeInspector.tsx`, `WorkflowNodeCard.tsx`, `workflow-types.ts`.
-- Mount the new builder under `/steward-paths` and add a redirect from `/automations` once the new page reaches feature parity for current step types.
-- The builder must work as **ordered structured cards even before drag/drop is finished**. Drag/drop is a progressive enhancement; the structured editor is the always-available fallback.
-- Add a "Run Test Enrollment" / "Preview Path" affordance.
+### Phase 4 — Steward Paths visual builder (map canvas)
+- Builder route is mounted at `/steward-paths/builder` with a real map-first UI: top controls, grouped palette, connector add-points, branch lane containers, and right-side inspector.
+- Branch nodes are visually editable (lane add/rename/remove, fallback lane, condition groups, lane summaries).
+- Typed adapters now load/save linear workflows through `/api/steward-paths` and block branch activation when persistence is not safe.
+- Drag/drop remains Partially Working; click-to-add and connector insertion are the reliable interaction path in this phase.
+- Test enrollment is available from the builder header for saved templates.
 
 ### Phase 5 — More step types and orchestration depth
 - Implement real `BRANCH_PLACEHOLDER` and `STATUS_CHANGE` execution.
@@ -199,13 +227,15 @@ Tests will be added incrementally with each phase, but the target end-state cove
 - **Migration safety on MySQL with case-sensitive table names**: see `mysql-prisma-casing-rules`. Any new step-type enum value or column must use exact Prisma table casing.
 - **Auto-send temptation**: adding `SEND_EMAIL` real send behavior must keep `email_auto_send` permission gate, organization setting, draft-first default, and recipient suppression. Phase 5 should not flip the default behavior.
 - **UI confusion during transition**: removing the Letters tab from Communications without a clear pointer to `/letters-printables` would degrade discovery. Phase 2 must add the link card at the same time as the removal.
-- **Visual-builder scope creep**: the builder is large. Phase 4 ships only the component skeleton + structured-card fallback. Drag/drop polish, validation overlays, and animation are explicit later passes.
+- **Visual-builder scope creep**: map canvas and branch lanes are now in place, but drag/drop polish, deeper history/settings tabs, and full branch persistence are explicit later passes.
 - **Status label drift**: every workspace must use the shared status vocabulary. Adding new ad-hoc status strings in any new step UI would re-introduce divergence.
 
-## What Stays Partial After Phase 1
+## What Stays Partial After Current Pass
 
-- Visual node-based Steward Paths builder — Not Implemented
-- Real branching and status-change step execution — Not Implemented (currently placeholder)
+- Visual map builder drag/drop interactions — Partially Working
+- Branch persistence and activation in visual builder — Partially Working (linear save only)
+- Full settings/history tabs in visual builder — Partially Working
+- Real branching and status-change execution depth — Partially Working
 - Auto-send email step — Not Implemented (and intentionally gated)
 - Communication log filtering/export depth — Partially Working
 - Centralized acknowledgment orchestration across all channels — Partially Working

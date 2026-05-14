@@ -16,6 +16,9 @@ import type {
   TriviaTeam,
 } from "@/app/apps/trivia/lib/trivia-types";
 
+const EVENT_STATUSES = new Set(["draft", "check_in_open", "live", "paused", "completed", "archived"]);
+const CHECK_IN_STATUSES = new Set(["expected", "checked_in", "late", "dropped", "inactive"]);
+
 const TRIVIA_STORAGE_KEY = "oyama.trivia.module.state.v1";
 const TRIVIA_BROADCAST_CHANNEL = "oyama-trivia-state";
 const TRIVIA_EVENT_NAME = "oyama-trivia:state-updated";
@@ -27,6 +30,22 @@ export function createTriviaId(prefix: string): string {
 
 const TEAM_COLORS = ["#34d399", "#38bdf8", "#f59e0b", "#f472b6", "#a78bfa", "#fb7185"];
 const TEAM_ICONS = ["star", "bolt", "brain", "crown", "rocket", "shield"];
+const DISPLAY_STAGES = new Set([
+  "welcome",
+  "check_in_open",
+  "check_in_closed",
+  "round_intro",
+  "question",
+  "timer_only",
+  "answer",
+  "explanation",
+  "leaderboard",
+  "break",
+  "final_question",
+  "tiebreaker",
+  "winner",
+  "blank",
+]);
 
 function normalizeQuestion(input: TriviaQuestion): TriviaQuestion {
   return {
@@ -57,16 +76,30 @@ function normalizeRound(input: TriviaRound): TriviaRound {
 }
 
 function normalizeTeam(input: TriviaTeam, index: number): TriviaTeam {
+  const normalizedCheckInStatus = CHECK_IN_STATUSES.has(String(input.checkInStatus ?? ""))
+    ? input.checkInStatus
+    : input.active === false
+      ? "inactive"
+      : "expected";
+
   return {
     id: input.id,
     name: input.name || "Unnamed Team",
     players: Array.isArray(input.players) ? input.players : [],
+    playerCount: Number.isFinite(input.playerCount) ? Math.max(0, Number(input.playerCount)) : undefined,
     score: Number.isFinite(input.score) ? input.score : 0,
     bonusPoints: Number.isFinite(input.bonusPoints) ? input.bonusPoints : 0,
     active: typeof input.active === "boolean" ? input.active : true,
     color: input.color || TEAM_COLORS[index % TEAM_COLORS.length],
     icon: input.icon || TEAM_ICONS[index % TEAM_ICONS.length],
     sortOrder: Number.isFinite(input.sortOrder) ? input.sortOrder : index,
+    checkInStatus: normalizedCheckInStatus,
+    checkedInAt: input.checkedInAt ?? null,
+    tableNumber: input.tableNumber ?? "",
+    captainName: input.captainName ?? "",
+    contactName: input.contactName ?? "",
+    contactPhone: input.contactPhone ?? "",
+    notes: input.notes ?? "",
   };
 }
 
@@ -76,6 +109,7 @@ function normalizeEvent(input: TriviaEvent): TriviaEvent {
     name: input.name || "Untitled Event",
     venue: input.venue || "",
     hostName: input.hostName || "",
+    status: EVENT_STATUSES.has(String(input.status ?? "")) ? input.status : "draft",
     rounds: Array.isArray(input.rounds) ? input.rounds.map(normalizeRound) : [],
     teams: Array.isArray(input.teams) ? input.teams.map((team, index) => normalizeTeam(team, index)) : [],
     scoringRules: input.scoringRules ?? createDefaultScoringRules(),
@@ -189,12 +223,19 @@ export function ensureLiveStateCoverage(state: TriviaModuleState): TriviaModuleS
         timerRemainingSec: Number.isFinite(live.timerRemainingSec) ? live.timerRemainingSec : 30,
         timerRunning: Boolean(live.timerRunning),
         updatedAt: live.updatedAt || new Date().toISOString(),
-        stage: live.stage || event.displaySettings.defaultStage || "welcome",
+        stage: DISPLAY_STAGES.has(String(live.stage)) ? live.stage : (event.displaySettings.defaultStage || "welcome"),
         leaderboardVisible: Boolean(live.leaderboardVisible),
         answerRevealed: Boolean(live.answerRevealed),
         displayOpenedAt: live.displayOpenedAt ?? null,
         winnerTeamId: live.winnerTeamId ?? null,
         lastHostAction: live.lastHostAction || "Ready",
+        lastScoreActionAt: live.lastScoreActionAt ?? null,
+        lastScoreActionSummary: live.lastScoreActionSummary || "No score actions yet",
+        projectorConnectionStatus: live.projectorConnectionStatus ?? "offline",
+        scorekeeperConnectionStatus: live.scorekeeperConnectionStatus ?? "offline",
+        checkInOpenedAt: live.checkInOpenedAt ?? null,
+        checkInClosedAt: live.checkInClosedAt ?? null,
+        lastSyncedAt: live.lastSyncedAt ?? null,
       };
     }
 

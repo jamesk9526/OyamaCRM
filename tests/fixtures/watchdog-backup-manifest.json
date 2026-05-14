@@ -1,0 +1,24 @@
+{
+  "manifestType": "ENVIRONMENT_MANIFEST",
+  "generatedAt": "2026-05-13T00:00:00.000Z",
+  "generatedBy": "test-runner",
+  "organizationId": "org_demo",
+  "entryCount": 3,
+  "entries": [
+    {
+      "key": "DATABASE_URL",
+      "present": true,
+      "value": "***redacted***"
+    },
+    {
+      "key": "JWT_SECRET",
+      "present": true,
+      "value": "***redacted***"
+    },
+    {
+      "key": "SMTP_HOST",
+      "present": false,
+      "value": null
+    }
+  ]
+}

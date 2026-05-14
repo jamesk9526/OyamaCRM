@@ -8,7 +8,7 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { logAudit } from "../lib/audit.js";
 import { getAppInfo } from "../lib/app-info.js";
-import { CrmBackupBundle, exportFullCrmBackup, restoreFullCrmBackup } from "../services/crm-backup.js";
+import { CrmBackupBundle, exportFullCrmBackup } from "../services/crm-backup.js";
 import {
   createWatchdogCrmBackup,
   createWatchdogVaultEntry,
@@ -22,7 +22,6 @@ import {
   listWatchdogIncidentStates,
   listWatchdogSecurityEvents,
   listWatchdogVaultEntries,
-  markWatchdogCrmBackupRestored,
   recordWatchdogSecurityEvent,
   upsertWatchdogIncidentState,
 } from "../services/watchdog-store.js";
@@ -45,6 +44,25 @@ const WATCHDOG_PERMISSION_KEYS = [
   "watchdog.tickets.assign",
   "watchdog.tickets.resolve",
   "watchdog.tickets.delete",
+  "watchdog.view",
+  "watchdog.admin",
+  "watchdog.backups.view",
+  "watchdog.backups.create",
+  "watchdog.backups.delete",
+  "watchdog.restore.view",
+  "watchdog.restore.dry_run",
+  "watchdog.restore.execute",
+  "watchdog.restore.break_glass",
+  "watchdog.vault.view",
+  "watchdog.vault.create",
+  "watchdog.vault.edit",
+  "watchdog.vault.reveal",
+  "watchdog.vault.copy",
+  "watchdog.vault.rotate",
+  "watchdog.security.view",
+  "watchdog.audit.view",
+  "watchdog.settings.manage",
+  "watchdog.health.view",
 ] as const;
 
 type WatchdogPermissionKey = (typeof WATCHDOG_PERMISSION_KEYS)[number];
@@ -431,136 +449,11 @@ router.get("/backups/:id/sql", requireWatchdogPermission("watchdog:manage"), asy
  * Restores full CRM state from a Watchdog backup ID or direct backup payload.
  */
 router.post("/backups/import", requireWatchdogPermission("watchdog:manage"), async (req, res) => {
-  const organizationId = req.user!.orgId;
-  const userId = req.user!.sub;
-  const body = req.body as {
-    backupId?: string;
-    backup?: unknown;
-    includeWatchdogDatabase?: boolean;
-  };
-
-  const includeWatchdogDatabase = body.includeWatchdogDatabase !== false;
-  let sourceBackupId: string | null = null;
-  let bundle: CrmBackupBundle;
-
-  if (body.backupId) {
-    sourceBackupId = body.backupId;
-    let record: Awaited<ReturnType<typeof getWatchdogCrmBackup>>;
-    try {
-      record = await getWatchdogCrmBackup({ organizationId, id: body.backupId });
-    } catch (error) {
-      watchdogStoreUnavailable(res, error);
-      return;
-    }
-
-    if (!record) {
-      res.status(404).json({
-        error: {
-          code: "WATCHDOG_BACKUP_NOT_FOUND",
-          message: "Backup not found.",
-        },
-      });
-      return;
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(record.backupJson);
-    } catch {
-      res.status(500).json({
-        error: {
-          code: "WATCHDOG_BACKUP_CORRUPT",
-          message: "Stored backup payload is not valid JSON.",
-        },
-      });
-      return;
-    }
-
-    if (!isCrmBackupBundle(parsed)) {
-      res.status(400).json({
-        error: {
-          code: "WATCHDOG_BACKUP_INVALID_SHAPE",
-          message: "Stored backup payload shape is invalid.",
-        },
-      });
-      return;
-    }
-
-    bundle = parsed;
-  } else if (isCrmBackupBundle(body.backup)) {
-    bundle = body.backup;
-  } else {
-    res.status(400).json({
-      error: {
-        code: "WATCHDOG_BACKUP_IMPORT_VALIDATION",
-        message: "Provide either backupId or a valid backup payload.",
-      },
-    });
-    return;
-  }
-
-  let report: Awaited<ReturnType<typeof restoreFullCrmBackup>>;
-  try {
-    report = await restoreFullCrmBackup({
-      bundle,
-      includeWatchdogDatabase,
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: {
-        code: "WATCHDOG_BACKUP_IMPORT_FAILED",
-        message: error instanceof Error ? error.message : "Failed to restore full CRM backup.",
-      },
-    });
-    return;
-  }
-
-  if (sourceBackupId) {
-    try {
-      await markWatchdogCrmBackupRestored({ organizationId, id: sourceBackupId });
-    } catch (error) {
-      watchdogStoreUnavailable(res, error);
-      return;
-    }
-  }
-
-  await logAudit({
-    action: "WATCHDOG_CRM_BACKUP_IMPORTED",
-    entity: "WatchdogCrmBackup",
-    entityId: sourceBackupId ?? "direct-payload",
-    userId,
-    organizationId,
-    metadata: {
-      backupSchemaVersion: bundle.backupSchemaVersion,
-      sourceBackupId,
-      includeWatchdogDatabase,
-      primary: report.primary,
-      watchdog: report.watchdog ?? null,
+  res.status(409).json({
+    error: {
+      code: "WATCHDOG_RESTORE_FLOW_MOVED",
+      message: "Legacy one-step restore is disabled. Use /api/watchdog/ops/restore/dry-run then /api/watchdog/ops/restore/execute.",
     },
-  });
-
-  try {
-    await recordWatchdogSecurityEvent({
-      organizationId,
-      severity: "high",
-      eventType: "WATCHDOG_CRM_BACKUP_IMPORTED",
-      sourceModule: "watchdog",
-      message: `Full CRM backup imported (${sourceBackupId ?? "direct-payload"})`,
-      payload: {
-        sourceBackupId,
-        includeWatchdogDatabase,
-        primary: report.primary,
-        watchdog: report.watchdog ?? null,
-      },
-    });
-  } catch {
-    // No-op: restore already succeeded.
-  }
-
-  res.json({
-    success: true,
-    sourceBackupId,
-    report,
   });
 });
 

@@ -62,16 +62,16 @@ describe("Donor sidebar organization", () => {
 });
 
 describe("Sidebar item helpers", () => {
-  it("marks /automations as active for Steward Paths", () => {
+  it("marks /steward-paths as active for Steward Paths", () => {
     const item = {
       id: "steward-paths",
       label: "Steward Paths",
-      href: "/automations",
+      href: "/steward-paths",
       icon: null,
     };
 
-    expect(isSidebarItemActive(item, "/automations", "")).toBe(true);
-    expect(isSidebarItemActive(item, "/automations/123", "")).toBe(true);
+    expect(isSidebarItemActive(item, "/steward-paths", "")).toBe(true);
+    expect(isSidebarItemActive(item, "/steward-paths/builder", "")).toBe(true);
     expect(isSidebarItemActive(item, "/tasks", "")).toBe(false);
   });
 

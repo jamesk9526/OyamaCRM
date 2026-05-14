@@ -23,7 +23,7 @@ import { generateLetterFromTemplate } from "./letters-execution.js";
  * (the same operators are evaluated by `evaluateBranchRule` below). When
  * adding a new operator, update both files together.
  */
-type BranchOperator = "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "in" | "not_in";
+type BranchOperator = "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "between" | "in" | "not_in";
 
 /**
  * Local mirror of `evaluateBranchRule` from `app/lib/engagement-orchestration.ts`.
@@ -31,7 +31,7 @@ type BranchOperator = "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "in" | "not_i
  */
 function evaluateBranchRule(
   input: number | string | null | undefined,
-  rule: { operator: BranchOperator; value: number | string | Array<number | string> },
+  rule: { operator: BranchOperator; value: number | string | Array<number | string>; valueTo?: number | string },
 ): boolean {
   if (rule.operator === "in" || rule.operator === "not_in") {
     if (!Array.isArray(rule.value)) return false;
@@ -45,6 +45,12 @@ function evaluateBranchRule(
     const b = typeof rule.value === "string" ? rule.value.toLowerCase() : rule.value;
     const equal = a === b;
     return rule.operator === "eq" ? equal : !equal;
+  }
+  if (rule.operator === "between") {
+    const min = typeof rule.value === "number" ? rule.value : Number(rule.value);
+    const max = typeof rule.valueTo === "number" ? rule.valueTo : Number(rule.valueTo);
+    if (typeof input !== "number" || !Number.isFinite(min) || !Number.isFinite(max)) return false;
+    return input >= Math.min(min, max) && input <= Math.max(min, max);
   }
   if (typeof input !== "number" || typeof rule.value !== "number") return false;
   switch (rule.operator) {
@@ -71,8 +77,13 @@ interface ProcessDueResult {
 }
 
 interface DelayStepConfig {
+  mode?: "relative" | "until_date" | "until_weekday_time" | "after_last_gift";
   amount?: number;
   unit?: "minutes" | "hours" | "days" | "weeks" | "months";
+  dateIso?: string;
+  weekday?: number;
+  hour?: number;
+  minute?: number;
 }
 
 interface CreateTaskStepConfig {
@@ -110,6 +121,7 @@ interface DraftEmailStepConfig {
 }
 
 interface ManualActionStepConfig {
+  command?: string;
   instruction?: string;
 }
 
@@ -524,7 +536,39 @@ async function processDelayStep(ctx: EnrollmentContext, now: Date, userId?: stri
   const config = (step.configJson ?? {}) as DelayStepConfig;
 
   if (run.status === "PENDING") {
-    const scheduledFor = addDuration(now, Math.max(config.amount ?? 1, 1), config.unit ?? "days");
+    const mode = config.mode ?? "relative";
+    let scheduledFor: Date;
+
+    if (mode === "until_date") {
+      const parsed = config.dateIso ? new Date(config.dateIso) : null;
+      if (!parsed || Number.isNaN(parsed.getTime())) {
+        throw new Error("DELAY until_date mode requires config.dateIso.");
+      }
+      scheduledFor = parsed > now ? parsed : now;
+    } else if (mode === "until_weekday_time") {
+      scheduledFor = computeNextWeekdayTime(
+        now,
+        Number.isFinite(config.weekday) ? Number(config.weekday) : 1,
+        Number.isFinite(config.hour) ? Number(config.hour) : 9,
+        Number.isFinite(config.minute) ? Number(config.minute) : 0,
+      );
+    } else if (mode === "after_last_gift") {
+      if (!ctx.enrollment.constituent?.lastGiftDate) {
+        scheduledFor = addDuration(now, Math.max(config.amount ?? 1, 1), config.unit ?? "days");
+      } else {
+        scheduledFor = addDuration(
+          ctx.enrollment.constituent.lastGiftDate,
+          Math.max(config.amount ?? 1, 1),
+          config.unit ?? "days",
+        );
+        if (scheduledFor < now) {
+          scheduledFor = now;
+        }
+      }
+    } else {
+      scheduledFor = addDuration(now, Math.max(config.amount ?? 1, 1), config.unit ?? "days");
+    }
+
     await prisma.stewardPathStepRun.update({
       where: { id: run.id },
       data: {
@@ -545,7 +589,15 @@ async function processDelayStep(ctx: EnrollmentContext, now: Date, userId?: stri
       eventType: "STEP_SCHEDULED",
       message: `${step.name} scheduled for ${scheduledFor.toISOString()}.`,
       createdByUserId: userId,
-      metadataJson: { amount: config.amount ?? 1, unit: config.unit ?? "days" },
+      metadataJson: {
+        mode,
+        amount: config.amount ?? 1,
+        unit: config.unit ?? "days",
+        dateIso: config.dateIso ?? null,
+        weekday: config.weekday ?? null,
+        hour: config.hour ?? null,
+        minute: config.minute ?? null,
+      },
     });
     return;
   }
@@ -806,6 +858,104 @@ async function processManualActionStep(ctx: EnrollmentContext, now: Date, userId
   const { enrollment, run } = ctx;
   const step = enrollment.currentStep!;
   const config = (step.configJson ?? {}) as ManualActionStepConfig;
+  const command = (config.command ?? "").trim().toLowerCase();
+
+  if (run.status === "PENDING" && command === "safety.stop_enrollment") {
+    await prisma.stewardPathStepRun.update({
+      where: { id: run.id },
+      data: {
+        status: "COMPLETED",
+        startedAt: now,
+        completedAt: now,
+        resultJson: { command },
+      },
+    });
+    await prisma.stewardPathEnrollment.update({
+      where: { id: enrollment.id },
+      data: {
+        status: "CANCELLED",
+        currentStepId: null,
+        nextStepDueAt: null,
+        completedAt: now,
+      },
+    });
+    await createTimelineEvent({
+      enrollmentId: enrollment.id,
+      stepId: step.id,
+      eventType: "STEP_COMPLETED",
+      message: `${step.name} stopped this enrollment.`,
+      createdByUserId: userId,
+      metadataJson: { command },
+    });
+    return;
+  }
+
+  if (run.status === "PENDING" && command === "safety.pause_path") {
+    await prisma.stewardPathStepRun.update({
+      where: { id: run.id },
+      data: {
+        status: "COMPLETED",
+        startedAt: now,
+        completedAt: now,
+        resultJson: { command },
+      },
+    });
+    await prisma.stewardPathEnrollment.update({
+      where: { id: enrollment.id },
+      data: {
+        status: "PAUSED",
+        nextStepDueAt: null,
+      },
+    });
+    await createTimelineEvent({
+      enrollmentId: enrollment.id,
+      stepId: step.id,
+      eventType: "STEP_COMPLETED",
+      message: `${step.name} paused this enrollment.`,
+      createdByUserId: userId,
+      metadataJson: { command },
+    });
+    return;
+  }
+
+  if (run.status === "PENDING" && command === "safety.notify_staff") {
+    const assigneeId = enrollment.ownerUserId ?? enrollment.path.defaultOwnerId ?? userId;
+    if (!assigneeId) {
+      throw new Error("safety.notify_staff requires assignee context");
+    }
+
+    const notifyTask = await prisma.task.create({
+      data: {
+        constituentId: enrollment.constituentId ?? undefined,
+        createdById: userId ?? assigneeId,
+        assigneeId,
+        title: step.name || "Steward notification",
+        description: config.instruction || step.description || "Review this stewardship notification.",
+        type: "FOLLOW_UP",
+        priority: "MEDIUM",
+      },
+    });
+
+    await prisma.stewardPathStepRun.update({
+      where: { id: run.id },
+      data: {
+        status: "COMPLETED",
+        startedAt: now,
+        completedAt: now,
+        resultJson: { command, taskId: notifyTask.id },
+      },
+    });
+    await createTimelineEvent({
+      enrollmentId: enrollment.id,
+      stepId: step.id,
+      eventType: "TASK_CREATED",
+      message: `${step.name} created a staff notification task.`,
+      createdByUserId: userId,
+      metadataJson: { command, taskId: notifyTask.id },
+    });
+    await advanceEnrollment(enrollment.id, enrollment.path.id, step.id, userId);
+    return;
+  }
 
   if (run.status === "PENDING") {
     await prisma.stewardPathStepRun.update({
@@ -839,8 +989,97 @@ async function processInternalNoteStep(ctx: EnrollmentContext, now: Date, userId
   const { enrollment, run } = ctx;
   const step = enrollment.currentStep!;
   const cfg = toRecord(step.configJson);
+  const operation = typeof cfg.operation === "string" ? cfg.operation : "";
   const noteTemplate = typeof cfg.noteTemplate === "string" ? cfg.noteTemplate : step.description || "Steward Path internal note";
   const note = renderTemplate(noteTemplate, enrollment);
+
+  if (operation === "add_tag" || operation === "remove_tag") {
+    if (!enrollment.constituentId) {
+      throw new Error(`${operation} requires a linked constituent.`);
+    }
+    const tagName = typeof cfg.tag === "string" ? cfg.tag.trim() : "";
+    if (!tagName) {
+      throw new Error(`${operation} requires config.tag.`);
+    }
+
+    let tag = await prisma.tag.findFirst({ where: { name: tagName } });
+    if (!tag && operation === "add_tag") {
+      tag = await prisma.tag.create({ data: { name: tagName } });
+    }
+
+    if (tag) {
+      if (operation === "add_tag") {
+        await prisma.constituentTag.upsert({
+          where: {
+            constituentId_tagId: {
+              constituentId: enrollment.constituentId,
+              tagId: tag.id,
+            },
+          },
+          create: {
+            constituentId: enrollment.constituentId,
+            tagId: tag.id,
+          },
+          update: {},
+        });
+      } else {
+        await prisma.constituentTag.deleteMany({
+          where: {
+            constituentId: enrollment.constituentId,
+            tagId: tag.id,
+          },
+        });
+      }
+    }
+  }
+
+  if (
+    operation === "mark_printed"
+    || operation === "mark_mailed"
+    || operation === "add_to_print_queue"
+    || operation === "add_to_mail_queue"
+    || operation === "require_print_approval"
+  ) {
+    const latestLetter = await prisma.generatedLetter.findFirst({
+      where: {
+        stewardPathEnrollmentId: enrollment.id,
+      },
+      orderBy: { generatedAt: "desc" },
+    });
+
+    if (latestLetter) {
+      if (operation === "mark_printed") {
+        await prisma.generatedLetter.update({
+          where: { id: latestLetter.id },
+          data: {
+            status: "PRINTED",
+            printedAt: now,
+          },
+        });
+      } else if (operation === "mark_mailed") {
+        await prisma.generatedLetter.update({
+          where: { id: latestLetter.id },
+          data: {
+            status: "MAILED",
+            mailedAt: now,
+          },
+        });
+      } else {
+        const metadata = toRecord(latestLetter.metadataJson);
+        await prisma.generatedLetter.update({
+          where: { id: latestLetter.id },
+          data: {
+            metadataJson: {
+              ...metadata,
+              workflowPrintQueue: operation === "add_to_print_queue" || operation === "require_print_approval",
+              workflowPrintApprovalRequired: operation === "require_print_approval",
+              workflowMailQueue: operation === "add_to_mail_queue",
+            },
+          },
+        });
+      }
+    }
+  }
 
   await prisma.stewardPathStepRun.update({
     where: { id: run.id },
@@ -1064,9 +1303,14 @@ async function processBranchStep(ctx: EnrollmentContext, now: Date, userId?: str
   const field = typeof condition.field === "string" ? condition.field : "";
   const operator = typeof condition.operator === "string" ? (condition.operator as BranchOperator) : "eq";
   const compareValue = condition.value as number | string | Array<number | string>;
+  const compareValueTo = condition.valueTo as number | string | undefined;
 
   const observed = readBranchableField(enrollment, field);
-  const matched = evaluateBranchRule(observed as number | string | null | undefined, { operator, value: compareValue });
+  const matched = evaluateBranchRule(observed as number | string | null | undefined, {
+    operator,
+    value: compareValue,
+    valueTo: compareValueTo,
+  });
 
   await prisma.stewardPathStepRun.update({
     where: { id: run.id },
@@ -1074,7 +1318,14 @@ async function processBranchStep(ctx: EnrollmentContext, now: Date, userId?: str
       status: "COMPLETED",
       startedAt: now,
       completedAt: now,
-      resultJson: { field, operator, compareValue: compareValue as Prisma.InputJsonValue, matched, observed: observed as Prisma.InputJsonValue ?? null },
+      resultJson: {
+        field,
+        operator,
+        compareValue: compareValue as Prisma.InputJsonValue,
+        compareValueTo: compareValueTo as Prisma.InputJsonValue ?? null,
+        matched,
+        observed: observed as Prisma.InputJsonValue ?? null,
+      },
     },
   });
 
@@ -1304,6 +1555,28 @@ function addDuration(date: Date, amount: number, unit: "minutes" | "hours" | "da
   if (unit === "days") next.setDate(next.getDate() + amount);
   if (unit === "weeks") next.setDate(next.getDate() + amount * 7);
   if (unit === "months") next.setMonth(next.getMonth() + amount);
+  return next;
+}
+
+/** Computes the next occurrence of weekday/hour/minute at or after now. */
+function computeNextWeekdayTime(now: Date, weekday: number, hour: number, minute: number): Date {
+  const clampedWeekday = Math.max(0, Math.min(6, Math.floor(weekday)));
+  const clampedHour = Math.max(0, Math.min(23, Math.floor(hour)));
+  const clampedMinute = Math.max(0, Math.min(59, Math.floor(minute)));
+
+  const next = new Date(now);
+  next.setSeconds(0, 0);
+
+  const currentWeekday = next.getDay();
+  let dayOffset = (clampedWeekday - currentWeekday + 7) % 7;
+  next.setDate(next.getDate() + dayOffset);
+  next.setHours(clampedHour, clampedMinute, 0, 0);
+
+  if (next < now) {
+    dayOffset = dayOffset === 0 ? 7 : dayOffset;
+    next.setDate(next.getDate() + dayOffset);
+  }
+
   return next;
 }
 

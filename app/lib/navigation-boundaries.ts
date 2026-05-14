@@ -1,14 +1,15 @@
 /** Shared navigation boundary helpers for module routing and role-aware app launch visibility. */
 
-export type TopBarModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "reportit" | "hrm";
+export type TopBarModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview" | "hrm" | "password";
 
 /** Maps pathname values to the owning CRM module key used by TopBar and scoped search. */
 export function resolveTopBarModuleKey(pathname: string): TopBarModuleKey {
   if (pathname.startsWith("/compassion")) return "compassion";
   if (pathname.startsWith("/events")) return "events";
   if (pathname.startsWith("/watchdog")) return "watchdog";
+  if (pathname.startsWith("/password")) return "password";
   if (pathname.startsWith("/webmaster")) return "webmaster";
-  if (pathname.startsWith("/reports")) return "reportit";
+  if (pathname.startsWith("/reports")) return "oshareview";
   if (pathname.startsWith("/hrm")) return "hrm";
   return "donor";
 }

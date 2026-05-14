@@ -47,6 +47,13 @@ export function createDefaultLiveState(event: TriviaEvent): TriviaLiveState {
     displayOpenedAt: null,
     winnerTeamId: null,
     lastHostAction: "Ready",
+    lastScoreActionAt: null,
+    lastScoreActionSummary: "No score actions yet",
+    projectorConnectionStatus: "offline",
+    scorekeeperConnectionStatus: "offline",
+    checkInOpenedAt: null,
+    checkInClosedAt: null,
+    lastSyncedAt: null,
     updatedAt: new Date().toISOString(),
   };
 }

@@ -1,10 +1,14 @@
 // React hook for fully functional trivia module state and actions.
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
+  TriviaCheckInStatus,
+  TriviaConnectionStatus,
   TriviaDisplayStage,
+  TriviaEventAuditEvent,
   TriviaEvent,
+  TriviaEventSnapshot,
   TriviaEventStatus,
   TriviaModuleState,
   TriviaQuestion,
@@ -25,6 +29,17 @@ import {
 } from "@/app/apps/trivia/lib/trivia-store";
 import { createDefaultDisplaySettings, createDefaultLiveState, createDefaultScoringRules } from "@/app/apps/trivia/lib/trivia-demo-data";
 import { createSampleTriviaEvent } from "@/app/apps/trivia/lib/trivia-sample-data";
+import {
+  createServerTriviaSnapshot,
+  listServerTriviaAudit,
+  listServerTriviaSnapshots,
+  loadServerTriviaState,
+  recoverServerTriviaSnapshot,
+  readTriviaSyncMode,
+  saveServerTriviaState,
+  type TriviaSyncMode,
+  writeTriviaSyncMode,
+} from "@/app/apps/trivia/lib/trivia-state-provider";
 
 interface CreateTriviaEventInput {
   name: string;
@@ -84,9 +99,17 @@ interface ApplyScoreActionInput {
 interface UpdateTeamInput {
   name?: string;
   players?: string[];
+  playerCount?: number;
   active?: boolean;
   color?: string;
   icon?: string;
+  checkInStatus?: TriviaCheckInStatus;
+  checkedInAt?: string | null;
+  tableNumber?: string;
+  captainName?: string;
+  contactName?: string;
+  contactPhone?: string;
+  notes?: string;
 }
 
 const TEAM_COLORS = ["#34d399", "#38bdf8", "#f59e0b", "#f472b6", "#a78bfa", "#fb7185"];
@@ -104,19 +127,125 @@ function normalizeTeamOrder(teams: TriviaTeam[]): TriviaTeam[] {
  */
 export function useTriviaModuleState() {
   const [state, setState] = useState<TriviaModuleState>(() => readTriviaState());
+  const [syncMode, setSyncModeState] = useState<TriviaSyncMode>(() => readTriviaSyncMode());
+  const [connectionStatus, setConnectionStatus] = useState<TriviaConnectionStatus>(() => (readTriviaSyncMode() === "server" ? "reconnecting" : "connected"));
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [snapshotsByEventId, setSnapshotsByEventId] = useState<Record<string, TriviaEventSnapshot[]>>({});
+  const [auditByEventId, setAuditByEventId] = useState<Record<string, TriviaEventAuditEvent[]>>({});
+  const stateRef = useRef(state);
+  const serverSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     const unsubscribe = subscribeTriviaState(() => {
-      setState(readTriviaState());
+      const next = readTriviaState();
+      stateRef.current = next;
+      setState(next);
     });
 
     return unsubscribe;
   }, []);
 
-  function commit(next: TriviaModuleState) {
+  useEffect(() => {
+    let active = true;
+    if (syncMode !== "server") {
+      setConnectionStatus("connected");
+      setSyncError(null);
+      return () => {
+        active = false;
+      };
+    }
+
+    const pullServerState = async (replaceLocal: boolean) => {
+      setConnectionStatus("reconnecting");
+      try {
+        const payload = await loadServerTriviaState();
+        if (!active) return;
+        const normalized = ensureLiveStateCoverage(payload.state);
+
+        if (replaceLocal || JSON.stringify(normalized) !== JSON.stringify(stateRef.current)) {
+          stateRef.current = normalized;
+          setState(normalized);
+          writeTriviaState(normalized);
+        }
+
+        setLastSyncedAt(payload.updatedAt ?? new Date().toISOString());
+        setConnectionStatus("connected");
+        setSyncError(null);
+      } catch (error) {
+        if (!active) return;
+        setConnectionStatus("offline");
+        setSyncError(error instanceof Error ? error.message : "Unable to sync trivia state from server.");
+      }
+    };
+
+    void pullServerState(true);
+
+    const intervalId = window.setInterval(() => {
+      void pullServerState(false);
+    }, 5000);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [syncMode]);
+
+  function enqueueServerSync(nextState: TriviaModuleState) {
+    serverSyncQueueRef.current = serverSyncQueueRef.current.then(async () => {
+      setConnectionStatus("reconnecting");
+      try {
+        const payload = await saveServerTriviaState(nextState);
+        setConnectionStatus("connected");
+        setLastSyncedAt(payload.updatedAt ?? new Date().toISOString());
+        setSyncError(null);
+      } catch (error) {
+        setConnectionStatus("offline");
+        setSyncError(error instanceof Error ? error.message : "Unable to push trivia state to server.");
+      }
+    });
+  }
+
+  function commit(next: TriviaModuleState, options?: { skipServerSync?: boolean }) {
     const normalized = ensureLiveStateCoverage(next);
+    stateRef.current = normalized;
     setState(normalized);
     writeTriviaState(normalized);
+
+    if (syncMode === "server" && !options?.skipServerSync) {
+      enqueueServerSync(normalized);
+    }
+  }
+
+  function setSyncMode(mode: TriviaSyncMode) {
+    setSyncModeState(mode);
+    writeTriviaSyncMode(mode);
+    if (mode === "local") {
+      setConnectionStatus("connected");
+      setSyncError(null);
+    } else {
+      setConnectionStatus("reconnecting");
+    }
+  }
+
+  async function refreshFromServer(): Promise<void> {
+    if (syncMode !== "server") return;
+    setConnectionStatus("reconnecting");
+    try {
+      const payload = await loadServerTriviaState();
+      const normalized = ensureLiveStateCoverage(payload.state);
+      commit(normalized, { skipServerSync: true });
+      setLastSyncedAt(payload.updatedAt ?? new Date().toISOString());
+      setConnectionStatus("connected");
+      setSyncError(null);
+    } catch (error) {
+      setConnectionStatus("offline");
+      setSyncError(error instanceof Error ? error.message : "Unable to refresh trivia state from server.");
+    }
   }
 
   function replaceStateWithEvent(nextEvent: TriviaEvent) {
@@ -181,6 +310,7 @@ export function useTriviaModuleState() {
 
   function updateEventStatus(eventId: string, status: TriviaEventStatus) {
     const event = state.events.find((item) => item.id === eventId);
+    const live = state.liveByEventId[eventId];
     if (!event) return;
 
     const nextEvent: TriviaEvent = {
@@ -189,7 +319,23 @@ export function useTriviaModuleState() {
       updatedAt: new Date().toISOString(),
     };
 
-    replaceStateWithEvent(nextEvent);
+    if (!live) {
+      replaceStateWithEvent(nextEvent);
+      return;
+    }
+
+    const nextState = replaceEvent(state, nextEvent);
+    nextState.liveByEventId[eventId] = {
+      ...live,
+      checkInOpenedAt: status === "check_in_open" ? live.checkInOpenedAt ?? new Date().toISOString() : live.checkInOpenedAt ?? null,
+      checkInClosedAt: status === "live" || status === "paused" || status === "completed"
+        ? live.checkInClosedAt ?? new Date().toISOString()
+        : live.checkInClosedAt ?? null,
+      lastHostAction: `Event status updated: ${status}`,
+      updatedAt: new Date().toISOString(),
+    };
+
+    commit(nextState);
   }
 
   function updateEventSettings(eventId: string, input: UpdateEventSettingsInput) {
@@ -227,12 +373,20 @@ export function useTriviaModuleState() {
       id: createTriviaId("team"),
       name: input.name,
       players: input.players,
+      playerCount: input.players.length,
       score: 0,
       bonusPoints: 0,
       active: true,
       color: input.color ?? TEAM_COLORS[nextOrder % TEAM_COLORS.length],
       icon: input.icon ?? TEAM_ICONS[nextOrder % TEAM_ICONS.length],
       sortOrder: nextOrder,
+      checkInStatus: "expected",
+      checkedInAt: null,
+      tableNumber: "",
+      captainName: "",
+      contactName: "",
+      contactPhone: "",
+      notes: "",
     };
 
     const nextEvent: TriviaEvent = {
@@ -250,13 +404,33 @@ export function useTriviaModuleState() {
 
     const teams = event.teams.map((team) => {
       if (team.id !== teamId) return team;
+
+      const nextCheckInStatus = input.checkInStatus ?? team.checkInStatus;
+      const nextActive = typeof input.active === "boolean"
+        ? input.active
+        : nextCheckInStatus === "inactive" || nextCheckInStatus === "dropped"
+          ? false
+          : team.active;
+
       return {
         ...team,
         name: input.name ?? team.name,
         players: input.players ?? team.players,
-        active: typeof input.active === "boolean" ? input.active : team.active,
+        playerCount: input.playerCount ?? team.playerCount ?? (input.players ?? team.players).length,
+        active: nextActive,
         color: input.color ?? team.color,
         icon: input.icon ?? team.icon,
+        checkInStatus: nextCheckInStatus,
+        checkedInAt: input.checkedInAt !== undefined
+          ? input.checkedInAt
+          : (nextCheckInStatus === "checked_in" || nextCheckInStatus === "late")
+            ? team.checkedInAt ?? new Date().toISOString()
+            : team.checkedInAt ?? null,
+        tableNumber: input.tableNumber ?? team.tableNumber,
+        captainName: input.captainName ?? team.captainName,
+        contactName: input.contactName ?? team.contactName,
+        contactPhone: input.contactPhone ?? team.contactPhone,
+        notes: input.notes ?? team.notes,
       };
     });
 
@@ -438,24 +612,29 @@ export function useTriviaModuleState() {
       ...live,
       updatedAt: new Date().toISOString(),
       lastHostAction: input.reason,
+      lastScoreActionAt: scoreAction.createdAt,
+      lastScoreActionSummary: `${scoreAction.actionType} ${scoreAction.delta >= 0 ? `+${scoreAction.delta}` : scoreAction.delta} (${scoreAction.reason})`,
     };
     nextState.scoreHistoryByEventId[eventId] = [...(state.scoreHistoryByEventId[eventId] ?? []), scoreAction];
 
     commit(nextState);
   }
 
-  function undoLastScoreAction(eventId: string) {
+  function undoScoreActionById(eventId: string, actionId: string) {
     const event = state.events.find((item) => item.id === eventId);
     const live = state.liveByEventId[eventId];
     const history = state.scoreHistoryByEventId[eventId] ?? [];
     if (!event || !live || history.length === 0) return;
 
-    const lastAction = history[history.length - 1];
+    const target = history.find((entry) => entry.id === actionId);
+    if (!target) return;
+
     const teams = event.teams.map((team) => {
-      if (team.id !== lastAction.teamId) return team;
+      if (team.id !== target.teamId) return team;
+      const adjusted = team.score - target.delta;
       return {
         ...team,
-        score: lastAction.previousScore,
+        score: event.scoringRules.allowNegativeScores ? adjusted : Math.max(0, adjusted),
       };
     });
 
@@ -466,14 +645,26 @@ export function useTriviaModuleState() {
     };
 
     const nextState = replaceEvent(state, nextEvent);
-    nextState.scoreHistoryByEventId[eventId] = history.slice(0, -1);
+    nextState.scoreHistoryByEventId[eventId] = history.filter((entry) => entry.id !== actionId);
+    const latest = nextState.scoreHistoryByEventId[eventId][nextState.scoreHistoryByEventId[eventId].length - 1] ?? null;
     nextState.liveByEventId[eventId] = {
       ...live,
-      lastHostAction: "Undid last scoring action",
+      lastHostAction: "Undid scoring action",
+      lastScoreActionAt: latest?.createdAt ?? null,
+      lastScoreActionSummary: latest
+        ? `${latest.actionType} ${latest.delta >= 0 ? `+${latest.delta}` : latest.delta} (${latest.reason})`
+        : "No score actions yet",
       updatedAt: new Date().toISOString(),
     };
 
     commit(nextState);
+  }
+
+  function undoLastScoreAction(eventId: string) {
+    const history = state.scoreHistoryByEventId[eventId] ?? [];
+    if (history.length === 0) return;
+    const lastAction = history[history.length - 1];
+    undoScoreActionById(eventId, lastAction.id);
   }
 
   function setActiveRound(eventId: string, roundId: string) {
@@ -544,10 +735,12 @@ export function useTriviaModuleState() {
       ...live,
       stage,
       leaderboardVisible: stage === "leaderboard",
-      answerRevealed: stage === "answer",
+      answerRevealed: stage === "answer" || stage === "explanation",
       timerRunning: stage === "question" || stage === "timer_only" || stage === "final_question" || stage === "tiebreaker"
         ? live.timerRunning
         : false,
+      checkInOpenedAt: stage === "check_in_open" ? live.checkInOpenedAt ?? new Date().toISOString() : live.checkInOpenedAt ?? null,
+      checkInClosedAt: stage === "check_in_closed" ? live.checkInClosedAt ?? new Date().toISOString() : live.checkInClosedAt ?? null,
       lastHostAction: actionLabel,
       updatedAt: new Date().toISOString(),
     };
@@ -632,8 +825,37 @@ export function useTriviaModuleState() {
     nextState.liveByEventId[eventId] = {
       ...live,
       displayOpenedAt: live.displayOpenedAt ?? new Date().toISOString(),
+      projectorConnectionStatus: "connected",
       updatedAt: new Date().toISOString(),
       lastHostAction: "Projector display opened",
+    };
+
+    commit(nextState);
+  }
+
+  function setProjectorConnectionStatus(eventId: string, status: TriviaConnectionStatus) {
+    const live = state.liveByEventId[eventId];
+    if (!live) return;
+
+    const nextState = { ...state, liveByEventId: { ...state.liveByEventId } };
+    nextState.liveByEventId[eventId] = {
+      ...live,
+      projectorConnectionStatus: status,
+      updatedAt: new Date().toISOString(),
+    };
+
+    commit(nextState);
+  }
+
+  function setScorekeeperConnectionStatus(eventId: string, status: TriviaConnectionStatus) {
+    const live = state.liveByEventId[eventId];
+    if (!live) return;
+
+    const nextState = { ...state, liveByEventId: { ...state.liveByEventId } };
+    nextState.liveByEventId[eventId] = {
+      ...live,
+      scorekeeperConnectionStatus: status,
+      updatedAt: new Date().toISOString(),
     };
 
     commit(nextState);
@@ -651,9 +873,20 @@ export function useTriviaModuleState() {
 
   function importEventsFromJson(inputJson: string): { ok: boolean; message: string } {
     try {
-      const parsed = JSON.parse(inputJson) as TriviaEvent[];
+      const parsed = JSON.parse(inputJson) as unknown;
+
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && "events" in parsed) {
+        const maybeState = parsed as TriviaModuleState;
+        if (!Array.isArray(maybeState.events) || typeof maybeState.liveByEventId !== "object") {
+          return { ok: false, message: "Import failed: invalid full-state package." };
+        }
+
+        commit(maybeState);
+        return { ok: true, message: `Imported full state with ${maybeState.events.length} event(s).` };
+      }
+
       if (!Array.isArray(parsed)) {
-        return { ok: false, message: "Import failed: JSON must be an array of events." };
+        return { ok: false, message: "Import failed: JSON must be an event array or full state package." };
       }
 
       const cleaned = parsed
@@ -691,9 +924,133 @@ export function useTriviaModuleState() {
     }
   }
 
+  function exportStatePackage(): string {
+    return JSON.stringify(state, null, 2);
+  }
+
+  async function createEventSnapshot(eventId: string, label = "Manual snapshot"): Promise<TriviaEventSnapshot> {
+    const event = state.events.find((item) => item.id === eventId);
+    const live = state.liveByEventId[eventId];
+    const scoreHistory = state.scoreHistoryByEventId[eventId] ?? [];
+    if (!event || !live) {
+      throw new Error("Unable to create snapshot: event not found.");
+    }
+
+    if (syncMode === "server") {
+      const snapshot = await createServerTriviaSnapshot(eventId, label);
+      setSnapshotsByEventId((previous) => ({
+        ...previous,
+        [eventId]: [snapshot, ...(previous[eventId] ?? [])],
+      }));
+      return snapshot;
+    }
+
+    const localSnapshot: TriviaEventSnapshot = {
+      id: createTriviaId("snapshot"),
+      eventId,
+      label,
+      capturedAt: new Date().toISOString(),
+      event: JSON.parse(JSON.stringify(event)) as TriviaEvent,
+      live: JSON.parse(JSON.stringify(live)),
+      scoreHistory: JSON.parse(JSON.stringify(scoreHistory)),
+    };
+
+    setSnapshotsByEventId((previous) => ({
+      ...previous,
+      [eventId]: [localSnapshot, ...(previous[eventId] ?? [])].slice(0, 50),
+    }));
+    return localSnapshot;
+  }
+
+  async function loadEventSnapshots(eventId: string): Promise<TriviaEventSnapshot[]> {
+    if (syncMode === "server") {
+      const snapshots = await listServerTriviaSnapshots(eventId);
+      setSnapshotsByEventId((previous) => ({ ...previous, [eventId]: snapshots }));
+      return snapshots;
+    }
+
+    return snapshotsByEventId[eventId] ?? [];
+  }
+
+  async function recoverEventSnapshot(eventId: string, snapshotId: string): Promise<void> {
+    if (syncMode === "server") {
+      const payload = await recoverServerTriviaSnapshot(eventId, snapshotId);
+      commit(payload.state, { skipServerSync: true });
+      setLastSyncedAt(new Date().toISOString());
+      setConnectionStatus("connected");
+      return;
+    }
+
+    const localSnapshot = (snapshotsByEventId[eventId] ?? []).find((snapshot) => snapshot.id === snapshotId);
+    if (!localSnapshot) {
+      throw new Error("Snapshot not found.");
+    }
+
+    const nextEvents = state.events.map((event) => (event.id === eventId ? localSnapshot.event : event));
+    const nextLiveByEventId = {
+      ...state.liveByEventId,
+      [eventId]: localSnapshot.live,
+    };
+    const nextScoreHistoryByEventId = {
+      ...state.scoreHistoryByEventId,
+      [eventId]: localSnapshot.scoreHistory,
+    };
+
+    commit({
+      events: nextEvents,
+      liveByEventId: nextLiveByEventId,
+      scoreHistoryByEventId: nextScoreHistoryByEventId,
+    });
+  }
+
+  async function loadEventAudit(eventId: string): Promise<TriviaEventAuditEvent[]> {
+    if (syncMode === "server") {
+      const auditEntries = await listServerTriviaAudit(eventId);
+      setAuditByEventId((previous) => ({ ...previous, [eventId]: auditEntries }));
+      return auditEntries;
+    }
+
+    const localHistory = state.scoreHistoryByEventId[eventId] ?? [];
+    const localAudit = [...localHistory].reverse().map((entry) => ({
+      id: entry.id,
+      eventId,
+      type: "score" as const,
+      message: `${entry.actionType} ${entry.delta >= 0 ? `+${entry.delta}` : entry.delta} (${entry.reason})`,
+      createdAt: entry.createdAt,
+      metadata: {
+        teamId: entry.teamId,
+        previousScore: entry.previousScore,
+        newScore: entry.newScore,
+      },
+    }));
+
+    const localSnapshotAudit = (snapshotsByEventId[eventId] ?? []).map((snapshot) => ({
+      id: `snapshot-audit-${snapshot.id}`,
+      eventId,
+      type: "snapshot" as const,
+      message: `Snapshot captured: ${snapshot.label}`,
+      createdAt: snapshot.capturedAt,
+      metadata: { snapshotId: snapshot.id },
+    }));
+
+    const merged = [...localAudit, ...localSnapshotAudit]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    setAuditByEventId((previous) => ({ ...previous, [eventId]: merged }));
+    return merged;
+  }
+
   const api = useMemo(() => {
     return {
       state,
+      syncMode,
+      connectionStatus,
+      lastSyncedAt,
+      syncError,
+      snapshotsByEventId,
+      auditByEventId,
+      setSyncMode,
+      refreshFromServer,
       createEvent,
       createSampleEvent,
       updateEventStatus,
@@ -705,6 +1062,7 @@ export function useTriviaModuleState() {
       addRound,
       addQuestion,
       applyScoreAction,
+      undoScoreActionById,
       undoLastScoreAction,
       setActiveRound,
       setQuestionIndex,
@@ -714,10 +1072,25 @@ export function useTriviaModuleState() {
       setTimerRemaining,
       resetTimer,
       markProjectorOpened,
+      setProjectorConnectionStatus,
+      setScorekeeperConnectionStatus,
       deleteEvent,
+      createEventSnapshot,
+      loadEventSnapshots,
+      recoverEventSnapshot,
+      loadEventAudit,
+      exportStatePackage,
       importEventsFromJson,
     };
-  }, [state]);
+  }, [
+    state,
+    syncMode,
+    connectionStatus,
+    lastSyncedAt,
+    syncError,
+    snapshotsByEventId,
+    auditByEventId,
+  ]);
 
   return api;
 }

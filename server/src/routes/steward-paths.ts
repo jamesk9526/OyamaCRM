@@ -79,6 +79,78 @@ function eventForEnrollmentStatus(status: StewardPathEnrollmentStatus): StewardP
   return "PATH_COMPLETED";
 }
 
+interface StewardPathSharePayload {
+  visibility: "private" | "organization" | "admins";
+  ownerUserId: string | null;
+  allowRun: boolean;
+  allowEdit: boolean;
+}
+
+/** Reads share settings from triggerConfig JSON with safe fallbacks. */
+function readPathShareSettings(triggerConfig: unknown): StewardPathSharePayload {
+  if (!triggerConfig || typeof triggerConfig !== "object" || Array.isArray(triggerConfig)) {
+    return { visibility: "private", ownerUserId: null, allowRun: false, allowEdit: false };
+  }
+  const obj = triggerConfig as Record<string, unknown>;
+  const sharing = obj._sharing;
+  if (!sharing || typeof sharing !== "object" || Array.isArray(sharing)) {
+    return { visibility: "private", ownerUserId: null, allowRun: false, allowEdit: false };
+  }
+  const payload = sharing as Record<string, unknown>;
+  const visibilityRaw = payload.visibility;
+  const visibility = visibilityRaw === "organization" || visibilityRaw === "admins" ? visibilityRaw : "private";
+
+  return {
+    visibility,
+    ownerUserId: typeof payload.ownerUserId === "string" ? payload.ownerUserId : null,
+    allowRun: payload.allowRun === true,
+    allowEdit: payload.allowEdit === true,
+  };
+}
+
+/** Writes share settings back into triggerConfig JSON while preserving existing keys. */
+function withPathShareSettings(
+  triggerConfig: unknown,
+  share: StewardPathSharePayload,
+): Prisma.InputJsonValue {
+  const base = triggerConfig && typeof triggerConfig === "object" && !Array.isArray(triggerConfig)
+    ? { ...(triggerConfig as Record<string, unknown>) }
+    : {};
+  return {
+    ...base,
+    _sharing: {
+      visibility: share.visibility,
+      ownerUserId: share.ownerUserId,
+      allowRun: share.allowRun,
+      allowEdit: share.allowEdit,
+    },
+  } as Prisma.InputJsonValue;
+}
+
+/** Maps legacy automation trigger into steward path trigger type. */
+function mapLegacyTrigger(trigger: string): string {
+  const normalized = trigger.trim().toUpperCase();
+  if (normalized === "DONATION_RECEIVED") return "DONATION_RECEIVED";
+  if (normalized === "CONSTITUENT_CREATED") return "CONSTITUENT_CREATED";
+  if (normalized === "TASK_DUE") return "TASK_DUE";
+  if (normalized === "PLEDGE_CREATED") return "PLEDGE_CREATED";
+  if (normalized === "EMAIL_OPENED") return "EMAIL_OPENED";
+  if (normalized === "EVENT_REGISTERED") return "EVENT_REGISTERED";
+  return "MANUAL";
+}
+
+/** Maps legacy automation action type into steward path step type. */
+function mapLegacyActionType(type: string): StewardPathStepType {
+  const normalized = type.trim().toUpperCase();
+  if (normalized === "SEND_EMAIL") return "DRAFT_EMAIL";
+  if (normalized === "CREATE_TASK") return "CREATE_TASK";
+  if (normalized === "UPDATE_FIELD") return "STATUS_CHANGE";
+  if (normalized === "ADD_TAG") return "STATUS_CHANGE";
+  if (normalized === "REMOVE_TAG") return "STATUS_CHANGE";
+  if (normalized === "ASSIGN_USER") return "MANUAL_ACTION";
+  return "MANUAL_ACTION";
+}
+
 /** GET /api/steward-paths/templates — list sequence templates for the org. */
 router.get("/templates", requirePermission("steward_paths.view"), async (req, res) => {
   const organizationId = await requireOrganizationId(req);
@@ -314,6 +386,322 @@ router.delete("/templates/:id", requirePermission("steward_paths.archive"), asyn
   });
 
   res.status(204).send();
+});
+
+/** PATCH /api/steward-paths/templates/:id/share — updates template visibility and share controls. */
+router.patch("/templates/:id/share", requirePermission("steward_paths.edit"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user context are required." } });
+    return;
+  }
+
+  const existing = await prisma.stewardPath.findFirst({ where: { id: getRouteId(req), organizationId } });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Steward Path template not found." } });
+    return;
+  }
+
+  const visibilityRaw = typeof req.body?.visibility === "string" ? req.body.visibility.trim().toLowerCase() : "";
+  if (visibilityRaw !== "private" && visibilityRaw !== "organization" && visibilityRaw !== "admins") {
+    res.status(400).json({ error: { code: "INVALID_VISIBILITY", message: "visibility must be private, organization, or admins." } });
+    return;
+  }
+
+  const previous = readPathShareSettings(existing.triggerConfig);
+  const next: StewardPathSharePayload = {
+    visibility: visibilityRaw,
+    ownerUserId: previous.ownerUserId ?? userId,
+    allowRun: req.body?.allowRun === true,
+    allowEdit: req.body?.allowEdit === true,
+  };
+
+  const updated = await prisma.stewardPath.update({
+    where: { id: existing.id },
+    data: {
+      triggerConfig: withPathShareSettings(existing.triggerConfig, next),
+      lastEditedByUserId: userId,
+    },
+    include: { steps: { orderBy: { orderIndex: "asc" } } },
+  });
+
+  await logAudit({
+    action: "STEWARD_PATH_TEMPLATE_SHARE_UPDATED",
+    entity: "StewardPath",
+    entityId: updated.id,
+    userId,
+    organizationId,
+    metadata: {
+      previousVisibility: previous.visibility,
+      newVisibility: next.visibility,
+      allowRun: next.allowRun,
+      allowEdit: next.allowEdit,
+    },
+  });
+
+  res.json(updated);
+});
+
+/** POST /api/steward-paths/templates/:id/duplicate — clones metadata and active steps into a new draft template. */
+router.post("/templates/:id/duplicate", requirePermission("steward_paths.create"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user context are required." } });
+    return;
+  }
+
+  const existing = await prisma.stewardPath.findFirst({
+    where: { id: getRouteId(req), organizationId },
+    include: { steps: { where: { isActive: true }, orderBy: { orderIndex: "asc" } } },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Steward Path template not found." } });
+    return;
+  }
+
+  const copy = await prisma.$transaction(async (tx) => {
+    const template = await tx.stewardPath.create({
+      data: {
+        organizationId,
+        name: `${existing.name} (Copy)`,
+        description: existing.description,
+        crmScope: existing.crmScope,
+        targetType: existing.targetType,
+        triggerType: existing.triggerType,
+        triggerConfig: existing.triggerConfig as Prisma.InputJsonValue,
+        status: "DRAFT",
+        defaultOwnerId: existing.defaultOwnerId,
+        createdByUserId: userId,
+        lastEditedByUserId: userId,
+      },
+    });
+
+    for (const step of existing.steps) {
+      await tx.stewardPathStep.create({
+        data: {
+          pathId: template.id,
+          orderIndex: step.orderIndex,
+          name: step.name,
+          description: step.description,
+          stepType: step.stepType,
+          configJson: step.configJson as Prisma.InputJsonValue,
+          isRequired: step.isRequired,
+          isActive: step.isActive,
+        },
+      });
+    }
+
+    return tx.stewardPath.findUnique({
+      where: { id: template.id },
+      include: { steps: { orderBy: { orderIndex: "asc" } }, _count: { select: { enrollments: true } } },
+    });
+  });
+
+  await logAudit({
+    action: "STEWARD_PATH_TEMPLATE_DUPLICATED",
+    entity: "StewardPath",
+    entityId: copy?.id,
+    userId,
+    organizationId,
+    metadata: {
+      sourcePathId: existing.id,
+      sourcePathName: existing.name,
+    },
+  });
+
+  res.status(201).json(copy);
+});
+
+/** POST /api/steward-paths/templates/:id/test-run — creates a safe test enrollment without outbound send. */
+router.post("/templates/:id/test-run", requirePermission("steward_paths.enroll"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user context are required." } });
+    return;
+  }
+
+  const existing = await prisma.stewardPath.findFirst({
+    where: { id: getRouteId(req), organizationId },
+    include: { steps: { where: { isActive: true }, orderBy: { orderIndex: "asc" } } },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Steward Path template not found." } });
+    return;
+  }
+  if (existing.steps.length === 0) {
+    res.status(400).json({ error: { code: "NO_STEPS", message: "Template requires at least one active step for test run." } });
+    return;
+  }
+
+  const constituentId = typeof req.body?.constituentId === "string" ? req.body.constituentId.trim() : "";
+  if (!constituentId) {
+    res.status(400).json({ error: { code: "CONSTITUENT_REQUIRED", message: "constituentId is required." } });
+    return;
+  }
+
+  const enrollment = await prisma.stewardPathEnrollment.create({
+    data: {
+      organizationId,
+      pathId: existing.id,
+      targetType: existing.targetType,
+      targetId: constituentId,
+      constituentId,
+      status: "ACTIVE",
+      currentStepId: existing.steps[0]?.id ?? null,
+      ownerUserId: existing.defaultOwnerId ?? userId,
+      startedAt: new Date(),
+      nextStepDueAt: null,
+    },
+  });
+
+  await createTimelineEvent({
+    enrollmentId: enrollment.id,
+    stepId: enrollment.currentStepId ?? undefined,
+    eventType: "PATH_STARTED",
+    message: "Safe test enrollment created from visual builder test run.",
+    createdByUserId: userId,
+    metadataJson: {
+      testRun: true,
+      pathId: existing.id,
+    },
+  });
+
+  await logAudit({
+    action: "STEWARD_PATH_TEST_RUN_CREATED",
+    entity: "StewardPathEnrollment",
+    entityId: enrollment.id,
+    userId,
+    organizationId,
+    metadata: {
+      pathId: existing.id,
+      constituentId,
+      testRun: true,
+    },
+  });
+
+  res.status(201).json({ success: true, enrollmentId: enrollment.id });
+});
+
+/** GET /api/steward-paths/templates/:id/history — returns recent timeline events across enrollments for one path. */
+router.get("/templates/:id/history", requirePermission("steward_paths.view"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization context available." } });
+    return;
+  }
+
+  const path = await prisma.stewardPath.findFirst({
+    where: { id: getRouteId(req), organizationId },
+    select: { id: true, name: true },
+  });
+  if (!path) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Steward Path template not found." } });
+    return;
+  }
+
+  const items = await prisma.stewardPathTimelineEvent.findMany({
+    where: {
+      enrollment: {
+        pathId: path.id,
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: parsePositiveInt(req.query.limit, 100, 1, 300),
+    select: {
+      id: true,
+      eventType: true,
+      message: true,
+      createdAt: true,
+      enrollmentId: true,
+    },
+  });
+
+  res.json({
+    pathId: path.id,
+    pathName: path.name,
+    items,
+  });
+});
+
+/** POST /api/steward-paths/migrations/automations — imports legacy automations into steward paths templates. */
+router.post("/migrations/automations", requirePermission("steward_paths.create"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user context are required." } });
+    return;
+  }
+
+  const automations = await prisma.automation.findMany({
+    where: { organizationId },
+    include: { actions: { orderBy: { order: "asc" } } },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const imported: Array<{ legacyAutomationId: string; stewardPathId: string }> = [];
+  for (const automation of automations) {
+    const created = await prisma.$transaction(async (tx) => {
+      const path = await tx.stewardPath.create({
+        data: {
+          organizationId,
+          name: automation.name,
+          description: automation.description,
+          crmScope: "DONOR",
+          targetType: "CONSTITUENT",
+          triggerType: mapLegacyTrigger(String(automation.trigger)),
+          triggerConfig: {
+            ...(((automation.triggerConfig as Record<string, unknown> | null) ?? {})),
+            _migration: {
+              source: "legacy-automations",
+              legacyAutomationId: automation.id,
+              migratedAt: new Date().toISOString(),
+            },
+          },
+          status: automation.enabled ? "ACTIVE" : "DRAFT",
+          createdByUserId: userId,
+          lastEditedByUserId: userId,
+        },
+      });
+
+      for (const [index, action] of automation.actions.entries()) {
+        await tx.stewardPathStep.create({
+          data: {
+            pathId: path.id,
+            orderIndex: index,
+            name: `${action.type}`,
+            description: "Migrated from legacy automation action.",
+            stepType: mapLegacyActionType(String(action.type)),
+            configJson: {
+              ...(((action.config as Record<string, unknown> | null) ?? {})),
+              legacyActionType: action.type,
+            },
+            isRequired: true,
+            isActive: true,
+          },
+        });
+      }
+
+      return path;
+    });
+
+    imported.push({ legacyAutomationId: automation.id, stewardPathId: created.id });
+  }
+
+  await logAudit({
+    action: "STEWARD_PATH_LEGACY_AUTOMATIONS_MIGRATED",
+    entity: "StewardPath",
+    userId,
+    organizationId,
+    metadata: {
+      importedCount: imported.length,
+      imported,
+    },
+  });
+
+  res.status(201).json({ importedCount: imported.length, imported });
 });
 
 /** POST /api/steward-paths/templates/:id/steps — append or insert one step. */

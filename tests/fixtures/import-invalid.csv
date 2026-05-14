@@ -1,0 +1,3 @@
+firstName,lastName,email,phone,constituentType,totalLifetimeGiving
+,,,not-a-phone,unknown,-999
+metadata,row,that,should,be,rejected

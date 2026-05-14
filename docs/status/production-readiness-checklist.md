@@ -1,6 +1,6 @@
 # Production Readiness Checklist
 
-Last updated: 2026-05-13 (2026-05-12 artifact run refresh)
+Last updated: 2026-05-13 (donor browser QA and validation refresh)
 
 This file is the release-gate source of truth for production readiness.
 
@@ -14,9 +14,38 @@ Use only these status labels:
 - Broken
 - Not Implemented
 
+## Documentation Governance Alignment (2026-05-13)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Canonical master plan moved under docs | Working | `docs/MASTER_PLAN.md` |
+| Legacy plan packet location cleanup | Working | `docs/plans/*`, `docs/backlog/master-plan-backlog.md` |
+| Office guide moved under docs hierarchy | Working | `docs/howto/HOW_TO_USE.md` |
+| Full markdown inventory and disposition audit | Working | `docs/audits/markdown-documentation-audit.md` |
+
+## Full-App Testing Expansion Snapshot (2026-05-13)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Testing audit baseline created | Working | `docs/testing/full-app-test-audit.md` |
+| E2E local runbook created | Working | `docs/testing/e2e-local-runbook.md` |
+| Test coverage map created | Working | `docs/testing/test-coverage-map.md` |
+| Dedicated lane scripts for `unit` / `api` / `regression` / `ci` | Working | `package.json` |
+| E2E base URL mismatch (3650 vs 3000) corrected in scripts | Working | `tests/e2e/ui-production-smoke.mjs`, `tests/e2e/livecom-ui-smoke.mjs` |
+| Mobile E2E auth endpoint mismatch corrected | Working | `tests/e2e/mobile-readiness-audit.mjs` |
+| Fresh E2E run against live local stack (`pnpm test:e2e`) | Working | Local validation run, 2026-05-13 |
+| Fresh mobile audit run (`pnpm test:e2e:mobile`) | Partially Working | Local validation run, 2026-05-13 (`75` warns, `0` fails) |
+| API lane breadth across all modules | Partially Working | `tests/api/*` |
+| Full CRM workflow E2E coverage depth | Partially Working | `tests/e2e/*` |
+
+Reference docs for this pass:
+
+- `docs/audits/full-app-testing-audit.md`
+- `docs/audits/full-app-testing-validation.md`
+
 ## Donor Engagement Unified System Refactor (2026-05-13)
 
-Phase 1 (audit + docs), Phase 2 (UI relabeling, shared status vocabulary), and Phase 3 partial (shared service contract foundation + unit tests) have landed. Sequence engine cutover, visual builder, and auto-send/branching execution remain in later phases.
+Phase 1 (audit + docs), Phase 2 (UI relabeling, shared status vocabulary), and Phase 3 partial (shared service contract foundation + unit tests) have landed. Phase 4 visual builder work has landed with branch-aware persistence/export and true drag-and-drop behavior.
 
 | Item | Status | Evidence |
 |---|---|---|
@@ -28,11 +57,11 @@ Phase 1 (audit + docs), Phase 2 (UI relabeling, shared status vocabulary), and P
 | Steward Paths shared status legend with tone palette | Working | `app/automations/page.tsx` |
 | Steward Paths `SEND_EMAIL` UI label updated to "Create review-required email" | Working | `app/automations/page.tsx`, `app/components/automations/NewAutomationModal.tsx`, `app/components/automations/AutomationWorkflowEditorModal.tsx` |
 | Canonical `/steward-paths` URL (redirect wrapper) | Working | `app/steward-paths/page.tsx` |
-| Steward Paths visual builder skeleton (palette/canvas/inspector) at `/steward-paths/builder` | Working | `app/steward-paths/builder/page.tsx`, `app/components/steward-paths/*` |
-| Visual builder persistence (save/load) | Not Implemented | Skeleton edits document in memory only; save/run buttons disabled with tooltip |
+| Steward Paths visual builder canvas (palette/map/inspector) at `/steward-paths/builder` | Working | `app/steward-paths/builder/page.tsx`, `app/components/steward-paths/*` |
+| Visual builder persistence (save/load) | Working | `app/components/steward-paths/StewardPathBuilderPage.tsx`, `app/components/steward-paths/workflow-transformers.ts` (branch-aware save/load and export are active) |
 | `STATUS_CHANGE` step execution | Working | `server/src/services/steward-paths-sequence-engine.ts` `processStatusChangeStep`/`buildStatusChangeUpdate`; 16 unit tests in `tests/unit/steward-paths-status-change.test.ts` |
 | `BRANCH_PLACEHOLDER` step execution (eq/neq/gt/gte/lt/lte/in/not_in) | Working | `server/src/services/steward-paths-sequence-engine.ts` `processBranchStep`; algorithm mirrored from `app/lib/engagement-orchestration.ts` (covered by `tests/unit/engagement-orchestration.test.ts`) |
-| New Phase-5 step types (wait-until-date, weekday/time, tag mutations, manual approval, retry, notify, stop) | Not Implemented | Palette items exist with honest readiness badges; processors not yet wired |
+| New Phase-5 step types (wait-until-date, weekday/time, after-last-gift, tag mutations, manual command operations, retry/notify/stop flows) | Working | `server/src/services/steward-paths-sequence-engine.ts` and `app/components/steward-paths/workflow-transformers.ts` now map and execute these step families |
 | Auto-send email step | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts` `processSendEmailStep` intentionally routes through draft-first behavior |
 | Sequence engine cutover to shared helpers | Not Implemented | Engine still uses private `addDuration`; planned with the visual builder cutover so parity tests ship together |
 | Legacy `stewardPathsEngine.ts` retirement | Not Implemented | Legacy and sequence engines coexist intentionally until parity is confirmed in Phase 3 cutover |
@@ -85,6 +114,66 @@ Detailed dated reports:
 - `docs/status/smoke-coverage-audit-2026-05-12.md`
 - `docs/status/build-and-typecheck-audit-2026-05-12.md`
 
+## Targeted Validation Run (2026-05-13)
+
+| Validation | Result | Status | Evidence |
+|---|---|---|---|
+| `pnpm lint` | Failed with existing repo-wide lint errors/warnings (including React compiler memoization and hook-order violations in untouched files) | Broken | Local run in current pass (see `docs/audits/full-crm-cleanup-validation.md`) |
+| `pnpm typecheck:web` | Passed | Working | Local run in current pass |
+| `pnpm test:smoke` | 152 passed, 0 failed | Working | Local run in current pass |
+| `pnpm vitest --run tests/unit/steward-paths-workflow-builder.test.ts tests/unit/engagement-orchestration.test.ts` | 27 passed, 0 failed | Working | Local run in current pass |
+| `pnpm build` | Passed | Working | Local run in current pass |
+
+## Donor Browser QA Validation Run (2026-05-13)
+
+| Validation | Result | Status | Evidence |
+|---|---|---|---|
+| `pnpm lint` | Failed with 49 problems (16 errors, 33 warnings) | Broken | Local run in current pass |
+| `pnpm typecheck` | Passed | Working | Local run in current pass |
+| `pnpm vitest --run tests/smoke/donations-crud.test.ts` | 13 passed, 0 failed | Working | Local run in current pass |
+| `pnpm build` | Passed | Working | Local run in current pass |
+| `pnpm test:e2e` | Failed (`ERR_CONNECTION_REFUSED` at `http://localhost:3650/login`) | Broken | Local run in current pass |
+| `pnpm test:e2e:mobile` | Failed (mobile audit login 404 on `/api/auth/login`) | Broken | Local run in current pass |
+| `pnpm test:e2e:livecom` | Failed (`ERR_CONNECTION_REFUSED` at `http://localhost:3650/login`) | Broken | Local run in current pass |
+
+## Full-App Testing Validation Run (2026-05-13)
+
+| Validation | Result | Status | Evidence |
+|---|---|---|---|
+| `pnpm lint` | Failed with 50 problems (16 errors, 34 warnings) | Broken | Local run in current pass |
+| `pnpm typecheck` | Passed | Working | Local run in current pass |
+| `pnpm test:unit` | 250 passed, 0 failed | Working | Local run in current pass |
+| `pnpm test:api` | 7 passed, 0 failed | Working | Local run in current pass |
+| `pnpm test:regression` | 2 passed, 0 failed | Working | Local run in current pass |
+| `pnpm test:smoke` | 159 passed, 0 failed | Working | Local run in current pass |
+| `pnpm test` | 418 passed, 0 failed | Working | Local run in current pass |
+| `pnpm test:coverage` | Passed with v8 coverage output | Working | Local run in current pass |
+| `pnpm test:e2e` | Passed | Working | Local run in current pass (with `pnpm dev:all` active) |
+| `pnpm test:e2e:livecom` | Passed | Working | Local run in current pass (with `pnpm dev:all` active) |
+| `pnpm test:e2e:mobile` | Completed with 75 warnings, 0 failures | Partially Working | Local run in current pass (with `pnpm dev:all` active) |
+| `pnpm build` | Passed | Working | Local run in current pass |
+
+## Steward Paths Canonicalization Validation Run (2026-05-13)
+
+| Validation | Result | Status | Evidence |
+|---|---|---|---|
+| `/steward-paths` canonical saved visual paths workspace | Manual browser QA passed | Working | Local browser QA + screenshot evidence in current pass |
+| `/automations` compatibility redirect to canonical route | Manual browser QA passed (`/steward-paths?deprecated=automations`) | Working | Local browser QA + screenshot evidence in current pass |
+| `/steward-paths/builder/:id` template-edit route | Manual browser QA passed | Working | Local browser QA + screenshot evidence in current pass |
+| `/steward-paths/:id/history` route | Manual browser QA passed (timeline event rendered) | Working | Local browser QA + screenshot evidence in current pass |
+| `pnpm typecheck` | Passed | Working | Local run in current pass |
+| `pnpm test:unit -- --run tests/unit/steward-paths-adapters.test.ts tests/unit/crm-sidebar-navigation.test.ts` | Passed (254 tests) | Working | Local run in current pass |
+| `pnpm test:api -- --run tests/api/steward-paths.api.test.ts` | Passed (8 tests) | Working | Local run in current pass |
+| `pnpm test:smoke` | Passed (159 tests) | Working | Local run in current pass |
+| `pnpm test:e2e` | Passed | Working | Local run in current pass |
+| `pnpm build` | Passed | Working | Local run in current pass |
+| `pnpm lint` | Failed with existing repo-wide issues (16 errors, 35 warnings) | Broken | Local run in current pass |
+
+Notes:
+
+- New canonical Steward Paths functionality validated end-to-end.
+- Release gate remains blocked by unresolved repo-wide lint failures outside this feature pass.
+
 ## Partial Implementations Completed In This Pass
 
 1. Integrations settings upgraded from placeholder to live API-backed diagnostics.
@@ -135,6 +224,16 @@ Detailed dated reports:
    - Letters workflow policy persistence added via `GET/PUT /api/letters/workflow-settings` in `server/src/routes/letters.ts`.
    - Letters workflow settings UI switched from static TODO guidance to API-backed controls in `app/components/letters/LetterWorkflowSettingsPage.tsx`.
    - Email builder review gate now validates merge-token integrity (unknown tokens + malformed braces) in `app/components/email-builder/EmailBuilderApp.tsx`.
+11. Donor stewardship vertical-loop completion slice (donation -> acknowledgment workflow handoff).
+   - Added one-click `Complete Loop` donation action in `app/components/donations/DonationTable.tsx` and `app/donations/page.tsx`.
+   - Added orchestration endpoint `POST /api/donations/:id/quick-actions/stewardship-loop` in `server/src/routes/donations.ts`.
+   - Endpoint executes/reuses draft email, follow-up task, and steward path enrollment with timeline/audit writeback.
+   - Added smoke coverage in `tests/smoke/donations-crud.test.ts` for both loop execution and cross-workspace artifact visibility (`email campaigns`, `tasks`, `steward-path enrollments`, `constituent timeline`).
+12. Donor browser-driven QA and documentation polish pass.
+   - Added reproducible route+viewport QA script `scripts/qa/donor-browser-pass.mjs`.
+   - Added DonorCRM QA report and module guide (`docs/modules/donor-crm/browser-qa-report.md`, `docs/modules/donor-crm/README.md`).
+   - Added screenshot index and refreshed dated screenshot pack (`docs/screenshots/donor-crm/README.md`, `docs/screenshots/donor-crm/2026-05-13/*`).
+   - Fixed a constituent profile runtime hook-order crash and improved mobile quick-action stacking in `app/constituents/[id]/page.tsx`.
 
 ## Done Now Checklist
 

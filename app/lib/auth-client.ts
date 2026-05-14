@@ -222,15 +222,20 @@ export async function apiFetchResponse(path: string, init: RequestInit = {}): Pr
   const token = getAccessToken();
 
   const makeRequest = async (activeToken: string | null) => {
-    return fetch(`${API_BASE}${path}`, {
-      ...init,
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        ...(init.headers as Record<string, string> ?? {}),
-        ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
-      },
-    });
+    try {
+      return await fetch(`${API_BASE}${path}`, {
+        ...init,
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...(init.headers as Record<string, string> ?? {}),
+          ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
+        },
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "Network request failed";
+      throw new Error(`Unable to reach API at ${API_BASE}. ${reason}`);
+    }
   };
 
   let response = await makeRequest(token);

@@ -9,7 +9,7 @@ interface WatchdogSidebarProps {
   forceExpanded?: boolean;
 }
 
-/** Renders Watchdog sidebar with dark security styling and hash-aware active states. */
+/** Renders Watchdog sidebar with route-based operations navigation. */
 export default function WatchdogSidebar({ forceExpanded = false }: WatchdogSidebarProps) {
   const { user } = useAuth();
 

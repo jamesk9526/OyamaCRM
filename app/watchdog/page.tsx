@@ -1,7 +1,7 @@
 /** Watchdog dashboard route entrypoint. */
-import WatchdogDashboardPage from "@/app/components/watchdog/WatchdogDashboardPage";
+import WatchdogOverviewPage from "@/app/components/watchdog/ops/WatchdogOverviewPage";
 
 /** WatchdogPage renders the OyamaWatchdog security command dashboard. */
 export default function WatchdogPage() {
-  return <WatchdogDashboardPage />;
+  return <WatchdogOverviewPage />;
 }

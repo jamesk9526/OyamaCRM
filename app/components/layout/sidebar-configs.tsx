@@ -131,7 +131,7 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
         {
           id: "steward-paths",
           label: "Steward Paths",
-          href: "/automations",
+          href: "/steward-paths",
           icon: DONOR_ICONS.stewardPaths,
           kind: "workspace",
           badge: "App",
@@ -473,16 +473,35 @@ export function buildHrmSidebarGroups(): CrmSidebarGroup[] {
 export function buildWatchdogSidebarGroups(): CrmSidebarGroup[] {
   return [
     {
-      id: "security-command",
-      label: "Security Command",
+      id: "operations-workspace",
+      label: "Operations Workspace",
       defaultOpen: true,
       items: [
-        { id: "security-dashboard", label: "Security Dashboard", href: "/watchdog", exact: true, icon: <OyamaGradientIcon name="growth-analytics" size={16} />, kind: "workspace", description: "Cross-CRM security monitor and incident summary." },
+        { id: "operations-overview", label: "Overview", href: "/watchdog", exact: true, icon: <OyamaGradientIcon name="growth-analytics" size={16} />, kind: "workspace", description: "Central operations posture, attention queue, and readiness summary." },
+        { id: "backups", label: "Backups", href: "/watchdog/backups", icon: <OyamaGradientIcon name="contact-checklist" size={16} />, kind: "system", description: "Backup scope coverage, policy controls, and verification history." },
+        { id: "restore", label: "Restore", href: "/watchdog/restore", icon: <OyamaGradientIcon name="goal-target" size={16} />, kind: "system", description: "Dry-run and guarded restore execution with typed confirmation." },
+        { id: "vault", label: "Vault", href: "/watchdog/vault", icon: <OyamaGradientIcon name="client-profile-sync" size={16} />, kind: "system", description: "Encrypted secrets with audited reveal, copy, and rotation controls." },
+      ],
+    },
+    {
+      id: "security-governance",
+      label: "Security & Governance",
+      defaultOpen: true,
+      items: [
+        { id: "security", label: "Security", href: "/watchdog/security", icon: <OyamaGradientIcon name="task-checklist" size={16} />, kind: "insight", description: "Permission risk checks, boundary warnings, and security posture." },
+        { id: "health", label: "Health", href: "/watchdog/health", icon: <OyamaGradientIcon name="momentum-growth" size={16} />, kind: "insight", description: "Service and dependency readiness with status classification." },
+        { id: "audit", label: "Audit", href: "/watchdog/audit", icon: <OyamaGradientIcon name="reporting-dashboard" size={16} />, kind: "insight", description: "Filterable operational event feed for review and forensics." },
+        { id: "runbooks", label: "Runbooks", href: "/watchdog/runbooks", icon: <OyamaGradientIcon name="constituent-search" size={16} />, kind: "system", description: "Standardized response guides for incident and recovery workflows." },
+      ],
+    },
+    {
+      id: "operations-system",
+      label: "System",
+      defaultOpen: false,
+      collapsible: true,
+      items: [
+        { id: "settings", label: "Settings", href: "/watchdog/settings", icon: DONOR_ICONS.settings, kind: "system", description: "Manage Watchdog policy and workspace-level settings." },
         { id: "feedback-tickets", label: "Feedback Tickets", href: "/watchdog/feedback-tickets", icon: <OyamaGradientIcon name="reporting-dashboard" size={16} />, kind: "system", description: "Review and triage cross-CRM user feedback." },
-        { id: "password-vault", label: "Password Vault", href: "/watchdog#vault", activePath: "/watchdog", activeHash: "#vault", icon: <OyamaGradientIcon name="client-profile-sync" size={16} />, kind: "system", description: "Manage encrypted credential records." },
-        { id: "security-feed", label: "Security Feed", href: "/watchdog#feed", activePath: "/watchdog", activeHash: "#feed", icon: <OyamaGradientIcon name="task-checklist" size={16} />, kind: "insight", description: "Track high-risk events and security alerts." },
-        { id: "backup-restore", label: "Backup & Restore", href: "/watchdog#backup", activePath: "/watchdog", activeHash: "#backup", icon: <OyamaGradientIcon name="contact-checklist" size={16} />, kind: "system", description: "Run secured data backup and restore controls." },
-        { id: "access-matrix", label: "Access Matrix", href: "/watchdog#access", activePath: "/watchdog", activeHash: "#access", icon: <OyamaGradientIcon name="goal-target" size={16} />, kind: "system", description: "Review sensitive access and control assignments." },
       ],
     },
   ];

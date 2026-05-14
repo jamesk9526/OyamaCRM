@@ -108,8 +108,14 @@ Current integration expectations:
 
 Current UI status:
 
-- Steward Paths page now includes visual sequence language improvements (status legend and sequence-node cards).
-- Full drag/drop visual canvas builder is still Partially Working and remains on the roadmap.
+- `/steward-paths/builder` now includes a map-style visual builder with:
+	- Top workflow bar (name, tabs, status, Save Draft, Test Enrollment, Activate)
+	- Left searchable/collapsible block palette
+	- Center workflow map with connector lines and add-step plus points
+	- Branch group rendering with lane cards and condition summaries
+	- Right inspector drawer with lane/condition editing for `logic.if_else`
+- Click-to-add and connector insertion are Working.
+- Drag/drop interactions remain Partially Working.
 
 ## Generate Letter Step
 
@@ -139,13 +145,18 @@ Execution behavior:
 
 ## Current Limits
 
-- Conditional branching is placeholder-only (`BRANCH_PLACEHOLDER` is skipped).
-- `STATUS_CHANGE` step is placeholder-only and currently skipped.
+- Visual branch persistence from the map builder is Partially Working:
+	- Builder can represent/edit branches and lanes.
+	- Save/Activate currently run through linear API adapters only.
+	- Branch-heavy docs are intentionally blocked from activation in builder UI.
+- `BRANCH_PLACEHOLDER` runtime support exists in the sequence engine, but full lane-to-jump serialization from visual builder remains in progress.
+- `STATUS_CHANGE` runtime support exists in the sequence engine, but advanced field coverage and builder UX continue improving.
 - Auto-send email behavior is not enabled in this pass.
 
 ## Next Build Steps
 
-- Add dedicated UI for sequence builder and enrollment monitoring.
-- Implement non-placeholder branch/status-change execution.
+- Complete branch serialization adapter from visual lanes to `BRANCH_PLACEHOLDER` jump indices.
+- Expand builder Settings/History tabs beyond current partial placeholders.
+- Add drag/drop node movement and lane dropping on top of connector add UX.
 - Add per-step retries/backoff and dead-letter handling.
 - Add explicit integration tests for paused/resumed and draft approval workflows.

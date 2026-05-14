@@ -116,6 +116,13 @@ describe("evaluateBranchRule", () => {
     expect(evaluateBranchRule("not-a-number", { operator: "gt", value: 5 })).toBe(false);
   });
 
+  it("evaluates between operator with inclusive bounds", () => {
+    expect(evaluateBranchRule(75, { operator: "between", value: 50, valueTo: 100 })).toBe(true);
+    expect(evaluateBranchRule(50, { operator: "between", value: 50, valueTo: 100 })).toBe(true);
+    expect(evaluateBranchRule(100, { operator: "between", value: 50, valueTo: 100 })).toBe(true);
+    expect(evaluateBranchRule(49, { operator: "between", value: 50, valueTo: 100 })).toBe(false);
+  });
+
   it("evaluates in/not_in with array value", () => {
     expect(evaluateBranchRule("VIP", { operator: "in", value: ["vip", "board"] })).toBe(true);
     expect(evaluateBranchRule("Other", { operator: "not_in", value: ["vip", "board"] })).toBe(true);

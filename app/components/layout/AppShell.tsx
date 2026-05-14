@@ -11,7 +11,7 @@ import { DEFAULT_WORKSPACE_SETTINGS, fetchWorkspaceSettings, type WorkspaceSetti
 // Module routes render their own shells — bypass AppShell wrapper.
 const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/unsubscribe", "/preferences", "/compassion", "/events", "/watchdog", "/webmaster", "/hrm", "/apps"];
 
-// Routes that the report_viewer role may access (board dashboard + its own sub-routes)
+// Routes that board-report roles may access (board dashboard + its own sub-routes)
 const BOARD_PATHS = ["/board"];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -21,7 +21,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
   const isBoard = BOARD_PATHS.some((p) => pathname.startsWith(p));
-  const isReportit = pathname.startsWith("/reports");
+  const isOShareview = pathname.startsWith("/reports");
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -50,9 +50,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Redirect report_viewer users away from full CRM to board dashboard
+    // Redirect legacy board-only users away from full CRM to board dashboard.
     if (user?.role === "report_viewer" && !isBoard && !isPublic) {
       router.replace("/board");
+      return;
+    }
+
+    // ShareviewUsers should open OShareview dashboards and avoid full CRM surfaces by default.
+    if (user?.role === "shareview_user" && !isOShareview && !isPublic) {
+      router.replace("/reports");
       return;
     }
 
@@ -63,10 +69,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     }
 
     // Redirect away from donor routes if DonorCRM is disabled at workspace settings level.
-    if (user && !isPublic && !isBoard && !isReportit && !workspaceSettings.donorEnabled && workspaceSettings.compassionEnabled) {
+    if (user && !isPublic && !isBoard && !isOShareview && !workspaceSettings.donorEnabled && workspaceSettings.compassionEnabled) {
       router.replace("/compassion/dashboard");
     }
-  }, [loading, user, isPublic, isBoard, isReportit, router, workspaceSettings]);
+  }, [loading, user, isPublic, isBoard, isOShareview, router, workspaceSettings]);
 
   // Close mobile navigation drawer whenever route changes.
   useEffect(() => {
@@ -89,11 +95,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex flex-col h-screen bg-white">
       <TopBar />
       <div className="flex flex-1 overflow-hidden relative">
-        <div className="hidden md:block">
-          <Sidebar />
-        </div>
+        {!isOShareview && (
+          <div className="hidden md:block">
+            <Sidebar />
+          </div>
+        )}
 
-        {mobileNavOpen && (
+        {!isOShareview && mobileNavOpen && (
           <div className="md:hidden fixed inset-0 z-40">
             <button
               aria-label="Close navigation menu"
@@ -108,7 +116,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* ErrorBoundary catches page-level render errors without crashing the whole shell */}
         <main className="flex-1 overflow-auto bg-gray-50 p-3 sm:p-4 md:p-6">
-          <div className="md:hidden mb-3">
+          {!isOShareview && (
+            <div className="md:hidden mb-3">
             <button
               type="button"
               onClick={() => setMobileNavOpen(true)}
@@ -119,7 +128,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               </svg>
               Menu
             </button>
-          </div>
+            </div>
+          )}
           <ErrorBoundary>
             {children}
           </ErrorBoundary>

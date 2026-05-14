@@ -5,7 +5,7 @@
 This section supersedes the previous readiness score and is the current release-gate view.
 
 - Central checklist: `docs/status/production-readiness-checklist.md`
-- Office guide: `HOWTO/HOW_TO_USE.md`
+- Office guide: `docs/howto/HOW_TO_USE.md`
 - Overall release gate: **Not production-ready**
 
 ### Current Validation Reality
@@ -132,7 +132,7 @@ The following items from the original 52% audit have been addressed:
 
 ## Major Missing Features
 
-- Workspace-scoped donor/compassion separation — planned in `PLAN_FILES/phase-09-compassion-workspace.md`
+- Workspace-scoped donor/compassion separation — planned in `docs/plans/phase-09-compassion-workspace.md`
 - Roles & Scopes granular permission model — `app/settings/roles/page.tsx` still placeholder
 - Media library, uploads, attachments, hosted video/email workflow
 - Communication timeline logging and provider-backed tracking
@@ -143,7 +143,7 @@ The following items from the original 52% audit have been addressed:
 ## Security Concerns
 
 - **RESOLVED — Route-level RBAC.** All feature routes now require authentication; destructive routes require admin role.
-- **High — Workspace isolation is not implemented.** Compassion workspace rules are fully planned but absent from schema/routes. Evidence: `PLAN_FILES/phase-09-compassion-workspace.md`.
+- **High — Workspace isolation is not implemented.** Compassion workspace rules are fully planned but absent from schema/routes. Evidence: `docs/plans/phase-09-compassion-workspace.md`.
 - **RESOLVED — API response shapes.** Error envelope standardized to `{ error: { code, message } }` across all modified routes.
 - **RESOLVED — Audit coverage.** Sensitive write actions now call `logAudit()` and an admin viewer UI is available.
 - **Medium — Smoke tests and runtime API access depend on `DATABASE_URL` without documented operational fallback.** Evidence: `prisma/schema.prisma`, `tests/smoke/*`.
@@ -218,7 +218,7 @@ The following items from the original 52% audit have been addressed:
 | Audit Viewer | Core | **Working** | `app/settings/audit/page.tsx`, `server/src/routes/audit-logs.ts`, `app/components/settings/AuditLogViewer.tsx` | Export audit log, broader event types | Add export and communication events |
 | Roles & Scopes | Core | Placeholder | `app/settings/roles/page.tsx` | All granular permission flows | Build roles model beyond admin/staff/readonly |
 | Integrations | Core | Placeholder | `app/settings/integrations/page.tsx` | Provider connections/webhooks | Add provider abstractions |
-| Compassion Workspace | Compassion | Not Started | Planning only in `PLAN_FILES/phase-09-compassion-workspace.md` | All workspace features | Start with workspace switcher and scoped middleware |
+| Compassion Workspace | Compassion | Not Started | Planning only in `docs/plans/phase-09-compassion-workspace.md` | All workspace features | Start with workspace switcher and scoped middleware |
 
 ## File Evidence
 
@@ -228,7 +228,7 @@ The following items from the original 52% audit have been addressed:
 - Health/boot: `server/src/index.ts`
 - Schema and seed: `prisma/schema.prisma`, `prisma/seed.ts`
 - Tests: `tests/unit/*`, `tests/smoke/*`
-- Planning docs: `PLAN_FILES/*.md`
+- Planning docs: `docs/plans/*.md`
 
 ## Production Readiness Checklist
 
@@ -282,7 +282,7 @@ The following items from the original 52% audit have been addressed:
 
 ## Major Missing Features
 
-- Workspace-scoped donor/compassion separation — planned in `PLAN_FILES/phase-09-compassion-workspace.md`
+- Workspace-scoped donor/compassion separation — planned in `docs/plans/phase-09-compassion-workspace.md`
 - User management UI and permission scope model — `app/settings/users/page.tsx`, `app/settings/roles/page.tsx`
 - Media library, uploads, attachments, hosted video/email workflow
 - Communication timeline logging and provider-backed tracking
@@ -293,7 +293,7 @@ The following items from the original 52% audit have been addressed:
 ## Security Concerns
 
 - **High — Route-level RBAC is incomplete.** `requireAuth`/`requireRole` exist, but most feature routes are mounted without them. Evidence: `server/src/index.ts`, `server/src/middleware/requireAuth.ts`, `server/src/middleware/requireRole.ts`.
-- **High — Workspace isolation is not implemented.** Compassion workspace rules are fully planned but absent from schema/routes. Evidence: `PLAN_FILES/phase-09-compassion-workspace.md`, absence of `/compassion/*` route group and workspace-aware middleware.
+- **High — Workspace isolation is not implemented.** Compassion workspace rules are fully planned but absent from schema/routes. Evidence: `docs/plans/phase-09-compassion-workspace.md`, absence of `/compassion/*` route group and workspace-aware middleware.
 - **Medium — API response shapes are inconsistent.** Some routes return `{ data }`, others raw records or mixed error payloads. Evidence: `server/src/routes/auth.ts`, `server/src/routes/settings.ts`, `server/src/routes/email-campaigns.ts`.
 - **Medium — Audit coverage is incomplete.** Sensitive write actions exist without universal audit logging, and there is no audit viewer UI. Evidence: `server/src/lib/audit.ts`, `app/settings/audit/page.tsx`.
 - **Medium — Smoke tests and runtime API access depend on `DATABASE_URL` without documented operational fallback.** Evidence: `prisma/schema.prisma`, `tests/smoke/*`.
@@ -369,7 +369,7 @@ The following items from the original 52% audit have been addressed:
 | User Management | Core | Placeholder | `app/settings/users/page.tsx`, `prisma/schema.prisma` (`User`) | All real user admin flows | Add APIs and UI for users/scopes |
 | Audit Viewer | Core | Placeholder | `app/settings/audit/page.tsx`, `prisma/schema.prisma` (`AuditLog`) | Viewer UI and broader event coverage | Build audit list/filter page |
 | Integrations | Core | Placeholder | `app/settings/integrations/page.tsx` | Provider connections/webhooks | Add provider abstractions |
-| Compassion Workspace | Compassion | Not Started | Planning only in `PLAN_FILES/phase-09-compassion-workspace.md` | All workspace features | Start with workspace switcher and scoped middleware |
+| Compassion Workspace | Compassion | Not Started | Planning only in `docs/plans/phase-09-compassion-workspace.md` | All workspace features | Start with workspace switcher and scoped middleware |
 
 ## File Evidence
 
@@ -379,7 +379,7 @@ The following items from the original 52% audit have been addressed:
 - Health/boot: `server/src/index.ts`
 - Schema and seed: `prisma/schema.prisma`, `prisma/seed.ts`
 - Tests: `tests/unit/*`, `tests/smoke/*`
-- Planning docs: `PLAN_FILES/*.md`
+- Planning docs: `docs/plans/*.md`
 
 ## Production Readiness Checklist
 
@@ -409,3 +409,4 @@ The following items from the original 52% audit have been addressed:
 - [~] Environment variables are documented
 - [ ] Backup/restore process is documented
 - [x] Version info is visible in the app
+

@@ -9,6 +9,14 @@ import { beforeAll, describe, expect, it } from "vitest";
 let app: Awaited<typeof import("@/server/src/index")>["default"];
 let token = "";
 let donationId = "";
+let loopResult: {
+  donationId: string;
+  constituentId: string;
+  emailDraft?: { status: string; id?: string };
+  followUpTask?: { status: string; id?: string };
+  pathEnrollment?: { status: string; id?: string };
+  redirectTo?: string;
+} | null = null;
 const testConstituentId = "con_01"; // seeded constituent
 
 beforeAll(async () => {
@@ -52,6 +60,66 @@ describe("donation CRUD", () => {
     expect(Number(res.body.amount)).toBe(250);
     expect(res.body.paymentMethod).toBe("CHECK");
     donationId = res.body.id;
+  });
+
+  it("runs the complete stewardship loop quick action", async () => {
+    expect(donationId).toBeTruthy();
+
+    const res = await request(app)
+      .post(`/api/donations/${donationId}/quick-actions/stewardship-loop`)
+      .set(auth())
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.donationId).toBe(donationId);
+    expect(res.body.constituentId).toBe(testConstituentId);
+
+    expect(["CREATED", "REUSED", "SKIPPED"]).toContain(res.body.emailDraft?.status);
+    expect(["CREATED", "REUSED", "SKIPPED"]).toContain(res.body.followUpTask?.status);
+    expect(["CREATED", "REUSED", "SKIPPED"]).toContain(res.body.pathEnrollment?.status);
+    expect(typeof res.body.redirectTo).toBe("string");
+
+    loopResult = res.body;
+  });
+
+  it("surfaces loop artifacts across tasks, communications, paths, and timeline", async () => {
+    expect(loopResult).toBeTruthy();
+
+    if (loopResult?.emailDraft?.id) {
+      const campaignRes = await request(app)
+        .get(`/api/email-campaigns/${loopResult.emailDraft.id}`)
+        .set(auth());
+      expect(campaignRes.status).toBe(200);
+      expect(campaignRes.body.id).toBe(loopResult.emailDraft.id);
+    }
+
+    if (loopResult?.followUpTask?.id) {
+      const tasksRes = await request(app)
+        .get(`/api/tasks?scope=all&constituentId=${encodeURIComponent(testConstituentId)}&limit=100`)
+        .set(auth());
+      expect(tasksRes.status).toBe(200);
+      const taskIds = (tasksRes.body.items as Array<{ id: string }>).map((task) => task.id);
+      expect(taskIds).toContain(loopResult.followUpTask.id);
+    }
+
+    if (loopResult?.pathEnrollment?.id) {
+      const enrollmentsRes = await request(app)
+        .get(`/api/steward-paths/enrollments?constituentId=${encodeURIComponent(testConstituentId)}&limit=100`)
+        .set(auth());
+      expect(enrollmentsRes.status).toBe(200);
+      const enrollmentIds = (enrollmentsRes.body as Array<{ id: string }>).map((enrollment) => enrollment.id);
+      expect(enrollmentIds).toContain(loopResult.pathEnrollment.id);
+    }
+
+    const constituentRes = await request(app)
+      .get(`/api/constituents/${testConstituentId}`)
+      .set(auth());
+    expect(constituentRes.status).toBe(200);
+    const loopNoteFound = (constituentRes.body.activities as Array<{ donationId?: string | null; description?: string | null }>)
+      .some((activity) => activity.donationId === donationId
+        && typeof activity.description === "string"
+        && activity.description.includes("Donation stewardship loop executed"));
+    expect(loopNoteFound).toBe(true);
   });
 
   it("fetches the donation by ID", async () => {

@@ -7,6 +7,7 @@ import type { HelpCrmScope } from "@/app/help-content/types";
 export function mapModuleKeyToHelpScope(moduleKey: TopBarModuleKey): HelpCrmScope {
   if (moduleKey === "compassion") return "compassion";
   if (moduleKey === "events") return "events";
+  if (moduleKey === "password") return "global";
   if (moduleKey === "donor") return "donor";
   if (moduleKey === "hrm") return "global";
   return "global";

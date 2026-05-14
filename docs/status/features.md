@@ -2,6 +2,58 @@
 
 _Last deep audit: 2026-05-13_
 
+## 2026-05-13 DonorCRM Browser-Driven QA and Screenshot Refresh
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Donor route pass across desktop/laptop/tablet/mobile | Working | `scripts/qa/donor-browser-pass.mjs`, `docs/modules/donor-crm/browser-qa-metrics-2026-05-13.json` | Executed browser checks across 1440, 1280, 768, and 390 widths with per-route metrics and screenshot output. |
+| Donor screenshot pack refresh | Working | `docs/screenshots/donor-crm/2026-05-13/*`, `docs/screenshots/donor-crm/README.md` | Captured fresh dashboard, constituents, donations, campaign, communications, letters, steward paths, reports, data tools, and settings visuals. |
+| Legacy donor screenshot retirement | Working | `docs/screenshots/donor-crm/archive/2026-05-13-legacy-readme/*` | Outdated donor screenshot files were archived and docs now point to dated production captures. |
+| Constituent profile route stability + mobile action layout | Working | `app/constituents/[id]/page.tsx` | Fixed hook-order runtime crash (`Rendered more hooks than during the previous render`) by moving `useMemo` hooks ahead of loading/error early returns, and improved mobile quick-action stacking for the profile CTA cluster. |
+| Donor workflow QA report | Working | `docs/modules/donor-crm/browser-qa-report.md` | Added page-level status matrix, workflow test outcomes, known issues, and validation lane results. |
+
+## 2026-05-13 Donor Stewardship Vertical Loop Slice (Donation -> Follow-up)
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| One-click `Complete Loop` action on Donations rows | Working | `app/donations/page.tsx`, `app/components/donations/DonationTable.tsx` | Added row-level orchestration trigger in desktop and mobile action layouts so staff can run the full stewardship handoff from one click. |
+| Server-side donation stewardship orchestration endpoint | Working | `server/src/routes/donations.ts` (`POST /api/donations/:id/quick-actions/stewardship-loop`) | Endpoint now creates or reuses an email draft, a follow-up task, and a steward path enrollment with duplicate guards and deterministic redirect selection. |
+| Timeline + audit evidence for complete-loop runs | Working | `server/src/routes/donations.ts` | Runs now write a constituent activity note and audit event (`DONATION_STEWARDSHIP_LOOP_EXECUTED`) with per-action status metadata. |
+| Cross-workspace artifact visibility smoke coverage | Working | `tests/smoke/donations-crud.test.ts` | Smoke verifies loop artifacts are visible through communications (`/api/email-campaigns/:id`), tasks (`/api/tasks`), steward paths (`/api/steward-paths/enrollments`), and constituent timeline (`/api/constituents/:id`). |
+| Steward Paths workspace default + saved-path builder access | Working | `app/automations/page.tsx` | `/automations` remains the main operations workspace while saved visual paths expose direct `Open in Builder` actions. |
+| Legacy card `Edit workflow` behavior | Working | `app/automations/page.tsx` | Edit action now routes to `/steward-paths/builder` (`Edit in Builder`) so open/edit workflow actions consistently land in the visual builder. |
+
+## 2026-05-13 Steward Paths Full Node Execution + Drag-and-Drop Activation
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Builder branch-aware persistence/export | Working | `app/components/steward-paths/workflow-transformers.ts` | Visual branch lanes now export to executable branch step sequences with resolved jump order indexes. |
+| Palette node execution coverage | Working | `app/components/steward-paths/palette-catalog.ts`, `app/components/steward-paths/workflow-transformers.ts`, `server/src/services/steward-paths-sequence-engine.ts` | Palette nodes now map to runnable step payloads (including delay modes, manual command nodes, and internal-note operations for tag/letter status actions). |
+| Sequence engine delay/branch/manual/internal-note expansion | Working | `server/src/services/steward-paths-sequence-engine.ts` | Added `between` branch operator, delay scheduling modes (`until_date`, `until_weekday_time`, `after_last_gift`), manual commands (`pause/stop/notify`), and internal-note side effects (tag add/remove, print/mail status updates). |
+| True drag-and-drop in builder canvas | Working | `app/components/steward-paths/WorkflowNodeCard.tsx`, `WorkflowMap.tsx`, `WorkflowCanvas.tsx`, `NodePalette.tsx`, `workflow-utils.ts` | Drag existing nodes across root/lane containers and drag palette blocks directly into drop targets. Up/down controls remain as secondary fallback controls. |
+| Steward Paths workflow test coverage refresh | Working | `tests/unit/steward-paths-workflow-builder.test.ts`, `tests/unit/engagement-orchestration.test.ts` | Updated branch activation expectations, added relocate-node utility test, and added `between` operator coverage. |
+
+## 2026-05-13 Workspace Control Rail System (DonorCRM rollout)
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Reusable WorkspaceFrame and control rail component set | Working | `app/components/workspace/WorkspaceFrame.tsx`, `WorkspaceHeader.tsx`, `WorkspaceMain.tsx`, `WorkspaceControlRail.tsx`, `WorkspaceControlRailGroup.tsx`, `WorkspaceControlRailItem.tsx`, `workspace-types.ts`, `workspace-presets.ts` | New reusable page-level layout keeps center work area focused while moving local controls into a right contextual rail. |
+| Communications page migrated from horizontal tab strip | Working | `app/communications/page.tsx` | Local workspace controls now live in grouped right-rail sections (Workspace Views, Related Workspaces, Quick Actions). Existing content behavior is preserved. |
+| Steward Paths legacy workspace migrated from horizontal tab strip | Working | `app/automations/page.tsx` (`/automations?view=legacy`) | Legacy page tabs are now represented as right-rail Workspace Views with quick actions for create and refresh. |
+| Grant case-file detail migrated from horizontal tab strip | Working | `app/grants/[id]/page.tsx` | Grant detail views (overview/research/requirements/reminders/tasks/resources/writing/decision/activity) now route through right-rail controls. |
+| Constituent detail profile migrated from horizontal tab strip | Working | `app/constituents/[id]/page.tsx` | Giving/tasks/timeline/notes/household views now use right-rail selection and preserve existing content and actions. |
+| Communications query-driven view support | Partially Working | `app/communications/page.tsx` (`?view=` sync) | Supports deep-linking for local views while preserving local state switching. |
+| Workspace layout architecture documentation | Working | `docs/architecture/workspace-layout-system.md` | Pattern and rollout guidance are documented for future workspace refactors. |
+
+## 2026-05-13 Documentation Consolidation and Source-of-Truth Alignment
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Canonical master plan location | Working | `docs/MASTER_PLAN.md` | `MASTER_PLAN.md` authority is consolidated under docs and no longer split with `docs/backlog/master-plan-backlog.md`. |
+| Backlog and phase-packet hierarchy | Working | `docs/backlog/master-plan-backlog.md`, `docs/plans/phase-index.md`, `docs/plans/*` | Legacy `PLAN_FILES/*.md` content was moved into docs-owned planning folders and relinked. |
+| Office operations guide location | Working | `docs/howto/HOW_TO_USE.md` | Operations guidance is now under docs with updated references. |
+| Markdown documentation audit coverage | Working | `docs/audits/markdown-documentation-audit.md` | Full markdown inventory with per-file disposition and destination is recorded. |
+
 ## 2026-05-13 Donor Engagement Unified System Refactor — Phase 5 (BRANCH and STATUS_CHANGE step execution)
 
 | Area | Status | Evidence | Notes |
@@ -13,15 +65,16 @@ _Last deep audit: 2026-05-13_
 | Sequence engine cutover to single shared helper module | Partially Working | `server/src/services/steward-paths-sequence-engine.ts` | The mirror keeps semantics in sync without crossing the server tsconfig boundary. A future "shared package" pass can collapse them; not blocking. |
 | New step types (wait-until-date, weekday/time, tag mutations, manual approval, retry, notify, stop) | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts`, `app/components/steward-paths/palette-catalog.ts` | Palette items exist with honest "Partially Working / Not Implemented" badges; engine processors are not yet implemented. |
 
-## 2026-05-13 Donor Engagement Unified System Refactor — Phase 4 partial (visual builder skeleton)
+## 2026-05-13 Donor Engagement Unified System Refactor — Phase 4 continuation (visual automation canvas)
 
 | Area | Status | Evidence | Notes |
 |---|---|---|---|
-| `app/components/steward-paths/` workspace components | Working | `app/components/steward-paths/StewardPathBuilderPage.tsx`, `WorkflowCanvas.tsx`, `NodePalette.tsx`, `NodeInspector.tsx`, `WorkflowNodeCard.tsx`, `palette-catalog.ts`, `workflow-types.ts` | Three-panel skeleton (palette / canvas / inspector) with structured-card fallback for the visual map. Full palette catalog includes Triggers, Timing, Email, Print, Task, Donor Data, Logic, and Safety blocks; each block carries an honest "Working / Partially Working / Not Implemented" readiness badge. |
-| `/steward-paths/builder` route | Working | `app/steward-paths/builder/page.tsx` | Mounted as a preview surface so reviewers can interact with the new builder. The production editor remains at `/automations` until persistence wiring lands. |
-| Visual builder persistence (save/load against `/api/steward-paths`) | Not Implemented | `app/components/steward-paths/StewardPathBuilderPage.tsx` | Skeleton edits the document in memory only. Save and Run Test Enrollment buttons are visibly disabled with tooltips explaining the limitation. |
-| Drag-and-drop reordering | Not Implemented | `app/components/steward-paths/WorkflowNodeCard.tsx` | Up/Down/Remove buttons provide the structured-card fallback. Drag/drop is a progressive enhancement for a later pass. |
-| Branch edges in the canvas | Not Implemented | `app/components/steward-paths/workflow-types.ts` | `WorkflowEdge` type is defined; canvas currently renders linear chains only. Branching UI lands with Phase 5 step execution. |
+| `app/components/steward-paths/` workspace components | Working | `app/components/steward-paths/StewardPathBuilderPage.tsx`, `WorkflowCanvas.tsx`, `WorkflowMap.tsx`, `WorkflowConnector.tsx`, `BranchGroup.tsx`, `BranchLane.tsx`, `NodePalette.tsx`, `NodeInspector.tsx`, `WorkflowNodeCard.tsx`, `workflow-types.ts`, `workflow-utils.ts`, `workflow-layout.ts`, `workflow-transformers.ts` | Visual map-first builder now ships with top bar, searchable palette, center map, branch lane cards, connector plus-buttons, and full-height inspector. Palette still carries honest readiness badges. |
+| `/steward-paths/builder` route | Working | `app/steward-paths/builder/page.tsx` | Route is live and interactive as the visual builder workspace while `/automations` remains compatible for current operations. |
+| Visual builder persistence (save/load against `/api/steward-paths`) | Working | `app/components/steward-paths/StewardPathBuilderPage.tsx`, `app/components/steward-paths/workflow-transformers.ts` | Builder now loads templates and saves branch-aware workflows via typed adapters with executable order-index mapping. |
+| Branch node representation (lanes, labels, conditions, connector lines) | Working | `app/components/steward-paths/WorkflowMap.tsx`, `BranchGroup.tsx`, `BranchLane.tsx`, `NodeInspector.tsx` | If/else blocks render split lanes with condition summaries, empty-lane add states, and lane-level condition editing in inspector. |
+| Drag-and-drop reordering | Working | `app/components/steward-paths/NodePalette.tsx`, `WorkflowNodeCard.tsx`, `WorkflowMap.tsx`, `workflow-utils.ts` | Palette-to-canvas and node relocation drag/drop are live across root/lane containers; up/down controls remain as fallback utilities. |
+| Builder workflow utility coverage | Working | `tests/unit/steward-paths-workflow-builder.test.ts` | Added tests for node insertion, branch lane add/remove, lane insertion, config update, linear export conversion, and unsupported-branch activation guard. |
 
 ## 2026-05-13 Donor Engagement Unified System Refactor — Phase 2 (UI relabeling, shared status) and Phase 3 partial (shared service contracts foundation)
 
@@ -41,9 +94,9 @@ Status labels used in this section are restricted to:
 | Steward Paths shared status legend uses tone palette | Working | `app/automations/page.tsx` | Legend now sources `ENGAGEMENT_STATUS_LEGEND` and renders chips with tones from `getEngagementStatusChipClass`. |
 | Steward Paths `SEND_EMAIL` UI label | Working | `app/automations/page.tsx`, `app/components/automations/NewAutomationModal.tsx`, `app/components/automations/AutomationWorkflowEditorModal.tsx` | Renamed from "Send email" to "Create review-required email" to match the actual draft-first behavior. Backend value `SEND_EMAIL` unchanged for backwards compatibility. |
 | Canonical `/steward-paths` URL | Working | `app/steward-paths/page.tsx` | Thin Next.js redirect points to `/automations`. Establishes the canonical URL ahead of the Phase 4 visual builder; sidebar will be flipped when the new builder lands. |
-| Steward Paths visual node-based builder | Not Implemented | `app/automations/page.tsx`, no `app/components/steward-paths/` builder components | Phase 4 of the refactor doc. |
-| Steward Paths `BRANCH_PLACEHOLDER` execution | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts` | Step is skipped at runtime; planned for Phase 5. |
-| Steward Paths `STATUS_CHANGE` execution | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts` | Step is skipped at runtime; planned for Phase 5. |
+| Steward Paths visual node-based builder | Working | `app/steward-paths/builder/page.tsx`, `app/components/steward-paths/*` | Real map builder is live with branch visuals, inspector editing, branch-aware persistence, and drag/drop behavior. |
+| Steward Paths `BRANCH_PLACEHOLDER` execution | Working | `server/src/services/steward-paths-sequence-engine.ts` | Branch conditions execute with true/false order-index routing and runtime audit metadata. |
+| Steward Paths `STATUS_CHANGE` execution | Working | `server/src/services/steward-paths-sequence-engine.ts` | Status-change steps now execute and persist supported field mutations with timeline/audit outputs. |
 | Steward Paths `SEND_EMAIL` auto-send | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts` | Routes through draft-first; auto-send remains gated by `email_auto_send` permission and intentionally not enabled. |
 | Sequence engine cutover to shared helpers | Not Implemented | `server/src/services/steward-paths-sequence-engine.ts` | Engine still uses private `addDuration`. Cutover deferred until visual builder lands so the cutover and parity tests ship together. |
 | Legacy `stewardPathsEngine.ts` retirement | Not Implemented | `server/src/services/stewardPathsEngine.ts`, `server/src/services/steward-paths-worker.ts` | Legacy and sequence engines coexist intentionally. |
@@ -108,6 +161,47 @@ Dated evidence docs:
 
 Do not use this file alone to declare production readiness.
 
+## 2026-05-13 Full-App Testing Expansion Pass
+
+Status labels used in this section are restricted to:
+
+- Working
+- Partially Working
+- Demo Only
+- Broken
+- Not Implemented
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Testing command lanes (`unit`, `api`, `regression`, `ci`) | Working | `package.json` | Added dedicated scripts so test matrix is runnable by lane instead of one mixed command. |
+| E2E contract reliability defaults | Working | `tests/e2e/ui-production-smoke.mjs`, `tests/e2e/livecom-ui-smoke.mjs`, `tests/e2e/mobile-readiness-audit.mjs` | Web base defaults now target `localhost:3000`; mobile login now uses API base `localhost:4000`. |
+| Shared test helpers and fixtures | Working | `tests/helpers/auth.ts`, `tests/helpers/e2e-auth.mjs`, `tests/fixtures/*` | Added deterministic fixture data for importer and Watchdog testing flows. |
+| API lane expansion | Partially Working | `tests/api/auth.api.test.ts`, `tests/api/watchdog.api.test.ts` | Auth and Watchdog safety checks added; module-wide API coverage remains partial. |
+| E2E lane expansion | Partially Working | `tests/e2e/auth.e2e.mjs`, `tests/e2e/routes-smoke.mjs`, `tests/e2e/watchdog.e2e.mjs` | Added auth flow, multi-route smoke, and watchdog safety browser checks. |
+| Full-app validation rerun evidence (2026-05-13) | Working | `docs/audits/full-app-testing-validation.md`, `docs/status/production-readiness-checklist.md` | Typecheck/smoke/unit/api/regression/test/coverage/build and `test:e2e` are now green in local rerun context; lint remains Broken and mobile audit remains Partially Working due warn-only findings. |
+| Regression lane expansion | Partially Working | `tests/regression/e2e-contracts.test.ts` | Added guardrail tests for E2E base URL and auth contract; additional regression cases still pending. |
+| Testing documentation set | Working | `docs/testing/*.md`, `docs/audits/full-app-testing-audit.md`, `docs/audits/full-app-testing-validation.md` | Added audit, runbook, coverage map, and validation artifacts for this expansion pass. |
+
+## 2026-05-13 Steward Paths Canonicalization Pass
+
+Status labels used in this section are restricted to:
+
+- Working
+- Partially Working
+- Demo Only
+- Broken
+- Not Implemented
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Canonical saved visual paths workspace route | Working | `app/steward-paths/page.tsx`, `app/components/steward-paths/StewardPathsWorkspacePage.tsx` | `/steward-paths` now serves the canonical list + actions. |
+| Legacy `/automations` deprecation redirect | Working | `app/automations/page.tsx` | Redirects users to `/steward-paths?deprecated=automations`. |
+| Saved visual path action parity (enable/disable/share/test-run/duplicate/archive/history) | Working | `app/components/steward-paths/StewardPathsWorkspacePage.tsx`, `server/src/routes/steward-paths.ts` | Action panel now uses stewardship APIs instead of legacy-only controls. |
+| Steward Paths API parity endpoints | Working | `server/src/routes/steward-paths.ts` | Added `PATCH /templates/:id/share`, `POST /templates/:id/duplicate`, `POST /templates/:id/test-run`, `GET /templates/:id/history`. |
+| Legacy automation migration utility | Working | `server/src/routes/steward-paths.ts` | Added `POST /migrations/automations` import endpoint for staged deprecation flow. |
+| Canonical builder/detail/history routes | Working | `app/steward-paths/builder/[id]/page.tsx`, `app/steward-paths/[id]/page.tsx`, `app/steward-paths/[id]/history/page.tsx` | Route structure now supports direct edit and history viewing by template id. |
+| Inspector options parity for linked email/template controls | Partially Working | `app/components/steward-paths/NodeInspector.tsx` | Email node remains minimal and does not yet expose campaign/template linkage controls requested for full parity. |
+
 ## 2026-05-12 Donor Engagement Integration Pass
 
 Status labels used in this section are restricted to:
@@ -122,7 +216,7 @@ Status labels used in this section are restricted to:
 |---|---|---|---|
 | Donor engagement architecture docs | Working | `docs/DONOR_ENGAGEMENT_SYSTEM.md`, `docs/DONOR_CRM_COMMUNICATIONS_AUDIT.md` | Shared tool relationships are now documented as one system. |
 | Communications workspace as outreach hub | Partially Working | `app/communications/page.tsx` | New tabbed hub (overview/campaigns/drafts/letters/templates/segments/queue/log/settings) is live; deeper filters/export remain in progress. |
-| Donation acknowledgment quick-action loop | Working | `app/components/donations/DonationTable.tsx`, `app/donations/page.tsx`, `server/src/routes/donations.ts` | Mark Thanked now persists through API and appears in donation row actions. |
+| Donation acknowledgment quick-action loop | Working | `app/components/donations/DonationTable.tsx`, `app/donations/page.tsx`, `server/src/routes/donations.ts` | Mark Thanked persists via API and donations now include a one-click Complete Loop action that orchestrates email draft, follow-up task, and steward path enrollment. |
 | Constituent quick actions into engagement tools | Working | `app/constituents/[id]/page.tsx` | Added direct actions for communication, letters, paths, tasks, meetings. |
 | Campaign quick actions into engagement workflows | Working | `app/campaigns/[id]/page.tsx` | Added campaign-level links for email campaign, appeal letter, follow-up path. |
 | Email Builder campaign studio UX and donor block library | Partially Working | `app/components/email-builder/EmailBuilderApp.tsx`, `app/components/email-builder/BlockPalette.tsx`, `app/lib/email-builder-types.ts` | Workflow stage indicator, review checklist, grouped merge fields, canvas controls, and donor-specific blocks were added; reusable sections persistence and revision history remain not implemented. |

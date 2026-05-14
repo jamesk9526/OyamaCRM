@@ -4,6 +4,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 
 const WEB_BASE = process.env.E2E_WEB_BASE_URL || "http://localhost:3000";
+const API_BASE = process.env.E2E_API_BASE_URL || "http://localhost:4000";
 
 const VIEWPORTS = [
   { name: "iphone-12", width: 390, height: 844 },
@@ -13,6 +14,7 @@ const VIEWPORTS = [
 
 const ROUTES = [
   "/",
+  "/steward-paths",
   "/automations",
   "/constituents",
   "/donations",
@@ -41,7 +43,7 @@ const ROUTES = [
 
 /** Logs into the app using API auth bound to the current browser context. */
 async function authenticate(page) {
-  const response = await page.request.post(`${WEB_BASE}/api/auth/login`, {
+  const response = await page.request.post(`${API_BASE}/api/auth/login`, {
     data: {
       email: "admin@hopefoundation.org",
       password: "admin123!",

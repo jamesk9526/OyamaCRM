@@ -7,8 +7,11 @@
 import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma.js";
+import { upsertEnvironmentFileValues } from "../lib/env-file.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
+import { resetWatchdogStoreConnections } from "../services/watchdog-store.js";
+import { resetWatchdogOpsStoreConnections } from "../services/watchdog-ops-store.js";
 
 const router = Router();
 
@@ -55,6 +58,13 @@ interface SetupCompletePayload {
     role?: string;
     password: string;
   }>;
+  environment?: {
+    databaseUrl?: string;
+    watchdogDatabaseUrl?: string;
+    watchdogEncryptionKey?: string;
+    jwtSecret?: string;
+    nextPublicApiUrl?: string;
+  };
 }
 
 const ADMIN_ROLE = "admin";
@@ -150,6 +160,24 @@ router.post("/complete", async (req: Request, res: Response) => {
     const smtpFromName = body?.defaults?.smtpFromName?.trim() || orgName;
     const smtpFromEmail = body?.defaults?.smtpFromEmail?.trim() || body?.organization?.primaryContactEmail?.trim() || "";
     const teamUsersInput = Array.isArray(body?.teamUsers) ? body.teamUsers : [];
+    const environmentInput = body?.environment;
+    const environmentUpdates: Record<string, string> = {};
+
+    if (environmentInput?.databaseUrl?.trim()) {
+      environmentUpdates.DATABASE_URL = environmentInput.databaseUrl.trim();
+    }
+    if (environmentInput?.watchdogDatabaseUrl?.trim()) {
+      environmentUpdates.WATCHDOG_DATABASE_URL = environmentInput.watchdogDatabaseUrl.trim();
+    }
+    if (environmentInput?.watchdogEncryptionKey?.trim()) {
+      environmentUpdates.WATCHDOG_ENCRYPTION_KEY = environmentInput.watchdogEncryptionKey.trim();
+    }
+    if (environmentInput?.jwtSecret?.trim()) {
+      environmentUpdates.JWT_SECRET = environmentInput.jwtSecret.trim();
+    }
+    if (environmentInput?.nextPublicApiUrl?.trim()) {
+      environmentUpdates.NEXT_PUBLIC_API_URL = environmentInput.nextPublicApiUrl.trim();
+    }
 
     const allowedTeamRoles = new Set(["manager", "staff", "readonly", "report_viewer"]);
     const normalizedTeamUsers = teamUsersInput.map((user) => ({
@@ -285,6 +313,21 @@ router.post("/complete", async (req: Request, res: Response) => {
     const passwordHash = await bcrypt.hash(adminPassword, BCRYPT_ROUNDS);
     const teamPasswordHashes = await Promise.all(normalizedTeamUsers.map((user) => bcrypt.hash(user.password, BCRYPT_ROUNDS)));
 
+    if (Object.keys(environmentUpdates).length > 0) {
+      await upsertEnvironmentFileValues(environmentUpdates);
+
+      for (const [key, value] of Object.entries(environmentUpdates)) {
+        process.env[key] = value;
+      }
+
+      if (environmentUpdates.WATCHDOG_DATABASE_URL || environmentUpdates.WATCHDOG_ENCRYPTION_KEY) {
+        await Promise.all([
+          resetWatchdogStoreConnections(),
+          resetWatchdogOpsStoreConnections(),
+        ]);
+      }
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const organization = await tx.organization.create({
         data: { name: orgName },
@@ -352,6 +395,7 @@ router.post("/complete", async (req: Request, res: Response) => {
             workspaces: body?.workspaces ?? null,
             goals: body?.goals ?? null,
             teamUsersCreated: createdTeamUsers.length,
+            environmentUpdated: Object.keys(environmentUpdates),
           },
         },
       });

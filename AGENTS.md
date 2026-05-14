@@ -21,16 +21,18 @@ Every feature, section, or UI concept must live in its own file/component. Never
 <!-- END:modular-architecture-rules -->
 
 <!-- BEGIN:code-style-rules -->
-# Code Style — Always Comment Your Code
+# Code Style — Comment With Intent
 
-**Every file must be well-commented.** This is non-negotiable for maintainability.
+Comments are required where they improve maintainability. Prioritize clarity over volume.
 
-- **File header**: Every file gets a one-line comment describing its purpose.
-- **Functions/components**: JSDoc-style `/** ... */` comment on every exported function and React component explaining what it does, its props, and any non-obvious behavior.
-- **Complex logic**: Inline `//` comments explaining *why*, not just *what*, for any non-trivial block of code.
-- **API routes**: Comment every route with its method, path, description, and expected request/response shape.
-- **Hooks/effects**: Comment every `useEffect` with what it watches and what side effect it performs.
-- **Type definitions**: Comment every interface/type field that isn't self-explanatory.
+- **File header**: Add a one-line purpose comment for substantial files (modules, pages, routes, services). Skip trivial wrappers when obvious.
+- **Functions/components**: Add JSDoc-style `/** ... */` comments for exported functions/components when behavior, props, side effects, or assumptions are not obvious from names and types.
+- **Complex logic**: Add inline `//` comments explaining *why*, not just *what*, for non-trivial branches, transforms, validations, and fallback behavior.
+- **API routes**: Document route intent, input/output shape, and safety constraints for non-trivial handlers.
+- **Hooks/effects**: Comment `useEffect` blocks when dependencies or side effects are non-obvious.
+- **Type definitions**: Comment fields that are domain-specific or otherwise unclear; do not add noise for obvious fields.
+
+Do not block small refactors or bug fixes because a trivial file lacks boilerplate comments. Keep comments accurate, concise, and useful.
 
 Example style:
 ```ts
@@ -535,7 +537,7 @@ DonorCRM Grants must be implemented as a grant research, writing, deadlines, rem
 When updating project status, audits, or release claims, use:
 
 - `docs/status/production-readiness-checklist.md` as the single release-gate source of truth.
-- `HOWTO/HOW_TO_USE.md` for office-facing operational guidance.
+- `docs/howto/HOW_TO_USE.md` for office-facing operational guidance.
 
 Status labels for release tracking must be exactly:
 
@@ -615,6 +617,8 @@ Workspace boundaries (DonorCRM, Compassion CRM, Events, Webmaster, Steward Paths
 
 Refactors must be controlled, test-backed, and safe. The following rules apply to any workspace-shape change:
 
+Strict rules are guardrails, not handcuffs. If a user explicitly asks for a refactor, perform it carefully instead of refusing solely due to historical structure.
+
 ### What agents MAY do
 - Split monolithic components into smaller ones, or merge fragmented ones that should be one.
 - Rename **internal** concepts, types, services, and component names for clarity.
@@ -622,6 +626,7 @@ Refactors must be controlled, test-backed, and safe. The following rules apply t
 - Replace an old workspace flow with a clearer unified flow, in stages, while the old flow keeps working.
 - Move pages or components when the new location better matches ownership boundaries, with redirects/wrappers preserving the old URL.
 - Reorganize sidebar/topbar entries when navigation no longer matches the real product structure.
+- Refactor routes, UI structure, docs structure, and service boundaries when user-requested or when current structure is blocking maintainable delivery.
 
 ### What agents MUST do for every refactor pass
 1. **Current-state audit notes** — write down what actually exists today (routes, components, services, models, status), not what was planned.
@@ -670,3 +675,4 @@ OyamaWebMaster is the platform website command center and publishing layer.
   - `docs/OYAMA_WEBMASTER_CRM_INTEGRATION.md`
   - `docs/OYAMA_WEBMASTER_DATA_SAFETY.md`
 <!-- END:oyama-webmaster-command-center-rules -->
+

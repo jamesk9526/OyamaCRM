@@ -1,13 +1,17 @@
 /**
  * Workflow type definitions for the Steward Paths visual builder.
  *
- * These types describe the in-memory shape of a path the visual builder edits.
- * They intentionally do not mirror the Prisma `StewardPathStep` row 1:1 — the
- * builder works in a UI-friendly representation and the persistence layer (to
- * land in Phase 5) will translate to/from this shape.
+ * These types describe the branch-capable in-memory shape that the visual
+ * canvas edits. They intentionally do not mirror Prisma row-for-row: the UI
+ * model is tree-friendly, and adapters translate to server step payloads.
  *
  * See docs/DONOR_ENGAGEMENT_UNIFIED_SYSTEM_REFACTOR.md (Phase 4).
  */
+
+import type { BranchOperator } from "@/app/lib/engagement-orchestration";
+
+/** Builder tab values rendered in the workflow top bar. */
+export type WorkflowBuilderTab = "actions" | "settings" | "history";
 
 /** Top-level category each palette block belongs to. */
 export type NodeCategory =
@@ -23,6 +27,34 @@ export type NodeCategory =
 /** Implementation readiness for a node kind, surfaced in the UI as a badge. */
 export type NodeReadiness = "working" | "partially-working" | "not-implemented";
 
+/** Shared workflow status values used by the builder header. */
+export type WorkflowDocumentStatus = "draft" | "active" | "archived" | "test-mode";
+
+/** Branch operators shown in the condition editor (adds UI-only `between`). */
+export type WorkflowBranchOperator = BranchOperator | "between";
+
+/** One condition row inside a branch lane. */
+export interface WorkflowBranchConditionGroup {
+  id: string;
+  operator: WorkflowBranchOperator;
+  /** Stored as a string for forgiving form input and JSON persistence. */
+  value: string;
+  /** Optional upper bound used by `between` operator. */
+  valueTo?: string;
+}
+
+/** One lane inside an if/else branch node. */
+export interface WorkflowBranchLane {
+  id: string;
+  label: string;
+  /** Ordered node chain for this lane. */
+  nodeIds: string[];
+  /** `true` marks the fallback/otherwise lane. */
+  isFallback?: boolean;
+  /** Optional condition groups evaluated for this lane. */
+  conditionGroups: WorkflowBranchConditionGroup[];
+}
+
 /**
  * A palette block users drag onto the canvas.
  * Each block defines its category, label, brief description, and execution status.
@@ -37,8 +69,8 @@ export interface NodePaletteItem {
   defaultConfig?: Record<string, unknown>;
 }
 
-/** Node placed on the canvas. */
-export interface WorkflowNode {
+/** Shared fields present on every node card type. */
+export interface WorkflowNodeBase {
   id: string;
   kind: string;
   /** Display title shown on the node card. Editable in the inspector. */
@@ -51,21 +83,68 @@ export interface WorkflowNode {
   note?: string;
 }
 
-/** Connection between two nodes. The builder defaults to linear chains; branching is Phase 5. */
-export interface WorkflowEdge {
-  fromNodeId: string;
-  toNodeId: string;
-  /** Optional branch identifier ("yes" / "no") for conditional edges. */
-  branchLabel?: string;
+/** Standard action node (timing, email, print, task, etc.). */
+export interface WorkflowActionNode extends WorkflowNodeBase {
+  nodeType: "action";
+}
+
+/** If/else node that contains one or more branch lanes. */
+export interface WorkflowBranchNode extends WorkflowNodeBase {
+  nodeType: "branch";
+  lanes: WorkflowBranchLane[];
+}
+
+/** Union of all node types the canvas can render. */
+export type WorkflowNode = WorkflowActionNode | WorkflowBranchNode;
+
+/** Insert target emitted by connector plus-buttons and used by the palette. */
+export type NodeInsertTarget =
+  | { kind: "root-end" }
+  | { kind: "after-node"; nodeId: string }
+  | { kind: "branch-lane"; branchNodeId: string; laneId: string; afterNodeId?: string };
+
+/** Save-mode metadata shown in the top bar and warning banners. */
+export interface WorkflowPersistenceState {
+  mode: "memory-only" | "api";
+  templateId: string | null;
+  lastSavedAt: string | null;
 }
 
 /** A workflow draft the builder edits in memory. */
 export interface WorkflowDocument {
+  id: string;
   pathName: string;
-  status: "draft" | "active" | "archived" | "test-mode";
+  status: WorkflowDocumentStatus;
+  activeTab: WorkflowBuilderTab;
   audienceLabel: string;
-  nodes: WorkflowNode[];
-  edges: WorkflowEdge[];
+  /** Ordered top-level node chain. */
+  rootNodeIds: string[];
+  /** Lookup table for nodes used across root and branch lanes. */
+  nodesById: Record<string, WorkflowNode>;
+  persistence: WorkflowPersistenceState;
+}
+
+/** Branch operator option metadata for select menus. */
+export const BRANCH_OPERATOR_OPTIONS: Array<{ value: WorkflowBranchOperator; label: string }> = [
+  { value: "eq", label: "Equals" },
+  { value: "neq", label: "Not equals" },
+  { value: "gt", label: "Greater than" },
+  { value: "gte", label: "Greater than or equal" },
+  { value: "lt", label: "Less than" },
+  { value: "lte", label: "Less than or equal" },
+  { value: "between", label: "Between" },
+  { value: "in", label: "In list" },
+  { value: "not_in", label: "Not in list" },
+];
+
+/** Type guard for branch nodes. */
+export function isBranchNode(node: WorkflowNode): node is WorkflowBranchNode {
+  return node.nodeType === "branch";
+}
+
+/** Type guard for action nodes. */
+export function isActionNode(node: WorkflowNode): node is WorkflowActionNode {
+  return node.nodeType === "action";
 }
 
 /**

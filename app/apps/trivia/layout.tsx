@@ -2,7 +2,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import TriviaAppShell from "@/app/components/trivia/TriviaAppShell";
+import TriviaOpsShell from "@/app/components/trivia/TriviaOpsShell";
 
 /**
  * TriviaLayout wraps all /apps/trivia routes with a dedicated non-CRM shell.
@@ -16,5 +16,5 @@ export default function TriviaLayout({ children }: { children: React.ReactNode }
     return <>{children}</>;
   }
 
-  return <TriviaAppShell>{children}</TriviaAppShell>;
+  return <TriviaOpsShell>{children}</TriviaOpsShell>;
 }

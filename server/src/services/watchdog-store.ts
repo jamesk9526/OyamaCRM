@@ -85,6 +85,15 @@ export interface WatchdogIncidentState {
 let watchdogPool: mysql.Pool | null = null;
 let schemaReady = false;
 
+/** Resets pooled Watchdog DB connection so new environment URLs are picked up. */
+export async function resetWatchdogStoreConnections(): Promise<void> {
+  if (watchdogPool) {
+    await watchdogPool.end();
+  }
+  watchdogPool = null;
+  schemaReady = false;
+}
+
 /** Resolves the effective Watchdog DB URL with a safe non-production fallback. */
 function getEffectiveWatchdogDatabaseUrl(): string | undefined {
   const explicit = process.env.WATCHDOG_DATABASE_URL?.trim();
@@ -476,6 +485,115 @@ export async function getWatchdogVaultEntry(params: {
     notes: decrypted.notes,
     metadata: decrypted.metadata,
     lastAccessedAt: new Date().toISOString(),
+  };
+}
+
+/** Updates one vault record and rotates secret payload when requested. */
+export async function updateWatchdogVaultEntry(params: {
+  organizationId: string;
+  id: string;
+  updatedBy: string;
+  name?: string;
+  category?: string;
+  username?: string | null;
+  website?: string | null;
+  password?: string;
+  notes?: string;
+  metadata?: Record<string, unknown>;
+}): Promise<WatchdogVaultListItem | null> {
+  await ensureWatchdogSchema();
+  const pool = getWatchdogPool();
+
+  const [rows] = await pool.query<mysql.RowDataPacket[]>(
+    `
+      SELECT id, entry_name, entry_category, username, website,
+             secret_ciphertext, secret_iv, secret_tag
+      FROM watchdog_vault_entries
+      WHERE organization_id = ? AND id = ?
+      LIMIT 1
+    `,
+    [params.organizationId, params.id],
+  );
+
+  if (rows.length === 0) return null;
+  const row = rows[0];
+
+  const hasSecretMutation =
+    params.password !== undefined ||
+    params.notes !== undefined ||
+    params.metadata !== undefined;
+
+  let nextCiphertext = String(row.secret_ciphertext);
+  let nextIv = String(row.secret_iv);
+  let nextTag = String(row.secret_tag);
+
+  if (hasSecretMutation) {
+    const existingPayload = decryptPayload({
+      ciphertext: String(row.secret_ciphertext),
+      iv: String(row.secret_iv),
+      tag: String(row.secret_tag),
+    });
+
+    const encrypted = encryptPayload({
+      password: params.password !== undefined ? params.password : existingPayload.password,
+      notes: params.notes !== undefined ? params.notes : existingPayload.notes,
+      metadata: params.metadata !== undefined ? params.metadata : existingPayload.metadata,
+    });
+
+    nextCiphertext = encrypted.ciphertext;
+    nextIv = encrypted.iv;
+    nextTag = encrypted.tag;
+  }
+
+  await pool.query(
+    `
+      UPDATE watchdog_vault_entries
+      SET entry_name = ?,
+          entry_category = ?,
+          username = ?,
+          website = ?,
+          secret_ciphertext = ?,
+          secret_iv = ?,
+          secret_tag = ?,
+          updated_by = ?
+      WHERE organization_id = ? AND id = ?
+    `,
+    [
+      params.name !== undefined ? params.name : String(row.entry_name),
+      params.category !== undefined ? params.category : String(row.entry_category),
+      params.username !== undefined ? params.username : (row.username ? String(row.username) : null),
+      params.website !== undefined ? params.website : (row.website ? String(row.website) : null),
+      nextCiphertext,
+      nextIv,
+      nextTag,
+      params.updatedBy,
+      params.organizationId,
+      params.id,
+    ],
+  );
+
+  const [updatedRows] = await pool.query<mysql.RowDataPacket[]>(
+    `
+      SELECT id, entry_name, entry_category, username, website, created_at, updated_at, last_accessed_at
+      FROM watchdog_vault_entries
+      WHERE organization_id = ? AND id = ?
+      LIMIT 1
+    `,
+    [params.organizationId, params.id],
+  );
+
+  if (updatedRows.length === 0) return null;
+  const updated = updatedRows[0];
+
+  return {
+    id: String(updated.id),
+    name: String(updated.entry_name),
+    category: String(updated.entry_category),
+    username: updated.username ? String(updated.username) : null,
+    website: updated.website ? String(updated.website) : null,
+    createdAt: new Date(updated.created_at).toISOString(),
+    updatedAt: new Date(updated.updated_at).toISOString(),
+    lastAccessedAt: updated.last_accessed_at ? new Date(updated.last_accessed_at).toISOString() : null,
   };
 }
 

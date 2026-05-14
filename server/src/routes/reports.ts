@@ -24,6 +24,34 @@ import {
 } from "../lib/dateRanges.js";
 
 const router = Router();
+const OSHAREVIEW_NOTES_PLUGIN_KEY = "oshareview-notes";
+const OSHAREVIEW_BLUEPRINTS_PLUGIN_KEY = "oshareview-blueprints";
+
+interface OShareviewNote {
+  id: string;
+  body: string;
+  priority: "info" | "important" | "urgent";
+  createdAt: string;
+  createdByUserId: string;
+  createdByName: string;
+}
+
+interface OShareviewReportBlueprint {
+  id: string;
+  name: string;
+  description: string;
+  module: "donor" | "events" | "compassion" | "ogentic";
+  tool: string;
+  tab: "overview" | "donors" | "giving" | "campaigns" | "retention";
+  year: number;
+  allYears: boolean;
+  includeGrants: boolean;
+  exportMode: "csv" | "server_csv" | "print";
+  createdAt: string;
+  updatedAt: string;
+  createdByUserId: string;
+  createdByName: string;
+}
 
 // All report routes require authentication — report data is sensitive org information.
 router.use(requireAuth);
@@ -106,6 +134,305 @@ function buildCsv(rows: Array<Record<string, unknown>>): string {
   const lines = rows.map((row) => headers.map((header) => csvCell(row[header])).join(","));
   return [headers.join(","), ...lines].join("\n");
 }
+
+/** Reads persisted OShareview admin notes from plugin config payload. */
+function normalizeOShareviewNotes(config: unknown): OShareviewNote[] {
+  if (!config || typeof config !== "object" || Array.isArray(config)) return [];
+  const rawNotes = (config as Record<string, unknown>).notes;
+  if (!Array.isArray(rawNotes)) return [];
+
+  return rawNotes
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => {
+      const note = entry as Record<string, unknown>;
+      const priority = note.priority === "urgent" || note.priority === "important" ? note.priority : "info";
+      return {
+        id: typeof note.id === "string" ? note.id : "",
+        body: typeof note.body === "string" ? note.body : "",
+        priority,
+        createdAt: typeof note.createdAt === "string" ? note.createdAt : new Date().toISOString(),
+        createdByUserId: typeof note.createdByUserId === "string" ? note.createdByUserId : "",
+        createdByName: typeof note.createdByName === "string" ? note.createdByName : "Admin",
+      };
+    })
+    .filter((note) => note.id && note.body.trim().length > 0)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 40);
+}
+
+/** Reads persisted OShareview report blueprints from plugin config payload. */
+function normalizeOShareviewBlueprints(config: unknown): OShareviewReportBlueprint[] {
+  if (!config || typeof config !== "object" || Array.isArray(config)) return [];
+  const rawBlueprints = (config as Record<string, unknown>).blueprints;
+  if (!Array.isArray(rawBlueprints)) return [];
+
+  const modules = new Set(["donor", "events", "compassion", "ogentic"]);
+  const tabs = new Set(["overview", "donors", "giving", "campaigns", "retention"]);
+  const exportModes = new Set(["csv", "server_csv", "print"]);
+
+  return rawBlueprints
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => {
+      const blueprint = entry as Record<string, unknown>;
+      const module = modules.has(String(blueprint.module)) ? (blueprint.module as OShareviewReportBlueprint["module"]) : "donor";
+      const tab = tabs.has(String(blueprint.tab)) ? (blueprint.tab as OShareviewReportBlueprint["tab"]) : "overview";
+      const exportMode = exportModes.has(String(blueprint.exportMode))
+        ? (blueprint.exportMode as OShareviewReportBlueprint["exportMode"])
+        : "csv";
+
+      return {
+        id: typeof blueprint.id === "string" ? blueprint.id : "",
+        name: typeof blueprint.name === "string" ? blueprint.name : "",
+        description: typeof blueprint.description === "string" ? blueprint.description : "",
+        module,
+        tool: typeof blueprint.tool === "string" ? blueprint.tool : "donor-overview",
+        tab,
+        year: Number.isFinite(blueprint.year) ? Number(blueprint.year) : new Date().getFullYear(),
+        allYears: Boolean(blueprint.allYears),
+        includeGrants: Boolean(blueprint.includeGrants),
+        exportMode,
+        createdAt: typeof blueprint.createdAt === "string" ? blueprint.createdAt : new Date().toISOString(),
+        updatedAt: typeof blueprint.updatedAt === "string" ? blueprint.updatedAt : new Date().toISOString(),
+        createdByUserId: typeof blueprint.createdByUserId === "string" ? blueprint.createdByUserId : "",
+        createdByName: typeof blueprint.createdByName === "string" ? blueprint.createdByName : "Admin",
+      };
+    })
+    .filter((blueprint) => blueprint.id && blueprint.name.trim().length > 0)
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 100);
+}
+
+/** GET /api/reports/oshareview-notes — returns latest admin broadcast notes for OShareview users. */
+router.get("/oshareview-notes", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json({ notes: [] as OShareviewNote[] });
+    return;
+  }
+
+  const setting = await prisma.pluginSetting.findUnique({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: OSHAREVIEW_NOTES_PLUGIN_KEY,
+      },
+    },
+    select: { config: true },
+  });
+
+  res.json({ notes: normalizeOShareviewNotes(setting?.config) });
+});
+
+/** POST /api/reports/oshareview-notes — admin-only note broadcast tool for OShareview users. */
+router.post("/oshareview-notes", async (req, res) => {
+  if (req.user?.role !== "admin") {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only admins can post OShareview notes." } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const body = String(req.body?.body ?? "").trim();
+  const priority = req.body?.priority === "urgent" || req.body?.priority === "important" ? req.body.priority : "info";
+  if (!body) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Note body is required." } });
+    return;
+  }
+
+  const existing = await prisma.pluginSetting.findUnique({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: OSHAREVIEW_NOTES_PLUGIN_KEY,
+      },
+    },
+    select: { id: true, config: true },
+  });
+
+  const notes = normalizeOShareviewNotes(existing?.config);
+  const createdByName = `${req.user?.firstName ?? ""} ${req.user?.lastName ?? ""}`.trim() || "Admin";
+  const nextNote: OShareviewNote = {
+    id: `note_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    body,
+    priority,
+    createdAt: new Date().toISOString(),
+    createdByUserId: req.user?.sub ?? "",
+    createdByName,
+  };
+
+  const nextNotes = [nextNote, ...notes].slice(0, 40);
+
+  await prisma.pluginSetting.upsert({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: OSHAREVIEW_NOTES_PLUGIN_KEY,
+      },
+    },
+    create: {
+      organizationId,
+      pluginKey: OSHAREVIEW_NOTES_PLUGIN_KEY,
+      enabled: true,
+      config: { notes: nextNotes },
+    },
+    update: {
+      enabled: true,
+      config: { notes: nextNotes },
+    },
+  });
+
+  res.status(201).json({ note: nextNote, notes: nextNotes });
+});
+
+/** GET /api/reports/oshareview-blueprints — returns saved report blueprints for OShareview. */
+router.get("/oshareview-blueprints", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json({ blueprints: [] as OShareviewReportBlueprint[] });
+    return;
+  }
+
+  const setting = await prisma.pluginSetting.findUnique({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: OSHAREVIEW_BLUEPRINTS_PLUGIN_KEY,
+      },
+    },
+    select: { config: true },
+  });
+
+  res.json({ blueprints: normalizeOShareviewBlueprints(setting?.config) });
+});
+
+/** POST /api/reports/oshareview-blueprints — admin-only blueprint save endpoint. */
+router.post("/oshareview-blueprints", async (req, res) => {
+  if (req.user?.role !== "admin") {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only admins can manage OShareview blueprints." } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const name = String(req.body?.name ?? "").trim();
+  if (!name) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Blueprint name is required." } });
+    return;
+  }
+
+  const existing = await prisma.pluginSetting.findUnique({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: OSHAREVIEW_BLUEPRINTS_PLUGIN_KEY,
+      },
+    },
+    select: { config: true },
+  });
+
+  const current = normalizeOShareviewBlueprints(existing?.config);
+  const nextBlueprint: OShareviewReportBlueprint = {
+    id: `blueprint_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    name,
+    description: String(req.body?.description ?? "").trim(),
+    module: req.body?.module === "events" || req.body?.module === "compassion" || req.body?.module === "ogentic" ? req.body.module : "donor",
+    tool: typeof req.body?.tool === "string" ? req.body.tool : "donor-overview",
+    tab: req.body?.tab === "donors" || req.body?.tab === "giving" || req.body?.tab === "campaigns" || req.body?.tab === "retention" ? req.body.tab : "overview",
+    year: Number.isFinite(req.body?.year) ? Number(req.body.year) : new Date().getFullYear(),
+    allYears: Boolean(req.body?.allYears),
+    includeGrants: Boolean(req.body?.includeGrants),
+    exportMode: req.body?.exportMode === "server_csv" || req.body?.exportMode === "print" ? req.body.exportMode : "csv",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    createdByUserId: req.user?.sub ?? "",
+    createdByName: `${req.user?.firstName ?? ""} ${req.user?.lastName ?? ""}`.trim() || "Admin",
+  };
+
+  const nextBlueprints = [nextBlueprint, ...current].slice(0, 100);
+
+  await prisma.pluginSetting.upsert({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: OSHAREVIEW_BLUEPRINTS_PLUGIN_KEY,
+      },
+    },
+    create: {
+      organizationId,
+      pluginKey: OSHAREVIEW_BLUEPRINTS_PLUGIN_KEY,
+      enabled: true,
+      config: { blueprints: nextBlueprints },
+    },
+    update: {
+      enabled: true,
+      config: { blueprints: nextBlueprints },
+    },
+  });
+
+  res.status(201).json({ blueprint: nextBlueprint, blueprints: nextBlueprints });
+});
+
+/** DELETE /api/reports/oshareview-blueprints/:id — admin-only remove endpoint. */
+router.delete("/oshareview-blueprints/:id", async (req, res) => {
+  if (req.user?.role !== "admin") {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only admins can manage OShareview blueprints." } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const targetId = String(req.params.id ?? "").trim();
+  if (!targetId) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Blueprint id is required." } });
+    return;
+  }
+
+  const existing = await prisma.pluginSetting.findUnique({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: OSHAREVIEW_BLUEPRINTS_PLUGIN_KEY,
+      },
+    },
+    select: { config: true },
+  });
+
+  const current = normalizeOShareviewBlueprints(existing?.config);
+  const nextBlueprints = current.filter((item) => item.id !== targetId);
+
+  await prisma.pluginSetting.upsert({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: OSHAREVIEW_BLUEPRINTS_PLUGIN_KEY,
+      },
+    },
+    create: {
+      organizationId,
+      pluginKey: OSHAREVIEW_BLUEPRINTS_PLUGIN_KEY,
+      enabled: true,
+      config: { blueprints: nextBlueprints },
+    },
+    update: {
+      enabled: true,
+      config: { blueprints: nextBlueprints },
+    },
+  });
+
+  res.json({ blueprints: nextBlueprints });
+});
 
 /**
  * GET /api/reports/summary — Return high-level org-wide KPIs for the dashboard header cards.

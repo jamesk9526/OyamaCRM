@@ -6,7 +6,7 @@
  */
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/app/lib/auth-client";
@@ -14,6 +14,9 @@ import GrantWritingPanel from "@/app/components/grants/GrantWritingPanel";
 import GrantActivityFeed from "@/app/components/grants/GrantActivityFeed";
 import GrantCaseItemPanel from "@/app/components/grants/GrantCaseItemPanel";
 import AddGrantModal from "@/app/components/grants/AddGrantModal";
+import WorkspaceControlRail from "@/app/components/workspace/WorkspaceControlRail";
+import WorkspaceFrame from "@/app/components/workspace/WorkspaceFrame";
+import type { WorkspaceControlGroup } from "@/app/components/workspace/workspace-types";
 import type { Grant, GrantActivity, GrantSection, GrantStatus } from "@/app/components/grants/types";
 import { STATUS_META, PIPELINE_STAGES, TERMINAL_STAGES, fmt$, fmtDate } from "@/app/components/grants/types";
 
@@ -130,8 +133,63 @@ export default function GrantDetailPage() {
   const activities = grant.activities ?? [];
   const completedSections = sections.filter((s) => s.completed).length;
 
+  const railGroups = useMemo<WorkspaceControlGroup[]>(() => [
+    {
+      id: "workspace-views",
+      label: "Workspace Views",
+      items: [
+        { id: "view:overview", label: "Overview", status: "Working" },
+        { id: "view:research", label: "Research", status: "Working" },
+        { id: "view:requirements", label: "Requirements", status: "Working" },
+        { id: "view:reminders", label: "Reminders", status: "Working" },
+        { id: "view:tasks", label: "Writing Tasks", status: "Working" },
+        { id: "view:resources", label: "Resources", status: "Working" },
+        { id: "view:writing", label: "Writing", badge: sections.length > 0 ? `${completedSections}/${sections.length}` : 0, status: "Working" },
+        { id: "view:decision", label: "Decision", status: "Working" },
+        { id: "view:activity", label: "Activity", badge: activities.length, status: "Working" },
+      ],
+    },
+    {
+      id: "quick-actions",
+      label: "Quick Actions",
+      items: [
+        { id: "action:edit", label: "Edit Grant", status: "Working" },
+        { id: "action:record-award", label: "Record Award in Donations", status: "Working" },
+      ],
+    },
+  ], [activities.length, completedSections, sections.length]);
+
+  function handleRailSelect(itemId: string) {
+    if (itemId.startsWith("view:")) {
+      setTab(itemId.replace("view:", "") as Tab);
+      return;
+    }
+
+    if (itemId === "action:edit") {
+      setShowEdit(true);
+      return;
+    }
+
+    if (itemId === "action:record-award") {
+      if (!grant) return;
+      router.push(buildGrantReceivedHref(grant));
+    }
+  }
+
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
+    <WorkspaceFrame
+      title={grant.title}
+      description={`${grant.funder?.name ?? "Unknown funder"}${grant.programArea ? ` · ${grant.programArea}` : ""}`}
+      controlRail={(
+        <WorkspaceControlRail
+          title="Grant Controls"
+          groups={railGroups}
+          activeItem={`view:${tab}`}
+          onSelect={handleRailSelect}
+        />
+      )}
+    >
+    <div className="space-y-6">
       {/* Breadcrumb */}
       <nav className="text-xs text-gray-400 flex items-center gap-1.5">
         <Link href="/grants" className="hover:text-green-600">Grants</Link>
@@ -188,33 +246,6 @@ export default function GrantDetailPage() {
         <p className="mt-1 text-sm text-blue-900">
           This record tracks research, writing, deadlines, requirements, and follow-up planning. Received award money is recorded separately in Donations.
         </p>
-      </div>
-
-      {/* Tab bar */}
-      <div className="overflow-x-auto">
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-max">
-        {([
-          { key: "overview", label: "Overview" },
-          { key: "research", label: "Research" },
-          { key: "requirements", label: "Requirements" },
-          { key: "reminders", label: "Reminders" },
-          { key: "tasks", label: "Writing Tasks" },
-          { key: "resources", label: "Resources" },
-          { key: "writing", label: `Writing ${completedSections > 0 ? `(${completedSections}/${sections.length})` : ""}`.trim() },
-          { key: "decision", label: "Decision" },
-          { key: "activity", label: "Activity" },
-        ] as { key: Tab; label: string }[]).map((tabDef) => (
-          <button
-            key={tabDef.key}
-            onClick={() => setTab(tabDef.key)}
-            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors capitalize ${
-              tab === tabDef.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            {tabDef.label}
-          </button>
-        ))}
-        </div>
       </div>
 
       {/* ── Overview tab ── */}
@@ -377,5 +408,6 @@ export default function GrantDetailPage() {
         />
       )}
     </div>
+    </WorkspaceFrame>
   );
 }

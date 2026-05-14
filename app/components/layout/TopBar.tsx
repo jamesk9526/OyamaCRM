@@ -29,7 +29,7 @@ interface SearchResult {
 }
 
 interface SearchResponse {
-  module: "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "reportit" | "hrm";
+  module: "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview" | "hrm";
   query: string;
   results: SearchResult[];
 }
@@ -130,7 +130,7 @@ function WorkspaceSwitcherIcon({ moduleKey, className = "w-4 h-4" }: { moduleKey
       </svg>
     );
   }
-  if (moduleKey === "reportit") {
+  if (moduleKey === "oshareview") {
     return (
       <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" d="M5 18.5h14" />
@@ -197,11 +197,11 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
               { id: "quick-hrm-scheduling", type: "tool", label: "Open Scheduling", sublabel: "Availability and schedule rules", href: "/hrm/scheduling", group: "tools" },
               { id: "quick-help", type: "tool", label: "Open Help Center", sublabel: "Guides and walkthroughs", href: `/help?scope=global&scopePath=${encodeURIComponent(pathname || "/hrm")}`, group: "tools" },
             ]
-          : moduleKey === "reportit"
+          : moduleKey === "oshareview"
             ? [
-              { id: "quick-reportit-home", type: "tool", label: "Open Reports Hub", sublabel: "Reporting workspace", href: "/reports", group: "tools" },
-              { id: "quick-reportit-builder", type: "tool", label: "Open Report Builder", sublabel: "Create custom reports", href: "/reports/builder", group: "tools" },
-              { id: "quick-reportit-segments", type: "tool", label: "Open Segments", sublabel: "Audience and cohort sets", href: "/reports/segments", group: "tools" },
+              { id: "quick-oshareview-home", type: "tool", label: "Open Reports Hub", sublabel: "Reporting workspace", href: "/reports", group: "tools" },
+              { id: "quick-oshareview-builder", type: "tool", label: "Open Report Builder", sublabel: "Create custom reports", href: "/reports/builder", group: "tools" },
+              { id: "quick-oshareview-segments", type: "tool", label: "Open Segments", sublabel: "Audience and cohort sets", href: "/reports/segments", group: "tools" },
               { id: "quick-help", type: "tool", label: "Open Help Center", sublabel: "Guides and walkthroughs", href: `/help?scope=donor&scopePath=${encodeURIComponent(pathname || "/reports")}`, group: "tools" },
             ]
             : [
@@ -311,7 +311,7 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
     const requestId = ++lastRequestIdRef.current;
     setLoading(true);
     try {
-      const searchModule = moduleKey === "reportit" || moduleKey === "hrm" ? "donor" : moduleKey;
+      const searchModule = moduleKey === "oshareview" || moduleKey === "hrm" ? "donor" : moduleKey;
       const params = new URLSearchParams({
         module: searchModule,
         q: normalized,
@@ -519,7 +519,7 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
           ? "focus:ring-indigo-400/60"
           : moduleKey === "hrm"
             ? "focus:ring-teal-400/60"
-          : moduleKey === "reportit"
+          : moduleKey === "oshareview"
               ? "focus:ring-cyan-400/60"
           : "focus:ring-green-400/60";
   const activeResultBg = moduleKey === "compassion"
@@ -532,7 +532,7 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
           ? "bg-indigo-50"
           : moduleKey === "hrm"
             ? "bg-teal-50"
-          : moduleKey === "reportit"
+          : moduleKey === "oshareview"
               ? "bg-cyan-50"
           : "bg-green-50";
   const spinnerColor = moduleKey === "compassion"
@@ -545,7 +545,7 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
           ? "border-indigo-400"
           : moduleKey === "hrm"
             ? "border-teal-500"
-          : moduleKey === "reportit"
+          : moduleKey === "oshareview"
               ? "border-cyan-500"
           : "border-green-400";
   const placeholder = moduleKey === "compassion"
@@ -558,7 +558,7 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
           ? "Search templates, pages, website tools, commands... (Ctrl+K)"
           : moduleKey === "hrm"
             ? "Search staff, schedules, locations, messages... (Ctrl+K)"
-          : moduleKey === "reportit"
+          : moduleKey === "oshareview"
               ? "Search reports, segments, analytics views, commands... (Ctrl+K)"
           : "Search tools, constituents, campaigns, commands... (Ctrl+K)";
 
@@ -711,7 +711,7 @@ export default function TopBar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const moduleKey = resolveTopBarModuleKey(pathname);
-  const showTopBarAppLauncher = false;
+  const showTopBarAppLauncher = true;
   const [appsOpen, setAppsOpen] = useState(false);
   const [stewardMode, setStewardMode] = useState<StewardPanelMode>("collapsed");
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -739,7 +739,7 @@ export default function TopBar() {
           ? "text-white border-indigo-300/50 bg-indigo-500/25 ring-1 ring-indigo-300/35"
           : moduleKey === "hrm"
             ? "text-white border-teal-300/50 bg-teal-500/25 ring-1 ring-teal-300/35"
-          : moduleKey === "reportit"
+          : moduleKey === "oshareview"
             ? "text-white border-cyan-300/50 bg-cyan-500/25 ring-1 ring-cyan-300/35"
             : "text-white border-green-300/50 bg-green-500/25 ring-1 ring-green-300/35";
   const topBarRightTint = moduleKey === "compassion"
@@ -752,7 +752,7 @@ export default function TopBar() {
           ? "#3730a3"
           : moduleKey === "hrm"
             ? "#0f766e"
-          : moduleKey === "reportit"
+          : moduleKey === "oshareview"
             ? "#155e75"
             : "#14532d";
   const topBarReactiveTint = moduleKey === "compassion"
@@ -765,7 +765,7 @@ export default function TopBar() {
           ? "rgba(99,102,241,0.34)"
           : moduleKey === "hrm"
             ? "rgba(20,184,166,0.33)"
-          : moduleKey === "reportit"
+          : moduleKey === "oshareview"
             ? "rgba(6,182,212,0.33)"
             : "rgba(34,197,94,0.32)";
   const topBarBackground = `linear-gradient(90deg, #0f172a 0%, #18253a 56%, ${topBarRightTint} 100%)`;
@@ -779,7 +779,7 @@ export default function TopBar() {
           ? "/webmaster"
           : moduleKey === "hrm"
             ? "/hrm"
-          : moduleKey === "reportit"
+          : moduleKey === "oshareview"
             ? "/reports"
             : "/";
   const helpHref = buildHelpHref({
@@ -822,7 +822,7 @@ export default function TopBar() {
     setNotificationsLoading(true);
     setNotificationsError(null);
     try {
-      const notificationModule = moduleKey === "reportit" || moduleKey === "hrm" ? "donor" : moduleKey;
+      const notificationModule = moduleKey === "oshareview" || moduleKey === "hrm" ? "donor" : moduleKey;
       const data = await apiFetch<{ items: TopBarNotification[]; unreadCount: number }>(
         `/api/notifications?module=${notificationModule}`
       );
@@ -1006,7 +1006,7 @@ export default function TopBar() {
                             ? "bg-indigo-600"
                             : moduleKey === "hrm"
                               ? "bg-teal-600"
-                              : moduleKey === "reportit"
+                              : moduleKey === "oshareview"
                                 ? "bg-cyan-600"
                                 : "bg-green-600"
                   }`}>
@@ -1153,7 +1153,7 @@ export default function TopBar() {
                         ? "bg-indigo-600"
                         : moduleKey === "hrm"
                           ? "bg-teal-600"
-                            : moduleKey === "reportit"
+                            : moduleKey === "oshareview"
                               ? "bg-cyan-600"
                         : "bg-green-600"
               }`}>
@@ -1315,22 +1315,6 @@ function ModuleSwitcher({
       active: moduleKey === "events",
     },
     {
-      key: "watchdog",
-      label: "OyamaWatchdog",
-      helper: "Security",
-      href: "/watchdog",
-      icon: <WorkspaceSwitcherIcon moduleKey="watchdog" />,
-      active: moduleKey === "watchdog",
-    },
-    {
-      key: "webmaster",
-      label: "OyamaWebMaster",
-      helper: "Web Builder",
-      href: "/webmaster",
-      icon: <WorkspaceSwitcherIcon moduleKey="webmaster" />,
-      active: moduleKey === "webmaster",
-    },
-    {
       key: "hrm",
       label: "OyamaHRM",
       helper: "HRM",
@@ -1339,12 +1323,12 @@ function ModuleSwitcher({
       active: moduleKey === "hrm",
     },
     {
-      key: "reportit",
-      label: "OyamaREPORTIT CRM",
+      key: "oshareview",
+      label: "OShareview",
       helper: "Reporting Hub",
       href: "/reports",
-      icon: <WorkspaceSwitcherIcon moduleKey="reportit" />,
-      active: moduleKey === "reportit",
+      icon: <WorkspaceSwitcherIcon moduleKey="oshareview" />,
+      active: moduleKey === "oshareview",
     },
   ].filter((module) => {
     if (module.key === "donor") return settings.donorEnabled;
@@ -1368,7 +1352,7 @@ function ModuleSwitcher({
           ? "from-indigo-50 to-violet-50 border-indigo-200/80"
           : current.key === "hrm"
             ? "from-teal-50 to-cyan-50 border-teal-200/80"
-          : current.key === "reportit"
+          : current.key === "oshareview"
             ? "from-cyan-50 to-sky-50 border-cyan-200/80"
             : "from-green-50 to-emerald-50 border-green-200/80";
 
@@ -1459,7 +1443,7 @@ function UserMenu({ moduleKey }: { moduleKey: TopBarModuleKey }) {
           ? "bg-indigo-700 border-indigo-500"
           : moduleKey === "hrm"
             ? "bg-teal-700 border-teal-500"
-            : moduleKey === "reportit"
+            : moduleKey === "oshareview"
               ? "bg-cyan-700 border-cyan-500"
           : "bg-green-700 border-green-500";
 
@@ -1499,3 +1483,4 @@ function UserMenu({ moduleKey }: { moduleKey: TopBarModuleKey }) {
     </div>
   );
 }
+

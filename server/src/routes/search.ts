@@ -5,7 +5,7 @@
  * only surfaces relevant pages and entities.
  *
  * Route:
- *   GET /api/search?module=donor|compassion|events|watchdog|webmaster&q=<query>&limit=<n>
+ *   GET /api/search?module=donor|compassion|events|watchdog|webmaster|password&q=<query>&limit=<n>
  */
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
@@ -19,7 +19,7 @@ const router = Router();
 // All global search requests require authentication.
 router.use(requireAuth);
 
-type SearchModule = "donor" | "compassion" | "events" | "watchdog" | "webmaster";
+type SearchModule = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "password";
 
 type SearchResultType =
   | "tool"
@@ -98,6 +98,12 @@ const WEBMASTER_TOOLS: ToolItem[] = [
   { id: "tool-webmaster-publishing", label: "Publishing Workflow", href: "/webmaster", keywords: ["publish", "approval", "domain"] },
 ];
 
+const PASSWORD_TOOLS: ToolItem[] = [
+  { id: "tool-password-home", label: "OyamaPASSWORD Vault", href: "/password", keywords: ["password", "credentials", "vault"] },
+  { id: "tool-password-share", label: "Shared Credentials", href: "/password", keywords: ["share", "team", "access"] },
+  { id: "tool-password-health", label: "Password Store Health", href: "/password", keywords: ["health", "encryption", "database"] },
+];
+
 /**
  * Filters a module's tool list using label + keywords.
  * Returns top matches for the global search dropdown.
@@ -159,6 +165,7 @@ router.get("/", async (req, res) => {
     || moduleKey === "events"
     || moduleKey === "watchdog"
     || moduleKey === "webmaster"
+    || moduleKey === "password"
       ? moduleKey
       : "donor";
 
@@ -428,6 +435,11 @@ router.get("/", async (req, res) => {
         group: "records",
       });
     }
+  }
+
+  if (normalizedModule === "password") {
+    const tools = matchTools(PASSWORD_TOOLS, query, Math.max(limit, 6));
+    searchResults.push(...tools);
   }
 
   // Keep tools first, then records, and cap final payload size.

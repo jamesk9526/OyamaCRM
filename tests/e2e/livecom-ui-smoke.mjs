@@ -4,7 +4,7 @@
  */
 import { chromium } from "playwright";
 
-const WEB_BASE = process.env.E2E_WEB_BASE_URL || "http://localhost:3650";
+const WEB_BASE = process.env.E2E_WEB_BASE_URL || "http://localhost:3000";
 const API_BASE = process.env.E2E_API_BASE_URL || "http://localhost:4000";
 
 /** Attempts to recover the current browser session by rotating refresh cookie once. */

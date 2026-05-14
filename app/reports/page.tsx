@@ -8,11 +8,18 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/app/components/auth/AuthProvider";
 import ReportsModuleToolbar, {
   getDefaultReportsTool,
   type ReportsToolId,
   type ReportsWorkspaceModule,
 } from "@/app/components/reports/ReportsModuleToolbar";
+import OShareviewNotesPanel from "@/app/components/reports/OShareviewNotesPanel";
+import OShareviewBlueprintsPanel, {
+  type OShareviewReportBlueprint,
+  type ReportTabId,
+} from "@/app/components/reports/OShareviewBlueprintsPanel";
+import OShareviewCoveragePanel from "@/app/components/reports/OShareviewCoveragePanel";
 import { apiFetch } from "@/app/lib/auth-client";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -575,6 +582,7 @@ function LybuntTable({ donors, loading }: { donors: LybuntDonor[]; loading: bool
 export default function ReportsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user } = useAuth();
 
   // ── Global UI state ───────────────────────────────────────────────────────
   const [activeModule, setActiveModule] = useState<ReportsWorkspaceModule>(() => parseReportsModule(searchParams.get("module")));
@@ -582,6 +590,15 @@ export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<TabId>(() => parseTabId(searchParams.get("tab")));
   const [year, setYear] = useState<number>(CURRENT_YEAR);
   const [allYears, setAllYears] = useState(false);
+  const [donorReportsError, setDonorReportsError] = useState<string | null>(null);
+  const [lastLiveRefreshAt, setLastLiveRefreshAt] = useState<Date>(new Date());
+
+  function toErrorMessage(err: unknown, fallback: string): string {
+    if (err instanceof Error && err.message.trim().length > 0) {
+      return err.message;
+    }
+    return fallback;
+  }
 
   /**
    * Whether to include awarded grants in YTD revenue figures.
@@ -677,6 +694,7 @@ export default function ReportsPage() {
     if (isLoaded("overview", key)) return;
     markLoaded("overview", key);
     setLoadingOverview(true);
+    setDonorReportsError(null);
     try {
       const [s, bs, m, r, td, ds] = await Promise.all([
         apiFetch<Summary>(`/api/reports/summary?${scope}`),
@@ -693,7 +711,7 @@ export default function ReportsPage() {
       setTopDonors(Array.isArray(td) ? td : []);
       setDonorSegments(ds);
     } catch (err) {
-      console.error("Failed to load overview data:", err);
+      setDonorReportsError(toErrorMessage(err, "Failed to load overview report data."));
     } finally {
       setLoadingOverview(false);
     }
@@ -705,6 +723,7 @@ export default function ReportsPage() {
     if (isLoaded("donors", key)) return;
     markLoaded("donors", key);
     setLoadingDonors(true);
+    setDonorReportsError(null);
     try {
       const [l, sy, nvr] = await Promise.all([
         apiFetch<LybuntDonor[]>(`/api/reports/lybunt?year=${y}`),
@@ -715,7 +734,7 @@ export default function ReportsPage() {
       setSybunt(Array.isArray(sy) ? sy : []);
       setNewVsReturning(Array.isArray(nvr) ? nvr : []);
     } catch (err) {
-      console.error("Failed to load donors data:", err);
+      setDonorReportsError(toErrorMessage(err, "Failed to load donor report data."));
     } finally {
       setLoadingDonors(false);
     }
@@ -728,6 +747,7 @@ export default function ReportsPage() {
     if (isLoaded("giving", key)) return;
     markLoaded("giving", key);
     setLoadingGiving(true);
+    setDonorReportsError(null);
     try {
       const [yc, tier, pay] = await Promise.all([
         apiFetch<YearComparisonDatum[]>(`/api/reports/year-comparison?year=${y}`),
@@ -738,7 +758,7 @@ export default function ReportsPage() {
       setGivingByTier(tier);
       setPaymentBreakdown(Array.isArray(pay) ? pay : []);
     } catch (err) {
-      console.error("Failed to load giving data:", err);
+      setDonorReportsError(toErrorMessage(err, "Failed to load giving report data."));
     } finally {
       setLoadingGiving(false);
     }
@@ -751,11 +771,12 @@ export default function ReportsPage() {
     if (isLoaded("campaigns", key)) return;
     markLoaded("campaigns", key);
     setLoadingCampaigns(true);
+    setDonorReportsError(null);
     try {
       const data = await apiFetch<CampaignPerformance[]>(`/api/reports/campaign-performance?${scope}`);
       setCampaigns(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("Failed to load campaign data:", err);
+      setDonorReportsError(toErrorMessage(err, "Failed to load campaign report data."));
     } finally {
       setLoadingCampaigns(false);
     }
@@ -934,6 +955,31 @@ export default function ReportsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeModule]);
 
+  /** Periodic live refresh loop for OShareview dashboard presentation. */
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      loadedRef.current = {};
+      void loadOverview(year);
+
+      if (activeModule === "events") {
+        setEventsSummary(null);
+        void loadEventsModuleSummary();
+      }
+
+      if (activeModule === "compassion") {
+        setCompassionSummary(null);
+        void loadCompassionModuleSummary();
+      }
+
+      setLastLiveRefreshAt(new Date());
+    }, 45000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [year, activeModule]);
+
   /** Updates local state and URL query so sidebar report links map to the visible tab. */
   function handleTabChange(tabId: TabId) {
     setActiveTab(tabId);
@@ -1106,6 +1152,28 @@ export default function ReportsPage() {
     window.location.href = `/api/reports/exports/giving-by-month.csv?${scope.toString()}`;
   }
 
+  /** Uses browser print to generate printable report packets from the current OShareview state. */
+  function handlePrintCurrentReport() {
+    window.print();
+  }
+
+  function handleApplyBlueprint(blueprint: OShareviewReportBlueprint) {
+    setActiveModule(blueprint.module);
+    setActiveTool(blueprint.tool as ReportsToolId);
+    setActiveTab(blueprint.tab as TabId);
+    setYear(blueprint.year);
+    setAllYears(blueprint.allYears);
+    setIncludeGrants(blueprint.includeGrants);
+
+    if (blueprint.exportMode === "server_csv") {
+      window.setTimeout(() => handleServerExport(), 50);
+      return;
+    }
+    if (blueprint.exportMode === "print") {
+      window.setTimeout(() => handlePrintCurrentReport(), 50);
+    }
+  }
+
   // ── Derived values ────────────────────────────────────────────────────────
 
   /** Total number of constituents across all segments (for percentage bars). */
@@ -1116,88 +1184,64 @@ export default function ReportsPage() {
   /** Maximum payment amount (for scaling horizontal payment-method bars). */
   const maxPayment =
     paymentBreakdown.length > 0 ? Math.max(...paymentBreakdown.map((p) => p.amount)) : 1;
+  const canPostShareviewNotes = user?.role === "admin" && user.role !== "shareview_user";
+  const canManageBlueprints = user?.role === "admin";
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-5">
       {/* ── Page Header ── */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Reports &amp; Analytics</h1>
+      <div>
+          <div className="mb-1 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+            OShareview Live
+          </div>
+          <h1 className="text-xl font-semibold text-gray-900">Reports &amp; Analytics Command Center</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            OyamaREPORTIT CRM for donor, events, compassion, and OGentic reporting workflows
+            OShareview dashboard for donor, events, compassion, and OGentic reporting workflows
           </p>
           {summary?.freshness?.dataThrough && (
             <p className="text-xs text-gray-400 mt-1">
               Data freshness: through {fmtDate(summary.freshness.dataThrough)} at {new Date(summary.freshness.generatedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
             </p>
           )}
+          <p className="text-xs text-emerald-700 mt-1">
+            Auto-refreshing every 45 seconds. Last update {lastLiveRefreshAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+          </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
+          <p className="text-xs uppercase tracking-wide text-gray-500">Revenue Snapshot</p>
+          <p className="mt-1 text-2xl font-semibold text-gray-900">${fmtCurrency((summary?.ytdAmount ?? 0) + (includeGrants ? (summary?.ytdGrantAmount ?? 0) : 0))}</p>
+          <p className="text-xs text-emerald-700">{allYears ? "All years" : `Scoped to ${year}`}</p>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Include Grants toggle — applies to all revenue figures across all tabs */}
-          <button
-            onClick={toggleGrants}
-            title={includeGrants ? "Grants included in revenue totals — click to exclude" : "Click to include awarded grants in revenue totals"}
-            className={`flex items-center gap-2 text-xs font-medium rounded-full px-3 py-1.5 border transition-colors ${
-              includeGrants
-                ? "bg-emerald-50 border-emerald-300 text-emerald-700"
-                : "bg-gray-50 border-gray-200 text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            {/* Mini toggle pill */}
-            <span className={`w-7 h-3.5 rounded-full relative transition-colors ${includeGrants ? "bg-emerald-400" : "bg-gray-300"}`}>
-              <span className={`absolute top-0.5 w-2.5 h-2.5 bg-white rounded-full shadow transition-all ${includeGrants ? "left-4" : "left-0.5"}`} />
-            </span>
-            Incl. Grants
-          </button>
-
-          {/* Global year selector — affects all year-dependent charts and tables */}
-          <select
-            value={year}
-            onChange={(e) => setYear(parseInt(e.target.value, 10))}
-            disabled={allYears}
-            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-          >
-            {YEAR_OPTIONS.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-
-          <label className="inline-flex items-center gap-2 text-xs text-gray-600 whitespace-nowrap">
-            <input
-              type="checkbox"
-              checked={allYears}
-              onChange={(e) => setAllYears(e.target.checked)}
-              className="rounded border-gray-300 text-green-600 focus:ring-green-500"
-            />
-            Include all years
-          </label>
-
-          {/* Export CSV — exports primary data for the active tab */}
-          <button
-            onClick={handleExport}
-            className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-green-700 transition-colors"
-          >
-            ↓ Export CSV
-          </button>
-          <button
-            onClick={handleServerExport}
-            className="inline-flex items-center gap-1.5 rounded-md border border-green-200 bg-white px-4 py-1.5 text-sm font-medium text-green-700 hover:bg-green-50 transition-colors"
-          >
-            Download Server CSV
-          </button>
+        <div className="rounded-xl border border-gray-200 bg-white p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
+          <p className="text-xs uppercase tracking-wide text-gray-500">Donor Retention</p>
+          <p className="mt-1 text-2xl font-semibold text-gray-900">{retention ? `${retention.rate}%` : "-"}</p>
+          <p className="text-xs text-gray-500">Returning donor strength</p>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
+          <p className="text-xs uppercase tracking-wide text-gray-500">Open Follow-ups</p>
+          <p className="mt-1 text-2xl font-semibold text-gray-900">{summary?.pendingTasks?.toLocaleString() ?? "-"}</p>
+          <p className="text-xs text-gray-500">Overdue: {summary?.overdueTasks?.toLocaleString() ?? "-"}</p>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
+          <p className="text-xs uppercase tracking-wide text-gray-500">Active Campaigns</p>
+          <p className="mt-1 text-2xl font-semibold text-gray-900">{summary?.activeCampaigns?.toLocaleString() ?? "-"}</p>
+          <p className="text-xs text-gray-500">Goal: ${fmtCurrency(summary?.activeGoalTotal ?? 0)}</p>
         </div>
       </div>
 
-      <ReportsModuleToolbar
-        activeModule={activeModule}
-        activeTool={activeTool}
-        onModuleChange={handleModuleChange}
-        onToolChange={handleToolChange}
-      />
+      {activeModule === "donor" && donorReportsError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {donorReportsError}
+        </div>
+      )}
+
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div>
 
       {activeModule === "donor" ? (
         <>
@@ -1206,23 +1250,6 @@ export default function ReportsPage() {
               ? `Report totals are scoped to ${year}.`
               : "Report totals are scoped to all years. Retention and LYBUNT/SYBUNT remain year-based."}
           </p>
-
-          {/* ── Tab Navigation ── */}
-          <div className="flex border-b border-gray-200">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab.id
-                    ? "border-green-600 text-green-700"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
           OVERVIEW TAB
@@ -2155,6 +2182,125 @@ export default function ReportsPage() {
           )}
         </div>
       )}
+      </div>
+      <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
+        <aside className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-semibold text-gray-900">Reports &amp; Analytics</h2>
+          <p className="mt-0.5 text-xs text-gray-500">
+            OyamaREPORTIT CRM for donor, events, compassion, and OGentic reporting workflows
+          </p>
+          {summary?.freshness?.dataThrough && (
+            <p className="mt-2 text-xs text-gray-500">
+              Data freshness: through {fmtDate(summary.freshness.dataThrough)} at {new Date(summary.freshness.generatedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+            </p>
+          )}
+
+          <div className="mt-4 space-y-3 border-t border-gray-100 pt-3">
+            <button
+              onClick={toggleGrants}
+              title={includeGrants ? "Grants included in revenue totals - click to exclude" : "Click to include awarded grants in revenue totals"}
+              className={`flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                includeGrants
+                  ? "bg-emerald-50 border-emerald-300 text-emerald-700"
+                  : "bg-gray-50 border-gray-200 text-gray-600 hover:text-gray-700"
+              }`}
+            >
+              <span>Incl. Grants</span>
+              <span className={`relative h-3.5 w-7 rounded-full transition-colors ${includeGrants ? "bg-emerald-400" : "bg-gray-300"}`}>
+                <span className={`absolute top-0.5 h-2.5 w-2.5 rounded-full bg-white shadow transition-all ${includeGrants ? "left-4" : "left-0.5"}`} />
+              </span>
+            </button>
+
+            <select
+              value={year}
+              onChange={(e) => setYear(parseInt(e.target.value, 10))}
+              disabled={allYears}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              {YEAR_OPTIONS.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+
+            <label className="inline-flex items-center gap-2 text-xs text-gray-600 whitespace-nowrap">
+              <input
+                type="checkbox"
+                checked={allYears}
+                onChange={(e) => setAllYears(e.target.checked)}
+                className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+              />
+              Include all years
+            </label>
+
+            <button
+              onClick={handleExport}
+              className="w-full rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors"
+            >
+              ↓ Export CSV
+            </button>
+            <button
+              onClick={handleServerExport}
+              className="w-full rounded-md border border-green-200 bg-white px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50 transition-colors"
+            >
+              Download Server CSV
+            </button>
+            <button
+              onClick={handlePrintCurrentReport}
+              className="w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Print Current Report
+            </button>
+          </div>
+
+          <div className="mt-4">
+            <ReportsModuleToolbar
+              activeModule={activeModule}
+              activeTool={activeTool}
+              onModuleChange={handleModuleChange}
+              onToolChange={handleToolChange}
+            />
+          </div>
+
+          {activeModule === "donor" && (
+            <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-2">
+              <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Tabs</p>
+              <div className="grid grid-cols-1 gap-1">
+                {TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabChange(tab.id)}
+                    className={`rounded-md border px-2 py-1.5 text-left text-xs font-medium transition-colors ${
+                      activeTab === tab.id
+                        ? "border-green-600 bg-white text-green-700"
+                        : "border-transparent bg-white/70 text-gray-600 hover:border-gray-200 hover:text-gray-800"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </aside>
+
+        <OShareviewNotesPanel canPost={canPostShareviewNotes} />
+        <OShareviewBlueprintsPanel
+          canManage={canManageBlueprints}
+          currentConfig={{
+            module: activeModule,
+            tool: activeTool,
+            tab: activeTab as ReportTabId,
+            year,
+            allYears,
+            includeGrants,
+          }}
+          onApply={handleApplyBlueprint}
+        />
+        <OShareviewCoveragePanel />
+      </div>
+      </div>
     </div>
   );
 }

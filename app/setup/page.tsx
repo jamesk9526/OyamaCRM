@@ -52,6 +52,12 @@ interface SetupFormState {
   smtpPort: number;
   smtpFromName: string;
   smtpFromEmail: string;
+  configureInfrastructureLater: boolean;
+  databaseUrl: string;
+  watchdogDatabaseUrl: string;
+  watchdogEncryptionKey: string;
+  jwtSecret: string;
+  nextPublicApiUrl: string;
   inviteTeamLater: boolean;
   teamUsers: TeamUserDraft[];
 }
@@ -108,6 +114,12 @@ export default function SetupPage() {
     smtpPort: 587,
     smtpFromName: "",
     smtpFromEmail: "",
+    configureInfrastructureLater: true,
+    databaseUrl: "",
+    watchdogDatabaseUrl: "",
+    watchdogEncryptionKey: "",
+    jwtSecret: "",
+    nextPublicApiUrl: API,
     inviteTeamLater: true,
     teamUsers: [],
   });
@@ -280,6 +292,15 @@ export default function SetupPage() {
             smtpFromName: form.configureSmtpLater ? undefined : form.smtpFromName,
             smtpFromEmail: form.configureSmtpLater ? undefined : form.smtpFromEmail,
           },
+          environment: form.configureInfrastructureLater
+            ? undefined
+            : {
+                databaseUrl: form.databaseUrl || undefined,
+                watchdogDatabaseUrl: form.watchdogDatabaseUrl || undefined,
+                watchdogEncryptionKey: form.watchdogEncryptionKey || undefined,
+                jwtSecret: form.jwtSecret || undefined,
+                nextPublicApiUrl: form.nextPublicApiUrl || undefined,
+              },
           goals,
           teamUsers,
           adminUser: {
@@ -334,6 +355,12 @@ export default function SetupPage() {
       {
         label: "Team Invites",
         value: form.inviteTeamLater ? "Invite later" : `${form.teamUsers.length} queued user(s)`,
+      },
+      {
+        label: "Infrastructure",
+        value: form.configureInfrastructureLater
+          ? "Use existing environment values"
+          : "Save DB/env values into .env (restart may be required)",
       },
       { label: "Admin", value: `${form.adminFirstName} ${form.adminLastName}`.trim() || "Not set" },
       { label: "Admin Email", value: form.adminEmail || "Not set" },
@@ -392,6 +419,7 @@ export default function SetupPage() {
                   {[
                     "Fundraising goals and dashboard defaults",
                     "Timezone, fiscal year, currency, and email defaults",
+                    "Optional database and environment bootstrap values",
                     "Workspace setup for DonorCRM and Compassion CRM",
                     "Admin account plus optional team onboarding",
                   ].map((item) => (
@@ -584,6 +612,75 @@ export default function SetupPage() {
                       onChange={(e) => setField("smtpFromEmail", e.target.value)}
                       className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg disabled:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
                       placeholder="giving@example.org"
+                    />
+                  </label>
+                </div>
+
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={form.configureInfrastructureLater}
+                    onChange={(e) => setField("configureInfrastructureLater", e.target.checked)}
+                    className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  />
+                  Configure database and environment values later
+                </label>
+
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Infrastructure values are saved to the server .env file. Some values may require restarting services to fully apply.
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <label className="text-sm text-gray-600">
+                    Primary DATABASE_URL
+                    <input
+                      value={form.databaseUrl}
+                      disabled={form.configureInfrastructureLater}
+                      onChange={(e) => setField("databaseUrl", e.target.value)}
+                      className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg disabled:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      placeholder="mysql://user:password@localhost:3306/oyamacrm"
+                    />
+                  </label>
+                  <label className="text-sm text-gray-600">
+                    WATCHDOG_DATABASE_URL
+                    <input
+                      value={form.watchdogDatabaseUrl}
+                      disabled={form.configureInfrastructureLater}
+                      onChange={(e) => setField("watchdogDatabaseUrl", e.target.value)}
+                      className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg disabled:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      placeholder="mysql://user:password@localhost:3306/oyama_watchdog"
+                    />
+                  </label>
+                  <label className="text-sm text-gray-600">
+                    WATCHDOG_ENCRYPTION_KEY
+                    <input
+                      type="password"
+                      value={form.watchdogEncryptionKey}
+                      disabled={form.configureInfrastructureLater}
+                      onChange={(e) => setField("watchdogEncryptionKey", e.target.value)}
+                      className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg disabled:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      placeholder="hex key or passphrase"
+                    />
+                  </label>
+                  <label className="text-sm text-gray-600">
+                    JWT_SECRET
+                    <input
+                      type="password"
+                      value={form.jwtSecret}
+                      disabled={form.configureInfrastructureLater}
+                      onChange={(e) => setField("jwtSecret", e.target.value)}
+                      className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg disabled:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      placeholder="replace-with-a-long-random-secret"
+                    />
+                  </label>
+                  <label className="text-sm text-gray-600 sm:col-span-2">
+                    NEXT_PUBLIC_API_URL
+                    <input
+                      value={form.nextPublicApiUrl}
+                      disabled={form.configureInfrastructureLater}
+                      onChange={(e) => setField("nextPublicApiUrl", e.target.value)}
+                      className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg disabled:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      placeholder="http://localhost:4000"
                     />
                   </label>
                 </div>

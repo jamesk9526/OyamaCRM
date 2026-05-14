@@ -13,6 +13,7 @@ interface Props {
   onCreateEmailDraft?: (id: string) => void;
   onCreateCallTask?: (id: string) => void;
   onStartPath?: (id: string) => void;
+  onCompleteStewardshipLoop?: (id: string) => void;
   acknowledgingDonationId?: string | null;
   actionBusyDonationId?: string | null;
 }
@@ -48,6 +49,7 @@ export default function DonationTable({
   onCreateEmailDraft,
   onCreateCallTask,
   onStartPath,
+  onCompleteStewardshipLoop,
   acknowledgingDonationId,
   actionBusyDonationId,
 }: Props) {
@@ -135,6 +137,14 @@ export default function DonationTable({
             </div>
 
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => onCompleteStewardshipLoop?.(d.id)}
+                disabled={!onCompleteStewardshipLoop || actionBusyDonationId === d.id}
+                className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-emerald-800 bg-emerald-100 border border-emerald-300 rounded-md hover:bg-emerald-200 disabled:opacity-60"
+              >
+                {actionBusyDonationId === d.id ? "Running..." : "Complete Loop"}
+              </button>
               <Link
                 href={`/letters-printables/generate?constituentId=${d.constituent.id}&donationId=${d.id}`}
                 className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-green-700 bg-green-50 border border-green-200 rounded-md hover:bg-green-100"
@@ -256,6 +266,14 @@ export default function DonationTable({
                   )}
                 </div>
                 <div className="mt-1 flex items-center gap-1 justify-end flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => onCompleteStewardshipLoop?.(d.id)}
+                    disabled={!onCompleteStewardshipLoop || actionBusyDonationId === d.id}
+                    className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-emerald-800 bg-emerald-100 border border-emerald-300 rounded-md hover:bg-emerald-200 disabled:opacity-60"
+                  >
+                    {actionBusyDonationId === d.id ? "Running..." : "Complete Loop"}
+                  </button>
                   <Link
                     href={`/letters-printables/generate?constituentId=${d.constituent.id}&donationId=${d.id}`}
                     className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-green-700 bg-green-50 border border-green-200 rounded-md hover:bg-green-100"

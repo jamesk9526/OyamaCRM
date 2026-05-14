@@ -53,11 +53,14 @@ import stewardAiRoutes from "./routes/steward-ai.js";
 import communicationsAiRoutes from "./routes/communications-ai.js";
 import hrmRoutes from "./routes/hrm.js";
 import watchdogRoutes from "./routes/watchdog.js";
+import watchdogOpsRoutes from "./routes/watchdog-ops.js";
 import feedbackRoutes from "./routes/feedback.js";
 import watchdogFeedbackTicketRoutes from "./routes/watchdog-feedback-tickets.js";
 import webmasterRoutes from "./routes/webmaster.js";
 import liveComRoutes from "./routes/livecom.js";
 import siteEmbedsRoutes from "./routes/site-embeds.js";
+import oyamaPasswordRoutes from "./routes/oyama-password.js";
+import triviaRoutes from "./routes/trivia.js";
 import { prisma } from "./lib/prisma.js";
 import { getAppInfo } from "./lib/app-info.js";
 import { getEmailQueueWorkerStatus, startEmailQueueWorker } from "./services/email-queue-worker.js";
@@ -228,9 +231,12 @@ app.use("/api/hrm", hrmRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/watchdog/feedback-tickets", watchdogFeedbackTicketRoutes);
 app.use("/api/watchdog", watchdogRoutes);
+app.use("/api/watchdog", watchdogOpsRoutes);
 app.use("/api/webmaster", webmasterRoutes);
+app.use("/api/oyama-password", oyamaPasswordRoutes);
 app.use("/api/livecom", liveComRoutes);
 app.use("/api/site-embeds", siteEmbedsRoutes);
+app.use("/api/apps/trivia", triviaRoutes);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 

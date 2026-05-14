@@ -16,6 +16,21 @@ interface DonationStats {
   recurring: number;
 }
 
+interface LoopActionResult {
+  status: "CREATED" | "REUSED" | "SKIPPED";
+  id?: string;
+  reason?: string;
+}
+
+interface StewardshipLoopResponse {
+  donationId: string;
+  constituentId: string;
+  emailDraft: LoopActionResult;
+  followUpTask: LoopActionResult;
+  pathEnrollment: LoopActionResult;
+  redirectTo: string;
+}
+
 /** Returns YYYY-MM-DD strings for Jan 1 of current year through today's date. */
 function getCurrentYearDateInputs(): { from: string; to: string } {
   const now = new Date();
@@ -175,6 +190,36 @@ export default function DonationsPage() {
     }
   }
 
+  /** Runs the complete donation stewardship loop in one API call. */
+  async function handleCompleteStewardshipLoop(id: string) {
+    setActionBusyDonationId(id);
+    try {
+      const payload = await apiFetch<StewardshipLoopResponse>(`/api/donations/${id}/quick-actions/stewardship-loop`, {
+        method: "POST",
+      });
+
+      const lines = [
+        `Email Draft: ${payload.emailDraft.status}${payload.emailDraft.reason ? ` (${payload.emailDraft.reason})` : ""}`,
+        `Follow-up Task: ${payload.followUpTask.status}${payload.followUpTask.reason ? ` (${payload.followUpTask.reason})` : ""}`,
+        `Steward Path: ${payload.pathEnrollment.status}${payload.pathEnrollment.reason ? ` (${payload.pathEnrollment.reason})` : ""}`,
+      ];
+
+      const shouldNavigate = window.confirm(
+        `Donation stewardship loop completed.\n\n${lines.join("\n")}\n\nOpen the next workspace now?`,
+      );
+
+      await load();
+
+      if (shouldNavigate && payload.redirectTo) {
+        router.push(payload.redirectTo);
+      }
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to complete stewardship loop.");
+    } finally {
+      setActionBusyDonationId(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -216,8 +261,8 @@ export default function DonationsPage() {
       <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Donation Acknowledgment Workflow</p>
         <p className="mt-1 text-sm text-emerald-900">
-          Use donation quick actions to move each gift into stewardship: generate a thank-you letter, prepare an email draft,
-          create a call task, start a steward path, and mark the gift as thanked.
+          Use Complete Loop for one-click stewardship orchestration (email draft, follow-up task, and steward path),
+          or run individual quick actions for letter generation and acknowledgment tracking.
         </p>
       </section>
 
@@ -272,6 +317,7 @@ export default function DonationsPage() {
             onCreateEmailDraft={handleCreateEmailDraft}
             onCreateCallTask={handleCreateCallTask}
             onStartPath={handleStartPath}
+            onCompleteStewardshipLoop={handleCompleteStewardshipLoop}
             acknowledgingDonationId={acknowledgingDonationId}
             actionBusyDonationId={actionBusyDonationId}
           />
