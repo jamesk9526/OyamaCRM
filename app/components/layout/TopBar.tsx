@@ -873,6 +873,7 @@ export default function TopBar() {
     setNotificationsOpen(false);
     setMobileQuickOpen(false);
     setAppsOpen(false);
+    setFeedbackOpen(false);
   }, [stewardMode]);
 
   // Subtle color response when navigation context changes.
@@ -937,6 +938,7 @@ export default function TopBar() {
     setNotificationsOpen(false);
     setMobileQuickOpen(false);
     setAppsOpen(false);
+    setFeedbackOpen(false);
     setStewardMode((current) => (current === "collapsed" ? "popout" : "collapsed"));
   }, []);
 
