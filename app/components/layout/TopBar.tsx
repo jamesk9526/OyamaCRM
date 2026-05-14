@@ -867,6 +867,14 @@ export default function TopBar() {
     setStewardMode((current) => (current === "collapsed" ? "popout" : current));
   }, [searchParams]);
 
+  // Keep assistant chat unobstructed by auxiliary topbar sheets when it is open.
+  useEffect(() => {
+    if (stewardMode === "collapsed") return;
+    setNotificationsOpen(false);
+    setMobileQuickOpen(false);
+    setAppsOpen(false);
+  }, [stewardMode]);
+
   // Subtle color response when navigation context changes.
   useEffect(() => {
     triggerTopBarReactiveGlow();
@@ -923,6 +931,14 @@ export default function TopBar() {
       setAnalyzingSignals(false);
     }
   }, [isStewardSignalsWorkspace, analyzingSignals]);
+
+  /** Toggles assistant visibility while closing potentially overlapping topbar surfaces. */
+  const toggleStewardAssistant = useCallback(() => {
+    setNotificationsOpen(false);
+    setMobileQuickOpen(false);
+    setAppsOpen(false);
+    setStewardMode((current) => (current === "collapsed" ? "popout" : "collapsed"));
+  }, []);
 
   return (
     <>
@@ -1126,7 +1142,7 @@ export default function TopBar() {
           {/* AI Assistant */}
           <button
             title="Open Steward AI Assistant"
-            onClick={() => setStewardMode((current) => (current === "collapsed" ? "popout" : "collapsed"))}
+            onClick={toggleStewardAssistant}
             className={`${chromeButtonBase} relative group ${stewardMode !== "collapsed" ? iconActiveTone : "text-white/90 hover:text-white hover:bg-white/14 hover:border-white/30 hover:-translate-y-px"}`}
           >
             <SparklesIcon className="w-5 h-5" />
@@ -1263,7 +1279,7 @@ export default function TopBar() {
                 <button
                   onClick={() => {
                     setMobileQuickOpen(false);
-                    setStewardMode((current) => (current === "collapsed" ? "popout" : "collapsed"));
+                    toggleStewardAssistant();
                   }}
                   className="w-full min-h-11 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-medium text-left"
                 >

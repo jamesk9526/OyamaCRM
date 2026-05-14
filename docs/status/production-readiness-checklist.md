@@ -1,6 +1,6 @@
 # Production Readiness Checklist
 
-Last updated: 2026-05-13 (donor browser QA and validation refresh)
+Last updated: 2026-05-14 (standalone bridge + steward structured artifacts pass)
 
 This file is the release-gate source of truth for production readiness.
 
@@ -13,6 +13,22 @@ Use only these status labels:
 - Demo Only
 - Broken
 - Not Implemented
+
+## Standalone Bridge + Structured Artifacts Snapshot (2026-05-14)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Standalone bridge desktop shell and controls | Working | `OyamaBridgeDesktopServer/main.js`, `OyamaBridgeDesktopServer/renderer.js` |
+| Bridge proxy health/auth/CORS/log behavior | Working | `OyamaBridgeDesktopServer/bridge-server.js`, `OyamaBridgeDesktopServer/tests/bridge-server.test.js` |
+| Startup launch + hidden + autostart persistence | Working | `OyamaBridgeDesktopServer/main.js` |
+| Steward donor/report structured parse + transport (`structured`) | Working | `server/src/routes/steward-ai.ts` |
+| Chat artifact rendering cards and response renderer | Working | `app/components/ai/StewardResponseRenderer.tsx`, `app/components/ai/artifacts/*`, `app/components/ai/StewardChatPanel.tsx` |
+| Structured suggested-action execution endpoints and UI binding | Not Implemented | `app/components/ai/StewardResponseRenderer.tsx` |
+
+Notes:
+
+- This snapshot is feature-level evidence only and does not replace full release-gate validation lanes.
+- Full production-readiness gate remains governed by lint/typecheck/test/build/db command evidence below.
 
 ## Documentation Governance Alignment (2026-05-13)
 

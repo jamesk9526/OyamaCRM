@@ -6,8 +6,14 @@
  *
  * Routes:
  *   GET  /api/steward-signals/summary
+ *   GET  /api/steward-signals/daily-thought
+ *   POST /api/steward-signals/daily-thought/regenerate
+ *   GET  /api/steward-signals/growth-ideas
  *   GET  /api/steward-signals/opportunities
  *   GET  /api/steward-signals/lapse-radar
+ *   POST /api/steward-signals/email-draft
+ *   POST /api/steward-signals/email-draft/save
+ *   POST /api/steward-signals/email-draft/create-follow-up-task
  *   GET  /api/steward-signals/donors/:id/widget
  *   POST /api/steward-signals/opportunities/:id/create-task
  *   POST /api/steward-signals/opportunities/:id/draft-email
@@ -19,12 +25,28 @@ import { Router } from "express";
 import type { DonorStatus, Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { requireRole } from "../middleware/requireRole.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
 import { parseStewardAiConfig, runStewardAiChat } from "../services/steward-ai-ollama.js";
+import {
+  buildDailyStewardThoughtFallback,
+  buildDeterministicEmailDraft,
+  buildGrowthIdeas,
+  calculateLapseRisk as calculateIntelligenceLapseRisk,
+  calculatePropensityWindow,
+  calculateRfmScore,
+  normalizeDailyThoughtAiResponse,
+  type DailyStewardThought,
+  type DailyThoughtContext,
+  type EmailDraftStudioArtifact,
+  type EmailDraftStudioInput,
+  type StewardIntelligenceDonorInput,
+} from "../services/steward-intelligence-engine.js";
 
 const router = Router();
 const STEWARD_SIGNALS_INDEX_PLUGIN_KEY = "steward_signals_index";
+const STEWARD_DAILY_THOUGHT_PLUGIN_KEY = "steward_daily_thought";
 const STEWARD_AI_PLUGIN_KEY = "steward_ai";
 const STEWARD_SIGNAL_FIELD_KEYS = {
   generosity: "demoStewardGenerosityScore",
@@ -104,6 +126,32 @@ interface StewardRebuildResponse {
   rebuilt: boolean;
   reason: string;
   state: StewardIndexState;
+}
+
+interface DailyThoughtRecord {
+  dateKey: string;
+  generatedAt: string;
+  generatedByUserId: string | null;
+  thought: DailyStewardThought;
+  context: DailyThoughtContext;
+  aiError: string | null;
+}
+
+interface EmailDraftStudioRequestPayload {
+  donorId?: string;
+  donorName?: string;
+  donorFirstName?: string;
+  messageGoal?: EmailDraftStudioInput["messageGoal"];
+  messageIdea?: string;
+  tone?: EmailDraftStudioInput["tone"];
+  length?: EmailDraftStudioInput["length"];
+  includeGivingContext?: boolean;
+  includeCampaignContext?: boolean;
+  includeMinistryImpact?: boolean;
+  callToAction?: string;
+  signature?: string;
+  useAi?: boolean;
+  saveAsDraft?: boolean;
 }
 
 /** Returns whether Steward AI is enabled for the active organization. */
@@ -236,6 +284,41 @@ function parseGeneratedDraft(raw: string, donorFirstName: string): ParsedEmailDr
     previewText: (previewText || fallback.previewText).slice(0, 220),
     bodyText: (bodyText || fallback.bodyText).slice(0, 6000),
   };
+}
+
+/** Parses AI output into the Email Draft Studio artifact contract with deterministic fallback. */
+function parseStudioAiDraft(raw: string, fallback: EmailDraftStudioArtifact): EmailDraftStudioArtifact {
+  const cleaned = String(raw ?? "").trim();
+  if (!cleaned) return fallback;
+
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return fallback;
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+    const subject = asString(parsed.subject, fallback.subject).trim().slice(0, 180);
+    const previewText = asString(parsed.previewText, fallback.previewText).trim().slice(0, 220);
+    const bodyMarkdown = asString(parsed.bodyMarkdown, asString(parsed.bodyText, fallback.bodyMarkdown)).trim();
+    const bodyPlainText = asString(parsed.bodyPlainText, bodyMarkdown || fallback.bodyPlainText).trim();
+    const bodyHtml = asString(parsed.bodyHtml, bodyTextToHtml(bodyPlainText || fallback.bodyPlainText)).trim();
+    const warnings = Array.isArray(parsed.warnings)
+      ? parsed.warnings.map((item) => asString(item, "").trim()).filter(Boolean).slice(0, 10)
+      : fallback.warnings;
+
+    if (!subject || !bodyPlainText) return fallback;
+
+    return {
+      ...fallback,
+      subject,
+      previewText,
+      bodyMarkdown: (bodyMarkdown || bodyPlainText).slice(0, 8000),
+      bodyPlainText: bodyPlainText.slice(0, 8000),
+      bodyHtml: bodyHtml.slice(0, 12000),
+      warnings,
+    };
+  } catch {
+    return fallback;
+  }
 }
 
 /** Returns a user-facing label for opportunity kind values embedded in opportunity IDs. */
@@ -1062,6 +1145,260 @@ async function loadOpportunityContext(organizationId: string, userId?: string): 
   });
 }
 
+/** Generates a stable UTC date key used for once-per-day thought persistence. */
+function toUtcDateKey(date = new Date()): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/** Parses plugin config payload into a typed daily-thought record when valid. */
+function parseDailyThoughtRecord(raw: unknown): DailyThoughtRecord | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const candidate = raw as Record<string, unknown>;
+  const thoughtRaw = candidate.thought;
+  const contextRaw = candidate.context;
+
+  if (!thoughtRaw || typeof thoughtRaw !== "object" || Array.isArray(thoughtRaw)) return null;
+  if (!contextRaw || typeof contextRaw !== "object" || Array.isArray(contextRaw)) return null;
+
+  const thoughtCandidate = thoughtRaw as Record<string, unknown>;
+  const contextCandidate = contextRaw as Record<string, unknown>;
+  const sourceRaw = asString(thoughtCandidate.sourceType, "rules");
+
+  const thought: DailyStewardThought = {
+    title: asString(thoughtCandidate.title, "Today's Steward Thought").slice(0, 100),
+    message: asString(thoughtCandidate.message, "").slice(0, 500),
+    reason: asString(thoughtCandidate.reason, "").slice(0, 240),
+    sourceType: sourceRaw === "ai" ? "ai" : "rules",
+  };
+
+  if (!thought.message) return null;
+
+  return {
+    dateKey: asString(candidate.dateKey, ""),
+    generatedAt: asString(candidate.generatedAt, new Date(0).toISOString()),
+    generatedByUserId: asString(candidate.generatedByUserId, "") || null,
+    aiError: asString(candidate.aiError, "") || null,
+    thought,
+    context: {
+      firstTimeDonorsThisMonth: Math.max(0, Math.round(asNumber(contextCandidate.firstTimeDonorsThisMonth, 0))),
+      thankYousNeeded: Math.max(0, Math.round(asNumber(contextCandidate.thankYousNeeded, 0))),
+      atRiskCount: Math.max(0, Math.round(asNumber(contextCandidate.atRiskCount, 0))),
+      monthlyGivingCandidates: Math.max(0, Math.round(asNumber(contextCandidate.monthlyGivingCandidates, 0))),
+      highOpportunityCount: Math.max(0, Math.round(asNumber(contextCandidate.highOpportunityCount, 0))),
+    },
+  };
+}
+
+/** Loads donor rows required by deterministic intelligence scoring helpers. */
+async function loadStewardIntelligenceInputs(organizationId: string): Promise<StewardIntelligenceDonorInput[]> {
+  const constituents = await prisma.constituent.findMany({
+    where: { organizationId },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      donorStatus: true,
+      giftCount: true,
+      totalLifetimeGiving: true,
+      lastGiftAmount: true,
+      firstGiftDate: true,
+      lastGiftDate: true,
+      engagementScore: true,
+      doNotEmail: true,
+      doNotCall: true,
+    },
+    orderBy: [{ updatedAt: "desc" }],
+    take: 4000,
+  });
+
+  return constituents.map((constituent) => ({
+    id: constituent.id,
+    firstName: constituent.firstName,
+    lastName: constituent.lastName,
+    donorStatus: constituent.donorStatus,
+    giftCount: constituent.giftCount,
+    totalLifetimeGiving: asNumber(constituent.totalLifetimeGiving, 0),
+    lastGiftAmount: asNumber(constituent.lastGiftAmount, 0),
+    firstGiftDate: constituent.firstGiftDate,
+    lastGiftDate: constituent.lastGiftDate,
+    engagementScore: constituent.engagementScore,
+    doNotEmail: constituent.doNotEmail,
+    doNotCall: constituent.doNotCall,
+  }));
+}
+
+/** Computes deterministic counts used by Daily Thought fallback selection. */
+async function buildDailyThoughtContext(organizationId: string, userId?: string): Promise<DailyThoughtContext> {
+  await ensureStewardSignalsIndexCurrent(organizationId);
+
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const nextMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+
+  const [opportunities, recentDonations, pendingThankYous, firstTimeDonorsThisMonth] = await Promise.all([
+    loadOpportunityContext(organizationId, userId),
+    prisma.donation.findMany({
+      where: {
+        constituent: { organizationId },
+        status: "COMPLETED",
+        date: { gte: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) },
+      },
+      select: {
+        constituentId: true,
+        isRecurring: true,
+      },
+      take: 12000,
+    }),
+    prisma.task.count({
+      where: {
+        constituent: { organizationId },
+        type: "THANK_YOU",
+        status: { in: ["PENDING", "IN_PROGRESS"] },
+      },
+    }),
+    prisma.constituent.count({
+      where: {
+        organizationId,
+        firstGiftDate: {
+          gte: monthStart,
+          lt: nextMonthStart,
+        },
+      },
+    }),
+  ]);
+
+  const donationCountByConstituent = new Map<string, { total: number; recurring: number }>();
+  for (const donation of recentDonations) {
+    const entry = donationCountByConstituent.get(donation.constituentId) ?? { total: 0, recurring: 0 };
+    entry.total += 1;
+    if (donation.isRecurring) entry.recurring += 1;
+    donationCountByConstituent.set(donation.constituentId, entry);
+  }
+
+  const monthlyGivingCandidates = Array.from(donationCountByConstituent.values()).filter(
+    (entry) => entry.total >= 3 && entry.recurring === 0
+  ).length;
+
+  const atRiskCount = opportunities.filter((item) => item.lapseRisk === "HIGH" || item.lapseRisk === "CRITICAL").length;
+  const highOpportunityCount = opportunities.filter((item) => item.opportunityScore >= 78).length;
+
+  return {
+    firstTimeDonorsThisMonth,
+    thankYousNeeded: pendingThankYous,
+    atRiskCount,
+    monthlyGivingCandidates,
+    highOpportunityCount,
+  };
+}
+
+/** Returns existing thought when fresh, otherwise computes and persists a new daily thought entry. */
+async function getOrCreateDailyThought(params: {
+  organizationId: string;
+  userId?: string;
+  forceRegenerate?: boolean;
+}): Promise<DailyThoughtRecord> {
+  const dateKey = toUtcDateKey();
+
+  const existingSetting = await prisma.pluginSetting.findUnique({
+    where: {
+      organizationId_pluginKey: {
+        organizationId: params.organizationId,
+        pluginKey: STEWARD_DAILY_THOUGHT_PLUGIN_KEY,
+      },
+    },
+    select: {
+      config: true,
+    },
+  });
+
+  const parsedExisting = parseDailyThoughtRecord(existingSetting?.config);
+  if (parsedExisting && parsedExisting.dateKey === dateKey && !params.forceRegenerate) {
+    return parsedExisting;
+  }
+
+  const context = await buildDailyThoughtContext(params.organizationId, params.userId);
+  const fallbackThought = buildDailyStewardThoughtFallback(context);
+
+  let thought = fallbackThought;
+  let aiError: string | null = null;
+
+  const aiEnabled = await isStewardAiEnabled(params.organizationId);
+  if (aiEnabled) {
+    try {
+      const setting = await prisma.pluginSetting.findUnique({
+        where: {
+          organizationId_pluginKey: {
+            organizationId: params.organizationId,
+            pluginKey: STEWARD_AI_PLUGIN_KEY,
+          },
+        },
+        select: {
+          config: true,
+        },
+      });
+
+      const aiConfig = parseStewardAiConfig(setting?.config ?? {});
+      const aiPrompt = [
+        "Generate one concise daily stewardship thought for nonprofit fundraising staff.",
+        "Return JSON only with keys: title, message, reason.",
+        "Constraints: title <= 70 chars, message <= 320 chars, reason <= 180 chars.",
+        "Avoid over-claiming and keep the message practical and donor-centered.",
+        "Signal context:",
+        `- firstTimeDonorsThisMonth: ${context.firstTimeDonorsThisMonth}`,
+        `- thankYousNeeded: ${context.thankYousNeeded}`,
+        `- atRiskCount: ${context.atRiskCount}`,
+        `- monthlyGivingCandidates: ${context.monthlyGivingCandidates}`,
+        `- highOpportunityCount: ${context.highOpportunityCount}`,
+      ].join("\n");
+
+      const aiResult = await runStewardAiChat(
+        aiConfig,
+        [{ role: "user", content: aiPrompt }],
+        {
+          model: aiConfig.model,
+          temperature: 0.22,
+          maxTokens: 420,
+        }
+      );
+
+      thought = normalizeDailyThoughtAiResponse(aiResult.content, fallbackThought);
+    } catch (error) {
+      aiError = error instanceof Error ? error.message : "AI daily thought generation failed.";
+    }
+  }
+
+  const generatedAt = new Date().toISOString();
+  const record: DailyThoughtRecord = {
+    dateKey,
+    generatedAt,
+    generatedByUserId: params.userId ?? null,
+    thought,
+    context,
+    aiError,
+  };
+
+  await prisma.pluginSetting.upsert({
+    where: {
+      organizationId_pluginKey: {
+        organizationId: params.organizationId,
+        pluginKey: STEWARD_DAILY_THOUGHT_PLUGIN_KEY,
+      },
+    },
+    create: {
+      organizationId: params.organizationId,
+      pluginKey: STEWARD_DAILY_THOUGHT_PLUGIN_KEY,
+      enabled: true,
+      config: record as unknown as Prisma.InputJsonValue,
+    },
+    update: {
+      enabled: true,
+      config: record as unknown as Prisma.InputJsonValue,
+    },
+  });
+
+  return record;
+}
+
 /**
  * GET /api/steward-signals/index/state
  * Returns persisted analysis index status for Steward Signals workspace.
@@ -1233,6 +1570,143 @@ router.get("/summary", async (req, res) => {
 });
 
 /**
+ * GET /api/steward-signals/daily-thought
+ * Returns one persisted daily thought per organization per UTC day.
+ */
+router.get("/daily-thought", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  const userRole = asString(req.user?.role, "").toLowerCase();
+  const canRegenerate = userRole === "admin" || userRole === "super_admin";
+
+  if (!organizationId) {
+    const fallback = buildDailyStewardThoughtFallback({
+      firstTimeDonorsThisMonth: 0,
+      thankYousNeeded: 0,
+      atRiskCount: 0,
+      monthlyGivingCandidates: 0,
+      highOpportunityCount: 0,
+    });
+
+    res.json({
+      thought: fallback,
+      dateKey: toUtcDateKey(),
+      generatedAt: new Date().toISOString(),
+      context: {
+        firstTimeDonorsThisMonth: 0,
+        thankYousNeeded: 0,
+        atRiskCount: 0,
+        monthlyGivingCandidates: 0,
+        highOpportunityCount: 0,
+      },
+      canRegenerate,
+    });
+    return;
+  }
+
+  const record = await getOrCreateDailyThought({
+    organizationId,
+    userId: req.user?.sub,
+    forceRegenerate: false,
+  });
+
+  res.json({
+    thought: record.thought,
+    dateKey: record.dateKey,
+    generatedAt: record.generatedAt,
+    context: record.context,
+    canRegenerate,
+    ...(canRegenerate && record.aiError ? { aiError: record.aiError } : {}),
+  });
+});
+
+/**
+ * POST /api/steward-signals/daily-thought/regenerate
+ * Admin-only forced regeneration for the daily thought card.
+ */
+router.post("/daily-thought/regenerate", requireRole("admin"), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const record = await getOrCreateDailyThought({
+    organizationId,
+    userId: req.user?.sub,
+    forceRegenerate: true,
+  });
+
+  await logAudit({
+    action: "STEWARD_DAILY_THOUGHT_REGENERATED",
+    entity: "PluginSetting",
+    entityId: STEWARD_DAILY_THOUGHT_PLUGIN_KEY,
+    userId: req.user?.sub,
+    organizationId,
+    metadata: {
+      dateKey: record.dateKey,
+      sourceType: record.thought.sourceType,
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({
+    thought: record.thought,
+    dateKey: record.dateKey,
+    generatedAt: record.generatedAt,
+    context: record.context,
+    aiError: record.aiError,
+  });
+});
+
+/**
+ * GET /api/steward-signals/growth-ideas
+ * Returns deterministic growth opportunities with explainable donor counts.
+ */
+router.get("/growth-ideas", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json({
+      ideas: [],
+      scoringSummary: {
+        averageRfm: 0,
+        highPropensityWindowCount: 0,
+        atRiskCount: 0,
+      },
+      updatedAt: new Date().toISOString(),
+    });
+    return;
+  }
+
+  const parsedLimit = Number.parseInt((req.query.limit as string) ?? "6", 10);
+  const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 12) : 6;
+
+  const donorInputs = await loadStewardIntelligenceInputs(organizationId);
+  const ideas = buildGrowthIdeas(donorInputs).slice(0, limit);
+
+  const rfmValues = donorInputs.map((item) => calculateRfmScore(item).score);
+  const propensityWindowCount = donorInputs.filter((item) => calculatePropensityWindow(item).window === "0-30").length;
+  const atRiskCount = donorInputs.filter((item) => {
+    const risk = calculateIntelligenceLapseRisk(item).risk;
+    return risk === "HIGH" || risk === "CRITICAL";
+  }).length;
+
+  const averageRfm = rfmValues.length > 0
+    ? Math.round(rfmValues.reduce((total, value) => total + value, 0) / rfmValues.length)
+    : 0;
+
+  res.json({
+    ideas,
+    scoringSummary: {
+      averageRfm,
+      highPropensityWindowCount: propensityWindowCount,
+      atRiskCount,
+    },
+    updatedAt: new Date().toISOString(),
+  });
+});
+
+/**
  * GET /api/steward-signals/opportunities?limit=50
  * Returns explainable opportunity queue records for action review.
  */
@@ -1358,6 +1832,417 @@ router.get("/lapse-radar", async (req, res) => {
     cohorts,
     sample,
     updatedAt: indexRefresh.state.lastIndexedAt,
+  });
+});
+
+/**
+ * POST /api/steward-signals/email-draft
+ * Generates a steward email draft artifact from explicit user form input.
+ */
+router.post("/email-draft", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const payload = (req.body ?? {}) as EmailDraftStudioRequestPayload;
+  const donorId = asString(payload.donorId, "").trim();
+
+  const donor = donorId
+    ? await prisma.constituent.findFirst({
+      where: {
+        id: donorId,
+        organizationId,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        donorStatus: true,
+        giftCount: true,
+        totalLifetimeGiving: true,
+        lastGiftAmount: true,
+        doNotEmail: true,
+        doNotCall: true,
+        doNotMail: true,
+        doNotContact: true,
+      },
+    })
+    : null;
+
+  if (donorId && !donor) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Constituent not found for donorId." } });
+    return;
+  }
+
+  const donorName = donor
+    ? `${donor.firstName} ${donor.lastName}`
+    : asString(payload.donorName, "").trim() || "Constituent";
+  const donorFirstName = donor
+    ? donor.firstName
+    : asString(payload.donorFirstName, "").trim() || donorName.split(" ")[0] || "Friend";
+
+  const studioInput: EmailDraftStudioInput = {
+    donorName,
+    donorFirstName,
+    messageGoal: payload.messageGoal ?? "GENERAL_STEWARDSHIP",
+    messageIdea: asString(payload.messageIdea, "").trim().slice(0, 1000),
+    tone: payload.tone ?? "WARM",
+    length: payload.length ?? "MEDIUM",
+    includeGivingContext: payload.includeGivingContext ?? true,
+    includeCampaignContext: payload.includeCampaignContext ?? false,
+    includeMinistryImpact: payload.includeMinistryImpact ?? true,
+    callToAction: asString(payload.callToAction, "").trim().slice(0, 360),
+    signature: asString(payload.signature, "With gratitude,\n[Your Name]").trim().slice(0, 260),
+  };
+
+  let artifact = buildDeterministicEmailDraft(studioInput);
+  const warningSet = new Set<string>(artifact.warnings);
+  if (donor?.doNotEmail || donor?.doNotContact) {
+    warningSet.add("Do not email flag is active for this donor. Use non-email outreach unless overridden by policy.");
+  }
+  if (donor?.doNotCall) {
+    warningSet.add("Phone outreach restriction is active for this donor.");
+  }
+  if (donor?.doNotMail) {
+    warningSet.add("Mail outreach restriction is active for this donor.");
+  }
+
+  let aiUsed = false;
+  let aiError: string | null = null;
+
+  if (payload.useAi) {
+    const aiEnabled = await isStewardAiEnabled(organizationId);
+    if (aiEnabled) {
+      try {
+        const setting = await prisma.pluginSetting.findUnique({
+          where: {
+            organizationId_pluginKey: {
+              organizationId,
+              pluginKey: STEWARD_AI_PLUGIN_KEY,
+            },
+          },
+          select: {
+            config: true,
+          },
+        });
+
+        const aiConfig = parseStewardAiConfig(setting?.config ?? {});
+
+        const aiPrompt = [
+          "You are drafting a nonprofit donor outreach email for staff review.",
+          "Return JSON only with keys: subject, previewText, bodyMarkdown, bodyPlainText, bodyHtml, warnings.",
+          "Respect communication preferences and do not claim actions already completed.",
+          `Donor name: ${studioInput.donorName}`,
+          `Goal: ${studioInput.messageGoal}`,
+          `Tone: ${studioInput.tone}`,
+          `Length: ${studioInput.length}`,
+          `Message idea: ${studioInput.messageIdea || "(none supplied)"}`,
+          `Call to action: ${studioInput.callToAction || "(none supplied)"}`,
+          `Include giving context: ${studioInput.includeGivingContext}`,
+          `Include campaign context: ${studioInput.includeCampaignContext}`,
+          `Include ministry impact: ${studioInput.includeMinistryImpact}`,
+          `Draft signature: ${studioInput.signature}`,
+        ].join("\n");
+
+        const aiResult = await runStewardAiChat(
+          aiConfig,
+          [{ role: "user", content: aiPrompt }],
+          {
+            model: aiConfig.model,
+            temperature: 0.24,
+            maxTokens: 1300,
+          }
+        );
+
+        artifact = parseStudioAiDraft(aiResult.content, artifact);
+        warningSet.add("AI-generated draft. Human review required before send.");
+        aiUsed = true;
+      } catch (error) {
+        aiError = error instanceof Error ? error.message : "AI draft generation failed.";
+      }
+    } else {
+      aiError = "AI is disabled in settings. Generated deterministic draft instead.";
+    }
+  }
+
+  artifact = {
+    ...artifact,
+    warnings: Array.from(warningSet).slice(0, 10),
+  };
+
+  let draft: { id: string; name: string; status: string; updatedAt: Date } | null = null;
+  if (payload.saveAsDraft) {
+    const [organization, settings] = await Promise.all([
+      prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } }),
+      prisma.organizationSettings.findUnique({
+        where: { organizationId },
+        select: { smtpFromName: true, smtpFromEmail: true },
+      }),
+    ]);
+
+    draft = await prisma.emailCampaign.create({
+      data: {
+        organizationId,
+        name: `Steward Studio Draft: ${donorName}`,
+        subject: artifact.subject,
+        previewText: artifact.previewText,
+        fromName: settings?.smtpFromName || organization?.name || "OyamaCRM Steward",
+        fromEmail: settings?.smtpFromEmail || "noreply@oyamacrm.org",
+        replyToEmail: settings?.smtpFromEmail || "support@oyamacrm.org",
+        bodyHtml: artifact.bodyHtml,
+        bodyText: artifact.bodyPlainText,
+        audienceFilter: JSON.stringify({
+          source: "steward-signals-email-studio",
+          constituentIds: donor?.id ? [donor.id] : [],
+          donorName,
+        }),
+        status: "DRAFT",
+      },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  await logAudit({
+    action: "STEWARD_EMAIL_STUDIO_DRAFT_GENERATED",
+    entity: "StewardEmailDraft",
+    entityId: donor?.id ?? donorName,
+    userId: req.user?.sub,
+    organizationId,
+    metadata: {
+      donorId: donor?.id ?? null,
+      messageGoal: studioInput.messageGoal,
+      aiUsed,
+      savedAsDraft: Boolean(draft),
+      aiError,
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.status(draft ? 201 : 200).json({
+    artifact,
+    donor: donor
+      ? {
+        id: donor.id,
+        name: donorName,
+        email: donor.email,
+      }
+      : {
+        id: null,
+        name: donorName,
+        email: null,
+      },
+    aiUsed,
+    aiError,
+    draft,
+  });
+});
+
+/**
+ * POST /api/steward-signals/email-draft/save
+ * Persists an existing reviewed draft artifact as an EmailCampaign draft.
+ */
+router.post("/email-draft/save", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const confirm = req.body?.confirm === true;
+  if (!confirm) {
+    res.status(400).json({
+      error: {
+        code: "CONFIRMATION_REQUIRED",
+        message: "Saving a draft requires explicit confirmation with { confirm: true }.",
+      },
+    });
+    return;
+  }
+
+  const donorId = asString(req.body?.donorId, "").trim();
+  const donorName = asString(req.body?.donorName, "").trim() || "Constituent";
+  const subject = asString(req.body?.subject, "").trim().slice(0, 240);
+  const previewText = asString(req.body?.previewText, "").trim().slice(0, 240);
+  const bodyPlainText = asString(req.body?.bodyPlainText, asString(req.body?.bodyMarkdown, "")).trim();
+  const bodyHtml = asString(req.body?.bodyHtml, bodyTextToHtml(bodyPlainText)).trim();
+
+  if (!subject || !bodyPlainText) {
+    res.status(400).json({
+      error: {
+        code: "INVALID_DRAFT",
+        message: "Subject and body content are required to save an email draft.",
+      },
+    });
+    return;
+  }
+
+  const [organization, settings] = await Promise.all([
+    prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } }),
+    prisma.organizationSettings.findUnique({
+      where: { organizationId },
+      select: { smtpFromName: true, smtpFromEmail: true },
+    }),
+  ]);
+
+  const campaign = await prisma.emailCampaign.create({
+    data: {
+      organizationId,
+      name: `Steward Studio Draft: ${donorName}`,
+      subject,
+      previewText,
+      fromName: settings?.smtpFromName || organization?.name || "OyamaCRM Steward",
+      fromEmail: settings?.smtpFromEmail || "noreply@oyamacrm.org",
+      replyToEmail: settings?.smtpFromEmail || "support@oyamacrm.org",
+      bodyHtml,
+      bodyText: bodyPlainText,
+      audienceFilter: JSON.stringify({
+        source: "steward-signals-email-studio-save",
+        constituentIds: donorId ? [donorId] : [],
+        donorName,
+      }),
+      status: "DRAFT",
+    },
+    select: {
+      id: true,
+      name: true,
+      subject: true,
+      status: true,
+      updatedAt: true,
+    },
+  });
+
+  await logAudit({
+    action: "STEWARD_EMAIL_STUDIO_DRAFT_SAVED",
+    entity: "EmailCampaign",
+    entityId: campaign.id,
+    userId: req.user?.sub,
+    organizationId,
+    metadata: {
+      donorId: donorId || null,
+      donorName,
+      source: "api/steward-signals/email-draft/save",
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.status(201).json({
+    success: true,
+    draft: campaign,
+    message: "Email draft saved for review.",
+  });
+});
+
+/**
+ * POST /api/steward-signals/email-draft/create-follow-up-task
+ * Creates a follow-up task tied to a donor from Email Draft Studio.
+ */
+router.post("/email-draft/create-follow-up-task", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const confirm = req.body?.confirm === true;
+  if (!confirm) {
+    res.status(400).json({
+      error: {
+        code: "CONFIRMATION_REQUIRED",
+        message: "Creating follow-up tasks requires { confirm: true }.",
+      },
+    });
+    return;
+  }
+
+  const donorId = asString(req.body?.donorId, "").trim();
+  if (!donorId) {
+    res.status(400).json({ error: { code: "DONOR_REQUIRED", message: "donorId is required." } });
+    return;
+  }
+
+  const donor = await prisma.constituent.findFirst({
+    where: {
+      id: donorId,
+      organizationId,
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+    },
+  });
+
+  if (!donor) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Constituent not found." } });
+    return;
+  }
+
+  const dueDate = req.body?.dueDate ? new Date(req.body.dueDate) : new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+  const title = asString(req.body?.title, `${donor.firstName} ${donor.lastName}: Steward follow-up`).slice(0, 220);
+  const note = asString(req.body?.note, "Follow up after draft review and choose outreach channel.").slice(0, 1400);
+
+  const task = await prisma.task.create({
+    data: {
+      constituentId: donor.id,
+      assigneeId: req.user?.sub,
+      createdById: req.user?.sub,
+      title,
+      description: note,
+      type: "FOLLOW_UP",
+      status: "PENDING",
+      priority: "MEDIUM",
+      dueDate,
+    },
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      priority: true,
+      dueDate: true,
+    },
+  });
+
+  await prisma.activity.create({
+    data: {
+      constituentId: donor.id,
+      taskId: task.id,
+      userId: req.user?.sub,
+      type: "NOTE",
+      description: "Email Draft Studio created a follow-up task.",
+      metadata: {
+        source: "api/steward-signals/email-draft/create-follow-up-task",
+      },
+    },
+  });
+
+  await logAudit({
+    action: "STEWARD_EMAIL_STUDIO_TASK_CREATED",
+    entity: "Task",
+    entityId: task.id,
+    userId: req.user?.sub,
+    organizationId,
+    metadata: {
+      donorId: donor.id,
+      source: "api/steward-signals/email-draft/create-follow-up-task",
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.status(201).json({
+    success: true,
+    task,
+    message: "Follow-up task created.",
   });
 });
 

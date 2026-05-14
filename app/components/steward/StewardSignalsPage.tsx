@@ -7,6 +7,8 @@ import OpportunityEnginePlaceholderTable from "@/app/components/steward/Opportun
 import StewardSignalsSummaryCards from "@/app/components/steward/StewardSignalsSummaryCards";
 import StewardLapseRadarPanel from "@/app/components/steward/StewardLapseRadarPanel";
 import StewardTaskSuggestionsTable from "@/app/components/steward/StewardTaskSuggestionsTable";
+import DailyStewardThoughtCard from "@/app/components/steward/DailyStewardThoughtCard";
+import GrowthIdeasPanel from "@/app/components/steward/GrowthIdeasPanel";
 import { apiFetch } from "@/app/lib/auth-client";
 
 /**
@@ -62,6 +64,12 @@ export default function StewardSignalsPage() {
             {rebuilding ? "Recalculating..." : "Recalculate Signals"}
           </button>
           <Link
+            href="/steward-signals/email-draft-studio"
+            className="px-3 py-2 text-sm font-medium rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+          >
+            Open Email Draft Studio
+          </Link>
+          <Link
             href="/automations"
             className="px-3 py-2 text-sm font-semibold rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors"
           >
@@ -91,6 +99,11 @@ export default function StewardSignalsPage() {
       </div>
 
       <StewardSignalsSummaryCards />
+
+      <section className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <DailyStewardThoughtCard />
+        <GrowthIdeasPanel />
+      </section>
 
       <section className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
         <div className="flex items-center justify-between gap-3">

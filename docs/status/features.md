@@ -2,6 +2,27 @@
 
 _Last deep audit: 2026-05-13_
 
+## 2026-05-14 Steward Intelligence Vertical Slice Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Daily Steward Thought API + persistence | Working | `server/src/routes/steward-signals.ts`, `server/src/services/steward-intelligence-engine.ts`, `app/components/steward/DailyStewardThoughtCard.tsx` | Added one-thought-per-day-per-org persistence via PluginSetting with admin regenerate, explainability reason text, and AI-assisted fallback generation. |
+| Deterministic Growth Ideas workspace cards | Working | `server/src/routes/steward-signals.ts`, `server/src/services/steward-intelligence-engine.ts`, `app/components/steward/GrowthIdeasPanel.tsx` | Added deterministic growth-idea engine using donor cadence/RFM/propensity helpers with explicit estimated donor counts and action plans. |
+| Email Draft Studio (form mode) + draft/task actions | Working | `app/steward-signals/email-draft-studio/page.tsx`, `app/components/steward/EmailDraftStudioPage.tsx`, `server/src/routes/steward-signals.ts` | Added dedicated studio route, donor-form draft generation, optional AI refinement, save-as-draft endpoint, and confirm-first follow-up task creation. |
+| Structured email artifact contract expansion | Working | `app/components/ai/steward-artifact-types.ts`, `app/components/ai/artifacts/EmailDraftArtifactCard.tsx`, `server/src/routes/steward-ai.ts` | Email artifacts now support preview text and markdown/plain/html body variants while preserving legacy `body` fallback compatibility. |
+| Microsoft provider selector scaffolding | Partially Working | `server/src/routes/settings.ts`, `app/settings/organization/page.tsx` | Added provider settings and tests for Standard SMTP + Microsoft 365 SMTP; Microsoft Graph path is scaffolded with mock test response and not-yet-wired OAuth token exchange. |
+
+## 2026-05-14 Standalone Oyama Bridge App + Steward Structured Artifacts Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Standalone Oyama Bridge desktop app shell | Working | `OyamaBridgeDesktopServer/main.js`, `OyamaBridgeDesktopServer/index.html`, `OyamaBridgeDesktopServer/renderer.js` | Added dedicated Electron app with bridge controls, startup toggles, network details, and live runtime/request stream updates. |
+| Bridge proxy auth/CORS/health/log runtime | Working | `OyamaBridgeDesktopServer/bridge-server.js`, `OyamaBridgeDesktopServer/tests/bridge-server.test.js` | Bridge now enforces API key auth, optional CORS allowlist, `/health`, request log ring buffer, and CUDA request option injection for `/api/chat` and `/api/generate`. |
+| Startup-at-login + hidden/autostart settings | Working | `OyamaBridgeDesktopServer/main.js`, `OyamaBridgeDesktopServer/renderer.js` | Startup launch, start-hidden, and bridge autostart controls are persisted and available from the standalone bridge UI. |
+| Donor/report structured response parser | Working | `server/src/routes/steward-ai.ts` | Added `steward-artifacts` fenced JSON parser with shape sanitization, artifact allowlist, bounded payloads, and parse-failure fallback to plain markdown. |
+| Structured artifact chat rendering | Working | `app/components/ai/StewardResponseRenderer.tsx`, `app/components/ai/artifacts/*`, `app/components/ai/StewardChatPanel.tsx` | Steward chat now supports typed artifact cards (email draft, donor list, report summary, task list, call script, CSV rows) plus markdown/evidence rendering. |
+| Suggested-action execution wiring from structured payload | Not Implemented | `app/components/ai/StewardResponseRenderer.tsx` | Suggested actions are displayed but not yet wired to execute route-level actions. |
+
 ## 2026-05-14 OyamaWebMaster Full Visual Editor + Preview + Publishing Workspace Pass
 
 | Area | Status | Evidence | Notes |

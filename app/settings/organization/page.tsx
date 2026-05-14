@@ -23,6 +23,22 @@ interface Settings {
   smtpFromEmail: string;
 }
 
+type EmailProviderType = "standard_smtp" | "microsoft_365_smtp" | "microsoft_graph";
+
+interface EmailProviderSettings {
+  provider: EmailProviderType;
+  microsoftTenantId: string;
+  microsoftClientId: string;
+  microsoftClientSecretConfigured: boolean;
+  microsoftMailbox: string;
+  microsoftRedirectUri: string;
+  microsoftScope: string;
+  graphConnected: boolean;
+  smtpHostOverride: string;
+  smtpPortOverride: number;
+  smtpSecureOverride: boolean;
+}
+
 const CURRENCIES = ["USD", "CAD", "EUR", "GBP", "AUD", "NZD"];
 const TIMEZONES = [
   "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
@@ -53,18 +69,39 @@ export default function OrganizationSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [providerForm, setProviderForm] = useState<EmailProviderSettings>({
+    provider: "standard_smtp",
+    microsoftTenantId: "",
+    microsoftClientId: "",
+    microsoftClientSecretConfigured: false,
+    microsoftMailbox: "",
+    microsoftRedirectUri: "",
+    microsoftScope: "Mail.Send offline_access User.Read",
+    graphConnected: false,
+    smtpHostOverride: "",
+    smtpPortOverride: 587,
+    smtpSecureOverride: false,
+  });
+  const [microsoftClientSecretInput, setMicrosoftClientSecretInput] = useState("");
   const [smtpTestRecipient, setSmtpTestRecipient] = useState("");
   const [smtpTesting, setSmtpTesting] = useState(false);
   const [smtpTestMessage, setSmtpTestMessage] = useState<string | null>(null);
   const [smtpTestError, setSmtpTestError] = useState<string | null>(null);
+  const [providerTesting, setProviderTesting] = useState(false);
+  const [providerTestMessage, setProviderTestMessage] = useState<string | null>(null);
+  const [providerTestError, setProviderTestError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        const data = await apiFetch<Settings>("/api/settings");
+        const [data, providerData] = await Promise.all([
+          apiFetch<Settings>("/api/settings"),
+          apiFetch<EmailProviderSettings>("/api/settings/email/provider"),
+        ]);
         setForm(data);
+        setProviderForm(providerData);
         setSmtpTestRecipient(data.smtpFromEmail || "");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load settings");
@@ -81,6 +118,11 @@ export default function OrganizationSettingsPage() {
     setSuccess(false);
   }
 
+  function setProvider<K extends keyof EmailProviderSettings>(key: K, value: EmailProviderSettings[K]) {
+    setProviderForm((prev) => ({ ...prev, [key]: value }));
+    setSuccess(false);
+  }
+
   /** Save settings via PUT /api/settings */
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -88,10 +130,21 @@ export default function OrganizationSettingsPage() {
     setError(null);
     setSuccess(false);
     try {
-      await apiFetch("/api/settings", {
-        method: "PUT",
-        body: JSON.stringify(form),
-      });
+      await Promise.all([
+        apiFetch("/api/settings", {
+          method: "PUT",
+          body: JSON.stringify(form),
+        }),
+        apiFetch("/api/settings/email/provider", {
+          method: "PUT",
+          body: JSON.stringify({
+            ...providerForm,
+            microsoftClientSecret: microsoftClientSecretInput.trim() || undefined,
+          }),
+        }),
+      ]);
+
+      setMicrosoftClientSecretInput("");
       setSuccess(true);
       setTimeout(() => setSuccess(false), 4000);
     } catch (err) {
@@ -125,6 +178,27 @@ export default function OrganizationSettingsPage() {
       setSmtpTestError(err instanceof Error ? err.message : "SMTP test failed");
     } finally {
       setSmtpTesting(false);
+    }
+  }
+
+  /** Sends provider-aware test email (Graph currently mocked server-side). */
+  async function handleProviderTestSend() {
+    setProviderTesting(true);
+    setProviderTestError(null);
+    setProviderTestMessage(null);
+
+    try {
+      const response = await apiFetch<{ success?: boolean; message?: string }>("/api/settings/email/provider/test", {
+        method: "POST",
+        body: JSON.stringify({
+          toEmail: smtpTestRecipient,
+        }),
+      });
+      setProviderTestMessage(response?.message ?? `Provider test completed for ${smtpTestRecipient}.`);
+    } catch (err) {
+      setProviderTestError(err instanceof Error ? err.message : "Provider test failed");
+    } finally {
+      setProviderTesting(false);
     }
   }
 
@@ -220,6 +294,163 @@ export default function OrganizationSettingsPage() {
             >
               {TIMEZONES.map((t) => <option key={t} value={t}>{t.replace("_", " ")}</option>)}
             </select>
+          </div>
+        </div>
+
+        {/* Email Provider */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-900 border-b border-gray-100 pb-2">Email Provider</h2>
+          <p className="text-xs text-gray-500">
+            Choose the outbound provider for DonorCRM communications. Microsoft Graph support is scaffolded and currently mock-tested.
+          </p>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Provider</label>
+            <select
+              value={providerForm.provider}
+              onChange={(e) => setProvider("provider", e.target.value as EmailProviderType)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              <option value="standard_smtp">Standard SMTP</option>
+              <option value="microsoft_365_smtp">Microsoft 365 SMTP</option>
+              <option value="microsoft_graph">Microsoft Graph</option>
+            </select>
+          </div>
+
+          {providerForm.provider === "microsoft_365_smtp" && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-2">
+              <p className="text-xs font-semibold text-blue-800">Microsoft 365 SMTP Overrides</p>
+              <p className="text-xs text-blue-700">
+                Defaults are smtp.office365.com:587 with STARTTLS. Override only when your organization requires custom values.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">SMTP Host Override</label>
+                  <input
+                    value={providerForm.smtpHostOverride}
+                    onChange={(e) => setProvider("smtpHostOverride", e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="smtp.office365.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">SMTP Port Override</label>
+                  <input
+                    type="number"
+                    value={providerForm.smtpPortOverride}
+                    onChange={(e) => setProvider("smtpPortOverride", Number(e.target.value) || 587)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+                <label className="inline-flex items-center gap-2 text-sm text-gray-700 mt-6">
+                  <input
+                    type="checkbox"
+                    checked={providerForm.smtpSecureOverride}
+                    onChange={(e) => setProvider("smtpSecureOverride", e.target.checked)}
+                    className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  />
+                  Force SMTPS secure mode
+                </label>
+              </div>
+            </div>
+          )}
+
+          {providerForm.provider === "microsoft_graph" && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-3">
+              <p className="text-xs font-semibold text-blue-800">Microsoft Graph Configuration</p>
+              <p className="text-xs text-blue-700">
+                OAuth exchange and token persistence are still in development. This stores non-secret config and tracks readiness.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Tenant ID</label>
+                  <input
+                    value={providerForm.microsoftTenantId}
+                    onChange={(e) => setProvider("microsoftTenantId", e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Client ID</label>
+                  <input
+                    value={providerForm.microsoftClientId}
+                    onChange={(e) => setProvider("microsoftClientId", e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Client Secret</label>
+                  <input
+                    type="password"
+                    value={microsoftClientSecretInput}
+                    onChange={(e) => setMicrosoftClientSecretInput(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder={providerForm.microsoftClientSecretConfigured ? "Configured (enter to replace)" : "Enter secret"}
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">Secret is not returned by API responses. Enter only when rotating.</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Mailbox</label>
+                  <input
+                    value={providerForm.microsoftMailbox}
+                    onChange={(e) => setProvider("microsoftMailbox", e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="fundraising@organization.org"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Redirect URI</label>
+                  <input
+                    value={providerForm.microsoftRedirectUri}
+                    onChange={(e) => setProvider("microsoftRedirectUri", e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="http://localhost:4000/api/settings/email/provider/microsoft/callback"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Scopes</label>
+                  <input
+                    value={providerForm.microsoftScope}
+                    onChange={(e) => setProvider("microsoftScope", e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Mail.Send offline_access User.Read"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-600">
+                Graph connected state: <span className="font-semibold">{providerForm.graphConnected ? "Connected" : "Not connected"}</span>
+              </p>
+            </div>
+          )}
+
+          <div className="border-t border-gray-100 pt-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-600">Provider Test</p>
+            <p className="text-xs text-gray-500">Runs provider-specific test checks. Graph mode currently returns an in-development status.</p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                type="email"
+                value={smtpTestRecipient}
+                onChange={(e) => setSmtpTestRecipient(e.target.value)}
+                className="w-full sm:max-w-sm px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="you@organization.org"
+              />
+              <button
+                type="button"
+                disabled={providerTesting || !smtpTestRecipient.trim()}
+                onClick={handleProviderTestSend}
+                className="px-4 py-2 text-sm font-medium text-blue-700 border border-blue-200 bg-blue-50 rounded-lg hover:bg-blue-100 disabled:opacity-60 transition-colors"
+              >
+                {providerTesting ? "Testing Provider..." : "Run Provider Test"}
+              </button>
+            </div>
+            {providerTestMessage && (
+              <p className="text-xs text-green-700">{providerTestMessage}</p>
+            )}
+            {providerTestError && (
+              <p className="text-xs text-red-700">{providerTestError}</p>
+            )}
           </div>
         </div>
 

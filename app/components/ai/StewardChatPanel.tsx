@@ -4,7 +4,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
-import StewardMessageRenderer from "@/app/components/ai/StewardMessageRenderer";
+import StewardResponseRenderer from "@/app/components/ai/StewardResponseRenderer";
+import type { StewardStructuredResponse } from "@/app/components/ai/steward-artifact-types";
 
 type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview" | "hrm" | "password";
 type ChatMode = "ask" | "analyze" | "draft" | "action" | "help";
@@ -46,6 +47,7 @@ interface UiMessage {
   role: "assistant" | "user";
   content: string;
   createdAt: string;
+  structured?: StewardStructuredResponse;
   toolsUsed?: string[];
   recordsUsed?: string[];
   provider?: string;
@@ -61,6 +63,7 @@ interface StewardChatStreamChunk {
 interface StewardChatStreamDone {
   type: "done";
   reply: string;
+  structured?: StewardStructuredResponse;
   model: string;
   mode: ChatMode;
   runtimeMode?: "local" | "remote";
@@ -77,6 +80,26 @@ interface StewardChatStreamError {
 }
 
 type StewardChatStreamEvent = StewardChatStreamChunk | StewardChatStreamDone | StewardChatStreamError;
+
+function normalizeStructuredResponse(raw: unknown): StewardStructuredResponse | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+
+  const candidate = raw as Partial<StewardStructuredResponse>;
+  if (candidate.version !== 1) return undefined;
+  if (typeof candidate.replyMarkdown !== "string") return undefined;
+  if (!Array.isArray(candidate.artifacts)) return undefined;
+  if (!Array.isArray(candidate.suggestedActions)) return undefined;
+  if (!Array.isArray(candidate.evidence)) return undefined;
+
+  return {
+    version: 1,
+    replyMarkdown: candidate.replyMarkdown,
+    artifacts: candidate.artifacts,
+    suggestedActions: candidate.suggestedActions,
+    evidence: candidate.evidence,
+    parseWarning: typeof candidate.parseWarning === "string" ? candidate.parseWarning : undefined,
+  };
+}
 
 const CHAT_HISTORY_LIMIT = 60;
 const CHAT_THREAD_LIMIT = 20;
@@ -114,6 +137,7 @@ function normalizeStoredMessages(messages: unknown): UiMessage[] {
         createdAt: typeof candidate.createdAt === "string" && candidate.createdAt.length > 0
           ? candidate.createdAt
           : new Date().toISOString(),
+        structured: normalizeStructuredResponse((candidate as { structured?: unknown }).structured),
         toolsUsed: Array.isArray(candidate.toolsUsed)
           ? candidate.toolsUsed.filter((item): item is string => typeof item === "string")
           : undefined,
@@ -310,6 +334,7 @@ function areMessagesEquivalent(left: UiMessage[], right: UiMessage[]): boolean {
       && message.role === next.role
       && message.content === next.content
       && message.createdAt === next.createdAt
+      && JSON.stringify(message.structured ?? null) === JSON.stringify(next.structured ?? null)
       && message.toolsUsed === next.toolsUsed
       && message.provider === next.provider
       && message.responseMode === next.responseMode
@@ -683,6 +708,7 @@ export default function StewardChatPanel({
             ...message,
             content: "",
             createdAt: new Date().toISOString(),
+            structured: undefined,
             toolsUsed: undefined,
             recordsUsed: undefined,
             provider: undefined,
@@ -797,6 +823,7 @@ export default function StewardChatPanel({
         return {
           ...message,
           content: doneEvent.reply,
+          structured: normalizeStructuredResponse(doneEvent.structured),
           toolsUsed: doneEvent.toolsUsed,
           recordsUsed: doneEvent.recordsUsed,
           provider: doneEvent.provider,
@@ -836,7 +863,21 @@ export default function StewardChatPanel({
     }
   }
 
-  if (!open && !isWorkspaceMode) return null;
+  if (!open && !isWorkspaceMode) {
+    return (
+      <button
+        type="button"
+        onClick={() => onDisplayModeChange?.("popout")}
+        aria-label="Open Steward AI Assistant"
+        title="Open Steward AI Assistant"
+        className="fixed md:hidden z-[96] right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] h-14 w-14 rounded-full border border-emerald-300 bg-emerald-600 text-white shadow-[0_16px_30px_rgba(22,163,74,0.35)] flex items-center justify-center"
+      >
+        <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l1.4 3.6L17 8l-3.6 1.4L12 13l-1.4-3.6L7 8l3.6-1.4L12 3zM6 14l.9 2.1L9 17l-2.1.9L6 20l-.9-2.1L3 17l2.1-.9L6 14zM18 13l1 2.3L21.3 16 19 17l-1 2.3-1-2.3L14.7 16l2.3-.7 1-2.3z" />
+        </svg>
+      </button>
+    );
+  }
 
   const isDockMinimized = !isWorkspaceMode && isMinimized;
 
@@ -845,14 +886,14 @@ export default function StewardChatPanel({
     : isDockMinimized
       ? "fixed z-[90] bottom-4 left-2 right-2 sm:left-[15rem] sm:right-5 pointer-events-none flex items-end justify-center"
     : isMaximizedMode
-      ? "fixed z-[80] top-16 bottom-3 left-2 right-2 sm:left-[15rem] sm:right-4 pointer-events-none"
+      ? "fixed z-[92] top-[max(3.5rem,env(safe-area-inset-top))] bottom-0 left-0 right-0 sm:top-16 sm:bottom-3 sm:left-[15rem] sm:right-4 pointer-events-none"
       : isPopoutMode
-        ? "fixed z-[85] top-14 bottom-6 left-2 right-2 sm:left-auto sm:right-6 sm:w-[860px] pointer-events-none"
-        : `fixed z-[80] top-14 bottom-3 left-2 right-2 sm:left-[15rem] sm:right-5 pointer-events-none flex items-end ${isDockMinimized ? "justify-center" : "justify-end"}`;
+        ? "fixed z-[92] top-[max(3.5rem,env(safe-area-inset-top))] bottom-0 left-0 right-0 sm:top-14 sm:bottom-6 sm:left-auto sm:right-6 sm:w-[860px] pointer-events-none"
+        : `fixed z-[90] top-14 bottom-3 left-2 right-2 sm:left-[15rem] sm:right-5 pointer-events-none flex items-end ${isDockMinimized ? "justify-center" : "justify-end"}`;
 
   const panelClassName = isWorkspaceMode
     ? "h-full rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col overflow-hidden"
-    : `pointer-events-auto rounded-[22px] border border-slate-200 bg-white shadow-[0_22px_48px_rgba(15,23,42,0.14)] flex flex-col overflow-hidden transition-[height,width] duration-200 ${isMaximizedMode ? "w-full max-w-none h-full" : isPopoutMode ? "w-full max-w-none h-full" : "w-full max-w-[760px] h-[min(78vh,760px)] max-h-full"}`;
+    : `pointer-events-auto border border-slate-200 bg-white shadow-[0_22px_48px_rgba(15,23,42,0.14)] flex flex-col overflow-hidden transition-[height,width] duration-200 ${isMaximizedMode || isPopoutMode ? "rounded-none sm:rounded-[22px] w-full max-w-none h-full" : "rounded-[22px] w-full max-w-[760px] h-[min(78vh,760px)] max-h-full"}`;
   const panelStyle = isWorkspaceMode
     ? undefined
     : isDockMinimized
@@ -1079,7 +1120,7 @@ export default function StewardChatPanel({
                   </div>
                 )}
 
-                <div className={`flex-1 overflow-y-auto chat-scroll-smooth px-4 pt-3 pb-28 ${isWorkspaceMode ? "bg-slate-50/70" : "bg-slate-50/80"}`}>
+                <div className={`flex-1 overflow-y-auto chat-scroll-smooth px-4 pt-3 pb-4 ${isWorkspaceMode ? "bg-slate-50/70" : "bg-slate-50/80"}`}>
                   <div className={isWorkspaceMode ? "mx-auto w-full max-w-4xl space-y-3" : "mx-auto w-full max-w-[580px] space-y-3"}>
                   {messages.map((message) => (
                     <div key={message.id} className={`max-w-[92%] ${message.role === "user" ? "ml-auto" : "mr-auto"}`}>
@@ -1098,7 +1139,11 @@ export default function StewardChatPanel({
                               <span className={`h-1.5 w-1.5 rounded-full animate-pulse [animation-delay:240ms] ${isWorkspaceMode ? "bg-slate-500" : "bg-slate-500"}`} />
                             </div>
                           ) : (
-                            <StewardMessageRenderer content={message.content} tone={isWorkspaceMode ? "light" : "light"} />
+                            <StewardResponseRenderer
+                              content={message.content}
+                              structured={message.structured}
+                              tone={isWorkspaceMode ? "light" : "light"}
+                            />
                           )
                         ) : (
                           <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
@@ -1134,8 +1179,8 @@ export default function StewardChatPanel({
                   </div>
                 </div>
 
-                <footer className={`absolute left-3 right-3 bottom-3 ${isWorkspaceMode ? "" : ""}`}>
-                  <div className={`mx-auto rounded-[24px] border p-3 shadow-[0_18px_34px_rgba(15,23,42,0.12)] backdrop-blur-xl ${isWorkspaceMode ? "max-w-4xl border-slate-200 bg-white/96" : "max-w-[680px] border-slate-200 bg-white/96"}`}>
+                <footer className="border-t border-slate-200 bg-white/95 px-3 py-3">
+                  <div className={`mx-auto rounded-[20px] border p-3 shadow-[0_14px_24px_rgba(15,23,42,0.08)] ${isWorkspaceMode ? "max-w-4xl border-slate-200 bg-white" : "max-w-[680px] border-slate-200 bg-white"}`}>
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-2 flex-wrap">
                         {!isWorkspaceMode && (

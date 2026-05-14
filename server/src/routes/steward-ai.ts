@@ -112,7 +112,7 @@ interface BridgePairingKeyPayload {
 interface StewardAiChatPayload {
   messages?: StewardAiChatMessage[];
   mode?: "ask" | "analyze" | "draft" | "action" | "help";
-  moduleKey?: "donor" | "compassion" | "events" | "watchdog" | "webmaster";
+  moduleKey?: "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview";
   scopePath?: string;
 }
 
@@ -134,6 +134,270 @@ interface AgenticPreparationResult {
   reasoningModel: string;
   stageSummaries: string[];
   toolsUsed: string[];
+}
+
+type StewardArtifactType =
+  | "email_draft"
+  | "donor_list"
+  | "report_summary"
+  | "task_list"
+  | "call_script"
+  | "csv_rows";
+
+interface StewardSuggestedActionPayload {
+  label: string;
+  actionType: string;
+  requiresConfirmation: boolean;
+}
+
+interface StewardEvidencePayload {
+  label: string;
+  detail?: string;
+}
+
+interface StewardStructuredResponsePayload {
+  version: 1;
+  replyMarkdown: string;
+  artifacts: Array<Record<string, unknown>>;
+  suggestedActions: StewardSuggestedActionPayload[];
+  evidence: StewardEvidencePayload[];
+  parseWarning?: string;
+}
+
+const ALLOWED_STEWARD_ARTIFACT_TYPES = new Set<StewardArtifactType>([
+  "email_draft",
+  "donor_list",
+  "report_summary",
+  "task_list",
+  "call_script",
+  "csv_rows",
+]);
+
+const ALLOWED_SUGGESTED_ACTION_TYPES = new Set<string>([
+  "open_report",
+  "copy",
+  "communications.create_email_draft",
+  "tasks.create_follow_up_task",
+  "letters.create_letter_draft",
+]);
+
+function asSafeText(value: unknown, fallback = "", maxLength = 4000): string {
+  if (typeof value !== "string") return fallback;
+  return value.trim().slice(0, maxLength);
+}
+
+function sanitizeArtifactRows(rawRows: unknown): Array<Record<string, string | number | null>> {
+  if (!Array.isArray(rawRows)) return [];
+
+  return rawRows
+    .slice(0, 120)
+    .map((row) => {
+      if (!row || typeof row !== "object" || Array.isArray(row)) return null;
+
+      const normalized: Record<string, string | number | null> = {};
+      for (const [key, value] of Object.entries(row as Record<string, unknown>).slice(0, 14)) {
+        const safeKey = String(key || "").trim().slice(0, 80);
+        if (!safeKey) continue;
+
+        if (value == null) {
+          normalized[safeKey] = null;
+          continue;
+        }
+
+        if (typeof value === "number" && Number.isFinite(value)) {
+          normalized[safeKey] = value;
+          continue;
+        }
+
+        normalized[safeKey] = String(value).slice(0, 400);
+      }
+
+      return Object.keys(normalized).length > 0 ? normalized : null;
+    })
+    .filter((entry): entry is Record<string, string | number | null> => Boolean(entry));
+}
+
+function sanitizeArtifact(rawArtifact: unknown): Record<string, unknown> | null {
+  if (!rawArtifact || typeof rawArtifact !== "object" || Array.isArray(rawArtifact)) return null;
+  const candidate = rawArtifact as Record<string, unknown>;
+  const rawType = asSafeText(candidate.type, "", 80) as StewardArtifactType;
+
+  if (!ALLOWED_STEWARD_ARTIFACT_TYPES.has(rawType)) return null;
+
+  const sanitized: Record<string, unknown> = {
+    type: rawType,
+    title: asSafeText(candidate.title, "", 140),
+    description: asSafeText(candidate.description, "", 500),
+  };
+
+  if (rawType === "email_draft") {
+    sanitized.subject = asSafeText(candidate.subject, "", 240);
+    sanitized.previewText = asSafeText(candidate.previewText, "", 260);
+    const bodyPlainText = asSafeText(candidate.bodyPlainText, asSafeText(candidate.body, "", 8000), 8000);
+    const bodyMarkdown = asSafeText(candidate.bodyMarkdown, bodyPlainText, 8000);
+    const bodyHtml = asSafeText(candidate.bodyHtml, "", 12000);
+    sanitized.body = bodyPlainText;
+    sanitized.bodyPlainText = bodyPlainText;
+    sanitized.bodyMarkdown = bodyMarkdown;
+    sanitized.bodyHtml = bodyHtml;
+    sanitized.audience = asSafeText(candidate.audience, "", 220);
+    sanitized.warnings = Array.isArray(candidate.warnings)
+      ? candidate.warnings.map((warning) => asSafeText(warning, "", 240)).filter(Boolean).slice(0, 10)
+      : [];
+    if (!sanitized.subject || !bodyPlainText) return null;
+  }
+
+  if (rawType === "donor_list" || rawType === "csv_rows") {
+    sanitized.columns = Array.isArray(candidate.columns)
+      ? candidate.columns.map((column) => asSafeText(column, "", 80)).filter(Boolean).slice(0, 14)
+      : [];
+    sanitized.rows = sanitizeArtifactRows(candidate.rows);
+    sanitized.fileName = asSafeText(candidate.fileName, "", 120);
+    if (!Array.isArray(sanitized.rows) || sanitized.rows.length === 0) return null;
+  }
+
+  if (rawType === "report_summary") {
+    sanitized.headline = asSafeText(candidate.headline, "", 220);
+    sanitized.boardSummary = asSafeText(candidate.boardSummary, "", 8000);
+    sanitized.keyMetrics = Array.isArray(candidate.keyMetrics)
+      ? candidate.keyMetrics.map((item) => asSafeText(item, "", 240)).filter(Boolean).slice(0, 12)
+      : [];
+    sanitized.risks = Array.isArray(candidate.risks)
+      ? candidate.risks.map((item) => asSafeText(item, "", 240)).filter(Boolean).slice(0, 12)
+      : [];
+    sanitized.opportunities = Array.isArray(candidate.opportunities)
+      ? candidate.opportunities.map((item) => asSafeText(item, "", 240)).filter(Boolean).slice(0, 12)
+      : [];
+  }
+
+  if (rawType === "task_list") {
+    const tasks = Array.isArray(candidate.tasks)
+      ? candidate.tasks
+        .map((task) => {
+          if (!task || typeof task !== "object" || Array.isArray(task)) return null;
+          const rawTask = task as Record<string, unknown>;
+          const title = asSafeText(rawTask.title, "", 220);
+          if (!title) return null;
+          return {
+            title,
+            priority: asSafeText(rawTask.priority, "", 80),
+            dueDate: asSafeText(rawTask.dueDate, "", 80),
+            donorName: asSafeText(rawTask.donorName, "", 140),
+          };
+        })
+        .filter((task): task is { title: string; priority: string; dueDate: string; donorName: string } => Boolean(task))
+        .slice(0, 25)
+      : [];
+
+    if (tasks.length === 0) return null;
+    sanitized.tasks = tasks;
+  }
+
+  if (rawType === "call_script") {
+    sanitized.openingLine = asSafeText(candidate.openingLine, "", 400);
+    sanitized.donorContext = asSafeText(candidate.donorContext, "", 600);
+    sanitized.talkingPoints = Array.isArray(candidate.talkingPoints)
+      ? candidate.talkingPoints.map((item) => asSafeText(item, "", 300)).filter(Boolean).slice(0, 12)
+      : [];
+    sanitized.nextStep = asSafeText(candidate.nextStep, "", 280);
+  }
+
+  return sanitized;
+}
+
+function extractStewardArtifacts(rawText: string): { replyMarkdown: string; artifactsJson: string | null } {
+  const blockRegex = /```steward-artifacts\s*([\s\S]*?)```/i;
+  const match = rawText.match(blockRegex);
+
+  if (!match) {
+    return {
+      replyMarkdown: rawText.trim(),
+      artifactsJson: null,
+    };
+  }
+
+  const replyMarkdown = rawText.replace(blockRegex, "").trim();
+
+  return {
+    replyMarkdown,
+    artifactsJson: match[1]?.trim() || null,
+  };
+}
+
+/** Normalizes model text into markdown + structured artifacts, never throwing on parse failures. */
+function normalizeStewardStructuredResponse(rawText: string, options: { debug: boolean }): StewardStructuredResponsePayload {
+  const extracted = extractStewardArtifacts(String(rawText || ""));
+  const base: StewardStructuredResponsePayload = {
+    version: 1,
+    replyMarkdown: extracted.replyMarkdown,
+    artifacts: [],
+    suggestedActions: [],
+    evidence: [],
+  };
+
+  if (!extracted.artifactsJson) {
+    return base;
+  }
+
+  try {
+    const parsed = JSON.parse(extracted.artifactsJson) as Record<string, unknown>;
+    const rawArtifacts = Array.isArray(parsed.artifacts) ? parsed.artifacts : [];
+    const rawActions = Array.isArray(parsed.suggestedActions) ? parsed.suggestedActions : [];
+    const rawEvidence = Array.isArray(parsed.evidence) ? parsed.evidence : [];
+
+    const artifacts = rawArtifacts
+      .map((artifact) => sanitizeArtifact(artifact))
+      .filter((artifact): artifact is Record<string, unknown> => Boolean(artifact))
+      .slice(0, 8);
+
+    const suggestedActions = rawActions
+      .map((action) => {
+        if (!action || typeof action !== "object" || Array.isArray(action)) return null;
+        const candidate = action as Record<string, unknown>;
+        const label = asSafeText(candidate.label, "", 220);
+        const actionType = asSafeText(candidate.actionType, "", 80);
+        if (!label || !actionType || !ALLOWED_SUGGESTED_ACTION_TYPES.has(actionType)) return null;
+
+        return {
+          label,
+          actionType,
+          requiresConfirmation: candidate.requiresConfirmation !== false,
+        };
+      })
+      .filter((action): action is StewardSuggestedActionPayload => Boolean(action))
+      .slice(0, 10);
+
+    const evidence = rawEvidence
+      .map((item) => {
+        if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+        const candidate = item as Record<string, unknown>;
+        const label = asSafeText(candidate.label, "", 220);
+        if (!label) return null;
+        const detail = asSafeText(candidate.detail, "", 420);
+        return {
+          label,
+          ...(detail ? { detail } : {}),
+        };
+      })
+      .filter((item): item is { label: string; detail?: string } => Boolean(item))
+      .slice(0, 16);
+
+    return {
+      version: 1,
+      replyMarkdown: asSafeText(parsed.replyMarkdown, extracted.replyMarkdown, 12000) || extracted.replyMarkdown,
+      artifacts,
+      suggestedActions,
+      evidence,
+    };
+  } catch {
+    if (options.debug) {
+      return {
+        ...base,
+        parseWarning: "Structured output unavailable due to invalid steward-artifacts JSON.",
+      };
+    }
+    return base;
+  }
 }
 
 /** Returns query tokens suitable for lightweight retrieval. */
@@ -289,6 +553,37 @@ function formatReplyByMode(options: {
     "## Next Steps",
     nextSteps.map((step, index) => `${index + 1}. ${step}`).join("\n"),
   ].join("\n\n");
+}
+
+function buildTopDonorStructuredResponse(result: TopDonorResult, templatedReply: string): StewardStructuredResponsePayload {
+  const rows = result.recordsUsed
+    .map((entry) => {
+      const match = entry.match(/^\d+\.\s(.+?)\s\((.+)\)$/);
+      if (!match) {
+        return { donor: entry };
+      }
+
+      return {
+        donor: match[1],
+        lifetimeGiving: match[2],
+      };
+    })
+    .slice(0, 10);
+
+  return {
+    version: 1,
+    replyMarkdown: templatedReply,
+    artifacts: rows.length > 0
+      ? [{
+          type: "donor_list",
+          title: "Top Donors By Lifetime Giving",
+          columns: ["donor", "lifetimeGiving"],
+          rows,
+        }]
+      : [],
+    suggestedActions: [],
+    evidence: result.recordsUsed.map((item) => ({ label: item })),
+  };
 }
 
 /** Builds a deterministic response directly from retrieved CRM context when model output is empty. */
@@ -483,7 +778,19 @@ function buildRuntimeSystemPrompt(options: {
         ? "Use security operations terminology (incident, severity, alert, audit, access control, encrypted vault)."
         : options.moduleKey === "webmaster"
           ? "Use website operations terminology (templates, pages, publishing, domain, SEO, approvals)."
+          : options.moduleKey === "oshareview"
+            ? "Use donor report and board-summary terminology. Focus on practical donor analysis artifacts and evidence-backed recommendations."
           : "Use donor stewardship terminology (constituent, donation, campaign, stewardship, retention). If the user asks for top donors and ranked donor context exists, answer directly from that ranked data with names plus lifetime values. Do not claim missing data for that question unless no ranked donor data exists.";
+
+  const structuredProtocol = options.moduleKey === "donor" || options.moduleKey === "oshareview"
+    ? [
+        "For donor/report questions, optionally append a structured block after your markdown answer using this exact fence label:",
+        "```steward-artifacts",
+        "{\"version\":1,\"replyMarkdown\":\"...\",\"artifacts\":[...],\"suggestedActions\":[...],\"evidence\":[...]}",
+        "```",
+        "Only allowed artifact types: email_draft, donor_list, report_summary, task_list, call_script, csv_rows.",
+      ].join("\n")
+    : "Do not emit steward-artifacts JSON for this module.";
 
   return [
     "Runtime instruction: answer using the provided CRM context first.",
@@ -495,6 +802,7 @@ function buildRuntimeSystemPrompt(options: {
     "Cite concrete records, counts, and names from context when possible.",
     "Do not expose private chain-of-thought. Provide concise conclusions grounded in evidence.",
     "Finish with a short numbered next-step list when the user asks for guidance.",
+    structuredProtocol,
     options.agenticNotes && options.agenticNotes.length > 0
       ? [
           "Agentic preparation notes:",
@@ -1472,10 +1780,12 @@ router.post("/chat/stream", async (req, res) => {
         toolsUsed: topDonorResult.toolsUsed,
         recordsUsed: topDonorResult.recordsUsed,
       });
+      const structured = buildTopDonorStructuredResponse(topDonorResult, templatedReply);
       res.write(`${JSON.stringify({ type: "chunk", delta: templatedReply })}\n`);
       res.write(`${JSON.stringify({
         type: "done",
         reply: templatedReply,
+        structured,
         model: config.model,
         mode,
         runtimeMode: config.mode,
@@ -1550,12 +1860,20 @@ router.post("/chat/stream", async (req, res) => {
       toolsUsed.push("fallback.emptyAssistantResponse");
     }
 
+    const parsedStructured = normalizeStewardStructuredResponse(completion.content, {
+      debug: false,
+    });
+
     const templatedReply = formatReplyByMode({
       mode,
-      reply: completion.content,
+      reply: parsedStructured.replyMarkdown || completion.content,
       toolsUsed,
       recordsUsed: retrieval.recordsUsed,
     });
+    const structured: StewardStructuredResponsePayload = {
+      ...parsedStructured,
+      replyMarkdown: templatedReply,
+    };
 
     await logAudit({
       action: "STEWARD_AI_CHAT",
@@ -1585,6 +1903,7 @@ router.post("/chat/stream", async (req, res) => {
     res.write(`${JSON.stringify({
       type: "done",
       reply: templatedReply,
+      structured,
       model: completion.model,
       mode,
       runtimeMode: config.mode,
@@ -1657,9 +1976,11 @@ router.post("/chat", async (req, res) => {
         toolsUsed: topDonorResult.toolsUsed,
         recordsUsed: topDonorResult.recordsUsed,
       });
+      const structured = buildTopDonorStructuredResponse(topDonorResult, templatedReply);
       res.json({
         data: {
           reply: templatedReply,
+          structured,
           model: config.model,
           mode,
           runtimeMode: config.mode,
@@ -1726,12 +2047,20 @@ router.post("/chat", async (req, res) => {
       toolsUsed.push("fallback.emptyAssistantResponse");
     }
 
+    const parsedStructured = normalizeStewardStructuredResponse(completion.content, {
+      debug: false,
+    });
+
     const templatedReply = formatReplyByMode({
       mode,
-      reply: completion.content,
+      reply: parsedStructured.replyMarkdown || completion.content,
       toolsUsed,
       recordsUsed: retrieval.recordsUsed,
     });
+    const structured: StewardStructuredResponsePayload = {
+      ...parsedStructured,
+      replyMarkdown: templatedReply,
+    };
 
     await logAudit({
       action: "STEWARD_AI_CHAT",
@@ -1761,6 +2090,7 @@ router.post("/chat", async (req, res) => {
     res.json({
       data: {
         reply: templatedReply,
+        structured,
         model: completion.model,
         mode,
         runtimeMode: config.mode,

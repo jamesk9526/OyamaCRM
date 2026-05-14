@@ -119,6 +119,26 @@ interface SmtpTestPayload {
   smtpFromEmail?: string | null;
 }
 
+type EmailProviderType = "standard_smtp" | "microsoft_365_smtp" | "microsoft_graph";
+
+interface EmailProviderSettingsPayload {
+  provider?: EmailProviderType;
+  microsoftTenantId?: string;
+  microsoftClientId?: string;
+  microsoftClientSecret?: string;
+  microsoftMailbox?: string;
+  microsoftRedirectUri?: string;
+  microsoftScope?: string;
+  graphConnected?: boolean;
+  smtpHostOverride?: string;
+  smtpPortOverride?: number;
+  smtpSecureOverride?: boolean;
+}
+
+interface EmailProviderTestPayload {
+  toEmail?: string;
+}
+
 /** Practical email format validation for SMTP test-send endpoint. */
 function isValidEmail(value: string): boolean {
   const email = value.trim();
@@ -146,6 +166,53 @@ function valueOrEnv(value: string | null | undefined, envValue: string): string 
 }
 
 const BRANDING_PLUGIN_KEY = "organization-branding";
+const EMAIL_PROVIDER_PLUGIN_KEY = "email-provider";
+
+/** Default provider config preserves legacy SMTP behavior while enabling provider selection. */
+function getDefaultEmailProviderSettings() {
+  return {
+    provider: "standard_smtp" as EmailProviderType,
+    microsoftTenantId: "",
+    microsoftClientId: "",
+    microsoftClientSecretConfigured: false,
+    microsoftMailbox: "",
+    microsoftRedirectUri: "",
+    microsoftScope: "Mail.Send offline_access User.Read",
+    graphConnected: false,
+    smtpHostOverride: "",
+    smtpPortOverride: 587,
+    smtpSecureOverride: false,
+  };
+}
+
+/** Parses and bounds provider settings from plugin config into a safe frontend payload. */
+function normalizeEmailProviderSettings(input: unknown) {
+  const defaults = getDefaultEmailProviderSettings();
+  const raw = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+
+  const providerRaw = String(raw.provider ?? defaults.provider).trim();
+  const provider: EmailProviderType = providerRaw === "microsoft_365_smtp"
+    ? "microsoft_365_smtp"
+    : providerRaw === "microsoft_graph"
+      ? "microsoft_graph"
+      : "standard_smtp";
+
+  const smtpPortCandidate = Number.parseInt(String(raw.smtpPortOverride ?? defaults.smtpPortOverride), 10);
+
+  return {
+    provider,
+    microsoftTenantId: String(raw.microsoftTenantId ?? "").trim().slice(0, 160),
+    microsoftClientId: String(raw.microsoftClientId ?? "").trim().slice(0, 220),
+    microsoftClientSecretConfigured: Boolean(raw.microsoftClientSecretConfigured),
+    microsoftMailbox: String(raw.microsoftMailbox ?? "").trim().slice(0, 220),
+    microsoftRedirectUri: String(raw.microsoftRedirectUri ?? "").trim().slice(0, 400),
+    microsoftScope: String(raw.microsoftScope ?? defaults.microsoftScope).trim().slice(0, 300),
+    graphConnected: Boolean(raw.graphConnected),
+    smtpHostOverride: String(raw.smtpHostOverride ?? "").trim().slice(0, 220),
+    smtpPortOverride: Number.isFinite(smtpPortCandidate) ? Math.min(Math.max(smtpPortCandidate, 1), 65535) : defaults.smtpPortOverride,
+    smtpSecureOverride: Boolean(raw.smtpSecureOverride),
+  };
+}
 
 /** Safe defaults for organization-wide branding settings consumed across modules. */
 function getDefaultBrandingSettings() {
@@ -482,6 +549,230 @@ router.put("/branding", requireAuth, requireRole("admin"), async (req: Request, 
     return res.json(normalized);
   } catch {
     return res.status(500).json({ error: { code: "BRANDING_SETTINGS_WRITE_FAILED", message: "Failed to save branding settings" } });
+  }
+});
+
+/** GET /api/settings/email/provider — Returns current outbound email provider settings. */
+router.get("/email/provider", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const organizationId = await resolveSettingsOrganizationId(req);
+    if (!organizationId) {
+      return res.json(getDefaultEmailProviderSettings());
+    }
+
+    const setting = await prisma.pluginSetting.findUnique({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: EMAIL_PROVIDER_PLUGIN_KEY,
+        },
+      },
+      select: {
+        config: true,
+      },
+    });
+
+    return res.json(normalizeEmailProviderSettings(setting?.config ?? {}));
+  } catch {
+    return res.status(500).json({ error: { code: "EMAIL_PROVIDER_READ_FAILED", message: "Failed to load email provider settings" } });
+  }
+});
+
+/** PUT /api/settings/email/provider — Persists outbound provider selection. Admin-only. */
+router.put("/email/provider", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await resolveSettingsOrganizationId(req);
+    if (!organizationId) {
+      return res.status(404).json({ error: { code: "SETTINGS_NOT_READY", message: "No organization has been configured yet." } });
+    }
+
+    const body = req.body as EmailProviderSettingsPayload;
+    const existingSetting = await prisma.pluginSetting.findUnique({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: EMAIL_PROVIDER_PLUGIN_KEY,
+        },
+      },
+      select: {
+        config: true,
+      },
+    });
+
+    const existing = normalizeEmailProviderSettings(existingSetting?.config ?? {});
+    const payload = normalizeEmailProviderSettings({
+      ...existing,
+      ...body,
+      microsoftClientSecretConfigured:
+        String(body.microsoftClientSecret ?? "").trim().length > 0
+          ? true
+          : existing.microsoftClientSecretConfigured,
+    });
+
+    await prisma.pluginSetting.upsert({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: EMAIL_PROVIDER_PLUGIN_KEY,
+        },
+      },
+      create: {
+        organizationId,
+        pluginKey: EMAIL_PROVIDER_PLUGIN_KEY,
+        enabled: true,
+        config: payload,
+      },
+      update: {
+        enabled: true,
+        config: payload,
+      },
+    });
+
+    await logAudit({
+      action: "EMAIL_PROVIDER_SETTINGS_UPDATED",
+      entity: "PluginSetting",
+      entityId: organizationId,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: {
+        provider: payload.provider,
+        graphConnected: payload.graphConnected,
+        microsoftClientSecretConfigured: payload.microsoftClientSecretConfigured,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    return res.json(payload);
+  } catch {
+    return res.status(500).json({ error: { code: "EMAIL_PROVIDER_WRITE_FAILED", message: "Failed to save email provider settings" } });
+  }
+});
+
+/**
+ * POST /api/settings/email/provider/test
+ * Tests provider configuration. Microsoft Graph is currently mocked until OAuth token exchange is wired.
+ */
+router.post("/email/provider/test", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await resolveSettingsOrganizationId(req);
+    if (!organizationId) {
+      return res.status(404).json({ error: { code: "SETTINGS_NOT_READY", message: "No organization is configured yet." } });
+    }
+
+    const body = req.body as EmailProviderTestPayload;
+    const toEmail = String(body.toEmail ?? "").trim().toLowerCase();
+    if (!toEmail || !isValidEmail(toEmail)) {
+      return res.status(400).json({ error: { code: "INVALID_EMAIL", message: "A valid recipient email is required." } });
+    }
+
+    const [organization, settings, providerSetting] = await Promise.all([
+      prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } }),
+      prisma.organizationSettings.findUnique({
+        where: { organizationId },
+        select: {
+          smtpHost: true,
+          smtpPort: true,
+          smtpSecure: true,
+          smtpUser: true,
+          smtpPass: true,
+          smtpFromName: true,
+          smtpFromEmail: true,
+        },
+      }),
+      prisma.pluginSetting.findUnique({
+        where: {
+          organizationId_pluginKey: {
+            organizationId,
+            pluginKey: EMAIL_PROVIDER_PLUGIN_KEY,
+          },
+        },
+        select: {
+          config: true,
+        },
+      }),
+    ]);
+
+    const envSmtp = getEnvSmtpDefaults();
+    const provider = normalizeEmailProviderSettings(providerSetting?.config ?? {});
+
+    if (provider.provider === "microsoft_graph") {
+      return res.json({
+        success: true,
+        mode: "mock",
+        message: "Microsoft Graph provider test is in development. OAuth token exchange endpoint is not wired yet.",
+      });
+    }
+
+    const smtpHostDefault = provider.provider === "microsoft_365_smtp" ? "smtp.office365.com" : envSmtp.smtpHost;
+    const smtpPortDefault = provider.provider === "microsoft_365_smtp" ? 587 : envSmtp.smtpPort;
+    const smtpSecureDefault = provider.provider === "microsoft_365_smtp" ? false : envSmtp.smtpSecure;
+
+    const useProviderOverride = provider.provider === "microsoft_365_smtp" || provider.smtpHostOverride.trim().length > 0;
+    const smtpHost = useProviderOverride
+      ? (provider.smtpHostOverride || smtpHostDefault)
+      : valueOrEnv(settings?.smtpHost, smtpHostDefault);
+    const smtpPort = useProviderOverride
+      ? provider.smtpPortOverride
+      : (settings?.smtpPort ?? smtpPortDefault);
+    const smtpSecure = useProviderOverride
+      ? provider.smtpSecureOverride
+      : (settings?.smtpSecure ?? smtpSecureDefault);
+    const smtpUser = valueOrEnv(settings?.smtpUser, envSmtp.smtpUser);
+    const smtpPass = valueOrEnv(settings?.smtpPass, envSmtp.smtpPass);
+    const smtpFromName = valueOrEnv(settings?.smtpFromName, envSmtp.smtpFromName || organization?.name || "OyamaCRM");
+    const smtpFromEmail = valueOrEnv(settings?.smtpFromEmail, envSmtp.smtpFromEmail);
+
+    if (!smtpHost || !smtpPort || !smtpFromEmail) {
+      return res.status(400).json({
+        error: {
+          code: "SMTP_NOT_CONFIGURED",
+          message: "SMTP host, port, and from email are required before provider test.",
+        },
+      });
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      auth: smtpUser ? { user: smtpUser, pass: smtpPass } : undefined,
+    });
+
+    await transporter.verify();
+
+    await transporter.sendMail({
+      from: `"${smtpFromName}" <${smtpFromEmail}>`,
+      to: toEmail,
+      subject: `${provider.provider === "microsoft_365_smtp" ? "Microsoft 365 SMTP" : "SMTP"} Provider Test - ${organization?.name ?? "OyamaCRM"}`,
+      text: `This is a provider test message from ${organization?.name ?? "OyamaCRM"}.`,
+      html: `<p>This is a provider test message from <strong>${organization?.name ?? "OyamaCRM"}</strong>.</p>`,
+    });
+
+    await logAudit({
+      action: "EMAIL_PROVIDER_TEST_SENT",
+      entity: "PluginSetting",
+      entityId: organizationId,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: {
+        provider: provider.provider,
+        toEmail,
+        smtpHost,
+        smtpPort,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    return res.json({
+      success: true,
+      mode: provider.provider,
+      message: `Provider test email sent to ${toEmail}.`,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Email provider test failed.";
+    return res.status(502).json({ error: { code: "EMAIL_PROVIDER_TEST_FAILED", message } });
   }
 });
 

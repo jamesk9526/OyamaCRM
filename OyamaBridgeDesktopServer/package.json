@@ -1,0 +1,56 @@
+{
+  "name": "oyama-bridge-desktop-server",
+  "version": "1.0.0",
+  "description": "Standalone Oyama Bridge app for local AI gateway and donor/report Steward intelligence routing.",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/bridge-server.test.js",
+    "build:installer": "npm run build:installer:script",
+    "build:installer:nsis:oneclick": "npm run build:installer:script",
+    "build:installer:script": "build-nsis-oneclick.bat",
+    "installer:nsis:oneclick": "electron-builder --win nsis --publish never",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.oyama.bridge",
+    "productName": "Oyama Bridge",
+    "files": [
+      "main.js",
+      "bridge-server.js",
+      "preload.js",
+      "index.html",
+      "renderer.js",
+      "styles.css",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Oyama-Bridge-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "Oyama Bridge"
+    }
+  }
+}
