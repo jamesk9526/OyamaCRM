@@ -21,7 +21,7 @@ interface StewardResponseRendererProps {
   onSuggestedAction?: (action: StewardSuggestedAction) => void | Promise<void>;
 }
 
-function renderArtifact(artifact: StewardArtifact): JSX.Element | null {
+function renderArtifact(artifact: StewardArtifact): React.ReactElement | null {
   if (artifact.type === "email_draft") {
     return <EmailDraftArtifactCard artifact={artifact} />;
   }
