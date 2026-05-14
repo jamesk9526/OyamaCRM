@@ -11,6 +11,7 @@
  * @module routes/reports
  */
 import { Router } from "express";
+import { Prisma } from "@prisma/client";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
@@ -145,7 +146,7 @@ function normalizeOShareviewNotes(config: unknown): OShareviewNote[] {
     .filter((entry) => entry && typeof entry === "object")
     .map((entry) => {
       const note = entry as Record<string, unknown>;
-      const priority = note.priority === "urgent" || note.priority === "important" ? note.priority : "info";
+      const priority: OShareviewNote["priority"] = note.priority === "urgent" || note.priority === "important" ? note.priority : "info";
       return {
         id: typeof note.id === "string" ? note.id : "",
         body: typeof note.body === "string" ? note.body : "",
@@ -237,7 +238,7 @@ router.post("/oshareview-notes", async (req, res) => {
   }
 
   const body = String(req.body?.body ?? "").trim();
-  const priority = req.body?.priority === "urgent" || req.body?.priority === "important" ? req.body.priority : "info";
+  const priority: OShareviewNote["priority"] = req.body?.priority === "urgent" || req.body?.priority === "important" ? req.body.priority : "info";
   if (!body) {
     res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Note body is required." } });
     return;
@@ -254,7 +255,7 @@ router.post("/oshareview-notes", async (req, res) => {
   });
 
   const notes = normalizeOShareviewNotes(existing?.config);
-  const createdByName = `${req.user?.firstName ?? ""} ${req.user?.lastName ?? ""}`.trim() || "Admin";
+  const createdByName = req.user?.email ?? "Admin";
   const nextNote: OShareviewNote = {
     id: `note_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     body,
@@ -277,11 +278,11 @@ router.post("/oshareview-notes", async (req, res) => {
       organizationId,
       pluginKey: OSHAREVIEW_NOTES_PLUGIN_KEY,
       enabled: true,
-      config: { notes: nextNotes },
+      config: { notes: nextNotes } as unknown as Prisma.InputJsonValue,
     },
     update: {
       enabled: true,
-      config: { notes: nextNotes },
+      config: { notes: nextNotes } as unknown as Prisma.InputJsonValue,
     },
   });
 
@@ -353,7 +354,7 @@ router.post("/oshareview-blueprints", async (req, res) => {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     createdByUserId: req.user?.sub ?? "",
-    createdByName: `${req.user?.firstName ?? ""} ${req.user?.lastName ?? ""}`.trim() || "Admin",
+    createdByName: req.user?.email ?? "Admin",
   };
 
   const nextBlueprints = [nextBlueprint, ...current].slice(0, 100);
@@ -369,11 +370,11 @@ router.post("/oshareview-blueprints", async (req, res) => {
       organizationId,
       pluginKey: OSHAREVIEW_BLUEPRINTS_PLUGIN_KEY,
       enabled: true,
-      config: { blueprints: nextBlueprints },
+      config: { blueprints: nextBlueprints } as unknown as Prisma.InputJsonValue,
     },
     update: {
       enabled: true,
-      config: { blueprints: nextBlueprints },
+      config: { blueprints: nextBlueprints } as unknown as Prisma.InputJsonValue,
     },
   });
 
@@ -423,11 +424,11 @@ router.delete("/oshareview-blueprints/:id", async (req, res) => {
       organizationId,
       pluginKey: OSHAREVIEW_BLUEPRINTS_PLUGIN_KEY,
       enabled: true,
-      config: { blueprints: nextBlueprints },
+      config: { blueprints: nextBlueprints } as unknown as Prisma.InputJsonValue,
     },
     update: {
       enabled: true,
-      config: { blueprints: nextBlueprints },
+      config: { blueprints: nextBlueprints } as unknown as Prisma.InputJsonValue,
     },
   });
 

@@ -1184,7 +1184,7 @@ export default function ReportsPage() {
   /** Maximum payment amount (for scaling horizontal payment-method bars). */
   const maxPayment =
     paymentBreakdown.length > 0 ? Math.max(...paymentBreakdown.map((p) => p.amount)) : 1;
-  const canPostShareviewNotes = user?.role === "admin" && user.role !== "shareview_user";
+  const canPostShareviewNotes = user?.role === "admin";
   const canManageBlueprints = user?.role === "admin";
 
   // ── Render ────────────────────────────────────────────────────────────────

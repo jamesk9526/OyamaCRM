@@ -35,7 +35,7 @@ function getAccentTheme(moduleKey: TopBarModuleKey): AccentTheme {
   if (moduleKey === "hrm") {
     return { sidebarGradient: "from-teal-600 to-cyan-600" };
   }
-  if (moduleKey === "reportit") {
+  if (moduleKey === "oshareview") {
     return { sidebarGradient: "from-cyan-600 to-sky-600" };
   }
   return { sidebarGradient: "from-green-600 to-emerald-600" };

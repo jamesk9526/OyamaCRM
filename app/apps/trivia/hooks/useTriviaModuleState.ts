@@ -571,35 +571,32 @@ export function useTriviaModuleState() {
     const live = state.liveByEventId[eventId];
     if (!event || !live) return;
 
-    let scoreAction: TriviaScoreAction | null = null;
+    const teamIndex = event.teams.findIndex((team) => team.id === input.teamId);
+    if (teamIndex < 0) return;
 
-    const teams = event.teams.map((team) => {
-      if (team.id !== input.teamId) return team;
-      const previousScore = team.score;
-      const rawNextScore = team.score + input.delta;
-      const nextScore = event.scoringRules.allowNegativeScores ? rawNextScore : Math.max(0, rawNextScore);
+    const currentTeam = event.teams[teamIndex];
+    const previousScore = currentTeam.score;
+    const rawNextScore = previousScore + input.delta;
+    const nextScore = event.scoringRules.allowNegativeScores ? rawNextScore : Math.max(0, rawNextScore);
+    const scoreAction: TriviaScoreAction = {
+      id: createTriviaId("score-action"),
+      eventId,
+      teamId: currentTeam.id,
+      roundId: input.roundId ?? live.activeRoundId ?? null,
+      questionId: input.questionId ?? null,
+      actionType: input.actionType,
+      delta: nextScore - previousScore,
+      reason: input.reason,
+      previousScore,
+      newScore: nextScore,
+      createdAt: new Date().toISOString(),
+    };
 
-      scoreAction = {
-        id: createTriviaId("score-action"),
-        eventId,
-        teamId: team.id,
-        roundId: input.roundId ?? live.activeRoundId ?? null,
-        questionId: input.questionId ?? null,
-        actionType: input.actionType,
-        delta: nextScore - previousScore,
-        reason: input.reason,
-        previousScore,
-        newScore: nextScore,
-        createdAt: new Date().toISOString(),
-      };
-
-      return {
-        ...team,
-        score: nextScore,
-      };
-    });
-
-    if (!scoreAction) return;
+    const teams = [...event.teams];
+    teams[teamIndex] = {
+      ...currentTeam,
+      score: nextScore,
+    };
 
     const nextEvent: TriviaEvent = {
       ...event,

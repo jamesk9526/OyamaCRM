@@ -15,7 +15,7 @@ describe("feedback context helpers", () => {
   });
 
   it("maps reportit module key into reportit scope for ticket payloads", () => {
-    const context = getFeedbackContext({ moduleKey: "reportit", pathname: "/reports" });
+    const context = getFeedbackContext({ moduleKey: "oshareview", pathname: "/reports" });
     expect(context.crmScope).toBe("reportit");
   });
 });
