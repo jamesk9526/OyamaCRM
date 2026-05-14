@@ -6,6 +6,8 @@
  * @module routes/settings
  */
 import { Router, Request, Response } from "express";
+import { randomBytes } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import nodemailer from "nodemailer";
 import { REFRESH_COOKIE } from "../lib/auth.js";
 import { logAudit } from "../lib/audit.js";
@@ -139,6 +141,14 @@ interface EmailProviderTestPayload {
   toEmail?: string;
 }
 
+interface MicrosoftGraphTokenResponse {
+  token_type?: string;
+  scope?: string;
+  expires_in?: number;
+  access_token?: string;
+  refresh_token?: string;
+}
+
 /** Practical email format validation for SMTP test-send endpoint. */
 function isValidEmail(value: string): boolean {
   const email = value.trim();
@@ -167,6 +177,27 @@ function valueOrEnv(value: string | null | undefined, envValue: string): string 
 
 const BRANDING_PLUGIN_KEY = "organization-branding";
 const EMAIL_PROVIDER_PLUGIN_KEY = "email-provider";
+const EMAIL_PROVIDER_MS_GRAPH_STATE_PREFIX = "email-provider-ms-graph-oauth-state:";
+
+interface EmailProviderInternalSettings {
+  provider: EmailProviderType;
+  microsoftTenantId: string;
+  microsoftClientId: string;
+  microsoftClientSecretConfigured: boolean;
+  microsoftClientSecret: string;
+  microsoftMailbox: string;
+  microsoftRedirectUri: string;
+  microsoftScope: string;
+  graphConnected: boolean;
+  graphAccessToken: string;
+  graphRefreshToken: string;
+  graphTokenType: string;
+  graphTokenExpiresAt: string;
+  graphLastConnectedAt: string;
+  smtpHostOverride: string;
+  smtpPortOverride: number;
+  smtpSecureOverride: boolean;
+}
 
 /** Default provider config preserves legacy SMTP behavior while enabling provider selection. */
 function getDefaultEmailProviderSettings() {
@@ -212,6 +243,188 @@ function normalizeEmailProviderSettings(input: unknown) {
     smtpPortOverride: Number.isFinite(smtpPortCandidate) ? Math.min(Math.max(smtpPortCandidate, 1), 65535) : defaults.smtpPortOverride,
     smtpSecureOverride: Boolean(raw.smtpSecureOverride),
   };
+}
+
+/** Parses internal provider config including confidential Graph token fields. */
+function normalizeEmailProviderInternalSettings(input: unknown): EmailProviderInternalSettings {
+  const base = normalizeEmailProviderSettings(input);
+  const raw = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+
+  const graphTokenExpiresAt = String(raw.graphTokenExpiresAt ?? "").trim();
+  const graphLastConnectedAt = String(raw.graphLastConnectedAt ?? "").trim();
+  const microsoftClientSecret = String(raw.microsoftClientSecret ?? "").trim();
+
+  return {
+    ...base,
+    microsoftClientSecretConfigured: base.microsoftClientSecretConfigured || microsoftClientSecret.length > 0,
+    microsoftClientSecret: microsoftClientSecret.slice(0, 4000),
+    graphAccessToken: String(raw.graphAccessToken ?? "").trim().slice(0, 8000),
+    graphRefreshToken: String(raw.graphRefreshToken ?? "").trim().slice(0, 8000),
+    graphTokenType: String(raw.graphTokenType ?? "Bearer").trim().slice(0, 40) || "Bearer",
+    graphTokenExpiresAt,
+    graphLastConnectedAt,
+  };
+}
+
+/** Builds one provider OAuth-state plugin key from a nonce. */
+function microsoftGraphStateKey(nonce: string): string {
+  return `${EMAIL_PROVIDER_MS_GRAPH_STATE_PREFIX}${nonce}`;
+}
+
+/** Builds the front-end redirect URI for OAuth completion result banners. */
+function microsoftGraphSettingsRedirect(status: "connected" | "error" | "disconnected", reason?: string): string {
+  const appBase = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const params = new URLSearchParams({ microsoftGraph: status });
+  if (reason) {
+    params.set("reason", reason.slice(0, 160));
+  }
+  return `${appBase}/settings/organization?${params.toString()}`;
+}
+
+/** Resolves Graph callback redirect URI from settings or request host fallback. */
+function resolveMicrosoftRedirectUri(provider: EmailProviderInternalSettings, req: Request): string {
+  const configured = provider.microsoftRedirectUri.trim();
+  if (configured) return configured;
+  const host = req.get("host") ?? "localhost:4000";
+  return `${req.protocol}://${host}/api/settings/email/provider/microsoft/callback`;
+}
+
+/** Normalizes scopes and guarantees required defaults for Graph send/refresh flow. */
+function resolveMicrosoftScopes(rawScope: string): string {
+  const defaults = ["Mail.Send", "offline_access", "User.Read"];
+  const provided = rawScope
+    .split(/\s+/)
+    .map((scope) => scope.trim())
+    .filter(Boolean);
+
+  const merged = new Set<string>([...provided, ...defaults]);
+  return Array.from(merged).join(" ");
+}
+
+/** Resolves Graph token endpoint from the configured tenant. */
+function microsoftTokenEndpoint(tenantId: string): string {
+  const tenant = tenantId.trim() || "common";
+  return `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/token`;
+}
+
+/** Requests access/refresh tokens from Microsoft using authorization code grant. */
+async function exchangeMicrosoftCodeForTokens(input: {
+  provider: EmailProviderInternalSettings;
+  req: Request;
+  code: string;
+}): Promise<MicrosoftGraphTokenResponse> {
+  const params = new URLSearchParams();
+  params.set("client_id", input.provider.microsoftClientId);
+  params.set("client_secret", input.provider.microsoftClientSecret);
+  params.set("grant_type", "authorization_code");
+  params.set("code", input.code);
+  params.set("redirect_uri", resolveMicrosoftRedirectUri(input.provider, input.req));
+  params.set("scope", resolveMicrosoftScopes(input.provider.microsoftScope));
+
+  const response = await fetch(microsoftTokenEndpoint(input.provider.microsoftTenantId), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: params.toString(),
+  });
+
+  const rawText = await response.text();
+  if (!response.ok) {
+    throw new Error(`Microsoft token exchange failed (${response.status}): ${rawText.slice(0, 240)}`);
+  }
+
+  return JSON.parse(rawText) as MicrosoftGraphTokenResponse;
+}
+
+/** Refreshes Graph access token using the stored refresh token. */
+async function refreshMicrosoftAccessToken(provider: EmailProviderInternalSettings): Promise<MicrosoftGraphTokenResponse> {
+  const params = new URLSearchParams();
+  params.set("client_id", provider.microsoftClientId);
+  params.set("client_secret", provider.microsoftClientSecret);
+  params.set("grant_type", "refresh_token");
+  params.set("refresh_token", provider.graphRefreshToken);
+  params.set("scope", resolveMicrosoftScopes(provider.microsoftScope));
+
+  const response = await fetch(microsoftTokenEndpoint(provider.microsoftTenantId), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: params.toString(),
+  });
+
+  const rawText = await response.text();
+  if (!response.ok) {
+    throw new Error(`Microsoft token refresh failed (${response.status}): ${rawText.slice(0, 240)}`);
+  }
+
+  return JSON.parse(rawText) as MicrosoftGraphTokenResponse;
+}
+
+/** Applies token payload fields onto provider config after exchange/refresh. */
+function applyMicrosoftTokenPayload(
+  provider: EmailProviderInternalSettings,
+  token: MicrosoftGraphTokenResponse
+): EmailProviderInternalSettings {
+  const expiresInSeconds = Number(token.expires_in ?? 3600);
+  const expiresAt = new Date(Date.now() + Math.max(60, expiresInSeconds - 30) * 1000).toISOString();
+
+  return {
+    ...provider,
+    graphConnected: true,
+    graphAccessToken: String(token.access_token ?? provider.graphAccessToken ?? "").trim(),
+    graphRefreshToken: String(token.refresh_token ?? provider.graphRefreshToken ?? "").trim(),
+    graphTokenType: String(token.token_type ?? provider.graphTokenType ?? "Bearer").trim() || "Bearer",
+    graphTokenExpiresAt: expiresAt,
+    graphLastConnectedAt: new Date().toISOString(),
+  };
+}
+
+/** Returns true when Graph token should be refreshed now. */
+function shouldRefreshMicrosoftToken(expiresAtIso: string): boolean {
+  if (!expiresAtIso) return true;
+  const expiresAt = Date.parse(expiresAtIso);
+  if (!Number.isFinite(expiresAt)) return true;
+  return Date.now() >= expiresAt;
+}
+
+/** Sends one provider test message through Microsoft Graph sendMail API. */
+async function sendMicrosoftGraphMail(input: {
+  provider: EmailProviderInternalSettings;
+  toEmail: string;
+  organizationName: string;
+  accessToken: string;
+}): Promise<void> {
+  const mailbox = input.provider.microsoftMailbox.trim();
+  const encodedMailbox = mailbox ? encodeURIComponent(mailbox) : "me";
+  const endpoint = mailbox
+    ? `https://graph.microsoft.com/v1.0/users/${encodedMailbox}/sendMail`
+    : "https://graph.microsoft.com/v1.0/me/sendMail";
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${input.accessToken}`,
+    },
+    body: JSON.stringify({
+      message: {
+        subject: `Microsoft Graph Provider Test - ${input.organizationName}`,
+        body: {
+          contentType: "HTML",
+          content: `<p>This is a provider test message from <strong>${input.organizationName}</strong>.</p>`,
+        },
+        toRecipients: [{ emailAddress: { address: input.toEmail } }],
+      },
+      saveToSentItems: false,
+    }),
+  });
+
+  if (!response.ok) {
+    const rawText = await response.text();
+    throw new Error(`Microsoft Graph sendMail failed (${response.status}): ${rawText.slice(0, 240)}`);
+  }
 }
 
 /** Safe defaults for organization-wide branding settings consumed across modules. */
@@ -599,15 +812,40 @@ router.put("/email/provider", requireAuth, requireRole("admin"), async (req: Req
       },
     });
 
-    const existing = normalizeEmailProviderSettings(existingSetting?.config ?? {});
+    const existingInternal = normalizeEmailProviderInternalSettings(existingSetting?.config ?? {});
     const payload = normalizeEmailProviderSettings({
-      ...existing,
+      ...existingInternal,
       ...body,
       microsoftClientSecretConfigured:
         String(body.microsoftClientSecret ?? "").trim().length > 0
           ? true
-          : existing.microsoftClientSecretConfigured,
+          : existingInternal.microsoftClientSecretConfigured,
     });
+
+    const nextClientSecret = String(body.microsoftClientSecret ?? "").trim() || existingInternal.microsoftClientSecret;
+    const credentialsChanged =
+      existingInternal.microsoftTenantId !== payload.microsoftTenantId
+      || existingInternal.microsoftClientId !== payload.microsoftClientId
+      || existingInternal.microsoftMailbox !== payload.microsoftMailbox
+      || existingInternal.microsoftScope !== payload.microsoftScope
+      || existingInternal.microsoftRedirectUri !== payload.microsoftRedirectUri
+      || existingInternal.microsoftClientSecret !== nextClientSecret;
+
+    const internalPayload: EmailProviderInternalSettings = {
+      ...existingInternal,
+      ...payload,
+      microsoftClientSecret: nextClientSecret,
+      microsoftClientSecretConfigured: nextClientSecret.length > 0,
+      ...(credentialsChanged
+        ? {
+          graphConnected: false,
+          graphAccessToken: "",
+          graphRefreshToken: "",
+          graphTokenType: "Bearer",
+          graphTokenExpiresAt: "",
+        }
+        : {}),
+    };
 
     await prisma.pluginSetting.upsert({
       where: {
@@ -620,11 +858,11 @@ router.put("/email/provider", requireAuth, requireRole("admin"), async (req: Req
         organizationId,
         pluginKey: EMAIL_PROVIDER_PLUGIN_KEY,
         enabled: true,
-        config: payload,
+        config: internalPayload as unknown as Prisma.InputJsonValue,
       },
       update: {
         enabled: true,
-        config: payload,
+        config: internalPayload as unknown as Prisma.InputJsonValue,
       },
     });
 
@@ -636,22 +874,298 @@ router.put("/email/provider", requireAuth, requireRole("admin"), async (req: Req
       organizationId,
       metadata: {
         provider: payload.provider,
-        graphConnected: payload.graphConnected,
-        microsoftClientSecretConfigured: payload.microsoftClientSecretConfigured,
+        graphConnected: internalPayload.graphConnected,
+        microsoftClientSecretConfigured: internalPayload.microsoftClientSecretConfigured,
       },
       ipAddress: req.ip,
       userAgent: req.headers["user-agent"],
     });
 
-    return res.json(payload);
+    return res.json(normalizeEmailProviderSettings(internalPayload));
   } catch {
     return res.status(500).json({ error: { code: "EMAIL_PROVIDER_WRITE_FAILED", message: "Failed to save email provider settings" } });
   }
 });
 
 /**
+ * GET /api/settings/email/provider/microsoft/auth-uri
+ * Builds the Microsoft Graph OAuth authorization URL for admin-initiated connect flow.
+ */
+router.get("/email/provider/microsoft/auth-uri", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await resolveSettingsOrganizationId(req);
+    if (!organizationId) {
+      return res.status(404).json({ error: { code: "SETTINGS_NOT_READY", message: "No organization is configured yet." } });
+    }
+
+    const providerSetting = await prisma.pluginSetting.findUnique({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: EMAIL_PROVIDER_PLUGIN_KEY,
+        },
+      },
+      select: {
+        config: true,
+      },
+    });
+
+    const provider = normalizeEmailProviderInternalSettings(providerSetting?.config ?? {});
+    if (provider.provider !== "microsoft_graph") {
+      return res.status(400).json({
+        error: {
+          code: "GRAPH_PROVIDER_NOT_SELECTED",
+          message: "Select Microsoft Graph as the email provider before connecting OAuth.",
+        },
+      });
+    }
+
+    if (!provider.microsoftTenantId || !provider.microsoftClientId || !provider.microsoftClientSecret) {
+      return res.status(400).json({
+        error: {
+          code: "GRAPH_CONFIG_INCOMPLETE",
+          message: "Tenant ID, Client ID, and Client Secret are required before connecting Graph OAuth.",
+        },
+      });
+    }
+
+    const nonce = randomBytes(18).toString("base64url");
+    const state = `${organizationId}::${nonce}`;
+    const redirectUri = resolveMicrosoftRedirectUri(provider, req);
+    const scope = resolveMicrosoftScopes(provider.microsoftScope);
+
+    const stateExpiry = new Date(Date.now() + 10 * 60 * 1000);
+    await prisma.pluginSetting.upsert({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: microsoftGraphStateKey(nonce),
+        },
+      },
+      create: {
+        organizationId,
+        pluginKey: microsoftGraphStateKey(nonce),
+        enabled: true,
+        config: {
+          createdByUserId: req.user?.sub ?? null,
+          expiresAt: stateExpiry.toISOString(),
+        } as unknown as Prisma.InputJsonValue,
+      },
+      update: {
+        enabled: true,
+        config: {
+          createdByUserId: req.user?.sub ?? null,
+          expiresAt: stateExpiry.toISOString(),
+        } as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    const params = new URLSearchParams({
+      client_id: provider.microsoftClientId,
+      response_type: "code",
+      redirect_uri: redirectUri,
+      response_mode: "query",
+      scope,
+      state,
+      prompt: "consent",
+    });
+
+    const authUri = `https://login.microsoftonline.com/${encodeURIComponent(provider.microsoftTenantId || "common")}/oauth2/v2.0/authorize?${params.toString()}`;
+    return res.json({ data: { authUri, stateExpiresAt: stateExpiry.toISOString() } });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to start Microsoft Graph OAuth flow.";
+    return res.status(500).json({ error: { code: "GRAPH_AUTH_URI_FAILED", message } });
+  }
+});
+
+/**
+ * GET /api/settings/email/provider/microsoft/callback
+ * Handles Microsoft OAuth callback, exchanges code, and persists Graph tokens.
+ */
+router.get("/email/provider/microsoft/callback", async (req: Request, res: Response) => {
+  const oauthError = String(req.query.error ?? "").trim();
+  if (oauthError) {
+    return res.redirect(microsoftGraphSettingsRedirect("error", oauthError));
+  }
+
+  const state = String(req.query.state ?? "").trim();
+  const code = String(req.query.code ?? "").trim();
+  const [organizationId, nonce] = state.split("::");
+
+  if (!organizationId || !nonce || !code) {
+    return res.redirect(microsoftGraphSettingsRedirect("error", "invalid_callback_state"));
+  }
+
+  try {
+    const stateSetting = await prisma.pluginSetting.findUnique({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: microsoftGraphStateKey(nonce),
+        },
+      },
+      select: {
+        config: true,
+      },
+    });
+
+    const stateConfig = stateSetting?.config && typeof stateSetting.config === "object" && !Array.isArray(stateSetting.config)
+      ? (stateSetting.config as Record<string, unknown>)
+      : {};
+    const expiresAt = String(stateConfig.expiresAt ?? "");
+    if (!expiresAt || Date.parse(expiresAt) < Date.now()) {
+      return res.redirect(microsoftGraphSettingsRedirect("error", "oauth_state_expired"));
+    }
+
+    const providerSetting = await prisma.pluginSetting.findUnique({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: EMAIL_PROVIDER_PLUGIN_KEY,
+        },
+      },
+      select: {
+        config: true,
+      },
+    });
+
+    const provider = normalizeEmailProviderInternalSettings(providerSetting?.config ?? {});
+    if (!provider.microsoftTenantId || !provider.microsoftClientId || !provider.microsoftClientSecret) {
+      return res.redirect(microsoftGraphSettingsRedirect("error", "graph_config_incomplete"));
+    }
+
+    const tokenResponse = await exchangeMicrosoftCodeForTokens({
+      provider,
+      req,
+      code,
+    });
+
+    const updatedProvider = applyMicrosoftTokenPayload(provider, tokenResponse);
+    await prisma.pluginSetting.upsert({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: EMAIL_PROVIDER_PLUGIN_KEY,
+        },
+      },
+      create: {
+        organizationId,
+        pluginKey: EMAIL_PROVIDER_PLUGIN_KEY,
+        enabled: true,
+        config: updatedProvider as unknown as Prisma.InputJsonValue,
+      },
+      update: {
+        enabled: true,
+        config: updatedProvider as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    await prisma.pluginSetting.deleteMany({
+      where: {
+        organizationId,
+        pluginKey: microsoftGraphStateKey(nonce),
+      },
+    });
+
+    await logAudit({
+      action: "EMAIL_PROVIDER_GRAPH_CONNECTED",
+      entity: "PluginSetting",
+      entityId: organizationId,
+      organizationId,
+      metadata: {
+        provider: "microsoft_graph",
+        mailbox: updatedProvider.microsoftMailbox,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    return res.redirect(microsoftGraphSettingsRedirect("connected"));
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "graph_callback_failed";
+    return res.redirect(microsoftGraphSettingsRedirect("error", reason));
+  }
+});
+
+/**
+ * POST /api/settings/email/provider/microsoft/disconnect
+ * Clears persisted Graph OAuth tokens while preserving non-secret provider metadata.
+ */
+router.post("/email/provider/microsoft/disconnect", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await resolveSettingsOrganizationId(req);
+    if (!organizationId) {
+      return res.status(404).json({ error: { code: "SETTINGS_NOT_READY", message: "No organization is configured yet." } });
+    }
+
+    const providerSetting = await prisma.pluginSetting.findUnique({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: EMAIL_PROVIDER_PLUGIN_KEY,
+        },
+      },
+      select: {
+        config: true,
+      },
+    });
+
+    const provider = normalizeEmailProviderInternalSettings(providerSetting?.config ?? {});
+    const disconnectedProvider: EmailProviderInternalSettings = {
+      ...provider,
+      graphConnected: false,
+      graphAccessToken: "",
+      graphRefreshToken: "",
+      graphTokenType: "Bearer",
+      graphTokenExpiresAt: "",
+    };
+
+    await prisma.pluginSetting.upsert({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: EMAIL_PROVIDER_PLUGIN_KEY,
+        },
+      },
+      create: {
+        organizationId,
+        pluginKey: EMAIL_PROVIDER_PLUGIN_KEY,
+        enabled: true,
+        config: disconnectedProvider as unknown as Prisma.InputJsonValue,
+      },
+      update: {
+        enabled: true,
+        config: disconnectedProvider as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    await logAudit({
+      action: "EMAIL_PROVIDER_GRAPH_DISCONNECTED",
+      entity: "PluginSetting",
+      entityId: organizationId,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: {
+        provider: "microsoft_graph",
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    return res.json({
+      success: true,
+      message: "Microsoft Graph disconnected.",
+      provider: normalizeEmailProviderSettings(disconnectedProvider),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to disconnect Microsoft Graph.";
+    return res.status(500).json({ error: { code: "GRAPH_DISCONNECT_FAILED", message } });
+  }
+});
+
+/**
  * POST /api/settings/email/provider/test
- * Tests provider configuration. Microsoft Graph is currently mocked until OAuth token exchange is wired.
+ * Tests provider configuration using SMTP or Microsoft Graph transport based on selected provider.
  */
 router.post("/email/provider/test", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
   try {
@@ -694,13 +1208,62 @@ router.post("/email/provider/test", requireAuth, requireRole("admin"), async (re
     ]);
 
     const envSmtp = getEnvSmtpDefaults();
-    const provider = normalizeEmailProviderSettings(providerSetting?.config ?? {});
+    const provider = normalizeEmailProviderInternalSettings(providerSetting?.config ?? {});
 
     if (provider.provider === "microsoft_graph") {
+      if (!provider.graphConnected || !provider.graphRefreshToken) {
+        return res.status(400).json({
+          error: {
+            code: "GRAPH_NOT_CONNECTED",
+            message: "Microsoft Graph is not connected. Complete OAuth connect before testing.",
+          },
+        });
+      }
+
+      let activeProvider = provider;
+      if (shouldRefreshMicrosoftToken(activeProvider.graphTokenExpiresAt)) {
+        const refreshedToken = await refreshMicrosoftAccessToken(activeProvider);
+        activeProvider = applyMicrosoftTokenPayload(activeProvider, refreshedToken);
+
+        await prisma.pluginSetting.update({
+          where: {
+            organizationId_pluginKey: {
+              organizationId,
+              pluginKey: EMAIL_PROVIDER_PLUGIN_KEY,
+            },
+          },
+          data: {
+            config: activeProvider as unknown as Prisma.InputJsonValue,
+          },
+        });
+      }
+
+      await sendMicrosoftGraphMail({
+        provider: activeProvider,
+        toEmail,
+        organizationName: organization?.name ?? "OyamaCRM",
+        accessToken: activeProvider.graphAccessToken,
+      });
+
+      await logAudit({
+        action: "EMAIL_PROVIDER_TEST_SENT",
+        entity: "PluginSetting",
+        entityId: organizationId,
+        userId: req.user?.sub,
+        organizationId,
+        metadata: {
+          provider: provider.provider,
+          toEmail,
+          mailbox: provider.microsoftMailbox,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
       return res.json({
         success: true,
-        mode: "mock",
-        message: "Microsoft Graph provider test is in development. OAuth token exchange endpoint is not wired yet.",
+        mode: "microsoft_graph",
+        message: `Provider test email sent to ${toEmail}.`,
       });
     }
 

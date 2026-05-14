@@ -90,6 +90,8 @@ export default function OrganizationSettingsPage() {
   const [providerTesting, setProviderTesting] = useState(false);
   const [providerTestMessage, setProviderTestMessage] = useState<string | null>(null);
   const [providerTestError, setProviderTestError] = useState<string | null>(null);
+  const [graphConnecting, setGraphConnecting] = useState(false);
+  const [graphDisconnecting, setGraphDisconnecting] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -110,6 +112,36 @@ export default function OrganizationSettingsPage() {
       }
     }
     load();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const graphStatus = params.get("microsoftGraph");
+    const reason = params.get("reason");
+
+    if (!graphStatus) return;
+
+    if (graphStatus === "connected") {
+      setProviderTestMessage("Microsoft Graph connected successfully.");
+      setProviderTestError(null);
+      void apiFetch<EmailProviderSettings>("/api/settings/email/provider")
+        .then((provider) => setProviderForm(provider))
+        .catch(() => {});
+    } else if (graphStatus === "disconnected") {
+      setProviderTestMessage("Microsoft Graph disconnected.");
+      setProviderTestError(null);
+    } else {
+      setProviderTestError(reason ? `Microsoft Graph connect failed: ${reason}` : "Microsoft Graph connect failed.");
+      setProviderTestMessage(null);
+    }
+
+    params.delete("microsoftGraph");
+    params.delete("reason");
+    const nextQuery = params.toString();
+    const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}`;
+    window.history.replaceState({}, "", nextUrl);
   }, []);
 
   /** Update a field in the form state */
@@ -199,6 +231,66 @@ export default function OrganizationSettingsPage() {
       setProviderTestError(err instanceof Error ? err.message : "Provider test failed");
     } finally {
       setProviderTesting(false);
+    }
+  }
+
+  /** Starts Microsoft Graph OAuth connect flow after persisting provider settings. */
+  async function handleGraphConnect() {
+    setGraphConnecting(true);
+    setProviderTestError(null);
+    setProviderTestMessage(null);
+
+    try {
+      const savedProvider = await apiFetch<EmailProviderSettings>("/api/settings/email/provider", {
+        method: "PUT",
+        body: JSON.stringify({
+          ...providerForm,
+          provider: "microsoft_graph",
+          microsoftClientSecret: microsoftClientSecretInput.trim() || undefined,
+        }),
+      });
+
+      setProviderForm(savedProvider);
+      setMicrosoftClientSecretInput("");
+
+      const response = await apiFetch<{ data?: { authUri?: string } }>("/api/settings/email/provider/microsoft/auth-uri");
+      const authUri = response?.data?.authUri;
+      if (!authUri) {
+        throw new Error("Microsoft Graph auth URL was not returned by the server.");
+      }
+
+      window.location.href = authUri;
+    } catch (err) {
+      setProviderTestError(err instanceof Error ? err.message : "Failed to start Microsoft Graph connect.");
+    } finally {
+      setGraphConnecting(false);
+    }
+  }
+
+  /** Disconnects persisted Microsoft Graph OAuth tokens for the active organization. */
+  async function handleGraphDisconnect() {
+    setGraphDisconnecting(true);
+    setProviderTestError(null);
+    setProviderTestMessage(null);
+
+    try {
+      const response = await apiFetch<{ provider?: EmailProviderSettings; message?: string }>("/api/settings/email/provider/microsoft/disconnect", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+
+      if (response.provider) {
+        setProviderForm(response.provider);
+      } else {
+        const latest = await apiFetch<EmailProviderSettings>("/api/settings/email/provider");
+        setProviderForm(latest);
+      }
+
+      setProviderTestMessage(response.message ?? "Microsoft Graph disconnected.");
+    } catch (err) {
+      setProviderTestError(err instanceof Error ? err.message : "Failed to disconnect Microsoft Graph.");
+    } finally {
+      setGraphDisconnecting(false);
     }
   }
 
@@ -301,7 +393,7 @@ export default function OrganizationSettingsPage() {
         <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
           <h2 className="text-sm font-semibold text-gray-900 border-b border-gray-100 pb-2">Email Provider</h2>
           <p className="text-xs text-gray-500">
-            Choose the outbound provider for DonorCRM communications. Microsoft Graph support is scaffolded and currently mock-tested.
+            Choose the outbound provider for DonorCRM communications. Microsoft Graph supports OAuth connect, callback token exchange, and refresh-backed provider testing.
           </p>
 
           <div>
@@ -359,7 +451,7 @@ export default function OrganizationSettingsPage() {
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-3">
               <p className="text-xs font-semibold text-blue-800">Microsoft Graph Configuration</p>
               <p className="text-xs text-blue-700">
-                OAuth exchange and token persistence are still in development. This stores non-secret config and tracks readiness.
+                Configure Graph app credentials, then connect OAuth to activate token-backed sending.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -422,12 +514,30 @@ export default function OrganizationSettingsPage() {
               <p className="text-xs text-gray-600">
                 Graph connected state: <span className="font-semibold">{providerForm.graphConnected ? "Connected" : "Not connected"}</span>
               </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleGraphConnect}
+                  disabled={graphConnecting}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60 transition-colors"
+                >
+                  {graphConnecting ? "Connecting..." : providerForm.graphConnected ? "Reconnect Graph OAuth" : "Connect Graph OAuth"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGraphDisconnect}
+                  disabled={graphDisconnecting || !providerForm.graphConnected}
+                  className="px-4 py-2 text-xs font-semibold text-blue-700 border border-blue-300 bg-white rounded-lg hover:bg-blue-100 disabled:opacity-60 transition-colors"
+                >
+                  {graphDisconnecting ? "Disconnecting..." : "Disconnect Graph"}
+                </button>
+              </div>
             </div>
           )}
 
           <div className="border-t border-gray-100 pt-4 space-y-3">
             <p className="text-xs font-semibold text-gray-600">Provider Test</p>
-            <p className="text-xs text-gray-500">Runs provider-specific test checks. Graph mode currently returns an in-development status.</p>
+            <p className="text-xs text-gray-500">Runs provider-specific transport checks and sends one test message to the recipient.</p>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <input
                 type="email"
