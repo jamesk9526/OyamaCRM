@@ -274,13 +274,13 @@ export default function CompassionClientsPage() {
         </WorkspaceRibbonGroup>
 
         <WorkspaceRibbonGroup label="Status">
-          <WorkspaceRibbonButton label="All" onClick={() => setStatusFilter("")} variant={!statusFilter ? "primary" : "secondary"} accentTone="blue" />
-          <WorkspaceRibbonButton label="Active" onClick={() => setStatusFilter("ACTIVE")} variant={statusFilter === "ACTIVE" ? "primary" : "secondary"} accentTone="blue" />
-          <WorkspaceRibbonButton label="Pending" onClick={() => setStatusFilter("PENDING")} variant={statusFilter === "PENDING" ? "primary" : "secondary"} accentTone="blue" />
+          <WorkspaceRibbonButton label="All" onClick={() => setStatusFilter("")} active={!statusFilter} accentTone="blue" />
+          <WorkspaceRibbonButton label="Active" onClick={() => setStatusFilter("ACTIVE")} active={statusFilter === "ACTIVE"} accentTone="blue" />
+          <WorkspaceRibbonButton label="Pending" onClick={() => setStatusFilter("PENDING")} active={statusFilter === "PENDING"} accentTone="blue" />
         </WorkspaceRibbonGroup>
 
         <WorkspaceRibbonGroup label="Filters">
-          <WorkspaceRibbonButton label="Missing Contact" onClick={() => setMissingContact((value) => !value)} variant={missingContact ? "primary" : "secondary"} accentTone="blue" />
+          <WorkspaceRibbonButton label="Missing Contact" onClick={() => setMissingContact((value) => !value)} active={missingContact} accentTone="blue" />
           <WorkspaceRibbonButton
             label="Clear"
             onClick={() => {

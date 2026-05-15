@@ -15,8 +15,8 @@ const WORKFLOW_STEPS = [
 ] as const;
 
 const SUPPORT_LINKS = [
-  { href: "/letters-printables/signatures", label: "Signatures" },
-  { href: "/letters-printables/branding", label: "Branding" },
+  { href: "/settings/branding/letter-presets", label: "Letter Presets" },
+  { href: "/settings/branding/signatures", label: "Signatures" },
   { href: "/letters-printables/settings", label: "Settings" },
 ] as const;
 

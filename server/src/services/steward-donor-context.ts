@@ -147,6 +147,14 @@ function asNumber(value: Prisma.Decimal | number | null | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+/** Formats a Date or ISO string into a human-readable "Month DD, YYYY" format for AI context. */
+export function fmtDate(d: Date | string | null | undefined): string {
+  if (!d) return "no date on record";
+  const dt = typeof d === "string" ? new Date(d) : d;
+  if (isNaN(dt.getTime())) return "unknown date";
+  return dt.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+}
+
 function donorName(firstName: string, lastName: string): string {
   return `${firstName} ${lastName}`.trim();
 }
@@ -807,4 +815,363 @@ export async function getOShareviewDonorSummary(
       donorRetentionRate,
     },
   };
+}
+
+// ─── New RAG service functions ─────────────────────────────────────────────
+
+export interface DonorFullProfileResult {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  donorStatus: DonorStatus;
+  totalLifetimeGiving: number;
+  giftCount: number;
+  firstGiftDate: string | null;
+  lastGiftDate: string | null;
+  lastGiftAmount: number;
+  tags: string[];
+  recentDonations: Array<{
+    id: string;
+    amount: number;
+    date: string;
+    campaign: string | null;
+    notes: string | null;
+    paymentMethod: string | null;
+    acknowledged: boolean;
+  }>;
+  openTasks: Array<{
+    title: string;
+    dueDate: string | null;
+    priority: string;
+    status: string;
+  }>;
+  signals: StewardDecisionSignals;
+  communicationPreferences: DonorCommunicationPreferences;
+}
+
+/** Returns a comprehensive profile for a single donor including giving history, tasks, and stewardship signals. */
+export async function getDonorFullProfile(
+  organizationId: string,
+  constituentId: string
+): Promise<DonorFullProfileResult | null> {
+  const [constituent, recentDonations, openTasks] = await Promise.all([
+    prisma.constituent.findFirst({
+      where: { id: constituentId, organizationId },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        donorStatus: true,
+        giftCount: true,
+        totalLifetimeGiving: true,
+        lastGiftAmount: true,
+        firstGiftDate: true,
+        lastGiftDate: true,
+        engagementScore: true,
+        doNotEmail: true,
+        emailOptOut: true,
+        doNotCall: true,
+        doNotMail: true,
+        doNotContact: true,
+        tags: { select: { tag: { select: { name: true } } } },
+      },
+    }),
+    prisma.donation.findMany({
+      where: { constituentId, status: "COMPLETED" },
+      orderBy: { date: "desc" },
+      take: 8,
+      select: {
+        id: true,
+        amount: true,
+        date: true,
+        notes: true,
+        paymentMethod: true,
+        acknowledgmentSentAt: true,
+        campaign: { select: { name: true } },
+      },
+    }),
+    prisma.task.findMany({
+      where: { constituentId, status: { in: ["PENDING", "IN_PROGRESS"] } },
+      orderBy: [{ dueDate: "asc" }],
+      take: 6,
+      select: { title: true, dueDate: true, priority: true, status: true, assigneeId: true },
+    }),
+  ]);
+
+  if (!constituent) return null;
+
+  const input = toStewardInput(constituent);
+  const preferences = toCommunicationPreferences(constituent);
+  const { signals } = computeDecisionSignals(input, preferences);
+
+  return {
+    id: constituent.id,
+    name: donorName(constituent.firstName, constituent.lastName),
+    email: constituent.email,
+    phone: constituent.phone ?? null,
+    donorStatus: constituent.donorStatus,
+    totalLifetimeGiving: asNumber(constituent.totalLifetimeGiving),
+    giftCount: constituent.giftCount,
+    firstGiftDate: constituent.firstGiftDate ? fmtDate(constituent.firstGiftDate) : null,
+    lastGiftDate: constituent.lastGiftDate ? fmtDate(constituent.lastGiftDate) : null,
+    lastGiftAmount: asNumber(constituent.lastGiftAmount),
+    tags: constituent.tags.map((ct) => (ct as { tag: { name: string } }).tag.name),
+    recentDonations: recentDonations.map((d) => ({
+      id: d.id,
+      amount: asNumber(d.amount),
+      date: fmtDate(d.date),
+      campaign: d.campaign?.name ?? null,
+      notes: d.notes?.slice(0, 200) ?? null,
+      paymentMethod: d.paymentMethod ?? null,
+      acknowledged: Boolean(d.acknowledgmentSentAt),
+    })),
+    openTasks: openTasks.map((t) => ({
+      title: t.title,
+      dueDate: t.dueDate ? fmtDate(t.dueDate) : null,
+      priority: t.priority,
+      status: t.status,
+    })) as DonorFullProfileResult["openTasks"],
+    signals,
+    communicationPreferences: preferences,
+  };
+}
+
+export interface DonationHistoryItem {
+  id: string;
+  amount: number;
+  date: string;
+  campaign: string | null;
+  paymentMethod: string | null;
+  notes: string | null;
+  acknowledged: boolean;
+}
+
+/** Returns paginated donation history for a single constituent. */
+export async function getDonationHistory(
+  organizationId: string,
+  constituentId: string,
+  options?: { limit?: number }
+): Promise<{ donorName: string; donations: DonationHistoryItem[]; totalCount: number }> {
+  const limit = Math.min(Math.max(options?.limit ?? 20, 1), 100);
+
+  const [constituent, donations, totalCount] = await Promise.all([
+    prisma.constituent.findFirst({
+      where: { id: constituentId, organizationId },
+      select: { firstName: true, lastName: true },
+    }),
+    prisma.donation.findMany({
+      where: { constituentId, constituent: { organizationId }, status: "COMPLETED" },
+      orderBy: { date: "desc" },
+      take: limit,
+      select: {
+        id: true,
+        amount: true,
+        date: true,
+        paymentMethod: true,
+        notes: true,
+        acknowledgmentSentAt: true,
+        campaign: { select: { name: true } },
+      },
+    }),
+    prisma.donation.count({
+      where: { constituentId, constituent: { organizationId }, status: "COMPLETED" },
+    }),
+  ]);
+
+  if (!constituent) return { donorName: "Unknown", donations: [], totalCount: 0 };
+
+  return {
+    donorName: donorName(constituent.firstName, constituent.lastName),
+    donations: donations.map((d) => ({
+      id: d.id,
+      amount: asNumber(d.amount),
+      date: fmtDate(d.date),
+      campaign: d.campaign?.name ?? null,
+      paymentMethod: d.paymentMethod ?? null,
+      notes: d.notes?.slice(0, 200) ?? null,
+      acknowledged: Boolean(d.acknowledgmentSentAt),
+    })),
+    totalCount,
+  };
+}
+
+export interface GiftSummaryByYearResult {
+  donorName: string;
+  years: Array<{
+    year: number;
+    totalAmount: number;
+    giftCount: number;
+    largestGift: number;
+  }>;
+}
+
+/** Returns year-over-year giving totals for a single donor (last 6 calendar years). */
+export async function getGiftSummaryByYear(
+  organizationId: string,
+  constituentId: string
+): Promise<GiftSummaryByYearResult> {
+  const constituent = await prisma.constituent.findFirst({
+    where: { id: constituentId, organizationId },
+    select: { firstName: true, lastName: true },
+  });
+
+  if (!constituent) return { donorName: "Unknown", years: [] };
+
+  const currentYear = new Date().getFullYear();
+  const startYear = currentYear - 5;
+
+  const donations = await prisma.donation.findMany({
+    where: {
+      constituentId,
+      constituent: { organizationId },
+      status: "COMPLETED",
+      date: { gte: new Date(startYear, 0, 1) },
+    },
+    select: { amount: true, date: true },
+    orderBy: { date: "desc" },
+  });
+
+  const byYear = new Map<number, { total: number; count: number; largest: number }>();
+  for (const d of donations) {
+    const yr = d.date.getFullYear();
+    const existing = byYear.get(yr) ?? { total: 0, count: 0, largest: 0 };
+    const amt = asNumber(d.amount);
+    byYear.set(yr, {
+      total: existing.total + amt,
+      count: existing.count + 1,
+      largest: Math.max(existing.largest, amt),
+    });
+  }
+
+  const years = [];
+  for (let yr = currentYear; yr >= startYear; yr--) {
+    const data = byYear.get(yr);
+    if (data) {
+      years.push({
+        year: yr,
+        totalAmount: Math.round(data.total),
+        giftCount: data.count,
+        largestGift: Math.round(data.largest),
+      });
+    }
+  }
+
+  return {
+    donorName: donorName(constituent.firstName, constituent.lastName),
+    years,
+  };
+}
+
+export interface ActiveCampaignSummary {
+  id: string;
+  name: string;
+  goal: number;
+  raised: number;
+  progressPercent: number;
+  startDate: string | null;
+  endDate: string | null;
+  giftCount: number;
+}
+
+/** Returns all active campaigns with real-time giving progress. */
+export async function getActiveCampaigns(organizationId: string): Promise<ActiveCampaignSummary[]> {
+  const campaigns = await prisma.campaign.findMany({
+    where: { organizationId, active: true },
+    orderBy: { startDate: "desc" },
+    take: 20,
+    select: {
+      id: true,
+      name: true,
+      goal: true,
+      startDate: true,
+      endDate: true,
+      _count: { select: { donations: true } },
+    },
+  });
+
+  const campaignIds = campaigns.map((c) => c.id);
+  const giving = await prisma.donation.groupBy({
+    by: ["campaignId"],
+    where: {
+      campaignId: { in: campaignIds },
+      status: "COMPLETED",
+    },
+    _sum: { amount: true },
+    _count: { _all: true },
+  });
+  const givingMap = new Map(
+    giving.map((row) => [row.campaignId, { raised: asNumber(row._sum.amount), count: row._count._all }])
+  );
+
+  return campaigns.map((c) => {
+    const goal = asNumber(c.goal);
+    const progress = givingMap.get(c.id) ?? { raised: 0, count: 0 };
+    return {
+      id: c.id,
+      name: c.name,
+      goal: Math.round(goal),
+      raised: Math.round(progress.raised),
+      progressPercent: goal > 0 ? Math.round((progress.raised / goal) * 100) : 0,
+      startDate: c.startDate ? fmtDate(c.startDate) : null,
+      endDate: c.endDate ? fmtDate(c.endDate) : null,
+      giftCount: progress.count,
+    };
+  });
+}
+
+export interface OverdueTaskItem {
+  id: string;
+  title: string;
+  dueDate: string;
+  priority: string;
+  donorName: string | null;
+  constituentId: string | null;
+  assigneeName: string | null;
+  daysOverdue: number;
+}
+
+/** Returns tasks past their due date, ordered by oldest first. */
+export async function getOverdueTasks(
+  organizationId: string,
+  options?: { limit?: number }
+): Promise<OverdueTaskItem[]> {
+  const limit = Math.min(Math.max(options?.limit ?? 25, 1), 100);
+  const now = new Date();
+
+  const tasks = await prisma.task.findMany({
+    where: {
+      constituent: { organizationId },
+      status: { in: ["PENDING", "IN_PROGRESS"] },
+      dueDate: { lt: now },
+    },
+    orderBy: { dueDate: "asc" },
+    take: limit,
+    select: {
+      id: true,
+      title: true,
+      dueDate: true,
+      priority: true,
+      constituentId: true,
+      constituent: { select: { firstName: true, lastName: true } },
+      assignee: { select: { firstName: true, lastName: true } },
+    },
+  });
+
+  return tasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    dueDate: t.dueDate ? fmtDate(t.dueDate) : "no due date",
+    priority: t.priority,
+    constituentId: t.constituentId ?? null,
+    donorName: t.constituent
+      ? donorName(t.constituent.firstName, t.constituent.lastName)
+      : null,
+    assigneeName: t.assignee ? `${t.assignee.firstName} ${t.assignee.lastName}`.trim() : null,
+    daysOverdue: t.dueDate
+      ? Math.floor((now.getTime() - t.dueDate.getTime()) / (1000 * 60 * 60 * 24))
+      : 0,
+  }));
 }

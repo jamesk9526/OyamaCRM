@@ -9,22 +9,26 @@ echo =============================================
 echo.
 
 if not exist "node_modules" (
-  echo [1/4] Installing dependencies...
+  echo [1/5] Installing dependencies...
   call npm install
   if errorlevel 1 goto :fail
 ) else (
-  echo [1/4] Dependencies already installed.
+  echo [1/5] Dependencies already installed.
 )
 
-echo [2/4] Cleaning previous release output...
+echo [2/4] Generating app icons...
+call node create-icon.js
+if errorlevel 1 goto :fail
+
+echo [3/4] Cleaning previous release output...
 if exist "release" rmdir /s /q "release"
 mkdir "release" >nul 2>&1
 
-echo [3/4] Building one-click NSIS installer...
+echo [4/4] Building one-click NSIS installer...
 call npx electron-builder --win nsis --x64 --publish never
 if errorlevel 1 goto :fail
 
-echo [4/4] Build complete.
+echo [5/5] Build complete.
 echo Output folder: %~dp0release
 for %%F in ("%~dp0release\Oyama-Bridge-Setup-*.exe") do (
   set "LATEST_INSTALLER=%%~fF"

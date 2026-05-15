@@ -1,6 +1,24 @@
 # OyamaCRM Feature Status Audit
 
-_Last deep audit: 2026-05-13_
+_Last deep audit: 2026-05-15_
+
+## 2026-05-15 ReportViewer Workspace Ribbon + 7 Chart Types Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| ReportViewer workspace ribbon | Working | `app/components/donor-reports/ReportViewer.tsx` | Full-page report modal/viewer rewritten with ribbon-first command model. Context-aware ribbon changes controls based on active panel (Dashboard/Data Table/Print Preview). |
+| 7 chart types in ReportViewer | Working | `app/components/donor-reports/ReportViewer.tsx` | Bar, Line, Area, Pie, Donut, Composed, and Scatter chart types selectable from ribbon with dedicated icon buttons. |
+| ReportViewer X-axis picker | Working | `app/components/donor-reports/ReportViewer.tsx` | Dropdown selector for X-axis key with auto-populated options from report data columns. |
+| ReportViewer multi-metric Y selector | Working | `app/components/donor-reports/ReportViewer.tsx` | Toggle buttons per metric with color dot indicators for multi-series chart configuration. |
+| ReportViewer color themes | Working | `app/components/donor-reports/ReportViewer.tsx` | 5 color themes (green, blue, purple, orange, rainbow) with swatch circle selectors in ribbon. |
+| ReportViewer style toggles | Working | `app/components/donor-reports/ReportViewer.tsx` | Grid, Legend, Labels, and Stack toggles in ribbon for fine-tuning chart appearance. |
+| ReportViewer chart height controls | Working | `app/components/donor-reports/ReportViewer.tsx` | Compact/Normal/Tall size options in ribbon to fit different report contexts. |
+| ReportViewer KPI cards | Working | `app/components/donor-reports/ReportViewer.tsx` | Auto-generated KPI summary cards showing total/average/max per selected metric with color-coded labels. |
+| ReportViewer editable title | Working | `app/components/donor-reports/ReportViewer.tsx` | Inline-editable report title with click-to-edit pencil button. |
+| ReportViewer data table panel | Working | `app/components/donor-reports/ReportViewer.tsx` | Column visibility toggles, sort by column click, row limit selector (25/50/100/250/All), filter text search. |
+| ReportViewer print preview panel | Working | `app/components/donor-reports/ReportViewer.tsx` | KPI cards + chart + full data table in print-ready layout with Print/PDF and CSV export buttons. |
+| ReportViewer CSV export | Working | `app/components/donor-reports/ReportViewer.tsx` | Client-side CSV download via `downloadCsv()` helper using visible filtered/sorted rows. |
+| README.md documentation refresh | Working | `README.md` | README rewritten with screenshot gallery, module feature lists, tech stack table, quick start, and project structure. Screenshots captured May 2026. |
 
 ## 2026-05-15 Settings IA Consolidation Pass
 

@@ -1,5 +1,6 @@
 /** Layout frame for ribbon-first workspaces with title row and center content area. */
 import type { ReactNode } from "react";
+import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import WorkspaceBreadcrumbBar, { type WorkspaceBreadcrumbItem } from "@/app/components/layout/WorkspaceBreadcrumbBar";
 
 interface WorkspaceRibbonFrameProps {
@@ -34,20 +35,21 @@ export default function WorkspaceRibbonFrame({
   ];
 
   return (
-    <div className="space-y-3">
-      <div title={description}>
-        <WorkspaceBreadcrumbBar
-          items={items}
-          statusLabel={statusLabel}
-          metadata={metadata}
-          primaryAction={primaryAction}
-          overflowActions={overflowActions}
-        />
-      </div>
-
-      {ribbon}
-
-      <div className="min-w-0">{children}</div>
-    </div>
+    <EnterprisePageShell
+      ribbon={(
+        <div className="space-y-2">
+          <WorkspaceBreadcrumbBar
+            items={items}
+            statusLabel={statusLabel}
+            metadata={metadata}
+            primaryAction={primaryAction}
+            overflowActions={overflowActions}
+          />
+          {ribbon}
+        </div>
+      )}
+    >
+      {children}
+    </EnterprisePageShell>
   );
 }

@@ -25,6 +25,13 @@ export default function WebmasterLayout({ children }: { children: React.ReactNod
     setMobileNavOpen(false);
   }, [pathname]);
 
+  // Open mobile navigation from the TopBar hamburger button.
+  useEffect(() => {
+    function handleOpenNav() { setMobileNavOpen(true); }
+    window.addEventListener("crm:open-mobile-nav", handleOpenNav);
+    return () => window.removeEventListener("crm:open-mobile-nav", handleOpenNav);
+  }, []);
+
   if (loading || !user) {
     return (
       <div className="min-h-screen bg-indigo-50 flex items-center justify-center">
@@ -55,18 +62,6 @@ export default function WebmasterLayout({ children }: { children: React.ReactNod
         )}
 
         <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-indigo-50/40 p-3 sm:p-4 lg:p-4 min-[1440px]:p-5 2xl:p-6">
-          <div className="mb-3 lg:hidden">
-            <button
-              type="button"
-              onClick={() => setMobileNavOpen(true)}
-              className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-medium text-indigo-700 shadow-sm"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-              Menu
-            </button>
-          </div>
           <ErrorBoundary>
             <div className="min-w-0 max-w-full">{children}</div>
           </ErrorBoundary>

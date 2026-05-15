@@ -7,11 +7,13 @@
 
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import { getFiscalYearEndMonth } from "@/app/lib/fiscal-year";
 
 /** Settings shape from GET /api/settings */
 interface Settings {
   orgName: string;
   fiscalYearStart: number;
+  fiscalYearEnd: number;
   currency: string;
   timezone: string;
   smtpHost: string;
@@ -55,6 +57,7 @@ export default function OrganizationSettingsPage() {
   const [form, setForm] = useState<Settings>({
     orgName: "",
     fiscalYearStart: 1,
+    fiscalYearEnd: 12,
     currency: "USD",
     timezone: "America/Chicago",
     smtpHost: "",
@@ -146,7 +149,13 @@ export default function OrganizationSettingsPage() {
 
   /** Update a field in the form state */
   function set<K extends keyof Settings>(key: K, value: Settings[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => {
+      if (key === "fiscalYearStart") {
+        const fiscalYearStart = Number(value) || 1;
+        return { ...prev, fiscalYearStart, fiscalYearEnd: getFiscalYearEndMonth(fiscalYearStart) };
+      }
+      return { ...prev, [key]: value };
+    });
     setSuccess(false);
   }
 
@@ -355,17 +364,38 @@ export default function OrganizationSettingsPage() {
         {/* Regional Settings */}
         <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
           <h2 className="text-sm font-semibold text-gray-900 border-b border-gray-100 pb-2">Regional Settings</h2>
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Fiscal Year Start</label>
-            <select
-              value={form.fiscalYearStart}
-              onChange={(e) => set("fiscalYearStart", parseInt(e.target.value))}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              {MONTHS.map((m, i) => (
-                <option key={i + 1} value={i + 1}>{m}</option>
-              ))}
-            </select>
+          <div className="rounded-lg border border-green-100 bg-green-50/60 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-green-800">Fiscal Year Settings</p>
+            <p className="mt-1 text-xs text-green-700">
+              Dashboard and report YTD calculations can use this offset when Fiscal Year mode is enabled in the top bar.
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Fiscal Year Start</label>
+                <select
+                  value={form.fiscalYearStart}
+                  onChange={(e) => set("fiscalYearStart", parseInt(e.target.value, 10))}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  {MONTHS.map((m, i) => (
+                    <option key={i + 1} value={i + 1}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Fiscal Year End</label>
+                <select
+                  value={form.fiscalYearEnd || getFiscalYearEndMonth(form.fiscalYearStart)}
+                  disabled
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 text-gray-600"
+                >
+                  {MONTHS.map((m, i) => (
+                    <option key={i + 1} value={i + 1}>{m}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-gray-500">End month is calculated from the 12-month fiscal-year start.</p>
+              </div>
+            </div>
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">Currency</label>

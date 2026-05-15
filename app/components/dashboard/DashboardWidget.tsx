@@ -11,6 +11,8 @@
 
 import React from "react";
 
+export type DashboardWidgetSize = "compact" | "standard" | "wide" | "hero";
+
 interface DashboardWidgetProps {
   /** Stable widget ID (used for order persistence) */
   id: string;
@@ -24,6 +26,8 @@ interface DashboardWidgetProps {
   children: React.ReactNode;
   /** Extra CSS classes on the outer card */
   className?: string;
+  /** Grid/layout classes from the dashboard layout engine */
+  layoutClassName?: string;
 
   /* ── Edit mode ── */
   /** When true, exposes drag handles + move buttons. Default false. */
@@ -46,7 +50,18 @@ interface DashboardWidgetProps {
   isDragging?: boolean;
   /** True while another widget is dragged over this one (highlight ring) */
   isDragOver?: boolean;
+  /** Current persisted widget size */
+  size?: DashboardWidgetSize;
+  /** Called when staff resize a widget in edit mode */
+  onResize?: (size: DashboardWidgetSize) => void;
 }
+
+const WIDGET_SIZE_OPTIONS: Array<{ value: DashboardWidgetSize; label: string; title: string }> = [
+  { value: "compact", label: "S", title: "Small card" },
+  { value: "standard", label: "M", title: "Standard card" },
+  { value: "wide", label: "W", title: "Wide card" },
+  { value: "hero", label: "XL", title: "Hero card" },
+];
 
 /**
  * Renders a white dashboard card. Drag/move controls are visible only
@@ -59,6 +74,7 @@ export default function DashboardWidget({
   headerRight,
   children,
   className = "",
+  layoutClassName = "",
   editMode = false,
   onMoveUp,
   onMoveDown,
@@ -70,6 +86,8 @@ export default function DashboardWidget({
   onDragEnd,
   isDragging = false,
   isDragOver = false,
+  size = "standard",
+  onResize,
 }: DashboardWidgetProps) {
   return (
     <div
@@ -81,15 +99,16 @@ export default function DashboardWidget({
       onDrop={editMode ? onDrop : undefined}
       onDragEnd={editMode ? onDragEnd : undefined}
       className={`
-        bg-white rounded-xl shadow-sm border flex flex-col transition-all duration-150
+        bg-white rounded-lg shadow-sm border flex flex-col transition-all duration-150
         ${editMode && isDragging ? "opacity-40 scale-[0.98] shadow-none" : ""}
         ${editMode && isDragOver ? "ring-2 ring-green-400 ring-offset-1 border-transparent" : "border-gray-200"}
-        ${editMode ? "ring-1 ring-green-200" : "hover:shadow-md"}
+        ${editMode ? "ring-1 ring-green-200" : "hover:border-gray-300"}
+        ${layoutClassName}
         ${className}
       `}
     >
       {/* ── Card header ── */}
-      <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-gray-100 select-none">
+      <div className="flex min-h-14 items-center gap-2 px-4 py-3 border-b border-gray-100 select-none">
 
         {/* Six-dot drag handle — visible only in edit mode */}
         {editMode && (
@@ -107,9 +126,9 @@ export default function DashboardWidget({
 
         {/* Title block */}
         <div className="flex-1 min-w-0">
-          <h3 className="text-[13px] font-semibold text-gray-800 truncate">{title}</h3>
+          <h3 className="text-sm font-semibold text-gray-900 truncate">{title}</h3>
           {subtitle && (
-            <p className="text-[11px] text-gray-400 truncate">{subtitle}</p>
+            <p className="text-xs text-gray-500 truncate">{subtitle}</p>
           )}
         </div>
 
@@ -120,7 +139,27 @@ export default function DashboardWidget({
 
         {/* Move up / down arrows — visible only in edit mode */}
         {editMode && (
-          <div className="flex items-center gap-0.5 shrink-0 ml-auto">
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <div className="hidden items-center rounded-md border border-gray-200 bg-gray-50 p-0.5 sm:flex">
+              {WIDGET_SIZE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onResize?.(option.value);
+                  }}
+                  title={option.title}
+                  className={`h-6 min-w-6 rounded px-1.5 text-[10px] font-semibold transition-colors ${
+                    size === option.value
+                      ? "bg-green-600 text-white"
+                      : "text-gray-500 hover:bg-white hover:text-gray-800"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
             <button
               onClick={(e) => { e.stopPropagation(); onMoveUp?.(); }}
               disabled={!canMoveUp}
@@ -146,7 +185,7 @@ export default function DashboardWidget({
       </div>
 
       {/* ── Card body ── */}
-      <div className="flex-1 p-2.5 overflow-auto">
+      <div className="flex-1 p-4 overflow-auto">
         {children}
       </div>
     </div>

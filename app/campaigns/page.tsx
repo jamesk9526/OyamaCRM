@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import CampaignCard from "@/app/components/campaigns/CampaignCard";
 import NewCampaignModal from "@/app/components/campaigns/NewCampaignModal";
+import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
@@ -103,44 +104,50 @@ export default function CampaignsPage() {
   const scopeLabel = allYears ? "All years" : `${year}`;
 
   return (
+    <EnterprisePageShell
+      ribbon={(
+        <div className="space-y-3">
+          <WorkspaceBreadcrumbBar
+            items={[
+              { label: "Donor CRM", href: "/" },
+              { label: "Campaigns" },
+            ]}
+            statusLabel={loading ? "Loading" : "Working"}
+            metadata={`${filtered.length.toLocaleString()} visible · ${campaigns.length.toLocaleString()} total (${scopeLabel})`}
+            primaryAction={<WorkspaceRibbonButton label="New Campaign" onClick={() => setShowModal(true)} variant="primary" />}
+          />
+
+          <WorkspaceRibbon>
+            <WorkspaceRibbonGroup label="Create">
+              <WorkspaceRibbonButton label="New Campaign" onClick={() => setShowModal(true)} variant="primary" />
+            </WorkspaceRibbonGroup>
+
+            <WorkspaceRibbonGroup label="View">
+              <WorkspaceRibbonButton label="All" onClick={() => setFilter("all")} active={filter === "all"} />
+              <WorkspaceRibbonButton label="Active" onClick={() => setFilter("active")} active={filter === "active"} />
+              <WorkspaceRibbonButton label="Inactive" onClick={() => setFilter("inactive")} active={filter === "inactive"} />
+            </WorkspaceRibbonGroup>
+
+            <WorkspaceRibbonGroup label="Scope">
+              <WorkspaceRibbonButton label="This Year" onClick={() => setAllYears(false)} active={!allYears} />
+              <WorkspaceRibbonButton label="All Years" onClick={() => setAllYears(true)} active={allYears} />
+              <WorkspaceRibbonButton label="Refresh" onClick={() => void loadCampaigns()} />
+            </WorkspaceRibbonGroup>
+          </WorkspaceRibbon>
+        </div>
+      )}
+    >
     <div className="space-y-5">
-      <WorkspaceBreadcrumbBar
-        items={[
-          { label: "Donor CRM", href: "/" },
-          { label: "Campaigns" },
-        ]}
-        statusLabel={loading ? "Loading" : "Working"}
-        metadata={`${filtered.length.toLocaleString()} visible · ${campaigns.length.toLocaleString()} total (${scopeLabel})`}
-        primaryAction={<WorkspaceRibbonButton label="New Campaign" onClick={() => setShowModal(true)} variant="primary" />}
-      />
-
-      <WorkspaceRibbon>
-        <WorkspaceRibbonGroup label="Create">
-          <WorkspaceRibbonButton label="New Campaign" onClick={() => setShowModal(true)} variant="primary" />
-        </WorkspaceRibbonGroup>
-
-        <WorkspaceRibbonGroup label="View">
-          <WorkspaceRibbonButton label="All" onClick={() => setFilter("all")} variant={filter === "all" ? "primary" : "secondary"} />
-          <WorkspaceRibbonButton label="Active" onClick={() => setFilter("active")} variant={filter === "active" ? "primary" : "secondary"} />
-          <WorkspaceRibbonButton label="Inactive" onClick={() => setFilter("inactive")} variant={filter === "inactive" ? "primary" : "secondary"} />
-        </WorkspaceRibbonGroup>
-
-        <WorkspaceRibbonGroup label="Scope">
-          <WorkspaceRibbonButton label="This Year" onClick={() => setAllYears(false)} variant={!allYears ? "primary" : "secondary"} />
-          <WorkspaceRibbonButton label="All Years" onClick={() => setAllYears(true)} variant={allYears ? "primary" : "secondary"} />
-          <WorkspaceRibbonButton label="Refresh" onClick={() => void loadCampaigns()} />
-        </WorkspaceRibbonGroup>
-      </WorkspaceRibbon>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           { label: `Total Campaigns (${scopeLabel})`, value: campaigns.length },
           { label: "Active", value: campaigns.filter((c) => c.active).length, color: "text-green-600" },
           { label: `Total Goal (${scopeLabel})`, value: `$${totalGoal.toLocaleString()}` },
           { label: `Total Raised (${scopeLabel})`, value: `$${totalRaised.toLocaleString()}`, color: "text-green-600" },
         ].map((s) => (
-          <div key={s.label} className="bg-white rounded-lg border border-gray-200 p-4">
+          <div key={s.label} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{s.label}</p>
             <p className={`text-2xl font-bold mt-1 ${s.color ?? "text-gray-900"}`}>{loading ? "—" : s.value}</p>
           </div>
@@ -148,6 +155,7 @@ export default function CampaignsPage() {
       </div>
 
       {/* Filter tabs */}
+      <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-2">
           {(["all", "active", "inactive"] as const).map((f) => (
@@ -194,6 +202,7 @@ export default function CampaignsPage() {
           ? `Campaign totals and raised amounts are scoped to ${year}.`
           : "Campaign totals and raised amounts include all years."}
       </p>
+      </section>
 
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
@@ -214,7 +223,7 @@ export default function CampaignsPage() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+        <div className="rounded-lg border border-gray-200 bg-white p-12 text-center shadow-sm">
           <p className="text-gray-500 text-sm">No campaigns found. Create one to get started.</p>
         </div>
       ) : (
@@ -290,5 +299,6 @@ export default function CampaignsPage() {
         </WorkspaceSetupModal>
       )}
     </div>
+    </EnterprisePageShell>
   );
 }

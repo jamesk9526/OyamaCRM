@@ -3,6 +3,7 @@
 import type React from "react";
 import type { CrmSidebarGroup } from "@/app/components/layout/CrmSidebar";
 import OyamaGradientIcon from "@/app/components/ui/OyamaGradientIcon";
+import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 
 interface DonorSidebarOptions {
   qbEnabled: boolean;
@@ -41,6 +42,7 @@ const DONOR_ICONS = {
   livecom: <Ico d="M4 12a8 8 0 1116 0v5a2 2 0 01-2 2h-3v-6h5M4 13h5v6H6a2 2 0 01-2-2v-4z" />,
   stewardPaths: <Ico d="M5 7h5M14 7h5M7.5 7a2.5 2.5 0 105 0 2.5 2.5 0 00-5 0zM5 17h5m4 0h5m-7-10v10m-2.5 0a2.5 2.5 0 105 0 2.5 2.5 0 00-5 0z" />,
   signals: <Ico d="M3 12h4l2 5 4-10 2 5h6" />,
+  agentSteward: <StewardAvatarIcon size={18} alt="" className="ring-emerald-300" />,
   volunteers: <Ico d="M16 11c1.7 0 3-1.6 3-3.5S17.7 4 16 4s-3 1.6-3 3.5 1.3 3.5 3 3.5zM8 11c1.7 0 3-1.6 3-3.5S9.7 4 8 4 5 5.6 5 7.5 6.3 11 8 11zm0 2c-2.8 0-5 1.8-5 4v3h10v-3c0-2.2-2.2-4-5-4zm8 0c-.9 0-1.8.2-2.6.6 1 .9 1.6 2.1 1.6 3.4v3h6v-3c0-2.2-2.2-4-5-4z" />,
   dataTools: <Ico d="M12 3C7 3 3 4.8 3 7v10c0 2.2 4 4 9 4s9-1.8 9-4V7c0-2.2-4-4-9-4zm0 0c5 0 9 1.8 9 4s-4 4-9 4-9-1.8-9-4 4-4 9-4zm-9 9c0 2.2 4 4 9 4s9-1.8 9-4" />,
   customFields: <Ico><path d="M4 6h16M4 10h10M4 14h16M4 18h8" /><circle cx="16" cy="10" r="2" /><circle cx="14" cy="18" r="2" /></Ico>,
@@ -197,6 +199,15 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
       defaultOpen: true,
       items: [
         {
+          id: "agent-steward",
+          label: "AGENTSteward",
+          href: "/steward-ai-workspace",
+          icon: DONOR_ICONS.agentSteward,
+          kind: "insight",
+          badge: "AI",
+          description: "Full-page CRM AI assistant with scope selection, thread history, and action workflows.",
+        },
+        {
           id: "steward-signals",
           label: "Steward Signals",
           href: "/steward-signals",
@@ -207,10 +218,10 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
         {
           id: "reports",
           label: "Reports",
-          href: "/reports",
+          href: "/reports/donor-crm",
           icon: DONOR_ICONS.reports,
           kind: "insight",
-          description: "Analyze fundraising performance and donor retention trends.",
+          description: "Open DonorCRM report tools for giving, retention, stewardship, and campaigns.",
         },
       ],
     },
@@ -231,10 +242,18 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
     },
     {
       id: "system",
-      label: "System",
+      label: "Settings & Tools",
       defaultOpen: false,
       collapsible: true,
       items: [
+        {
+          id: "settings",
+          label: "Settings & Tools",
+          href: "/settings",
+          icon: DONOR_ICONS.settings,
+          kind: "system",
+          description: "Manage donor CRM settings, tools, and workspace configuration.",
+        },
         {
           id: "imports",
           label: "Imports",
@@ -261,47 +280,12 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
           description: "Manage organization-specific fields used across donor records.",
         },
         {
-          id: "settings",
-          label: "Settings",
-          href: "/settings",
-          icon: DONOR_ICONS.settings,
-          kind: "system",
-          description: "Manage donor CRM settings and workspace configuration.",
-        },
-        {
           id: "help",
           label: "Help",
           href: "/help?scope=donor&scopePath=/",
           icon: DONOR_ICONS.help,
           kind: "system",
           description: "Open donor CRM help guides and walkthroughs.",
-        },
-        {
-          id: "feedback",
-          label: "Feedback Tickets",
-          href: "/watchdog/feedback-tickets",
-          icon: DONOR_ICONS.watchdog,
-          kind: "system",
-          allowedRoles: ["admin"],
-          description: "Review product feedback queue in OyamaWatchdog.",
-        },
-        {
-          id: "watchdog",
-          label: "OyamaWatchdog",
-          href: "/watchdog",
-          icon: DONOR_ICONS.watchdog,
-          kind: "system",
-          allowedRoles: ["admin"],
-          description: "Open security command tools and audit workflows.",
-        },
-        {
-          id: "webmaster",
-          label: "OyamaWebMaster",
-          href: "/webmaster",
-          icon: DONOR_ICONS.webmaster,
-          kind: "system",
-          allowedRoles: ["admin"],
-          description: "Open website builder and publishing workspace.",
         },
       ],
     },

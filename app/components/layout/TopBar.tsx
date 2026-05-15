@@ -8,7 +8,8 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import AppsDrawer, { AppsGridIcon } from "@/app/components/layout/AppsDrawer";
 import StewardAiRuntimePill from "@/app/components/layout/StewardAiRuntimePill";
-import StewardChatPanel, { type StewardPanelMode } from "@/app/components/ai/StewardChatPanel";
+import StewardDockPanel from "@/app/components/ai/StewardDockPanel";
+import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 import { FeedbackButton } from "@/app/components/feedback/FeedbackButton";
 import { FeedbackModal } from "@/app/components/feedback/FeedbackModal";
 import { apiFetch } from "@/app/lib/auth-client";
@@ -18,6 +19,13 @@ import {
   type WorkspaceSettings,
 } from "@/app/lib/workspace-settings";
 import { resolveTopBarModuleKey, type TopBarModuleKey } from "@/app/lib/navigation-boundaries";
+import {
+  getFiscalYearEndMonth,
+  getFiscalYearForDate,
+  getStoredReportingYearMode,
+  setStoredReportingYearMode,
+  type ReportingYearMode,
+} from "@/app/lib/fiscal-year";
 import { buildHelpHref, mapModuleKeyToHelpScope } from "@/app/help-content";
 
 interface SearchResult {
@@ -33,6 +41,11 @@ interface SearchResponse {
   module: "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview" | "hrm";
   query: string;
   results: SearchResult[];
+}
+
+interface FiscalSettings {
+  fiscalYearStart: number;
+  fiscalYearEnd: number;
 }
 
 interface TopBarNotification {
@@ -60,15 +73,6 @@ interface StewardSignalsRebuildResult {
     manualRebuildCount: number;
     lastTrigger: "auto" | "manual";
   };
-}
-
-/** Generic sparkles icon used for AI assistant trigger in topbar controls. */
-function SparklesIcon({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l1.4 3.6L17 8l-3.6 1.4L12 13l-1.4-3.6L7 8l3.6-1.4L12 3zM6 14l.9 2.1L9 17l-2.1.9L6 20l-.9-2.1L3 17l2.1-.9L6 14zM18 13l1 2.3L21.3 16 19 17l-1 2.3-1-2.3L14.7 16l2.3-.7 1-2.3z" />
-    </svg>
-  );
 }
 
 /** Generic help-circle icon used for help control in topbar controls. */
@@ -569,8 +573,8 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
 
   return (
     <div className="relative w-full min-w-0 max-w-2xl">
-      <div className="group/search relative transition-all duration-300 ease-out">
-        <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 pointer-events-none transition-all duration-300 ease-out group-focus-within/search:text-white group-focus-within/search:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="group/search relative transition-colors duration-200 ease-out">
+        <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none transition-colors duration-200 ease-out group-focus-within/search:text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
         </svg>
         <input
@@ -581,9 +585,9 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           placeholder={placeholder}
-          className={`w-full pl-10 pr-14 py-2 text-[13px] bg-white/12 text-white placeholder:text-gray-300 border border-white/20 rounded-xl shadow-[0_3px_16px_rgba(0,0,0,0.16)] backdrop-blur-sm focus:outline-none focus:ring-1 ${focusRing} focus:bg-white/20 focus:-translate-y-px focus:shadow-[0_10px_28px_rgba(2,6,23,0.32)] transition-all duration-300 ease-out`}
+          className={`w-full pl-10 pr-14 py-2 text-[13px] bg-white/82 text-slate-900 placeholder:text-slate-500 border border-white/55 rounded-xl shadow-[0_1px_0_rgba(255,255,255,0.82),0_12px_30px_rgba(2,6,23,0.18)] backdrop-blur-xl focus:outline-none focus:ring-1 ${focusRing} focus:bg-white/95 transition-colors duration-200 ease-out`}
         />
-        <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-gray-300 bg-white/10 px-1.5 py-0.5 rounded border border-white/20 hidden md:block transition-all duration-300 ease-out group-focus-within/search:text-white group-focus-within/search:border-white/35 group-focus-within/search:bg-white/15">
+        <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-500 bg-white/70 px-1.5 py-0.5 rounded border border-white/70 hidden md:block transition-colors duration-200 ease-out group-focus-within/search:text-slate-700 group-focus-within/search:bg-white/90">
           Ctrl+K
         </kbd>
         {loading && (
@@ -719,8 +723,6 @@ export default function TopBar() {
   const moduleKey = resolveTopBarModuleKey(pathname);
   const showTopBarAppLauncher = true;
   const [appsOpen, setAppsOpen] = useState(false);
-  const [stewardMode, setStewardModeState] = useState<StewardPanelMode>("dock-right");
-  const [stewardModeHydrated, setStewardModeHydrated] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
@@ -730,65 +732,45 @@ export default function TopBar() {
   const [analyzingSignals, setAnalyzingSignals] = useState(false);
   const [signalsAnalyzeError, setSignalsAnalyzeError] = useState<string | null>(null);
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
+  const [fiscalSettings, setFiscalSettings] = useState<FiscalSettings>({ fiscalYearStart: 1, fiscalYearEnd: 12 });
+  const [reportingYearMode, setReportingYearMode] = useState<ReportingYearMode>("calendar");
   const [topBarReactiveGlow, setTopBarReactiveGlow] = useState(false);
   const [mobileQuickOpen, setMobileQuickOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [compactActionsOpen, setCompactActionsOpen] = useState(false);
   const reactiveGlowFrameRef = useRef<number | null>(null);
   const reactiveGlowTimeoutRef = useRef<number | null>(null);
 
-  /** Wrapper to persist stewardMode to localStorage. */
-  const setStewardMode = useCallback((mode: StewardPanelMode | ((current: StewardPanelMode) => StewardPanelMode)) => {
-    setStewardModeState((current) => {
-      const nextMode = typeof mode === "function" ? mode(current) : mode;
-      if (typeof window !== "undefined") {
-        localStorage.setItem("steward-panel-mode", nextMode);
-      }
-      return nextMode;
-    });
-  }, []);
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
-  const chromeButtonBase = "w-10 h-10 md:w-9 md:h-9 rounded-xl border border-white/20 bg-white/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-sm flex items-center justify-center transition-all";
+  const chromeButtonBase = "w-10 h-10 md:w-9 md:h-9 rounded-xl border border-white/45 bg-white/80 text-slate-700 shadow-[0_1px_0_rgba(255,255,255,0.75),0_10px_24px_rgba(2,6,23,0.16)] backdrop-blur-xl flex items-center justify-center transition-colors hover:border-white/70 hover:bg-white/95 hover:text-slate-950";
+  const darkIconButtonBase = "w-9 h-9 rounded-lg border border-white/10 bg-white/8 text-slate-300 flex items-center justify-center transition-all hover:border-white/20 hover:bg-white/14 hover:text-white active:scale-95";
   const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-2xl z-50 overflow-hidden md:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
   const iconActiveTone = moduleKey === "compassion"
-    ? "text-white border-blue-300/50 bg-blue-500/25 ring-1 ring-blue-300/35"
+    ? "text-blue-700 border-blue-200/80 bg-blue-50/90"
     : moduleKey === "events"
-      ? "text-white border-amber-300/50 bg-amber-500/25 ring-1 ring-amber-300/35"
+      ? "text-amber-700 border-amber-200/80 bg-amber-50/90"
       : moduleKey === "watchdog"
-        ? "text-white border-red-300/50 bg-red-500/25 ring-1 ring-red-300/35"
+        ? "text-red-700 border-red-200/80 bg-red-50/90"
         : moduleKey === "webmaster"
-          ? "text-white border-indigo-300/50 bg-indigo-500/25 ring-1 ring-indigo-300/35"
+          ? "text-indigo-700 border-indigo-200/80 bg-indigo-50/90"
           : moduleKey === "hrm"
-            ? "text-white border-teal-300/50 bg-teal-500/25 ring-1 ring-teal-300/35"
+            ? "text-teal-700 border-teal-200/80 bg-teal-50/90"
           : moduleKey === "oshareview"
-            ? "text-white border-cyan-300/50 bg-cyan-500/25 ring-1 ring-cyan-300/35"
-            : "text-white border-green-300/50 bg-green-500/25 ring-1 ring-green-300/35";
-  const topBarRightTint = moduleKey === "compassion"
-    ? "#1e3a8a"
+            ? "text-cyan-700 border-cyan-200/80 bg-cyan-50/90"
+            : "text-green-700 border-green-200/80 bg-green-50/90";
+  const moduleAccentClass = moduleKey === "compassion"
+    ? "bg-blue-600"
     : moduleKey === "events"
-      ? "#7c2d12"
+      ? "bg-amber-500"
       : moduleKey === "watchdog"
-        ? "#7f1d1d"
+        ? "bg-red-600"
         : moduleKey === "webmaster"
-          ? "#3730a3"
+          ? "bg-indigo-600"
           : moduleKey === "hrm"
-            ? "#0f766e"
+            ? "bg-teal-600"
           : moduleKey === "oshareview"
-            ? "#155e75"
-            : "#14532d";
-  const topBarReactiveTint = moduleKey === "compassion"
-    ? "rgba(59,130,246,0.36)"
-    : moduleKey === "events"
-      ? "rgba(245,158,11,0.33)"
-      : moduleKey === "watchdog"
-        ? "rgba(239,68,68,0.34)"
-        : moduleKey === "webmaster"
-          ? "rgba(99,102,241,0.34)"
-          : moduleKey === "hrm"
-            ? "rgba(20,184,166,0.33)"
-          : moduleKey === "oshareview"
-            ? "rgba(6,182,212,0.33)"
-            : "rgba(34,197,94,0.32)";
-  const topBarBackground = `linear-gradient(90deg, #0f172a 0%, #18253a 56%, ${topBarRightTint} 100%)`;
+            ? "bg-cyan-600"
+            : "bg-green-600";
   const homeHref = moduleKey === "compassion"
     ? "/compassion/dashboard"
     : moduleKey === "events"
@@ -824,25 +806,21 @@ export default function TopBar() {
     });
   }, []);
 
-  /** Restores stewardMode from localStorage on initial mount. */
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const saved = localStorage.getItem("steward-panel-mode");
-    if (saved === "dock" || saved === "dock-right" || saved === "popout" || saved === "maximized" || saved === "collapsed") {
-      setStewardModeState(saved as StewardPanelMode);
-    } else {
-      setStewardModeState("dock-right");
-    }
-    setStewardModeHydrated(true);
-  }, []);
-
   useEffect(() => {
     let active = true;
 
     async function loadWorkspaceSettings() {
-      const settings = await fetchWorkspaceSettings();
+      const [settings, organizationSettings] = await Promise.all([
+        fetchWorkspaceSettings(),
+        apiFetch<Partial<FiscalSettings>>("/api/settings").catch(() => null),
+      ]);
       if (!active) return;
       setWorkspaceSettings(settings);
+      const fiscalYearStart = organizationSettings?.fiscalYearStart ?? 1;
+      setFiscalSettings({
+        fiscalYearStart,
+        fiscalYearEnd: organizationSettings?.fiscalYearEnd ?? getFiscalYearEndMonth(fiscalYearStart),
+      });
     }
 
     void loadWorkspaceSettings();
@@ -850,6 +828,16 @@ export default function TopBar() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    setReportingYearMode(getStoredReportingYearMode());
+  }, []);
+
+  function toggleReportingYearMode() {
+    const nextMode: ReportingYearMode = reportingYearMode === "fiscal" ? "calendar" : "fiscal";
+    setReportingYearMode(nextMode);
+    setStoredReportingYearMode(nextMode);
+  }
 
   const loadNotifications = useCallback(async () => {
     setNotificationsLoading(true);
@@ -943,6 +931,7 @@ export default function TopBar() {
     const timer = window.setTimeout(() => {
       setNotificationsOpen(false);
       setMobileQuickOpen(false);
+      setMobileSearchOpen(false);
       setCompactActionsOpen(false);
     }, 0);
 
@@ -950,22 +939,6 @@ export default function TopBar() {
       window.clearTimeout(timer);
     };
   }, [pathname]);
-
-  // Legacy compatibility: allow links like /?steward=open to open the docked Steward assistant.
-  useEffect(() => {
-    if (searchParams.get("steward") !== "open") return;
-    setStewardMode((current) => (current === "collapsed" ? "dock-right" : current));
-  }, [searchParams]);
-
-  // Keep assistant chat unobstructed by auxiliary topbar sheets when it is open.
-  useEffect(() => {
-    if (stewardMode === "collapsed") return;
-    setNotificationsOpen(false);
-    setMobileQuickOpen(false);
-    setAppsOpen(false);
-    setFeedbackOpen(false);
-    setCompactActionsOpen(false);
-  }, [stewardMode]);
 
   useEffect(() => {
     if (appsOpen || feedbackOpen || notificationsOpen) {
@@ -980,10 +953,10 @@ export default function TopBar() {
 
   // Subtle color response when topbar interactive panels are used.
   useEffect(() => {
-    if (notificationsOpen || feedbackOpen || appsOpen || stewardMode !== "collapsed") {
+    if (notificationsOpen || feedbackOpen || appsOpen) {
       triggerTopBarReactiveGlow();
     }
-  }, [notificationsOpen, feedbackOpen, appsOpen, stewardMode, triggerTopBarReactiveGlow]);
+  }, [notificationsOpen, feedbackOpen, appsOpen, triggerTopBarReactiveGlow]);
 
   // Subtle color response after task-level actions complete in topbar utilities.
   useEffect(() => {
@@ -1030,15 +1003,6 @@ export default function TopBar() {
     }
   }, [isStewardSignalsWorkspace, analyzingSignals]);
 
-  /** Toggles assistant visibility while closing potentially overlapping topbar surfaces. */
-  const toggleStewardAssistant = useCallback(() => {
-    setNotificationsOpen(false);
-    setMobileQuickOpen(false);
-    setAppsOpen(false);
-    setFeedbackOpen(false);
-    setStewardMode((current) => (current === "collapsed" ? "dock-right" : "collapsed"));
-  }, []);
-
   /** Opens AI settings for runtime diagnostics and provider configuration. */
   const openAiSettings = useCallback(() => {
     setNotificationsOpen(false);
@@ -1058,34 +1022,53 @@ export default function TopBar() {
         moduleKey={moduleKey}
         pathname={pathname}
       />
-      <StewardChatPanel
-        open={stewardMode !== "collapsed"}
-        onClose={() => setStewardMode("collapsed")}
-        moduleKey={moduleKey}
-        scopePath={pathname}
-        displayMode={stewardMode === "collapsed" ? "dock-right" : stewardMode}
-        onDisplayModeChange={setStewardMode}
-      />
-      <header data-topbar-root="true" className="sticky top-0 relative isolate z-20 flex w-full shrink-0 flex-col gap-2 border-b border-slate-700/60 px-2.5 py-2 shadow-[0_8px_28px_rgba(2,6,23,0.38)] backdrop-blur pt-[max(0.5rem,env(safe-area-inset-top))] lg:h-14 lg:flex-row lg:items-center lg:gap-3 lg:px-3 lg:py-0 lg:pt-0 min-[1440px]:gap-4 min-[1440px]:px-4" style={{ background: topBarBackground }}>
+      {/* StewardDockPanel renders the floating chat-head and the slide-in agent dock. */}
+      <StewardDockPanel moduleKey={moduleKey} />
+      {/* Mobile full-screen search overlay — shows when user taps search icon on small screens */}
+      {mobileSearchOpen && (
+        <>
+          <div className="fixed inset-0 z-50 lg:hidden" onClick={() => setMobileSearchOpen(false)} />
+          <div className="fixed inset-x-0 top-0 z-50 lg:hidden flex items-center gap-2 bg-slate-950 border-b border-slate-700 px-3" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))", paddingBottom: "0.75rem" }}>
+            <button
+              type="button"
+              aria-label="Close search"
+              onClick={() => setMobileSearchOpen(false)}
+              className="shrink-0 w-10 h-10 flex items-center justify-center rounded-xl text-slate-300 hover:bg-slate-800 transition-colors active:bg-slate-700"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div className="flex-1 min-w-0">
+              <GlobalSearch moduleKey={moduleKey} pathname={pathname} />
+            </div>
+          </div>
+        </>
+      )}
+      <header data-topbar-root="true" className="sticky top-0 relative isolate z-20 flex w-full shrink-0 items-center border-b border-slate-800 bg-slate-950 px-2 shadow-sm h-14 gap-2 lg:gap-3 min-[1440px]:gap-4 lg:px-3 min-[1440px]:px-4" style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
         <div
           aria-hidden="true"
-          className={`absolute inset-0 pointer-events-none transition-opacity duration-700 ${topBarReactiveGlow ? "opacity-100" : "opacity-0"}`}
-          style={{
-            background: `radial-gradient(70% 90% at 85% 50%, ${topBarReactiveTint} 0%, rgba(15,23,42,0) 70%)`,
-          }}
+          className={`absolute inset-x-0 bottom-0 h-0.5 pointer-events-none transition-opacity duration-300 ${moduleAccentClass} ${topBarReactiveGlow ? "opacity-100" : "opacity-80"}`}
         />
-        {/* Diagonal light segment for brand + module switcher area. */}
         <div
           aria-hidden="true"
-          className="absolute left-0 top-0 hidden h-full w-[min(360px,34vw)] border-r border-white/35 pointer-events-none lg:block min-[1440px]:w-[min(430px,38vw)]"
-          style={{
-            clipPath: "polygon(0 0, 88% 0, 100% 100%, 0 100%)",
-            background: "linear-gradient(180deg, rgba(248,250,252,0.95) 0%, rgba(241,245,249,0.92) 100%)",
-          }}
+          className="absolute left-0 top-0 hidden h-full w-[min(390px,37vw)] border-r border-white/20 bg-white pointer-events-none lg:block min-[1440px]:w-[min(460px,40vw)]"
+          style={{ clipPath: "polygon(0 0, 88% 0, 100% 100%, 0 100%)" }}
         />
 
         <div className="relative z-10 flex w-full shrink-0 items-center justify-between gap-2 lg:w-auto lg:justify-start lg:gap-2.5 min-[1440px]:gap-3">
           <div className="flex min-w-0 items-center gap-2 lg:gap-2.5 min-[1440px]:gap-3 shrink-0">
+          {/* ── Mobile hamburger — opens sidebar drawer via CustomEvent ── */}
+          <button
+            type="button"
+            aria-label="Open navigation menu"
+            onClick={() => window.dispatchEvent(new CustomEvent("crm:open-mobile-nav"))}
+            className="flex lg:hidden h-10 w-10 items-center justify-center rounded-xl text-slate-300 hover:bg-slate-800 transition-colors active:bg-slate-700 shrink-0"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
           {/* ── TopBar Brand ── */}
           <Link href={homeHref} className="shrink-0 flex items-center rounded-lg px-1.5 py-1 hover:bg-slate-200/70 transition-colors" aria-label="Go to workspace home">
             <Image
@@ -1114,21 +1097,23 @@ export default function TopBar() {
 
           {/* Mobile top-right priority controls */}
           <div className="flex items-center gap-1.5 shrink-0 lg:hidden">
-            {showTopBarAppLauncher ? (
-              <button
-                title="Apps"
-                onClick={() => setAppsOpen((v) => !v)}
-                className={`${chromeButtonBase} ${appsOpen ? iconActiveTone : "text-white/90 hover:text-white hover:bg-white/14 hover:border-white/30"}`}
-              >
-                <AppsGridIcon className="w-5 h-5" />
-              </button>
-            ) : null}
+            {/* Search icon — opens full-screen overlay */}
+            <button
+              type="button"
+              title="Search"
+              onClick={() => setMobileSearchOpen(true)}
+              className={chromeButtonBase}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+              </svg>
+            </button>
 
             <div className="relative">
               <button
                 title="Notifications"
                 onClick={() => setNotificationsOpen((v) => !v)}
-                className={`${chromeButtonBase} text-white/90 hover:text-white hover:bg-white/14 hover:border-white/30 relative`}
+                className={`${chromeButtonBase} relative`}
               >
                 <BellIcon className="w-5 h-5" />
                 {unreadCount > 0 && (
@@ -1217,23 +1202,22 @@ export default function TopBar() {
               )}
             </div>
 
-            <button
-              title="Quick actions"
-              onClick={() => setMobileQuickOpen((v) => !v)}
-              className={`${chromeButtonBase} text-white/90 hover:text-white hover:bg-white/14 hover:border-white/30`}
+            {/* Steward AI — quick access on mobile, links to workspace */}
+            <Link
+              href="/steward-ai-workspace"
+              title="Open Steward AI"
+              className={chromeButtonBase}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6h.01M12 12h.01M12 18h.01" />
-              </svg>
-            </button>
+              <StewardAvatarIcon size={18} alt="Steward" />
+            </Link>
 
             <UserMenu moduleKey={moduleKey} />
           </div>
         </div>
 
-        <div className="relative z-10 flex w-full min-w-0 flex-1 items-center gap-2 lg:gap-3 min-[1440px]:gap-4">
-          {/* ── Search (centered) ── */}
-          <div className="flex min-w-0 flex-1 justify-center px-0 sm:px-2 lg:px-1 min-[1440px]:px-3">
+        <div className="relative z-10 hidden lg:flex w-full min-w-0 flex-1 items-center gap-2 lg:gap-3 min-[1440px]:gap-4">
+          {/* ── Search (right-biased) ── */}
+          <div className="flex min-w-0 flex-1 justify-end pr-2 sm:pr-4 lg:pr-2 min-[1440px]:pr-3">
             <div className="w-full max-w-[640px] min-[1440px]:max-w-[720px]">
               <GlobalSearch moduleKey={moduleKey} pathname={pathname} />
             </div>
@@ -1247,7 +1231,7 @@ export default function TopBar() {
               title={signalsAnalyzeError ?? "Rebuild Steward Signals analysis index"}
               onClick={() => void runStewardSignalsAnalysis()}
               disabled={analyzingSignals}
-              className="h-9 px-3 rounded-lg border border-green-400/40 bg-green-500/20 text-green-100 text-xs font-semibold hover:bg-green-500/30 disabled:opacity-60"
+              className="h-9 rounded-lg border border-green-200 bg-green-50 px-3 text-xs font-semibold text-green-700 hover:bg-green-100 disabled:opacity-60"
             >
               {analyzingSignals ? "Analyzing..." : "Analyze"}
             </button>
@@ -1259,7 +1243,7 @@ export default function TopBar() {
             <button
               title="Apps"
               onClick={() => setAppsOpen((v) => !v)}
-              className={`${chromeButtonBase} ${appsOpen ? iconActiveTone : "text-white/90 hover:text-white hover:bg-white/14 hover:border-white/30 hover:-translate-y-px"}`}
+              className={`${darkIconButtonBase} ${appsOpen ? "border-slate-500 bg-slate-600/90 text-slate-50" : ""}`}
             >
               <AppsGridIcon className="w-4 h-4" />
             </button>
@@ -1267,7 +1251,7 @@ export default function TopBar() {
 
           <FeedbackButton
             onClick={() => setFeedbackOpen(true)}
-            className={`${chromeButtonBase} text-white/90 hover:text-white hover:bg-white/14 hover:border-white/30 hover:-translate-y-px`}
+            className={darkIconButtonBase}
           />
           </div>
 
@@ -1276,7 +1260,7 @@ export default function TopBar() {
               type="button"
               title="More workspace tools"
               onClick={() => setCompactActionsOpen((current) => !current)}
-              className={`${chromeButtonBase} text-white/90 hover:text-white hover:bg-white/14 hover:border-white/30 hover:-translate-y-px`}
+              className={darkIconButtonBase}
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h.01M12 12h.01M19 12h.01" />
@@ -1331,30 +1315,54 @@ export default function TopBar() {
             )}
           </div>
 
+          {moduleKey === "donor" ? (
+            <button
+              type="button"
+              onClick={toggleReportingYearMode}
+              title={
+                reportingYearMode === "fiscal"
+                  ? `Fiscal year mode is on. FY${getFiscalYearForDate(new Date(), fiscalSettings.fiscalYearStart)} runs month ${fiscalSettings.fiscalYearStart}-${fiscalSettings.fiscalYearEnd}.`
+                  : "Calendar year mode is on. Click to use the fiscal year offset from Organization Settings."
+              }
+              className={`hidden h-9 items-center gap-2 rounded-lg border px-2.5 text-xs font-semibold transition-all min-[1440px]:inline-flex ${
+                reportingYearMode === "fiscal"
+                  ? "border-green-600/50 bg-green-600/15 text-green-400 hover:border-green-500/60 hover:bg-green-600/25"
+                  : "border-white/10 bg-white/8 text-slate-300 hover:border-white/20 hover:bg-white/14 hover:text-white"
+              }`}
+            >
+              <span className={`flex h-3.5 w-3.5 items-center justify-center rounded border text-[10px] font-bold ${
+                reportingYearMode === "fiscal" ? "border-green-500/60 bg-green-600/30 text-green-300" : "border-slate-400/30 bg-slate-600/20 text-slate-400"
+              }`}>
+                {reportingYearMode === "fiscal" ? "FY" : "C"}
+              </span>
+              <span>{reportingYearMode === "fiscal" ? `${getFiscalYearForDate(new Date(), fiscalSettings.fiscalYearStart)}` : "Calendar"}</span>
+            </button>
+          ) : null}
+
           <StewardAiRuntimePill
             canRunConnectionTest={canRunAiConnectionTest}
             onOpenSettings={openAiSettings}
           />
 
-          {/* AI Assistant */}
-          <button
-            title="Open Steward AI Assistant"
-            onClick={toggleStewardAssistant}
-            className={`${chromeButtonBase} relative group ${stewardMode !== "collapsed" ? iconActiveTone : "text-white/90 hover:text-white hover:bg-white/14 hover:border-white/30 hover:-translate-y-px"}`}
+          {/* AGENTSteward workspace link — dock is handled by the floating chat-head from StewardDockPanel */}
+          <Link
+            href="/steward-ai-workspace"
+            title="Open AGENTSteward workspace"
+            className={`${darkIconButtonBase} relative group`}
           >
-            <SparklesIcon className="w-5 h-5" />
-          <span className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-            AI Assistant
-          </span>
-        </button>
+            <StewardAvatarIcon size={16} alt="AGENTSteward" className="ring-white/40" />
+            <span className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              AGENTSteward
+            </span>
+          </Link>
 
         {/* Help */}
         <Link
           href={helpHref}
           title="Help & Documentation"
-          className={`hidden min-[1440px]:inline-flex ${chromeButtonBase} text-white/90 hover:text-white hover:bg-white/14 hover:border-white/30 hover:-translate-y-px`}
+          className={`hidden min-[1440px]:inline-flex ${darkIconButtonBase}`}
         >
-          <HelpCircleIcon className="w-5 h-5" />
+          <HelpCircleIcon className="w-4 h-4" />
         </Link>
 
           {/* Notifications */}
@@ -1362,9 +1370,9 @@ export default function TopBar() {
           <button
             title="Notifications"
             onClick={() => setNotificationsOpen((v) => !v)}
-            className={`${chromeButtonBase} text-white/90 hover:text-white hover:bg-white/14 hover:border-white/30 hover:-translate-y-px relative`}
+            className={`${darkIconButtonBase} relative`}
           >
-            <BellIcon className="w-5 h-5" />
+            <BellIcon className="w-4 h-4" />
             {unreadCount > 0 && (
               <span className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold text-white flex items-center justify-center ${
                 moduleKey === "compassion"
@@ -1498,15 +1506,13 @@ export default function TopBar() {
                   Send Feedback
                 </button>
 
-                <button
-                  onClick={() => {
-                    setMobileQuickOpen(false);
-                    toggleStewardAssistant();
-                  }}
-                  className="w-full min-h-11 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-medium text-left"
+                <Link
+                  href="/steward-ai-workspace"
+                  onClick={() => setMobileQuickOpen(false)}
+                  className="flex items-center w-full min-h-11 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-medium text-left"
                 >
                   Open AI Assistant
-                </button>
+                </Link>
 
                 <Link
                   href={helpHref}
@@ -1590,7 +1596,7 @@ function ModuleSwitcher({
   if (modules.length === 0) return null;
 
   const current = modules.find((m) => m.active) ?? modules[0];
-  const switcherButtonTone = "from-slate-100/95 to-slate-200/95 border-slate-300/90";
+  const switcherButtonTone = "border-white/70 bg-white/78 backdrop-blur-xl";
   const switcherTone = current.key === "compassion"
     ? "from-blue-50 to-sky-50 border-blue-200/80"
     : current.key === "events"
@@ -1616,9 +1622,9 @@ function ModuleSwitcher({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`group flex items-center gap-2.5 px-2.5 py-1.5 rounded-2xl border bg-gradient-to-br ${switcherButtonTone} text-slate-800 shadow-[0_4px_14px_rgba(15,23,42,0.08)] hover:shadow-[0_8px_18px_rgba(15,23,42,0.12)] transition-all`}
+        className={`group flex items-center gap-2.5 rounded-xl border ${switcherButtonTone} px-2.5 py-1.5 text-slate-800 shadow-[0_1px_0_rgba(255,255,255,0.8),0_10px_24px_rgba(15,23,42,0.1)] transition-colors hover:border-white hover:bg-white/92`}
       >
-        <span className="w-8 h-8 rounded-xl border border-slate-300/90 bg-white/90 shadow-[0_1px_4px_rgba(15,23,42,0.08)] text-slate-700 flex items-center justify-center">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/70 bg-white/70 text-slate-700">
           {current.icon}
         </span>
         <div className="hidden sm:block text-left leading-tight min-w-0">
@@ -1633,7 +1639,7 @@ function ModuleSwitcher({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full mt-2 w-[320px] max-w-[calc(100vw-1rem)] bg-white/98 rounded-[22px] shadow-[0_18px_42px_rgba(15,23,42,0.18)] border border-slate-200/90 z-50 overflow-hidden backdrop-blur-xl">
+          <div className="absolute left-0 top-full mt-2 w-[320px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg z-50">
             <div className={`px-4 pt-3 pb-2 border-b border-slate-100 bg-gradient-to-r ${switcherTone}`}>
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.22em]">Switch Workspace</p>
               <p className="text-[11px] text-slate-600 mt-0.5">Open another module without leaving your current session.</p>
@@ -1643,7 +1649,7 @@ function ModuleSwitcher({
                 <button
                   key={m.key}
                   onClick={() => switchTo(m.href)}
-                  className={`w-full rounded-xl border px-3 py-2.5 text-left transition-all ${m.active ? "border-slate-300 bg-slate-100 shadow-sm ring-1 ring-slate-200" : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"}`}
+                  className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${m.active ? "border-slate-300 bg-slate-100" : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"}`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-700 flex items-center justify-center shrink-0">
@@ -1732,4 +1738,3 @@ function UserMenu({ moduleKey }: { moduleKey: TopBarModuleKey }) {
     </div>
   );
 }
-

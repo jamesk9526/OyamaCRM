@@ -5,6 +5,7 @@ const https = require("node:https");
 const os = require("node:os");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const zlib = require("node:zlib");
 const { execFile } = require("node:child_process");
 const { createBridgeServer } = require("./bridge-server");
 
@@ -476,10 +477,98 @@ async function buildBridgeState() {
 function getPreferredTrayIconPath() {
   const candidates = [
     path.join(__dirname, "assets", "icon.ico"),
+    path.join(__dirname, "assets", "icon-tray.png"),
+    path.join(__dirname, "assets", "icon.png"),
     path.join(__dirname, "..", "Desktopapp", "assets", "icon.ico"),
+    path.join(__dirname, "..", "Desktopapp", "assets", "icon.png"),
   ];
 
   return candidates.find((candidate) => fs.existsSync(candidate)) || null;
+}
+
+// Builds a 32×32 RGBA PNG in-memory — used as tray icon when no file is found.
+// Pure Node.js, no canvas or external deps needed.
+function buildFallbackTrayImage() {
+  const SIZE = 32;
+  const BG_R = 22, BG_G = 163, BG_B = 74; // Oyama green #16a34a
+  const pixels = new Uint8Array(SIZE * SIZE * 4);
+  const cx = (SIZE - 1) / 2;
+  const cy = (SIZE - 1) / 2;
+  const cornerR = SIZE * 0.18;
+  const ringOuter = SIZE * 0.32;
+  const ringInner = SIZE * 0.19;
+
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const off = (y * SIZE + x) * 4;
+      // Rounded rectangle bounds check
+      const inRect = (() => {
+        if (x < cornerR && y < cornerR) return (x - cornerR) ** 2 + (y - cornerR) ** 2 <= cornerR * cornerR;
+        if (x > SIZE - 1 - cornerR && y < cornerR) return (x - (SIZE - 1 - cornerR)) ** 2 + (y - cornerR) ** 2 <= cornerR * cornerR;
+        if (x < cornerR && y > SIZE - 1 - cornerR) return (x - cornerR) ** 2 + (y - (SIZE - 1 - cornerR)) ** 2 <= cornerR * cornerR;
+        if (x > SIZE - 1 - cornerR && y > SIZE - 1 - cornerR) return (x - (SIZE - 1 - cornerR)) ** 2 + (y - (SIZE - 1 - cornerR)) ** 2 <= cornerR * cornerR;
+        return true;
+      })();
+
+      if (!inRect) { pixels[off + 3] = 0; continue; }
+
+      const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+      if (dist >= ringInner && dist <= ringOuter) {
+        // White ring
+        pixels[off] = 255; pixels[off + 1] = 255; pixels[off + 2] = 255; pixels[off + 3] = 255;
+      } else {
+        // Green background
+        pixels[off] = BG_R; pixels[off + 1] = BG_G; pixels[off + 2] = BG_B; pixels[off + 3] = 255;
+      }
+    }
+  }
+
+  // Build a minimal valid PNG from raw RGBA pixels
+  const crcTable = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c;
+    }
+    return t;
+  })();
+  const crc32png = (buf) => {
+    let crc = 0xffffffff;
+    for (let i = 0; i < buf.length; i++) crc = crcTable[(crc ^ buf[i]) & 0xff] ^ (crc >>> 8);
+    return (crc ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, data) => {
+    const t = Buffer.from(type, "ascii");
+    const l = Buffer.alloc(4); l.writeUInt32BE(data.length);
+    const c = Buffer.alloc(4); c.writeUInt32BE(crc32png(Buffer.concat([t, data])));
+    return Buffer.concat([l, t, data, c]);
+  };
+
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(SIZE, 0); ihdr.writeUInt32BE(SIZE, 4);
+  ihdr.writeUInt8(8, 8); ihdr.writeUInt8(6, 9); // 8-bit RGBA
+
+  const rowBytes = 1 + SIZE * 4;
+  const raw = Buffer.alloc(SIZE * rowBytes, 0);
+  for (let y = 0; y < SIZE; y++) {
+    raw[y * rowBytes] = 0;
+    for (let x = 0; x < SIZE; x++) {
+      const s = (y * SIZE + x) * 4;
+      const d = y * rowBytes + 1 + x * 4;
+      raw[d] = pixels[s]; raw[d + 1] = pixels[s + 1]; raw[d + 2] = pixels[s + 2]; raw[d + 3] = pixels[s + 3];
+    }
+  }
+
+  const idat = zlib.deflateSync(raw, { level: 1 });
+  const pngBuf = Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", idat),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+
+  return nativeImage.createFromBuffer(pngBuf, { scaleFactor: 1 });
 }
 
 function emitBridgeEvent(payload) {
@@ -525,10 +614,11 @@ function createTray() {
   if (tray) return tray;
 
   const iconPath = getPreferredTrayIconPath();
-  // Keep tray support reliable in unpacked/dev builds where a standalone icon file is not present yet.
+  // Fall back to a programmatically generated PNG when no icon file exists.
+  // SVG data URLs are NOT supported by Electron's nativeImage on Windows — use PNG instead.
   const image = iconPath
     ? nativeImage.createFromPath(iconPath)
-    : nativeImage.createFromDataURL("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2316a34a'/%3E%3Cpath d='M18 37c0-10 6-18 14-18s14 8 14 18' fill='none' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='39' r='6' fill='white'/%3E%3C/svg%3E");
+    : buildFallbackTrayImage();
   if (image.isEmpty()) return null;
 
   tray = new Tray(image);

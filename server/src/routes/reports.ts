@@ -19,6 +19,10 @@ import { requirePermission } from "../middleware/requirePermission.js";
 import { completedDonationWhere } from "../lib/donationScope.js";
 import {
   getYearRange,
+  getFiscalYearForDate,
+  getFiscalYearRange,
+  getFiscalYTDRange,
+  normalizeFiscalYearStart,
   getStartOfWeek,
   calcRetentionRate,
   calcYoYPercent,
@@ -123,27 +127,38 @@ function mergeDateFilters(base?: Prisma.DateTimeFilter, extra?: Prisma.DateTimeF
 }
 
 /** Parses report scope from query params and returns year + optional date range filters. */
-function parseReportScope(rawQuery: unknown) {
+async function parseReportScope(rawQuery: unknown, organizationId?: string | null) {
   const query = (rawQuery ?? {}) as Record<string, string | string[] | undefined>;
   const yearQuery = Array.isArray(query.year) ? query.year[0] : query.year;
   const scopeQuery = Array.isArray(query.scope) ? query.scope[0] : query.scope;
   const fromDateQuery = Array.isArray(query.fromDate) ? query.fromDate[0] : query.fromDate;
   const toDateQuery = Array.isArray(query.toDate) ? query.toDate[0] : query.toDate;
-  const currentYear = new Date().getFullYear();
+  const dateBasisQuery = Array.isArray(query.dateBasis) ? query.dateBasis[0] : query.dateBasis;
+  const useFiscalYear = dateBasisQuery === "fiscal";
+  const settings = organizationId && useFiscalYear
+    ? await prisma.organizationSettings.findUnique({
+      where: { organizationId },
+      select: { fiscalYearStart: true },
+    })
+    : null;
+  const fiscalYearStart = normalizeFiscalYearStart(settings?.fiscalYearStart);
+  const now = new Date();
+  const currentYear = useFiscalYear ? getFiscalYearForDate(now, fiscalYearStart) : now.getFullYear();
   const parsedYear = Number.parseInt(yearQuery ?? String(currentYear), 10);
   const year = Number.isFinite(parsedYear) ? parsedYear : currentYear;
   const useAllYears = scopeQuery?.toUpperCase() === "ALL_YEARS";
-  const yearRange = getYearRange(year);
-  const now = new Date();
+  const fullYearRange = useFiscalYear ? getFiscalYearRange(year, fiscalYearStart) : getYearRange(year);
   const customDateFilter = buildDateWindowFilter(fromDateQuery, toDateQuery);
-  // For the active calendar year, use true YTD (Jan 1 -> now) so dashboard values match YTD date pickers.
-  const ytdRange = { gte: new Date(year, 0, 1), lte: now };
-  const scopedRange = year === currentYear ? ytdRange : yearRange;
+  // For the active reporting year, use true YTD so dashboard values match the current topbar reporting mode.
+  const ytdRange = useFiscalYear ? getFiscalYTDRange(fiscalYearStart, now) : { gte: new Date(year, 0, 1), lte: now };
+  const scopedRange = year === currentYear ? ytdRange : fullYearRange;
   const scopedDonationFilter = useAllYears ? undefined : scopedRange;
   const scopedGrantFilter = useAllYears ? undefined : scopedRange;
 
   return {
     year,
+    dateBasis: useFiscalYear ? "fiscal" as const : "calendar" as const,
+    fiscalYearStart,
     useAllYears,
     yearRange: scopedRange,
     donationDateFilter: mergeDateFilters(scopedDonationFilter, customDateFilter),
@@ -152,18 +167,16 @@ function parseReportScope(rawQuery: unknown) {
   };
 }
 
-/** Returns campaigns that overlap a target calendar year. */
-function campaignOverlapYearFilter(year: number) {
-  const yearStart = new Date(year, 0, 1);
-  const nextYearStart = new Date(year + 1, 0, 1);
-
+/** Returns campaigns that overlap a target reporting range. */
+function campaignOverlapRangeFilter(range: { gte: Date; lt?: Date; lte?: Date }) {
+  const rangeEnd = range.lt ?? range.lte ?? new Date(range.gte.getFullYear() + 1, 0, 1);
   return {
     AND: [
-      { startDate: { lt: nextYearStart } },
+      { startDate: { lt: rangeEnd } },
       {
         OR: [
           { endDate: null },
-          { endDate: { gte: yearStart } },
+          { endDate: { gte: range.gte } },
         ],
       },
     ],
@@ -506,7 +519,7 @@ router.delete("/oshareview-blueprints/:id", async (req, res) => {
  */
 router.get("/summary", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
-  const { year, useAllYears, donationDateFilter, grantAwardedAtFilter } = parseReportScope(req.query);
+  const { useAllYears, yearRange, donationDateFilter, grantAwardedAtFilter } = await parseReportScope(req.query, organizationId);
   if (!organizationId) {
     res.json({
       totalConstituents: 0,
@@ -527,7 +540,6 @@ router.get("/summary", async (req, res) => {
   }
 
   const now = new Date();
-  const startOfYear = new Date(year, 0, 1);
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const startOfWeek = getStartOfWeek();
@@ -575,7 +587,7 @@ router.get("/summary", async (req, res) => {
     prisma.campaign.count({
       where: {
         organizationId,
-        ...(useAllYears ? {} : campaignOverlapYearFilter(year)),
+        ...(useAllYears ? {} : campaignOverlapRangeFilter(yearRange)),
       },
     }),
     prisma.task.count({ where: { status: "PENDING", ...taskOrganizationWhere(organizationId) } }),
@@ -585,7 +597,7 @@ router.get("/summary", async (req, res) => {
       where: {
         organizationId,
         goal: { not: null },
-        ...(useAllYears ? {} : campaignOverlapYearFilter(year)),
+        ...(useAllYears ? {} : campaignOverlapRangeFilter(yearRange)),
       },
       _sum: { goal: true },
     }),
@@ -596,7 +608,7 @@ router.get("/summary", async (req, res) => {
         campaign: {
           is: {
             organizationId,
-            ...(useAllYears ? {} : campaignOverlapYearFilter(year)),
+            ...(useAllYears ? {} : campaignOverlapRangeFilter(yearRange)),
           },
         },
       },
@@ -604,7 +616,7 @@ router.get("/summary", async (req, res) => {
     }),
     // Constituents whose first recorded gift is in the selected year.
     prisma.constituent.count({
-      where: { organizationId, ...(useAllYears ? {} : { firstGiftDate: { gte: startOfYear, lt: new Date(year + 1, 0, 1) } }) },
+      where: { organizationId, ...(useAllYears ? {} : { firstGiftDate: yearRange }) },
     }),
     // Scoped awarded grants — filtered to selected year unless ALL_YEARS.
     // amountAwarded is used (not amountRequested) since this is what was actually received.
@@ -748,7 +760,7 @@ router.get("/giving-by-month", async (req, res) => {
     return;
   }
 
-  const { donationDateFilter, grantAwardedAtFilter } = parseReportScope(req.query);
+  const { donationDateFilter, grantAwardedAtFilter } = await parseReportScope(req.query, organizationId);
 
   // Fetch donations and grants concurrently
   const [donations, grants] = await Promise.all([
@@ -797,15 +809,14 @@ router.get("/giving-by-month", async (req, res) => {
  */
 router.get("/donor-retention", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
-  const { year: thisYear } = parseReportScope(req.query);
+  const { year: thisYear, dateBasis, fiscalYearStart, yearRange: thisYearRange } = await parseReportScope(req.query, organizationId);
   if (!organizationId) {
     res.json({ total: 0, retained: 0, rate: 0, year: thisYear });
     return;
   }
 
   const lastYear = thisYear - 1;
-  const lastYearRange = getYearRange(lastYear);
-  const thisYearRange = getYearRange(thisYear);
+  const lastYearRange = dateBasis === "fiscal" ? getFiscalYearRange(lastYear, fiscalYearStart) : getYearRange(lastYear);
 
   const [lastYearDonors, thisYearDonors] = await Promise.all([
     // Unique constituent IDs who donated last year (base cohort for retention rate)
@@ -844,14 +855,14 @@ router.get("/donor-retention", async (req, res) => {
  */
 router.get("/top-donors", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
-  const { donationDateFilter } = parseReportScope(req.query);
+  const { donationDateFilter } = await parseReportScope(req.query, organizationId);
   if (!organizationId) {
     res.json([]);
     return;
   }
 
   const parsedLimit = Number.parseInt((req.query.limit as string) ?? "10", 10);
-  const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 50) : 10;
+  const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 5000) : 10;
 
   const grouped = await prisma.donation.groupBy({
     by: ["constituentId"],
@@ -917,7 +928,7 @@ router.get("/top-donors", async (req, res) => {
  */
 router.get("/board-summary", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
-  const { year, useAllYears, donationDateFilter, grantAwardedAtFilter } = parseReportScope(req.query);
+  const { year, useAllYears, yearRange, donationDateFilter, grantAwardedAtFilter } = await parseReportScope(req.query, organizationId);
   const empty = {
     summary: {
       ytdRevenue: 0,
@@ -937,10 +948,6 @@ router.get("/board-summary", async (req, res) => {
     return;
   }
 
-  const now = new Date();
-  const startOfYear = new Date(year, 0, 1);
-  const nextYearStart = new Date(year + 1, 0, 1);
-
   // Fetch scoped donations and all constituents concurrently; grants are scoped similarly.
   const [ytdDonations, totalDonors, newDonorsYtd, activeCampaigns, ytdGrants] = await Promise.all([
     prisma.donation.findMany({
@@ -957,13 +964,13 @@ router.get("/board-summary", async (req, res) => {
         organizationId,
         ...(useAllYears
           ? { firstGiftDate: { not: null } }
-          : { firstGiftDate: { gte: startOfYear, lt: nextYearStart } }),
+          : { firstGiftDate: yearRange }),
       },
     }),
     prisma.campaign.findMany({
       where: {
         organizationId,
-        ...(useAllYears ? {} : campaignOverlapYearFilter(year)),
+        ...(useAllYears ? {} : campaignOverlapRangeFilter(yearRange)),
       },
       select: { goal: true },
     }),
@@ -1013,6 +1020,7 @@ router.get("/board-summary", async (req, res) => {
   const donorRetentionRate = calcRetentionRate(retained, lastYearSet.size);
 
   // Build monthly trend: sum donations for each month Jan–current
+  const now = new Date();
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const trendMap: Record<number, number> = {};
   for (const d of ytdDonations) {
@@ -1049,7 +1057,7 @@ router.get("/board-summary", async (req, res) => {
  */
 router.get("/lybunt", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
-  const { year: thisYear } = parseReportScope(req.query);
+  const { year: thisYear } = await parseReportScope(req.query, organizationId);
   if (!organizationId) {
     res.json([]);
     return;
@@ -1108,7 +1116,7 @@ router.get("/lybunt", async (req, res) => {
  */
 router.get("/sybunt", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
-  const { year: thisYear } = parseReportScope(req.query);
+  const { year: thisYear } = await parseReportScope(req.query, organizationId);
   if (!organizationId) {
     res.json([]);
     return;
@@ -1229,7 +1237,7 @@ router.get("/year-comparison", async (req, res) => {
  */
 router.get("/campaign-performance", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
-  const { year, useAllYears, donationDateFilter } = parseReportScope(req.query);
+  const { useAllYears, yearRange, donationDateFilter } = await parseReportScope(req.query, organizationId);
   if (!organizationId) {
     res.json([]);
     return;
@@ -1238,7 +1246,7 @@ router.get("/campaign-performance", async (req, res) => {
   const campaigns = await prisma.campaign.findMany({
     where: {
       organizationId,
-      ...(useAllYears ? {} : campaignOverlapYearFilter(year)),
+      ...(useAllYears ? {} : campaignOverlapRangeFilter(yearRange)),
     },
     include: {
       donations: {
@@ -1283,7 +1291,7 @@ router.get("/campaign-performance", async (req, res) => {
  */
 router.get("/giving-by-tier", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
-  const { donationDateFilter } = parseReportScope(req.query);
+  const { donationDateFilter } = await parseReportScope(req.query, organizationId);
   const empty = { micro: { count: 0, amount: 0 }, small: { count: 0, amount: 0 }, mid: { count: 0, amount: 0 }, major: { count: 0, amount: 0 } };
   if (!organizationId) {
     res.json(empty);
@@ -1334,7 +1342,7 @@ router.get("/giving-by-tier", async (req, res) => {
  */
 router.get("/payment-breakdown", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
-  const { donationDateFilter } = parseReportScope(req.query);
+  const { donationDateFilter } = await parseReportScope(req.query, organizationId);
   if (!organizationId) {
     res.json([]);
     return;
@@ -1481,7 +1489,7 @@ router.get("/admin-summary", async (req, res) => {
     return;
   }
 
-  const { year, useAllYears, yearRange, donationDateFilter } = parseReportScope(req.query);
+  const { year, useAllYears, yearRange, donationDateFilter } = await parseReportScope(req.query, organizationId);
   const strictYearRange = getYearRange(year);
 
   const [
@@ -1790,12 +1798,15 @@ router.get("/admin-summary", async (req, res) => {
 router.get("/recent-donations", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) { res.json([]); return; }
+  const { donationDateFilter } = await parseReportScope(req.query, organizationId);
 
-  const limit = Math.min(50, parseInt((req.query.limit as string) ?? "8"));
+  const parsedLimit = Number.parseInt((req.query.limit as string) ?? "8", 10);
+  const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 5000) : 8;
   const now = new Date();
+  const dateFilter = mergeDateFilters(donationDateFilter, { lte: now });
 
   const donations = await prisma.donation.findMany({
-    where: { status: "COMPLETED", date: { lte: now }, constituent: { organizationId } },
+    where: completedDonationWhere(organizationId, dateFilter),
     orderBy: { date: "desc" },
     take: limit,
     select: {

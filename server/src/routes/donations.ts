@@ -21,6 +21,7 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { donationOrgWhere } from "../lib/donationScope.js";
+import { getFiscalYTDRange, normalizeFiscalYearStart } from "../lib/dateRanges.js";
 import { executeStewardPathsForTrigger } from "../services/stewardPathsEngine.js";
 
 const router = Router();
@@ -191,6 +192,7 @@ type DonationFilterQuery = {
   to?: string;
   search?: string;
   scope?: string;
+  dateBasis?: string;
 };
 
 /**
@@ -230,8 +232,19 @@ function computeEngagementScore(params: {
  * Lifetime totals intentionally include all donation records across all years.
  */
 async function recalculateConstituentGivingRollups(constituentId: string): Promise<void> {
-  const startOfCurrentYear = new Date(new Date().getFullYear(), 0, 1);
   const now = new Date();
+  const constituent = await prisma.constituent.findUnique({
+    where: { id: constituentId },
+    select: {
+      organization: {
+        select: {
+          settings: { select: { fiscalYearStart: true } },
+        },
+      },
+    },
+  });
+  const fiscalYearStart = normalizeFiscalYearStart(constituent?.organization.settings?.fiscalYearStart);
+  const fiscalYtdRange = getFiscalYTDRange(fiscalYearStart, now);
 
   const [lifetimeAgg, ytdAgg, lastGift] = await Promise.all([
     prisma.donation.aggregate({
@@ -243,7 +256,7 @@ async function recalculateConstituentGivingRollups(constituentId: string): Promi
     prisma.donation.aggregate({
       where: {
         constituentId,
-        date: { gte: startOfCurrentYear, lte: now },
+        date: fiscalYtdRange,
       },
       _sum: { amount: true },
     }),
@@ -300,10 +313,10 @@ function parseDateEnd(raw?: string): Date | undefined {
  * Builds the canonical donation filters used by list + stats routes.
  * `scope=CURRENT_YEAR` applies Jan 1 → now when from/to are not provided.
  */
-function buildDonationWhere(
+async function buildDonationWhere(
   organizationId: string,
   query: DonationFilterQuery
-): Prisma.DonationWhereInput {
+): Promise<Prisma.DonationWhereInput> {
   const keyword = query.search?.trim();
   const start = parseDateStart(query.from);
   const end = parseDateEnd(query.to);
@@ -315,7 +328,15 @@ function buildDonationWhere(
       ...(end ? { lte: end } : {}),
     };
   } else if (query.scope?.toUpperCase() === "CURRENT_YEAR") {
-    dateFilter = { gte: new Date(new Date().getFullYear(), 0, 1) };
+    if (query.dateBasis === "fiscal") {
+      const settings = await prisma.organizationSettings.findUnique({
+        where: { organizationId },
+        select: { fiscalYearStart: true },
+      });
+      dateFilter = getFiscalYTDRange(normalizeFiscalYearStart(settings?.fiscalYearStart));
+    } else {
+      dateFilter = { gte: new Date(new Date().getFullYear(), 0, 1) };
+    }
   }
 
   return {
@@ -370,7 +391,7 @@ router.get("/", async (req, res) => {
   const parsedLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 50, 1), 500);
   const skip = (parsedPage - 1) * parsedLimit;
 
-  const where = buildDonationWhere(organizationId, {
+  const where = await buildDonationWhere(organizationId, {
     constituentId,
     campaignId,
     designationId,
@@ -379,6 +400,7 @@ router.get("/", async (req, res) => {
     to,
     search,
     scope,
+    dateBasis: req.query.dateBasis as string | undefined,
   });
 
   // Run the list query and count in parallel to avoid two sequential round-trips
@@ -401,8 +423,8 @@ router.get("/stats", async (req, res) => {
     return;
   }
 
-  const { constituentId, campaignId, designationId, status, from, to, search, scope } = req.query as Record<string, string>;
-  const where = buildDonationWhere(organizationId, {
+  const { constituentId, campaignId, designationId, status, from, to, search, scope, dateBasis } = req.query as Record<string, string>;
+  const where = await buildDonationWhere(organizationId, {
     constituentId,
     campaignId,
     designationId,
@@ -411,6 +433,7 @@ router.get("/stats", async (req, res) => {
     to,
     search,
     scope,
+    dateBasis,
   });
 
   const [raisedSum, totalGifts, completed, recurring] = await Promise.all([

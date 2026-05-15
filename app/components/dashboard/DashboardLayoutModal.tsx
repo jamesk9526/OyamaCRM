@@ -3,6 +3,7 @@
 
 import { useRef, useState } from "react";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
+import type { DashboardWidgetSize } from "@/app/components/dashboard/DashboardWidget";
 
 export interface WidgetMeta {
   id: string;
@@ -19,6 +20,7 @@ interface DashboardWidgetSettings {
   revenueGoalMode: RevenueGoalMode;
   manualRevenueGoalAmount: number;
   hiddenWidgetIds: string[];
+  widgetSizes: Record<string, DashboardWidgetSize>;
 }
 
 interface Props {
@@ -31,7 +33,15 @@ interface Props {
   initialRevenueGoalMode: RevenueGoalMode;
   initialManualRevenueGoalAmount: number;
   initialHiddenWidgetIds: string[];
+  initialWidgetSizes: Record<string, DashboardWidgetSize>;
 }
+
+const WIDGET_SIZE_OPTIONS: Array<{ value: DashboardWidgetSize; label: string }> = [
+  { value: "compact", label: "Small" },
+  { value: "standard", label: "Medium" },
+  { value: "wide", label: "Wide" },
+  { value: "hero", label: "Hero" },
+];
 
 /** DashboardLayoutModal renders a 2-column control center for dashboard personalization. */
 export default function DashboardLayoutModal({
@@ -44,6 +54,7 @@ export default function DashboardLayoutModal({
   initialRevenueGoalMode,
   initialManualRevenueGoalAmount,
   initialHiddenWidgetIds,
+  initialWidgetSizes,
 }: Props) {
   const [localOrder, setLocalOrder] = useState<string[]>(order);
   const [localHiddenWidgets, setLocalHiddenWidgets] = useState<Set<string>>(new Set(initialHiddenWidgetIds));
@@ -51,6 +62,7 @@ export default function DashboardLayoutModal({
   const [localIncludeGrants, setLocalIncludeGrants] = useState<boolean>(initialIncludeGrants);
   const [localRevenueGoalMode, setLocalRevenueGoalMode] = useState<RevenueGoalMode>(initialRevenueGoalMode);
   const [localManualRevenueGoalAmount, setLocalManualRevenueGoalAmount] = useState<string>(String(initialManualRevenueGoalAmount || 0));
+  const [localWidgetSizes, setLocalWidgetSizes] = useState<Record<string, DashboardWidgetSize>>(initialWidgetSizes);
   const dragFrom = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
@@ -115,6 +127,10 @@ export default function DashboardLayoutModal({
       }
       return next;
     });
+  }
+
+  function setWidgetSize(id: string, size: DashboardWidgetSize) {
+    setLocalWidgetSizes((current) => ({ ...current, [id]: size }));
   }
 
   return (
@@ -185,6 +201,17 @@ export default function DashboardLayoutModal({
                       <p className="text-sm font-medium leading-tight text-gray-800">{meta?.label ?? id}</p>
                       {meta?.description && <p className="truncate text-xs text-gray-400">{meta.description}</p>}
                     </div>
+                    <select
+                      value={localWidgetSizes[id] ?? "standard"}
+                      onChange={(event) => setWidgetSize(id, event.target.value as DashboardWidgetSize)}
+                      onClick={(event) => event.stopPropagation()}
+                      className="h-8 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-600"
+                      title="Widget size"
+                    >
+                      {WIDGET_SIZE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
                     <div className="flex shrink-0 flex-col gap-0">
                       <button
                         onClick={(e) => {
@@ -333,6 +360,7 @@ export default function DashboardLayoutModal({
                 revenueGoalMode: localRevenueGoalMode,
                 manualRevenueGoalAmount: Math.max(0, Number(localManualRevenueGoalAmount || 0)),
                 hiddenWidgetIds: Array.from(localHiddenWidgets),
+                widgetSizes: localWidgetSizes,
               });
               onClose();
             }}

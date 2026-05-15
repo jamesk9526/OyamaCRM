@@ -2,6 +2,7 @@
   "name": "oyama-bridge-desktop-server",
   "version": "1.0.0",
   "description": "Standalone Oyama Bridge app for local AI gateway and donor/report Steward intelligence routing.",
+  "author": "OyamaCRM",
   "main": "main.js",
   "private": true,
   "scripts": {
@@ -22,6 +23,8 @@
   "build": {
     "appId": "com.oyama.bridge",
     "productName": "Oyama Bridge",
+    "npmRebuild": false,
+    "buildDependenciesFromSource": false,
     "files": [
       "main.js",
       "bridge-server.js",
@@ -30,12 +33,14 @@
       "renderer.js",
       "styles.css",
       "assets/**/*",
-      "package.json"
+      "package.json",
+      "!node_modules/**"
     ],
     "directories": {
       "output": "release"
     },
     "win": {
+      "icon": "assets/icon.ico",
       "target": [
         {
           "target": "nsis",

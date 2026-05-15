@@ -21,6 +21,8 @@ interface GivingTrendChartProps {
    * This matches the "Include Grants" toggle on the dashboard.
    */
   includeGrants?: boolean;
+  /** Applies the global reporting-year mode selected in the TopBar. */
+  dateBasis?: "calendar" | "fiscal";
 }
 
 const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -35,7 +37,7 @@ function formatCurrencyExact(n: number): string {
   }).format(n);
 }
 
-export default function GivingTrendChart({ includeGrants = false }: GivingTrendChartProps) {
+export default function GivingTrendChart({ includeGrants = false, dateBasis = "calendar" }: GivingTrendChartProps) {
   const [data, setData] = useState<MonthData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +52,8 @@ export default function GivingTrendChart({ includeGrants = false }: GivingTrendC
 
     async function loadTrend() {
       try {
-        const rows = await apiFetch<MonthData[]>(`/api/reports/giving-by-month?year=${year}`);
+        const query = dateBasis === "fiscal" ? "dateBasis=fiscal" : `year=${year}`;
+        const rows = await apiFetch<MonthData[]>(`/api/reports/giving-by-month?${query}`);
         if (cancelled) return;
 
         const source = Array.isArray(rows) ? rows : [];
@@ -80,7 +83,7 @@ export default function GivingTrendChart({ includeGrants = false }: GivingTrendC
     return () => {
       cancelled = true;
     };
-  }, [year]);
+  }, [dateBasis, year]);
 
   /** Bar total = donations + grants (when includeGrants is on) */
   const barTotal = (d: MonthData) => d.amount + (includeGrants ? d.grantAmount : 0);
@@ -95,7 +98,7 @@ export default function GivingTrendChart({ includeGrants = false }: GivingTrendC
       {/* Sub-header */}
       <div className="flex items-center justify-between mb-3">
         <div>
-          <span className="text-xs text-gray-500 uppercase tracking-wider">YTD Total</span>
+          <span className="text-xs text-gray-500 uppercase tracking-wider">{dateBasis === "fiscal" ? "Fiscal YTD Total" : "YTD Total"}</span>
           <p className="text-2xl font-bold text-gray-900 mt-0.5">
             {loading ? "—" : `$${totalYTD.toLocaleString()}`}
           </p>
@@ -107,7 +110,7 @@ export default function GivingTrendChart({ includeGrants = false }: GivingTrendC
               + Grants
             </span>
           )}
-          <span className="text-xs font-medium text-gray-400">{year}</span>
+          <span className="text-xs font-medium text-gray-400">{dateBasis === "fiscal" ? "Fiscal year" : year}</span>
         </div>
       </div>
 

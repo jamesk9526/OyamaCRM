@@ -24,6 +24,7 @@ import {
   saveAuthSecuritySettingsForOrganization,
 } from "../services/auth-security.js";
 import { resetCrmInstallation } from "../services/reset-crm.js";
+import { getFiscalYearEndMonth, normalizeFiscalYearStart } from "../lib/dateRanges.js";
 
 const router = Router();
 
@@ -45,6 +46,7 @@ async function buildSnapshot(): Promise<string> {
 interface SettingsPayload {
   orgName?: string;
   fiscalYearStart?: number;
+  fiscalYearEnd?: number;
   currency?: string;
   timezone?: string;
   smtpHost?: string | null;
@@ -1350,6 +1352,7 @@ router.get("/", requireAuth, async (_req: Request, res: Response) => {
       return res.json({
         orgName: "",
         fiscalYearStart: 1,
+        fiscalYearEnd: getFiscalYearEndMonth(1),
         currency: "USD",
         timezone: "America/Chicago",
         smtpHost: envSmtp.smtpHost,
@@ -1367,9 +1370,11 @@ router.get("/", requireAuth, async (_req: Request, res: Response) => {
       prisma.organizationSettings.findUnique({ where: { organizationId } }),
     ]);
 
+    const fiscalYearStart = normalizeFiscalYearStart(settings?.fiscalYearStart);
     return res.json({
       orgName: org?.name ?? "",
-      fiscalYearStart: settings?.fiscalYearStart ?? 1,
+      fiscalYearStart,
+      fiscalYearEnd: getFiscalYearEndMonth(fiscalYearStart),
       currency: settings?.currency ?? "USD",
       timezone: settings?.timezone ?? "America/Chicago",
       smtpHost: valueOrEnv(settings?.smtpHost, envSmtp.smtpHost),
@@ -1396,7 +1401,7 @@ router.put("/", requireAuth, requireRole("admin"), async (req: Request, res: Res
     const body = req.body as SettingsPayload;
     const {
       orgName,
-      fiscalYearStart,
+      fiscalYearStart: rawFiscalYearStart,
       currency,
       timezone,
       smtpHost,
@@ -1407,6 +1412,7 @@ router.put("/", requireAuth, requireRole("admin"), async (req: Request, res: Res
       smtpFromName,
       smtpFromEmail,
     } = body;
+    const fiscalYearStart = rawFiscalYearStart === undefined ? undefined : normalizeFiscalYearStart(rawFiscalYearStart);
 
     const updates: Array<Promise<unknown>> = [];
 

@@ -30,9 +30,42 @@ export interface StewardAiChatResult {
 
 export interface StewardAiStreamOptions {
   onDelta?: (delta: string) => void;
+  /** Called with reasoning/thinking tokens from DeepSeek and similar models. Separate from final content. */
+  onThinkingDelta?: (delta: string) => void;
   model?: string;
   temperature?: number;
   maxTokens?: number;
+}
+
+/**
+ * Routes a stream delta through a <think>...</think> state machine.
+ * DeepSeek R1 and similar reasoning models embed thinking tokens in content wrapped
+ * by <think> tags. This routes thinking tokens to onThinkingDelta, keeping the
+ * final content stream clean.
+ */
+function routeThinkDelta(
+  delta: string,
+  state: { inThink: boolean }
+): { content: string; thinking: string } {
+  let content = "";
+  let thinking = "";
+  let remaining = delta;
+  while (remaining.length > 0) {
+    if (!state.inThink) {
+      const idx = remaining.indexOf("<think>");
+      if (idx === -1) { content += remaining; break; }
+      content += remaining.slice(0, idx);
+      remaining = remaining.slice(idx + 7);
+      state.inThink = true;
+    } else {
+      const idx = remaining.indexOf("</think>");
+      if (idx === -1) { thinking += remaining; break; }
+      thinking += remaining.slice(0, idx);
+      remaining = remaining.slice(idx + 8);
+      state.inThink = false;
+    }
+  }
+  return { content, thinking };
 }
 
 export interface StewardAiRunOptions {
@@ -483,6 +516,35 @@ export async function runStewardAiChatStream(
     let model = selectedModel;
     let done = false;
     let finalEventPayload: unknown = null;
+    // Think-block state for DeepSeek/reasoning models that embed <think>...</think> in content.
+    const thinkState = { inThink: false };
+
+    /** Processes one raw delta from the stream, routing thinking vs content tokens. */
+    function handleRawDelta(rawEvent: OllamaChatStreamResponse): void {
+      // Dedicated thinking field (Ollama deepseek-r1 sometimes uses message.thinking).
+      const dedicatedThinking = rawEvent.message?.thinking;
+      if (typeof dedicatedThinking === "string" && dedicatedThinking.length > 0) {
+        options.onThinkingDelta?.(dedicatedThinking);
+        // Also pick up content field separately if present alongside thinking.
+        const contentOnly = rawEvent.message?.content;
+        if (typeof contentOnly === "string" && contentOnly.length > 0) {
+          fullText += contentOnly;
+          options.onDelta?.(contentOnly);
+        }
+        return;
+      }
+      // Standard delta — route through <think> state machine.
+      const rawDelta = extractStreamDelta(rawEvent);
+      if (!rawDelta) return;
+      const { content, thinking } = routeThinkDelta(rawDelta, thinkState);
+      if (thinking) {
+        options.onThinkingDelta?.(thinking);
+      }
+      if (content) {
+        fullText += content;
+        options.onDelta?.(content);
+      }
+    }
 
     while (!done) {
       const { value, done: streamDone } = await reader.read();
@@ -514,11 +576,7 @@ export async function runStewardAiChatStream(
           model = event.model;
         }
 
-        const delta = extractStreamDelta(event);
-        if (delta) {
-          fullText += delta;
-          options.onDelta?.(delta);
-        }
+        handleRawDelta(event);
 
         if (event.done) {
           done = true;
@@ -533,11 +591,7 @@ export async function runStewardAiChatStream(
         if (normalizedTrailing && normalizedTrailing !== "[DONE]") {
           const trailingEvent = JSON.parse(normalizedTrailing) as OllamaChatStreamResponse;
           finalEventPayload = trailingEvent;
-          const delta = extractStreamDelta(trailingEvent);
-          if (delta) {
-            fullText += delta;
-            options.onDelta?.(delta);
-          }
+          handleRawDelta(trailingEvent);
           if (trailingEvent.model) {
             model = trailingEvent.model;
           }

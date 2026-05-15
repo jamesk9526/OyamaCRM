@@ -81,14 +81,7 @@ export default function BrandingSettingsPage() {
   }
 
   return (
-    <div className="space-y-5">
-      <header>
-        <h1 className="text-xl font-semibold text-gray-900">Branding System</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Central source of truth for logo, colors, identity, and contact defaults used by Email Builder and related workspaces.
-        </p>
-      </header>
-
+    <div className="space-y-5 pt-2">
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}

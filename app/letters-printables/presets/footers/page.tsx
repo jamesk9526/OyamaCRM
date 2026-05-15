@@ -1,7 +1,7 @@
-/** Footer presets route for letters-printables workflow. */
+/** Footer presets route — now managed in centralized Branding Settings. */
 import { redirect } from "next/navigation";
 
-/** Redirects to branding controls where footer settings currently live. */
+/** Redirects to centralized letter preset management in Settings. */
 export default function LetterFooterPresetsPage() {
-  redirect("/letters-printables/branding");
+  redirect("/settings/branding/letter-presets");
 }

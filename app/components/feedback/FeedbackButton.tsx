@@ -20,7 +20,7 @@ export function FeedbackButton({ onClick, className = "" }: FeedbackButtonProps)
       onClick={onClick}
       className={className}
     >
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M5.5 6.5A2.5 2.5 0 0 1 8 4h8a2.5 2.5 0 0 1 2.5 2.5v7A2.5 2.5 0 0 1 16 16h-4.4L7 20v-4H8A2.5 2.5 0 0 1 5.5 13.5v-7Z" />
       </svg>

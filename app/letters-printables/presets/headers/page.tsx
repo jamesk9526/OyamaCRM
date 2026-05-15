@@ -1,7 +1,7 @@
-/** Header presets route for letters-printables workflow. */
+/** Header presets route — now managed in centralized Branding Settings. */
 import { redirect } from "next/navigation";
 
-/** Redirects to branding controls where header settings currently live. */
+/** Redirects to centralized letter preset management in Settings. */
 export default function LetterHeaderPresetsPage() {
-  redirect("/letters-printables/branding");
+  redirect("/settings/branding/letter-presets");
 }

@@ -15,7 +15,7 @@ export type SidebarItemKind =
   | "people"
   | "system";
 
-export type SidebarItemBadge = "App" | "Tool" | "New" | "Beta" | "Partial" | "Planned";
+export type SidebarItemBadge = "App" | "Tool" | "New" | "Beta" | "Partial" | "Planned" | "AI";
 
 /** One navigation item in a CRM sidebar group. */
 export interface CrmSidebarItem {
@@ -65,6 +65,7 @@ interface SidebarVariantStyles {
   tooltip: string;
   tooltipSubtitle: string;
   divider: string;
+  accent: string;
 }
 
 interface CrmSidebarProps {
@@ -80,101 +81,108 @@ interface CrmSidebarProps {
 
 const VARIANT_STYLES: Record<CrmSidebarVariant, SidebarVariantStyles> = {
   donor: {
-    aside: "bg-gradient-to-b from-white to-gray-50 border-r border-gray-200/80 shadow-[inset_-1px_0_0_rgba(148,163,184,0.15)]",
+    aside: "bg-white border-r border-slate-200",
     navSurface: "",
     heading: "text-gray-500",
     headingMuted: "hover:text-gray-700",
-    itemActive: "text-green-800 bg-green-50 ring-1 ring-green-200 shadow-sm font-semibold",
-    itemInactive: "text-gray-600 hover:bg-white hover:ring-1 hover:ring-gray-200 hover:text-gray-900",
-    iconActive: "text-green-600 bg-white/80",
-    iconInactive: "text-gray-400 bg-gray-100 group-hover:text-gray-600 group-hover:bg-gray-200",
-    badge: "bg-green-100 text-green-700",
+    itemActive: "text-slate-900 bg-green-50 font-semibold",
+    itemInactive: "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+    iconActive: "text-green-600",
+    iconInactive: "text-slate-400 group-hover:text-slate-600",
+    badge: "bg-slate-100 text-slate-600",
     sectionBorder: "border-transparent",
-    sectionHover: "hover:border-gray-200/80 hover:bg-white/50",
-    footer: "border-t border-gray-200/70 bg-white/70",
+    sectionHover: "",
+    footer: "border-t border-slate-200 bg-white",
     footerText: "text-gray-500",
     collapseButton: "border-gray-200 bg-white text-gray-600 hover:text-gray-900 hover:bg-gray-50",
     tooltip: "border-gray-200 bg-white text-gray-900 shadow-xl",
     tooltipSubtitle: "text-gray-500",
     divider: "bg-gray-200",
+    accent: "bg-green-600",
   },
   compassion: {
-    aside: "bg-gradient-to-b from-white to-blue-50/30 border-r border-blue-100 shadow-[inset_-1px_0_0_rgba(59,130,246,0.12)]",
+    aside: "bg-white border-r border-slate-200",
     navSurface: "",
     heading: "text-blue-400",
     headingMuted: "hover:text-blue-600",
-    itemActive: "text-blue-800 bg-blue-50 ring-1 ring-blue-200 shadow-sm font-semibold",
-    itemInactive: "text-gray-600 hover:bg-white hover:ring-1 hover:ring-blue-200 hover:text-blue-900",
-    iconActive: "text-blue-600 bg-white/80",
-    iconInactive: "text-gray-400 bg-blue-50 group-hover:bg-blue-100 group-hover:text-blue-600",
-    badge: "bg-blue-100 text-blue-700",
+    itemActive: "text-slate-900 bg-blue-50 font-semibold",
+    itemInactive: "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+    iconActive: "text-blue-600",
+    iconInactive: "text-slate-400 group-hover:text-slate-600",
+    badge: "bg-slate-100 text-slate-600",
     sectionBorder: "border-transparent",
-    sectionHover: "hover:border-blue-200/80 hover:bg-white/60",
-    footer: "border-t border-blue-100 bg-white/70",
+    sectionHover: "",
+    footer: "border-t border-slate-200 bg-white",
     footerText: "text-blue-500",
     collapseButton: "border-blue-200 bg-white text-blue-600 hover:text-blue-800 hover:bg-blue-50",
     tooltip: "border-blue-200 bg-white text-blue-900 shadow-xl",
     tooltipSubtitle: "text-blue-600",
     divider: "bg-blue-200",
+    accent: "bg-blue-600",
   },
   events: {
     aside: "bg-white border-r border-gray-200",
     navSurface: "",
     heading: "text-amber-400",
     headingMuted: "hover:text-amber-600",
-    itemActive: "text-amber-700 bg-amber-50 ring-1 ring-amber-200 shadow-sm font-semibold",
-    itemInactive: "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
-    iconActive: "text-amber-600 bg-white",
-    iconInactive: "text-gray-400 bg-amber-50 group-hover:bg-amber-100 group-hover:text-amber-600",
-    badge: "bg-amber-100 text-amber-700",
+    itemActive: "text-slate-900 bg-amber-50 font-semibold",
+    itemInactive: "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+    iconActive: "text-amber-600",
+    iconInactive: "text-slate-400 group-hover:text-slate-600",
+    badge: "bg-slate-100 text-slate-600",
     sectionBorder: "border-transparent",
-    sectionHover: "hover:border-amber-200/70 hover:bg-amber-50/40",
+    sectionHover: "",
     footer: "border-t border-gray-100 bg-white",
     footerText: "text-gray-400",
     collapseButton: "border-amber-200 bg-white text-amber-700 hover:text-amber-900 hover:bg-amber-50",
     tooltip: "border-amber-200 bg-white text-amber-900 shadow-xl",
     tooltipSubtitle: "text-amber-700",
     divider: "bg-amber-200",
+    accent: "bg-amber-500",
   },
   hrm: {
     aside: "bg-white border-r border-teal-100",
     navSurface: "",
     heading: "text-teal-500",
     headingMuted: "hover:text-teal-700",
-    itemActive: "text-teal-700 bg-teal-50 ring-1 ring-teal-200 shadow-sm font-semibold",
-    itemInactive: "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
-    iconActive: "text-teal-600 bg-white",
-    iconInactive: "text-gray-400 bg-teal-50 group-hover:bg-teal-100 group-hover:text-teal-600",
-    badge: "bg-teal-100 text-teal-700",
+    itemActive: "text-slate-900 bg-teal-50 font-semibold",
+    itemInactive: "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+    iconActive: "text-teal-600",
+    iconInactive: "text-slate-400 group-hover:text-slate-600",
+    badge: "bg-slate-100 text-slate-600",
     sectionBorder: "border-transparent",
-    sectionHover: "hover:border-teal-200/70 hover:bg-teal-50/40",
+    sectionHover: "",
     footer: "border-t border-teal-100 bg-white",
     footerText: "text-gray-500",
     collapseButton: "border-teal-200 bg-white text-teal-700 hover:text-teal-900 hover:bg-teal-50",
     tooltip: "border-teal-200 bg-white text-teal-900 shadow-xl",
     tooltipSubtitle: "text-teal-700",
     divider: "bg-teal-200",
+    accent: "bg-teal-600",
   },
   watchdog: {
-    aside: "bg-gradient-to-b from-slate-100 to-white border-r border-slate-200 shadow-[inset_-1px_0_0_rgba(71,85,105,0.12)]",
+    aside: "bg-white border-r border-slate-200",
     navSurface: "",
     heading: "text-slate-500",
     headingMuted: "hover:text-slate-700",
-    itemActive: "text-slate-900 bg-slate-100 ring-1 ring-slate-300 shadow-sm font-semibold",
-    itemInactive: "text-slate-600 hover:bg-white hover:ring-1 hover:ring-slate-200 hover:text-slate-900",
-    iconActive: "text-slate-700 bg-white",
-    iconInactive: "text-slate-400 bg-slate-100 group-hover:bg-slate-200 group-hover:text-slate-600",
+    itemActive: "text-slate-900 bg-slate-100 font-semibold",
+    itemInactive: "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+    iconActive: "text-slate-700",
+    iconInactive: "text-slate-400 group-hover:text-slate-600",
     badge: "bg-slate-200 text-slate-700",
     sectionBorder: "border-transparent",
-    sectionHover: "hover:border-slate-200 hover:bg-white/80",
-    footer: "border-t border-slate-200 bg-white/80",
+    sectionHover: "",
+    footer: "border-t border-slate-200 bg-white",
     footerText: "text-slate-500",
     collapseButton: "border-slate-300 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50",
     tooltip: "border-slate-300 bg-white text-slate-900 shadow-xl",
     tooltipSubtitle: "text-slate-600",
     divider: "bg-slate-300",
+    accent: "bg-slate-600",
   },
 };
+
+const SIDEBAR_SCROLLBAR_CLASS = "[scrollbar-width:thin] [scrollbar-color:rgba(148,163,184,0.55)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300/70 [&::-webkit-scrollbar-thumb:hover]:bg-slate-400/80";
 
 /** Returns true when the item should be shown for the current role. */
 export function isSidebarItemVisible(item: CrmSidebarItem, userRole?: string | null): boolean {
@@ -317,7 +325,7 @@ export default function CrmSidebar({
       className={`${styles.aside} ${isCollapsed ? collapsedWidthClass : expandedWidthClass} shrink-0 flex flex-col h-full select-none transition-[width] duration-200 ease-out`}
       data-sidebar-collapsed={isCollapsed ? "true" : "false"}
     >
-      <div className={`flex-1 overflow-y-auto py-3 px-2.5 ${styles.navSurface}`}>
+      <div className={`flex-1 overflow-y-auto py-2.5 px-2 ${SIDEBAR_SCROLLBAR_CLASS} ${styles.navSurface}`}>
         {!forceExpanded && !compactDesktop ? (
           <div className={`mb-2 flex ${isCollapsed ? "justify-center" : "justify-end"}`}>
             <button
@@ -346,7 +354,7 @@ export default function CrmSidebar({
           return (
             <div
               key={group.id}
-              className={`mb-2 rounded-xl border px-1 py-1 transition-colors ${styles.sectionBorder} ${styles.sectionHover}`}
+              className={`mb-2 border px-0.5 py-0.5 transition-colors ${styles.sectionBorder} ${styles.sectionHover}`}
             >
               {isCollapsed ? (
                 <div className="px-2 py-1.5" aria-hidden="true">
@@ -363,7 +371,7 @@ export default function CrmSidebar({
                           [group.id]: !(current[group.id] ?? true),
                         }));
                       }}
-                      className={`w-full flex items-center justify-between px-1 py-1 text-[10px] font-bold uppercase tracking-[0.16em] transition-colors ${styles.heading} ${styles.headingMuted}`}
+                      className={`w-full flex items-center justify-between px-1 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors ${styles.heading} ${styles.headingMuted}`}
                     >
                       <span>{group.label}</span>
                       <svg
@@ -377,7 +385,7 @@ export default function CrmSidebar({
                       </svg>
                     </button>
                   ) : (
-                    <p className={`px-1 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${styles.heading}`}>
+                    <p className={`px-1 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${styles.heading}`}>
                       {group.label}
                     </p>
                   )}
@@ -385,7 +393,7 @@ export default function CrmSidebar({
               )}
 
               {groupIsOpen && (
-                <nav className="space-y-1 pb-0.5" aria-label={group.label}>
+                <nav className="space-y-0.5 pb-0.5" aria-label={group.label}>
                   {group.items.map((item) => {
                     const active = isSidebarItemActive(item, pathname, hash);
 
@@ -395,11 +403,14 @@ export default function CrmSidebar({
                         href={item.href}
                         aria-current={active ? "page" : undefined}
                         aria-label={isCollapsed ? item.label : undefined}
-                        className={`group relative mx-1.5 flex items-center ${isCollapsed ? "justify-center" : "justify-start"} gap-2.5 rounded-xl px-2.5 py-2 text-[13px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-green-500 ${active ? styles.itemActive : styles.itemInactive}`}
+                        className={`group relative mx-0.5 flex items-center ${isCollapsed ? "justify-center" : "justify-start"} gap-2 rounded-md px-2 py-1.5 text-[12.5px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-green-500 ${active ? styles.itemActive : styles.itemInactive}`}
                         title={isCollapsed ? item.label : undefined}
                       >
+                        {active ? (
+                          <span className={`absolute left-0 top-1 bottom-1 w-0.5 rounded-full ${styles.accent}`} aria-hidden="true" />
+                        ) : null}
                         <span
-                          className={`shrink-0 rounded-lg p-1 transition-colors ${active ? styles.iconActive : styles.iconInactive}`}
+                          className={`shrink-0 rounded-md p-1 transition-colors ${active ? styles.iconActive : styles.iconInactive}`}
                           aria-hidden="true"
                         >
                           {item.icon}
@@ -409,7 +420,7 @@ export default function CrmSidebar({
                           <>
                             <span className="truncate">{item.label}</span>
                             {item.badge ? (
-                              <span className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-bold ${styles.badge}`}>
+                              <span className={`ml-auto rounded-md px-1.5 py-0.5 text-[9px] font-semibold ${styles.badge}`}>
                                 {item.badge}
                               </span>
                             ) : null}

@@ -46,11 +46,11 @@ export default function LetterPresetsHub() {
           <p className="mt-0.5 text-sm text-gray-500">Manage reusable header, footer, and signature presets used across templates.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/letters-printables/branding" className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-            Open Branding Presets
+          <Link href="/settings/branding/letter-presets" className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+            Manage Letter Presets
           </Link>
-          <Link href="/letters-printables/signatures" className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-            Open Signatures
+          <Link href="/settings/branding/signatures" className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+            Manage Signatures
           </Link>
         </div>
       </div>

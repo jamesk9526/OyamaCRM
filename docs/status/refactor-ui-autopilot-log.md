@@ -271,3 +271,185 @@ Remaining issues:
 Production-ready for this phase:
 - Partially Working
 - Notes: Event overview now follows the same command-ribbon pattern as the other event workspaces.
+
+## 2026-05-15 - Enterprise Chrome Foundation Pass
+
+Phase name:
+- CRM-wide enterprise chrome and dashboard layout foundation
+
+Files changed:
+- app/components/layout/TopBar.tsx
+- app/components/layout/CrmSidebar.tsx
+- app/components/layout/EnterprisePageShell.tsx
+- app/components/workspace-ribbon/WorkspaceRibbon.tsx
+- app/components/workspace-ribbon/WorkspaceRibbonButton.tsx
+- app/components/workspace-ribbon/WorkspaceRibbonFrame.tsx
+- app/components/dashboard/DashboardWidget.tsx
+- app/page.tsx
+- docs/status/refactor-ui-autopilot-log.md
+
+Features completed:
+- Restored the brand diagonal TopBar split as a restrained dark/light chrome element without the previous gradient/glow treatment.
+- Reintroduced Apple-style glass treatment for TopBar search, workspace switcher, and icon controls.
+- Quieted shared CRM sidebars by reducing rings, shadows, icon backgrounds, and card-like group treatment; active items now use a subtle background plus left accent bar.
+- Added EnterprisePageShell as the shared page wrapper for consistent width, spacing, and content rhythm.
+- Refined workspace ribbon styling into a compact Microsoft-style command bar and routed WorkspaceRibbonFrame through EnterprisePageShell.
+- Expanded the built-in ribbon icon map so common commands no longer collapse to generic plus icons.
+- Changed workspace ribbons to wrap/stack command groups instead of forcing horizontal scrolling.
+- Reworked the DonorCRM dashboard example into breadcrumb/ribbon controls plus Overview, Stewardship, Intelligence, Giving Analytics, and Recent Activity sections.
+- Increased dashboard widget padding, header height, and card breathing room.
+
+Features removed:
+- Removed TopBar reactive glow and heavy gradient treatment while preserving the diagonal brand split.
+- Removed dashboard-level duplicate header controls that are now represented in the page ribbon.
+
+Tests run:
+- pnpm typecheck (pass)
+- pnpm exec eslint app/page.tsx app/components/workspace-ribbon/WorkspaceRibbon.tsx app/components/workspace-ribbon/WorkspaceRibbonButton.tsx app/components/workspace-ribbon/WorkspaceRibbonGroup.tsx app/components/workspace-ribbon/WorkspaceRibbonFrame.tsx app/components/layout/EnterprisePageShell.tsx app/components/dashboard/DashboardWidget.tsx (pass)
+- pnpm lint (fails on existing repo-wide lint backlog, including unrelated no-html-link-for-pages, hook-order, preserve-manual-memoization, prefer-const, and TopBar React Compiler warnings)
+- Existing dev server detected at http://localhost:3000.
+
+Remaining issues:
+- Compassion, Events, HRM, Watchdog, Webmaster, and standalone app dashboards still need route-by-route adoption of EnterprisePageShell where their local shells diverge.
+- TopBar still owns many behaviors in one component; visual chrome is calmer, but a future split into smaller client components would reduce maintenance risk.
+
+Production-ready for this phase:
+- Partially Working
+- Notes: Shared chrome and the DonorCRM dashboard now establish the enterprise layout direction without changing data boundaries or removing working workflows.
+
+## 2026-05-15 - Sidebar Compactness And Modular Dashboard Layout
+
+Phase name:
+- Sidebar maintainability and dashboard card layout controls
+
+Files changed:
+- app/components/layout/CrmSidebar.tsx
+- app/components/dashboard/DashboardWidget.tsx
+- app/components/dashboard/DashboardLayoutModal.tsx
+- app/page.tsx
+- docs/status/refactor-ui-autopilot-log.md
+
+Features completed:
+- Made the shared CRM sidebar more compact for at-a-glance scanning by tightening section spacing, row height, typography, and badge weight.
+- Added a reusable custom sidebar scrollbar treatment to the shared sidebar scroll container.
+- Consolidated sidebar active-accent styling into the variant style map instead of hard-coded inline variant checks.
+- Added persisted dashboard widget size tokens: compact, standard, wide, and hero.
+- Added edit-mode resize controls directly on dashboard cards.
+- Added widget size controls to the Customize Layout modal.
+- Updated dashboard grid sections to use modular 12-column spans driven by widget size instead of hard-coded one-off card spans.
+
+Tests run:
+- pnpm typecheck (pass)
+- pnpm exec eslint app/page.tsx app/components/dashboard/DashboardWidget.tsx app/components/dashboard/DashboardLayoutModal.tsx app/components/layout/CrmSidebar.tsx (pass)
+
+Remaining issues:
+- Dashboard drag/drop remains section-aware through the current widget grouping; future work can add full freeform cross-section placement if staff need a canvas-style dashboard.
+- Full repo lint remains blocked by existing unrelated lint backlog documented above.
+
+Production-ready for this phase:
+- Partially Working
+- Notes: Sidebar rendering is cleaner and dashboard widgets are now modular, draggable, and resizable with persisted layout settings.
+
+## 2026-05-15 - Donor Sidebar IA And Core Page Layout Pass
+
+Phase name:
+- DonorCRM navigation cleanup and core list workspace polish
+
+Files changed:
+- app/components/layout/sidebar-configs.tsx
+- app/constituents/page.tsx
+- app/donations/page.tsx
+- app/campaigns/page.tsx
+- docs/status/refactor-ui-autopilot-log.md
+
+Features completed:
+- Renamed the Donor sidebar System group to Settings & Tools.
+- Moved Settings, Imports, Data Tools, and Custom Fields into the same Settings & Tools group.
+- Removed Watchdog, Webmaster, and feedback-ticket links from the Donor sidebar.
+- Migrated Constituents, Donations, and Campaigns to EnterprisePageShell with breadcrumb/ribbon header composition.
+- Reworked the three core pages into clearer metric, filter, and content surfaces with more consistent borders, spacing, and shadows.
+
+Tests run:
+- pnpm typecheck (pass)
+- pnpm exec eslint app/components/layout/sidebar-configs.tsx app/constituents/page.tsx app/donations/page.tsx app/campaigns/page.tsx (pass)
+
+Remaining issues:
+- Settings landing page should eventually reflect the "Settings & Tools" sidebar naming and surface Imports/Data Tools/Custom Fields as first-class settings tools.
+- Table internals can still be refined in a future pass for denser enterprise scanning and sticky headers.
+
+Production-ready for this phase:
+- Partially Working
+- Notes: Donor navigation is less cross-module cluttered and the core donor record pages now align with the enterprise shell direction.
+
+## 2026-05-15 - DonorCRM Reports Tool Catalog
+
+Phase name:
+- Donor-owned reports navigation and template library
+
+Files changed:
+- app/components/donor-reports/donor-report-catalog.ts
+- app/components/donor-reports/DonorReportsPage.tsx
+- app/reports/donor-crm/page.tsx
+- app/components/layout/sidebar-configs.tsx
+- app/components/layout/AppShell.tsx
+- app/lib/navigation-boundaries.ts
+- app/page.tsx
+- server/src/routes/search.ts
+- docs/status/refactor-ui-autopilot-log.md
+
+Features completed:
+- Repointed the DonorCRM sidebar Reports item from the shared `/reports` hub to the DonorCRM-owned `/reports/donor-crm` workspace.
+- Added a modular donor report catalog with 20 requested report templates across donor intelligence, giving, retention, campaign/fund, stewardship, pledge, and grant categories.
+- Added a report library UI with category filtering, search, selected report details, icons, configuration inputs, and output-format planning.
+- Kept live run/export/schedule actions disabled with an explicit backend-endpoint notice so the workspace does not pretend report jobs are complete.
+
+Tests run:
+- pnpm typecheck (pass)
+- pnpm exec eslint app/components/donor-reports/donor-report-catalog.ts app/components/donor-reports/DonorReportsPage.tsx app/reports/donor-crm/page.tsx app/components/layout/sidebar-configs.tsx app/components/layout/AppShell.tsx app/lib/navigation-boundaries.ts app/page.tsx server/src/routes/search.ts (pass)
+
+Remaining issues:
+- Backend report execution, export jobs, and scheduling endpoints still need to be implemented before the disabled report actions can become active.
+
+Production-ready for this phase:
+- Partially Working
+- Notes: Navigation and report template discovery are ready; live report generation remains a backend follow-up.
+
+## 2026-05-15 - Fiscal Year Reporting Mode
+
+Phase name:
+- Fiscal-year-aware donor calculations and report mode toggle
+
+Files changed:
+- app/lib/fiscal-year.ts
+- app/components/layout/TopBar.tsx
+- app/page.tsx
+- app/components/dashboard/GivingTrendChart.tsx
+- app/donations/page.tsx
+- app/settings/organization/page.tsx
+- server/src/lib/dateRanges.ts
+- server/src/routes/settings.ts
+- server/src/routes/reports.ts
+- server/src/routes/donations.ts
+- docs/status/refactor-ui-autopilot-log.md
+
+Features completed:
+- Added shared fiscal-year helpers for fiscal start normalization, fiscal end calculation, current fiscal year labeling, and fiscal YTD ranges.
+- Exposed fiscal year start and calculated fiscal year end in Organization Settings.
+- Added an obvious DonorCRM TopBar Calendar/Fiscal mode toggle that persists locally and broadcasts reporting-mode changes.
+- Updated dashboard summary, retention, and giving trend API calls to honor fiscal-year mode.
+- Updated report API scope parsing so `dateBasis=fiscal` uses the organization fiscal-year start from settings.
+- Updated donation list/stat default YTD mode to use fiscal YTD when the TopBar mode is fiscal and the page is still using its default YTD window.
+- Updated constituent giving rollup recalculation to use the organization's fiscal year start for `totalYtdGiving`.
+
+Tests run:
+- pnpm typecheck (pass)
+- pnpm exec eslint server/src/lib/dateRanges.ts server/src/routes/settings.ts server/src/routes/reports.ts server/src/routes/donations.ts app/lib/fiscal-year.ts app/page.tsx app/components/dashboard/GivingTrendChart.tsx app/donations/page.tsx app/settings/organization/page.tsx (pass)
+- pnpm exec eslint app/components/layout/TopBar.tsx (fails on pre-existing React Compiler/manual memoization and unused-state warnings already present in this large component)
+
+Remaining issues:
+- The full TopBar component still needs a follow-up decomposition/refactor to clear existing React Compiler lint failures.
+- Fiscal mode is currently a local user preference; persisting it as a per-user server preference can be added later if staff need cross-device consistency.
+
+Production-ready for this phase:
+- Partially Working
+- Notes: Fiscal-year mode is wired through the primary donor dashboard and donation/report API calculations, with transparent remaining cleanup in TopBar lint debt.

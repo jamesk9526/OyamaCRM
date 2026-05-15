@@ -1,7 +1,7 @@
-/** Signature presets route for letters-printables workflow. */
+/** Signature presets route — now managed in centralized Branding Settings. */
 import { redirect } from "next/navigation";
 
-/** Redirects to dedicated signatures management route. */
+/** Redirects to centralized signature management in Settings. */
 export default function LetterSignaturePresetsPage() {
-  redirect("/letters-printables/signatures");
+  redirect("/settings/branding/signatures");
 }

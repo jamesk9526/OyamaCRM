@@ -3,7 +3,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
-import LettersWorkspaceNav from "@/app/components/letters/LettersWorkspaceNav";
 import type { SignatureBlock } from "@/app/components/letters/types";
 
 /** Manages create/edit for signature presets used by letter templates. */
@@ -59,14 +58,7 @@ export default function LetterSignaturesManager() {
   }
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900">Signature Blocks</h1>
-        <p className="mt-0.5 text-sm text-gray-500">Manage reusable signer identity blocks for donor letter templates.</p>
-      </div>
-
-      <LettersWorkspaceNav />
-
+    <div className="space-y-5 pt-2">
       {error && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{error}</div>}
 
       <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">

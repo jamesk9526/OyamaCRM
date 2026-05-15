@@ -76,10 +76,9 @@ export default function LettersRibbonHome() {
           </WorkspaceRibbonGroup>
 
           <WorkspaceRibbonGroup label="Setup">
-            <WorkspaceRibbonButton label="Branding" href="/letters-printables/branding" />
-            <WorkspaceRibbonButton label="Headers" href="/letters-printables/presets/headers" />
-            <WorkspaceRibbonButton label="Footers" href="/letters-printables/presets/footers" />
-            <WorkspaceRibbonButton label="Signatures" href="/letters-printables/presets/signatures" />
+            <WorkspaceRibbonButton label="Branding" href="/settings/branding" />
+            <WorkspaceRibbonButton label="Letter Presets" href="/settings/branding/letter-presets" />
+            <WorkspaceRibbonButton label="Signatures" href="/settings/branding/signatures" />
             <WorkspaceRibbonButton label="Settings" href="/letters-printables/settings" />
           </WorkspaceRibbonGroup>
         </WorkspaceRibbon>

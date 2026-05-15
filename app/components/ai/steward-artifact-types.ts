@@ -70,13 +70,57 @@ export interface StewardCsvRowsArtifact extends StewardArtifactBase {
   rows: Array<Record<string, string | number | null>>;
 }
 
+/** A rich KPI dashboard card with optional inline bar chart and a deeplink to the full report. */
+export interface StewardReportCardArtifact extends StewardArtifactBase {
+  type: "report_card";
+  fiscalYearLabel?: string;
+  /** Individual KPI tiles shown in the card. */
+  metrics: Array<{
+    label: string;
+    value: string;
+    /** e.g. "+12% vs last year" */
+    delta?: string;
+    trend?: "up" | "down" | "flat";
+  }>;
+  /** CRM-internal route for "View Full Report" deep link, e.g. "/reports/giving-summary". */
+  deepLink?: string;
+  deepLinkLabel?: string;
+  /** Optional sparkline / bar data embedded in the card. */
+  chartData?: {
+    /** Month/period labels for the x-axis. */
+    labels: string[];
+    /** Corresponding numeric values. */
+    values: number[];
+  };
+}
+
+/** Standalone inline chart rendered with pure SVG — no charting library required. */
+export interface StewardChartArtifact extends StewardArtifactBase {
+  type: "chart";
+  /** bar = grouped bars | line = area-line | pie = pie slices | donut = ring chart | stacked_bar = stacked bars */
+  chartType: "bar" | "line" | "pie" | "donut" | "stacked_bar";
+  /** X-axis labels (e.g. month names). Not used for pie/donut. */
+  labels: string[];
+  series: Array<{
+    name: string;
+    /** Hex colour string, e.g. "#16a34a". */
+    color?: string;
+    data: number[];
+  }>;
+  /** Prefix applied to y-axis values or tooltip, e.g. "$". */
+  yAxisPrefix?: string;
+  yAxisLabel?: string;
+}
+
 export type StewardArtifact =
   | StewardEmailDraftArtifact
   | StewardDonorListArtifact
   | StewardReportSummaryArtifact
   | StewardTaskListArtifact
   | StewardCallScriptArtifact
-  | StewardCsvRowsArtifact;
+  | StewardCsvRowsArtifact
+  | StewardReportCardArtifact
+  | StewardChartArtifact;
 
 export interface StewardStructuredResponse {
   version: 1;

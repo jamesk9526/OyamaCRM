@@ -4,11 +4,13 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import DonationTable from "@/app/components/donations/DonationTable";
 import { DonationRow, formatCurrency } from "@/app/components/donations/donation-utils";
+import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import { apiFetch } from "@/app/lib/auth-client";
+import { getStoredReportingYearMode, type ReportingYearMode } from "@/app/lib/fiscal-year";
 
 const PAGE_SIZE = 100;
 
@@ -60,6 +62,7 @@ export default function DonationsPage() {
 
   const [page, setPage] = useState(1);
   const [allYears, setAllYears] = useState(false);
+  const [reportingYearMode, setReportingYearMode] = useState<ReportingYearMode>(getStoredReportingYearMode);
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
@@ -74,8 +77,14 @@ export default function DonationsPage() {
       if (status) filterParams.set("status", status);
       // "Include all years" explicitly disables date-range filtering.
       if (!allYears) {
-        if (from) filterParams.set("from", from);
-        if (to) filterParams.set("to", to);
+        const usingDefaultCalendarRange = from === defaultRange.from && to === defaultRange.to;
+        if (reportingYearMode === "fiscal" && usingDefaultCalendarRange) {
+          filterParams.set("scope", "CURRENT_YEAR");
+          filterParams.set("dateBasis", "fiscal");
+        } else {
+          if (from) filterParams.set("from", from);
+          if (to) filterParams.set("to", to);
+        }
       }
 
       const listParams = new URLSearchParams(filterParams);
@@ -103,9 +112,20 @@ export default function DonationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [allYears, from, page, search, status, to]);
+  }, [allYears, defaultRange.from, defaultRange.to, from, page, reportingYearMode, search, status, to]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const handleReportingModeChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ mode?: ReportingYearMode }>).detail;
+      setReportingYearMode(detail?.mode === "fiscal" ? "fiscal" : "calendar");
+    };
+    window.addEventListener("reporting-year-mode:changed", handleReportingModeChange);
+    return () => {
+      window.removeEventListener("reporting-year-mode:changed", handleReportingModeChange);
+    };
+  }, []);
 
   // Filters always jump back to page 1 to avoid empty pages after narrowing.
   useEffect(() => {
@@ -224,48 +244,54 @@ export default function DonationsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <WorkspaceBreadcrumbBar
-        items={[
-          { label: "Donor CRM", href: "/" },
-          { label: "Donations" },
-        ]}
-        statusLabel={loading ? "Loading" : "Working"}
-        metadata={`${total.toLocaleString()} records · ${formatCurrency(stats.totalRaised)} raised`}
-        primaryAction={<WorkspaceRibbonButton label="Record Gift" href="/donations/new" variant="primary" />}
-      />
-
-      <WorkspaceRibbon>
-        <WorkspaceRibbonGroup label="Create">
-          <WorkspaceRibbonButton label="Record Gift" href="/donations/new" variant="primary" />
-        </WorkspaceRibbonGroup>
-
-        <WorkspaceRibbonGroup label="Status">
-          <WorkspaceRibbonButton label="All" onClick={() => setStatus("")} variant={!status ? "primary" : "secondary"} />
-          <WorkspaceRibbonButton label="Completed" onClick={() => setStatus("COMPLETED")} variant={status === "COMPLETED" ? "primary" : "secondary"} />
-          <WorkspaceRibbonButton label="Pending" onClick={() => setStatus("PENDING")} variant={status === "PENDING" ? "primary" : "secondary"} />
-        </WorkspaceRibbonGroup>
-
-        <WorkspaceRibbonGroup label="Scope">
-          <WorkspaceRibbonButton label="YTD" onClick={() => setAllYears(false)} variant={!allYears ? "primary" : "secondary"} />
-          <WorkspaceRibbonButton label="All Years" onClick={() => setAllYears(true)} variant={allYears ? "primary" : "secondary"} />
-          <WorkspaceRibbonButton label="Refresh" onClick={() => void load()} />
-        </WorkspaceRibbonGroup>
-
-        <WorkspaceRibbonGroup label="Filter">
-          <WorkspaceRibbonButton
-            label="Clear"
-            onClick={() => {
-              setSearch("");
-              setStatus("");
-              setAllYears(false);
-              setFrom(defaultRange.from);
-              setTo(defaultRange.to);
-            }}
-            disabled={!search && !status && !allYears && from === defaultRange.from && to === defaultRange.to}
+    <EnterprisePageShell
+      ribbon={(
+        <div className="space-y-3">
+          <WorkspaceBreadcrumbBar
+            items={[
+              { label: "Donor CRM", href: "/" },
+              { label: "Donations" },
+            ]}
+            statusLabel={loading ? "Loading" : "Working"}
+            metadata={`${total.toLocaleString()} records · ${formatCurrency(stats.totalRaised)} raised`}
+            primaryAction={<WorkspaceRibbonButton label="Record Gift" href="/donations/new" variant="primary" />}
           />
-        </WorkspaceRibbonGroup>
-      </WorkspaceRibbon>
+
+          <WorkspaceRibbon>
+            <WorkspaceRibbonGroup label="Create">
+              <WorkspaceRibbonButton label="Record Gift" href="/donations/new" variant="primary" />
+            </WorkspaceRibbonGroup>
+
+            <WorkspaceRibbonGroup label="Status">
+              <WorkspaceRibbonButton label="All" onClick={() => setStatus("")} active={!status} />
+              <WorkspaceRibbonButton label="Completed" onClick={() => setStatus("COMPLETED")} active={status === "COMPLETED"} />
+              <WorkspaceRibbonButton label="Pending" onClick={() => setStatus("PENDING")} active={status === "PENDING"} />
+            </WorkspaceRibbonGroup>
+
+            <WorkspaceRibbonGroup label="Scope">
+              <WorkspaceRibbonButton label="YTD" onClick={() => setAllYears(false)} active={!allYears} />
+              <WorkspaceRibbonButton label="All Years" onClick={() => setAllYears(true)} active={allYears} />
+              <WorkspaceRibbonButton label="Refresh" onClick={() => void load()} />
+            </WorkspaceRibbonGroup>
+
+            <WorkspaceRibbonGroup label="Filter">
+              <WorkspaceRibbonButton
+                label="Clear"
+                onClick={() => {
+                  setSearch("");
+                  setStatus("");
+                  setAllYears(false);
+                  setFrom(defaultRange.from);
+                  setTo(defaultRange.to);
+                }}
+                disabled={!search && !status && !allYears && from === defaultRange.from && to === defaultRange.to}
+              />
+            </WorkspaceRibbonGroup>
+          </WorkspaceRibbon>
+        </div>
+      )}
+    >
+    <div className="space-y-5">
 
       {apiDown && (
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700 flex items-center gap-2">
@@ -277,21 +303,21 @@ export default function DonationsPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           { label: "Total Raised",  value: formatCurrency(stats.totalRaised), color: "text-green-600" },
           { label: "Total Gifts",   value: stats.totalGifts.toString(),        color: "text-gray-800"  },
           { label: "Completed",     value: stats.completed.toString(),         color: "text-gray-800"  },
           { label: "Recurring",     value: stats.recurring.toString(),         color: "text-blue-600"  },
         ].map(s => (
-          <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4">
+          <div key={s.label} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
             <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
           </div>
         ))}
       </div>
 
-      <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+      <section className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Donation Acknowledgment Workflow</p>
         <p className="mt-1 text-sm text-emerald-900">
           Use Complete Loop for one-click stewardship orchestration (email draft, follow-up task, and steward path),
@@ -300,11 +326,11 @@ export default function DonationsPage() {
       </section>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="grid grid-cols-4 gap-3">
+      <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_180px_260px]">
           <input type="text" placeholder="Search donor name or email…" value={search}
             onChange={e => setSearch(e.target.value)}
-            className="col-span-2 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            className="min-w-0 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
           <select value={status} onChange={e => setStatus(e.target.value)}
             className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
             <option value="">All Statuses</option>
@@ -336,10 +362,10 @@ export default function DonationsPage() {
             <span>Default scope: Jan 1 to today (YTD)</span>
           )}
         </div>
-      </div>
+      </section>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
         {loading ? (
           <div className="py-16 text-center text-gray-400 text-sm animate-pulse">Loading donations…</div>
         ) : (
@@ -355,7 +381,7 @@ export default function DonationsPage() {
             actionBusyDonationId={actionBusyDonationId}
           />
         )}
-      </div>
+      </section>
 
       <div className="flex items-center justify-between text-sm text-gray-500">
         <p>
@@ -384,5 +410,6 @@ export default function DonationsPage() {
         </div>
       </div>
     </div>
+    </EnterprisePageShell>
   );
 }

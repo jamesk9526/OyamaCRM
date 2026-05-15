@@ -1,7 +1,7 @@
-/** Branding preset management route for letters workspace. */
-import LetterBrandingManager from "@/app/components/letters/LetterBrandingManager";
+/** Branding presets have moved to centralized Branding Settings. */
+import { redirect } from "next/navigation";
 
-/** Renders header/footer branding preset manager. */
+/** Redirects to the canonical branding preset management route in Settings. */
 export default function LettersBrandingPage() {
-  return <LetterBrandingManager />;
+  redirect("/settings/branding/letter-presets");
 }

@@ -31,6 +31,7 @@ import {
   StewardToolError,
   type StewardToolExecutionContext,
 } from "../services/steward-tool-registry.js";
+import { fmtDate } from "../services/steward-donor-context.js";
 import type { Prisma } from "@prisma/client";
 import type { Router as ExpressRouter } from "express";
 
@@ -134,6 +135,14 @@ interface StewardAiChatPayload {
   mode?: "ask" | "analyze" | "draft" | "action" | "help";
   moduleKey?: "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview";
   scopePath?: string;
+  /** @mention-locked donors from the chat composer. Each entry provides a constituentId to load a full profile for. */
+  donorContext?: Array<{ id?: string; name?: string }>;
+  /** Reporting year mode set in the chat composer FY toggle. */
+  reportingYearMode?: "calendar" | "fiscal";
+  /** The fiscal year number the user has locked to (e.g. 2026). */
+  fiscalYear?: number;
+  /** Org fiscal year start month (1-12). */
+  fiscalYearStart?: number;
 }
 
 interface StewardToolListQuery {
@@ -175,7 +184,9 @@ type StewardArtifactType =
   | "report_summary"
   | "task_list"
   | "call_script"
-  | "csv_rows";
+  | "csv_rows"
+  | "report_card"
+  | "chart";
 
 interface StewardSuggestedActionPayload {
   label: string;
@@ -205,6 +216,8 @@ const ALLOWED_STEWARD_ARTIFACT_TYPES = new Set<StewardArtifactType>([
   "task_list",
   "call_script",
   "csv_rows",
+  "report_card",
+  "chart",
 ]);
 
 const ALLOWED_SUGGESTED_ACTION_TYPES = new Set<string>([
@@ -375,6 +388,65 @@ function sanitizeArtifact(rawArtifact: unknown): Record<string, unknown> | null 
     sanitized.nextStep = asSafeText(candidate.nextStep, "", 280);
   }
 
+  if (rawType === "report_card") {
+    sanitized.fiscalYearLabel = asSafeText(candidate.fiscalYearLabel, "", 60);
+    sanitized.deepLink = asSafeText(candidate.deepLink, "", 120);
+    sanitized.deepLinkLabel = asSafeText(candidate.deepLinkLabel, "", 80);
+    const rawMetrics = Array.isArray(candidate.metrics) ? candidate.metrics : [];
+    sanitized.metrics = rawMetrics
+      .map((m) => {
+        if (!m || typeof m !== "object" || Array.isArray(m)) return null;
+        const rm = m as Record<string, unknown>;
+        const label = asSafeText(rm.label, "", 80);
+        const value = asSafeText(rm.value, "", 80);
+        if (!label || !value) return null;
+        const trend = asSafeText(rm.trend, "", 10) as "up" | "down" | "flat" | "";
+        return {
+          label,
+          value,
+          delta: asSafeText(rm.delta, "", 60),
+          trend: trend || undefined,
+        };
+      })
+      .filter(Boolean)
+      .slice(0, 10);
+    if (candidate.chartData && typeof candidate.chartData === "object" && !Array.isArray(candidate.chartData)) {
+      const cd = candidate.chartData as Record<string, unknown>;
+      const cdLabels = Array.isArray(cd.labels) ? cd.labels.map((l) => asSafeText(l, "", 20)).filter(Boolean).slice(0, 36) : [];
+      const cdValues = Array.isArray(cd.values) ? cd.values.map((v) => (typeof v === "number" && Number.isFinite(v) ? v : 0)).slice(0, 36) : [];
+      if (cdLabels.length > 0 && cdValues.length > 0) sanitized.chartData = { labels: cdLabels, values: cdValues };
+    }
+  }
+
+  if (rawType === "chart") {
+    const rawChartType = asSafeText(candidate.chartType, "bar", 12);
+    const validChartTypes = new Set(["bar", "line", "pie", "donut", "stacked_bar"]);
+    sanitized.chartType = validChartTypes.has(rawChartType) ? rawChartType : "bar";
+    sanitized.labels = Array.isArray(candidate.labels)
+      ? candidate.labels.map((l) => asSafeText(l, "", 30)).filter(Boolean).slice(0, 36)
+      : [];
+    sanitized.yAxisPrefix = asSafeText(candidate.yAxisPrefix, "", 10);
+    sanitized.yAxisLabel = asSafeText(candidate.yAxisLabel, "", 60);
+    const rawSeries = Array.isArray(candidate.series) ? candidate.series : [];
+    sanitized.series = rawSeries
+      .map((s) => {
+        if (!s || typeof s !== "object" || Array.isArray(s)) return null;
+        const rs = s as Record<string, unknown>;
+        const name = asSafeText(rs.name, "Series", 80);
+        const data = Array.isArray(rs.data)
+          ? rs.data.map((v) => (typeof v === "number" && Number.isFinite(v) ? v : 0)).slice(0, 36)
+          : [];
+        if (data.length === 0) return null;
+        return { name, color: asSafeText(rs.color, "", 30) || undefined, data };
+      })
+      .filter(Boolean)
+      .slice(0, 6);
+    // pie/donut only need at least 1 data series; bar/line/stacked_bar need labels too
+    const needsLabels = sanitized.chartType === "bar" || sanitized.chartType === "line" || sanitized.chartType === "stacked_bar";
+    if (needsLabels && (!Array.isArray(sanitized.labels) || (sanitized.labels as string[]).length === 0)) return null;
+    if (!Array.isArray(sanitized.series) || (sanitized.series as unknown[]).length === 0) return null;
+  }
+
   return sanitized;
 }
 
@@ -532,7 +604,7 @@ async function buildTopDonorResult(context: StewardToolExecutionContext): Promis
 
   const lines = topDonors.map((donor, index) => {
     const amount = formatGivingAmount(donor.lifetimeGiving);
-    const lastGift = donor.lastGiftDate ? donor.lastGiftDate.slice(0, 10) : "unknown";
+    const lastGift = donor.lastGiftDate ? fmtDate(donor.lastGiftDate) : "no date on record";
     return `${index + 1}. ${donor.name} — ${amount} (last gift: ${lastGift})`;
   });
 
@@ -548,73 +620,195 @@ async function buildTopDonorResult(context: StewardToolExecutionContext): Promis
   };
 }
 
+/** Returns true when the query is asking for a report, YTD summary, or giving chart. */
+function isReportQuestion(input: string): boolean {
+  const n = input.toLowerCase();
+  return /(ytd|year.to.date|annual\s+report|giving\s+report|monthly\s+giving|giving\s+by\s+month|retention\s+rate|donor\s+retention|lybunt|revenue\s+report|kpi|summary\s+report|financial\s+report|fundraising\s+report|show.*report|open.*report|report.+chart|chart.*giving|giving.*chart)/.test(n);
+}
+
+/** Formats dollar amounts concisely. */
+function fmtDollar(value: number): string {
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
+  return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+
+interface ReportCardResult {
+  reply: string;
+  structured: StewardStructuredResponsePayload;
+  toolsUsed: string[];
+}
+
+/** Builds a deterministic report card + chart from live CRM data. */
+async function buildReportCardResult(context: StewardToolExecutionContext): Promise<ReportCardResult> {
+  const toolsUsed: string[] = [];
+
+  const [summaryResult, monthlyResult] = await Promise.all([
+    executeStewardTool(context, "reports.runSummary", undefined),
+    executeStewardTool(context, "reports.runGivingByMonth", undefined),
+  ]);
+  toolsUsed.push(summaryResult.tool, monthlyResult.tool);
+
+  const s = summaryResult.result as {
+    fiscalYearLabel?: string;
+    ytdRevenue?: number;
+    ytdGiftCount?: number;
+    ytdGrantAmount?: number;
+    weekRevenue?: number;
+    weekGiftCount?: number;
+    totalConstituents?: number;
+    activeCampaigns?: number;
+    pendingTasks?: number;
+    overdueTasks?: number;
+  };
+
+  const m = monthlyResult.result as {
+    months?: Array<{ month: string; amount: number; count: number }>;
+    totals?: { amount: number; count: number };
+  };
+
+  const fyLabel = s.fiscalYearLabel ?? "This Fiscal Year";
+  const ytdRevenue = Number(s.ytdRevenue ?? 0);
+  const ytdGiftCount = Number(s.ytdGiftCount ?? 0);
+  const ytdGrantAmount = Number(s.ytdGrantAmount ?? 0);
+  const weekRevenue = Number(s.weekRevenue ?? 0);
+  const totalConstituents = Number(s.totalConstituents ?? 0);
+  const activeCampaigns = Number(s.activeCampaigns ?? 0);
+  const overdueTasks = Number(s.overdueTasks ?? 0);
+
+  const months = m.months ?? [];
+
+  const reportCardArtifact = {
+    type: "report_card",
+    title: `YTD Giving Summary — ${fyLabel}`,
+    fiscalYearLabel: fyLabel,
+    metrics: [
+      { label: "YTD Revenue", value: fmtDollar(ytdRevenue), trend: "up" as const },
+      { label: "YTD Gifts", value: ytdGiftCount.toLocaleString() },
+      { label: "Grants Awarded", value: fmtDollar(ytdGrantAmount) },
+      { label: "This Week", value: fmtDollar(weekRevenue) },
+      { label: "Constituents", value: totalConstituents.toLocaleString() },
+      { label: "Active Campaigns", value: String(activeCampaigns) },
+      ...(overdueTasks > 0 ? [{ label: "Overdue Tasks", value: String(overdueTasks), trend: "down" as const }] : []),
+    ],
+    deepLink: "/reports/giving-summary",
+    deepLinkLabel: "View Full Report",
+    chartData: months.length > 0
+      ? {
+          labels: months.map((mo) => mo.month),
+          values: months.map((mo) => mo.amount),
+        }
+      : undefined,
+  };
+
+  const chartArtifact = months.length > 0
+    ? {
+        type: "chart",
+        title: `Monthly Giving — ${fyLabel}`,
+        chartType: "bar",
+        labels: months.map((mo) => mo.month),
+        series: [{ name: "Giving", color: "#16a34a", data: months.map((mo) => mo.amount) }],
+        yAxisPrefix: "$",
+        yAxisLabel: "Donations",
+      }
+    : null;
+
+  const replyLines = [
+    `Here is the YTD fundraising summary for **${fyLabel}**:`,
+    "",
+    `- **Total revenue raised:** ${fmtDollar(ytdRevenue)} across ${ytdGiftCount} gifts`,
+    ytdGrantAmount > 0 ? `- **Grants awarded:** ${fmtDollar(ytdGrantAmount)}` : "",
+    weekRevenue > 0 ? `- **This week:** ${fmtDollar(weekRevenue)} (${Number(s.weekGiftCount ?? 0)} gifts)` : "",
+    `- **Constituents:** ${totalConstituents.toLocaleString()}`,
+    `- **Active campaigns:** ${activeCampaigns}`,
+    overdueTasks > 0 ? `- **Overdue follow-up tasks:** ${overdueTasks}` : "",
+    months.length > 0 ? `\nThe bar chart shows giving month-by-month. Use the "View Full Report" link to explore breakdowns by campaign, designation, or donor segment.` : "",
+    "\n**Next steps:**",
+    "1. Open the full report to filter by campaign or designation.",
+    "2. Review overdue stewardship tasks in the Tasks view.",
+    "3. Use Steward Signals for upgrade or retention opportunities.",
+  ].filter((l) => l !== "").join("\n");
+
+  return {
+    reply: replyLines,
+    toolsUsed,
+    structured: {
+      version: 1,
+      replyMarkdown: replyLines,
+      artifacts: [
+        reportCardArtifact,
+        ...(chartArtifact ? [chartArtifact] : []),
+      ] as Array<Record<string, unknown>>,
+      suggestedActions: [
+        { label: "Open Full Report", actionType: "open_report", requiresConfirmation: false, payload: { route: "/reports/giving-summary" } },
+        { label: "View Monthly Breakdown", actionType: "open_report", requiresConfirmation: false, payload: { route: "/reports/giving-by-month" } },
+      ],
+      evidence: [
+        { label: `YTD Revenue: ${fmtDollar(ytdRevenue)}` },
+        { label: `YTD Gifts: ${ytdGiftCount}` },
+        ...(ytdGrantAmount > 0 ? [{ label: `Grants: ${fmtDollar(ytdGrantAmount)}` }] : []),
+      ],
+    },
+  };
+}
+
 /** Returns mode-specific next-step defaults when the model does not provide explicit actions. */
 function defaultNextStepsByMode(mode: StewardChatMode): string[] {
   if (mode === "analyze") {
     return [
-      "Validate the top findings against your current filtered view.",
-      "Prioritize one high-impact segment for immediate follow-up.",
-      "Schedule a quick review of outliers before taking write actions.",
+      "Filter the Constituents view by this segment and review individual records.",
+      "Prioritize the highest-opportunity donors for personal outreach this week.",
+      "Save these findings to a task or note before taking action.",
     ];
   }
 
   if (mode === "draft") {
     return [
-      "Edit names, tone, and timing for your audience before sending.",
-      "Confirm compliance and privacy language where required.",
-      "Save the draft to Communications or Tasks for team review.",
+      "Review the draft and personalize the opening line before sending.",
+      "Confirm the recipient's communication preferences are set to allow email.",
+      "Save to Communications for team review before final send.",
     ];
   }
 
   if (mode === "action") {
     return [
-      "Review the recommended action list and choose one to execute.",
-      "Confirm scope and impacted records before any write operation.",
-      "Capture an audit note once execution is complete.",
+      "Review the proposed steps and confirm the scope of impacted records.",
+      "Assign the action to a specific team member with a due date.",
+      "Log a note once the action is complete so the audit trail is clear.",
     ];
   }
 
   if (mode === "help") {
     return [
-      "Follow the steps in order from your current page context.",
-      "If expected options are missing, verify your role permissions.",
-      "Use AI Settings to test runtime connectivity if responses fail.",
+      "Follow the steps shown for your current page.",
+      "Check your role permissions if expected options are not visible.",
+      "Use AI Settings to verify runtime connectivity if responses stop working.",
     ];
   }
 
   return [
-    "Choose one concrete follow-up and assign an owner.",
-    "Create a task or draft communication from the suggested steps.",
-    "Re-run this question after updates to compare changes.",
+    "Open the relevant donor records and review the details shown above.",
+    "Create a follow-up task or draft communication from the action buttons below.",
+    "Re-ask this question after making changes to see updated results.",
   ];
 }
 
-/** Formats replies into consistent analyst-friendly sections. */
+/** Returns a clean reply string for deterministic paths. Does not add robot-style Evidence sections. */
 function formatReplyByMode(options: {
   mode: StewardChatMode;
   reply: string;
   toolsUsed: string[];
   recordsUsed: string[];
 }): string {
-  const summary = options.reply.trim() || "No summary was returned.";
-  const evidenceItems = [
-    ...options.recordsUsed.slice(0, 6).map((record) => `Record: ${record}`),
-    ...options.toolsUsed.slice(0, 6).map((tool) => `Tool: ${tool}`),
-  ];
-  const nextSteps = defaultNextStepsByMode(options.mode);
-
-  const evidenceSection = evidenceItems.length > 0
-    ? evidenceItems.map((item, index) => `${index + 1}. ${item}`).join("\n")
-    : "1. No direct evidence records were retrieved for this response.";
-
-  return [
-    "## Summary",
-    summary,
-    "## Evidence",
-    evidenceSection,
-    "## Next Steps",
-    nextSteps.map((step, index) => `${index + 1}. ${step}`).join("\n"),
-  ].join("\n\n");
+  // Return the reply as-is. The UI renders metadata separately in the "About this answer" panel.
+  // Only append next steps when the reply itself does not already end with one.
+  const cleaned = options.reply.trim() || "No summary was returned from the CRM data.";
+  const hasNextSteps = /next step|recommended|suggest|you can|you should/i.test(cleaned);
+  if (!hasNextSteps && (options.mode === "analyze" || options.mode === "ask")) {
+    const steps = defaultNextStepsByMode(options.mode);
+    return `${cleaned}\n\n**What you can do next:**\n${steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}`;
+  }
+  return cleaned;
 }
 
 function buildTopDonorStructuredResponse(result: TopDonorResult, templatedReply: string): StewardStructuredResponsePayload {
@@ -660,25 +854,38 @@ function buildFallbackReplyFromContext(options: {
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
-    .filter((line) => !line.includes("authoritative JSON"))
-    .slice(0, 10);
+    .filter((line) => !/^(Donor scope path|Fiscal year context|Current fiscal year|Fiscal YTD|Calendar year)/.test(line))
+    .slice(0, 8);
 
-  const fallbackEvidence = contextLines.length > 0
-    ? contextLines.map((line, index) => `${index + 1}. ${line.replace(/^-\s*/, "")}`).join("\n")
-    : "1. Retrieval context was unavailable for this request.";
+  if (contextLines.length === 0) {
+    return [
+      "I was not able to generate a full AI response at this time.",
+      options.userQuery ? `You asked: "${options.userQuery}"` : "",
+      "Please check that AI is enabled and connected in Settings, then try again.",
+    ].filter(Boolean).join("\n\n");
+  }
 
   return [
-    `Model output was empty, so this ${options.mode} response is generated from live CRM retrieval data for ${options.moduleKey}.`,
-    `Scope: ${options.scopePath}`,
-    options.userQuery ? `Request: ${options.userQuery}` : "",
-    "Grounded CRM snapshot:",
-    fallbackEvidence,
+    "The AI model did not return a response, but here is what the CRM currently shows for your question:",
+    options.userQuery ? `> ${options.userQuery}` : "",
+    contextLines.map((line) => `- ${line.replace(/^-\s*/, "")}`).join("\n"),
+    "**What you can do next:** Open the relevant records directly, or re-ask once AI connectivity is restored.",
   ].filter(Boolean).join("\n\n");
 }
 
 /** Picks the effective thinking model, falling back to the primary model when unset. */
 function resolveThinkingModel(config: ReturnType<typeof parseStewardAiConfig>): string {
   return String(config.thinkingModel || config.model).trim() || config.model;
+}
+
+/** Extracts fiscal year label and calendar year from retrieval context text for system prompt injection. */
+function extractFiscalYearFromContext(contextText: string): { fiscalYearLabel?: string; calendarYear?: number } {
+  const fyMatch = contextText.match(/^Fiscal year context: (.+)$/m);
+  const calMatch = contextText.match(/^Calendar year: (\d{4})$/m);
+  return {
+    fiscalYearLabel: fyMatch?.[1] ?? undefined,
+    calendarYear: calMatch ? parseInt(calMatch[1], 10) : undefined,
+  };
 }
 
 /** Builds the planner stage prompt for agentic multi-stage preparation. */
@@ -849,6 +1056,8 @@ function buildRuntimeSystemPrompt(options: {
   scopePath: string;
   contextText: string;
   agenticNotes?: string[];
+  fiscalYearLabel?: string;
+  calendarYear?: number;
 }): string {
   const actionPolicy = options.mode === "action"
     ? "Action mode policy: do not claim an action is executed. Propose explicit steps, required confirmations, and rollback considerations."
@@ -872,29 +1081,39 @@ function buildRuntimeSystemPrompt(options: {
         "```steward-artifacts",
         "{\"version\":1,\"replyMarkdown\":\"...\",\"artifacts\":[...],\"suggestedActions\":[...],\"evidence\":[...]}",
         "```",
-        "Only allowed artifact types: email_draft, donor_list, report_summary, task_list, call_script, csv_rows.",
+        "Allowed artifact types: email_draft, donor_list, report_summary, task_list, call_script, csv_rows, report_card, chart.",
+        "Use report_card when sharing KPI metrics (ytdRevenue, retentionRate, giftCounts, etc.). Set deepLink to the CRM report route (e.g. \"/reports/giving-summary\").",
+        "Use chart with chartType=bar and monthly data from reports.runGivingByMonth results. Set yAxisPrefix=\"$\" for dollar values. Limit to 12-24 labels.",
       ].join("\n")
     : "Do not emit steward-artifacts JSON for this module.";
 
   return [
-    "Runtime instruction: answer using the provided CRM context first.",
+    "You are Steward, a CRM analyst assistant for a nonprofit organization. Answer as a helpful, calm, and knowledgeable analyst — not as a debug console or system trace.",
     `Current module: ${options.moduleKey}.`,
     `Current scope path: ${options.scopePath}.`,
+    options.fiscalYearLabel
+      ? `Current fiscal year: ${options.fiscalYearLabel}. Calendar year: ${options.calendarYear ?? new Date().getFullYear()}.`
+      : `Calendar year: ${options.calendarYear ?? new Date().getFullYear()}.`,
     actionPolicy,
     moduleLexicon,
-    "If context does not support a claim, clearly label it as unknown.",
-    "Cite concrete records, counts, and names from context when possible.",
-    "Do not expose private chain-of-thought. Provide concise conclusions grounded in evidence.",
-    "Finish with a short numbered next-step list when the user asks for guidance.",
+    "CRITICAL OUTPUT RULES — follow these exactly:",
+    "1. Write your answer in natural, flowing prose. Do not create sections labeled 'Evidence:', 'Tool:', 'Record:', or 'Sources:'.",
+    "2. Do not mention tool names like donor.getDailyBrief, agentic.plan, or knowledge.searchCrmRecords in your answer. The UI shows those separately.",
+    "3. Do not repeat the same donor or record multiple times. Consolidate duplicates into one clear statement.",
+    "4. If data is available, state it clearly. If data is limited or missing, say specifically what is missing and why.",
+    "5. Give specific, actionable next steps that are directly relevant to the question — not generic placeholders.",
+    "6. Use markdown formatting: bold labels, bullet lists, numbered steps, and tables where they add clarity.",
+    "7. Do not expose internal planning notes, reasoning traces, or retrieval metadata. Those stay hidden.",
+    "8. End with 2-3 concrete next steps the user can take inside the CRM right now.",
     structuredProtocol,
     options.agenticNotes && options.agenticNotes.length > 0
       ? [
-          "Agentic preparation notes:",
+          "Background preparation notes (do not quote these directly; use them to inform your answer):",
           ...options.agenticNotes,
         ].join("\n\n")
       : "",
-    "Retrieved context follows:",
-    options.contextText || "No retrieval context available.",
+    "CRM data context follows. Use this as your primary source of truth:",
+    options.contextText || "No retrieval context available. Acknowledge this and ask the user to check AI settings.",
   ].filter(Boolean).join("\n\n");
 }
 
@@ -906,6 +1125,7 @@ async function buildDonorContext(params: {
   role: string;
   moduleKey?: "donor" | "oshareview";
   userQuery: string;
+  mentionedConstituentIds?: string[];
 }): Promise<StewardContextResult> {
   return buildDonorToolContextForChat({
     organizationId: params.organizationId,
@@ -914,6 +1134,7 @@ async function buildDonorContext(params: {
     scopePath: params.scopePath,
     moduleKey: params.moduleKey,
     query: params.userQuery,
+    mentionedConstituentIds: params.mentionedConstituentIds,
   });
 }
 
@@ -1090,6 +1311,7 @@ async function buildRetrievalContext(params: {
   userQuery: string;
   userId: string;
   role: string;
+  mentionedConstituentIds?: string[];
 }): Promise<StewardContextResult> {
   const tokens = tokenizeQuery(params.userQuery);
 
@@ -1167,6 +1389,7 @@ async function buildRetrievalContext(params: {
     role: params.role,
     moduleKey: params.moduleKey === "oshareview" ? "oshareview" : "donor",
     userQuery: params.userQuery,
+    mentionedConstituentIds: params.mentionedConstituentIds,
   });
 }
 
@@ -1845,14 +2068,36 @@ router.post("/chat/stream", async (req, res) => {
   const moduleKey = payload.moduleKey ?? "donor";
   const scopePath = payload.scopePath ?? "/";
   const latestUserMessage = [...normalizedMessages].reverse().find((message) => message.role === "user")?.content ?? "";
+  const clientReportingYearMode = payload.reportingYearMode === "fiscal" ? "fiscal" : "calendar";
+  const clientFiscalYear = typeof payload.fiscalYear === "number" ? payload.fiscalYear : undefined;
+  const clientFiscalYearStart = typeof payload.fiscalYearStart === "number" ? payload.fiscalYearStart : undefined;
+
+  // Extract constituent IDs from @mentioned donors in the chat composer
+  const mentionedConstituentIds = Array.isArray(payload.donorContext)
+    ? payload.donorContext
+        .map((d) => (typeof d?.id === "string" ? d.id.trim() : ""))
+        .filter(Boolean)
+        .slice(0, 5)
+    : [];
 
   res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders?.();
 
+  /** Sends a human-readable progress update to the client during pipeline stages. */
+  function writeProgress(message: string): void {
+    res.write(`${JSON.stringify({ type: "progress", message })}\n`);
+  }
+
+  /** Sends a thinking/reasoning delta to the client (DeepSeek reasoning tokens). */
+  function writeThinking(delta: string): void {
+    res.write(`${JSON.stringify({ type: "thinking", delta })}\n`);
+  }
+
   try {
     if (moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
+      writeProgress("Looking up top donor records…");
       const topDonorResult = await buildTopDonorResult({
         organizationId,
         userId: req.user?.sub ?? "",
@@ -1886,6 +2131,44 @@ router.post("/chat/stream", async (req, res) => {
       return;
     }
 
+    if (moduleKey === "donor" && isReportQuestion(latestUserMessage)) {
+      writeProgress("Running YTD giving report…");
+      const reportResult = await buildReportCardResult({
+        organizationId,
+        userId: req.user?.sub ?? "",
+        role: req.user?.role ?? "readonly",
+        moduleKey,
+        scopePath,
+        requestRoute: req.path,
+      });
+      res.write(`${JSON.stringify({ type: "chunk", delta: reportResult.reply })}\n`);
+      res.write(`${JSON.stringify({
+        type: "done",
+        reply: reportResult.reply,
+        structured: reportResult.structured,
+        model: "crm-data",
+        mode,
+        runtimeMode: config.mode,
+        provider: "crm-data",
+        toolsUsed: reportResult.toolsUsed,
+        recordsUsed: [],
+        moduleKey,
+        scopePath,
+      })}\n`);
+      res.end();
+      return;
+    }
+
+    // ── Stage 1: Retrieval ──────────────────────────────────────────────────
+    const retrievalProgressMessages: Record<string, string> = {
+      donor:      "Reviewing donor records and giving history…",
+      compassion: "Reviewing client and case records…",
+      events:     "Reviewing event and registration data…",
+      watchdog:   "Reviewing compliance and audit data…",
+      webmaster:  "Reviewing site and content data…",
+    };
+    writeProgress(retrievalProgressMessages[moduleKey] ?? "Reviewing CRM records…");
+
     const retrieval = await buildRetrievalContext({
       organizationId,
       moduleKey,
@@ -1893,7 +2176,17 @@ router.post("/chat/stream", async (req, res) => {
       userQuery: latestUserMessage,
       userId: req.user?.sub ?? "",
       role: req.user?.role ?? "readonly",
+      mentionedConstituentIds: mentionedConstituentIds.length > 0 ? mentionedConstituentIds : undefined,
     });
+
+    if (retrieval.toolsUsed.length > 1) {
+      writeProgress(`Checking ${retrieval.toolsUsed.length} data sources…`);
+    }
+
+    // ── Stage 2: Agentic multi-stage reasoning ──────────────────────────────
+    if (config.agenticMultiStage) {
+      writeProgress("Planning how to answer your question…");
+    }
 
     const agenticPreparation = await buildAgenticPreparation({
       organizationId,
@@ -1906,17 +2199,33 @@ router.post("/chat/stream", async (req, res) => {
       contextText: retrieval.contextText,
     });
 
+    if (agenticPreparation.stageSummaries.length > 0) {
+      writeProgress("Verifying data and checking for gaps…");
+    }
+
+    const fyMeta = extractFiscalYearFromContext(retrieval.contextText);
+    // If the client has locked to fiscal year mode, override/supplement the extracted metadata.
+    const resolvedFyLabel = fyMeta.fiscalYearLabel
+      ?? (clientReportingYearMode === "fiscal" && clientFiscalYear ? `FY${clientFiscalYear}` : undefined);
+    const resolvedCalendarYear = fyMeta.calendarYear ?? clientFiscalYear ?? new Date().getFullYear();
+    const yearModeNote = clientReportingYearMode === "fiscal" && clientFiscalYear
+      ? `The user has locked Steward to fiscal year mode: FY${clientFiscalYear}${clientFiscalYearStart ? ` (starts month ${clientFiscalYearStart})` : ""}. Answer all year-related questions using this fiscal year context unless the user asks for calendar year explicitly.`
+      : `The user is in calendar year mode (${resolvedCalendarYear}).`;
     const runtimeSystemPrompt = buildRuntimeSystemPrompt({
       mode,
       moduleKey,
       scopePath,
-      contextText: retrieval.contextText,
+      contextText: retrieval.contextText + `\n\n${yearModeNote}`,
       agenticNotes: agenticPreparation.stageSummaries,
+      fiscalYearLabel: resolvedFyLabel,
+      calendarYear: resolvedCalendarYear,
     });
 
     const toolsUsed = [...retrieval.toolsUsed, ...agenticPreparation.toolsUsed];
     let provider = agenticPreparation.stageSummaries.length > 0 ? "ollama-agentic" : "ollama";
     let completion: { content: string; model: string };
+
+    writeProgress("Drafting a response…");
 
     try {
       completion = await withStewardAiTask(
@@ -1937,6 +2246,9 @@ router.post("/chat/stream", async (req, res) => {
           {
             onDelta: (delta) => {
               res.write(`${JSON.stringify({ type: "chunk", delta })}\n`);
+            },
+            onThinkingDelta: (delta) => {
+              writeThinking(delta);
             },
           }
         )
@@ -2067,6 +2379,16 @@ router.post("/chat", async (req, res) => {
   const moduleKey = payload.moduleKey ?? "donor";
   const scopePath = payload.scopePath ?? "/";
   const latestUserMessage = [...normalizedMessages].reverse().find((message) => message.role === "user")?.content ?? "";
+  const clientReportingYearMode = payload.reportingYearMode === "fiscal" ? "fiscal" : "calendar";
+  const clientFiscalYear = typeof payload.fiscalYear === "number" ? payload.fiscalYear : undefined;
+  const clientFiscalYearStart = typeof payload.fiscalYearStart === "number" ? payload.fiscalYearStart : undefined;
+
+  const mentionedConstituentIds = Array.isArray(payload.donorContext)
+    ? payload.donorContext
+        .map((d) => (typeof d?.id === "string" ? d.id.trim() : ""))
+        .filter(Boolean)
+        .slice(0, 5)
+    : [];
 
   try {
     if (moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
@@ -2102,6 +2424,32 @@ router.post("/chat", async (req, res) => {
       return;
     }
 
+    if (moduleKey === "donor" && isReportQuestion(latestUserMessage)) {
+      const reportResult = await buildReportCardResult({
+        organizationId,
+        userId: req.user?.sub ?? "",
+        role: req.user?.role ?? "readonly",
+        moduleKey,
+        scopePath,
+        requestRoute: req.path,
+      });
+      res.json({
+        data: {
+          reply: reportResult.reply,
+          structured: reportResult.structured,
+          model: "crm-data",
+          mode,
+          runtimeMode: config.mode,
+          provider: "crm-data",
+          toolsUsed: reportResult.toolsUsed,
+          recordsUsed: [],
+          moduleKey,
+          scopePath,
+        },
+      });
+      return;
+    }
+
     const retrieval = await buildRetrievalContext({
       organizationId,
       moduleKey,
@@ -2109,6 +2457,7 @@ router.post("/chat", async (req, res) => {
       userQuery: latestUserMessage,
       userId: req.user?.sub ?? "",
       role: req.user?.role ?? "readonly",
+      mentionedConstituentIds: mentionedConstituentIds.length > 0 ? mentionedConstituentIds : undefined,
     });
 
     const agenticPreparation = await buildAgenticPreparation({
@@ -2122,12 +2471,21 @@ router.post("/chat", async (req, res) => {
       contextText: retrieval.contextText,
     });
 
+    const fyMeta = extractFiscalYearFromContext(retrieval.contextText);
+    const resolvedFyLabelSync = fyMeta.fiscalYearLabel
+      ?? (clientReportingYearMode === "fiscal" && clientFiscalYear ? `FY${clientFiscalYear}` : undefined);
+    const resolvedCalendarYearSync = fyMeta.calendarYear ?? clientFiscalYear ?? new Date().getFullYear();
+    const yearModeNoteSync = clientReportingYearMode === "fiscal" && clientFiscalYear
+      ? `The user has locked Steward to fiscal year mode: FY${clientFiscalYear}${clientFiscalYearStart ? ` (starts month ${clientFiscalYearStart})` : ""}. Answer all year-related questions using this fiscal year context unless the user asks for calendar year explicitly.`
+      : `The user is in calendar year mode (${resolvedCalendarYearSync}).`;
     const runtimeSystemPrompt = buildRuntimeSystemPrompt({
       mode,
       moduleKey,
       scopePath,
-      contextText: retrieval.contextText,
+      contextText: retrieval.contextText + `\n\n${yearModeNoteSync}`,
       agenticNotes: agenticPreparation.stageSummaries,
+      fiscalYearLabel: resolvedFyLabelSync,
+      calendarYear: resolvedCalendarYearSync,
     });
 
     const toolsUsed = [...retrieval.toolsUsed, ...agenticPreparation.toolsUsed];

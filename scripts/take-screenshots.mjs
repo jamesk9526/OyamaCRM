@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const outDir = path.resolve(__dirname, '..', 'README_SCREENSHOTS');
-const BASE = 'http://localhost:3650';
+const BASE = 'http://localhost:3000';
 const VIEWPORT = { width: 1440, height: 900 };
 
 /** Ensures the screenshot output directory exists and is empty. */
@@ -114,95 +114,40 @@ async function capture(page, file) {
 }
 
 const pages = [
-  { file: '02-donor-dashboard.png', url: '/', label: 'DonorCRM Dashboard' },
-  { file: '03-dashboard-ai-open.png', url: '/', label: 'Dashboard — AI Assistant open', allowStewardOpen: true, action: async (page) => {
-    const btn = page.locator('button[title="Open Steward AI Assistant"], button:has-text("AI Assistant"), button:has-text("Steward")').first();
-    if (await btn.count()) {
-      await btn.click();
-      await page.waitForTimeout(1200);
-    }
+  // ── DonorCRM Core ──────────────────────────────────────────────────────────
+  { file: '02-donor-dashboard.png',        url: '/',                      label: 'DonorCRM Dashboard — Revenue & Retention' },
+  { file: '03-dashboard-scroll.png',       url: '/',                      label: 'Dashboard — lower widgets', action: async (page) => {
+    await page.evaluate(() => window.scrollBy(0, 500));
+    await page.waitForTimeout(400);
   }},
-  { file: '04-constituents-list.png', url: '/constituents', label: 'Constituents — list' },
-  { file: '05-constituents-search.png', url: '/constituents', label: 'Constituents — search', action: async (page) => {
-    const box = page.locator('input[placeholder*="Search name"], input[placeholder*="search"]');
-    if (await box.count()) {
-      await box.first().fill('Robert');
-      await page.waitForTimeout(1000);
-    }
-  }},
-  { file: '06-constituent-detail.png', url: '/constituents', label: 'Constituent — profile', action: async (page) => {
+  { file: '04-constituents-list.png',      url: '/constituents',          label: 'Constituents — list' },
+  { file: '05-constituent-detail.png',     url: '/constituents',          label: 'Constituent — profile', action: async (page) => {
     const link = page.locator('a[href^="/constituents/"]').first();
     if (await link.count()) {
       await link.click();
       await page.waitForLoadState('domcontentloaded');
-      await page.waitForTimeout(1200);
+      await page.waitForTimeout(1400);
     }
   }},
-  { file: '07-donations.png', url: '/donations', label: 'Donations Ledger' },
-  { file: '08-donation-add-form.png', url: '/donations/new', label: 'Donations — Add Gift form' },
-  { file: '09-campaigns.png', url: '/campaigns', label: 'Campaigns' },
-  { file: '10-grants-pipeline.png', url: '/grants', label: 'Grants — Pipeline board' },
-  { file: '11-grants-funders.png', url: '/grants', label: 'Grants — Funders tab', action: async (page) => {
-    const tab = page.locator('button:has-text("Funders")').first();
-    if (await tab.count()) {
-      await tab.click();
-      await page.waitForTimeout(900);
-    }
-  }},
-  { file: '12-tasks.png', url: '/tasks', label: 'Tasks & Stewardship' },
-  { file: '13-meetings.png', url: '/meetings', label: 'Meetings' },
-  { file: '14-communications.png', url: '/communications', label: 'Communications' },
-  { file: '15-communications-compose.png', url: '/communications', label: 'Communications — Compose', action: async (page) => {
-    const btn = page.locator('button:has-text("Compose"), button:has-text("New Campaign"), a:has-text("Communication Home")').first();
-    if (await btn.count()) {
-      await btn.click();
-      await page.waitForTimeout(1000);
-    }
-  }},
-  { file: '16-steward-signals.png', url: '/steward-signals', label: 'Steward Signals AI' },
-  { file: '17-volunteers.png', url: '/volunteers', label: 'Volunteers' },
-  { file: '18-reports.png', url: '/reports', label: 'Reports & Analytics' },
-  { file: '19-data-import.png', url: '/data-tools/import', label: 'Data Import Wizard' },
-  { file: '20-events.png', url: '/events', label: 'Events Dashboard' },
-  { file: '21-compassion-clients.png', url: '/compassion/clients', label: 'Compassion — Clients list' },
-  { file: '22-compassion-search.png', url: '/compassion/clients', label: 'Compassion — Client search', action: async (page) => {
-    const box = page.locator('input[placeholder*="Search"], input[placeholder*="search"]');
-    if (await box.count()) {
-      await box.first().fill('Maria');
-      await page.waitForTimeout(1000);
-    }
-  }},
-  { file: '23-add-client-form.png', url: '/compassion/clients', label: 'Compassion — Add Client form', action: async (page) => {
-    const btn = page.locator('button:has-text("Add Client"), button:has-text("New Client"), button:has-text("Add")').first();
-    if (await btn.count()) {
-      await btn.click();
-      await page.waitForTimeout(1000);
-    }
-  }},
-  { file: '24-compassion-client-profile.png', url: '/compassion/clients', label: 'Compassion — Client profile', action: async (page) => {
-    const closeModal = page.locator('button:has-text("Cancel"), button:has-text("×")').first();
-    if (await closeModal.count()) {
-      await closeModal.click();
-      await page.waitForTimeout(700);
-    }
-
-    const link = page.locator('a[href*="/compassion/clients/"], table tbody tr').first();
-    if (await link.count()) {
-      await link.click();
-      await page.waitForLoadState('domcontentloaded');
-      await page.waitForTimeout(1200);
-    }
-  }},
-  { file: '25-watchdog.png', url: '/watchdog', label: 'Watchdog Security Feed' },
-  { file: '26-webmaster.png', url: '/webmaster', label: 'WebMaster Dashboard' },
-  { file: '27-settings.png', url: '/settings', label: 'Settings & Administration' },
-  { file: '28-settings-users.png', url: '/settings', label: 'Settings — User Management', action: async (page) => {
-    const tab = page.locator('button:has-text("Users"), a:has-text("Users"), [role="tab"]:has-text("Users")').first();
-    if (await tab.count()) {
-      await tab.click();
-      await page.waitForTimeout(900);
-    }
-  }},
+  { file: '06-donations.png',              url: '/donations',             label: 'Donations Ledger' },
+  { file: '07-campaigns.png',              url: '/campaigns',             label: 'Campaigns workspace' },
+  { file: '08-grants.png',                 url: '/grants',                label: 'Grants — Pipeline board' },
+  { file: '09-tasks.png',                  url: '/tasks',                 label: 'Tasks & Stewardship' },
+  { file: '10-communications.png',         url: '/communications',        label: 'Communications workspace' },
+  { file: '11-letters.png',                url: '/letters-printables',    label: 'Letters & Printables' },
+  { file: '12-steward-paths.png',          url: '/steward-paths',         label: 'Steward Paths — AI-guided outreach' },
+  { file: '13-steward-signals.png',        url: '/steward-signals',       label: 'Steward Signals — donor intelligence' },
+  // ── Reports (major new feature) ───────────────────────────────────────────
+  { file: '14-reports-library.png',        url: '/reports/donor-crm',     label: 'Reports — Template library' },
+  { file: '15-reports-manager.png',        url: '/reports/manager',       label: 'Reports Manager' },
+  // ── Data & Settings ────────────────────────────────────────────────────────
+  { file: '16-data-import.png',            url: '/data-tools/import',     label: 'Data Import wizard' },
+  { file: '17-settings.png',               url: '/settings',              label: 'Settings & Administration' },
+  // ── Compassion CRM ─────────────────────────────────────────────────────────
+  { file: '18-compassion-dashboard.png',   url: '/compassion',            label: 'Compassion CRM dashboard' },
+  { file: '19-compassion-clients.png',     url: '/compassion/clients',    label: 'Compassion CRM — Clients list' },
+  // ── Events & Watchdog ──────────────────────────────────────────────────────
+  { file: '20-events.png',                 url: '/events/workspace',      label: 'Events CRM workspace' },
 ];
 
 async function run() {

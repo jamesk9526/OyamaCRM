@@ -9,7 +9,8 @@ import ErrorBoundary from "@/app/components/ErrorBoundary";
 import { DEFAULT_WORKSPACE_SETTINGS, fetchWorkspaceSettings, type WorkspaceSettings } from "@/app/lib/workspace-settings";
 
 // Module routes render their own shells — bypass AppShell wrapper.
-const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/unsubscribe", "/preferences", "/compassion", "/events", "/watchdog", "/webmaster", "/hrm", "/apps"];
+// /steward-ai-workspace uses its own standalone PWA layout.
+const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/unsubscribe", "/preferences", "/compassion", "/events", "/watchdog", "/webmaster", "/hrm", "/apps", "/steward-ai-workspace"];
 
 // Routes that board-report roles may access (board dashboard + its own sub-routes)
 const BOARD_PATHS = ["/board"];
@@ -21,7 +22,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
   const isBoard = BOARD_PATHS.some((p) => pathname.startsWith(p));
-  const isOShareview = pathname.startsWith("/reports");
+  const isOShareview = pathname.startsWith("/reports") && !pathname.startsWith("/reports/donor-crm");
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -79,6 +80,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     setMobileNavOpen(false);
   }, [pathname]);
 
+  // Open mobile navigation from the TopBar hamburger button.
+  useEffect(() => {
+    function handleOpenNav() { setMobileNavOpen(true); }
+    window.addEventListener("crm:open-mobile-nav", handleOpenNav);
+    return () => window.removeEventListener("crm:open-mobile-nav", handleOpenNav);
+  }, []);
+
   // Public pages — no shell
   if (isPublic) return <>{children}</>;
 
@@ -116,20 +124,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* ErrorBoundary catches page-level render errors without crashing the whole shell */}
         <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-gray-50 p-3 sm:p-4 lg:p-4 min-[1440px]:p-5 2xl:p-6">
-          {!isOShareview && (
-            <div className="mb-3 lg:hidden">
-            <button
-              type="button"
-              onClick={() => setMobileNavOpen(true)}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-              Menu
-            </button>
-            </div>
-          )}
+
           <ErrorBoundary>
             <div className="min-w-0 max-w-full">{children}</div>
           </ErrorBoundary>

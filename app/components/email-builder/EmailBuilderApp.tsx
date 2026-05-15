@@ -1464,7 +1464,14 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
                   {branding.contactEmail && <p className="text-xs text-gray-600">Email: {branding.contactEmail}</p>}
                   {branding.contactPhone && <p className="text-xs text-gray-600">Phone: {branding.contactPhone}</p>}
                   {formatBrandingAddress(branding) && <p className="text-xs text-gray-600">Address: {formatBrandingAddress(branding)}</p>}
-                  <p className="text-[11px] text-gray-500">Auto-collected from Settings to Branding.</p>
+                  <a
+                    href="/settings/branding"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block text-[11px] text-green-700 hover:underline"
+                  >
+                    Change in Branding Settings →
+                  </a>
                 </div>
 
                 <div className="space-y-2 rounded-lg border border-gray-200 p-3">

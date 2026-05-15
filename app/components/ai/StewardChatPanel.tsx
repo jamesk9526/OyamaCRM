@@ -4,7 +4,16 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
+import {
+  type ReportingYearMode,
+  getFiscalYearForDate,
+  getStoredReportingYearMode,
+  setStoredReportingYearMode,
+  getFiscalYearEndMonth,
+} from "@/app/lib/fiscal-year";
 import StewardResponseRenderer from "@/app/components/ai/StewardResponseRenderer";
+import { StewardThinkingPanel } from "@/app/components/ai/StewardThinkingPanel";
+import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 import type { StewardStructuredResponse } from "@/app/components/ai/steward-artifact-types";
 import { executeStewardSuggestedAction } from "@/app/components/ai/steward-action-executor";
 
@@ -54,7 +63,12 @@ interface UiMessage {
   recordsUsed?: string[];
   provider?: string;
   responseMode?: ChatMode;
+  moduleKey?: string;
   runtimeMode?: "local" | "remote" | "unknown";
+  /** Human-readable pipeline progress steps. */
+  progressSteps?: string[];
+  /** Reasoning tokens from DeepSeek or other thinking-capable models. */
+  thinkingContent?: string;
 }
 
 interface StewardChatStreamChunk {
@@ -80,8 +94,17 @@ interface StewardChatStreamError {
   type: "error";
   message: string;
 }
+/** Progress update sent during pipeline stages (retrieval, planning, drafting). */
+interface StewardChatStreamProgress { type: "progress"; message: string; }
+/** Reasoning token from DeepSeek or other thinking-capable models. */
+interface StewardChatStreamThinking { type: "thinking"; delta: string; }
 
-type StewardChatStreamEvent = StewardChatStreamChunk | StewardChatStreamDone | StewardChatStreamError;
+type StewardChatStreamEvent =
+  | StewardChatStreamChunk
+  | StewardChatStreamDone
+  | StewardChatStreamError
+  | StewardChatStreamProgress
+  | StewardChatStreamThinking;
 
 function normalizeStructuredResponse(raw: unknown): StewardStructuredResponse | undefined {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
@@ -368,6 +391,8 @@ export default function StewardChatPanel({
   const [modelUsed, setModelUsed] = useState<string | null>(null);
   const [conversationsOpen, setConversationsOpen] = useState(false);
   const [activeAssistantMessageId, setActiveAssistantMessageId] = useState<string | null>(null);
+  const [reportingYearMode, setReportingYearModeState] = useState<ReportingYearMode>("calendar");
+  const [fiscalYearStart, setFiscalYearStart] = useState<number>(1);
   const messagesBottomRef = useRef<HTMLDivElement | null>(null);
   const composerInputRef = useRef<HTMLInputElement | null>(null);
   const streamAbortRef = useRef<AbortController | null>(null);
@@ -401,6 +426,35 @@ export default function StewardChatPanel({
     () => [...threads].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
     [threads]
   );
+
+  /** Sync FY mode from localStorage on mount and listen for TopBar changes. */
+  useEffect(() => {
+    setReportingYearModeState(getStoredReportingYearMode());
+    function onModeChange(event: Event) {
+      const detail = (event as CustomEvent<{ mode: ReportingYearMode }>).detail;
+      if (detail?.mode) setReportingYearModeState(detail.mode);
+    }
+    window.addEventListener("reporting-year-mode:changed", onModeChange);
+    return () => window.removeEventListener("reporting-year-mode:changed", onModeChange);
+  }, []);
+
+  /** Load org fiscal year start from settings. */
+  useEffect(() => {
+    let active = true;
+    apiFetch<{ fiscalYearStart?: number }>("/api/settings")
+      .then((data) => { if (active && typeof data.fiscalYearStart === "number") setFiscalYearStart(data.fiscalYearStart); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  /** Toggle FY mode and persist to localStorage (kept in sync with TopBar). */
+  const toggleReportingYearMode = useCallback(() => {
+    setReportingYearModeState((current) => {
+      const next: ReportingYearMode = current === "fiscal" ? "calendar" : "fiscal";
+      setStoredReportingYearMode(next);
+      return next;
+    });
+  }, []);
 
   /** Auto-scrolls to latest message whenever conversation changes. */
   useEffect(() => {
@@ -820,6 +874,7 @@ export default function StewardChatPanel({
       const abortController = new AbortController();
       streamAbortRef.current = abortController;
 
+      const currentFiscalYear = getFiscalYearForDate(new Date(), fiscalYearStart);
       const payload = {
         messages: payloadMessages.map((message) => ({
           role: message.role,
@@ -828,6 +883,9 @@ export default function StewardChatPanel({
         mode,
         moduleKey,
         scopePath,
+        reportingYearMode,
+        fiscalYear: currentFiscalYear,
+        fiscalYearStart,
       };
 
       const response = await apiFetchResponse("/api/steward-ai/chat/stream", {
@@ -875,6 +933,24 @@ export default function StewardChatPanel({
             setMessages((current) => current.map((message) => (
               message.id === assistantMessageId
                 ? { ...message, content: `${message.content}${event.delta}` }
+                : message
+            )));
+            continue;
+          }
+
+          if (event.type === "progress") {
+            setMessages((current) => current.map((message) => (
+              message.id === assistantMessageId
+                ? { ...message, progressSteps: [...(message.progressSteps ?? []), event.message] }
+                : message
+            )));
+            continue;
+          }
+
+          if (event.type === "thinking") {
+            setMessages((current) => current.map((message) => (
+              message.id === assistantMessageId
+                ? { ...message, thinkingContent: (message.thinkingContent ?? "") + event.delta }
                 : message
             )));
             continue;
@@ -968,9 +1044,7 @@ export default function StewardChatPanel({
         title="Open Steward AI Assistant"
         className="fixed z-[96] right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] h-14 w-14 rounded-full border border-emerald-300 bg-emerald-600 text-white shadow-[0_16px_30px_rgba(22,163,74,0.35)] flex items-center justify-center"
       >
-        <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l1.4 3.6L17 8l-3.6 1.4L12 13l-1.4-3.6L7 8l3.6-1.4L12 3zM6 14l.9 2.1L9 17l-2.1.9L6 20l-.9-2.1L3 17l2.1-.9L6 14zM18 13l1 2.3L21.3 16 19 17l-1 2.3-1-2.3L14.7 16l2.3-.7 1-2.3z" />
-        </svg>
+        <StewardAvatarIcon size={38} alt="Steward" className="ring-2 ring-white/70" />
       </button>
     );
   }
@@ -1001,116 +1075,115 @@ export default function StewardChatPanel({
   return (
     <div className={rootClassName}>
       <aside className={panelClassName} style={panelStyle}>
-        <header className="px-3.5 border-b border-slate-200 bg-white py-2">
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <h2 className="text-[13px] font-semibold leading-tight text-slate-900">Steward</h2>
-              <p className="text-[11px] leading-tight text-slate-600 truncate">Ask, analyze, summarize, and act across your CRM.</p>
+        <header className="px-3 border-b border-slate-100 bg-white py-2">
+          {/* Top row: avatar + title + window controls */}
+          <div className="flex items-center gap-2">
+            {/* Steward avatar mark */}
+            <StewardAvatarIcon size={24} alt="Steward" />
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xs font-semibold leading-tight text-slate-900">Steward</h2>
             </div>
-            <div className="flex items-center gap-1">
+
+            {/* Window control buttons — icon-only */}
+            <div className="flex items-center gap-0.5">
+              {/* Chat history toggle (dock mode) */}
+              {!isWorkspaceMode && (
+                <button
+                  type="button"
+                  onClick={() => setConversationsOpen((v) => !v)}
+                  className={`h-6 w-6 flex items-center justify-center rounded-lg border transition-colors ${conversationsOpen ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700"}`}
+                  title="Chat history"
+                >
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>
+                </button>
+              )}
+              {/* Open full AGENTSteward workspace */}
+              {!isWorkspaceMode && (
+                <Link
+                  href={workspaceHref}
+                  className="h-6 w-6 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors"
+                  title="Open AGENTSteward workspace"
+                >
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                </Link>
+              )}
+              {/* Popout */}
               {!isWorkspaceMode && !isPopoutMode && (
                 <button
+                  type="button"
                   onClick={() => onDisplayModeChange?.("popout")}
-                  className="h-7 px-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-[11px]"
-                  title="Open in-app popout"
+                  className="h-6 w-6 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors"
+                  title="Popout"
                 >
-                  Pop
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5M20 8V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5M20 16v4m0 0h-4m4 0l-5-5" /></svg>
                 </button>
               )}
+              {/* Restore to dock from popout */}
               {!isWorkspaceMode && isPopoutMode && (
                 <button
+                  type="button"
                   onClick={() => onDisplayModeChange?.("dock-right")}
-                  className="h-7 px-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-[11px]"
+                  className="h-6 w-6 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors"
                   title="Return to dock"
                 >
-                  Dock
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M15 9h4.5M15 9V4.5M15 9l5.25-5.25M9 15H4.5M9 15v4.5M9 15l-5.25 5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" /></svg>
                 </button>
               )}
+              {/* Maximize */}
               {!isWorkspaceMode && !isMaximizedMode && (
                 <button
+                  type="button"
                   onClick={() => onDisplayModeChange?.("maximized")}
-                  className="h-7 px-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-[11px]"
-                  title="Maximize Steward"
+                  className="h-6 w-6 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors"
+                  title="Maximize"
                 >
-                  Max
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
                 </button>
               )}
+              {/* Restore from maximize */}
               {!isWorkspaceMode && isMaximizedMode && (
                 <button
+                  type="button"
                   onClick={() => onDisplayModeChange?.("dock-right")}
-                  className="h-7 px-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-[11px]"
+                  className="h-6 w-6 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors"
                   title="Return to dock"
                 >
-                  Dock
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M15 9h4.5M15 9V4.5M15 9l5.25-5.25M9 15H4.5M9 15v4.5M9 15l-5.25 5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" /></svg>
                 </button>
               )}
+              {/* Minimize / close */}
               {!isWorkspaceMode && (
                 <button
+                  type="button"
                   onClick={onClose}
-                  className="h-7 w-7 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                  title="Minimize Steward to chat head"
-                >
-                  -
-                </button>
-              )}
-              {!isWorkspaceMode && (
-                <button
-                  onClick={onClose}
-                  className="h-7 w-7 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                  className="h-6 w-6 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors"
                   title="Close Steward"
                 >
-                  x
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
+              )}
+              {/* Workspace exit */}
+              {isWorkspaceMode && (
+                <Link href="/" className="h-6 w-6 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors" title="Exit workspace">
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </Link>
               )}
             </div>
           </div>
 
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-600">
-              {!isWorkspaceMode && (
-                <button
-                  type="button"
-                  onClick={() => setConversationsOpen((current) => !current)}
-                  className={`h-6 px-2 rounded-full border font-medium ${conversationsOpen ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"}`}
-                  title="Open conversations"
-                >
-                  Chats
-                </button>
-              )}
-              <span className={`h-6 inline-flex items-center px-2 rounded-full border ${aiConfig?.enabled ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
-                {aiConfig?.enabled ? `${aiConfig.mode === "local" ? "Local" : "Remote"} Ollama` : "Needs Setup"}
-              </span>
-              {!isWorkspaceMode && (
-                <Link
-                  href={workspaceHref}
-                  className="h-6 inline-flex items-center px-2 rounded-full border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                  title="Open Steward AI Workspace"
-                >
-                  Workspace
-                </Link>
-              )}
-              <span className="h-6 inline-flex items-center px-2 rounded-full border border-slate-200 bg-white">Module: <span className="ml-1 font-medium capitalize">{moduleKey}</span></span>
-              <span className="h-6 inline-flex items-center px-2 rounded-full border border-slate-200 bg-white">{modelUsed ? `Model: ${modelUsed}` : "Model: pending"}</span>
-              <span className="h-6 inline-flex items-center px-2 rounded-full border border-slate-200 bg-white max-w-[260px] truncate">
-                Scope:{" "}
-                {scopeHref ? (
-                  <Link href={scopeHref} className="ml-1 text-emerald-700 hover:text-emerald-800 hover:underline truncate">
-                    {scopePath}
-                  </Link>
-                ) : (
-                  <span className="ml-1 truncate">{scopePath}</span>
-                )}
-              </span>
-              <button onClick={clearHistory} className="h-6 px-2 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100">Clear</button>
-              <button onClick={exportHistory} className="h-6 px-2 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100">Export</button>
-              <Link href="/settings/ai" className="h-6 inline-flex items-center px-2 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 hover:text-emerald-800">
-                AI Settings
-              </Link>
-              {isWorkspaceMode && (
-                <Link href="/" className="h-6 inline-flex items-center px-2 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100">
-                  Exit
-                </Link>
-              )}
-            </div>
+          {/* Second row: status pills */}
+          <div className="mt-1.5 flex flex-wrap items-center gap-1">
+            <span className={`h-5 inline-flex items-center gap-1 px-2 rounded-full border text-[10px] font-medium ${aiConfig?.enabled ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
+              <span className={`h-1 w-1 rounded-full ${aiConfig?.enabled ? "bg-emerald-500" : "bg-amber-400"}`} />
+              {aiConfig?.enabled ? (modelUsed || (aiConfig.mode === "local" ? "Local AI" : "Remote AI")) : "Needs Setup"}
+            </span>
+            <span className="h-5 inline-flex items-center px-2 rounded-full border border-slate-200 bg-white text-[10px] text-slate-600 font-medium capitalize">{moduleKey}</span>
+            <button onClick={clearHistory} className="h-5 px-2 rounded-full border border-slate-200 bg-white text-[10px] text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors">Clear</button>
+            <button onClick={exportHistory} className="h-5 px-2 rounded-full border border-slate-200 bg-white text-[10px] text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors">Export</button>
+            <Link href="/settings/ai" className="h-5 inline-flex items-center px-2 rounded-full border border-slate-200 bg-white text-[10px] text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors">
+              Settings
+            </Link>
+          </div>
         </header>
 
           <>
@@ -1193,17 +1266,39 @@ export default function StewardChatPanel({
                         }`}
                       >
                         {message.role === "assistant" ? (
-                          sending && activeAssistantMessageId === message.id && !message.content.trim() ? (
+                          <>
+                          {/* Thinking panel: progress steps + reasoning tokens (shown while streaming or after) */}
+                          {(sending && activeAssistantMessageId === message.id
+                            ? (message.progressSteps?.length || message.thinkingContent || !message.content.trim())
+                            : (message.progressSteps?.length || message.thinkingContent)
+                          ) && (
+                            <StewardThinkingPanel
+                              progressSteps={message.progressSteps ?? []}
+                              thinkingContent={message.thinkingContent ?? ""}
+                              isActive={sending && activeAssistantMessageId === message.id}
+                              compact={true}
+                            />
+                          )}
+                          {sending && activeAssistantMessageId === message.id && !message.content.trim() ? (
+                            /* Dots shown only when progress panel isn't already showing */
+                            !message.progressSteps?.length ? (
                             <div className={`inline-flex items-center gap-1 ${isWorkspaceMode ? "text-slate-500" : "text-slate-500"}`}>
                               <span className={`h-1.5 w-1.5 rounded-full animate-pulse ${isWorkspaceMode ? "bg-slate-500" : "bg-slate-500"}`} />
                               <span className={`h-1.5 w-1.5 rounded-full animate-pulse [animation-delay:120ms] ${isWorkspaceMode ? "bg-slate-500" : "bg-slate-500"}`} />
                               <span className={`h-1.5 w-1.5 rounded-full animate-pulse [animation-delay:240ms] ${isWorkspaceMode ? "bg-slate-500" : "bg-slate-500"}`} />
                             </div>
+                            ) : null
                           ) : (
                             <StewardResponseRenderer
                               content={message.content}
                               structured={message.structured}
-                              tone={isWorkspaceMode ? "light" : "light"}
+                              tone="light"
+                              compact={true}
+                              toolsUsed={message.toolsUsed}
+                              recordsUsed={message.recordsUsed}
+                              provider={message.provider}
+                              moduleKey={message.moduleKey}
+                              generatedAt={message.createdAt}
                               onSuggestedAction={async (action) => {
                                 const actionIndex = message.structured?.suggestedActions.findIndex((candidate) => (
                                   candidate.label === action.label && candidate.actionType === action.actionType
@@ -1212,8 +1307,10 @@ export default function StewardChatPanel({
                                   await runSuggestedAction(message.id, actionIndex);
                                 }
                               }}
+                              onRegenerate={aiConfig?.enabled ? () => { void regenerateAssistantMessage(message.id); } : undefined}
                             />
-                          )
+                          )}
+                          </>
                         ) : (
                           <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
                         )}
@@ -1221,27 +1318,6 @@ export default function StewardChatPanel({
                       <div className={`mt-1 text-[11px] flex items-center gap-2 ${isWorkspaceMode ? "text-[#8b949e]" : "text-slate-500"} ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                         <span>{new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                       </div>
-                      {message.role === "assistant" && message.toolsUsed && message.toolsUsed.length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {message.toolsUsed.map((tool) => (
-                            <span key={tool} className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${isWorkspaceMode ? "border-slate-200 bg-white text-slate-500" : "border-slate-200 bg-white text-slate-500"}`}>
-                              Tool: {tool}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {message.role === "assistant" && aiConfig?.enabled && (
-                        <div className="mt-1.5 flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => regenerateAssistantMessage(message.id)}
-                            disabled={sending}
-                            className={`rounded-md border px-2 py-1 text-[11px] font-medium disabled:opacity-50 ${isWorkspaceMode ? "border-slate-200 bg-white text-slate-700 hover:bg-slate-100" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"}`}
-                          >
-                            Regenerate
-                          </button>
-                        </div>
-                      )}
                     </div>
                   ))}
                   <div ref={messagesBottomRef} />
@@ -1263,6 +1339,37 @@ export default function StewardChatPanel({
                             <option key={button.key} value={button.key}>{button.label}</option>
                           ))}
                         </select>
+
+                        {/* Fiscal year mode toggle — locks Steward context to FY vs calendar year */}
+                        {moduleKey === "donor" || moduleKey === "oshareview" ? (
+                          <button
+                            type="button"
+                            onClick={toggleReportingYearMode}
+                            title={
+                              reportingYearMode === "fiscal"
+                                ? `Fiscal year mode on — FY${getFiscalYearForDate(new Date(), fiscalYearStart)} (month ${fiscalYearStart}–${getFiscalYearEndMonth(fiscalYearStart)}). Click for calendar year.`
+                                : `Calendar year mode — ${new Date().getFullYear()}. Click for fiscal year mode.`
+                            }
+                            className={`h-8 inline-flex items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold transition-all ${
+                              reportingYearMode === "fiscal"
+                                ? "border-emerald-500/60 bg-emerald-600/15 text-emerald-700 hover:bg-emerald-600/25"
+                                : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:bg-slate-100"
+                            }`}
+                          >
+                            <span className={`flex h-3.5 w-3.5 items-center justify-center rounded border text-[9px] font-bold leading-none ${
+                              reportingYearMode === "fiscal"
+                                ? "border-emerald-500/60 bg-emerald-600/20 text-emerald-700"
+                                : "border-slate-300 bg-slate-100 text-slate-500"
+                            }`}>
+                              {reportingYearMode === "fiscal" ? "FY" : "CY"}
+                            </span>
+                            <span>
+                              {reportingYearMode === "fiscal"
+                                ? `FY${getFiscalYearForDate(new Date(), fiscalYearStart)}`
+                                : String(new Date().getFullYear())}
+                            </span>
+                          </button>
+                        ) : null}
                       </div>
                       <p className="text-[11px] text-slate-500">Confirm-first for write actions.</p>
                     </div>
@@ -1285,35 +1392,37 @@ export default function StewardChatPanel({
                       </div>
                     )}
 
-                    <div className="mt-2 flex items-center gap-2">
+                    <div className="mt-2 flex items-end gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm focus-within:border-slate-300 focus-within:shadow-md transition-all">
                       <input
                         ref={composerInputRef}
                         type="text"
                         value={draft}
                         onChange={(event) => setDraft(event.target.value)}
                         onKeyDown={handleComposerKeyDown}
-                        placeholder={aiConfig?.enabled ? "Ask Steward something about this page..." : "Enable Steward AI in Settings before chatting."}
+                        placeholder={aiConfig?.enabled ? "Ask Steward…" : "Enable Steward AI in Settings."}
                         disabled={!aiConfig?.enabled || sending}
-                        className={`h-11 flex-1 rounded-full border px-4 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed ${isWorkspaceMode ? "border-slate-200 bg-slate-50 text-slate-800 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-400" : "border-slate-200 bg-slate-50 text-slate-800 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-400"}`}
+                        className="h-8 flex-1 bg-transparent text-sm text-slate-900 placeholder-slate-400 outline-none disabled:cursor-not-allowed disabled:text-slate-400"
                       />
-                      <div className="flex items-center gap-2 shrink-0">
-                        {sending && (
-                          <button
-                            type="button"
-                            onClick={stopGeneration}
-                            className="px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm font-medium hover:bg-red-100"
-                          >
-                            Stop
-                          </button>
-                        )}
+                      {sending ? (
                         <button
+                          type="button"
+                          onClick={stopGeneration}
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors"
+                          title="Stop generation"
+                        >
+                          <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
                           onClick={() => void sendMessage()}
                           disabled={!aiConfig?.enabled || sending || draft.trim().length === 0}
-                          className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60"
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          title="Send (Enter)"
                         >
-                          {sending ? "Sending..." : "Send"}
+                          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5M5 12l7-7 7 7" /></svg>
                         </button>
-                      </div>
+                      )}
                     </div>
                   </div>
                 </footer>

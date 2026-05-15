@@ -390,7 +390,17 @@ export default function LetterTemplateEditor({ templateId }: LetterTemplateEdito
 
       {tab === "branding" && (
         <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-gray-900">Branding & Signature</h2>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h2 className="text-sm font-semibold text-gray-900">Branding & Signature</h2>
+            <a
+              href="/settings/branding/letter-presets"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-green-700 hover:underline"
+            >
+              Manage presets in Branding Settings →
+            </a>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm text-gray-700">
               Header Preset

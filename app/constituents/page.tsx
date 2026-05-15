@@ -8,6 +8,7 @@ import {
   DONOR_STATUSES,
   typeLabel,
 } from "@/app/components/constituents/constituent-utils";
+import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
@@ -62,75 +63,81 @@ export default function ConstituentsPage() {
   }
 
   return (
-    <div className="space-y-5">
-      <WorkspaceBreadcrumbBar
-        items={[
-          { label: "Donor CRM", href: "/" },
-          { label: "Constituents" },
-        ]}
-        statusLabel={loading ? "Loading" : "Working"}
-        metadata={`${loading ? "Loading records" : `${stats.total.toLocaleString()} total · ${stats.active.toLocaleString()} active donors · ${stats.prospects.toLocaleString()} prospects`}`}
-        primaryAction={<WorkspaceRibbonButton label="Add Constituent" href="/constituents/new" variant="primary" />}
-      />
-
-      <WorkspaceRibbon>
-        <WorkspaceRibbonGroup label="Create">
-          <WorkspaceRibbonButton label="Add Constituent" href="/constituents/new" variant="primary" />
-        </WorkspaceRibbonGroup>
-
-        <WorkspaceRibbonGroup label="View">
-          <WorkspaceRibbonButton
-            label="All Constituents"
-            onClick={() => {
-              setTypeFilter("");
-              setStatusFilter("");
-            }}
-            variant={!typeFilter && !statusFilter ? "primary" : "secondary"}
+    <EnterprisePageShell
+      ribbon={(
+        <div className="space-y-3">
+          <WorkspaceBreadcrumbBar
+            items={[
+              { label: "Donor CRM", href: "/" },
+              { label: "Constituents" },
+            ]}
+            statusLabel={loading ? "Loading" : "Working"}
+            metadata={`${loading ? "Loading records" : `${stats.total.toLocaleString()} total · ${stats.active.toLocaleString()} active donors · ${stats.prospects.toLocaleString()} prospects`}`}
+            primaryAction={<WorkspaceRibbonButton label="Add Constituent" href="/constituents/new" variant="primary" />}
           />
-          <WorkspaceRibbonButton
-            label="Active Donors"
-            onClick={() => {
-              setTypeFilter("");
-              setStatusFilter("ACTIVE");
-            }}
-            variant={statusFilter === "ACTIVE" ? "primary" : "secondary"}
-          />
-          <WorkspaceRibbonButton
-            label="Prospects"
-            onClick={() => {
-              setTypeFilter("PROSPECT");
-              setStatusFilter("");
-            }}
-            variant={typeFilter === "PROSPECT" ? "primary" : "secondary"}
-          />
-        </WorkspaceRibbonGroup>
 
-        <WorkspaceRibbonGroup label="Filter">
-          <WorkspaceRibbonButton label="Clear Filters" onClick={() => { setSearch(""); setTypeFilter(""); setStatusFilter(""); }} disabled={!search && !typeFilter && !statusFilter} />
-        </WorkspaceRibbonGroup>
-      </WorkspaceRibbon>
+          <WorkspaceRibbon>
+            <WorkspaceRibbonGroup label="Create">
+              <WorkspaceRibbonButton label="Add Constituent" href="/constituents/new" variant="primary" />
+            </WorkspaceRibbonGroup>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <WorkspaceRibbonGroup label="View">
+              <WorkspaceRibbonButton
+                label="All Constituents"
+                onClick={() => {
+                  setTypeFilter("");
+                  setStatusFilter("");
+                }}
+                variant={!typeFilter && !statusFilter ? "primary" : "secondary"}
+              />
+              <WorkspaceRibbonButton
+                label="Active Donors"
+                onClick={() => {
+                  setTypeFilter("");
+                  setStatusFilter("ACTIVE");
+                }}
+                variant={statusFilter === "ACTIVE" ? "primary" : "secondary"}
+              />
+              <WorkspaceRibbonButton
+                label="Prospects"
+                onClick={() => {
+                  setTypeFilter("PROSPECT");
+                  setStatusFilter("");
+                }}
+                variant={typeFilter === "PROSPECT" ? "primary" : "secondary"}
+              />
+            </WorkspaceRibbonGroup>
+
+            <WorkspaceRibbonGroup label="Filter">
+              <WorkspaceRibbonButton label="Clear Filters" onClick={() => { setSearch(""); setTypeFilter(""); setStatusFilter(""); }} disabled={!search && !typeFilter && !statusFilter} />
+            </WorkspaceRibbonGroup>
+          </WorkspaceRibbon>
+        </div>
+      )}
+    >
+      <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           { label: "Total", value: stats.total, color: "text-gray-900" },
           { label: "Active Donors", value: stats.active, color: "text-blue-700" },
           { label: "Lapsed", value: stats.lapsed, color: "text-amber-700" },
           { label: "Prospects", value: stats.prospects, color: "text-purple-700" },
         ].map((s) => (
-          <div key={s.label} className="bg-white rounded-lg border border-gray-200 p-4">
+          <div key={s.label} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{s.label}</p>
             <p className={`text-2xl font-bold mt-1 ${s.color}`}>{loading ? "—" : s.value}</p>
           </div>
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-3 items-center">
+      <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px_auto] lg:items-center">
         <input
           type="search"
           placeholder="Search name, email, phone..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 min-w-48 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+          className="min-w-0 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
         />
         <select
           value={typeFilter}
@@ -155,12 +162,13 @@ export default function ConstituentsPage() {
         {(search || typeFilter || statusFilter) && (
           <button
             onClick={() => { setSearch(""); setTypeFilter(""); setStatusFilter(""); }}
-            className="text-sm text-gray-500 hover:text-gray-700 px-2"
+            className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700"
           >
             Clear filters
           </button>
         )}
-      </div>
+        </div>
+      </section>
 
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
@@ -168,11 +176,14 @@ export default function ConstituentsPage() {
         </div>
       )}
 
-      <ConstituentTable constituents={constituents} loading={loading && !error} onDelete={handleDelete} />
+      <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <ConstituentTable constituents={constituents} loading={loading && !error} onDelete={handleDelete} />
+      </section>
 
       {!loading && !error && constituents.length > 0 && (
         <p className="text-xs text-gray-400 text-right">{constituents.length} record{constituents.length !== 1 ? "s" : ""}</p>
       )}
-    </div>
+      </div>
+    </EnterprisePageShell>
   );
 }

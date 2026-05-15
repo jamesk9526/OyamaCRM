@@ -19,7 +19,7 @@ import RevenueProgress from "./components/dashboard/RevenueProgress";
 import DonorRetention from "./components/dashboard/DonorRetention";
 import TasksWidget from "./components/dashboard/TasksWidget";
 import TotalsByLevel from "./components/dashboard/TotalsByLevel";
-import DashboardWidget from "./components/dashboard/DashboardWidget";
+import DashboardWidget, { type DashboardWidgetSize } from "./components/dashboard/DashboardWidget";
 import GivingTrendChart from "./components/dashboard/GivingTrendChart";
 import RecentDonationsWidget from "./components/dashboard/RecentDonationsWidget";
 import TopDonorsWidget from "./components/dashboard/TopDonorsWidget";
@@ -31,9 +31,15 @@ import ActionableInsightsWidget from "./components/dashboard/ActionableInsightsW
 import AiInsightsWidget from "./components/dashboard/AiInsightsWidget";
 import AiOpportunityWidget from "./components/dashboard/AiOpportunityWidget";
 import AiChatWidget from "./components/dashboard/AiChatWidget";
+import EnterprisePageShell from "./components/layout/EnterprisePageShell";
+import WorkspaceBreadcrumbBar from "./components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceHelpTip from "./components/ui/WorkspaceHelpTip";
+import WorkspaceRibbon from "./components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "./components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "./components/workspace-ribbon/WorkspaceRibbonGroup";
 import DashboardLayoutModal, { type RevenueGoalMode, type RevenueProgressSource } from "./components/dashboard/DashboardLayoutModal";
 import { apiFetch } from "@/app/lib/auth-client";
+import { getStoredReportingYearMode, type ReportingYearMode } from "@/app/lib/fiscal-year";
 
 /** Shape returned by /api/reports/summary (extended) */
 interface Summary {
@@ -214,7 +220,7 @@ const START_HERE_ACTIONS: StartHereAction[] = [
     id: "review-reports",
     title: "Review reports",
     description: "Check fundraising progress, retention, and campaign outcomes with live data.",
-    href: "/reports",
+    href: "/reports/donor-crm",
     actionLabel: "Open Reports",
   },
 ];
@@ -222,6 +228,7 @@ const START_HERE_ACTIONS: StartHereAction[] = [
 const LS_ORDER_KEY = "dashboard-widget-order";
 const LS_LOCK_KEY = "dashboard-locked";
 const LS_HIDDEN_WIDGETS_KEY = "dashboard-hidden-widgets";
+const LS_WIDGET_SIZES_KEY = "dashboard-widget-sizes";
 /** Persists the "Include Grants in revenue" preference */
 const LS_GRANTS_KEY = "dashboard-include-grants";
 /** Persists which data source Revenue Progress should display. */
@@ -309,6 +316,56 @@ function loadAiWidgetsEnabled(): boolean {
   return localStorage.getItem(LS_AI_WIDGETS_ENABLED_KEY) !== "false";
 }
 
+const DEFAULT_WIDGET_SIZES: Record<WidgetId, DashboardWidgetSize> = {
+  "start-here": "wide",
+  "todays-focus": "wide",
+  "actionable-insights": "wide",
+  "ai-insights": "standard",
+  "ai-opportunities": "standard",
+  "ai-chat": "standard",
+  revenue: "standard",
+  "goal-health": "standard",
+  retention: "standard",
+  "engagement-pulse": "standard",
+  "stewardship-attention": "wide",
+  "top-donors": "standard",
+  "weekly-stats": "standard",
+  "giving-trend": "hero",
+  "recent-donations": "standard",
+  tasks: "wide",
+  meetings: "standard",
+};
+
+function isDashboardWidgetSize(value: unknown): value is DashboardWidgetSize {
+  return value === "compact" || value === "standard" || value === "wide" || value === "hero";
+}
+
+/** Load persisted widget size tokens, falling back to the product defaults. */
+function loadWidgetSizes(): Record<WidgetId, DashboardWidgetSize> {
+  if (typeof window === "undefined") return { ...DEFAULT_WIDGET_SIZES };
+  try {
+    const raw = localStorage.getItem(LS_WIDGET_SIZES_KEY);
+    if (!raw) return { ...DEFAULT_WIDGET_SIZES };
+    const parsed = JSON.parse(raw) as Partial<Record<WidgetId, DashboardWidgetSize>>;
+    const next = { ...DEFAULT_WIDGET_SIZES };
+    DEFAULT_WIDGET_ORDER.forEach((id) => {
+      if (isDashboardWidgetSize(parsed[id])) {
+        next[id] = parsed[id];
+      }
+    });
+    return next;
+  } catch {
+    return { ...DEFAULT_WIDGET_SIZES };
+  }
+}
+
+function getWidgetLayoutClass(size: DashboardWidgetSize): string {
+  if (size === "compact") return "xl:col-span-3";
+  if (size === "wide") return "xl:col-span-6";
+  if (size === "hero") return "xl:col-span-12 min-h-[300px]";
+  return "xl:col-span-4";
+}
+
 function formatUsd(value: number): string {
   return `$${value.toLocaleString()}`;
 }
@@ -328,6 +385,8 @@ export default function DashboardPage() {
   const [locked, setLocked] = useState(loadLocked);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
   const [aiWidgetsEnabled, setAiWidgetsEnabled] = useState(loadAiWidgetsEnabled);
+  const [widgetSizes, setWidgetSizes] = useState<Record<WidgetId, DashboardWidgetSize>>(loadWidgetSizes);
+  const [reportingYearMode, setReportingYearMode] = useState<ReportingYearMode>(getStoredReportingYearMode);
   const enableAiWidgets = () => setAiWidgetsEnabled(true);
 
   // ── Grant toggle — persisted to localStorage ──
@@ -339,6 +398,7 @@ export default function DashboardPage() {
 
   // ── Drag state (only active in edit mode) ──
   const dragFrom = useRef<number | null>(null);
+  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const visibleWidgetOrder = widgetOrder.filter((id) => !hiddenWidgets.includes(id));
@@ -353,9 +413,10 @@ export default function DashboardPage() {
     setLoading(true);
     setLoadError(null);
     try {
+      const dateBasisQuery = reportingYearMode === "fiscal" ? "?dateBasis=fiscal" : "";
       const [s, r] = await Promise.all([
-        apiFetch<Summary>("/api/reports/summary"),
-        apiFetch<RetentionData>("/api/reports/donor-retention"),
+        apiFetch<Summary>(`/api/reports/summary${dateBasisQuery}`),
+        apiFetch<RetentionData>(`/api/reports/donor-retention${dateBasisQuery}`),
       ]);
       setSummary(s);
       setRetention(r);
@@ -365,9 +426,20 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [reportingYearMode]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const handleReportingModeChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ mode?: ReportingYearMode }>).detail;
+      setReportingYearMode(detail?.mode === "fiscal" ? "fiscal" : "calendar");
+    };
+    window.addEventListener("reporting-year-mode:changed", handleReportingModeChange);
+    return () => {
+      window.removeEventListener("reporting-year-mode:changed", handleReportingModeChange);
+    };
+  }, []);
 
   // Persist widget order to localStorage
   useEffect(() => {
@@ -410,6 +482,11 @@ export default function DashboardPage() {
   useEffect(() => {
     localStorage.setItem(LS_AI_WIDGETS_ENABLED_KEY, aiWidgetsEnabled ? "true" : "false");
   }, [aiWidgetsEnabled]);
+
+  // Persist modular widget sizing independently from widget order.
+  useEffect(() => {
+    localStorage.setItem(LS_WIDGET_SIZES_KEY, JSON.stringify(widgetSizes));
+  }, [widgetSizes]);
 
   const autoGoal = summary?.activeGoalTotal ?? 0;
   const dynamicFallbackGoal = Math.max(autoGoal, summary?.ytdAmount ?? 0, 1000);
@@ -473,7 +550,14 @@ export default function DashboardPage() {
   }
 
   // ── Drag handlers ──
-  function handleDragStart(idx: number) { dragFrom.current = idx; }
+  function handleDragStart(idx: number) {
+    dragFrom.current = idx;
+    setDraggingIdx(idx);
+  }
+
+  function resizeWidget(id: WidgetId, size: DashboardWidgetSize) {
+    setWidgetSizes((current) => ({ ...current, [id]: size }));
+  }
   function handleDragOver(e: React.DragEvent, idx: number) {
     e.preventDefault();
     if (dragFrom.current === null || dragFrom.current === idx) return;
@@ -485,10 +569,12 @@ export default function DashboardPage() {
     if (dragFrom.current === null || dragFrom.current === idx) return;
     moveWidget(dragFrom.current, idx);
     dragFrom.current = null;
+    setDraggingIdx(null);
     setDragOverIdx(null);
   }
   function handleDragEnd() {
     dragFrom.current = null;
+    setDraggingIdx(null);
     setDragOverIdx(null);
   }
 
@@ -499,9 +585,27 @@ export default function DashboardPage() {
       onDragOver: (e: React.DragEvent) => handleDragOver(e, idx),
       onDrop: () => handleDrop(idx),
       onDragEnd: handleDragEnd,
-      isDragging: dragFrom.current === idx,
-      isDragOver: dragOverIdx === idx && dragFrom.current !== idx,
+      isDragging: draggingIdx === idx,
+      isDragOver: dragOverIdx === idx && draggingIdx !== idx,
     };
+  }
+
+  const topKpiWidgets: WidgetId[] = ["revenue", "goal-health", "retention", "engagement-pulse"];
+  const stewardshipWidgets: WidgetId[] = ["start-here", "todays-focus", "actionable-insights", "stewardship-attention"];
+  const intelligenceWidgets: WidgetId[] = ["ai-insights", "ai-opportunities", "ai-chat"];
+  const analyticsWidgets: WidgetId[] = ["giving-trend", "top-donors", "weekly-stats"];
+  const activityWidgets: WidgetId[] = ["recent-donations", "tasks", "meetings"];
+
+  function scrollToDashboardSection(id: string) {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function visibleSectionWidgets(ids: WidgetId[]) {
+    return ids.filter((id) => visibleWidgetOrder.includes(id));
+  }
+
+  function renderWidgetById(id: WidgetId) {
+    return renderWidget(id, visibleWidgetOrder.indexOf(id));
   }
 
   /** Render a single widget by its ID */
@@ -513,6 +617,9 @@ export default function DashboardPage() {
       onMoveDown: () => moveWidget(idx, idx + 1),
       canMoveUp: idx > 0,
       canMoveDown: idx < visibleWidgetOrder.length - 1,
+      size: widgetSizes[id],
+      onResize: (size: DashboardWidgetSize) => resizeWidget(id, size),
+      layoutClassName: getWidgetLayoutClass(widgetSizes[id]),
       ...(editMode ? dragProps(idx) : {}),
     };
 
@@ -594,8 +701,8 @@ export default function DashboardPage() {
         );
       case "giving-trend":
         return (
-          <DashboardWidget key={id} id={id} title="Giving Trend" subtitle={`${new Date().getFullYear()} monthly totals`} className="lg:col-span-2 min-h-[250px]" {...editProps}>
-            <GivingTrendChart includeGrants={includeGrants} />
+          <DashboardWidget key={id} id={id} title="Giving Trend" subtitle={reportingYearMode === "fiscal" ? "Fiscal year monthly totals" : `${new Date().getFullYear()} monthly totals`} className="min-h-[250px]" {...editProps}>
+            <GivingTrendChart includeGrants={includeGrants} dateBasis={reportingYearMode} />
           </DashboardWidget>
         );
       case "recent-donations":
@@ -677,7 +784,7 @@ export default function DashboardPage() {
         );
       case "tasks":
         return (
-          <DashboardWidget key={id} id={id} title="Tasks" subtitle="Open & upcoming" className="lg:row-span-2" {...editProps}>
+          <DashboardWidget key={id} id={id} title="Tasks" subtitle="Open & upcoming" {...editProps}>
             <TasksWidget />
           </DashboardWidget>
         );
@@ -704,94 +811,68 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-2.5">
+    <EnterprisePageShell
+      ribbon={(
+        <div className="space-y-3">
+          <WorkspaceBreadcrumbBar
+            items={[
+              { label: "DonorCRM", href: "/" },
+              { label: "Dashboard" },
+            ]}
+            statusLabel={locked ? "Layout locked" : editMode ? "Editing layout" : reportingYearMode === "fiscal" ? "Fiscal year mode" : "Calendar year mode"}
+            metadata={`Refreshed ${lastRefreshed.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`}
+            primaryAction={<WorkspaceRibbonButton label="New Constituent" href="/constituents/new" variant="primary" />}
+            overflowActions={<WorkspaceRibbonButton label="Record Gift" href="/donations/new" />}
+          />
+          <WorkspaceRibbon>
+            <WorkspaceRibbonGroup label="Views">
+              <WorkspaceRibbonButton label="Overview" onClick={() => scrollToDashboardSection("dashboard-overview")} variant="primary" />
+              <WorkspaceRibbonButton label="Stewardship" onClick={() => scrollToDashboardSection("dashboard-stewardship")} />
+              <WorkspaceRibbonButton label="Giving" onClick={() => scrollToDashboardSection("dashboard-analytics")} />
+              <WorkspaceRibbonButton label="Activity" onClick={() => scrollToDashboardSection("dashboard-activity")} />
+            </WorkspaceRibbonGroup>
+            <WorkspaceRibbonGroup label="Create">
+              <WorkspaceRibbonButton label="New Task" href="/tasks" />
+              <WorkspaceRibbonButton label="Campaign" href="/campaigns" />
+              <WorkspaceRibbonButton label="Letter" href="/letters-printables/generate/template" />
+            </WorkspaceRibbonGroup>
+            <WorkspaceRibbonGroup label="Dashboard">
+              <WorkspaceRibbonButton label="Refresh" onClick={() => void load()} />
+              {!editMode ? (
+                <WorkspaceRibbonButton label="Edit Layout" onClick={() => { if (!locked) setEditMode(true); }} disabled={locked} />
+              ) : (
+                <WorkspaceRibbonButton label="Done" onClick={() => setEditMode(false)} variant="primary" />
+              )}
+              <WorkspaceRibbonButton label={locked ? "Unlock" : "Lock"} onClick={() => setLocked((value) => !value)} />
+              <WorkspaceRibbonButton label="Customize" onClick={() => setShowCustomizeModal(true)} />
+              <WorkspaceRibbonButton label="Reset Sizes" onClick={() => setWidgetSizes({ ...DEFAULT_WIDGET_SIZES })} disabled={locked} />
+            </WorkspaceRibbonGroup>
+          </WorkspaceRibbon>
+        </div>
+      )}
+    >
+      <div className="space-y-5">
+        <section className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold leading-tight text-slate-950">
+              {greeting}, {name}!
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              What&apos;s happening with your fundraising work today.
+            </p>
+          </div>
+          {summary?.freshness?.dataThrough ? (
+            <p className="text-xs text-slate-500">
+              Data through {new Date(summary.freshness.dataThrough).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+            </p>
+          ) : null}
+        </section>
+
       {loadError && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Dashboard data is partially unavailable. {loadError}
         </div>
       )}
-
-      {/* ── Header ── */}
-      <div className="flex items-start justify-between gap-3">
-        {/* Left: greeting */}
-        <div>
-          <h1 className="text-lg sm:text-xl font-semibold text-gray-900 leading-tight">
-            {greeting}, {name}!
-          </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-            Here&apos;s what&apos;s happening today
-          </p>
-        </div>
-
-        {/* Right: refresh + layout controls */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          {/* Refresh info */}
-          <div className="text-right mr-1">
-            <p className="text-xs text-gray-400">
-              Refreshed {lastRefreshed.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-            </p>
-            {summary?.freshness?.dataThrough && (
-              <p className="text-[11px] text-gray-400">
-                Data through {new Date(summary.freshness.dataThrough).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-              </p>
-            )}
-            <button
-              onClick={load}
-              className="text-xs text-green-600 hover:text-green-700 font-medium mt-0.5 transition-colors"
-            >
-              ↻ Refresh
-            </button>
-          </div>
-
-          {/* Lock / unlock toggle */}
-          <button
-            onClick={() => setLocked((v) => !v)}
-            title={locked ? "Dashboard is locked — click to unlock" : "Lock dashboard layout"}
-            className={`p-2 rounded-lg border transition-colors ${
-              locked
-                ? "bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
-                : "border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50"
-            }`}
-          >
-            {locked ? (
-              /* Lock-closed icon */
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            ) : (
-              /* Lock-open icon */
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 018 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-              </svg>
-            )}
-          </button>
-
-          {/* Edit mode toggle */}
-          {!editMode ? (
-            <button
-              onClick={() => { if (!locked) setEditMode(true); }}
-              disabled={locked}
-              title={locked ? "Unlock to edit layout" : "Edit dashboard layout"}
-              className="flex items-center gap-1.5 text-xs font-medium border rounded-lg px-2.5 py-1.5 transition-colors border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-              Edit
-            </button>
-          ) : (
-            <button
-              onClick={() => setEditMode(false)}
-              className="flex items-center gap-1.5 text-xs font-medium border rounded-lg px-2.5 py-1.5 transition-colors bg-green-600 border-green-600 text-white hover:bg-green-700"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-              </svg>
-              Done
-            </button>
-          )}
-        </div>
-      </div>
 
       {/* ── Edit mode banner ── */}
       {editMode && (
@@ -816,10 +897,13 @@ export default function DashboardPage() {
               Customize Layout
             </button>
             <button
-              onClick={() => setWidgetOrder([...DEFAULT_WIDGET_ORDER])}
+              onClick={() => {
+                setWidgetOrder([...DEFAULT_WIDGET_ORDER]);
+                setWidgetSizes({ ...DEFAULT_WIDGET_SIZES });
+              }}
               className="text-xs text-green-600 hover:text-green-800 font-medium px-2 py-1 rounded-lg hover:bg-green-100 transition-colors"
             >
-              Reset
+              Reset Layout
             </button>
             <button
               onClick={() => setHiddenWidgets([])}
@@ -851,10 +935,42 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {/* ── Widget grid ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
-        {visibleWidgetOrder.map((id, idx) => renderWidget(id, idx))}
-      </div>
+      <section id="dashboard-overview" className="scroll-mt-28 space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Overview</h2>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+          {visibleSectionWidgets(topKpiWidgets).map(renderWidgetById)}
+        </div>
+      </section>
+
+      <section id="dashboard-stewardship" className="scroll-mt-28 space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Stewardship And Actions</h2>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+          {visibleSectionWidgets(stewardshipWidgets).map(renderWidgetById)}
+        </div>
+      </section>
+
+      {visibleSectionWidgets(intelligenceWidgets).length > 0 ? (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Steward Intelligence</h2>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+            {visibleSectionWidgets(intelligenceWidgets).map(renderWidgetById)}
+          </div>
+        </section>
+      ) : null}
+
+      <section id="dashboard-analytics" className="scroll-mt-28 space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Giving Analytics</h2>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+          {visibleSectionWidgets(analyticsWidgets).map(renderWidgetById)}
+        </div>
+      </section>
+
+      <section id="dashboard-activity" className="scroll-mt-28 space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Recent Activity</h2>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+          {visibleSectionWidgets(activityWidgets).map(renderWidgetById)}
+        </div>
+      </section>
 
       {/* ── Customize Layout modal ── */}
       {showCustomizeModal && (
@@ -866,6 +982,7 @@ export default function DashboardPage() {
           initialRevenueGoalMode={revenueGoalMode}
           initialManualRevenueGoalAmount={manualRevenueGoalAmount}
           initialHiddenWidgetIds={hiddenWidgets}
+          initialWidgetSizes={widgetSizes}
           onApply={(newOrder, settings) => {
             setWidgetOrder(newOrder as WidgetId[]);
             setRevenueProgressSource(settings.revenueProgressSource);
@@ -873,11 +990,13 @@ export default function DashboardPage() {
             setRevenueGoalMode(settings.revenueGoalMode);
             setManualRevenueGoalAmount(settings.manualRevenueGoalAmount);
             setHiddenWidgets(settings.hiddenWidgetIds as WidgetId[]);
+            setWidgetSizes({ ...DEFAULT_WIDGET_SIZES, ...(settings.widgetSizes as Partial<Record<WidgetId, DashboardWidgetSize>>) });
           }}
           onClose={() => setShowCustomizeModal(false)}
         />
       )}
-    </div>
+      </div>
+    </EnterprisePageShell>
   );
 }
 

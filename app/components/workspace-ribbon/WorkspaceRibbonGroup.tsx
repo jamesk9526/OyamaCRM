@@ -7,13 +7,19 @@ interface WorkspaceRibbonGroupProps {
 }
 
 /**
- * Provides one labeled action group in the workspace ribbon row.
+ * Provides one labeled action group inside a WorkspaceRibbon.
+ * The group label sits above the buttons (Office-ribbon style),
+ * keeping each action cluster visually distinct.
  */
 export default function WorkspaceRibbonGroup({ label, children }: WorkspaceRibbonGroupProps) {
   return (
-    <div className="flex min-w-0 flex-col justify-between gap-1 border-r border-gray-200 pr-2 last:border-r-0 last:pr-0">
-      <div className="flex min-w-0 flex-wrap items-start gap-1">{children}</div>
-      <p className="whitespace-nowrap text-center text-[10px] font-semibold uppercase tracking-wide text-gray-500">{label}</p>
+    <div className="flex min-w-fit flex-col gap-1 rounded-lg border border-slate-100 bg-slate-50 px-2 pt-1.5 pb-1">
+      {/* Buttons row */}
+      <div className="flex flex-wrap items-center gap-1">{children}</div>
+      {/* Group label — below buttons, Office-style */}
+      <p className="text-center text-[9px] font-semibold uppercase tracking-widest text-slate-400 select-none">
+        {label}
+      </p>
     </div>
   );
 }

@@ -266,14 +266,14 @@ export default function CompassionFollowUpsPage() {
         </WorkspaceRibbonGroup>
 
         <WorkspaceRibbonGroup label="Status">
-          <WorkspaceRibbonButton label="Pending" onClick={() => setStatusFilter("PENDING")} variant={statusFilter === "PENDING" ? "primary" : "secondary"} accentTone="blue" />
-          <WorkspaceRibbonButton label="Completed" onClick={() => setStatusFilter("COMPLETED")} variant={statusFilter === "COMPLETED" ? "primary" : "secondary"} accentTone="blue" />
-          <WorkspaceRibbonButton label="All" onClick={() => setStatusFilter("")} variant={!statusFilter ? "primary" : "secondary"} accentTone="blue" />
+          <WorkspaceRibbonButton label="Pending" onClick={() => setStatusFilter("PENDING")} active={statusFilter === "PENDING"} accentTone="blue" />
+          <WorkspaceRibbonButton label="Completed" onClick={() => setStatusFilter("COMPLETED")} active={statusFilter === "COMPLETED"} accentTone="blue" />
+          <WorkspaceRibbonButton label="All" onClick={() => setStatusFilter("")} active={!statusFilter} accentTone="blue" />
         </WorkspaceRibbonGroup>
 
         <WorkspaceRibbonGroup label="Priority">
-          <WorkspaceRibbonButton label="Urgent" onClick={() => setPriorityFilter("URGENT")} variant={priorityFilter === "URGENT" ? "primary" : "secondary"} accentTone="blue" />
-          <WorkspaceRibbonButton label="High" onClick={() => setPriorityFilter("HIGH")} variant={priorityFilter === "HIGH" ? "primary" : "secondary"} accentTone="blue" />
+          <WorkspaceRibbonButton label="Urgent" onClick={() => setPriorityFilter("URGENT")} active={priorityFilter === "URGENT"} accentTone="blue" />
+          <WorkspaceRibbonButton label="High" onClick={() => setPriorityFilter("HIGH")} active={priorityFilter === "HIGH"} accentTone="blue" />
           <WorkspaceRibbonButton label="Clear" onClick={() => { setStatusFilter("PENDING"); setPriorityFilter(""); }} disabled={statusFilter === "PENDING" && !priorityFilter} accentTone="blue" />
         </WorkspaceRibbonGroup>
       </WorkspaceRibbon>

@@ -16,9 +16,24 @@ interface WorkspaceBreadcrumbBarProps {
   accentTone?: "green" | "blue" | "amber";
 }
 
+/** Returns the badge tone for a given status label string. */
+function statusBadgeTone(statusLabel: string, accentTone: "green" | "blue" | "amber"): string {
+  const lc = statusLabel.toLowerCase();
+  if (lc === "working") return "border-green-200 bg-green-50 text-green-700";
+  if (lc === "partially working") return "border-amber-200 bg-amber-50 text-amber-700";
+  if (lc === "demo only") return "border-amber-200 bg-amber-50 text-amber-700";
+  if (lc === "broken") return "border-red-200 bg-red-50 text-red-700";
+  if (lc === "not implemented") return "border-slate-200 bg-slate-50 text-slate-600";
+  // fall back to accent tone
+  if (accentTone === "blue") return "border-blue-200 bg-blue-50 text-blue-700";
+  if (accentTone === "amber") return "border-amber-200 bg-amber-50 text-amber-700";
+  return "border-green-200 bg-green-50 text-green-700";
+}
+
 /**
  * Renders a single-line breadcrumb with compact metadata and right-side actions.
- * This replaces bulky page title cards for tool-heavy CRM workspaces.
+ * Status labels (Working, Partially Working, Demo Only, Broken, Not Implemented)
+ * render with semantic colours regardless of module accent tone.
  */
 export default function WorkspaceBreadcrumbBar({
   items,
@@ -28,16 +43,10 @@ export default function WorkspaceBreadcrumbBar({
   overflowActions,
   accentTone = "green",
 }: WorkspaceBreadcrumbBarProps) {
-  const statusToneClass = accentTone === "blue"
-    ? "border-blue-200 bg-blue-50 text-blue-700"
-    : accentTone === "amber"
-      ? "border-amber-200 bg-amber-50 text-amber-700"
-      : "border-green-200 bg-green-50 text-green-700";
-
   return (
-    <section className="rounded-lg border border-gray-200 bg-white px-3 py-2.5">
+    <section className="rounded-lg border border-slate-200 bg-white px-3 py-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-1 text-sm text-gray-600">
+        <div className="flex min-w-0 flex-wrap items-center gap-1 text-sm text-slate-600">
           {items.map((item, index) => {
             const isLast = index === items.length - 1;
             return (
@@ -47,25 +56,25 @@ export default function WorkspaceBreadcrumbBar({
                     {item.label}
                   </Link>
                 ) : (
-                  <span className={`truncate ${isLast ? "font-semibold text-gray-900" : ""}`}>{item.label}</span>
+                  <span className={`truncate ${isLast ? "font-semibold text-slate-900" : ""}`}>{item.label}</span>
                 )}
                 {!isLast ? (
-                  <span className="text-gray-400" aria-hidden="true">/</span>
+                  <span className="text-slate-300" aria-hidden="true">/</span>
                 ) : null}
               </div>
             );
           })}
 
           {statusLabel ? (
-            <span className={`ml-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusToneClass}`}>
+            <span className={`ml-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusBadgeTone(statusLabel, accentTone)}`}>
               {statusLabel}
             </span>
           ) : null}
 
           {metadata ? (
             <>
-              <span className="mx-1 text-gray-300" aria-hidden="true">|</span>
-              <span className="text-xs text-gray-500">{metadata}</span>
+              <span className="mx-1 text-slate-300" aria-hidden="true">|</span>
+              <span className="text-xs text-slate-500">{metadata}</span>
             </>
           ) : null}
         </div>

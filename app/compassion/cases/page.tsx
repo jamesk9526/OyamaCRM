@@ -267,9 +267,9 @@ export default function CompassionCasesPage() {
         </WorkspaceRibbonGroup>
 
         <WorkspaceRibbonGroup label="Status">
-          <WorkspaceRibbonButton label="All" onClick={() => setStatusFilter("")} variant={!statusFilter ? "primary" : "secondary"} accentTone="blue" />
-          <WorkspaceRibbonButton label="Open" onClick={() => setStatusFilter("OPEN")} variant={statusFilter === "OPEN" ? "primary" : "secondary"} accentTone="blue" />
-          <WorkspaceRibbonButton label="In Progress" onClick={() => setStatusFilter("IN_PROGRESS")} variant={statusFilter === "IN_PROGRESS" ? "primary" : "secondary"} accentTone="blue" />
+          <WorkspaceRibbonButton label="All" onClick={() => setStatusFilter("")} active={!statusFilter} accentTone="blue" />
+          <WorkspaceRibbonButton label="Open" onClick={() => setStatusFilter("OPEN")} active={statusFilter === "OPEN"} accentTone="blue" />
+          <WorkspaceRibbonButton label="In Progress" onClick={() => setStatusFilter("IN_PROGRESS")} active={statusFilter === "IN_PROGRESS"} accentTone="blue" />
         </WorkspaceRibbonGroup>
 
         <WorkspaceRibbonGroup label="Filters">

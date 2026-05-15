@@ -276,18 +276,18 @@ export default function TasksPage() {
           <WorkspaceRibbonButton
             label={`My Work (${assignedToMe})`}
             onClick={() => setFocusMode("my")}
-            variant={focusMode === "my" ? "primary" : "secondary"}
+            active={focusMode === "my"}
           />
           <WorkspaceRibbonButton
             label="Team Queue"
             onClick={() => setFocusMode(isAdmin ? "team" : "my")}
             disabled={!isAdmin}
-            variant={focusMode === "team" ? "primary" : "secondary"}
+            active={focusMode === "team"}
           />
           <WorkspaceRibbonButton
             label={`Follow-Ups (${followUpCount})`}
             onClick={() => setFocusMode("followups")}
-            variant={focusMode === "followups" ? "primary" : "secondary"}
+            active={focusMode === "followups"}
           />
           <WorkspaceRibbonButton
             label="Completed"

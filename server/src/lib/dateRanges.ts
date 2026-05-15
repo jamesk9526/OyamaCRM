@@ -22,6 +22,49 @@ export function getYearRange(year: number): { gte: Date; lt: Date } {
   };
 }
 
+/** Bounds a fiscal year start month to January-December. */
+export function normalizeFiscalYearStart(month: number | null | undefined): number {
+  const parsed = Number.parseInt(String(month ?? 1), 10);
+  return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 12) : 1;
+}
+
+/** Returns the month number that closes a 12-month fiscal year. */
+export function getFiscalYearEndMonth(startMonth: number): number {
+  const normalizedStart = normalizeFiscalYearStart(startMonth);
+  return ((normalizedStart + 10) % 12) + 1;
+}
+
+/**
+ * Returns the fiscal year label for a date.
+ * For non-January starts, the label is the calendar year in which the fiscal year ends.
+ */
+export function getFiscalYearForDate(date: Date = new Date(), fiscalYearStart = 1): number {
+  const startMonth = normalizeFiscalYearStart(fiscalYearStart);
+  if (startMonth === 1) return date.getFullYear();
+  return date.getMonth() + 1 >= startMonth ? date.getFullYear() + 1 : date.getFullYear();
+}
+
+/** Prisma-compatible date filter for a full fiscal year. */
+export function getFiscalYearRange(fiscalYear: number, fiscalYearStart = 1): { gte: Date; lt: Date } {
+  const startMonth = normalizeFiscalYearStart(fiscalYearStart);
+  const startYear = startMonth === 1 ? fiscalYear : fiscalYear - 1;
+  const endYear = startMonth === 1 ? fiscalYear + 1 : fiscalYear;
+  return {
+    gte: new Date(startYear, startMonth - 1, 1),
+    lt: new Date(endYear, startMonth - 1, 1),
+  };
+}
+
+/** Prisma-compatible fiscal YTD filter: fiscal start through right now. */
+export function getFiscalYTDRange(fiscalYearStart = 1, now = new Date()): { gte: Date; lte: Date } {
+  const fiscalYear = getFiscalYearForDate(now, fiscalYearStart);
+  const range = getFiscalYearRange(fiscalYear, fiscalYearStart);
+  return {
+    gte: range.gte,
+    lte: now,
+  };
+}
+
 /**
  * Prisma-compatible date filter for a specific calendar month.
  * @param year  Four-digit year.

@@ -1,17 +1,22 @@
-/** Horizontal grouped ribbon toolbar for project-library-first workspaces. */
+/** Wrapping grouped ribbon toolbar for project-library-first workspaces. */
 import type { ReactNode } from "react";
 
 interface WorkspaceRibbonProps {
   children: ReactNode;
+  /** Override: scroll horizontally rather than wrapping to a second row. Default: wrap. */
+  scrollable?: boolean;
 }
 
 /**
- * Wraps grouped actions in a single horizontal ribbon row.
+ * Wraps grouped actions in a horizontal command surface.
+ * Groups wrap to the next row by default; pass scrollable for single-row ribbon.
  */
-export default function WorkspaceRibbon({ children }: WorkspaceRibbonProps) {
+export default function WorkspaceRibbon({ children, scrollable = false }: WorkspaceRibbonProps) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-gradient-to-b from-gray-50 to-white p-2">
-      <div className="flex min-w-max items-stretch gap-2">{children}</div>
+    <div className={`rounded-xl border border-slate-200 bg-white shadow-sm${scrollable ? " overflow-x-auto scrollbar-none" : ""}`}>
+      <div className={`flex items-stretch gap-1.5 px-1.5 py-1.5${scrollable ? " min-w-max" : " flex-wrap"}`}>
+        {children}
+      </div>
     </div>
   );
 }

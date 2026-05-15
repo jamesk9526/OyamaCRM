@@ -1,7 +1,7 @@
-/** Signature management route for letters workspace. */
-import LetterSignaturesManager from "@/app/components/letters/LetterSignaturesManager";
+/** Signature blocks have moved to centralized Branding Settings. */
+import { redirect } from "next/navigation";
 
-/** Renders reusable signer block management tools. */
+/** Redirects to the canonical signature management route in Settings. */
 export default function LettersSignaturesPage() {
-  return <LetterSignaturesManager />;
+  redirect("/settings/branding/signatures");
 }
