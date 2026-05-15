@@ -33,6 +33,7 @@ import {
   mapAppointmentsToEvents,
   sortAppointments,
 } from "./appointmentUtils";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 type WorkspaceView = "calendar" | "list" | "split";
 type SortBy = "startTime" | "client" | "appointmentType" | "status" | "staff" | "location";
@@ -108,6 +109,13 @@ export default function AppointmentsWorkspace() {
     appointment: null,
     initialStartTime: null,
   });
+  const [pendingCalendarAction, setPendingCalendarAction] = useState<{
+    title: string;
+    description: string;
+    apply: () => Promise<void>;
+    revert: () => void;
+  } | null>(null);
+  const [applyingCalendarAction, setApplyingCalendarAction] = useState(false);
 
   const isPopoutTab = searchParams.get("popout") === "1";
 
@@ -239,42 +247,49 @@ export default function AppointmentsWorkspace() {
   }
 
   /** Handles calendar drag-drop move operations. */
-  async function onEventDrop(info: EventDropArg) {
-    const accepted = window.confirm("Reschedule this appointment to the new date/time?");
-    if (!accepted) {
-      info.revert();
-      return;
-    }
-
-    try {
-      await saveMovedAppointment({
-        appointmentId: info.event.id,
-        startIso: info.event.start?.toISOString() ?? "",
-        endIso: info.event.end?.toISOString() ?? null,
-      });
-    } catch (requestError) {
-      info.revert();
-      setError(requestError instanceof Error ? requestError.message : "Could not reschedule appointment.");
-    }
+  function onEventDrop(info: EventDropArg) {
+    setPendingCalendarAction({
+      title: "Confirm Reschedule",
+      description: "Reschedule this appointment to the new date/time?",
+      apply: async () => {
+        await saveMovedAppointment({
+          appointmentId: info.event.id,
+          startIso: info.event.start?.toISOString() ?? "",
+          endIso: info.event.end?.toISOString() ?? null,
+        });
+      },
+      revert: info.revert,
+    });
   }
 
   /** Handles calendar resize operations for duration changes. */
-  async function onEventResize(info: EventResizeDoneArg) {
-    const accepted = window.confirm("Update appointment duration to match this resize?");
-    if (!accepted) {
-      info.revert();
-      return;
-    }
+  function onEventResize(info: EventResizeDoneArg) {
+    setPendingCalendarAction({
+      title: "Confirm Duration Update",
+      description: "Update appointment duration to match this resize?",
+      apply: async () => {
+        await saveMovedAppointment({
+          appointmentId: info.event.id,
+          startIso: info.event.start?.toISOString() ?? "",
+          endIso: info.event.end?.toISOString() ?? null,
+        });
+      },
+      revert: info.revert,
+    });
+  }
 
+  /** Applies one pending calendar move/resize action after modal confirmation. */
+  async function confirmCalendarAction() {
+    if (!pendingCalendarAction) return;
+    setApplyingCalendarAction(true);
     try {
-      await saveMovedAppointment({
-        appointmentId: info.event.id,
-        startIso: info.event.start?.toISOString() ?? "",
-        endIso: info.event.end?.toISOString() ?? null,
-      });
+      await pendingCalendarAction.apply();
+      setPendingCalendarAction(null);
     } catch (requestError) {
-      info.revert();
-      setError(requestError instanceof Error ? requestError.message : "Could not update appointment duration.");
+      pendingCalendarAction.revert();
+      setError(requestError instanceof Error ? requestError.message : "Could not update appointment timing.");
+    } finally {
+      setApplyingCalendarAction(false);
     }
   }
 
@@ -588,6 +603,41 @@ export default function AppointmentsWorkspace() {
         onClose={() => setEditorState({ open: false, mode: "create", appointment: null, initialStartTime: null })}
         onSaved={loadAppointments}
       />
+      {pendingCalendarAction && (
+        <WorkspaceSetupModal
+          title={pendingCalendarAction.title}
+          subtitle="Calendar drag/resize actions require explicit confirmation before saving."
+          onClose={() => {
+            pendingCalendarAction.revert();
+            setPendingCalendarAction(null);
+          }}
+          maxWidthClassName="max-w-lg"
+        >
+          <div className="px-6 pb-6 pt-14 space-y-5">
+            <p className="text-sm text-gray-700">{pendingCalendarAction.description}</p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  pendingCalendarAction.revert();
+                  setPendingCalendarAction(null);
+                }}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmCalendarAction()}
+                disabled={applyingCalendarAction}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {applyingCalendarAction ? "Saving..." : "Confirm"}
+              </button>
+            </div>
+          </div>
+        </WorkspaceSetupModal>
+      )}
     </div>
   );
 }

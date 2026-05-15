@@ -6,6 +6,10 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
 interface Event {
   id: string;
@@ -271,17 +275,38 @@ export default function EventCheckInPage() {
   }
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Event Check-In</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Fast, volunteer-friendly check-in for event night
-        </p>
-      </div>
+    <div className="p-6 space-y-6">
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Events CRM", href: "/events/workspace" },
+          { label: "Check-In" },
+        ]}
+        statusLabel={eventScoped ? "Event Scoped" : "Multi-Event"}
+        metadata={`${checkedInCount.toLocaleString()} checked in · ${notCheckedInCount.toLocaleString()} remaining · ${totalGuests.toLocaleString()} total`}
+        accentTone="amber"
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="View">
+          <WorkspaceRibbonButton label="Not Checked" onClick={() => setCheckedInFilter("false")} variant={checkedInFilter === "false" ? "primary" : "secondary"} accentTone="amber" />
+          <WorkspaceRibbonButton label="Checked In" onClick={() => setCheckedInFilter("true")} variant={checkedInFilter === "true" ? "primary" : "secondary"} accentTone="amber" />
+          <WorkspaceRibbonButton label="All Guests" onClick={() => setCheckedInFilter("")} variant={!checkedInFilter ? "primary" : "secondary"} accentTone="amber" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Mode">
+          <WorkspaceRibbonButton label="Search" onClick={() => setActiveTab("search")} variant={activeTab === "search" ? "primary" : "secondary"} accentTone="amber" />
+          <WorkspaceRibbonButton label="Scan" onClick={() => setActiveTab("scan")} variant={activeTab === "scan" ? "primary" : "secondary"} accentTone="amber" />
+          <WorkspaceRibbonButton label="Tables" onClick={() => setActiveTab("tables")} variant={activeTab === "tables" ? "primary" : "secondary"} accentTone="amber" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Actions">
+          <WorkspaceRibbonButton label="Refresh" onClick={() => void loadData()} accentTone="amber" />
+          <WorkspaceRibbonButton label={autoRefresh ? "Auto On" : "Auto Off"} onClick={() => setAutoRefresh((value) => !value)} variant={autoRefresh ? "primary" : "secondary"} accentTone="amber" />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       {/* Event Selector & Auto-Refresh */}
-      <div className="mb-6 flex flex-col md:flex-row gap-3">
+      <div className="flex flex-col md:flex-row gap-3">
         <div className="flex-1">
           <label className="block text-sm font-semibold text-gray-700 mb-2">Event</label>
           <select
@@ -321,7 +346,7 @@ export default function EventCheckInPage() {
       ) : (
         <>
           {/* Metrics — visible for both tabs to track event progress */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-white p-4 rounded-lg border border-gray-200">
               <p className="text-xs text-gray-500 uppercase font-medium">Checked In</p>
               <p className="text-2xl font-bold text-green-600 mt-1">{checkedInCount}</p>
@@ -341,7 +366,7 @@ export default function EventCheckInPage() {
           </div>
 
           {/* Tab switcher — Search (name/email) vs. Scan (QR / printed code) */}
-          <div className="flex gap-0 mb-4 border-b border-gray-200">
+          <div className="flex gap-0 border-b border-gray-200">
             <button
               onClick={() => setActiveTab("search")}
               className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${

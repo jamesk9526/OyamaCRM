@@ -1,6 +1,6 @@
 # OyamaWebMaster Data Safety
 
-Last updated: 2026-05-13
+Last updated: 2026-05-14
 
 ## Safety Goals
 
@@ -31,17 +31,21 @@ Last updated: 2026-05-13
 5. Audit logging
 - Site create/update/archive/restore/duplicate actions log audit events.
 
+6. Immutable publish snapshots and rollback history
+- Publish and rollback flows persist immutable version snapshots in `webmaster_publish_versions`.
+- Rollback actions are confirmation-gated and produce auditable version history.
+
 ## Risk Areas Still Open
 
 - No formal backup snapshot API before high-risk changes.
-- No publish-version rollback table yet.
+- External deployment target rollback adapters are not implemented.
 - No retention policy automation for temporary sites.
 
 ## Required Next Steps
 
 1. Add snapshot export before archive/major metadata changes.
 2. Add restore validation checks for linked module dependencies.
-3. Add publish version history for rollback-safe operations.
+3. Add deployment-target rollback adapters and recovery checks for off-platform publish failures.
 4. Add data retention and expiration worker for temporary sites.
 5. Add monitoring for failed lifecycle operations.
 

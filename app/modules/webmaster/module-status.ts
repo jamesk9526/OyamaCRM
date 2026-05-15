@@ -77,8 +77,8 @@ export const WEBMASTER_MODULE_STATUSES: WebmasterModuleStatus[] = [
   {
     key: "publishing",
     name: "Publishing",
-    status: "Not Started",
-    note: "Publish targets, history, and rollback are not yet implemented.",
+    status: "Working",
+    note: "Publish readiness, immutable publish snapshots, and rollback workflows are now API-backed and operational.",
   },
   {
     key: "integrations",
@@ -89,8 +89,8 @@ export const WEBMASTER_MODULE_STATUSES: WebmasterModuleStatus[] = [
   {
     key: "preflight",
     name: "Preflight",
-    status: "Not Started",
-    note: "Preflight checks for export/publish readiness are planned.",
+    status: "Working",
+    note: "Preflight checks for path validity, home page, SEO metadata, and target readiness are live in publishing workflow.",
   },
 ];
 

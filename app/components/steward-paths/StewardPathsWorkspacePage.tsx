@@ -4,6 +4,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
 interface StewardPathTemplate {
   id: string;
@@ -66,6 +70,7 @@ export default function StewardPathsWorkspacePage() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [viewFilter, setViewFilter] = useState<"all" | "active" | "archived">("all");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -86,6 +91,14 @@ export default function StewardPathsWorkspacePage() {
   }, [load]);
 
   const activeCount = useMemo(() => items.filter((item) => item.status === "ACTIVE").length, [items]);
+  const visibleItems = useMemo(
+    () => items.filter((item) => {
+      if (viewFilter === "active") return item.status === "ACTIVE";
+      if (viewFilter === "archived") return item.status === "ARCHIVED";
+      return true;
+    }),
+    [items, viewFilter],
+  );
 
   async function toggleStatus(item: StewardPathTemplate): Promise<void> {
     setBusyId(item.id);
@@ -168,27 +181,56 @@ export default function StewardPathsWorkspacePage() {
 
   return (
     <div className="space-y-4 p-4 md:p-6">
-      <div className="rounded-xl border border-green-100 bg-white p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900">Saved Visual Paths</h1>
-            <p className="text-sm text-gray-600">
-              Canonical Steward Paths workspace for build, run, and governance operations.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link href="/steward-paths/builder" className="rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700">
-              New Visual Path
-            </Link>
-            <button type="button" onClick={() => void load()} className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
-              Refresh
-            </button>
-          </div>
-        </div>
-        <div className="mt-3 text-xs text-gray-500">
-          {items.length} total paths · {activeCount} active
-        </div>
-      </div>
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Donor CRM", href: "/" },
+          { label: "Steward Paths", href: "/steward-paths" },
+          { label: "Saved Visual Paths" },
+        ]}
+        metadata={`${items.length} total paths · ${activeCount} active`}
+        primaryAction={(
+          <Link href="/steward-paths/builder" className="rounded-md bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700">
+            New Path
+          </Link>
+        )}
+        overflowActions={(
+          <button type="button" onClick={() => void load()} className="rounded-md border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+            Refresh
+          </button>
+        )}
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="Library">
+          <WorkspaceRibbonButton
+            label="Saved Paths"
+            onClick={() => setViewFilter("all")}
+            variant={viewFilter === "all" ? "primary" : "secondary"}
+          />
+          <WorkspaceRibbonButton
+            label="Active Only"
+            onClick={() => setViewFilter("active")}
+            variant={viewFilter === "active" ? "primary" : "secondary"}
+          />
+          <WorkspaceRibbonButton
+            label="Archived"
+            onClick={() => setViewFilter("archived")}
+            variant={viewFilter === "archived" ? "primary" : "secondary"}
+          />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Create">
+          <WorkspaceRibbonButton label="New Path" href="/steward-paths/builder" variant="primary" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Run">
+          <WorkspaceRibbonButton label="Refresh" onClick={() => void load()} />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Help">
+          <WorkspaceRibbonButton label="How Paths Work" href="/help?scope=steward-paths" />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
         Legacy /automations builder is deprecated. Use this workspace for all new and edited Steward Paths.
@@ -199,11 +241,11 @@ export default function StewardPathsWorkspacePage() {
 
       {loading ? (
         <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-500">Loading paths...</div>
-      ) : items.length === 0 ? (
+      ) : visibleItems.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-500">No saved visual paths found.</div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {items.map((item) => {
+          {visibleItems.map((item) => {
             const shareState = parseShareSettings(item.triggerConfig);
             const unsupportedStepCount = item.steps.filter((step) => step.stepType === "MANUAL_ACTION").length;
             return (

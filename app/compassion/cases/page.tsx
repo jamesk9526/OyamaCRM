@@ -4,6 +4,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
 /** Case as returned from GET /api/compassion/cases */
 interface CompassionCase {
@@ -192,7 +196,7 @@ function NewCaseModal({ onClose, onCreated, clientList, staffList }: {
 /**
  * CompassionCasesPage: full case list with search, status filter, and create modal.
  * Fetches from GET /api/compassion/cases. Clients list is loaded for the create form.
- * TODO: enforce Compassion workspace permission
+ * Access enforcement is handled by CompassionLayout and /api/compassion middleware.
  */
 export default function CompassionCasesPage() {
   const [cases, setCases] = useState<CompassionCase[]>([]);
@@ -246,22 +250,32 @@ export default function CompassionCasesPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 text-xl">📋</div>
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900">Cases</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Open, manage, and close client cases.</p>
-          </div>
-        </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
-        >
-          + New Case
-        </button>
-      </div>
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Compassion CRM", href: "/compassion/dashboard" },
+          { label: "Cases" },
+        ]}
+        statusLabel={loading ? "Loading" : "Working"}
+        metadata={`${filteredCases.length.toLocaleString()} case${filteredCases.length === 1 ? "" : "s"} · ${statusFilter || "all statuses"}`}
+        accentTone="blue"
+        primaryAction={<WorkspaceRibbonButton label="New Case" onClick={() => setShowModal(true)} variant="primary" accentTone="blue" />}
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="Create">
+          <WorkspaceRibbonButton label="New Case" onClick={() => setShowModal(true)} variant="primary" accentTone="blue" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Status">
+          <WorkspaceRibbonButton label="All" onClick={() => setStatusFilter("")} variant={!statusFilter ? "primary" : "secondary"} accentTone="blue" />
+          <WorkspaceRibbonButton label="Open" onClick={() => setStatusFilter("OPEN")} variant={statusFilter === "OPEN" ? "primary" : "secondary"} accentTone="blue" />
+          <WorkspaceRibbonButton label="In Progress" onClick={() => setStatusFilter("IN_PROGRESS")} variant={statusFilter === "IN_PROGRESS" ? "primary" : "secondary"} accentTone="blue" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Filters">
+          <WorkspaceRibbonButton label="Clear" onClick={() => { setSearch(""); setStatusFilter(""); }} disabled={!search && !statusFilter} accentTone="blue" />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">

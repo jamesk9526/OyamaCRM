@@ -51,6 +51,15 @@ const AVAILABLE_APPS: DrawerApp[] = [
     tone: "green",
     helper: "Standalone",
   },
+  {
+    id: "admin-reports",
+    label: "Admin Reports",
+    description: "Administrative reporting workspace for donor, compassion, governance, and data quality ops.",
+    href: "/reports?module=admin",
+    tone: "blue",
+    helper: "Reports",
+    adminOnly: true,
+  },
 ];
 
 /** Visual grid icon (3×3 dots) used as the trigger button */

@@ -8,6 +8,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -219,17 +223,30 @@ export default function EventTicketsPage() {
   const tableTypes = ticketTypes.filter((t) => t.isTable).length;
 
   return (
-    <div className="p-6">
-      {/* Page header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Ticket Types</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Configure ticket pricing, capacity, table tickets, and order limits for your events.
-        </p>
-      </div>
+    <div className="p-6 space-y-6">
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Events CRM", href: "/events/workspace" },
+          { label: "Tickets" },
+        ]}
+        statusLabel={eventScoped ? "Event Scoped" : "All Events"}
+        metadata={`${ticketTypes.length.toLocaleString()} ticket type${ticketTypes.length === 1 ? "" : "s"} · ${activeTypes.toLocaleString()} active`}
+        accentTone="amber"
+        primaryAction={selectedEventId ? <WorkspaceRibbonButton label="Add Ticket" onClick={openCreateModal} variant="primary" accentTone="amber" /> : undefined}
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="Create">
+          <WorkspaceRibbonButton label="Add Ticket" onClick={openCreateModal} variant="primary" disabled={!selectedEventId} accentTone="amber" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Actions">
+          <WorkspaceRibbonButton label="Refresh" onClick={() => void loadTicketTypes()} disabled={!selectedEventId} accentTone="amber" />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       {/* Event selector */}
-      <div className="mb-6 flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
         <div className="flex-1 max-w-md">
           <label className="block text-sm font-semibold text-gray-700 mb-1">Event</label>
           <select

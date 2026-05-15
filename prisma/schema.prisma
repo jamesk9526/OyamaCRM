@@ -81,6 +81,20 @@ enum TaskType {
   OTHER
 }
 
+enum NotificationStatus {
+  UNREAD
+  READ
+  DISMISSED
+  ARCHIVED
+}
+
+enum NotificationSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
 enum CampaignCategory {
   ANNUAL_FUND
   CAPITAL
@@ -344,6 +358,7 @@ model Organization {
   events         Event[]
   users          User[]
   meetings       Meeting[]
+  tasks          Task[]
   settings       OrganizationSettings?
   emailCampaigns EmailCampaign[]
   customFields   CustomField[]
@@ -387,6 +402,8 @@ model Organization {
   letterSignatureBlocks LetterSignatureBlock[]
   letterTemplates      LetterTemplate[]
   generatedLetters     GeneratedLetter[]
+  notifications        Notification[]
+  taskTemplatePresets  TaskTemplatePreset[]
 }
 
 model OrganizationSettings {
@@ -430,6 +447,8 @@ model User {
   organization     Organization     @relation(fields: [organizationId], references: [id])
   assignedTasks    Task[]           @relation("TaskAssignee")
   createdTasks     Task[]           @relation("TaskCreator")
+  completedTasks   Task[]           @relation("TaskCompletedBy")
+  notifications    Notification[]   @relation("NotificationUser")
   assignedMeetings Meeting[]        @relation("MeetingAssignee")
   createdMeetings  Meeting[]        @relation("MeetingCreator")
   activities       Activity[]
@@ -702,9 +721,11 @@ model Campaign {
 
 model Task {
   id            String  @id @default(cuid())
+  organizationId String?
   constituentId String?
   assigneeId    String?
   createdById   String?
+  completedById String?
 
   title       String
   description String?      @db.Text
@@ -712,7 +733,16 @@ model Task {
   status      TaskStatus   @default(PENDING)
   priority    TaskPriority @default(MEDIUM)
   dueDate     DateTime?
+  reminderAt  DateTime?
+  snoozedUntil DateTime?
+  archivedAt  DateTime?
   completedAt DateTime?
+  outcome     String?      @db.Text
+  sourceModule String?
+  sourceType   String?
+  sourceId     String?
+  checklistJson Json?
+  metadata      Json?
   generatedLetterId       String?
   stewardPathEnrollmentId String?
   stewardPathStepRunId    String?
@@ -720,16 +750,75 @@ model Task {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  organization Organization? @relation(fields: [organizationId], references: [id])
   constituent Constituent? @relation(fields: [constituentId], references: [id])
   assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
   createdBy   User?        @relation("TaskCreator", fields: [createdById], references: [id])
+  completedBy User?        @relation("TaskCompletedBy", fields: [completedById], references: [id])
   activities  Activity[]
   meeting     Meeting?     @relation(fields: [meetingId], references: [id])
   meetingId   String?
 
+  @@index([organizationId])
+  @@index([assigneeId, status, dueDate])
+  @@index([status, archivedAt])
+  @@index([sourceModule, sourceType, sourceId])
   @@index([generatedLetterId])
   @@index([stewardPathEnrollmentId])
   @@index([stewardPathStepRunId])
+}
+
+model TaskTemplatePreset {
+  id                String   @id @default(cuid())
+  organizationId    String
+  name              String
+  title             String
+  taskType          TaskType @default(FOLLOW_UP)
+  defaultPriority   TaskPriority @default(MEDIUM)
+  defaultDueOffsetDays Int   @default(1)
+  description       String?  @db.Text
+  checklistJson     Json?
+  suggestedReminderHours Int?
+  workflowCategory  String?
+  isBuiltIn         Boolean  @default(false)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, isActive])
+  @@unique([organizationId, name])
+}
+
+model Notification {
+  id            String             @id @default(cuid())
+  organizationId String
+  userId        String
+  module        String
+  sourceType    String
+  sourceId      String?
+  title         String
+  message       String             @db.Text
+  href          String
+  severity      NotificationSeverity @default(MEDIUM)
+  status        NotificationStatus @default(UNREAD)
+  actionLabel   String?
+  metadata      Json?
+  createdAt     DateTime           @default(now())
+  readAt        DateTime?
+  dismissedAt   DateTime?
+  snoozedUntil  DateTime?
+  expiresAt     DateTime?
+  archivedAt    DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation("NotificationUser", fields: [userId], references: [id])
+
+  @@index([organizationId, userId, status])
+  @@index([organizationId, userId, createdAt])
+  @@index([userId, snoozedUntil])
+  @@index([sourceType, sourceId])
 }
 
 // ─── Meetings ─────────────────────────────────────────────────────────────────

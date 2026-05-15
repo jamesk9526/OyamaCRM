@@ -4,6 +4,10 @@
 import { useEffect, useMemo, useState } from "react";
 import MergeWorkflow from "./merge/MergeWorkflow";
 import { apiFetch } from "@/app/lib/auth-client";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
 interface Constituent {
   id: string;
@@ -114,15 +118,40 @@ export default function DataToolsPage() {
     downloadCsv("oyamacrm-donations.csv", csv);
   }
 
+  function scrollToSection(id: string) {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900">Data Tools</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Export real data, import constituents, detect duplicates, and monitor profile quality.</p>
-      </div>
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Donor CRM", href: "/" },
+          { label: "Data Tools" },
+        ]}
+        metadata={`${constituents.length} constituents · ${donations.length} donations loaded`}
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="Import">
+          <WorkspaceRibbonButton label="Import Constituents" href="/data-tools/import" variant="primary" />
+          <WorkspaceRibbonButton label="Import Donations" href="/data-tools/import/donation" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Export">
+          <WorkspaceRibbonButton label="Export Constituents" onClick={exportConstituents} disabled={loading} />
+          <WorkspaceRibbonButton label="Export Donations" onClick={exportDonations} disabled={loading} />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Quality">
+          <WorkspaceRibbonButton label="Import Area" onClick={() => scrollToSection("data-tools-import")} />
+          <WorkspaceRibbonButton label="Quality Metrics" onClick={() => scrollToSection("data-tools-quality")} />
+          <WorkspaceRibbonButton label="Merge Records" onClick={() => scrollToSection("data-tools-merge")} />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       {/* ── Import Constituents (link to visual mapper) ── */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div id="data-tools-import" className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-sm font-semibold text-gray-900">Import Constituents</h2>
@@ -190,7 +219,7 @@ export default function DataToolsPage() {
       </div>
 
       {/* ── Data Quality ── */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+      <div id="data-tools-quality" className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
         <h2 className="text-sm font-semibold text-gray-900">Data Quality</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <QualityCard label="Missing Email" value={quality.missingEmail} hint="Profiles without an email address." />
@@ -200,7 +229,9 @@ export default function DataToolsPage() {
       </div>
 
       {/* ── Merge Duplicate Records ── */}
-      <MergeWorkflow constituents={constituents} />
+      <div id="data-tools-merge">
+        <MergeWorkflow constituents={constituents} />
+      </div>
     </div>
   );
 }

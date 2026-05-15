@@ -29,6 +29,7 @@ import { requireRole } from "../middleware/requireRole.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
 import { parseStewardAiConfig, runStewardAiChat } from "../services/steward-ai-ollama.js";
+import { withStewardAiTask } from "../services/steward-ai-runtime-status.js";
 import {
   buildDailyStewardThoughtFallback,
   buildDeterministicEmailDraft,
@@ -1351,14 +1352,24 @@ async function getOrCreateDailyThought(params: {
         `- highOpportunityCount: ${context.highOpportunityCount}`,
       ].join("\n");
 
-      const aiResult = await runStewardAiChat(
-        aiConfig,
-        [{ role: "user", content: aiPrompt }],
+      const aiResult = await withStewardAiTask(
         {
-          model: aiConfig.model,
-          temperature: 0.22,
-          maxTokens: 420,
-        }
+          organizationId: params.organizationId,
+          enabled: true,
+          config: aiConfig,
+          label: "Generating daily stewardship thought",
+          status: "thinking",
+          fallbackOnError: true,
+        },
+        () => runStewardAiChat(
+          aiConfig,
+          [{ role: "user", content: aiPrompt }],
+          {
+            model: aiConfig.model,
+            temperature: 0.22,
+            maxTokens: 420,
+          }
+        )
       );
 
       thought = normalizeDailyThoughtAiResponse(aiResult.content, fallbackThought);
@@ -1469,52 +1480,6 @@ router.get("/summary", async (req, res) => {
       atRiskCadenceBroken: 0,
       monthlyGivingCandidates: 0,
       thankYousNeeded: 0,
-      updatedAt: new Date().toISOString(),
-    });
-    return;
-  }
-
-  const aiEnabled = await isStewardAiEnabled(organizationId);
-  if (!aiEnabled) {
-    const [recentDonations, pendingThankYous] = await Promise.all([
-      prisma.donation.findMany({
-        where: {
-          constituent: { organizationId },
-          status: "COMPLETED",
-          date: { gte: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) },
-        },
-        select: {
-          constituentId: true,
-          isRecurring: true,
-        },
-        take: 12000,
-      }),
-      prisma.task.count({
-        where: {
-          constituent: { organizationId },
-          type: "THANK_YOU",
-          status: { in: ["PENDING", "IN_PROGRESS"] },
-        },
-      }),
-    ]);
-
-    const donationCountByConstituent = new Map<string, { total: number; recurring: number }>();
-    for (const donation of recentDonations) {
-      const entry = donationCountByConstituent.get(donation.constituentId) ?? { total: 0, recurring: 0 };
-      entry.total += 1;
-      if (donation.isRecurring) entry.recurring += 1;
-      donationCountByConstituent.set(donation.constituentId, entry);
-    }
-
-    const monthlyGivingCandidates = Array.from(donationCountByConstituent.values()).filter(
-      (entry) => entry.total >= 3 && entry.recurring === 0
-    ).length;
-
-    res.json({
-      highOpportunityDonors: 0,
-      atRiskCadenceBroken: 0,
-      monthlyGivingCandidates,
-      thankYousNeeded: pendingThankYous,
       updatedAt: new Date().toISOString(),
     });
     return;
@@ -1717,12 +1682,6 @@ router.get("/opportunities", async (req, res) => {
     return;
   }
 
-  const aiEnabled = await isStewardAiEnabled(organizationId);
-  if (!aiEnabled) {
-    res.json([]);
-    return;
-  }
-
   await ensureStewardSignalsIndexCurrent(organizationId);
 
   const parsedLimit = Number.parseInt((req.query.limit as string) ?? "50", 10);
@@ -1744,12 +1703,6 @@ router.get("/task-suggestions", async (req, res) => {
     return;
   }
 
-  const aiEnabled = await isStewardAiEnabled(organizationId);
-  if (!aiEnabled) {
-    res.json([]);
-    return;
-  }
-
   await ensureStewardSignalsIndexCurrent(organizationId);
 
   const parsedLimit = Number.parseInt((req.query.limit as string) ?? "30", 10);
@@ -1767,21 +1720,6 @@ router.get("/task-suggestions", async (req, res) => {
 router.get("/lapse-radar", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
-    res.json({
-      cohorts: {
-        low: 0,
-        medium: 0,
-        high: 0,
-        critical: 0,
-      },
-      sample: [],
-      updatedAt: new Date().toISOString(),
-    });
-    return;
-  }
-
-  const aiEnabled = await isStewardAiEnabled(organizationId);
-  if (!aiEnabled) {
     res.json({
       cohorts: {
         low: 0,
@@ -1947,14 +1885,24 @@ router.post("/email-draft", async (req, res) => {
           `Draft signature: ${studioInput.signature}`,
         ].join("\n");
 
-        const aiResult = await runStewardAiChat(
-          aiConfig,
-          [{ role: "user", content: aiPrompt }],
+        const aiResult = await withStewardAiTask(
           {
-            model: aiConfig.model,
-            temperature: 0.24,
-            maxTokens: 1300,
-          }
+            organizationId,
+            enabled: true,
+            config: aiConfig,
+            label: "Generating donor email draft",
+            status: "running_task",
+            fallbackOnError: true,
+          },
+          () => runStewardAiChat(
+            aiConfig,
+            [{ role: "user", content: aiPrompt }],
+            {
+              model: aiConfig.model,
+              temperature: 0.24,
+              maxTokens: 1300,
+            }
+          )
         );
 
         artifact = parseStudioAiDraft(aiResult.content, artifact);
@@ -2588,14 +2536,24 @@ router.post("/opportunities/:id/draft-email", async (req, res) => {
   let aiGenerationError: string | null = null;
 
   try {
-    const aiResult = await runStewardAiChat(
-      aiConfig,
-      [{ role: "user", content: draftPrompt }],
+    const aiResult = await withStewardAiTask(
       {
-        model: aiConfig.model,
-        temperature: 0.28,
-        maxTokens: 900,
-      }
+        organizationId,
+        enabled: true,
+        config: aiConfig,
+        label: "Drafting opportunity email recommendation",
+        status: "running_task",
+        fallbackOnError: true,
+      },
+      () => runStewardAiChat(
+        aiConfig,
+        [{ role: "user", content: draftPrompt }],
+        {
+          model: aiConfig.model,
+          temperature: 0.28,
+          maxTokens: 900,
+        }
+      )
     );
     generatedDraft = parseGeneratedDraft(aiResult.content, constituent.firstName);
     aiGenerated = true;

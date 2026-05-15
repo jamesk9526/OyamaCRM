@@ -155,7 +155,7 @@ function createEmptyAvailabilityBlock(index: number): AppointmentWidgetAvailabil
 
 /**
  * CompassionSettingsPage hosts the public appointment widget builder.
- * TODO: enforce Compassion workspace permission
+ * Access enforcement is handled by CompassionLayout and /api/compassion middleware.
  */
 export default function CompassionSettingsPage() {
   const [loading, setLoading] = useState(true);

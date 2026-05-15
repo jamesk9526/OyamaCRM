@@ -14,6 +14,7 @@ import ReportsModuleToolbar, {
   type ReportsToolId,
   type ReportsWorkspaceModule,
 } from "@/app/components/reports/ReportsModuleToolbar";
+import ReportsCommandBar from "@/app/components/reports/ReportsCommandBar";
 import OShareviewNotesPanel from "@/app/components/reports/OShareviewNotesPanel";
 import OShareviewBlueprintsPanel, {
   type OShareviewReportBlueprint,
@@ -22,6 +23,7 @@ import OShareviewBlueprintsPanel, {
 import OShareviewCoveragePanel from "@/app/components/reports/OShareviewCoveragePanel";
 import OShareviewAdminWorkspace from "@/app/components/reports/OShareviewAdminWorkspace";
 import DonorPacketReportTool from "@/app/components/reports/DonorPacketReportTool";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import { apiFetch } from "@/app/lib/auth-client";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -259,6 +261,29 @@ function statusBadgeClass(s: string): string {
 function statusLabel(s: string): string {
   if (s === "MAJOR_DONOR") return "Major Donor";
   return s.charAt(0) + s.slice(1).toLowerCase();
+}
+
+function normalizeDateValue(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.getTime();
+}
+
+function withinDateRange(
+  value: string | null | undefined,
+  fromDateMs: number | null,
+  toDateMs: number | null,
+): boolean {
+  if (!fromDateMs && !toDateMs) return true;
+  const valueMs = normalizeDateValue(value);
+  if (!valueMs) return false;
+  if (fromDateMs && valueMs < fromDateMs) return false;
+  if (toDateMs) {
+    const inclusiveToDateMs = toDateMs + (24 * 60 * 60 * 1000) - 1;
+    if (valueMs > inclusiveToDateMs) return false;
+  }
+  return true;
 }
 
 /**
@@ -941,6 +966,8 @@ export default function ReportsPage() {
   const [recordFilterText, setRecordFilterText] = useState("");
   const [minValueFilter, setMinValueFilter] = useState<number>(0);
   const [campaignStatusFilter, setCampaignStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [donorReportsError, setDonorReportsError] = useState<string | null>(null);
   const [lastLiveRefreshAt, setLastLiveRefreshAt] = useState<Date>(new Date());
 
@@ -1014,6 +1041,7 @@ export default function ReportsPage() {
    * Scope key includes both selected year and all-years mode.
    */
   const loadedRef = useRef<Record<string, boolean>>({});
+  const inFlightRef = useRef<Record<string, boolean>>({});
 
   function scopeQueryString(y: number): string {
     const params = new URLSearchParams();
@@ -1023,18 +1051,36 @@ export default function ReportsPage() {
     } else {
       params.set("year", String(y));
     }
+    if (fromDate) {
+      params.set("fromDate", fromDate);
+    }
+    if (toDate) {
+      params.set("toDate", toDate);
+    }
     return params.toString();
   }
 
   function scopeCacheKey(y: number): string {
-    return `${y}:${allYears ? "ALL_YEARS" : "YEAR"}`;
+    return `${y}:${allYears ? "ALL_YEARS" : "YEAR"}:${fromDate || "_"}:${toDate || "_"}`;
   }
 
   function isLoaded(tab: string, key: string): boolean {
     return !!loadedRef.current[`${tab}:${key}`];
   }
+  function isInFlight(tab: string, key: string): boolean {
+    return !!inFlightRef.current[`${tab}:${key}`];
+  }
   function markLoaded(tab: string, key: string): void {
     loadedRef.current[`${tab}:${key}`] = true;
+  }
+  function markInFlight(tab: string, key: string): void {
+    inFlightRef.current[`${tab}:${key}`] = true;
+  }
+  function clearInFlight(tab: string, key: string): void {
+    delete inFlightRef.current[`${tab}:${key}`];
+  }
+  function markFailed(tab: string, key: string): void {
+    delete loadedRef.current[`${tab}:${key}`];
   }
 
   // ── Data loaders ──────────────────────────────────────────────────────────
@@ -1043,8 +1089,8 @@ export default function ReportsPage() {
   async function loadOverview(y: number) {
     const scope = scopeQueryString(y);
     const key = scopeCacheKey(y);
-    if (isLoaded("overview", key)) return;
-    markLoaded("overview", key);
+    if (isLoaded("overview", key) || isInFlight("overview", key)) return;
+    markInFlight("overview", key);
     setLoadingOverview(true);
     setDonorReportsError(null);
     try {
@@ -1062,9 +1108,12 @@ export default function ReportsPage() {
       setRetention(r);
       setTopDonors(Array.isArray(td) ? td : []);
       setDonorSegments(ds);
+      markLoaded("overview", key);
     } catch (err) {
+      markFailed("overview", key);
       setDonorReportsError(toErrorMessage(err, "Failed to load overview report data."));
     } finally {
+      clearInFlight("overview", key);
       setLoadingOverview(false);
     }
   }
@@ -1072,8 +1121,8 @@ export default function ReportsPage() {
   /** Fetch LYBUNT, SYBUNT, and new-vs-returning data for the Donors tab. */
   async function loadDonors(y: number) {
     const key = scopeCacheKey(y);
-    if (isLoaded("donors", key)) return;
-    markLoaded("donors", key);
+    if (isLoaded("donors", key) || isInFlight("donors", key)) return;
+    markInFlight("donors", key);
     setLoadingDonors(true);
     setDonorReportsError(null);
     try {
@@ -1085,9 +1134,12 @@ export default function ReportsPage() {
       setLybunt(Array.isArray(l) ? l : []);
       setSybunt(Array.isArray(sy) ? sy : []);
       setNewVsReturning(Array.isArray(nvr) ? nvr : []);
+      markLoaded("donors", key);
     } catch (err) {
+      markFailed("donors", key);
       setDonorReportsError(toErrorMessage(err, "Failed to load donor report data."));
     } finally {
+      clearInFlight("donors", key);
       setLoadingDonors(false);
     }
   }
@@ -1096,8 +1148,8 @@ export default function ReportsPage() {
   async function loadGiving(y: number) {
     const scope = scopeQueryString(y);
     const key = scopeCacheKey(y);
-    if (isLoaded("giving", key)) return;
-    markLoaded("giving", key);
+    if (isLoaded("giving", key) || isInFlight("giving", key)) return;
+    markInFlight("giving", key);
     setLoadingGiving(true);
     setDonorReportsError(null);
     try {
@@ -1109,9 +1161,12 @@ export default function ReportsPage() {
       setYearComparison(Array.isArray(yc) ? yc : []);
       setGivingByTier(tier);
       setPaymentBreakdown(Array.isArray(pay) ? pay : []);
+      markLoaded("giving", key);
     } catch (err) {
+      markFailed("giving", key);
       setDonorReportsError(toErrorMessage(err, "Failed to load giving report data."));
     } finally {
+      clearInFlight("giving", key);
       setLoadingGiving(false);
     }
   }
@@ -1120,16 +1175,19 @@ export default function ReportsPage() {
   async function loadCampaigns(y: number) {
     const scope = scopeQueryString(y);
     const key = scopeCacheKey(y);
-    if (isLoaded("campaigns", key)) return;
-    markLoaded("campaigns", key);
+    if (isLoaded("campaigns", key) || isInFlight("campaigns", key)) return;
+    markInFlight("campaigns", key);
     setLoadingCampaigns(true);
     setDonorReportsError(null);
     try {
       const data = await apiFetch<CampaignPerformance[]>(`/api/reports/campaign-performance?${scope}`);
       setCampaigns(Array.isArray(data) ? data : []);
+      markLoaded("campaigns", key);
     } catch (err) {
+      markFailed("campaigns", key);
       setDonorReportsError(toErrorMessage(err, "Failed to load campaign report data."));
     } finally {
+      clearInFlight("campaigns", key);
       setLoadingCampaigns(false);
     }
   }
@@ -1140,8 +1198,8 @@ export default function ReportsPage() {
    */
   async function loadRetention(y: number) {
     const key = scopeCacheKey(y);
-    if (isLoaded("retention", key)) return;
-    markLoaded("retention", key);
+    if (isLoaded("retention", key) || isInFlight("retention", key)) return;
+    markInFlight("retention", key);
     setLoadingRetention(true);
     setDonorReportsError(null);
     try {
@@ -1160,10 +1218,13 @@ export default function ReportsPage() {
       }
 
       await loadDonors(y);
+      markLoaded("retention", key);
     } catch (err) {
+      markFailed("retention", key);
       setRetentionTrend([]);
       setDonorReportsError(toErrorMessage(err, "Failed to load retention report data."));
     } finally {
+      clearInFlight("retention", key);
       setLoadingRetention(false);
     }
   }
@@ -1205,6 +1266,7 @@ export default function ReportsPage() {
    */
   useEffect(() => {
     loadedRef.current = {};
+    inFlightRef.current = {};
     const timer = window.setTimeout(() => {
       void loadOverview(year);
     }, 0);
@@ -1213,7 +1275,7 @@ export default function ReportsPage() {
       window.clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [year, allYears]);
+  }, [year, allYears, fromDate, toDate]);
 
   /** Load tab-specific data the first time each non-overview tab is opened. */
   useEffect(() => {
@@ -1238,7 +1300,7 @@ export default function ReportsPage() {
       window.clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, year, allYears]);
+  }, [activeTab, year, allYears, fromDate, toDate]);
 
   /** Syncs active tab when users deep-link to /reports?tab=... from module navigation. */
   useEffect(() => {
@@ -1329,6 +1391,7 @@ export default function ReportsPage() {
   useEffect(() => {
     const timer = window.setInterval(() => {
       loadedRef.current = {};
+      inFlightRef.current = {};
       void loadOverview(year);
 
       if (activeModule === "events") {
@@ -1348,7 +1411,7 @@ export default function ReportsPage() {
       window.clearInterval(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [year, activeModule]);
+  }, [year, activeModule, allYears, fromDate, toDate]);
 
   /** Updates local state and URL query so sidebar report links map to the visible tab. */
   function handleTabChange(tabId: TabId) {
@@ -1463,6 +1526,8 @@ export default function ReportsPage() {
             Scope: scopeLabel,
             Filter: recordFilterText.trim() || "none",
             MinValue: minValueFilter,
+            FromDate: fromDate || "none",
+            ToDate: toDate || "none",
           },
         ],
         "admin-reporting-context.csv"
@@ -1498,7 +1563,7 @@ export default function ReportsPage() {
         break;
       case "giving":
         exportCSV(
-          yearComparison.map((d) => ({
+          filteredYearComparison.map((d) => ({
             Month: MONTHS_SHORT[d.month - 1],
             [`${year}`]: d.thisYear,
             [`${year - 1}`]: d.lastYear,
@@ -1544,7 +1609,8 @@ export default function ReportsPage() {
   /** Uses a dedicated printable packet window for more reliable PDF generation workflows. */
   function handlePrintCurrentReport() {
     const generatedAt = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
-    const scopeText = `${scopeLabel}${allYears ? "" : " scope"} | Filter: ${recordFilterText.trim() || "none"} | Min value: $${fmtCurrency(minValueFilter)}`;
+    const dateWindowText = fromDate || toDate ? ` | Date window: ${fromDate || "..."} to ${toDate || "..."}` : "";
+    const scopeText = `${scopeLabel}${allYears ? "" : " scope"} | Filter: ${recordFilterText.trim() || "none"} | Min value: $${fmtCurrency(minValueFilter)}${dateWindowText}`;
     let title = "OShareview Report Packet";
     let rows: Array<Record<string, unknown>> = [];
 
@@ -1609,7 +1675,7 @@ export default function ReportsPage() {
           break;
         case "giving":
           title = `Year Comparison Packet (${year})`;
-          rows = yearComparison.map((row) => ({
+          rows = filteredYearComparison.map((row) => ({
             Month: MONTHS_SHORT[row.month - 1],
             [String(year)]: `$${fmtCurrency(row.thisYear)}`,
             [String(year - 1)]: `$${fmtCurrency(row.lastYear)}`,
@@ -1719,6 +1785,8 @@ export default function ReportsPage() {
     : 0;
 
   const normalizedFilter = recordFilterText.trim().toLowerCase();
+  const fromDateMs = normalizeDateValue(fromDate);
+  const toDateMs = normalizeDateValue(toDate);
 
   const filteredTopDonors = topDonors.filter((donor) => {
     const fullName = `${donor.firstName} ${donor.lastName}`.toLowerCase();
@@ -1728,7 +1796,8 @@ export default function ReportsPage() {
       || (donor.email ?? "").toLowerCase().includes(normalizedFilter)
       || donor.donorStatus.toLowerCase().includes(normalizedFilter);
     const lifetimeGiving = Number(donor.totalLifetimeGiving ?? 0);
-    return matchesQuery && lifetimeGiving >= minValueFilter;
+    const matchesDate = withinDateRange(donor.lastGiftDate, fromDateMs, toDateMs);
+    return matchesQuery && matchesDate && lifetimeGiving >= minValueFilter;
   });
 
   const filteredLybunt = lybunt.filter((donor) => {
@@ -1739,7 +1808,8 @@ export default function ReportsPage() {
       || (donor.email ?? "").toLowerCase().includes(normalizedFilter)
       || donor.donorStatus.toLowerCase().includes(normalizedFilter);
     const lifetimeGiving = Number(donor.totalLifetimeGiving ?? 0);
-    return matchesQuery && lifetimeGiving >= minValueFilter;
+    const matchesDate = withinDateRange(donor.lastGiftDate, fromDateMs, toDateMs);
+    return matchesQuery && matchesDate && lifetimeGiving >= minValueFilter;
   });
 
   const filteredSybunt = sybunt.filter((donor) => {
@@ -1750,7 +1820,8 @@ export default function ReportsPage() {
       || (donor.email ?? "").toLowerCase().includes(normalizedFilter)
       || donor.donorStatus.toLowerCase().includes(normalizedFilter);
     const lifetimeGiving = Number(donor.totalLifetimeGiving ?? 0);
-    return matchesQuery && lifetimeGiving >= minValueFilter;
+    const matchesDate = withinDateRange(donor.lastGiftDate, fromDateMs, toDateMs);
+    return matchesQuery && matchesDate && lifetimeGiving >= minValueFilter;
   });
 
   const filteredCampaigns = campaigns.filter((campaign) => {
@@ -1759,7 +1830,9 @@ export default function ReportsPage() {
       campaignStatusFilter === "all"
       || (campaignStatusFilter === "active" && campaign.active)
       || (campaignStatusFilter === "inactive" && !campaign.active);
-    return matchesQuery && matchesStatus && campaign.raised >= minValueFilter;
+    const matchesStartDate = withinDateRange(campaign.startDate, fromDateMs, toDateMs);
+    const matchesEndDate = campaign.endDate ? withinDateRange(campaign.endDate, fromDateMs, toDateMs) : true;
+    return matchesQuery && matchesStatus && (matchesStartDate || matchesEndDate) && campaign.raised >= minValueFilter;
   });
 
   const filteredEventsTopEvents = (eventsSummary?.topEvents ?? []).filter((event) => {
@@ -1767,7 +1840,8 @@ export default function ReportsPage() {
       normalizedFilter.length === 0
       || event.name.toLowerCase().includes(normalizedFilter)
       || event.type.toLowerCase().includes(normalizedFilter);
-    return matchesQuery && event.revenue >= minValueFilter;
+    const matchesDate = withinDateRange(event.startDate, fromDateMs, toDateMs);
+    return matchesQuery && matchesDate && event.revenue >= minValueFilter;
   });
 
   const filteredCompassionCasesByType = (compassionSummary?.casesByType ?? []).filter((row) => {
@@ -1781,39 +1855,127 @@ export default function ReportsPage() {
   });
 
   const filteredCompassionAppointments = (compassionSummary?.appointmentsByType ?? []).filter((row) => {
+    if (row.value < minValueFilter) return false;
     if (normalizedFilter.length === 0) return true;
     return row.label.toLowerCase().includes(normalizedFilter);
   });
 
+  const filteredCompassionCasesByTypeWithValue = filteredCompassionCasesByType.filter((row) => row.value >= minValueFilter);
+  const filteredCompassionCasesByStatusWithValue = filteredCompassionCasesByStatus.filter((row) => row.value >= minValueFilter);
+
+  const filteredYearComparison = yearComparison.filter((row) => row.thisYear >= minValueFilter || row.lastYear >= minValueFilter);
+  const filteredPaymentBreakdown = paymentBreakdown.filter((row) => row.amount >= minValueFilter);
+  const maxFilteredPayment = filteredPaymentBreakdown.length > 0 ? Math.max(...filteredPaymentBreakdown.map((p) => p.amount)) : 1;
+
+  const eventTypeMix = filteredEventsTopEvents.reduce<Record<string, { revenue: number; guests: number; checkedIn: number; count: number }>>((acc, event) => {
+    const key = event.type || "UNKNOWN";
+    if (!acc[key]) {
+      acc[key] = { revenue: 0, guests: 0, checkedIn: 0, count: 0 };
+    }
+    acc[key].revenue += event.revenue;
+    acc[key].guests += event.guests;
+    acc[key].checkedIn += event.checkedIn;
+    acc[key].count += 1;
+    return acc;
+  }, {});
+
+  const eventTypeRows = Object.entries(eventTypeMix)
+    .map(([type, stats]) => ({
+      type,
+      count: stats.count,
+      revenue: stats.revenue,
+      attendanceRate: stats.guests > 0 ? Math.round((stats.checkedIn / stats.guests) * 100) : 0,
+      revenuePerGuest: stats.guests > 0 ? stats.revenue / stats.guests : 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+
+  const lowCheckinEvents = filteredEventsTopEvents
+    .map((event) => ({
+      ...event,
+      attendanceRate: event.guests > 0 ? Math.round((event.checkedIn / event.guests) * 100) : 0,
+    }))
+    .filter((event) => event.attendanceRate < 70)
+    .sort((a, b) => a.attendanceRate - b.attendanceRate);
+
+  const compassionTotalCaseRows = filteredCompassionCasesByTypeWithValue.reduce((sum, row) => sum + row.value, 0);
+  const compassionTotalAppointmentRows = filteredCompassionAppointments.reduce((sum, row) => sum + row.value, 0);
+  const compassionTopCaseType = filteredCompassionCasesByTypeWithValue[0]?.label ?? "-";
+  const compassionTopCaseTypeShare = compassionTotalCaseRows > 0
+    ? Math.round(((filteredCompassionCasesByTypeWithValue[0]?.value ?? 0) / compassionTotalCaseRows) * 100)
+    : 0;
+  const compassionWorkloadIndex = Math.round(
+    ((compassionSummary?.kpis.activeCases ?? 0) * 1.6) +
+    ((compassionSummary?.kpis.appointmentsThisMonth ?? 0) * 1.2) +
+    ((compassionSummary?.kpis.newClientsThisMonth ?? 0) * 0.8),
+  );
+
+  const ogenticExecutionScore = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        ((ogenticArtifactsCount.reports * 2 + ogenticArtifactsCount.analyses * 1.5) /
+          Math.max(1, ogenticArtifactsCount.drafts + ogenticArtifactsCount.reports + ogenticArtifactsCount.analyses)) *
+          35 +
+          Math.min(45, ogenticArtifactsCount.reports * 5),
+      ),
+    ),
+  );
+  const ogenticDraftToReportRatio = ogenticArtifactsCount.reports > 0
+    ? (ogenticArtifactsCount.drafts / ogenticArtifactsCount.reports).toFixed(1)
+    : "N/A";
+
   /** Maximum payment amount (for scaling horizontal payment-method bars). */
-  const maxPayment =
-    paymentBreakdown.length > 0 ? Math.max(...paymentBreakdown.map((p) => p.amount)) : 1;
+  const maxPayment = maxFilteredPayment;
   const canPostShareviewNotes = user?.role === "admin";
   const canManageBlueprints = user?.role === "admin";
+  const freshnessText = summary?.freshness?.dataThrough
+    ? `Data freshness: through ${fmtDate(summary.freshness.dataThrough)} at ${new Date(summary.freshness.generatedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`
+    : undefined;
+  const lastRefreshText = lastLiveRefreshAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-5">
-      {/* ── Page Header ── */}
-      <div>
-          <div className="mb-1 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-            OShareview Live
-          </div>
-          <h1 className="text-xl font-semibold text-gray-900">Reports &amp; Analytics Command Center</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            OShareview dashboard for donor, events, compassion, and OGentic reporting workflows
-          </p>
-          {summary?.freshness?.dataThrough && (
-            <p className="text-xs text-gray-400 mt-1">
-              Data freshness: through {fmtDate(summary.freshness.dataThrough)} at {new Date(summary.freshness.generatedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-            </p>
-          )}
-          <p className="text-xs text-emerald-700 mt-1">
-            Auto-refreshing every 45 seconds. Last update {lastLiveRefreshAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-          </p>
-      </div>
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Donor CRM", href: "/" },
+          { label: "Reports" },
+          { label: "Command Center" },
+        ]}
+        statusLabel="OShareview Live"
+        metadata={`Auto-refresh every 45s · Last update ${lastRefreshText}${freshnessText ? ` · ${freshnessText}` : ""}`}
+      />
+
+      <ReportsCommandBar
+        activeModule={activeModule}
+        activeTool={activeTool}
+        year={year}
+        yearOptions={YEAR_OPTIONS}
+        allYears={allYears}
+        includeGrants={includeGrants}
+        recordFilterText={recordFilterText}
+        minValueFilter={minValueFilter}
+        campaignStatusFilter={campaignStatusFilter}
+        fromDate={fromDate}
+        toDate={toDate}
+        freshnessText={freshnessText}
+        lastRefreshText={lastRefreshText}
+        onModuleChange={handleModuleChange}
+        onToolChange={handleToolChange}
+        onYearChange={setYear}
+        onAllYearsChange={setAllYears}
+        onToggleGrants={toggleGrants}
+        onFilterTextChange={setRecordFilterText}
+        onMinValueChange={setMinValueFilter}
+        onCampaignStatusChange={setCampaignStatusFilter}
+        onFromDateChange={setFromDate}
+        onToDateChange={setToDate}
+        onExport={handleExport}
+        onServerExport={handleServerExport}
+        onPrint={handlePrintCurrentReport}
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-gray-200 bg-white p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
@@ -2249,8 +2411,8 @@ export default function ReportsPage() {
                   />
                 ))}
               </div>
-            ) : yearComparison.length > 0 ? (
-              <YoYChart data={yearComparison} thisYear={year} lastYear={year - 1} />
+            ) : filteredYearComparison.length > 0 ? (
+              <YoYChart data={filteredYearComparison} thisYear={year} lastYear={year - 1} />
             ) : (
               <p className="text-sm text-gray-400 text-center py-12">
                 No comparison data available.
@@ -2347,9 +2509,9 @@ export default function ReportsPage() {
                   <Sk key={i} className="h-8 w-full" />
                 ))}
               </div>
-            ) : paymentBreakdown.length > 0 ? (
+            ) : filteredPaymentBreakdown.length > 0 ? (
               <div className="space-y-3">
-                {paymentBreakdown.map((p) => {
+                {filteredPaymentBreakdown.map((p) => {
                   const pct = maxPayment > 0 ? (p.amount / maxPayment) * 100 : 0;
                   const label = p.paymentMethod
                     .replace(/_/g, " ")
@@ -2665,9 +2827,9 @@ export default function ReportsPage() {
                     </div>
                   )}
 
-                  {(activeTool === "events-attendance" || activeTool === "events-operations") && (
+                  {(activeTool === "events-attendance" || activeTool === "events-operations" || activeTool === "events-checkin-risk") && (
                     <div className="mt-3 space-y-2">
-                      {filteredEventsTopEvents.slice(0, 6).map((event) => {
+                      {(activeTool === "events-checkin-risk" ? lowCheckinEvents : filteredEventsTopEvents).slice(0, 8).map((event) => {
                         const pct = event.guests > 0 ? Math.round((event.checkedIn / event.guests) * 100) : 0;
                         return (
                           <div key={`${event.id}-attendance`} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
@@ -2681,6 +2843,33 @@ export default function ReportsPage() {
                           </div>
                         );
                       })}
+                    </div>
+                  )}
+
+                  {activeTool === "events-type-mix" && (
+                    <div className="mt-3 overflow-x-auto rounded-lg border border-gray-200">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                          <tr>
+                            <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wide">Type</th>
+                            <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wide">Events</th>
+                            <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wide">Revenue</th>
+                            <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wide">Attendance</th>
+                            <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wide">Revenue / Guest</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {eventTypeRows.map((row) => (
+                            <tr key={row.type} className="border-b border-gray-100">
+                              <td className="px-3 py-2 text-gray-800">{row.type}</td>
+                              <td className="px-3 py-2 text-gray-700">{row.count}</td>
+                              <td className="px-3 py-2 text-gray-700">${fmtCurrency(row.revenue)}</td>
+                              <td className="px-3 py-2 text-gray-700">{row.attendanceRate}%</td>
+                              <td className="px-3 py-2 text-gray-700">${fmtCurrency(row.revenuePerGuest)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </>
@@ -2725,7 +2914,7 @@ export default function ReportsPage() {
                       <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
                         <p className="text-xs font-semibold text-gray-800">Cases by Type</p>
                         <div className="mt-2 space-y-1.5 text-xs text-gray-600">
-                          {filteredCompassionCasesByType.slice(0, 8).map((row) => (
+                          {filteredCompassionCasesByTypeWithValue.slice(0, 8).map((row) => (
                             <div key={`type-${row.label}`} className="flex justify-between">
                               <span>{row.label}</span>
                               <span className="font-medium">{row.value}</span>
@@ -2736,7 +2925,7 @@ export default function ReportsPage() {
                       <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
                         <p className="text-xs font-semibold text-gray-800">Cases by Status</p>
                         <div className="mt-2 space-y-1.5 text-xs text-gray-600">
-                          {filteredCompassionCasesByStatus.slice(0, 8).map((row) => (
+                          {filteredCompassionCasesByStatusWithValue.slice(0, 8).map((row) => (
                             <div key={`status-${row.label}`} className="flex justify-between">
                               <span>{row.label}</span>
                               <span className="font-medium">{row.value}</span>
@@ -2747,7 +2936,7 @@ export default function ReportsPage() {
                     </div>
                   )}
 
-                  {(activeTool === "compassion-appointments" || activeTool === "compassion-intake" || activeTool === "compassion-outcomes") && (
+                  {(activeTool === "compassion-appointments" || activeTool === "compassion-intake" || activeTool === "compassion-outcomes" || activeTool === "compassion-workload") && (
                     <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
                       <p className="text-xs font-semibold text-gray-800">Appointments by Type</p>
                       <div className="mt-2 space-y-1.5 text-xs text-gray-600">
@@ -2758,6 +2947,30 @@ export default function ReportsPage() {
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {activeTool === "compassion-workload" && (
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-500">Workload Index</p>
+                        <p className="text-xl font-semibold text-gray-900 mt-1">{compassionWorkloadIndex}</p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-500">Top Case Type</p>
+                        <p className="text-xl font-semibold text-gray-900 mt-1">{compassionTopCaseType}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{compassionTopCaseTypeShare}% of visible case load</p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-500">Visible Appointments</p>
+                        <p className="text-xl font-semibold text-gray-900 mt-1">{compassionTotalAppointmentRows.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTool === "compassion-data-quality" && (
+                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+                      Completion rate is {Math.round(compassionSummary.kpis.completionRate)}%. Use this data-quality slice with Admin scope for row-level remediation workflow.
                     </div>
                   )}
 
@@ -2814,6 +3027,23 @@ export default function ReportsPage() {
                   Source-mix diagnostics are staged here for AI-generated drafts, analyses, and report artifact workflows.
                 </div>
               )}
+
+              {activeTool === "ogentic-execution" && (
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-500">Execution Score</p>
+                    <p className="text-xl font-semibold text-gray-900 mt-1">{ogenticExecutionScore}%</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-500">Draft to Report Ratio</p>
+                    <p className="text-xl font-semibold text-gray-900 mt-1">{ogenticDraftToReportRatio}</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-500">Total Artifacts</p>
+                    <p className="text-xl font-semibold text-gray-900 mt-1">{(ogenticArtifactsCount.drafts + ogenticArtifactsCount.reports + ogenticArtifactsCount.analyses).toLocaleString()}</p>
+                  </div>
+                </div>
+              )}
             </section>
           )}
 
@@ -2824,6 +3054,8 @@ export default function ReportsPage() {
               tool={activeTool}
               filterText={recordFilterText}
               minAmount={minValueFilter}
+              fromDate={fromDate}
+              toDate={toDate}
               canViewAdmin={user?.role === "admin"}
             />
           )}
@@ -2831,132 +3063,27 @@ export default function ReportsPage() {
       )}
       </div>
       <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
-        <aside className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-900">Reports &amp; Analytics</h2>
-          <p className="mt-0.5 text-xs text-gray-500">
-            OyamaREPORTIT CRM for donor, events, compassion, and OGentic reporting workflows
-          </p>
-          {summary?.freshness?.dataThrough && (
-            <p className="mt-2 text-xs text-gray-500">
-              Data freshness: through {fmtDate(summary.freshness.dataThrough)} at {new Date(summary.freshness.generatedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-            </p>
-          )}
-
-          <div className="mt-4 space-y-3 border-t border-gray-100 pt-3">
-            <button
-              onClick={toggleGrants}
-              title={includeGrants ? "Grants included in revenue totals - click to exclude" : "Click to include awarded grants in revenue totals"}
-              className={`flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
-                includeGrants
-                  ? "bg-emerald-50 border-emerald-300 text-emerald-700"
-                  : "bg-gray-50 border-gray-200 text-gray-600 hover:text-gray-700"
-              }`}
-            >
-              <span>Incl. Grants</span>
-              <span className={`relative h-3.5 w-7 rounded-full transition-colors ${includeGrants ? "bg-emerald-400" : "bg-gray-300"}`}>
-                <span className={`absolute top-0.5 h-2.5 w-2.5 rounded-full bg-white shadow transition-all ${includeGrants ? "left-4" : "left-0.5"}`} />
-              </span>
-            </button>
-
-            <select
-              value={year}
-              onChange={(e) => setYear(parseInt(e.target.value, 10))}
-              disabled={allYears}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              {YEAR_OPTIONS.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
+        {activeModule === "donor" && (
+          <aside className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <h2 className="text-sm font-semibold text-gray-900">Donor Report Views</h2>
+            <p className="mt-0.5 text-xs text-gray-500">Jump between overview, donor, giving, campaign, and retention slices from a smaller side card.</p>
+            <div className="mt-3 grid grid-cols-1 gap-1.5">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabChange(tab.id)}
+                  className={`rounded-xl border px-3 py-2 text-left text-xs font-medium transition-colors ${
+                    activeTab === tab.id
+                      ? "border-cyan-300 bg-cyan-50 text-cyan-900"
+                      : "border-gray-200 bg-gray-50 text-gray-600 hover:border-cyan-200 hover:bg-white hover:text-gray-900"
+                  }`}
+                >
+                  {tab.label}
+                </button>
               ))}
-            </select>
-
-            <label className="inline-flex items-center gap-2 text-xs text-gray-600 whitespace-nowrap">
-              <input
-                type="checkbox"
-                checked={allYears}
-                onChange={(e) => setAllYears(e.target.checked)}
-                className="rounded border-gray-300 text-green-600 focus:ring-green-500"
-              />
-              Include all years
-            </label>
-
-            <input
-              value={recordFilterText}
-              onChange={(eventInput) => setRecordFilterText(eventInput.target.value)}
-              placeholder="Filter records by name, status, or type"
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-
-            <input
-              type="number"
-              min={0}
-              value={Number.isFinite(minValueFilter) ? minValueFilter : 0}
-              onChange={(eventInput) => setMinValueFilter(Math.max(0, Number(eventInput.target.value || 0)))}
-              placeholder="Minimum value"
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-
-            <select
-              value={campaignStatusFilter}
-              onChange={(eventInput) => setCampaignStatusFilter(eventInput.target.value as "all" | "active" | "inactive")}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              <option value="all">Campaigns: All</option>
-              <option value="active">Campaigns: Active only</option>
-              <option value="inactive">Campaigns: Inactive only</option>
-            </select>
-
-            <button
-              onClick={handleExport}
-              className="w-full rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors"
-            >
-              ↓ Export CSV
-            </button>
-            <button
-              onClick={handleServerExport}
-              className="w-full rounded-md border border-green-200 bg-white px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50 transition-colors"
-            >
-              Download Server CSV
-            </button>
-            <button
-              onClick={handlePrintCurrentReport}
-              className="w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              Generate PDF Packet
-            </button>
-          </div>
-
-          <div className="mt-4">
-            <ReportsModuleToolbar
-              activeModule={activeModule}
-              activeTool={activeTool}
-              onModuleChange={handleModuleChange}
-              onToolChange={handleToolChange}
-            />
-          </div>
-
-          {activeModule === "donor" && (
-            <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-2">
-              <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Tabs</p>
-              <div className="grid grid-cols-1 gap-1">
-                {TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => handleTabChange(tab.id)}
-                    className={`rounded-md border px-2 py-1.5 text-left text-xs font-medium transition-colors ${
-                      activeTab === tab.id
-                        ? "border-green-600 bg-white text-green-700"
-                        : "border-transparent bg-white/70 text-gray-600 hover:border-gray-200 hover:text-gray-800"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
             </div>
-          )}
-        </aside>
+          </aside>
+        )}
 
         <OShareviewNotesPanel canPost={canPostShareviewNotes} />
         <OShareviewBlueprintsPanel

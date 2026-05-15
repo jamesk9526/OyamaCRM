@@ -113,7 +113,7 @@ export default function StewardSignalsPage() {
           </span>
         </div>
         <p className="text-sm text-gray-500">
-          The Opportunity Engine runs only when AI is enabled in Settings. When disabled, this panel remains empty by design.
+          Opportunity recommendations are always generated from deterministic Steward rules and become richer when live AI is connected.
         </p>
 
         <OpportunityEnginePlaceholderTable />

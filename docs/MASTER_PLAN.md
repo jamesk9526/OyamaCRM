@@ -1,6 +1,6 @@
 # OyamaCRM Master Plan and Reality Audit
 
-Last updated: 2026-05-13
+Last updated: 2026-05-14
 Canonical owner: Platform architecture and delivery planning
 
 This is the canonical project master plan.
@@ -94,6 +94,23 @@ Summary:
 
 - App boundary model exists.
 - Broader app catalog and integration hardening remain partial.
+
+### OyamaWebMaster
+
+Status: Partially Working
+
+Evidence:
+
+- Site manager, editor, preview, and publishing routes: `app/webmaster/*`
+- Publishing APIs and versioned rollback: `server/src/routes/webmaster.ts`, `server/src/services/webmaster-store.ts`
+- Readiness and delta reporting: `server/src/services/webmaster-publish-readiness.ts`
+- Architecture plans: `docs/OYAMA_WEBMASTER_REBUILD_PLAN.md`, `docs/OYAMA_WEBMASTER_PUBLISHING_ARCHITECTURE.md`, `docs/OYAMA_WEBMASTER_DATA_SAFETY.md`
+
+Summary:
+
+- Core publish-readiness, confirmation-gated publish execution, and rollback execution are now working with immutable snapshot history.
+- External deployment target adapters and several secondary workspace surfaces (templates/cms/assets/forms/settings/theme depth) remain partial or not implemented.
+- Webmaster remains outside production-ready claims until remaining workspace surfaces and deployment adapters are delivered with tests.
 
 ### Steward AI and Steward Paths
 
@@ -190,11 +207,17 @@ Blocking lanes currently documented as Broken include lint, e2e lanes, and Prism
 - Canonical master plan and reality audit: `docs/MASTER_PLAN.md`
 - Feature-by-feature implementation status: `docs/status/features.md`
 - Production release gate: `docs/status/production-readiness-checklist.md`
+- OyamaWebMaster architecture and delivery plans: `docs/OYAMA_WEBMASTER_REBUILD_PLAN.md`, `docs/OYAMA_WEBMASTER_PUBLISHING_ARCHITECTURE.md`, `docs/OYAMA_WEBMASTER_DATA_SAFETY.md`
 - Active planning packets: `docs/plans/*`
 - Backlog-focused planning: `docs/backlog/*`
 - Historical audits: `docs/audits/*`
 - Office operations guide: `docs/howto/HOW_TO_USE.md`
 - Workspace layout architecture: `docs/architecture/workspace-layout-system.md`
+
+Legacy docs retired and merged into canonical sources:
+
+- `docs/IMPLEMENTATION_STATUS.md` (merged into `docs/MASTER_PLAN.md` and `docs/status/features.md`)
+- `docs/status/oyama-webmaster.md` (merged into `docs/OYAMA_WEBMASTER_REBUILD_PLAN.md` and `docs/MASTER_PLAN.md`)
 
 ## Agent Operating Rules Summary
 

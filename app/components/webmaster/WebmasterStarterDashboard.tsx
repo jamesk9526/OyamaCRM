@@ -316,13 +316,27 @@ export default function WebmasterStarterDashboard() {
             New Website
           </button>
 
-          <Link href="/webmaster/templates" className="px-4 py-2 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-center">
+          <button
+            type="button"
+            onClick={() => openIncompleteFeature(
+              "Template Library In Development",
+              "Website templates are still being implemented in OyamaWebMaster. Use New Website and the visual editor for now.",
+            )}
+            className="px-4 py-2 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-center"
+          >
             Start from Template
-          </Link>
+          </button>
 
-          <Link href="/webmaster/sites" className="px-4 py-2 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-center">
+          <button
+            type="button"
+            onClick={() => openIncompleteFeature(
+              "Project Import In Development",
+              "Project import workflow is still being implemented. Create a site manually, then add pages in the visual editor.",
+            )}
+            className="px-4 py-2 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-center"
+          >
             Import Website Project
-          </Link>
+          </button>
 
           <button
             type="button"
@@ -553,8 +567,26 @@ export default function WebmasterStarterDashboard() {
               <button type="button" onClick={() => void quickCreatePage("donation")} className="text-left px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm">Create donation page</button>
               <button type="button" onClick={() => void quickCreatePage("event")} className="text-left px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm">Create event page</button>
               <button type="button" onClick={() => void quickCreatePage("blog")} className="text-left px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm">Create blog post</button>
-              <Link href="/webmaster/assets" className="px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm">Open media library</Link>
-              <Link href="/webmaster/theme" className="px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm">Open brand kit</Link>
+              <button
+                type="button"
+                onClick={() => openIncompleteFeature(
+                  "Media Library In Development",
+                  "The dedicated media library workspace is still in development. Use the editor to continue working on page content for now.",
+                )}
+                className="text-left px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm"
+              >
+                Open media library
+              </button>
+              <button
+                type="button"
+                onClick={() => openIncompleteFeature(
+                  "Brand Kit In Development",
+                  "The brand kit workspace is still in development. Branding controls will be released in a later production pass.",
+                )}
+                className="text-left px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm"
+              >
+                Open brand kit
+              </button>
               <Link href="/webmaster/publishing" className="px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm">Open publishing settings</Link>
             </div>
           </section>

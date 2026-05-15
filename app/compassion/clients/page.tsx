@@ -4,6 +4,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
 /** Client as returned from GET /api/compassion/clients */
 interface CompassionClient {
@@ -202,7 +206,7 @@ function AddClientModal({ onClose, onCreated, staffList }: {
 /**
  * CompassionClientsPage: full client list with search, status filter, and create modal.
  * Fetches from GET /api/compassion/clients and POSTs to create new clients.
- * TODO: Enforce Compassion workspace permission
+ * Access enforcement is handled by CompassionLayout and /api/compassion middleware.
  */
 export default function CompassionClientsPage() {
   const [clients, setClients] = useState<CompassionClient[]>([]);
@@ -253,22 +257,44 @@ export default function CompassionClientsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 text-xl">👤</div>
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900">Clients</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Manage client records, profiles, and histories.</p>
-          </div>
-        </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
-        >
-          + Add Client
-        </button>
-      </div>
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Compassion CRM", href: "/compassion/dashboard" },
+          { label: "Clients" },
+        ]}
+        statusLabel={loading ? "Loading" : "Working"}
+        metadata={`${clients.length.toLocaleString()} client${clients.length === 1 ? "" : "s"} · ${statusFilter || "all statuses"}`}
+        accentTone="blue"
+        primaryAction={<WorkspaceRibbonButton label="Add Client" onClick={() => setShowModal(true)} variant="primary" accentTone="blue" />}
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="Create">
+          <WorkspaceRibbonButton label="Add Client" onClick={() => setShowModal(true)} variant="primary" accentTone="blue" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Status">
+          <WorkspaceRibbonButton label="All" onClick={() => setStatusFilter("")} variant={!statusFilter ? "primary" : "secondary"} accentTone="blue" />
+          <WorkspaceRibbonButton label="Active" onClick={() => setStatusFilter("ACTIVE")} variant={statusFilter === "ACTIVE" ? "primary" : "secondary"} accentTone="blue" />
+          <WorkspaceRibbonButton label="Pending" onClick={() => setStatusFilter("PENDING")} variant={statusFilter === "PENDING" ? "primary" : "secondary"} accentTone="blue" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Filters">
+          <WorkspaceRibbonButton label="Missing Contact" onClick={() => setMissingContact((value) => !value)} variant={missingContact ? "primary" : "secondary"} accentTone="blue" />
+          <WorkspaceRibbonButton
+            label="Clear"
+            onClick={() => {
+              setSearch("");
+              setStatusFilter("");
+              setAssignedFilter("");
+              setMissingContact(false);
+              setIntakeWindow("");
+            }}
+            disabled={!search && !statusFilter && !assignedFilter && !missingContact && !intakeWindow}
+            accentTone="blue"
+          />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">

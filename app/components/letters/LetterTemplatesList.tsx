@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import LettersWorkspaceNav from "@/app/components/letters/LettersWorkspaceNav";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 import type { LetterTemplateSummary } from "@/app/components/letters/types";
 
 const STATUSES = ["ALL", "DRAFT", "ACTIVE", "ARCHIVED"] as const;
@@ -16,6 +17,7 @@ export default function LetterTemplatesList() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<(typeof STATUSES)[number]>("ALL");
   const [search, setSearch] = useState("");
+  const [pendingArchiveTemplateId, setPendingArchiveTemplateId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,11 +45,23 @@ export default function LetterTemplatesList() {
     await load();
   }
 
-  /** Archives one template after a user confirmation. */
+  /** Opens the archive confirmation dialog for one template. */
   async function archiveTemplate(templateId: string) {
-    if (!confirm("Archive this template?")) return;
-    await apiFetch(`/api/letters/templates/${templateId}`, { method: "DELETE" });
-    await load();
+    setPendingArchiveTemplateId(templateId);
+  }
+
+  /** Archives one template after explicit modal confirmation. */
+  async function confirmArchiveTemplate() {
+    if (!pendingArchiveTemplateId) return;
+    setError(null);
+    try {
+      await apiFetch(`/api/letters/templates/${pendingArchiveTemplateId}`, { method: "DELETE" });
+      await load();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to archive template.");
+    } finally {
+      setPendingArchiveTemplateId(null);
+    }
   }
 
   const activeCount = useMemo(() => templates.filter((item) => item.status === "ACTIVE").length, [templates]);
@@ -148,6 +162,35 @@ export default function LetterTemplatesList() {
           ))
         )}
       </div>
+
+      {pendingArchiveTemplateId && (
+        <WorkspaceSetupModal
+          title="Archive Template"
+          subtitle="Archived templates are hidden from active generation flows but remain in history."
+          onClose={() => setPendingArchiveTemplateId(null)}
+          maxWidthClassName="max-w-lg"
+        >
+          <div className="px-6 pb-6 pt-14 space-y-5">
+            <p className="text-sm text-gray-700">Archive this template now?</p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingArchiveTemplateId(null)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmArchiveTemplate()}
+                className="rounded-lg border border-red-200 bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+              >
+                Archive
+              </button>
+            </div>
+          </div>
+        </WorkspaceSetupModal>
+      )}
     </div>
   );
 }

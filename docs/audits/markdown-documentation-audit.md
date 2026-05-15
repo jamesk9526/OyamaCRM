@@ -130,7 +130,7 @@ Total markdown files audited: 220
 | docs/HELP_APP.md | Project documentation | current | (keep current path) | retain; links updated as needed | - |
 | docs/HOSTINGER_DEPLOY_README.md | Project documentation | current | (keep current path) | retain; links updated as needed | - |
 | docs/howto/HOW_TO_USE.md | Operator how-to guide | current | (keep current path) | retain; links updated as needed | AGENTS.md; docs/audits/markdown-documentation-audit.md; docs/audits/production-readiness-audit-2026-05-08.md; +2 more |
-| docs/IMPLEMENTATION_STATUS.md | Project documentation | current | (keep current path) | retain; links updated as needed | dist/oyamacrm-demo-20260509-213851/docs/status/oyama-webmaster.md; dist/oyamacrm-demo-20260509-213916/docs/status/oyama-webmaster.md; dist/oyamacrm-demo-20260509-213920/docs/status/oyama-webmaster.md; +3 more |
+| docs/IMPLEMENTATION_STATUS.md | Project documentation | merged | docs/MASTER_PLAN.md | retired after consolidation into canonical status docs | docs/MASTER_PLAN.md; docs/status/features.md |
 | docs/LETTERS_PRINTABLES_WORKSPACE.md | Project documentation | current | (keep current path) | retain; links updated as needed | docs/DONOR_ENGAGEMENT_UNIFIED_SYSTEM_REFACTOR.md |
 | docs/MASTER_PLAN.md | Canonical master plan and reality audit | current | (keep current path) | rewritten as canonical source | docs/audits/markdown-documentation-audit.md; docs/backlog/master-plan-backlog.md; docs/plans/phase-index.md; +1 more |
 | docs/OGENTIC_PLAN.md | Project documentation | current | (keep current path) | retain; links updated as needed | - |
@@ -178,7 +178,7 @@ Total markdown files audited: 220
 | docs/status/import-tools.md | Status and readiness tracking | current | (keep current path) | retain; links updated as needed | AGENTS.md; dist/oyamacrm-demo-20260509-213951/AGENTS.md; docs/MASTER_PLAN.md |
 | docs/status/merge-workflow.md | Status and readiness tracking | current | (keep current path) | retain; links updated as needed | - |
 | docs/status/oyama-watchdog.md | Status and readiness tracking | current | (keep current path) | retain; links updated as needed | - |
-| docs/status/oyama-webmaster.md | Status and readiness tracking | current | (keep current path) | retain; links updated as needed | - |
+| docs/status/oyama-webmaster.md | Status and readiness tracking | merged | docs/OYAMA_WEBMASTER_REBUILD_PLAN.md | retired after Webmaster status consolidation | docs/OYAMA_WEBMASTER_REBUILD_PLAN.md; docs/MASTER_PLAN.md |
 | docs/status/production-readiness-checklist.md | Status and readiness tracking | current | (keep current path) | retain; links updated as needed | AGENTS.md; docs/audits/production-readiness-audit-2026-05-08.md; docs/CLIENT_CRM_AUDIT.md; +10 more |
 | docs/status/readiness-audit-2026-05-12.md | Status and readiness tracking | current | (keep current path) | retain; links updated as needed | docs/howto/HOW_TO_USE.md; docs/PROJECT_OVERVIEW.md; docs/status/crm-readiness-report-2026-05-12.md; +2 more |
 | docs/status/reference-software-audit.md | Status and readiness tracking | current | (keep current path) | retain; links updated as needed | - |

@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import StewardResponseRenderer from "@/app/components/ai/StewardResponseRenderer";
 import type { StewardStructuredResponse } from "@/app/components/ai/steward-artifact-types";
@@ -308,9 +308,9 @@ function promptsForModule(moduleKey: ModuleKey): string[] {
   }
 
   return [
-    "Summarize what I should focus on today.",
-    "Identify likely lapsed-donor follow-ups.",
-    "Draft a donor stewardship check-in email.",
+    "What donor follow-up task should I create next?",
+    "Draft a thank-you note using confirmed CRM gift details.",
+    "Summarize donor engagement risks from current records.",
   ];
 }
 
@@ -366,7 +366,6 @@ export default function StewardChatPanel({
   const [error, setError] = useState<string | null>(null);
   const [actionStatus, setActionStatus] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const [modelUsed, setModelUsed] = useState<string | null>(null);
-  const [isMinimized, setIsMinimized] = useState(false);
   const [conversationsOpen, setConversationsOpen] = useState(false);
   const [activeAssistantMessageId, setActiveAssistantMessageId] = useState<string | null>(null);
   const messagesBottomRef = useRef<HTMLDivElement | null>(null);
@@ -555,19 +554,6 @@ export default function StewardChatPanel({
     if (!open && !isWorkspaceMode) {
       setConversationsOpen(false);
     }
-  }, [open, isWorkspaceMode]);
-
-  /** Expands docked chat on open so the panel is immediately actionable. */
-  useEffect(() => {
-    if (!open || isWorkspaceMode) return;
-
-    const timer = window.setTimeout(() => {
-      setIsMinimized(false);
-    }, 0);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
   }, [open, isWorkspaceMode]);
 
   /** Sends message on Enter while preserving Shift+Enter for multi-line drafts. */
@@ -993,26 +979,20 @@ export default function StewardChatPanel({
     return null;
   }
 
-  const isDockMinimized = !isWorkspaceMode && isMinimized;
-
   const rootClassName = isWorkspaceMode
     ? "h-full min-h-0 max-h-full"
-    : isDockMinimized
-      ? "fixed z-[90] bottom-4 left-2 right-2 sm:left-[15rem] sm:right-5 pointer-events-none flex items-end justify-center"
     : isMaximizedMode
       ? "fixed z-[92] top-[max(3.5rem,env(safe-area-inset-top))] bottom-0 left-0 right-0 sm:top-16 sm:bottom-3 sm:left-[15rem] sm:right-4 pointer-events-none"
       : isPopoutMode
         ? "fixed z-[92] top-[max(3.5rem,env(safe-area-inset-top))] bottom-0 left-0 right-0 sm:top-14 sm:bottom-6 sm:left-auto sm:right-6 sm:w-[860px] pointer-events-none"
-        : `fixed z-[90] top-14 bottom-3 left-2 right-2 sm:left-[15rem] sm:right-5 pointer-events-none flex items-end ${isDockMinimized ? "justify-center" : "justify-end"}`;
+        : "fixed z-[90] top-[max(3.4rem,env(safe-area-inset-top))] bottom-[max(0.4rem,env(safe-area-inset-bottom))] left-1.5 right-1.5 sm:top-14 sm:bottom-3 sm:left-[15rem] sm:right-5 pointer-events-none flex items-end justify-end";
 
   const panelClassName = isWorkspaceMode
     ? "h-full rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col overflow-hidden"
-    : `pointer-events-auto border border-emerald-200 ring-1 ring-emerald-100 bg-white shadow-[0_22px_48px_rgba(15,23,42,0.14)] flex flex-col overflow-hidden transition-[height,width] duration-200 ${isMaximizedMode || isPopoutMode ? "rounded-none sm:rounded-[22px] w-full max-w-none h-full" : "rounded-[22px] w-full max-w-[760px] h-[min(78vh,760px)] max-h-full"}`;
+    : `pointer-events-auto border border-emerald-200 ring-1 ring-emerald-100 bg-white shadow-[0_22px_48px_rgba(15,23,42,0.14)] flex flex-col overflow-hidden transition-[height,width] duration-200 ${isMaximizedMode || isPopoutMode ? "rounded-none sm:rounded-[22px] w-full max-w-none h-full" : "rounded-[18px] sm:rounded-[22px] w-full max-w-[760px] h-[min(84dvh,760px)] sm:h-[min(78vh,760px)] max-h-full"}`;
   const panelStyle = isWorkspaceMode
     ? undefined
-    : isDockMinimized
-      ? undefined
-      : isMaximizedMode
+    : isMaximizedMode
         ? undefined
         : {
             maxHeight: isPopoutMode ? "calc(100vh - 5rem)" : "calc(100vh - 4.25rem)",
@@ -1020,18 +1000,8 @@ export default function StewardChatPanel({
 
   return (
     <div className={rootClassName}>
-      {isDockMinimized ? (
-        <button
-          type="button"
-          onClick={() => setIsMinimized(false)}
-          className="pointer-events-auto px-5 py-2 rounded-full border border-emerald-200 bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 shadow-[0_12px_28px_rgba(22,163,74,0.28)]"
-          title="Open chat"
-        >
-          Open Chat
-        </button>
-      ) : (
       <aside className={panelClassName} style={panelStyle}>
-        <header className={`px-3.5 border-b border-slate-200 bg-white ${isDockMinimized ? "py-1.5" : "py-2"}`}>
+        <header className="px-3.5 border-b border-slate-200 bg-white py-2">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
               <h2 className="text-[13px] font-semibold leading-tight text-slate-900">Steward</h2>
@@ -1076,11 +1046,11 @@ export default function StewardChatPanel({
               )}
               {!isWorkspaceMode && (
                 <button
-                  onClick={() => setIsMinimized((current) => !current)}
+                  onClick={onClose}
                   className="h-7 w-7 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                  title={isDockMinimized ? "Expand Steward" : "Minimize Steward"}
+                  title="Minimize Steward to chat head"
                 >
-                  {isDockMinimized ? "[]" : "-"}
+                  -
                 </button>
               )}
               {!isWorkspaceMode && (
@@ -1095,8 +1065,7 @@ export default function StewardChatPanel({
             </div>
           </div>
 
-          {!isDockMinimized && (
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-600">
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-600">
               {!isWorkspaceMode && (
                 <button
                   type="button"
@@ -1142,7 +1111,6 @@ export default function StewardChatPanel({
                 </Link>
               )}
             </div>
-          )}
         </header>
 
           <>
@@ -1194,7 +1162,7 @@ export default function StewardChatPanel({
                       Del
                     </button>
                   </div>
-                  <div className="flex-1 overflow-y-auto chat-scroll-smooth p-2 space-y-1">
+                    <div className="flex-1 overflow-y-auto chat-scroll-smooth p-2 space-y-1">
                     {orderedThreads.map((thread) => (
                       <button
                         key={thread.id}
@@ -1213,7 +1181,7 @@ export default function StewardChatPanel({
               )}
 
               <section className="flex-1 min-h-0 flex flex-col relative">
-                <div className={`flex-1 overflow-y-auto chat-scroll-smooth px-4 pt-3 pb-4 ${isWorkspaceMode ? "bg-slate-50/70" : "bg-slate-50/80"}`}>
+                <div className={`flex-1 overflow-y-auto chat-scroll-smooth px-3 sm:px-4 pt-2.5 sm:pt-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] sm:pb-4 ${isWorkspaceMode ? "bg-slate-50/70" : "bg-slate-50/80"}`}>
                   <div className={isWorkspaceMode ? "mx-auto w-full max-w-4xl space-y-3" : "mx-auto w-full max-w-[580px] space-y-3"}>
                   {messages.map((message) => (
                     <div key={message.id} className={`max-w-[92%] ${message.role === "user" ? "ml-auto" : "mr-auto"}`}>
@@ -1280,8 +1248,8 @@ export default function StewardChatPanel({
                   </div>
                 </div>
 
-                <footer className="border-t border-slate-200 bg-white/95 px-3 py-3">
-                  <div className={`mx-auto rounded-[20px] border p-3 shadow-[0_14px_24px_rgba(15,23,42,0.08)] ${isWorkspaceMode ? "max-w-4xl border-slate-200 bg-white" : "max-w-[680px] border-slate-200 bg-white"}`}>
+                <footer className="border-t border-slate-200 bg-white/95 px-2.5 sm:px-3 pt-2.5 sm:pt-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] sm:pb-3">
+                  <div className={`mx-auto rounded-2xl border p-2.5 sm:p-3 shadow-[0_14px_24px_rgba(15,23,42,0.08)] ${isWorkspaceMode ? "max-w-4xl border-slate-200 bg-white" : "max-w-[680px] border-slate-200 bg-white"}`}>
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-2 flex-wrap">
                         <label className="sr-only" htmlFor="steward-mode-select">Mode</label>
@@ -1300,7 +1268,7 @@ export default function StewardChatPanel({
                     </div>
 
                     {filteredPromptChips.length > 0 && (
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <div className="mt-2 hidden sm:flex flex-wrap items-center gap-1.5">
                         {filteredPromptChips.map((prompt) => (
                           <button
                             key={prompt}
@@ -1353,7 +1321,6 @@ export default function StewardChatPanel({
             </div>
           </>
       </aside>
-      )}
     </div>
   );
 }

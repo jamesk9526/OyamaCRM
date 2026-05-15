@@ -7,9 +7,12 @@ import CommunicationsSegmentsPanel from "@/app/components/communications/Communi
 import CommunicationsSettingsPanel from "@/app/components/communications/CommunicationsSettingsPanel";
 import CommunicationsTemplatesPanel from "@/app/components/communications/CommunicationsTemplatesPanel";
 import NewCampaignModal from "@/app/components/communications/NewCampaignModal";
-import WorkspaceControlRail from "@/app/components/workspace/WorkspaceControlRail";
-import WorkspaceFrame from "@/app/components/workspace/WorkspaceFrame";
-import { buildCommunicationsControlGroups } from "@/app/components/workspace/workspace-presets";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
+import WorkspaceProjectLibrary from "@/app/components/workspace-ribbon/WorkspaceProjectLibrary";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonFrame from "@/app/components/workspace-ribbon/WorkspaceRibbonFrame";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import { apiFetch } from "@/app/lib/auth-client";
 
 type CampaignPreparationStatus = "NOT_STARTED" | "DRAFT" | "READY";
@@ -211,8 +214,13 @@ export default function CommunicationsPage() {
   const [showModal, setShowModal] = useState(false);
   const [sending, setSending] = useState<string | null>(null);
   const [creatingFromTemplateId, setCreatingFromTemplateId] = useState<string | null>(null);
+  const [cloneSourceCampaign, setCloneSourceCampaign] = useState<EmailCampaign | null>(null);
+  const [cloneName, setCloneName] = useState("");
+  const [cloneNameError, setCloneNameError] = useState<string | null>(null);
   const [sharingUpdateId, setSharingUpdateId] = useState<string | null>(null);
   const [preparationUpdateId, setPreparationUpdateId] = useState<string | null>(null);
+  const [campaignDeleteCandidate, setCampaignDeleteCandidate] = useState<EmailCampaign | null>(null);
+  const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -266,26 +274,59 @@ export default function CommunicationsPage() {
     }
   }
 
-  async function deleteCampaign(id: string) {
-    if (!confirm("Delete this campaign?")) return;
-    await apiFetch(`/api/email-campaigns/${id}`, { method: "DELETE" });
-    await load();
+  function openDeleteCampaignModal(id: string) {
+    const candidate = campaigns.find((campaign) => campaign.id === id);
+    if (!candidate) return;
+    setCampaignDeleteCandidate(candidate);
   }
 
-  /** Creates a new draft campaign by cloning content from an existing template-ready campaign. */
-  async function createCampaignFromTemplate(templateCampaignId: string) {
+  async function confirmDeleteCampaign() {
+    if (!campaignDeleteCandidate) return;
+
+    setDeletingCampaignId(campaignDeleteCandidate.id);
+    try {
+      await apiFetch(`/api/email-campaigns/${campaignDeleteCandidate.id}`, { method: "DELETE" });
+      setCampaignDeleteCandidate(null);
+      await load();
+    } finally {
+      setDeletingCampaignId(null);
+    }
+  }
+
+  function closeCloneCampaignModal() {
+    if (creatingFromTemplateId) return;
+    setCloneSourceCampaign(null);
+    setCloneName("");
+    setCloneNameError(null);
+  }
+
+  function openCloneCampaignModal(templateCampaignId: string) {
     const source = campaigns.find((campaign) => campaign.id === templateCampaignId);
     if (!source) return;
 
-    const cloneName = window.prompt("Name for the new campaign", `${source.name} Copy`)?.trim();
-    if (!cloneName) return;
+    setCloneSourceCampaign(source);
+    setCloneName(`${source.name} Copy`);
+    setCloneNameError(null);
+  }
 
-    setCreatingFromTemplateId(templateCampaignId);
+  /** Creates a new draft campaign by cloning content from an existing template-ready campaign. */
+  async function createCampaignFromTemplate() {
+    if (!cloneSourceCampaign) return;
+
+    const source = cloneSourceCampaign;
+    const nextCloneName = cloneName.trim();
+    if (!nextCloneName) {
+      setCloneNameError("Campaign name is required.");
+      return;
+    }
+
+    setCloneNameError(null);
+    setCreatingFromTemplateId(source.id);
     try {
       const created = await apiFetch<EmailCampaign>("/api/email-campaigns", {
         method: "POST",
         body: JSON.stringify({
-          name: cloneName,
+          name: nextCloneName,
           subject: source.subject,
           bodyHtml: source.bodyHtml ?? null,
           bodyText: source.bodyText ?? null,
@@ -298,6 +339,7 @@ export default function CommunicationsPage() {
         }),
       });
 
+      closeCloneCampaignModal();
       await load();
       openEditor(created.id);
     } finally {
@@ -415,53 +457,61 @@ export default function CommunicationsPage() {
   }, [campaigns, generatedLetters, pathDrafts]);
 
   const canOpenBuilder = campaigns.length > 0;
-
-  const railGroups = useMemo(
-    () => buildCommunicationsControlGroups({
-      activeView: workspaceTab,
-      campaignCount: campaigns.length,
-      draftsNeedingReview,
-      sendQueueCount: scheduledCampaigns.length,
-      communicationLogCount: communicationLog.length,
-      canOpenBuilder,
-    }),
-    [workspaceTab, campaigns.length, draftsNeedingReview, scheduledCampaigns.length, communicationLog.length, canOpenBuilder],
-  );
-
-  /** Handles local view switching and quick actions from the right-side control rail. */
-  function handleRailSelect(itemId: string) {
-    if (itemId.startsWith("view:")) {
-      const next = itemId.replace("view:", "") as WorkspaceTab;
-      if (WORKSPACE_TABS.includes(next)) selectWorkspaceTab(next);
-      return;
-    }
-
-    if (itemId === "action:new-campaign") {
-      setShowModal(true);
-      return;
-    }
-
-    if (itemId === "action:review-drafts") {
-      selectWorkspaceTab("email-drafts");
-      return;
-    }
-
-    if (itemId === "action:view-scheduled") {
-      selectWorkspaceTab("send-queue");
-      return;
-    }
-
-    if (itemId === "action:open-email-builder" && canOpenBuilder) {
-      const targetCampaign = campaigns.find((campaign) => campaign.status === "DRAFT") ?? campaigns[0];
-      if (targetCampaign) openEditor(targetCampaign.id);
-    }
-  }
+  const projectLibraryItems = [
+    {
+      id: "campaign-library",
+      title: "Campaign Library",
+      description: "Browse drafts, scheduled sends, and live campaigns from one workspace.",
+      href: "/communications?view=email-campaigns",
+      badge: `${campaigns.length}`,
+    },
+    {
+      id: "drafts-review",
+      title: "Drafts Needing Review",
+      description: "Review campaign drafts and steward-path draft handoffs before send.",
+      href: "/communications?view=email-drafts",
+      badge: `${draftsNeedingReview}`,
+    },
+    {
+      id: "scheduled-sends",
+      title: "Scheduled Sends",
+      description: "Monitor in-flight and scheduled outreach jobs.",
+      href: "/communications?view=send-queue",
+      badge: `${scheduledCampaigns.length}`,
+    },
+    {
+      id: "sent-archive",
+      title: "Sent / Archived",
+      description: "Inspect communication history, outcomes, and linked timeline artifacts.",
+      href: "/communications?view=communication-log",
+    },
+    {
+      id: "presets",
+      title: "Presets / Templates",
+      description: "Manage campaign templates, segments, and reusable structures.",
+      href: "/communications?view=templates",
+    },
+    {
+      id: "new-communication",
+      title: "Create New Communication",
+      description: "Start a guided wizard: type, audience, preset, edit, review, send.",
+      href: "/communications/new/type",
+      badge: "Wizard",
+    },
+  ];
 
   return (
-    <WorkspaceFrame
+    <WorkspaceRibbonFrame
       title="Communications"
-      description="Unified donor outreach hub for campaigns, drafts, send queue, and communication history."
-      actions={(
+      description="Project-library-first donor outreach workspace with guided create, review, and send paths."
+      breadcrumbItems={[
+        { label: "Donor CRM", href: "/" },
+        { label: "Communications", href: "/communications" },
+        { label: "Campaign Workspace" },
+      ]}
+      statusLabel="Partially Working"
+      metadata={`${campaigns.length} campaigns · ${draftsNeedingReview} drafts needing review · ${scheduledCampaigns.length} scheduled`}
+      primaryAction={(
         <button
           onClick={() => setShowModal(true)}
           className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
@@ -472,16 +522,56 @@ export default function CommunicationsPage() {
           New Campaign
         </button>
       )}
-      controlRail={(
-        <WorkspaceControlRail
-          title="Communications Control Rail"
-          groups={railGroups}
-          activeItem={`view:${workspaceTab}`}
-          onSelect={handleRailSelect}
-        />
+      ribbon={(
+        <WorkspaceRibbon>
+          <WorkspaceRibbonGroup label="Projects">
+            <WorkspaceRibbonButton label="Campaign Library" onClick={() => selectWorkspaceTab("email-campaigns")} />
+            <WorkspaceRibbonButton label="Drafts" onClick={() => selectWorkspaceTab("email-drafts")} />
+            <WorkspaceRibbonButton label="Scheduled" onClick={() => selectWorkspaceTab("send-queue")} />
+            <WorkspaceRibbonButton label="Sent Archive" onClick={() => selectWorkspaceTab("communication-log")} />
+          </WorkspaceRibbonGroup>
+
+          <WorkspaceRibbonGroup label="Create">
+            <WorkspaceRibbonButton label="New Campaign" onClick={() => setShowModal(true)} variant="primary" />
+            <WorkspaceRibbonButton label="From Preset" onClick={() => selectWorkspaceTab("templates")} />
+            <WorkspaceRibbonButton label="AI Draft" href="/communications/new/editor" />
+            <WorkspaceRibbonButton label="Import Draft" href="/communications/new/type" />
+          </WorkspaceRibbonGroup>
+
+          <WorkspaceRibbonGroup label="Audience">
+            <WorkspaceRibbonButton label="Choose Segment" onClick={() => selectWorkspaceTab("segments")} />
+            <WorkspaceRibbonButton label="Preview Recipients" onClick={() => selectWorkspaceTab("email-campaigns")} />
+            <WorkspaceRibbonButton label="Exclusions" href="/communications/new/audience" />
+          </WorkspaceRibbonGroup>
+
+          <WorkspaceRibbonGroup label="Design">
+            <WorkspaceRibbonButton label="Open Builder" onClick={() => selectWorkspaceTab("email-campaigns")} disabled={!canOpenBuilder} />
+            <WorkspaceRibbonButton label="Saved Sections" href="/email-builder" />
+            <WorkspaceRibbonButton label="Brand Presets" href="/communications?view=settings" />
+          </WorkspaceRibbonGroup>
+
+          <WorkspaceRibbonGroup label="Review">
+            <WorkspaceRibbonButton label="Checklist" href="/communications/new/review" />
+            <WorkspaceRibbonButton label="Send Test" onClick={() => selectWorkspaceTab("email-campaigns")} />
+            <WorkspaceRibbonButton label="Merge Fields" href="/communications/new/review" />
+            <WorkspaceRibbonButton label="Compliance" href="/communications/new/review" />
+          </WorkspaceRibbonGroup>
+
+          <WorkspaceRibbonGroup label="Send">
+            <WorkspaceRibbonButton label="Schedule" href="/communications/new/send" />
+            <WorkspaceRibbonButton label="Send Now" onClick={() => selectWorkspaceTab("send-queue")} />
+            <WorkspaceRibbonButton label="Archive" onClick={() => selectWorkspaceTab("communication-log")} />
+          </WorkspaceRibbonGroup>
+        </WorkspaceRibbon>
       )}
     >
       <div className="space-y-6">
+
+      <WorkspaceProjectLibrary
+        heading="Communications Home"
+        helper="Choose a project first, then move through a guided communication workflow."
+        items={projectLibraryItems}
+      />
 
       <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Donor Engagement System</p>
@@ -574,7 +664,7 @@ export default function CommunicationsPage() {
                   onWorkspace={() => openWorkspace(campaign.id)}
                   onToggleSharing={() => toggleCampaignVisibility(campaign)}
                   onPreparationStatusChange={(nextStatus) => setPreparationStatus(campaign, nextStatus)}
-                  onDelete={() => deleteCampaign(campaign.id)}
+                  onDelete={() => openDeleteCampaignModal(campaign.id)}
                   preparationUpdating={preparationUpdateId === campaign.id}
                 />
               ))}
@@ -674,7 +764,7 @@ export default function CommunicationsPage() {
           creatingFromTemplateId={creatingFromTemplateId}
           onOpenTemplate={openEditor}
           onCreateFromTemplate={(campaignId) => {
-            void createCampaignFromTemplate(campaignId);
+            openCloneCampaignModal(campaignId);
           }}
         />
       )}
@@ -746,8 +836,99 @@ export default function CommunicationsPage() {
           }}
         />
       )}
+
+      {cloneSourceCampaign && (
+        <WorkspaceSetupModal
+          title="Clone Campaign"
+          subtitle="Create a new draft campaign by copying template content from an existing campaign."
+          checklist={["1. Confirm source campaign", "2. Name the cloned draft", "3. Open editor"]}
+          onClose={closeCloneCampaignModal}
+          maxWidthClassName="max-w-3xl"
+        >
+          <div className="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Source Campaign</p>
+              <p className="mt-1 text-sm font-medium text-gray-900">{cloneSourceCampaign.name}</p>
+              <p className="text-xs text-gray-500 mt-0.5">Subject: {cloneSourceCampaign.subject || "No subject"}</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">New Draft Name</label>
+              <input
+                type="text"
+                value={cloneName}
+                onChange={(event) => setCloneName(event.target.value)}
+                disabled={creatingFromTemplateId === cloneSourceCampaign.id}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Campaign copy name"
+              />
+              {cloneNameError && <p className="mt-1 text-xs text-red-600">{cloneNameError}</p>}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={closeCloneCampaignModal}
+                disabled={creatingFromTemplateId === cloneSourceCampaign.id}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void createCampaignFromTemplate()}
+                disabled={creatingFromTemplateId === cloneSourceCampaign.id}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-60"
+              >
+                {creatingFromTemplateId === cloneSourceCampaign.id ? "Creating..." : "Create Draft"}
+              </button>
+            </div>
+          </div>
+        </WorkspaceSetupModal>
+      )}
+
+      {campaignDeleteCandidate && (
+        <WorkspaceSetupModal
+          title="Delete Campaign"
+          subtitle="This action permanently deletes the campaign and cannot be undone."
+          checklist={["1. Verify campaign name", "2. Confirm permanent delete"]}
+          onClose={() => {
+            if (deletingCampaignId) return;
+            setCampaignDeleteCandidate(null);
+          }}
+          maxWidthClassName="max-w-3xl"
+        >
+          <div className="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-red-700">Destructive action</p>
+              <p className="mt-1 text-sm text-red-800">
+                Delete <span className="font-semibold">{campaignDeleteCandidate.name}</span> and remove its campaign record.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setCampaignDeleteCandidate(null)}
+                disabled={Boolean(deletingCampaignId)}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmDeleteCampaign()}
+                disabled={Boolean(deletingCampaignId)}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-60"
+              >
+                {deletingCampaignId ? "Deleting..." : "Delete Campaign"}
+              </button>
+            </div>
+          </div>
+        </WorkspaceSetupModal>
+      )}
       </div>
-    </WorkspaceFrame>
+    </WorkspaceRibbonFrame>
   );
 }
 

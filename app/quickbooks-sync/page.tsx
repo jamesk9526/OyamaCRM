@@ -6,9 +6,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { usePlugins } from "@/app/components/plugins/PluginProvider";
 import QBSyncQueueTable, { type QBSyncItem } from "@/app/components/quickbooks/QBSyncQueueTable";
 import QBConnectionStatus from "@/app/components/quickbooks/QBConnectionStatus";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import { apiFetch } from "@/app/lib/auth-client";
 
 /** Filter tabs for the queue */
@@ -23,7 +28,7 @@ type FilterValue = (typeof STATUS_FILTERS)[number]["value"];
 
 /**
  * QuickBooks Sync Queue page.
- * Shows connection status banner, filter tabs, queue table, and sync-all button.
+ * Shows connection status, ribbon-based queue controls, queue table, and sync-all actions.
  */
 export default function QBSyncPage() {
   const { qbEnabled, qbConnected, loading: pluginLoading, refresh: refreshPlugin } = usePlugins();
@@ -101,13 +106,28 @@ export default function QBSyncPage() {
   if (!qbEnabled) {
     return (
       <div className="space-y-4">
-        <h1 className="text-xl font-semibold text-gray-900">QuickBooks Sync</h1>
+        <WorkspaceBreadcrumbBar
+          items={[
+            { label: "Donor CRM", href: "/" },
+            { label: "QuickBooks Sync" },
+          ]}
+          statusLabel="Not Enabled"
+          metadata="Enable the plugin to access manual sync queue tools"
+          primaryAction={<WorkspaceRibbonButton label="Open Plugins" href="/settings/plugins" variant="primary" />}
+        />
+
+        <WorkspaceRibbon>
+          <WorkspaceRibbonGroup label="Setup">
+            <WorkspaceRibbonButton label="Open Plugins" href="/settings/plugins" variant="primary" />
+          </WorkspaceRibbonGroup>
+        </WorkspaceRibbon>
+
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-6 text-center">
           <p className="text-sm text-gray-600">
             The QuickBooks plugin is not enabled.{" "}
-            <a href="/settings/plugins" className="text-green-700 font-medium hover:underline">
+            <Link href="/settings/plugins" className="text-green-700 font-medium hover:underline">
               Go to Settings → Plugins
-            </a>{" "}
+            </Link>{" "}
             to enable it.
           </p>
         </div>
@@ -117,34 +137,42 @@ export default function QBSyncPage() {
 
   return (
     <div className="space-y-5">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">QuickBooks Sync Queue</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Review and manually push donations to QuickBooks. Items are never synced automatically.
-          </p>
-        </div>
-        {qbConnected && (
-          <button
-            onClick={handleSyncAll}
-            disabled={syncingAll || !qbConnected}
-            className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg disabled:opacity-60 transition-colors flex items-center gap-2"
-          >
-            {syncingAll ? (
-              <>
-                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-                Syncing…
-              </>
-            ) : (
-              <>Sync All Pending ({pendingCount})</>
-            )}
-          </button>
-        )}
-      </div>
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Donor CRM", href: "/" },
+          { label: "QuickBooks Sync" },
+        ]}
+        statusLabel={qbConnected ? "Connected" : "Not Connected"}
+        metadata={`${total.toLocaleString()} queue item${total !== 1 ? "s" : ""} · ${pendingCount.toLocaleString()} pending`}
+        primaryAction={
+          qbConnected
+            ? <WorkspaceRibbonButton label={syncingAll ? "Syncing" : `Sync Pending (${pendingCount})`} onClick={handleSyncAll} variant="primary" disabled={syncingAll || !qbConnected} />
+            : <WorkspaceRibbonButton label="Connect QuickBooks" onClick={() => void handleConnect()} variant="primary" />
+        }
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="Queue">
+          {STATUS_FILTERS.map((f) => (
+            <WorkspaceRibbonButton
+              key={f.value || "ALL"}
+              label={f.label}
+              onClick={() => { setFilter(f.value); setPage(1); }}
+              variant={filter === f.value ? "primary" : "secondary"}
+            />
+          ))}
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Connection">
+          <WorkspaceRibbonButton label="Connect" onClick={() => void handleConnect()} disabled={qbConnected} />
+          <WorkspaceRibbonButton label="Disconnect" onClick={() => void handleDisconnect()} disabled={!qbConnected} />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Actions">
+          <WorkspaceRibbonButton label="Refresh" onClick={() => void fetchItems()} />
+          <WorkspaceRibbonButton label="Sync Pending" onClick={handleSyncAll} variant="primary" disabled={!qbConnected || syncingAll} />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       {/* Connection status */}
       <QBConnectionStatus onConnect={handleConnect} onDisconnect={handleDisconnect} />
@@ -169,24 +197,6 @@ export default function QBSyncPage() {
           <button onClick={() => setError(null)} className="opacity-60 hover:opacity-100">✕</button>
         </div>
       )}
-
-      {/* Filter tabs */}
-      <div className="flex items-center gap-1 border-b border-gray-200">
-        {STATUS_FILTERS.map((f) => (
-          <button
-            key={f.value}
-            onClick={() => { setFilter(f.value); setPage(1); }}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              filter === f.value
-                ? "border-green-600 text-green-700"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
-        <span className="ml-auto text-xs text-gray-400 pb-2">{total} item{total !== 1 ? "s" : ""}</span>
-      </div>
 
       {/* Queue table */}
       {fetching ? (

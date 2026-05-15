@@ -15,6 +15,7 @@ import { TextStyle } from "@tiptap/extension-text-style";
 import Underline from "@tiptap/extension-underline";
 import StarterKit from "@tiptap/starter-kit";
 import { EditorContent, useEditor } from "@tiptap/react";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 interface FormLetterRichEditorProps {
   value: string;
@@ -58,6 +59,8 @@ export default function FormLetterRichEditor({
   htmlLabel = "Edit raw HTML",
   onRegisterInsert,
 }: FormLetterRichEditorProps) {
+  const [promptMode, setPromptMode] = useState<"link" | "image" | null>(null);
+  const [promptValue, setPromptValue] = useState("");
   const [htmlMode, setHtmlMode] = useState(false);
 
   const editor = useEditor({
@@ -124,18 +127,12 @@ export default function FormLetterRichEditor({
     });
   }, [onRegisterInsert]);
 
-  /** Prompts for link URL and applies or removes link mark at current selection. */
+  /** Opens modal prompt for link URL and supports clearing links with an empty value. */
   function handleSetLink() {
     if (!editor) return;
     const previousHref = editor.getAttributes("link").href as string | undefined;
-    const href = window.prompt("Enter URL", previousHref ?? "https://");
-    if (href === null) return;
-    if (!href.trim()) {
-      editor.chain().focus().unsetLink().run();
-      return;
-    }
-
-    editor.chain().focus().extendMarkRange("link").setLink({ href: href.trim() }).run();
+    setPromptMode("link");
+    setPromptValue(previousHref ?? "https://");
   }
 
   /** Inserts a print page-break marker as a semantic horizontal separator for letter layout. */
@@ -144,12 +141,36 @@ export default function FormLetterRichEditor({
     editor.chain().focus().insertContent('<hr data-page-break="true" />').run();
   }
 
-  /** Inserts an image URL into the form letter body for letterhead or visual inserts. */
+  /** Opens modal prompt to insert an image URL into the letter body. */
   function insertImageFromUrl() {
     if (!editor) return;
-    const src = window.prompt("Image URL", "https://");
-    if (!src || !src.trim()) return;
-    editor.chain().focus().setImage({ src: src.trim() }).run();
+    setPromptMode("image");
+    setPromptValue("https://");
+  }
+
+  /** Applies the active link/image prompt action and closes the dialog. */
+  function applyPrompt() {
+    if (!editor || !promptMode) return;
+    const nextValue = promptValue.trim();
+
+    if (promptMode === "image" && !nextValue) {
+      return;
+    }
+
+    if (promptMode === "link") {
+      if (!nextValue) {
+        editor.chain().focus().unsetLink().run();
+      } else {
+        editor.chain().focus().extendMarkRange("link").setLink({ href: nextValue }).run();
+      }
+    }
+
+    if (promptMode === "image") {
+      editor.chain().focus().setImage({ src: nextValue }).run();
+    }
+
+    setPromptMode(null);
+    setPromptValue("");
   }
 
   return (
@@ -235,6 +256,60 @@ export default function FormLetterRichEditor({
             <EditorContent editor={editor} />
           </div>
         </>
+      )}
+
+      {promptMode && (
+        <WorkspaceSetupModal
+          title={promptMode === "link" ? "Insert Link" : "Insert Image"}
+          subtitle={promptMode === "link"
+            ? "Add or update the selected link. Leave the field blank to remove an existing link."
+            : "Add an image URL for logos, signatures, or supporting visuals in this letter."}
+          onClose={() => {
+            setPromptMode(null);
+            setPromptValue("");
+          }}
+          maxWidthClassName="max-w-lg"
+        >
+          <div className="px-6 pb-6 pt-14 space-y-4">
+            <label className="block text-sm font-medium text-gray-700">
+              {promptMode === "link" ? "URL" : "Image URL"}
+              <input
+                value={promptValue}
+                onChange={(event) => setPromptValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    applyPrompt();
+                  }
+                }}
+                autoFocus
+                placeholder="https://"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+            </label>
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPromptMode(null);
+                  setPromptValue("");
+                }}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={applyPrompt}
+                disabled={promptMode === "image" && !promptValue.trim()}
+                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
+              >
+                {promptMode === "link" ? "Apply Link" : "Insert Image"}
+              </button>
+            </div>
+          </div>
+        </WorkspaceSetupModal>
       )}
     </div>
   );

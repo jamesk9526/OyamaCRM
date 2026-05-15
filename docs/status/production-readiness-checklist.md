@@ -1,6 +1,6 @@
 # Production Readiness Checklist
 
-Last updated: 2026-05-14 (standalone bridge + steward structured artifacts pass)
+Last updated: 2026-05-14 (production pass phase 1/2 cleanup plus user-friendliness wave 1 and dashboard AI widget expansion)
 
 This file is the release-gate source of truth for production readiness.
 
@@ -13,6 +13,86 @@ Use only these status labels:
 - Demo Only
 - Broken
 - Not Implemented
+
+## Production Pass Phase 1/2 Snapshot (2026-05-14)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Central partial implementation audit established | Working | `docs/status/PARTIAL_IMPLEMENTATION_AUDIT.md` |
+| CRM-wide readiness matrix established | Working | `docs/status/PRODUCTION_READINESS_MATRIX.md` |
+| Events sidebar now avoids known dead event-scoped routes | Working | `app/components/layout/sidebar-configs.tsx` |
+| Compassion primary sidebar no longer exposes placeholder Tasks route | Working | `app/components/layout/sidebar-configs.tsx`, `app/compassion/tasks/page.tsx` |
+| Settings landing page no longer links to placeholder Events settings card | Working | `app/settings/page.tsx`, `app/settings/events/page.tsx` |
+| Campaign and communications route-level browser dialogs replaced with modal UX | Working | `app/campaigns/page.tsx`, `app/campaigns/[id]/page.tsx`, `app/communications/page.tsx` |
+| Webmaster starter dashboard no longer routes to missing template/import/media/theme pages | Working | `app/components/webmaster/WebmasterStarterDashboard.tsx`, `app/webmaster/[workspace]/page.tsx` |
+| Cross-module partial features still pending closure (placeholder routes, TODO permission enforcement, partial export pathways) | Partially Working | `docs/status/PARTIAL_IMPLEMENTATION_AUDIT.md` |
+
+Notes:
+
+- This snapshot records phase 1 (audit) and phase 2 (matrix) completion plus initial phase 4 navigation cleanup actions.
+- Release-gate status remains tied to command evidence lanes and unresolved partial-feature items.
+
+## User Friendliness Snapshot (2026-05-14)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Staff role workflow audit document | Working | `docs/status/USER_FRIENDLINESS_AUDIT.md` |
+| Dashboard Start Here guided actions | Working | `app/page.tsx` |
+| Dashboard plain-language focus cards | Working | `app/page.tsx` |
+| Dashboard Start Here and Today's Focus movable widget behavior | Working | `app/page.tsx` |
+| Dashboard actionable insights card | Working | `app/page.tsx`, `app/components/dashboard/ActionableInsightsWidget.tsx` |
+| Dashboard AI widget set (runtime controls, opportunities, compact chat) | Working | `app/page.tsx`, `app/components/dashboard/AiInsightsWidget.tsx`, `app/components/dashboard/AiOpportunityWidget.tsx`, `app/components/dashboard/AiChatWidget.tsx` |
+| Shared contextual help tip component | Working | `app/components/ui/WorkspaceHelpTip.tsx` |
+| User-facing guide baseline | Working | `docs/howto/USER_GUIDE.md` |
+| CRM language guide baseline | Working | `docs/ui/CRM_LANGUAGE_GUIDE.md` |
+
+Notes:
+
+- This snapshot represents the first user-friendliness implementation wave and does not indicate full completion of all 20 user-friendliness phases.
+- Remaining user-friendliness phases should continue in iterative module-specific passes with test-backed validation.
+
+## Responsive UI Compact-Laptop Snapshot (2026-05-14)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Compact desktop shell breakpoints (`<1024` drawer, `1024-1439` compact, `>=1440` full workspace rail) | Working | `app/components/layout/AppShell.tsx`, `app/components/layout/TopBar.tsx`, `app/components/layout/CrmSidebar.tsx`, `app/components/workspace/WorkspaceFrame.tsx` |
+| Shared compact-laptop overflow protections (`min-w-0`, contained main overflow, bounded rail height) | Working | `app/components/layout/AppShell.tsx`, `app/components/layout/AppProductShell.tsx`, `app/components/workspace/WorkspaceControlRail.tsx` |
+| Responsive browser audit automation | Working | `scripts/qa/responsive-ui-pass.mjs`, `package.json` |
+| Dated screenshot capture workflow for responsive UI | Working | `docs/screenshots/responsive-ui/README.md` |
+
+Notes:
+
+- Small laptop readiness is now part of the layout acceptance bar and should be validated at `1366x768` and `1280x720` for new CRM workspaces.
+- Full release-gate status still depends on the command evidence lanes below.
+
+## CRM Header Cleanup Stage 1 Snapshot (2026-05-14)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Canonical compact breadcrumb bar for workspace pages | Working | `app/components/layout/WorkspaceBreadcrumbBar.tsx` |
+| Shared ribbon frame + wizard compact header migration | Working | `app/components/workspace-ribbon/WorkspaceRibbonFrame.tsx`, `app/components/workspace-ribbon/WorkspaceWizard.tsx` |
+| High-traffic workspace header migrations (Tasks, Grants, Settings, Data Tools, Steward Paths, Constituents, Campaigns, Donations, Volunteers, Meetings, QuickBooks Sync, Reports, Donation create/edit routes, Compassion Clients/Cases/Follow-ups, Events Guests/Orders/Check-In/Tickets/Tables/Sponsors/Overview) | Partially Working | `app/tasks/page.tsx`, `app/grants/page.tsx`, `app/settings/page.tsx`, `app/data-tools/page.tsx`, `app/components/steward-paths/StewardPathsWorkspacePage.tsx`, `app/constituents/page.tsx`, `app/campaigns/page.tsx`, `app/donations/page.tsx`, `app/volunteers/page.tsx`, `app/meetings/page.tsx`, `app/quickbooks-sync/page.tsx`, `app/reports/page.tsx`, `app/donations/new/page.tsx`, `app/donations/[id]/edit/page.tsx`, `app/compassion/clients/page.tsx`, `app/compassion/cases/page.tsx`, `app/compassion/follow-ups/page.tsx`, `app/events/guests/page.tsx`, `app/events/orders/page.tsx`, `app/events/check-in/page.tsx`, `app/events/tickets/page.tsx`, `app/events/tables/page.tsx`, `app/events/sponsors/page.tsx`, `app/events/[eventId]/overview/page.tsx` |
+| Shared module-aware breadcrumb/ribbon accent support | Working | `app/components/layout/WorkspaceBreadcrumbBar.tsx`, `app/components/workspace-ribbon/WorkspaceRibbonButton.tsx` |
+| CRM-wide legacy header removal completion | Not Implemented | `docs/status/refactor-ui-autopilot-log.md` |
+
+Notes:
+
+- Detailed phase log and changed-file inventory: `docs/status/refactor-ui-autopilot-log.md`.
+- This snapshot confirms stage-level stability, not full release-gate completion.
+
+## Tasks + Notifications Work Engine Snapshot (2026-05-14)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Durable notification state model (`unread/read/dismissed/snoozed`) | Working | `prisma/schema.prisma`, `server/src/routes/notifications.ts`, `server/src/services/notifications.ts` |
+| TopBar notification actions and unread polling | Partially Working | `app/components/layout/TopBar.tsx` |
+| Task lifecycle endpoints (`start`, `complete`, `snooze`, `archive`) | Working | `server/src/routes/tasks.ts` |
+| Full task command-center UX (board/calendar/wizard/details drawer) | Partially Working | `app/tasks/page.tsx`, `app/components/tasks/*` |
+
+Notes:
+
+- This pass establishes durable API and state plumbing first; the full UI command-center rebuild remains an active follow-up.
+- Keep status labels aligned to command evidence and do not treat this snapshot as a substitute for full gate runs.
 
 ## Standalone Bridge + Structured Artifacts Snapshot (2026-05-14)
 
@@ -263,7 +343,7 @@ Notes:
    - Added shared rendering pipeline for editor and preview in `app/components/webmaster/rendering/*`.
    - Added real draft preview route in `app/webmaster/preview/[siteId]/[pageId]/page.tsx` and `app/components/webmaster/WebmasterDraftPreviewPage.tsx`.
    - Added publish readiness endpoint `GET /api/webmaster/sites/:siteId/publish-readiness` plus publishing workspace `app/webmaster/publishing/page.tsx` and `app/components/webmaster/WebmasterPublishingWorkspace.tsx`.
-   - Publish execution and rollback execution remain Not Implemented and are shown explicitly in publishing workflow status.
+   - Publish execution and rollback execution are Working with immutable publish version snapshots and confirmation-gated actions; external deployment target adapters remain Not Implemented.
 
 ## Done Now Checklist
 

@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import LettersWorkspaceNav from "@/app/components/letters/LettersWorkspaceNav";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 import type { LetterPrintQueueItem } from "@/app/components/letters/types";
 
 const FILTERS = ["ALL", "GENERATED", "NEEDS_REVIEW", "APPROVED", "QUEUED_FOR_PRINT", "PRINTED", "CANCELED", "ARCHIVED"] as const;
@@ -24,6 +25,7 @@ export default function LetterPrintQueue() {
   const [action, setAction] = useState<(typeof ACTIONS)[number]>("APPROVE");
   const [note, setNote] = useState("");
   const [working, setWorking] = useState(false);
+  const [confirmBulkActionOpen, setConfirmBulkActionOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,16 +76,18 @@ export default function LetterPrintQueue() {
     });
   }
 
-  /** Sends one bulk print-queue action after user confirmation. */
-  async function runBulkAction() {
+  /** Opens the confirmation modal before applying one bulk print queue action. */
+  function requestBulkAction() {
     if (selectedIds.length === 0) {
       setError("Select at least one letter in the queue.");
       return;
     }
 
-    const confirmed = window.confirm(`Apply ${actionLabel(action)} to ${selectedIds.length} selected letters?`);
-    if (!confirmed) return;
+    setConfirmBulkActionOpen(true);
+  }
 
+  /** Sends one confirmed bulk print-queue action and reloads data. */
+  async function runBulkAction() {
     setWorking(true);
     setError(null);
     try {
@@ -96,6 +100,7 @@ export default function LetterPrintQueue() {
         }),
       });
       setSelectedIds([]);
+      setConfirmBulkActionOpen(false);
       await load();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to apply print queue action.");
@@ -153,7 +158,7 @@ export default function LetterPrintQueue() {
           </label>
           <div className="flex items-end">
             <button
-              onClick={() => void runBulkAction()}
+              onClick={requestBulkAction}
               disabled={working || selectedIds.length === 0}
               className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-60"
             >
@@ -199,6 +204,38 @@ export default function LetterPrintQueue() {
           )}
         </div>
       </section>
+
+      {confirmBulkActionOpen && (
+        <WorkspaceSetupModal
+          title="Confirm Print Queue Action"
+          subtitle="Bulk actions are audited and may update donor activity timelines."
+          onClose={() => setConfirmBulkActionOpen(false)}
+          maxWidthClassName="max-w-lg"
+        >
+          <div className="px-6 pb-6 pt-14 space-y-5">
+            <p className="text-sm text-gray-700">
+              Apply {actionLabel(action)} to {selectedIds.length} selected letters?
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmBulkActionOpen(false)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void runBulkAction()}
+                disabled={working}
+                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
+              >
+                {working ? "Applying..." : "Confirm"}
+              </button>
+            </div>
+          </div>
+        </WorkspaceSetupModal>
+      )}
     </div>
   );
 }

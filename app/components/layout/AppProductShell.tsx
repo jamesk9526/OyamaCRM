@@ -55,8 +55,8 @@ export default function AppProductShell({ appName, appSubtitle, navItems, childr
         </Link>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        <aside className="hidden md:flex w-56 shrink-0 bg-white border-r border-slate-200 flex-col h-full">
+      <div className="flex min-w-0 flex-1 overflow-hidden">
+        <aside className="hidden lg:flex w-56 shrink-0 bg-white border-r border-slate-200 flex-col h-full">
           <div className="px-3 py-2 border-b border-slate-100">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">App Navigation</p>
           </div>
@@ -84,7 +84,7 @@ export default function AppProductShell({ appName, appSubtitle, navItems, childr
         </aside>
 
         {mobileNavOpen && (
-          <div className="md:hidden fixed inset-0 z-40">
+          <div className="fixed inset-0 z-40 lg:hidden">
             <button
               aria-label="Close app navigation"
               onClick={() => setMobileNavOpen(false)}
@@ -119,8 +119,8 @@ export default function AppProductShell({ appName, appSubtitle, navItems, childr
           </div>
         )}
 
-        <main className="flex-1 overflow-auto bg-slate-50 p-3 sm:p-4 md:p-6">
-          <div className="md:hidden mb-3">
+        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-slate-50 p-3 sm:p-4 lg:p-4 min-[1440px]:p-5 2xl:p-6">
+          <div className="mb-3 lg:hidden">
             <button
               type="button"
               onClick={() => setMobileNavOpen(true)}
@@ -132,7 +132,7 @@ export default function AppProductShell({ appName, appSubtitle, navItems, childr
               Menu
             </button>
           </div>
-          {children}
+          <div className="min-w-0 max-w-full">{children}</div>
         </main>
       </div>
     </div>

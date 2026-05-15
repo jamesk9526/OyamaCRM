@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import LettersWorkspaceNav from "@/app/components/letters/LettersWorkspaceNav";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 import type { LetterMailQueueItem } from "@/app/components/letters/types";
 
 const FILTERS = ["ALL", "QUEUED_FOR_MAIL", "MAILED", "RETURNED", "ADDRESS_ISSUE", "COMPLETED", "CANCELED", "ARCHIVED"] as const;
@@ -25,6 +26,7 @@ export default function LetterMailQueue() {
   const [note, setNote] = useState("");
   const [returnReason, setReturnReason] = useState("");
   const [working, setWorking] = useState(false);
+  const [confirmBulkActionOpen, setConfirmBulkActionOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,16 +77,18 @@ export default function LetterMailQueue() {
     });
   }
 
-  /** Executes one selected mail queue action and reloads queue state. */
-  async function runBulkAction() {
+  /** Opens the confirmation modal before applying one mail queue action. */
+  function requestBulkAction() {
     if (selectedIds.length === 0) {
       setError("Select at least one letter in the queue.");
       return;
     }
 
-    const confirmed = window.confirm(`Apply ${actionLabel(action)} to ${selectedIds.length} selected letters?`);
-    if (!confirmed) return;
+    setConfirmBulkActionOpen(true);
+  }
 
+  /** Executes one confirmed mail queue action and reloads queue state. */
+  async function runBulkAction() {
     setWorking(true);
     setError(null);
     const preparedReturnReason = returnReason.trim();
@@ -105,6 +109,7 @@ export default function LetterMailQueue() {
         }),
       });
       setSelectedIds([]);
+      setConfirmBulkActionOpen(false);
       await load();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to apply mail queue action.");
@@ -171,7 +176,7 @@ export default function LetterMailQueue() {
           </label>
           <div className="flex items-end">
             <button
-              onClick={() => void runBulkAction()}
+              onClick={requestBulkAction}
               disabled={working || selectedIds.length === 0}
               className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-60"
             >
@@ -216,6 +221,38 @@ export default function LetterMailQueue() {
           )}
         </div>
       </section>
+
+      {confirmBulkActionOpen && (
+        <WorkspaceSetupModal
+          title="Confirm Mail Queue Action"
+          subtitle="Bulk mail actions are audited and update communication workflow records."
+          onClose={() => setConfirmBulkActionOpen(false)}
+          maxWidthClassName="max-w-lg"
+        >
+          <div className="px-6 pb-6 pt-14 space-y-5">
+            <p className="text-sm text-gray-700">
+              Apply {actionLabel(action)} to {selectedIds.length} selected letters?
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmBulkActionOpen(false)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void runBulkAction()}
+                disabled={working}
+                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
+              >
+                {working ? "Applying..." : "Confirm"}
+              </button>
+            </div>
+          </div>
+        </WorkspaceSetupModal>
+      )}
     </div>
   );
 }

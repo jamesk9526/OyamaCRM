@@ -1,6 +1,6 @@
 # Hostinger Deploy Template
 
-Last updated: 2026-05-12
+Last updated: 2026-05-14
 
 This guide is a reusable deployment template for a Next.js web app + Express API running behind Nginx on Hostinger VPS.
 
@@ -246,6 +246,46 @@ Notes:
 - Do not run `pnpm prisma migrate dev` on production.
 - Do not create a duplicate email campaign table (`emailcampaign` vs `EmailCampaign`).
 - If deploy still fails with missing `EmailCampaign`, migration history is out of order in that environment and earlier migrations were not fully applied.
+
+### 6.7 Runtime schema drift for Tasks/Notifications (`P2021` / `P2022`)
+
+Symptoms in API logs:
+
+		The table `notification` does not exist in the current database.
+		The column `Task.organizationId` does not exist in the current database.
+
+Cause:
+
+- App code and generated Prisma client were updated, but the server database did not apply the latest migration.
+- This is most visible in `/api/notifications` and `/api/tasks` and in steward worker polling.
+
+Required migration now in repo:
+
+- `prisma/migrations/20260514190000_add_tasks_notifications_work_engine/migration.sql`
+
+Production-safe fix:
+
+		cd ~/htdocs/<APP_DIRECTORY>
+		git fetch origin
+		git checkout main
+		git pull --ff-only
+		pnpm install --frozen-lockfile
+		pnpm prisma migrate status
+		pnpm prisma migrate deploy
+		pnpm prisma generate
+		pnpm build
+		pnpm build:server
+		pnpm pm2:restart -- --env production --update-env
+
+Post-deploy schema validation (recommended):
+
+		node -e 'const { PrismaClient } = require("@prisma/client"); const prisma = new PrismaClient(); (async () => { const row = await prisma.task.findFirst({ select: { id: true, organizationId: true } }); const notifCount = await prisma.notification.count(); console.log({ taskQueryOk: true, sampleTaskId: row?.id ?? null, notificationCount: notifCount }); })().catch((err) => { console.error(err); process.exit(1); }).finally(async () => { await prisma.$disconnect(); });'
+
+Important:
+
+- Do not run `pnpm prisma migrate dev` on production.
+- Do not run `pnpm db:push` on production to bypass drift warnings.
+- Use deploy migrations only (`pnpm prisma migrate deploy`) so migration history remains consistent.
 
 ### 6.5 pnpm fetch 404 for caniuse-lite
 

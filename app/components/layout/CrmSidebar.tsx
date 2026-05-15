@@ -237,6 +237,7 @@ export default function CrmSidebar({
   const styles = VARIANT_STYLES[variant];
   const [hash, setHash] = useState("");
   const [collapsed, setCollapsed] = useState(false);
+  const [compactDesktop, setCompactDesktop] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
   const [groupOpenState, setGroupOpenState] = useState<Record<string, boolean>>(() => getInitialGroupOpenState(groups));
 
@@ -269,6 +270,23 @@ export default function CrmSidebar({
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const mediaQuery = window.matchMedia("(min-width: 1024px) and (max-width: 1439px)");
+    const updateCompactDesktop = () => setCompactDesktop(mediaQuery.matches);
+
+    updateCompactDesktop();
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", updateCompactDesktop);
+      return () => mediaQuery.removeEventListener("change", updateCompactDesktop);
+    }
+
+    mediaQuery.addListener(updateCompactDesktop);
+    return () => mediaQuery.removeListener(updateCompactDesktop);
+  }, []);
+
+  useEffect(() => {
     setGroupOpenState((current) => {
       const nextState = { ...current };
 
@@ -283,7 +301,7 @@ export default function CrmSidebar({
     });
   }, [groups]);
 
-  const isCollapsed = forceExpanded ? false : collapsed;
+  const isCollapsed = forceExpanded ? false : compactDesktop || collapsed;
 
   const visibleGroups = useMemo(() => {
     return groups
@@ -300,7 +318,7 @@ export default function CrmSidebar({
       data-sidebar-collapsed={isCollapsed ? "true" : "false"}
     >
       <div className={`flex-1 overflow-y-auto py-3 px-2.5 ${styles.navSurface}`}>
-        {!forceExpanded ? (
+        {!forceExpanded && !compactDesktop ? (
           <div className={`mb-2 flex ${isCollapsed ? "justify-center" : "justify-end"}`}>
             <button
               type="button"

@@ -10,6 +10,10 @@ import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import ScheduleMeetingModal from "@/app/components/meetings/ScheduleMeetingModal";
 import MeetingCard from "@/app/components/meetings/MeetingCard";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
 /** Meeting shape as returned from the API */
 export interface Meeting {
@@ -107,24 +111,31 @@ export default function MeetingsPage() {
 
   return (
     <div className="space-y-5">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Meetings</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Schedule and manage donor visits, phone calls, and follow-ups.
-          </p>
-        </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Schedule Meeting
-        </button>
-      </div>
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Donor CRM", href: "/" },
+          { label: "Meetings" },
+        ]}
+        statusLabel={loading ? "Loading" : "Working"}
+        metadata={`${total.toLocaleString()} meetings · ${upcomingCount.toLocaleString()} upcoming · ${followUpCount.toLocaleString()} follow-up`}
+        primaryAction={<WorkspaceRibbonButton label="Schedule Meeting" onClick={() => setShowModal(true)} variant="primary" />}
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="Create">
+          <WorkspaceRibbonButton label="Schedule Meeting" onClick={() => setShowModal(true)} variant="primary" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Status">
+          <WorkspaceRibbonButton label="All" onClick={() => setStatusFilter("")} variant={!statusFilter ? "primary" : "secondary"} />
+          <WorkspaceRibbonButton label="Scheduled" onClick={() => setStatusFilter("SCHEDULED")} variant={statusFilter === "SCHEDULED" ? "primary" : "secondary"} />
+          <WorkspaceRibbonButton label="Follow-Up" onClick={() => setStatusFilter("NEEDS_FOLLOW_UP")} variant={statusFilter === "NEEDS_FOLLOW_UP" ? "primary" : "secondary"} />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Actions">
+          <WorkspaceRibbonButton label="Refresh" onClick={() => void loadMeetings()} />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       {/* Stat cards */}
       <div className="grid grid-cols-3 gap-4">

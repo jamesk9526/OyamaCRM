@@ -76,8 +76,12 @@ This release includes a full browser-driven DonorCRM route pass with fresh scree
 ### Letters and printables workflow
 
 1. Go to Letters & Printables.
-2. Create or open a template in Templates.
-3. Use Generate for one-off letters or Batch Generate for grouped runs.
+2. Start in the project library cards (Templates, Generated, Print Queue, Mail Queue, Batch Jobs, Presets).
+3. Use Generate Letter to open the guided wizard flow:
+	- `/letters-printables/generate/template`
+	- `/letters-printables/generate/recipients`
+	- `/letters-printables/generate/preview`
+	- `/letters-printables/generate/complete`
 4. Use Print Queue for review, approval, and print transitions.
 5. Use Mail Queue for mailed, returned, and address-issue workflows.
 6. If an email version is needed, use Create Email Draft and continue in Communications.
@@ -86,13 +90,21 @@ This release includes a full browser-driven DonorCRM route pass with fresh scree
 
 Use Communications as the donor outreach control center:
 
-1. Overview: review drafts needing review, queued sends, and recent communication activity.
-2. Email Campaigns: manage campaign draft/schedule/send lifecycle.
-	- Open Builder for the campaign studio flow (Audience -> Design -> Personalize -> Review -> Schedule).
-	- Use Block Library donor blocks for thank-you, receipt, giving summary, CTA, and footer compliance sections.
-3. Email Drafts: review steward path drafts and letter-to-email bridge drafts.
-4. Letters: open letter queues and handoff points.
-5. Communication Log: review cross-channel outreach history.
+1. Start from Communications Home project cards (Campaign Library, Drafts, Scheduled, Sent Archive, Presets, Create New Communication).
+2. Use Create New Communication to open the guided wizard flow:
+	- `/communications/new/type`
+	- `/communications/new/audience`
+	- `/communications/new/preset`
+	- `/communications/new/editor`
+	- `/communications/new/review`
+	- `/communications/new/send`
+3. Use Campaign Library for draft/schedule/send lifecycle management.
+4. Use Drafts and Scheduled cards for queue-first operations.
+5. Use Communication Log for cross-channel outreach history.
+6. Use related route helpers as needed:
+	- `/communications/library/templates`
+	- `/communications/library/segments`
+	- `/communications/log`
 
 ### Steward Paths builder workflow
 

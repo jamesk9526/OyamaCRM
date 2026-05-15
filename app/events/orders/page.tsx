@@ -7,6 +7,10 @@ import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 import NewOrderModal from "@/app/components/events/NewOrderModal";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
 interface Event {
   id: string;
@@ -112,17 +116,62 @@ export default function EventOrdersPage() {
   }
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Event Orders</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Track purchases, payment status, receipts, and manual registrations
-        </p>
-      </div>
+    <div className="p-6 space-y-6">
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Events CRM", href: "/events/workspace" },
+          { label: "Orders" },
+        ]}
+        statusLabel={eventScoped ? "Event Scoped" : "All Events"}
+        metadata={`${metrics.total.toLocaleString()} orders · ${metrics.confirmed.toLocaleString()} confirmed · $${metrics.totalRevenue.toFixed(2)} revenue`}
+        accentTone="amber"
+        primaryAction={
+          <WorkspaceRibbonButton
+            label="Manual Order"
+            onClick={() => {
+              if (events.length > 0) {
+                setSelectedEventId(events[0].id);
+                setShowNewOrderModal(true);
+              } else {
+                alert("Create an event first");
+              }
+            }}
+            variant="primary"
+            accentTone="amber"
+          />
+        }
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="Create">
+          <WorkspaceRibbonButton
+            label="Manual Order"
+            onClick={() => {
+              if (events.length > 0) {
+                setSelectedEventId(events[0].id);
+                setShowNewOrderModal(true);
+              } else {
+                alert("Create an event first");
+              }
+            }}
+            variant="primary"
+            accentTone="amber"
+          />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Status">
+          <WorkspaceRibbonButton label="All" onClick={() => setStatusFilter("")} variant={!statusFilter ? "primary" : "secondary"} accentTone="amber" />
+          <WorkspaceRibbonButton label="Pending" onClick={() => setStatusFilter("PENDING")} variant={statusFilter === "PENDING" ? "primary" : "secondary"} accentTone="amber" />
+          <WorkspaceRibbonButton label="Confirmed" onClick={() => setStatusFilter("CONFIRMED")} variant={statusFilter === "CONFIRMED" ? "primary" : "secondary"} accentTone="amber" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Filter">
+          <WorkspaceRibbonButton label="Clear" onClick={() => { setSearchQuery(""); setStatusFilter(""); }} disabled={!searchQuery && !statusFilter} accentTone="amber" />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       {/* Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-lg border border-gray-200">
           <p className="text-xs text-gray-500 uppercase font-medium">Total Orders</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">{metrics.total}</p>
@@ -142,7 +191,7 @@ export default function EventOrdersPage() {
       </div>
 
       {/* Filters & Actions */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+      <div className="bg-white rounded-lg border border-gray-200 p-4">
         <div className="flex flex-col md:flex-row gap-3 items-end">
           <div className="flex-1">
             <label className="block text-xs font-semibold text-gray-600 mb-1">Search</label>

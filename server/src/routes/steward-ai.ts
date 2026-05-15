@@ -17,6 +17,20 @@ import {
   type StewardAiMode,
   type StewardAiReasoningMode,
 } from "../services/steward-ai-ollama.js";
+import {
+  getStewardAiRuntimeState,
+  recordStewardAiConnectionError,
+  recordStewardAiConnectionSuccess,
+  refreshStewardAiRuntimeState,
+  withStewardAiTask,
+} from "../services/steward-ai-runtime-status.js";
+import {
+  buildDonorToolContextForChat,
+  executeStewardTool,
+  listStewardTools,
+  StewardToolError,
+  type StewardToolExecutionContext,
+} from "../services/steward-tool-registry.js";
 import type { Prisma } from "@prisma/client";
 import type { Router as ExpressRouter } from "express";
 
@@ -60,6 +74,10 @@ interface StewardAiUpdatePayload {
 
 interface StewardAiModelsQuery {
   endpointUrl?: string;
+}
+
+interface StewardAiStatusQuery {
+  force?: string;
 }
 
 interface BridgePairingRequestPayload {
@@ -115,6 +133,19 @@ interface StewardAiChatPayload {
   messages?: StewardAiChatMessage[];
   mode?: "ask" | "analyze" | "draft" | "action" | "help";
   moduleKey?: "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview";
+  scopePath?: string;
+}
+
+interface StewardToolListQuery {
+  moduleKey?: "donor" | "oshareview";
+  scopePath?: string;
+}
+
+interface StewardToolExecutePayload {
+  tool?: string;
+  input?: Record<string, unknown>;
+  confirm?: boolean;
+  moduleKey?: "donor" | "oshareview";
   scopePath?: string;
 }
 
@@ -484,39 +515,25 @@ function formatGivingAmount(value: unknown): string {
   return `$${parsed.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
 
-/** Builds a deterministic top-donor answer directly from CRM data. */
-async function buildTopDonorResult(organizationId: string): Promise<TopDonorResult> {
-  const topDonors = await prisma.constituent.findMany({
-    where: {
-      organizationId,
-      totalLifetimeGiving: { gt: 0 },
-    },
-    select: {
-      firstName: true,
-      lastName: true,
-      totalLifetimeGiving: true,
-      lastGiftDate: true,
-    },
-    orderBy: [
-      { totalLifetimeGiving: "desc" },
-      { lastGiftDate: "desc" },
-    ],
-    take: 5,
-  });
+/** Builds a deterministic top-donor answer through the approved donor intelligence tool layer. */
+async function buildTopDonorResult(context: StewardToolExecutionContext): Promise<TopDonorResult> {
+  const brief = await executeStewardTool(context, "donor.getDailyBrief", undefined);
+  const topDonors = (brief.result as {
+    topDonors?: Array<{ name: string; lifetimeGiving: number; lastGiftDate: string | null }>;
+  }).topDonors ?? [];
 
   if (topDonors.length === 0) {
     return {
       reply: "I could not find any donors with lifetime giving greater than $0 yet.",
-      toolsUsed: ["donor.topDonorSnapshot"],
+      toolsUsed: [brief.tool],
       recordsUsed: [],
     };
   }
 
   const lines = topDonors.map((donor, index) => {
-    const name = `${donor.firstName} ${donor.lastName}`.trim();
-    const amount = formatGivingAmount(donor.totalLifetimeGiving);
-    const lastGift = donor.lastGiftDate ? donor.lastGiftDate.toISOString().slice(0, 10) : "unknown";
-    return `${index + 1}. ${name} — ${amount} (last gift: ${lastGift})`;
+    const amount = formatGivingAmount(donor.lifetimeGiving);
+    const lastGift = donor.lastGiftDate ? donor.lastGiftDate.slice(0, 10) : "unknown";
+    return `${index + 1}. ${donor.name} — ${amount} (last gift: ${lastGift})`;
   });
 
   return {
@@ -524,9 +541,9 @@ async function buildTopDonorResult(organizationId: string): Promise<TopDonorResu
       "Your top donors by lifetime giving are:",
       ...lines,
     ].join("\n"),
-    toolsUsed: ["donor.topDonorSnapshot"],
+    toolsUsed: [brief.tool],
     recordsUsed: topDonors.map((donor, index) =>
-      `${index + 1}. ${donor.firstName} ${donor.lastName} (${formatGivingAmount(donor.totalLifetimeGiving)})`
+      `${index + 1}. ${donor.name} (${formatGivingAmount(donor.lifetimeGiving)})`
     ),
   };
 }
@@ -718,6 +735,8 @@ function buildReasoningPrompt(options: {
 
 /** Runs agentic planning + reasoning stages when enabled and returns summary artifacts. */
 async function buildAgenticPreparation(options: {
+  organizationId: string;
+  enabled: boolean;
   config: ReturnType<typeof parseStewardAiConfig>;
   mode: StewardChatMode;
   moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>;
@@ -741,48 +760,68 @@ async function buildAgenticPreparation(options: {
   const toolsUsed: string[] = [];
 
   try {
-    const plannerResult = await runStewardAiChat(
-      options.config,
-      [
-        {
-          role: "system",
-          content: buildPlannerPrompt({
-            mode: options.mode,
-            moduleKey: options.moduleKey,
-            scopePath: options.scopePath,
-            userQuery: options.userQuery,
-            contextText: options.contextText,
-          }),
-        },
-      ],
+    const plannerResult = await withStewardAiTask(
       {
-        model: reasoningModel,
-        temperature: 0.2,
-        maxTokens: 700,
-      }
+        organizationId: options.organizationId,
+        enabled: options.enabled,
+        config: options.config,
+        label: "Planning donor engagement reasoning",
+        status: "thinking",
+        fallbackOnError: true,
+      },
+      () => runStewardAiChat(
+        options.config,
+        [
+          {
+            role: "system",
+            content: buildPlannerPrompt({
+              mode: options.mode,
+              moduleKey: options.moduleKey,
+              scopePath: options.scopePath,
+              userQuery: options.userQuery,
+              contextText: options.contextText,
+            }),
+          },
+        ],
+        {
+          model: reasoningModel,
+          temperature: 0.2,
+          maxTokens: 700,
+        }
+      )
     );
 
     stageSummaries.push(`Planner Notes:\n${plannerResult.content}`);
     toolsUsed.push("agentic.plan");
 
-    const reasoningResult = await runStewardAiChat(
-      options.config,
-      [
-        {
-          role: "system",
-          content: buildReasoningPrompt({
-            mode: options.mode,
-            userQuery: options.userQuery,
-            contextText: options.contextText,
-            plannerNotes: plannerResult.content,
-          }),
-        },
-      ],
+    const reasoningResult = await withStewardAiTask(
       {
-        model: reasoningModel,
-        temperature: 0.15,
-        maxTokens: 900,
-      }
+        organizationId: options.organizationId,
+        enabled: options.enabled,
+        config: options.config,
+        label: "Verifying recommendation confidence",
+        status: "thinking",
+        fallbackOnError: true,
+      },
+      () => runStewardAiChat(
+        options.config,
+        [
+          {
+            role: "system",
+            content: buildReasoningPrompt({
+              mode: options.mode,
+              userQuery: options.userQuery,
+              contextText: options.contextText,
+              plannerNotes: plannerResult.content,
+            }),
+          },
+        ],
+        {
+          model: reasoningModel,
+          temperature: 0.15,
+          maxTokens: 900,
+        }
+      )
     );
 
     stageSummaries.push(`Reasoning Notes:\n${reasoningResult.content}`);
@@ -862,202 +901,20 @@ function buildRuntimeSystemPrompt(options: {
 /** Builds donor module retrieval context from constituents, tasks, and meetings. */
 async function buildDonorContext(params: {
   organizationId: string;
-  tokens: string[];
   scopePath: string;
+  userId: string;
+  role: string;
+  moduleKey?: "donor" | "oshareview";
+  userQuery: string;
 }): Promise<StewardContextResult> {
-  const toolsUsed: string[] = [
-    "donor.constituentLookup",
-    "donor.workQueueSnapshot",
-    "donor.topDonorSnapshot",
-    "donor.givingSummarySnapshot",
-    "donor.segmentSnapshot",
-  ];
-
-  const now = new Date();
-  const yearStart = new Date(now.getFullYear(), 0, 1);
-  const last90Days = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-
-  const donorMatchesPromise = params.tokens.length > 0
-    ? prisma.constituent.findMany({
-        where: {
-          organizationId: params.organizationId,
-          OR: params.tokens.flatMap((token) => ([
-            { firstName: { contains: token } },
-            { lastName: { contains: token } },
-            { email: { contains: token } },
-          ])),
-        },
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          donorStatus: true,
-          lastGiftDate: true,
-          totalLifetimeGiving: true,
-        },
-        take: 6,
-      })
-    : Promise.resolve([]);
-
-  const [
-    donorMatches,
-    pendingTaskCount,
-    upcomingMeetings,
-    topDonors,
-    donorSegments,
-    ytdGiving,
-    ytdGiftCount,
-    rolling90Giving,
-    rolling90GiftCount,
-    recentDonations,
-  ] = await Promise.all([
-    donorMatchesPromise,
-    prisma.task.count({
-      where: {
-        status: "PENDING",
-        OR: [
-          { constituent: { organizationId: params.organizationId } },
-          { meeting: { organizationId: params.organizationId } },
-          { createdBy: { organizationId: params.organizationId } },
-          { assignee: { organizationId: params.organizationId } },
-        ],
-      },
-    }),
-    prisma.meeting.findMany({
-      where: {
-        organizationId: params.organizationId,
-        status: "SCHEDULED",
-      },
-      select: {
-        id: true,
-        title: true,
-        startTime: true,
-      },
-      orderBy: { startTime: "asc" },
-      take: 5,
-    }),
-    prisma.constituent.findMany({
-      where: {
-        organizationId: params.organizationId,
-        totalLifetimeGiving: { gt: 0 },
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        donorStatus: true,
-        totalLifetimeGiving: true,
-        lastGiftDate: true,
-      },
-      orderBy: [
-        { totalLifetimeGiving: "desc" },
-        { lastGiftDate: "desc" },
-      ],
-      take: 8,
-    }),
-    prisma.constituent.groupBy({
-      by: ["donorStatus"],
-      where: { organizationId: params.organizationId },
-      _count: { _all: true },
-    }),
-    prisma.donation.aggregate({
-      where: {
-        constituent: { organizationId: params.organizationId },
-        status: "COMPLETED",
-        date: { gte: yearStart },
-      },
-      _sum: { amount: true },
-    }),
-    prisma.donation.count({
-      where: {
-        constituent: { organizationId: params.organizationId },
-        status: "COMPLETED",
-        date: { gte: yearStart },
-      },
-    }),
-    prisma.donation.aggregate({
-      where: {
-        constituent: { organizationId: params.organizationId },
-        status: "COMPLETED",
-        date: { gte: last90Days },
-      },
-      _sum: { amount: true },
-    }),
-    prisma.donation.count({
-      where: {
-        constituent: { organizationId: params.organizationId },
-        status: "COMPLETED",
-        date: { gte: last90Days },
-      },
-    }),
-    prisma.donation.findMany({
-      where: {
-        constituent: { organizationId: params.organizationId },
-        status: "COMPLETED",
-      },
-      select: {
-        id: true,
-        amount: true,
-        date: true,
-        constituent: {
-          select: {
-            firstName: true,
-            lastName: true,
-          },
-        },
-        campaign: {
-          select: {
-            name: true,
-          },
-        },
-      },
-      orderBy: { date: "desc" },
-      take: 8,
-    }),
-  ]);
-
-  const topDonorLeaderboard = topDonors.map((donor, index) => ({
-    rank: index + 1,
-    name: `${donor.firstName} ${donor.lastName}`,
-    donorStatus: donor.donorStatus,
-    lifetimeGiving: String(donor.totalLifetimeGiving),
-    lastGiftDate: donor.lastGiftDate?.toISOString() ?? null,
-  }));
-
-  const lines = [
-    `Donor scope path: ${params.scopePath}`,
-    `YTD completed donations: ${ytdGiftCount.toLocaleString()} totaling ${formatGivingAmount(ytdGiving._sum.amount ?? 0)}`,
-    `Last 90 days completed donations: ${rolling90GiftCount.toLocaleString()} totaling ${formatGivingAmount(rolling90Giving._sum.amount ?? 0)}`,
-    `Pending tasks in queue: ${pendingTaskCount}`,
-    `Upcoming meetings: ${upcomingMeetings.length}`,
-    `Donor segments: ${donorSegments.map((entry) => `${entry.donorStatus}=${entry._count._all}`).join(", ") || "none"}`,
-    ...upcomingMeetings.map((meeting) => `- Meeting: ${meeting.title} at ${meeting.startTime.toISOString()}`),
-    `Recent completed donations: ${recentDonations.length}`,
-    ...recentDonations.map((donation) =>
-      `- Gift ${donation.date.toISOString().slice(0, 10)} ${formatGivingAmount(donation.amount)} from ${donation.constituent.firstName} ${donation.constituent.lastName}${donation.campaign?.name ? ` (campaign: ${donation.campaign.name})` : ""}`
-    ),
-    `Top donors by lifetime giving: ${topDonors.length}`,
-    `Top donor leaderboard (authoritative JSON): ${JSON.stringify(topDonorLeaderboard)}`,
-    ...topDonors.map((donor, index) =>
-      `${index + 1}. ${donor.firstName} ${donor.lastName} [${donor.donorStatus}] lifetime=${String(donor.totalLifetimeGiving)} lastGift=${donor.lastGiftDate?.toISOString() ?? "none"}`
-    ),
-    `Matched constituents: ${donorMatches.length}`,
-    ...donorMatches.map((constituent) =>
-      `- ${constituent.firstName} ${constituent.lastName} [${constituent.donorStatus}] lastGift=${constituent.lastGiftDate?.toISOString() ?? "none"} lifetime=${String(constituent.totalLifetimeGiving)}`
-    ),
-  ];
-
-  return {
-    contextText: lines.join("\n"),
-    toolsUsed,
-    recordsUsed: [
-      ...topDonors.slice(0, 5).map((donor) => `${donor.firstName} ${donor.lastName}`),
-      ...donorMatches.slice(0, 4).map((donor) => `${donor.firstName} ${donor.lastName}`),
-      ...upcomingMeetings.slice(0, 3).map((meeting) => `Meeting: ${meeting.title}`),
-      ...recentDonations.slice(0, 4).map((donation) => `Donation ${donation.id}`),
-      ...donorSegments.slice(0, 4).map((entry) => `Segment ${entry.donorStatus}: ${entry._count._all}`),
-    ],
-  };
+  return buildDonorToolContextForChat({
+    organizationId: params.organizationId,
+    userId: params.userId,
+    role: params.role,
+    scopePath: params.scopePath,
+    moduleKey: params.moduleKey,
+    query: params.userQuery,
+  });
 }
 
 /** Builds Compassion module retrieval context from clients, cases, appointments, and follow-ups. */
@@ -1231,6 +1088,8 @@ async function buildRetrievalContext(params: {
   moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>;
   scopePath: string;
   userQuery: string;
+  userId: string;
+  role: string;
 }): Promise<StewardContextResult> {
   const tokens = tokenizeQuery(params.userQuery);
 
@@ -1303,8 +1162,11 @@ async function buildRetrievalContext(params: {
 
   return buildDonorContext({
     organizationId: params.organizationId,
-    tokens,
     scopePath: params.scopePath,
+    userId: params.userId,
+    role: params.role,
+    moduleKey: params.moduleKey === "oshareview" ? "oshareview" : "donor",
+    userQuery: params.userQuery,
   });
 }
 
@@ -1490,6 +1352,27 @@ async function buildBridgeReadinessPayload(options: {
 }
 
 /** GET /api/steward-ai/config — Returns saved AI provider config for the active organization. */
+router.get("/status", async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const query = req.query as StewardAiStatusQuery;
+  const setting = await getStewardAiSetting(organizationId);
+  const config = parseStewardAiConfig(setting?.config ?? defaultStewardAiConfig());
+  const enabled = Boolean(setting?.enabled);
+  const forceRefresh = String(query.force ?? "").toLowerCase() === "1" || String(query.force ?? "").toLowerCase() === "true";
+
+  const state = forceRefresh
+    ? await refreshStewardAiRuntimeState({ organizationId, enabled, config, forceRefresh: true })
+    : await refreshStewardAiRuntimeState({ organizationId, enabled, config, forceRefresh: false });
+
+  res.json({ data: state });
+});
+
+/** GET /api/steward-ai/config — Returns saved AI provider config for the active organization. */
 router.get("/config", async (req, res) => {
   const organizationId = await resolveOrgId(req);
   if (!organizationId) {
@@ -1576,6 +1459,12 @@ router.put("/config", requireRole("admin"), async (req, res) => {
     userAgent: req.headers["user-agent"],
   });
 
+  getStewardAiRuntimeState({
+    organizationId,
+    enabled,
+    config: nextConfig,
+  });
+
   res.json({
     data: toPublicConfig(enabled, nextConfig),
   });
@@ -1595,6 +1484,11 @@ router.post("/test", requireRole("admin"), async (req, res) => {
   const startedAt = Date.now();
   try {
     const result = await testStewardAiConnection(config);
+    recordStewardAiConnectionSuccess({
+      organizationId,
+      enabled: Boolean(setting?.enabled),
+      config,
+    });
     res.json({
       data: {
         ok: true,
@@ -1604,6 +1498,13 @@ router.post("/test", requireRole("admin"), async (req, res) => {
       },
     });
   } catch (error) {
+    recordStewardAiConnectionError({
+      organizationId,
+      enabled: Boolean(setting?.enabled),
+      config,
+      message: error instanceof Error ? error.message : "Steward AI connection failed.",
+      fallback: false,
+    });
     res.status(502).json({
       error: {
         code: "AI_CONNECTION_FAILED",
@@ -1769,6 +1670,138 @@ router.get("/models", requireRole("admin"), async (req, res) => {
   }
 });
 
+/**
+ * GET /api/steward-ai/tools
+ * Lists available Steward tools for the current user, with permission visibility.
+ */
+router.get("/tools", async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  if (!userId || !role) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const query = req.query as StewardToolListQuery;
+  const moduleKey = query.moduleKey === "oshareview" ? "oshareview" : "donor";
+  const scopePath = asSafeText(query.scopePath, "/", 300);
+
+  const context: StewardToolExecutionContext = {
+    organizationId,
+    userId,
+    role,
+    moduleKey,
+    scopePath,
+    requestRoute: req.path,
+  };
+
+  const tools = await listStewardTools(context);
+
+  res.json({
+    data: {
+      moduleKey,
+      scopePath,
+      tools,
+    },
+  });
+});
+
+/**
+ * POST /api/steward-ai/tools/execute
+ * Executes one approved Steward tool through the controlled donor intelligence layer.
+ */
+router.post("/tools/execute", async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  if (!userId || !role) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const payload = (req.body ?? {}) as StewardToolExecutePayload;
+  const toolName = asSafeText(payload.tool, "", 120);
+  if (!toolName) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "tool is required." } });
+    return;
+  }
+
+  const moduleKey = payload.moduleKey === "oshareview" ? "oshareview" : "donor";
+  const scopePath = asSafeText(payload.scopePath, "/", 300);
+  const input = payload.input && typeof payload.input === "object" && !Array.isArray(payload.input)
+    ? payload.input
+    : undefined;
+
+  const context: StewardToolExecutionContext = {
+    organizationId,
+    userId,
+    role,
+    moduleKey,
+    scopePath,
+    requestRoute: req.path,
+  };
+
+  try {
+    const execution = await executeStewardTool(
+      context,
+      toolName,
+      input,
+      { confirm: payload.confirm === true }
+    );
+
+    await logAudit({
+      action: execution.kind === "write" ? "STEWARD_TOOL_WRITE_EXECUTED" : "STEWARD_TOOL_READ_EXECUTED",
+      entity: "StewardTool",
+      entityId: execution.tool,
+      userId,
+      organizationId,
+      metadata: {
+        moduleKey,
+        scopePath,
+        tool: execution.tool,
+        kind: execution.kind,
+        requiresConfirmation: execution.requiresConfirmation,
+        confirmed: payload.confirm === true,
+        permissionsChecked: execution.permissionsChecked,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.json({
+      data: execution,
+    });
+  } catch (error) {
+    if (error instanceof StewardToolError) {
+      res.status(error.status).json({
+        error: {
+          code: error.code,
+          message: error.message,
+        },
+      });
+      return;
+    }
+
+    res.status(500).json({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: error instanceof Error ? error.message : "Steward tool execution failed.",
+      },
+    });
+  }
+});
+
 /** POST /api/steward-ai/chat — Produces a chat response using configured local/remote Ollama. */
 router.post("/chat/stream", async (req, res) => {
   const organizationId = await resolveOrgId(req);
@@ -1820,7 +1853,14 @@ router.post("/chat/stream", async (req, res) => {
 
   try {
     if (moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
-      const topDonorResult = await buildTopDonorResult(organizationId);
+      const topDonorResult = await buildTopDonorResult({
+        organizationId,
+        userId: req.user?.sub ?? "",
+        role: req.user?.role ?? "readonly",
+        moduleKey,
+        scopePath,
+        requestRoute: req.path,
+      });
       const templatedReply = formatReplyByMode({
         mode,
         reply: topDonorResult.reply,
@@ -1851,9 +1891,13 @@ router.post("/chat/stream", async (req, res) => {
       moduleKey,
       scopePath,
       userQuery: latestUserMessage,
+      userId: req.user?.sub ?? "",
+      role: req.user?.role ?? "readonly",
     });
 
     const agenticPreparation = await buildAgenticPreparation({
+      organizationId,
+      enabled: Boolean(setting?.enabled),
       config,
       mode,
       moduleKey,
@@ -1875,17 +1919,27 @@ router.post("/chat/stream", async (req, res) => {
     let completion: { content: string; model: string };
 
     try {
-      completion = await runStewardAiChatStream(
-        config,
-        [
-          { role: "system", content: runtimeSystemPrompt },
-          ...normalizedMessages,
-        ],
+      completion = await withStewardAiTask(
         {
-          onDelta: (delta) => {
-            res.write(`${JSON.stringify({ type: "chunk", delta })}\n`);
-          },
-        }
+          organizationId,
+          enabled: Boolean(setting?.enabled),
+          config,
+          label: "Generating donor engagement recommendations",
+          status: "running_task",
+          fallbackOnError: true,
+        },
+        () => runStewardAiChatStream(
+          config,
+          [
+            { role: "system", content: runtimeSystemPrompt },
+            ...normalizedMessages,
+          ],
+          {
+            onDelta: (delta) => {
+              res.write(`${JSON.stringify({ type: "chunk", delta })}\n`);
+            },
+          }
+        )
       );
     } catch (streamError) {
       const message = streamError instanceof Error ? streamError.message : "";
@@ -2016,7 +2070,14 @@ router.post("/chat", async (req, res) => {
 
   try {
     if (moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
-      const topDonorResult = await buildTopDonorResult(organizationId);
+      const topDonorResult = await buildTopDonorResult({
+        organizationId,
+        userId: req.user?.sub ?? "",
+        role: req.user?.role ?? "readonly",
+        moduleKey,
+        scopePath,
+        requestRoute: req.path,
+      });
       const templatedReply = formatReplyByMode({
         mode,
         reply: topDonorResult.reply,
@@ -2046,9 +2107,13 @@ router.post("/chat", async (req, res) => {
       moduleKey,
       scopePath,
       userQuery: latestUserMessage,
+      userId: req.user?.sub ?? "",
+      role: req.user?.role ?? "readonly",
     });
 
     const agenticPreparation = await buildAgenticPreparation({
+      organizationId,
+      enabled: Boolean(setting?.enabled),
       config,
       mode,
       moduleKey,
@@ -2070,10 +2135,20 @@ router.post("/chat", async (req, res) => {
     let completion: { content: string; model: string };
 
     try {
-      completion = await runStewardAiChat(config, [
-        { role: "system", content: runtimeSystemPrompt },
-        ...normalizedMessages,
-      ]);
+      completion = await withStewardAiTask(
+        {
+          organizationId,
+          enabled: Boolean(setting?.enabled),
+          config,
+          label: "Generating donor engagement recommendations",
+          status: "running_task",
+          fallbackOnError: true,
+        },
+        () => runStewardAiChat(config, [
+          { role: "system", content: runtimeSystemPrompt },
+          ...normalizedMessages,
+        ])
+      );
     } catch (chatError) {
       const message = chatError instanceof Error ? chatError.message : "";
       if (!/empty assistant response/i.test(message)) {

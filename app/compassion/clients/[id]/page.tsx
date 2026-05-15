@@ -665,7 +665,7 @@ type Tab =
 /**
  * ClientProfilePage: full client profile for a Compassion CRM client.
  * Fetches GET /api/compassion/clients/:id and displays a tabbed interface.
- * TODO: enforce Compassion workspace permission
+ * Access enforcement is handled by CompassionLayout and /api/compassion middleware.
  */
 export default function ClientProfilePage() {
   const { id } = useParams<{ id: string }>();

@@ -1,0 +1,3784 @@
+{
+  "summary": {
+    "generatedAt": "2026-05-14T16:16:03.701Z",
+    "baseUrl": "http://localhost:3000",
+    "totals": {
+      "all": 126,
+      "pass": 61,
+      "warn": 65,
+      "fail": 0
+    },
+    "byViewport": [
+      {
+        "id": "1024x768",
+        "pass": 1,
+        "warn": 13,
+        "fail": 0
+      },
+      {
+        "id": "1180x720",
+        "pass": 1,
+        "warn": 13,
+        "fail": 0
+      },
+      {
+        "id": "1280x720",
+        "pass": 1,
+        "warn": 13,
+        "fail": 0
+      },
+      {
+        "id": "1280x800",
+        "pass": 1,
+        "warn": 13,
+        "fail": 0
+      },
+      {
+        "id": "1366x768",
+        "pass": 1,
+        "warn": 13,
+        "fail": 0
+      },
+      {
+        "id": "1440x900",
+        "pass": 14,
+        "warn": 0,
+        "fail": 0
+      },
+      {
+        "id": "1536x864",
+        "pass": 14,
+        "warn": 0,
+        "fail": 0
+      },
+      {
+        "id": "390x844",
+        "pass": 14,
+        "warn": 0,
+        "fail": 0
+      },
+      {
+        "id": "768x1024",
+        "pass": 14,
+        "warn": 0,
+        "fail": 0
+      }
+    ]
+  },
+  "results": [
+    {
+      "route": "/",
+      "routeId": "dashboard",
+      "label": "Dashboard",
+      "viewport": {
+        "id": "1024x768",
+        "width": 1024,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1024,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1024,
+        "bodyScrollWidth": 1024,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/constituents",
+      "routeId": "constituents",
+      "label": "Constituents",
+      "viewport": {
+        "id": "1024x768",
+        "width": 1024,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1024,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1024,
+        "bodyScrollWidth": 1024,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/constituents/con_02",
+      "routeId": "constituent-detail",
+      "label": "Constituent Detail",
+      "viewport": {
+        "id": "1024x768",
+        "width": 1024,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1024,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1024,
+        "bodyScrollWidth": 1024,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/donations",
+      "routeId": "donations",
+      "label": "Donations",
+      "viewport": {
+        "id": "1024x768",
+        "width": 1024,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1024,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1024,
+        "bodyScrollWidth": 1024,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/communications",
+      "routeId": "communications",
+      "label": "Communications",
+      "viewport": {
+        "id": "1024x768",
+        "width": 1024,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1024,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1024,
+        "bodyScrollWidth": 1024,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/letters-printables",
+      "routeId": "letters-printables",
+      "label": "Letters & Printables",
+      "viewport": {
+        "id": "1024x768",
+        "width": 1024,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1024,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1024,
+        "bodyScrollWidth": 1024,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-signals",
+      "routeId": "steward-signals",
+      "label": "Steward Signals",
+      "viewport": {
+        "id": "1024x768",
+        "width": 1024,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1024,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1024,
+        "bodyScrollWidth": 1024,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-paths",
+      "routeId": "steward-paths",
+      "label": "Steward Paths",
+      "viewport": {
+        "id": "1024x768",
+        "width": 1024,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1024,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1024,
+        "bodyScrollWidth": 1024,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-paths/builder",
+      "routeId": "steward-paths-builder",
+      "label": "Steward Paths Builder",
+      "viewport": {
+        "id": "1024x768",
+        "width": 1024,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1024,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1024,
+        "bodyScrollWidth": 1024,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/reports",
+      "routeId": "reports",
+      "label": "Reports",
+      "viewport": {
+        "id": "1024x768",
+        "width": 1024,
+        "height": 768
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1024,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1024,
+        "bodyScrollWidth": 1024,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/settings/system-status",
+      "routeId": "system-status",
+      "label": "System Status",
+      "viewport": {
+        "id": "1024x768",
+        "width": 1024,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1024,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1024,
+        "bodyScrollWidth": 1024,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/webmaster/editor",
+      "routeId": "webmaster-editor",
+      "label": "Webmaster Editor",
+      "viewport": {
+        "id": "1024x768",
+        "width": 1024,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1024,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1024,
+        "bodyScrollWidth": 1024,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/webmaster/publishing",
+      "routeId": "webmaster-publishing",
+      "label": "Webmaster Publishing",
+      "viewport": {
+        "id": "1024x768",
+        "width": 1024,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1024,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1024,
+        "bodyScrollWidth": 1024,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/apps/trivia",
+      "routeId": "trivia-app",
+      "label": "Trivia App",
+      "viewport": {
+        "id": "1024x768",
+        "width": 1024,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1024,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1024,
+        "bodyScrollWidth": 1024,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/",
+      "routeId": "dashboard",
+      "label": "Dashboard",
+      "viewport": {
+        "id": "1180x720",
+        "width": 1180,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1180,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1180,
+        "bodyScrollWidth": 1180,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/constituents",
+      "routeId": "constituents",
+      "label": "Constituents",
+      "viewport": {
+        "id": "1180x720",
+        "width": 1180,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1180,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1180,
+        "bodyScrollWidth": 1180,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/constituents/con_02",
+      "routeId": "constituent-detail",
+      "label": "Constituent Detail",
+      "viewport": {
+        "id": "1180x720",
+        "width": 1180,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1180,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1180,
+        "bodyScrollWidth": 1180,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/donations",
+      "routeId": "donations",
+      "label": "Donations",
+      "viewport": {
+        "id": "1180x720",
+        "width": 1180,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1180,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1180,
+        "bodyScrollWidth": 1180,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/communications",
+      "routeId": "communications",
+      "label": "Communications",
+      "viewport": {
+        "id": "1180x720",
+        "width": 1180,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1180,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1180,
+        "bodyScrollWidth": 1180,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/letters-printables",
+      "routeId": "letters-printables",
+      "label": "Letters & Printables",
+      "viewport": {
+        "id": "1180x720",
+        "width": 1180,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1180,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1180,
+        "bodyScrollWidth": 1180,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-signals",
+      "routeId": "steward-signals",
+      "label": "Steward Signals",
+      "viewport": {
+        "id": "1180x720",
+        "width": 1180,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1180,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1180,
+        "bodyScrollWidth": 1180,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-paths",
+      "routeId": "steward-paths",
+      "label": "Steward Paths",
+      "viewport": {
+        "id": "1180x720",
+        "width": 1180,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1180,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1180,
+        "bodyScrollWidth": 1180,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-paths/builder",
+      "routeId": "steward-paths-builder",
+      "label": "Steward Paths Builder",
+      "viewport": {
+        "id": "1180x720",
+        "width": 1180,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1180,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1180,
+        "bodyScrollWidth": 1180,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/reports",
+      "routeId": "reports",
+      "label": "Reports",
+      "viewport": {
+        "id": "1180x720",
+        "width": 1180,
+        "height": 720
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1180,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1180,
+        "bodyScrollWidth": 1180,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/settings/system-status",
+      "routeId": "system-status",
+      "label": "System Status",
+      "viewport": {
+        "id": "1180x720",
+        "width": 1180,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1180,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1180,
+        "bodyScrollWidth": 1180,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/webmaster/editor",
+      "routeId": "webmaster-editor",
+      "label": "Webmaster Editor",
+      "viewport": {
+        "id": "1180x720",
+        "width": 1180,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1180,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1180,
+        "bodyScrollWidth": 1180,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/webmaster/publishing",
+      "routeId": "webmaster-publishing",
+      "label": "Webmaster Publishing",
+      "viewport": {
+        "id": "1180x720",
+        "width": 1180,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1180,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1180,
+        "bodyScrollWidth": 1180,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/apps/trivia",
+      "routeId": "trivia-app",
+      "label": "Trivia App",
+      "viewport": {
+        "id": "1180x720",
+        "width": 1180,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1180,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1180,
+        "bodyScrollWidth": 1180,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/",
+      "routeId": "dashboard",
+      "label": "Dashboard",
+      "viewport": {
+        "id": "1280x720",
+        "width": 1280,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/constituents",
+      "routeId": "constituents",
+      "label": "Constituents",
+      "viewport": {
+        "id": "1280x720",
+        "width": 1280,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/constituents/con_02",
+      "routeId": "constituent-detail",
+      "label": "Constituent Detail",
+      "viewport": {
+        "id": "1280x720",
+        "width": 1280,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/donations",
+      "routeId": "donations",
+      "label": "Donations",
+      "viewport": {
+        "id": "1280x720",
+        "width": 1280,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/communications",
+      "routeId": "communications",
+      "label": "Communications",
+      "viewport": {
+        "id": "1280x720",
+        "width": 1280,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": "communications-1280x720.png"
+    },
+    {
+      "route": "/letters-printables",
+      "routeId": "letters-printables",
+      "label": "Letters & Printables",
+      "viewport": {
+        "id": "1280x720",
+        "width": 1280,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-signals",
+      "routeId": "steward-signals",
+      "label": "Steward Signals",
+      "viewport": {
+        "id": "1280x720",
+        "width": 1280,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-paths",
+      "routeId": "steward-paths",
+      "label": "Steward Paths",
+      "viewport": {
+        "id": "1280x720",
+        "width": 1280,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-paths/builder",
+      "routeId": "steward-paths-builder",
+      "label": "Steward Paths Builder",
+      "viewport": {
+        "id": "1280x720",
+        "width": 1280,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": "steward-paths-builder-1280x720.png"
+    },
+    {
+      "route": "/reports",
+      "routeId": "reports",
+      "label": "Reports",
+      "viewport": {
+        "id": "1280x720",
+        "width": 1280,
+        "height": 720
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/settings/system-status",
+      "routeId": "system-status",
+      "label": "System Status",
+      "viewport": {
+        "id": "1280x720",
+        "width": 1280,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/webmaster/editor",
+      "routeId": "webmaster-editor",
+      "label": "Webmaster Editor",
+      "viewport": {
+        "id": "1280x720",
+        "width": 1280,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/webmaster/publishing",
+      "routeId": "webmaster-publishing",
+      "label": "Webmaster Publishing",
+      "viewport": {
+        "id": "1280x720",
+        "width": 1280,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/apps/trivia",
+      "routeId": "trivia-app",
+      "label": "Trivia App",
+      "viewport": {
+        "id": "1280x720",
+        "width": 1280,
+        "height": 720
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 720,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/",
+      "routeId": "dashboard",
+      "label": "Dashboard",
+      "viewport": {
+        "id": "1280x800",
+        "width": 1280,
+        "height": 800
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 800,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/constituents",
+      "routeId": "constituents",
+      "label": "Constituents",
+      "viewport": {
+        "id": "1280x800",
+        "width": 1280,
+        "height": 800
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 800,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/constituents/con_02",
+      "routeId": "constituent-detail",
+      "label": "Constituent Detail",
+      "viewport": {
+        "id": "1280x800",
+        "width": 1280,
+        "height": 800
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 800,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/donations",
+      "routeId": "donations",
+      "label": "Donations",
+      "viewport": {
+        "id": "1280x800",
+        "width": 1280,
+        "height": 800
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 800,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/communications",
+      "routeId": "communications",
+      "label": "Communications",
+      "viewport": {
+        "id": "1280x800",
+        "width": 1280,
+        "height": 800
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 800,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/letters-printables",
+      "routeId": "letters-printables",
+      "label": "Letters & Printables",
+      "viewport": {
+        "id": "1280x800",
+        "width": 1280,
+        "height": 800
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 800,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-signals",
+      "routeId": "steward-signals",
+      "label": "Steward Signals",
+      "viewport": {
+        "id": "1280x800",
+        "width": 1280,
+        "height": 800
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 800,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-paths",
+      "routeId": "steward-paths",
+      "label": "Steward Paths",
+      "viewport": {
+        "id": "1280x800",
+        "width": 1280,
+        "height": 800
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 800,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-paths/builder",
+      "routeId": "steward-paths-builder",
+      "label": "Steward Paths Builder",
+      "viewport": {
+        "id": "1280x800",
+        "width": 1280,
+        "height": 800
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 800,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/reports",
+      "routeId": "reports",
+      "label": "Reports",
+      "viewport": {
+        "id": "1280x800",
+        "width": 1280,
+        "height": 800
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 800,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/settings/system-status",
+      "routeId": "system-status",
+      "label": "System Status",
+      "viewport": {
+        "id": "1280x800",
+        "width": 1280,
+        "height": 800
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 800,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/webmaster/editor",
+      "routeId": "webmaster-editor",
+      "label": "Webmaster Editor",
+      "viewport": {
+        "id": "1280x800",
+        "width": 1280,
+        "height": 800
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 800,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/webmaster/publishing",
+      "routeId": "webmaster-publishing",
+      "label": "Webmaster Publishing",
+      "viewport": {
+        "id": "1280x800",
+        "width": 1280,
+        "height": 800
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 800,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/apps/trivia",
+      "routeId": "trivia-app",
+      "label": "Trivia App",
+      "viewport": {
+        "id": "1280x800",
+        "width": 1280,
+        "height": 800
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1280,
+        "viewportHeight": 800,
+        "documentScrollWidth": 1280,
+        "bodyScrollWidth": 1280,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/",
+      "routeId": "dashboard",
+      "label": "Dashboard",
+      "viewport": {
+        "id": "1366x768",
+        "width": 1366,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1366,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1366,
+        "bodyScrollWidth": 1366,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": "dashboard-1366x768.png"
+    },
+    {
+      "route": "/constituents",
+      "routeId": "constituents",
+      "label": "Constituents",
+      "viewport": {
+        "id": "1366x768",
+        "width": 1366,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1366,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1366,
+        "bodyScrollWidth": 1366,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/constituents/con_02",
+      "routeId": "constituent-detail",
+      "label": "Constituent Detail",
+      "viewport": {
+        "id": "1366x768",
+        "width": 1366,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1366,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1366,
+        "bodyScrollWidth": 1366,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/donations",
+      "routeId": "donations",
+      "label": "Donations",
+      "viewport": {
+        "id": "1366x768",
+        "width": 1366,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1366,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1366,
+        "bodyScrollWidth": 1366,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/communications",
+      "routeId": "communications",
+      "label": "Communications",
+      "viewport": {
+        "id": "1366x768",
+        "width": 1366,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1366,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1366,
+        "bodyScrollWidth": 1366,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/letters-printables",
+      "routeId": "letters-printables",
+      "label": "Letters & Printables",
+      "viewport": {
+        "id": "1366x768",
+        "width": 1366,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1366,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1366,
+        "bodyScrollWidth": 1366,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-signals",
+      "routeId": "steward-signals",
+      "label": "Steward Signals",
+      "viewport": {
+        "id": "1366x768",
+        "width": 1366,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1366,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1366,
+        "bodyScrollWidth": 1366,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": "steward-signals-1366x768.png"
+    },
+    {
+      "route": "/steward-paths",
+      "routeId": "steward-paths",
+      "label": "Steward Paths",
+      "viewport": {
+        "id": "1366x768",
+        "width": 1366,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1366,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1366,
+        "bodyScrollWidth": 1366,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-paths/builder",
+      "routeId": "steward-paths-builder",
+      "label": "Steward Paths Builder",
+      "viewport": {
+        "id": "1366x768",
+        "width": 1366,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1366,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1366,
+        "bodyScrollWidth": 1366,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/reports",
+      "routeId": "reports",
+      "label": "Reports",
+      "viewport": {
+        "id": "1366x768",
+        "width": 1366,
+        "height": 768
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1366,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1366,
+        "bodyScrollWidth": 1366,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": "reports-1366x768.png"
+    },
+    {
+      "route": "/settings/system-status",
+      "routeId": "system-status",
+      "label": "System Status",
+      "viewport": {
+        "id": "1366x768",
+        "width": 1366,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1366,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1366,
+        "bodyScrollWidth": 1366,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/webmaster/editor",
+      "routeId": "webmaster-editor",
+      "label": "Webmaster Editor",
+      "viewport": {
+        "id": "1366x768",
+        "width": 1366,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1366,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1366,
+        "bodyScrollWidth": 1366,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": "webmaster-editor-1366x768.png"
+    },
+    {
+      "route": "/webmaster/publishing",
+      "routeId": "webmaster-publishing",
+      "label": "Webmaster Publishing",
+      "viewport": {
+        "id": "1366x768",
+        "width": 1366,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1366,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1366,
+        "bodyScrollWidth": 1366,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/apps/trivia",
+      "routeId": "trivia-app",
+      "label": "Trivia App",
+      "viewport": {
+        "id": "1366x768",
+        "width": 1366,
+        "height": 768
+      },
+      "status": "warn",
+      "issues": [
+        "layout:sidebar-not-collapsed"
+      ],
+      "diagnostics": {
+        "viewportWidth": 1366,
+        "viewportHeight": 768,
+        "documentScrollWidth": 1366,
+        "bodyScrollWidth": 1366,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/",
+      "routeId": "dashboard",
+      "label": "Dashboard",
+      "viewport": {
+        "id": "1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1440,
+        "viewportHeight": 900,
+        "documentScrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/constituents",
+      "routeId": "constituents",
+      "label": "Constituents",
+      "viewport": {
+        "id": "1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1440,
+        "viewportHeight": 900,
+        "documentScrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/constituents/con_02",
+      "routeId": "constituent-detail",
+      "label": "Constituent Detail",
+      "viewport": {
+        "id": "1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1440,
+        "viewportHeight": 900,
+        "documentScrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/donations",
+      "routeId": "donations",
+      "label": "Donations",
+      "viewport": {
+        "id": "1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1440,
+        "viewportHeight": 900,
+        "documentScrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/communications",
+      "routeId": "communications",
+      "label": "Communications",
+      "viewport": {
+        "id": "1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1440,
+        "viewportHeight": 900,
+        "documentScrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/letters-printables",
+      "routeId": "letters-printables",
+      "label": "Letters & Printables",
+      "viewport": {
+        "id": "1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1440,
+        "viewportHeight": 900,
+        "documentScrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-signals",
+      "routeId": "steward-signals",
+      "label": "Steward Signals",
+      "viewport": {
+        "id": "1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1440,
+        "viewportHeight": 900,
+        "documentScrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-paths",
+      "routeId": "steward-paths",
+      "label": "Steward Paths",
+      "viewport": {
+        "id": "1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1440,
+        "viewportHeight": 900,
+        "documentScrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-paths/builder",
+      "routeId": "steward-paths-builder",
+      "label": "Steward Paths Builder",
+      "viewport": {
+        "id": "1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1440,
+        "viewportHeight": 900,
+        "documentScrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/reports",
+      "routeId": "reports",
+      "label": "Reports",
+      "viewport": {
+        "id": "1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1440,
+        "viewportHeight": 900,
+        "documentScrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/settings/system-status",
+      "routeId": "system-status",
+      "label": "System Status",
+      "viewport": {
+        "id": "1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1440,
+        "viewportHeight": 900,
+        "documentScrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/webmaster/editor",
+      "routeId": "webmaster-editor",
+      "label": "Webmaster Editor",
+      "viewport": {
+        "id": "1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1440,
+        "viewportHeight": 900,
+        "documentScrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/webmaster/publishing",
+      "routeId": "webmaster-publishing",
+      "label": "Webmaster Publishing",
+      "viewport": {
+        "id": "1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1440,
+        "viewportHeight": 900,
+        "documentScrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/apps/trivia",
+      "routeId": "trivia-app",
+      "label": "Trivia App",
+      "viewport": {
+        "id": "1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1440,
+        "viewportHeight": 900,
+        "documentScrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/",
+      "routeId": "dashboard",
+      "label": "Dashboard",
+      "viewport": {
+        "id": "1536x864",
+        "width": 1536,
+        "height": 864
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1536,
+        "viewportHeight": 864,
+        "documentScrollWidth": 1536,
+        "bodyScrollWidth": 1536,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/constituents",
+      "routeId": "constituents",
+      "label": "Constituents",
+      "viewport": {
+        "id": "1536x864",
+        "width": 1536,
+        "height": 864
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1536,
+        "viewportHeight": 864,
+        "documentScrollWidth": 1536,
+        "bodyScrollWidth": 1536,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/constituents/con_02",
+      "routeId": "constituent-detail",
+      "label": "Constituent Detail",
+      "viewport": {
+        "id": "1536x864",
+        "width": 1536,
+        "height": 864
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1536,
+        "viewportHeight": 864,
+        "documentScrollWidth": 1536,
+        "bodyScrollWidth": 1536,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/donations",
+      "routeId": "donations",
+      "label": "Donations",
+      "viewport": {
+        "id": "1536x864",
+        "width": 1536,
+        "height": 864
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1536,
+        "viewportHeight": 864,
+        "documentScrollWidth": 1536,
+        "bodyScrollWidth": 1536,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/communications",
+      "routeId": "communications",
+      "label": "Communications",
+      "viewport": {
+        "id": "1536x864",
+        "width": 1536,
+        "height": 864
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1536,
+        "viewportHeight": 864,
+        "documentScrollWidth": 1536,
+        "bodyScrollWidth": 1536,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/letters-printables",
+      "routeId": "letters-printables",
+      "label": "Letters & Printables",
+      "viewport": {
+        "id": "1536x864",
+        "width": 1536,
+        "height": 864
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1536,
+        "viewportHeight": 864,
+        "documentScrollWidth": 1536,
+        "bodyScrollWidth": 1536,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-signals",
+      "routeId": "steward-signals",
+      "label": "Steward Signals",
+      "viewport": {
+        "id": "1536x864",
+        "width": 1536,
+        "height": 864
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1536,
+        "viewportHeight": 864,
+        "documentScrollWidth": 1536,
+        "bodyScrollWidth": 1536,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-paths",
+      "routeId": "steward-paths",
+      "label": "Steward Paths",
+      "viewport": {
+        "id": "1536x864",
+        "width": 1536,
+        "height": 864
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1536,
+        "viewportHeight": 864,
+        "documentScrollWidth": 1536,
+        "bodyScrollWidth": 1536,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-paths/builder",
+      "routeId": "steward-paths-builder",
+      "label": "Steward Paths Builder",
+      "viewport": {
+        "id": "1536x864",
+        "width": 1536,
+        "height": 864
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1536,
+        "viewportHeight": 864,
+        "documentScrollWidth": 1536,
+        "bodyScrollWidth": 1536,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/reports",
+      "routeId": "reports",
+      "label": "Reports",
+      "viewport": {
+        "id": "1536x864",
+        "width": 1536,
+        "height": 864
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1536,
+        "viewportHeight": 864,
+        "documentScrollWidth": 1536,
+        "bodyScrollWidth": 1536,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/settings/system-status",
+      "routeId": "system-status",
+      "label": "System Status",
+      "viewport": {
+        "id": "1536x864",
+        "width": 1536,
+        "height": 864
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1536,
+        "viewportHeight": 864,
+        "documentScrollWidth": 1536,
+        "bodyScrollWidth": 1536,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/webmaster/editor",
+      "routeId": "webmaster-editor",
+      "label": "Webmaster Editor",
+      "viewport": {
+        "id": "1536x864",
+        "width": 1536,
+        "height": 864
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1536,
+        "viewportHeight": 864,
+        "documentScrollWidth": 1536,
+        "bodyScrollWidth": 1536,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/webmaster/publishing",
+      "routeId": "webmaster-publishing",
+      "label": "Webmaster Publishing",
+      "viewport": {
+        "id": "1536x864",
+        "width": 1536,
+        "height": 864
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1536,
+        "viewportHeight": 864,
+        "documentScrollWidth": 1536,
+        "bodyScrollWidth": 1536,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/apps/trivia",
+      "routeId": "trivia-app",
+      "label": "Trivia App",
+      "viewport": {
+        "id": "1536x864",
+        "width": 1536,
+        "height": 864
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 1536,
+        "viewportHeight": 864,
+        "documentScrollWidth": 1536,
+        "bodyScrollWidth": 1536,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/",
+      "routeId": "dashboard",
+      "label": "Dashboard",
+      "viewport": {
+        "id": "390x844",
+        "width": 390,
+        "height": 844,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentScrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/constituents",
+      "routeId": "constituents",
+      "label": "Constituents",
+      "viewport": {
+        "id": "390x844",
+        "width": 390,
+        "height": 844,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentScrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/constituents/con_02",
+      "routeId": "constituent-detail",
+      "label": "Constituent Detail",
+      "viewport": {
+        "id": "390x844",
+        "width": 390,
+        "height": 844,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentScrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/donations",
+      "routeId": "donations",
+      "label": "Donations",
+      "viewport": {
+        "id": "390x844",
+        "width": 390,
+        "height": 844,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentScrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/communications",
+      "routeId": "communications",
+      "label": "Communications",
+      "viewport": {
+        "id": "390x844",
+        "width": 390,
+        "height": 844,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentScrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/letters-printables",
+      "routeId": "letters-printables",
+      "label": "Letters & Printables",
+      "viewport": {
+        "id": "390x844",
+        "width": 390,
+        "height": 844,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentScrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-signals",
+      "routeId": "steward-signals",
+      "label": "Steward Signals",
+      "viewport": {
+        "id": "390x844",
+        "width": 390,
+        "height": 844,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentScrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-paths",
+      "routeId": "steward-paths",
+      "label": "Steward Paths",
+      "viewport": {
+        "id": "390x844",
+        "width": 390,
+        "height": 844,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentScrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-paths/builder",
+      "routeId": "steward-paths-builder",
+      "label": "Steward Paths Builder",
+      "viewport": {
+        "id": "390x844",
+        "width": 390,
+        "height": 844,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentScrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/reports",
+      "routeId": "reports",
+      "label": "Reports",
+      "viewport": {
+        "id": "390x844",
+        "width": 390,
+        "height": 844,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentScrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/settings/system-status",
+      "routeId": "system-status",
+      "label": "System Status",
+      "viewport": {
+        "id": "390x844",
+        "width": 390,
+        "height": 844,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentScrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/webmaster/editor",
+      "routeId": "webmaster-editor",
+      "label": "Webmaster Editor",
+      "viewport": {
+        "id": "390x844",
+        "width": 390,
+        "height": 844,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentScrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/webmaster/publishing",
+      "routeId": "webmaster-publishing",
+      "label": "Webmaster Publishing",
+      "viewport": {
+        "id": "390x844",
+        "width": 390,
+        "height": 844,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentScrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/apps/trivia",
+      "routeId": "trivia-app",
+      "label": "Trivia App",
+      "viewport": {
+        "id": "390x844",
+        "width": 390,
+        "height": 844,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentScrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/",
+      "routeId": "dashboard",
+      "label": "Dashboard",
+      "viewport": {
+        "id": "768x1024",
+        "width": 768,
+        "height": 1024,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 768,
+        "viewportHeight": 1024,
+        "documentScrollWidth": 768,
+        "bodyScrollWidth": 768,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/constituents",
+      "routeId": "constituents",
+      "label": "Constituents",
+      "viewport": {
+        "id": "768x1024",
+        "width": 768,
+        "height": 1024,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 768,
+        "viewportHeight": 1024,
+        "documentScrollWidth": 768,
+        "bodyScrollWidth": 768,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/constituents/con_02",
+      "routeId": "constituent-detail",
+      "label": "Constituent Detail",
+      "viewport": {
+        "id": "768x1024",
+        "width": 768,
+        "height": 1024,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 768,
+        "viewportHeight": 1024,
+        "documentScrollWidth": 768,
+        "bodyScrollWidth": 768,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/donations",
+      "routeId": "donations",
+      "label": "Donations",
+      "viewport": {
+        "id": "768x1024",
+        "width": 768,
+        "height": 1024,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 768,
+        "viewportHeight": 1024,
+        "documentScrollWidth": 768,
+        "bodyScrollWidth": 768,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/communications",
+      "routeId": "communications",
+      "label": "Communications",
+      "viewport": {
+        "id": "768x1024",
+        "width": 768,
+        "height": 1024,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 768,
+        "viewportHeight": 1024,
+        "documentScrollWidth": 768,
+        "bodyScrollWidth": 768,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/letters-printables",
+      "routeId": "letters-printables",
+      "label": "Letters & Printables",
+      "viewport": {
+        "id": "768x1024",
+        "width": 768,
+        "height": 1024,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 768,
+        "viewportHeight": 1024,
+        "documentScrollWidth": 768,
+        "bodyScrollWidth": 768,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-signals",
+      "routeId": "steward-signals",
+      "label": "Steward Signals",
+      "viewport": {
+        "id": "768x1024",
+        "width": 768,
+        "height": 1024,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 768,
+        "viewportHeight": 1024,
+        "documentScrollWidth": 768,
+        "bodyScrollWidth": 768,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-paths",
+      "routeId": "steward-paths",
+      "label": "Steward Paths",
+      "viewport": {
+        "id": "768x1024",
+        "width": 768,
+        "height": 1024,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 768,
+        "viewportHeight": 1024,
+        "documentScrollWidth": 768,
+        "bodyScrollWidth": 768,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/steward-paths/builder",
+      "routeId": "steward-paths-builder",
+      "label": "Steward Paths Builder",
+      "viewport": {
+        "id": "768x1024",
+        "width": 768,
+        "height": 1024,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 768,
+        "viewportHeight": 1024,
+        "documentScrollWidth": 768,
+        "bodyScrollWidth": 768,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/reports",
+      "routeId": "reports",
+      "label": "Reports",
+      "viewport": {
+        "id": "768x1024",
+        "width": 768,
+        "height": 1024,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 768,
+        "viewportHeight": 1024,
+        "documentScrollWidth": 768,
+        "bodyScrollWidth": 768,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/settings/system-status",
+      "routeId": "system-status",
+      "label": "System Status",
+      "viewport": {
+        "id": "768x1024",
+        "width": 768,
+        "height": 1024,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 768,
+        "viewportHeight": 1024,
+        "documentScrollWidth": 768,
+        "bodyScrollWidth": 768,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/webmaster/editor",
+      "routeId": "webmaster-editor",
+      "label": "Webmaster Editor",
+      "viewport": {
+        "id": "768x1024",
+        "width": 768,
+        "height": 1024,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 768,
+        "viewportHeight": 1024,
+        "documentScrollWidth": 768,
+        "bodyScrollWidth": 768,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/webmaster/publishing",
+      "routeId": "webmaster-publishing",
+      "label": "Webmaster Publishing",
+      "viewport": {
+        "id": "768x1024",
+        "width": 768,
+        "height": 1024,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 768,
+        "viewportHeight": 1024,
+        "documentScrollWidth": 768,
+        "bodyScrollWidth": 768,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    },
+    {
+      "route": "/apps/trivia",
+      "routeId": "trivia-app",
+      "label": "Trivia App",
+      "viewport": {
+        "id": "768x1024",
+        "width": 768,
+        "height": 1024,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "status": "pass",
+      "issues": [],
+      "diagnostics": {
+        "viewportWidth": 768,
+        "viewportHeight": 1024,
+        "documentScrollWidth": 768,
+        "bodyScrollWidth": 768,
+        "hasHorizontalOverflow": false,
+        "topbarHeight": 0,
+        "topbarTooTall": false,
+        "workspaceRailVisible": false,
+        "workspaceControlsTriggerVisible": false,
+        "sidebarCollapsed": false,
+        "wideTables": 0,
+        "overflowingContainers": [],
+        "bodyPreview": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\nSession control, audit logs, and role-based access keep your organization protected.\n\nNonprofit Management Platform\n\nSECURE SIGN-IN\n\nAccess your workspace\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "screenshot": null
+    }
+  ]
+}

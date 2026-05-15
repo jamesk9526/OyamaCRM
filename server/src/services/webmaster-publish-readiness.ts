@@ -10,6 +10,24 @@ export interface WebmasterPublishReadinessCheck {
   detail: string;
 }
 
+export interface WebmasterDraftDeltaSummary {
+  newPages: number;
+  updatedPages: number;
+  removedPages: number;
+  unchangedPages: number;
+  totalDraftCandidates: number;
+}
+
+export interface WebmasterDraftDeltaItem {
+  id: string;
+  title: string;
+  path: string;
+  changeType: "NEW" | "UPDATED" | "REMOVED";
+  updatedAt: string | null;
+  currentStatus: string | null;
+  previousStatus: string | null;
+}
+
 export interface WebmasterPublishReadinessReport {
   status: WebmasterReadinessStatus;
   summary: string;
@@ -18,6 +36,8 @@ export interface WebmasterPublishReadinessReport {
   pagesMissingSeo: Array<{ id: string; title: string; path: string }>;
   pagesWithInvalidPath: Array<{ id: string; title: string; path: string }>;
   draftChangesSinceLastPublish: number;
+  draftDeltaSummary: WebmasterDraftDeltaSummary;
+  draftDeltaItems: WebmasterDraftDeltaItem[];
   previewLink: string | null;
   publishExecutionStatus: "Not Implemented" | "Working";
   rollbackStatus: "Not Implemented" | "Working";
@@ -40,7 +60,7 @@ function summarizeReport(status: WebmasterReadinessStatus, checks: WebmasterPubl
   const notImplemented = checks.filter((check) => check.status === "Not Implemented").length;
 
   if (status === "Working") {
-    return "Site is ready for publish preflight. Publish execution workflow still depends on deployment adapters.";
+    return "Site is ready for publish preflight and snapshot publishing workflow.";
   }
 
   if (status === "Broken") {
@@ -61,12 +81,128 @@ function pickOverallStatus(checks: WebmasterPublishReadinessCheck[]): WebmasterR
   return "Working";
 }
 
+/** Builds page-level draft deltas between the current site pages and last published snapshot. */
+function buildDraftDelta(params: {
+  pages: WebmasterPageRecord[];
+  previousPublishedPages: WebmasterPageRecord[];
+  lastPublishedAt: string | null;
+}): {
+  summary: WebmasterDraftDeltaSummary;
+  items: WebmasterDraftDeltaItem[];
+} {
+  const { pages, previousPublishedPages, lastPublishedAt } = params;
+
+  const items: WebmasterDraftDeltaItem[] = [];
+  let unchangedPages = 0;
+  const previousById = new Map(previousPublishedPages.map((page) => [page.id, page]));
+  const currentById = new Map(pages.map((page) => [page.id, page]));
+  const lastPublishedMs = lastPublishedAt ? new Date(lastPublishedAt).getTime() : null;
+
+  if (previousPublishedPages.length === 0) {
+    for (const page of pages) {
+      if (page.status === "ARCHIVED") continue;
+      items.push({
+        id: page.id,
+        title: page.title,
+        path: page.path,
+        changeType: "NEW",
+        updatedAt: page.updatedAt,
+        currentStatus: page.status,
+        previousStatus: null,
+      });
+    }
+  } else {
+    for (const page of pages) {
+      const previousPage = previousById.get(page.id);
+
+      if (!previousPage) {
+        items.push({
+          id: page.id,
+          title: page.title,
+          path: page.path,
+          changeType: "NEW",
+          updatedAt: page.updatedAt,
+          currentStatus: page.status,
+          previousStatus: null,
+        });
+        continue;
+      }
+
+      const changedAfterPublish = lastPublishedMs !== null
+        ? new Date(page.updatedAt).getTime() > lastPublishedMs
+        : false;
+
+      const metadataChanged = page.status !== previousPage.status
+        || page.title !== previousPage.title
+        || page.slug !== previousPage.slug
+        || page.path !== previousPage.path
+        || (page.seoTitle ?? "") !== (previousPage.seoTitle ?? "")
+        || (page.seoDescription ?? "") !== (previousPage.seoDescription ?? "");
+
+      if (!changedAfterPublish && !metadataChanged) {
+        unchangedPages += 1;
+        continue;
+      }
+
+      items.push({
+        id: page.id,
+        title: page.title,
+        path: page.path,
+        changeType: "UPDATED",
+        updatedAt: page.updatedAt,
+        currentStatus: page.status,
+        previousStatus: previousPage.status,
+      });
+    }
+
+    for (const previousPage of previousPublishedPages) {
+      if (currentById.has(previousPage.id)) continue;
+      items.push({
+        id: previousPage.id,
+        title: previousPage.title,
+        path: previousPage.path,
+        changeType: "REMOVED",
+        updatedAt: null,
+        currentStatus: null,
+        previousStatus: previousPage.status,
+      });
+    }
+  }
+
+  const changeOrder: Record<WebmasterDraftDeltaItem["changeType"], number> = {
+    UPDATED: 0,
+    NEW: 1,
+    REMOVED: 2,
+  };
+
+  items.sort((left, right) => {
+    const byType = changeOrder[left.changeType] - changeOrder[right.changeType];
+    if (byType !== 0) return byType;
+
+    const leftTime = left.updatedAt ? new Date(left.updatedAt).getTime() : 0;
+    const rightTime = right.updatedAt ? new Date(right.updatedAt).getTime() : 0;
+    return rightTime - leftTime;
+  });
+
+  const summary: WebmasterDraftDeltaSummary = {
+    newPages: items.filter((item) => item.changeType === "NEW").length,
+    updatedPages: items.filter((item) => item.changeType === "UPDATED").length,
+    removedPages: items.filter((item) => item.changeType === "REMOVED").length,
+    unchangedPages,
+    totalDraftCandidates: items.length,
+  };
+
+  return { summary, items };
+}
+
 /** Builds publish readiness with strict preflight requirements and honest implementation flags. */
 export function buildWebmasterPublishReadinessReport(input: {
   site: WebmasterSiteRecord;
   pages: WebmasterPageRecord[];
+  previousPublishedPages?: WebmasterPageRecord[];
 }): WebmasterPublishReadinessReport {
   const { site, pages } = input;
+  const previousPublishedPages = Array.isArray(input.previousPublishedPages) ? input.previousPublishedPages : [];
   const checks: WebmasterPublishReadinessCheck[] = [];
 
   const homePage = pages.find((page) => page.path === "/");
@@ -152,9 +288,12 @@ export function buildWebmasterPublishReadinessReport(input: {
   });
 
   const lastPublishedAt = site.lastPublishedAt;
-  const draftChangesSinceLastPublish = !lastPublishedAt
-    ? pages.length
-    : pages.filter((page) => new Date(page.updatedAt).getTime() > new Date(lastPublishedAt).getTime()).length;
+  const draftDelta = buildDraftDelta({
+    pages,
+    previousPublishedPages,
+    lastPublishedAt,
+  });
+  const draftChangesSinceLastPublish = draftDelta.summary.totalDraftCandidates;
 
   const preflightChecks = checks.filter(
     (check) => check.id !== "publish-execution" && check.id !== "rollback-history",
@@ -173,6 +312,8 @@ export function buildWebmasterPublishReadinessReport(input: {
     pagesMissingSeo,
     pagesWithInvalidPath,
     draftChangesSinceLastPublish,
+    draftDeltaSummary: draftDelta.summary,
+    draftDeltaItems: draftDelta.items,
     previewLink,
     publishExecutionStatus: "Working",
     rollbackStatus: "Working",

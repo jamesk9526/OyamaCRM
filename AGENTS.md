@@ -20,6 +20,54 @@ Every feature, section, or UI concept must live in its own file/component. Never
 - **Layout**: All pages share `AppShell` (TopBar + Sidebar + main). Add new sidebar items in `app/components/layout/Sidebar.tsx`.
 <!-- END:modular-architecture-rules -->
 
+<!-- BEGIN:ribbon-first-workspace-rules -->
+# Ribbon-First Workspace Rules
+
+Workspace-heavy pages (Communications, Letters, Tasks, Reports, Steward Signals, Grants, and similar command centers) must default to a compact ribbon-first command model.
+
+- Use `WorkspaceRibbonFrame` with grouped icon-first actions instead of long horizontal button rows.
+- Keep command labels concise and pair every action with an icon.
+- Default to project-library-first starts: users choose/open a project, queue, or template before editing details.
+- Avoid permanent right rails as primary navigation; use drawers, collapsible panels, or focused routes for secondary controls.
+- Prefer explicit wizard flows for complex creation tasks (type -> audience/context -> content -> review -> send/complete).
+- Maintain compact density for small laptop widths (`1366x768`, `1280x720`) without horizontal page scrolling.
+- Keep deep-link compatibility for prior URLs by routing old links to the new ribbon workflow entry points.
+<!-- END:ribbon-first-workspace-rules -->
+
+<!-- BEGIN:current-product-direction-rules -->
+# Current Product Direction
+
+OyamaCRM is being refactored into a polished, professional CRM experience inspired by Microsoft 365 and HubSpot.
+
+- Favor compact workspace layouts with a single breadcrumb bar, ribbon-style command groups, and dense readable data views.
+- Avoid large page-top title cards, redundant subtitles, scattered action buttons, and duplicate workspace control rows.
+- Keep one canonical workflow path per tool. Remove or hide duplicate/legacy routes when a canonical route exists.
+- Do not leave fake or nonfunctional UI visible in CRM workspaces; finish wiring it or remove it from user-facing surfaces.
+- Guided workflows must be fully functional end-to-end (settings, validation, persistence, navigation, and completion actions).
+- Right-side panels are contextual only (selected item details, preview, assistant, temporary drawer, builder inspector), never primary navigation.
+- Coordinated multi-file refactors are allowed when needed to simplify workflows, reduce duplication, and improve maintainability.
+
+Workspace structure target:
+
+1. Global TopBar
+2. Global Sidebar
+3. Single-line breadcrumb bar
+4. Compact ribbon toolbar when actions are needed
+5. Main workspace content
+<!-- END:current-product-direction-rules -->
+
+<!-- BEGIN:responsive-compact-desktop-rules -->
+# Small Laptop Layout Rules
+
+All new CRM workspaces must be tested at `1366x768` and `1280x720`. Do not create layouts that only work on large monitors.
+
+- Use `min-w-0`, `max-w-full`, and contained overflow on shell/content flex children.
+- Keep tables inside their own horizontal scroll container instead of allowing page-level sideways scrolling.
+- Collapse right-side workspace rails into a drawer or explicit trigger on compact desktop widths.
+- Use compact TopBar and sidebar behavior between `1024px` and `1439px` so small laptop users are not forced into a cramped full-desktop layout.
+- Treat Windows 125% scaling behavior as part of compact desktop QA, not an edge case.
+<!-- END:responsive-compact-desktop-rules -->
+
 <!-- BEGIN:code-style-rules -->
 # Code Style — Comment With Intent
 
@@ -675,4 +723,20 @@ OyamaWebMaster is the platform website command center and publishing layer.
   - `docs/OYAMA_WEBMASTER_CRM_INTEGRATION.md`
   - `docs/OYAMA_WEBMASTER_DATA_SAFETY.md`
 <!-- END:oyama-webmaster-command-center-rules -->
+
+<!-- BEGIN:steward-donor-intelligence-boundary-rules -->
+## Steward Donor Intelligence Boundary Rules
+
+Steward must never access donor data through open-ended model-generated SQL. All donor access must go through permission-aware, organization-scoped server tools. Read tools may return donor summaries, reports, and evidence packets. Write tools must be confirmation-gated, draft-first, audit-logged, and must respect donor communication preferences.
+<!-- END:steward-donor-intelligence-boundary-rules -->
+
+<!-- BEGIN:steward-ai-runtime-status-rules -->
+## Steward AI Runtime Status Rules
+
+- Steward AI must expose a lightweight runtime status API (`GET /api/steward-ai/status`) that reports disabled, not configured, connecting, connected, thinking, running task, fallback, and error states without forcing expensive generations on every page load.
+- Runtime status checks should use a short cached health-check window (for example 30-60 seconds) rather than probing the runtime on every request.
+- AI execution paths should use runtime task wrappers so UI can show active task labels and task counts while generation is in progress.
+- Donor engagement surfaces must stay deterministic-first: when live AI is unavailable, keep deterministic queue outputs active and label them as rules-mode/fallback instead of pretending AI is connected.
+- AI write actions remain confirm-first; runtime status visibility must never bypass explicit confirmation requirements for task creation, draft generation, dismiss, or send workflows.
+<!-- END:steward-ai-runtime-status-rules -->
 

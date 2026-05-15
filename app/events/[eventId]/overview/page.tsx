@@ -13,6 +13,10 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/app/lib/auth-client";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -196,11 +200,34 @@ export default function EventOverviewPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Page title */}
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">{event.name} — Overview</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Live dashboard for this event</p>
-      </div>
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Events CRM", href: "/events/workspace" },
+          { label: event.name, href: `/events/${eventId}/overview` },
+          { label: "Overview" },
+        ]}
+        statusLabel="Live"
+        metadata={`${checkedIn.toLocaleString()} checked in · ${totalGuests.toLocaleString()} guests · $${revenue.toLocaleString()} confirmed revenue`}
+        accentTone="amber"
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="Operations">
+          <WorkspaceRibbonButton label="Guests" href={`/events/${eventId}/guests`} accentTone="amber" />
+          <WorkspaceRibbonButton label="Check-In" href={`/events/${eventId}/check-in`} accentTone="amber" />
+          <WorkspaceRibbonButton label="Orders" href={`/events/${eventId}/orders`} accentTone="amber" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Setup">
+          <WorkspaceRibbonButton label="Tickets" href={`/events/${eventId}/tickets`} accentTone="amber" />
+          <WorkspaceRibbonButton label="Tables" href={`/events/${eventId}/tables`} accentTone="amber" />
+          <WorkspaceRibbonButton label="Sponsors" href={`/events/${eventId}/sponsors`} accentTone="amber" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Actions">
+          <WorkspaceRibbonButton label="Refresh" onClick={() => void loadData()} accentTone="amber" />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">

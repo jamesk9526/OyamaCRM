@@ -7,6 +7,10 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 import NewGuestModal from "@/app/components/events/NewGuestModal";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
 interface Event {
   id: string;
@@ -157,17 +161,64 @@ export default function EventGuestsPage() {
   }
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Event Guests</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Manage attendees, link to constituents, and prep check-in rosters
-        </p>
-      </div>
+    <div className="p-6 space-y-6">
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Events CRM", href: "/events/workspace" },
+          { label: "Guests" },
+        ]}
+        statusLabel={eventScoped ? "Event Scoped" : "All Events"}
+        metadata={`${metrics.total.toLocaleString()} guests · ${metrics.checkedIn.toLocaleString()} checked in${selectedEventName ? ` · ${selectedEventName}` : ""}`}
+        accentTone="amber"
+        primaryAction={
+          <WorkspaceRibbonButton
+            label="Add Guest"
+            onClick={() => {
+              if (events.length > 0) {
+                setSelectedEventId(events[0].id);
+                setShowNewGuestModal(true);
+              } else {
+                alert("Create an event first");
+              }
+            }}
+            variant="primary"
+            accentTone="amber"
+          />
+        }
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="Create">
+          <WorkspaceRibbonButton
+            label="Add Guest"
+            onClick={() => {
+              if (events.length > 0) {
+                setSelectedEventId(events[0].id);
+                setShowNewGuestModal(true);
+              } else {
+                alert("Create an event first");
+              }
+            }}
+            variant="primary"
+            accentTone="amber"
+          />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Check-In">
+          <WorkspaceRibbonButton label="All" onClick={() => setCheckedInFilter("")} variant={!checkedInFilter ? "primary" : "secondary"} accentTone="amber" />
+          <WorkspaceRibbonButton label="Checked In" onClick={() => setCheckedInFilter("true")} variant={checkedInFilter === "true" ? "primary" : "secondary"} accentTone="amber" />
+          <WorkspaceRibbonButton label="Not Checked" onClick={() => setCheckedInFilter("false")} variant={checkedInFilter === "false" ? "primary" : "secondary"} accentTone="amber" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Link">
+          <WorkspaceRibbonButton label="Linked" onClick={() => setLinkedFilter("true")} variant={linkedFilter === "true" ? "primary" : "secondary"} accentTone="amber" />
+          <WorkspaceRibbonButton label="Not Linked" onClick={() => setLinkedFilter("false")} variant={linkedFilter === "false" ? "primary" : "secondary"} accentTone="amber" />
+          <WorkspaceRibbonButton label="Clear" onClick={() => { setSearchQuery(""); setCheckedInFilter(""); setLinkedFilter(""); setPaymentFilter(""); setRsvpFilter(""); }} disabled={!searchQuery && !checkedInFilter && !linkedFilter && !paymentFilter && !rsvpFilter} accentTone="amber" />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       {/* Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-white p-4 rounded-lg border border-gray-200">
           <p className="text-xs text-gray-500 uppercase font-medium">Total Guests</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">{metrics.total}</p>
@@ -192,7 +243,7 @@ export default function EventGuestsPage() {
       </div>
 
       {/* Filters & Actions */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+      <div className="bg-white rounded-lg border border-gray-200 p-4">
         <div className="flex flex-col md:flex-row gap-3 items-end">
           <div className="flex-1">
             <label className="block text-xs font-semibold text-gray-600 mb-1">Search</label>

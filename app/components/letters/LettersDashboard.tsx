@@ -128,7 +128,7 @@ export default function LettersDashboard() {
       <section className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Implementation Status</p>
         <p className="mt-1 text-sm text-blue-900">
-          Batch generation and queue workflows are now working. Server-side PDF export remains partially implemented, so browser print/PDF is still the supported export path.
+          Batch generation, queue workflows, and server-rendered PDF export are working. Use Generated Letters to download audited PDF exports directly from the backend pipeline.
         </p>
       </section>
     </div>

@@ -19,15 +19,20 @@ export type ReportsToolId =
   | "events-attendance"
   | "events-revenue"
   | "events-operations"
+  | "events-checkin-risk"
+  | "events-type-mix"
   | "compassion-kpis"
   | "compassion-cases"
   | "compassion-appointments"
   | "compassion-intake"
   | "compassion-outcomes"
+  | "compassion-workload"
+  | "compassion-data-quality"
   | "ogentic-queue"
   | "ogentic-drafts"
   | "ogentic-board-pack"
   | "ogentic-sources"
+  | "ogentic-execution"
   | "admin-overview"
   | "admin-donor-ops"
   | "admin-client-ops"
@@ -77,6 +82,8 @@ const MODULE_TOOLS: Record<ReportsWorkspaceModule, ModuleToolDefinition[]> = {
     { id: "events-attendance", label: "Attendance" },
     { id: "events-revenue", label: "Revenue" },
     { id: "events-operations", label: "Operations" },
+    { id: "events-checkin-risk", label: "Check-in Risk" },
+    { id: "events-type-mix", label: "Type Mix" },
   ],
   compassion: [
     { id: "compassion-kpis", label: "KPIs" },
@@ -84,12 +91,15 @@ const MODULE_TOOLS: Record<ReportsWorkspaceModule, ModuleToolDefinition[]> = {
     { id: "compassion-appointments", label: "Appointments" },
     { id: "compassion-intake", label: "Intake" },
     { id: "compassion-outcomes", label: "Outcomes" },
+    { id: "compassion-workload", label: "Workload" },
+    { id: "compassion-data-quality", label: "Data Quality" },
   ],
   ogentic: [
     { id: "ogentic-queue", label: "Queue" },
     { id: "ogentic-drafts", label: "Drafts" },
     { id: "ogentic-board-pack", label: "Board Pack" },
     { id: "ogentic-sources", label: "Source Mix" },
+    { id: "ogentic-execution", label: "Execution" },
   ],
   admin: [
     { id: "admin-overview", label: "Overview" },

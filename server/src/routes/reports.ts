@@ -69,27 +69,86 @@ function taskOrganizationWhere(organizationId: string) {
   };
 }
 
+function parseDateQueryValue(value: string | undefined): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+function buildDateWindowFilter(fromDateRaw: string | undefined, toDateRaw: string | undefined): Prisma.DateTimeFilter | undefined {
+  let fromDate = parseDateQueryValue(fromDateRaw);
+  let toDate = parseDateQueryValue(toDateRaw);
+  if (!fromDate && !toDate) return undefined;
+
+  // Normalize accidental inverted windows by swapping endpoints.
+  if (fromDate && toDate && fromDate > toDate) {
+    const swap = fromDate;
+    fromDate = toDate;
+    toDate = swap;
+  }
+
+  const filter: Prisma.DateTimeFilter = {};
+  if (fromDate) {
+    filter.gte = fromDate;
+  }
+  if (toDate) {
+    // Treat "to" as inclusive of the selected day.
+    filter.lte = new Date(toDate.getTime() + (24 * 60 * 60 * 1000) - 1);
+  }
+  return filter;
+}
+
+function mergeDateFilters(base?: Prisma.DateTimeFilter, extra?: Prisma.DateTimeFilter): Prisma.DateTimeFilter | undefined {
+  if (!base && !extra) return undefined;
+  if (!base) return extra;
+  if (!extra) return base;
+
+  const merged: Prisma.DateTimeFilter = {
+    ...base,
+    ...extra,
+  };
+
+  if (base.gte && extra.gte) {
+    merged.gte = base.gte > extra.gte ? base.gte : extra.gte;
+  }
+  if (base.lte && extra.lte) {
+    merged.lte = base.lte < extra.lte ? base.lte : extra.lte;
+  }
+  if (base.lt && extra.lt) {
+    merged.lt = base.lt < extra.lt ? base.lt : extra.lt;
+  }
+
+  return merged;
+}
+
 /** Parses report scope from query params and returns year + optional date range filters. */
 function parseReportScope(rawQuery: unknown) {
   const query = (rawQuery ?? {}) as Record<string, string | string[] | undefined>;
   const yearQuery = Array.isArray(query.year) ? query.year[0] : query.year;
   const scopeQuery = Array.isArray(query.scope) ? query.scope[0] : query.scope;
+  const fromDateQuery = Array.isArray(query.fromDate) ? query.fromDate[0] : query.fromDate;
+  const toDateQuery = Array.isArray(query.toDate) ? query.toDate[0] : query.toDate;
   const currentYear = new Date().getFullYear();
   const parsedYear = Number.parseInt(yearQuery ?? String(currentYear), 10);
   const year = Number.isFinite(parsedYear) ? parsedYear : currentYear;
   const useAllYears = scopeQuery?.toUpperCase() === "ALL_YEARS";
   const yearRange = getYearRange(year);
   const now = new Date();
+  const customDateFilter = buildDateWindowFilter(fromDateQuery, toDateQuery);
   // For the active calendar year, use true YTD (Jan 1 -> now) so dashboard values match YTD date pickers.
   const ytdRange = { gte: new Date(year, 0, 1), lte: now };
   const scopedRange = year === currentYear ? ytdRange : yearRange;
+  const scopedDonationFilter = useAllYears ? undefined : scopedRange;
+  const scopedGrantFilter = useAllYears ? undefined : scopedRange;
 
   return {
     year,
     useAllYears,
     yearRange: scopedRange,
-    donationDateFilter: useAllYears ? undefined : scopedRange,
-    grantAwardedAtFilter: useAllYears ? undefined : scopedRange,
+    donationDateFilter: mergeDateFilters(scopedDonationFilter, customDateFilter),
+    grantAwardedAtFilter: mergeDateFilters(scopedGrantFilter, customDateFilter),
+    customDateFilter,
   };
 }
 

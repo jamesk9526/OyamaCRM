@@ -36,6 +36,9 @@ export interface GeneratedLetterSummary {
   status: string;
   generatedAt: string;
   mailedAt?: string | null;
+  mergedPrintSubject?: string | null;
+  mergedPrintBody?: string | null;
+  mergedEmailBody?: string | null;
   emailCampaignId?: string | null;
   emailDraftCreatedAt?: string | null;
   template?: {

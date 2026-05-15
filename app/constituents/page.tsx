@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import ConstituentTable from "@/app/components/constituents/ConstituentTable";
 import {
   ConstituentRow,
@@ -9,6 +8,10 @@ import {
   DONOR_STATUSES,
   typeLabel,
 } from "@/app/components/constituents/constituent-utils";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import { apiFetch } from "@/app/lib/auth-client";
 
 export default function ConstituentsPage() {
@@ -60,18 +63,52 @@ export default function ConstituentsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Constituents</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Donors, volunteers, members, and supporters</p>
-        </div>
-        <Link
-          href="/constituents/new"
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
-        >
-          <span>+</span> Add Constituent
-        </Link>
-      </div>
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Donor CRM", href: "/" },
+          { label: "Constituents" },
+        ]}
+        statusLabel={loading ? "Loading" : "Working"}
+        metadata={`${loading ? "Loading records" : `${stats.total.toLocaleString()} total · ${stats.active.toLocaleString()} active donors · ${stats.prospects.toLocaleString()} prospects`}`}
+        primaryAction={<WorkspaceRibbonButton label="Add Constituent" href="/constituents/new" variant="primary" />}
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="Create">
+          <WorkspaceRibbonButton label="Add Constituent" href="/constituents/new" variant="primary" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="View">
+          <WorkspaceRibbonButton
+            label="All Constituents"
+            onClick={() => {
+              setTypeFilter("");
+              setStatusFilter("");
+            }}
+            variant={!typeFilter && !statusFilter ? "primary" : "secondary"}
+          />
+          <WorkspaceRibbonButton
+            label="Active Donors"
+            onClick={() => {
+              setTypeFilter("");
+              setStatusFilter("ACTIVE");
+            }}
+            variant={statusFilter === "ACTIVE" ? "primary" : "secondary"}
+          />
+          <WorkspaceRibbonButton
+            label="Prospects"
+            onClick={() => {
+              setTypeFilter("PROSPECT");
+              setStatusFilter("");
+            }}
+            variant={typeFilter === "PROSPECT" ? "primary" : "secondary"}
+          />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Filter">
+          <WorkspaceRibbonButton label="Clear Filters" onClick={() => { setSearch(""); setTypeFilter(""); setStatusFilter(""); }} disabled={!search && !typeFilter && !statusFilter} />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[

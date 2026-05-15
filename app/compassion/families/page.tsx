@@ -45,7 +45,7 @@ function memberStatusStyle(status: string): string {
 /**
  * CompassionFamiliesPage shows inferred household groups so staff can
  * quickly work with connected clients in a family context.
- * TODO: enforce Compassion workspace permission
+ * Access enforcement is handled by CompassionLayout and /api/compassion middleware.
  */
 export default function CompassionFamiliesPage() {
   const [groups, setGroups] = useState<FamilyGroup[]>([]);

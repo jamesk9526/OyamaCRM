@@ -4,7 +4,7 @@ import AppointmentsWorkspace from "@/app/components/compassion/appointments/Appo
 
 /**
  * CompassionAppointmentsPage renders the office-facing appointment scheduling hub.
- * TODO: enforce Compassion workspace permission
+ * Access enforcement is handled by CompassionLayout and /api/compassion middleware.
  */
 export default function CompassionAppointmentsPage() {
   return <AppointmentsWorkspace />;

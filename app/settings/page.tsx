@@ -1,5 +1,9 @@
 /** Settings overview page summarizes core configuration areas and next steps. */
 import Link from "next/link";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
 const CARDS = [
   {
@@ -11,11 +15,6 @@ const CARDS = [
     title: "Desktop App",
     description: "Download the Windows one-click installer for the OyamaCRM desktop shell.",
     href: "/settings/desktop-app",
-  },
-  {
-    title: "Events CRM",
-    description: "Configure event operations defaults and module-specific communication templates.",
-    href: "/settings/events",
   },
   {
     title: "Users",
@@ -73,12 +72,28 @@ const CARDS = [
 export default function SettingsOverviewPage() {
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900">Settings Workspace</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Centralized setup and configuration for organization, branding, users, permissions, and workspace controls.
-        </p>
-      </div>
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Donor CRM", href: "/" },
+          { label: "Settings" },
+        ]}
+        metadata={`${CARDS.length} settings areas`}
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="Core">
+          <WorkspaceRibbonButton label="Organization" href="/settings/organization" />
+          <WorkspaceRibbonButton label="Users" href="/settings/users" />
+          <WorkspaceRibbonButton label="Roles" href="/settings/roles" />
+          <WorkspaceRibbonButton label="Security" href="/settings/security" />
+        </WorkspaceRibbonGroup>
+        <WorkspaceRibbonGroup label="System">
+          <WorkspaceRibbonButton label="Modules" href="/settings/modules" />
+          <WorkspaceRibbonButton label="AI" href="/settings/ai" />
+          <WorkspaceRibbonButton label="Plugins" href="/settings/plugins" />
+          <WorkspaceRibbonButton label="System Status" href="/settings/system-status" />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       <div className="bg-white rounded-lg border border-gray-200 p-4">
         <p className="text-sm text-gray-700">

@@ -7,6 +7,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import AppsDrawer, { AppsGridIcon } from "@/app/components/layout/AppsDrawer";
+import StewardAiRuntimePill from "@/app/components/layout/StewardAiRuntimePill";
 import StewardChatPanel, { type StewardPanelMode } from "@/app/components/ai/StewardChatPanel";
 import { FeedbackButton } from "@/app/components/feedback/FeedbackButton";
 import { FeedbackModal } from "@/app/components/feedback/FeedbackModal";
@@ -36,12 +37,16 @@ interface SearchResponse {
 
 interface TopBarNotification {
   id: string;
-  type: "task" | "meeting" | "follow_up" | "appointment";
+  type: string;
   title: string;
   message: string;
   href: string;
   createdAt: string;
   priority: "low" | "medium" | "high";
+  status?: "unread" | "read" | "dismissed";
+  module?: string;
+  actionLabel?: string | null;
+  snoozedUntil?: string | null;
 }
 
 interface StewardSignalsRebuildResult {
@@ -563,9 +568,9 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
           : "Search tools, constituents, campaigns, commands... (Ctrl+K)";
 
   return (
-    <div className="relative w-full min-w-0 max-w-3xl">
-      <div className="relative">
-        <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div className="relative w-full min-w-0 max-w-2xl">
+      <div className="group/search relative transition-all duration-300 ease-out">
+        <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 pointer-events-none transition-all duration-300 ease-out group-focus-within/search:text-white group-focus-within/search:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
         </svg>
         <input
@@ -576,13 +581,13 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           placeholder={placeholder}
-          className={`w-full pl-11 pr-16 py-2.5 text-sm bg-white/12 text-white placeholder:text-gray-300 border border-white/20 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.18)] backdrop-blur-sm focus:outline-none focus:ring-1 ${focusRing} focus:bg-white/20 transition-all`}
+          className={`w-full pl-10 pr-14 py-2 text-[13px] bg-white/12 text-white placeholder:text-gray-300 border border-white/20 rounded-xl shadow-[0_3px_16px_rgba(0,0,0,0.16)] backdrop-blur-sm focus:outline-none focus:ring-1 ${focusRing} focus:bg-white/20 focus:-translate-y-px focus:shadow-[0_10px_28px_rgba(2,6,23,0.32)] transition-all duration-300 ease-out`}
         />
-        <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-gray-300 bg-white/10 px-1.5 py-0.5 rounded border border-white/20 hidden md:block">
+        <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-gray-300 bg-white/10 px-1.5 py-0.5 rounded border border-white/20 hidden md:block transition-all duration-300 ease-out group-focus-within/search:text-white group-focus-within/search:border-white/35 group-focus-within/search:bg-white/15">
           Ctrl+K
         </kbd>
         {loading && (
-          <div className={`absolute right-11 top-1/2 -translate-y-1/2 w-3 h-3 border-2 ${spinnerColor} border-t-transparent rounded-full animate-spin`} />
+          <div className={`absolute right-10 top-1/2 -translate-y-1/2 w-3 h-3 border-2 ${spinnerColor} border-t-transparent rounded-full animate-spin`} />
         )}
       </div>
 
@@ -710,10 +715,12 @@ export default function TopBar() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { user } = useAuth();
   const moduleKey = resolveTopBarModuleKey(pathname);
   const showTopBarAppLauncher = true;
   const [appsOpen, setAppsOpen] = useState(false);
-  const [stewardMode, setStewardMode] = useState<StewardPanelMode>("dock-right");
+  const [stewardMode, setStewardModeState] = useState<StewardPanelMode>("dock-right");
+  const [stewardModeHydrated, setStewardModeHydrated] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
@@ -725,8 +732,20 @@ export default function TopBar() {
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
   const [topBarReactiveGlow, setTopBarReactiveGlow] = useState(false);
   const [mobileQuickOpen, setMobileQuickOpen] = useState(false);
+  const [compactActionsOpen, setCompactActionsOpen] = useState(false);
   const reactiveGlowFrameRef = useRef<number | null>(null);
   const reactiveGlowTimeoutRef = useRef<number | null>(null);
+
+  /** Wrapper to persist stewardMode to localStorage. */
+  const setStewardMode = useCallback((mode: StewardPanelMode | ((current: StewardPanelMode) => StewardPanelMode)) => {
+    setStewardModeState((current) => {
+      const nextMode = typeof mode === "function" ? mode(current) : mode;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("steward-panel-mode", nextMode);
+      }
+      return nextMode;
+    });
+  }, []);
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
   const chromeButtonBase = "w-10 h-10 md:w-9 md:h-9 rounded-xl border border-white/20 bg-white/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-sm flex items-center justify-center transition-all";
   const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-2xl z-50 overflow-hidden md:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
@@ -787,6 +806,7 @@ export default function TopBar() {
     scope: mapModuleKeyToHelpScope(moduleKey),
     scopePath: pathname,
   });
+  const canRunAiConnectionTest = user?.role === "admin" || user?.role === "super_admin";
 
   /** Briefly pulses module accent glow to acknowledge meaningful workspace actions. */
   const triggerTopBarReactiveGlow = useCallback(() => {
@@ -802,6 +822,18 @@ export default function TopBar() {
         setTopBarReactiveGlow(false);
       }, 900);
     });
+  }, []);
+
+  /** Restores stewardMode from localStorage on initial mount. */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = localStorage.getItem("steward-panel-mode");
+    if (saved === "dock" || saved === "dock-right" || saved === "popout" || saved === "maximized" || saved === "collapsed") {
+      setStewardModeState(saved as StewardPanelMode);
+    } else {
+      setStewardModeState("dock-right");
+    }
+    setStewardModeHydrated(true);
   }, []);
 
   useEffect(() => {
@@ -838,6 +870,41 @@ export default function TopBar() {
     }
   }, [moduleKey]);
 
+  const loadUnreadCount = useCallback(async () => {
+    try {
+      const notificationModule = moduleKey === "oshareview" || moduleKey === "hrm" ? "donor" : moduleKey;
+      const data = await apiFetch<{ unreadCount: number }>(`/api/notifications/unread-count?module=${notificationModule}`);
+      setUnreadCount(typeof data.unreadCount === "number" ? data.unreadCount : 0);
+    } catch {
+      // Keep existing badge state if lightweight polling fails.
+    }
+  }, [moduleKey]);
+
+  const runNotificationAction = useCallback(async (
+    id: string,
+    action: "read" | "dismiss" | "snooze",
+    options?: { until?: string }
+  ) => {
+    await apiFetch(`/api/notifications/${id}/${action}`, {
+      method: "PATCH",
+      body: JSON.stringify(options ?? {}),
+    });
+    await loadNotifications();
+  }, [loadNotifications]);
+
+  const openNotification = useCallback(async (item: TopBarNotification) => {
+    try {
+      if (item.status !== "read") {
+        await apiFetch(`/api/notifications/${item.id}/read`, { method: "PATCH" });
+      }
+    } catch {
+      // Navigation should continue even if the read receipt fails.
+    }
+
+    setNotificationsOpen(false);
+    router.push(item.href);
+  }, [router]);
+
   useEffect(() => {
     if (!notificationsOpen) return;
 
@@ -851,9 +918,32 @@ export default function TopBar() {
   }, [notificationsOpen, loadNotifications]);
 
   useEffect(() => {
+    void loadUnreadCount();
+    const interval = window.setInterval(() => {
+      void loadUnreadCount();
+    }, 45000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [loadUnreadCount]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void loadUnreadCount();
+      if (notificationsOpen) void loadNotifications();
+    };
+    window.addEventListener("tasks:updated", refresh);
+    return () => {
+      window.removeEventListener("tasks:updated", refresh);
+    };
+  }, [loadUnreadCount, loadNotifications, notificationsOpen]);
+
+  useEffect(() => {
     const timer = window.setTimeout(() => {
       setNotificationsOpen(false);
       setMobileQuickOpen(false);
+      setCompactActionsOpen(false);
     }, 0);
 
     return () => {
@@ -874,7 +964,14 @@ export default function TopBar() {
     setMobileQuickOpen(false);
     setAppsOpen(false);
     setFeedbackOpen(false);
+    setCompactActionsOpen(false);
   }, [stewardMode]);
+
+  useEffect(() => {
+    if (appsOpen || feedbackOpen || notificationsOpen) {
+      setCompactActionsOpen(false);
+    }
+  }, [appsOpen, feedbackOpen, notificationsOpen]);
 
   // Subtle color response when navigation context changes.
   useEffect(() => {
@@ -942,6 +1039,16 @@ export default function TopBar() {
     setStewardMode((current) => (current === "collapsed" ? "dock-right" : "collapsed"));
   }, []);
 
+  /** Opens AI settings for runtime diagnostics and provider configuration. */
+  const openAiSettings = useCallback(() => {
+    setNotificationsOpen(false);
+    setMobileQuickOpen(false);
+    setAppsOpen(false);
+    setFeedbackOpen(false);
+    setCompactActionsOpen(false);
+    router.push("/settings/ai");
+  }, [router]);
+
   return (
     <>
       {showTopBarAppLauncher ? <AppsDrawer open={appsOpen} onClose={() => setAppsOpen(false)} /> : null}
@@ -959,7 +1066,7 @@ export default function TopBar() {
         displayMode={stewardMode === "collapsed" ? "dock-right" : stewardMode}
         onDisplayModeChange={setStewardMode}
       />
-      <header className="sticky top-0 relative shrink-0 w-full flex flex-col md:flex-row md:items-center gap-2 md:gap-4 px-2.5 sm:px-3 md:px-4 py-2 md:py-0 min-h-14 md:h-14 border-b border-slate-700/60 shadow-[0_8px_28px_rgba(2,6,23,0.38)] backdrop-blur z-20 isolate pt-[max(0.5rem,env(safe-area-inset-top))] md:pt-0" style={{ background: topBarBackground }}>
+      <header data-topbar-root="true" className="sticky top-0 relative isolate z-20 flex w-full shrink-0 flex-col gap-2 border-b border-slate-700/60 px-2.5 py-2 shadow-[0_8px_28px_rgba(2,6,23,0.38)] backdrop-blur pt-[max(0.5rem,env(safe-area-inset-top))] lg:h-14 lg:flex-row lg:items-center lg:gap-3 lg:px-3 lg:py-0 lg:pt-0 min-[1440px]:gap-4 min-[1440px]:px-4" style={{ background: topBarBackground }}>
         <div
           aria-hidden="true"
           className={`absolute inset-0 pointer-events-none transition-opacity duration-700 ${topBarReactiveGlow ? "opacity-100" : "opacity-0"}`}
@@ -970,15 +1077,15 @@ export default function TopBar() {
         {/* Diagonal light segment for brand + module switcher area. */}
         <div
           aria-hidden="true"
-          className="absolute left-0 top-0 h-full w-[min(430px,38vw)] border-r border-white/35 pointer-events-none hidden md:block"
+          className="absolute left-0 top-0 hidden h-full w-[min(360px,34vw)] border-r border-white/35 pointer-events-none lg:block min-[1440px]:w-[min(430px,38vw)]"
           style={{
             clipPath: "polygon(0 0, 88% 0, 100% 100%, 0 100%)",
             background: "linear-gradient(180deg, rgba(248,250,252,0.95) 0%, rgba(241,245,249,0.92) 100%)",
           }}
         />
 
-        <div className="relative z-10 flex items-center justify-between md:justify-start gap-2 md:gap-3 shrink-0 w-full md:w-auto">
-          <div className="flex items-center gap-2 md:gap-3 shrink-0">
+        <div className="relative z-10 flex w-full shrink-0 items-center justify-between gap-2 lg:w-auto lg:justify-start lg:gap-2.5 min-[1440px]:gap-3">
+          <div className="flex min-w-0 items-center gap-2 lg:gap-2.5 min-[1440px]:gap-3 shrink-0">
           {/* ── TopBar Brand ── */}
           <Link href={homeHref} className="shrink-0 flex items-center rounded-lg px-1.5 py-1 hover:bg-slate-200/70 transition-colors" aria-label="Go to workspace home">
             <Image
@@ -986,7 +1093,8 @@ export default function TopBar() {
               alt="OyamaCRM"
               width={132}
               height={24}
-              className="block h-5 md:h-6 w-auto object-contain"
+              className="block h-5 w-auto object-contain min-[1440px]:h-6"
+              style={{ width: "auto" }}
               priority
             />
           </Link>
@@ -1005,7 +1113,7 @@ export default function TopBar() {
           </div>
 
           {/* Mobile top-right priority controls */}
-          <div className="flex md:hidden items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0 lg:hidden">
             {showTopBarAppLauncher ? (
               <button
                 title="Apps"
@@ -1067,23 +1175,40 @@ export default function TopBar() {
                     ) : (
                       <div className="overflow-y-auto">
                         {notifications.map((item) => (
-                          <button
-                            key={item.id}
-                            onClick={() => {
-                              setNotificationsOpen(false);
-                              router.push(item.href);
-                            }}
-                            className="w-full px-4 py-3 border-b border-gray-100 text-left hover:bg-gray-50"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="text-sm font-medium text-gray-900 line-clamp-1">{item.title}</p>
-                              <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${item.priority === "high" ? "bg-red-100 text-red-700" : item.priority === "medium" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
-                                {item.priority}
-                              </span>
+                          <div key={item.id} className="w-full px-4 py-3 border-b border-gray-100 text-left hover:bg-gray-50">
+                            <button onClick={() => void openNotification(item)} className="w-full text-left">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-sm font-medium text-gray-900 line-clamp-1">{item.title}</p>
+                                <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${item.priority === "high" ? "bg-red-100 text-red-700" : item.priority === "medium" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
+                                  {item.priority}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{item.message}</p>
+                              <p className="text-[11px] text-gray-400 mt-1">{new Date(item.createdAt).toLocaleString()}</p>
+                            </button>
+                            <div className="mt-2 flex items-center gap-2">
+                              {item.status !== "read" ? (
+                                <button
+                                  onClick={() => void runNotificationAction(item.id, "read")}
+                                  className="text-[11px] font-medium text-slate-600 hover:text-slate-900"
+                                >
+                                  Mark read
+                                </button>
+                              ) : null}
+                              <button
+                                onClick={() => void runNotificationAction(item.id, "snooze", { until: new Date(Date.now() + 60 * 60 * 1000).toISOString() })}
+                                className="text-[11px] font-medium text-slate-500 hover:text-slate-800"
+                              >
+                                Snooze 1h
+                              </button>
+                              <button
+                                onClick={() => void runNotificationAction(item.id, "dismiss")}
+                                className="text-[11px] font-medium text-red-600 hover:text-red-700"
+                              >
+                                Dismiss
+                              </button>
                             </div>
-                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{item.message}</p>
-                            <p className="text-[11px] text-gray-400 mt-1">{new Date(item.createdAt).toLocaleString()}</p>
-                          </button>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -1106,14 +1231,16 @@ export default function TopBar() {
           </div>
         </div>
 
-        <div className="relative z-10 flex-1 min-w-0 flex items-center gap-2 md:gap-4 w-full">
+        <div className="relative z-10 flex w-full min-w-0 flex-1 items-center gap-2 lg:gap-3 min-[1440px]:gap-4">
           {/* ── Search (centered) ── */}
-          <div className="flex-1 min-w-0 flex justify-center px-0 sm:px-2 md:px-3">
-            <GlobalSearch moduleKey={moduleKey} pathname={pathname} />
+          <div className="flex min-w-0 flex-1 justify-center px-0 sm:px-2 lg:px-1 min-[1440px]:px-3">
+            <div className="w-full max-w-[640px] min-[1440px]:max-w-[720px]">
+              <GlobalSearch moduleKey={moduleKey} pathname={pathname} />
+            </div>
           </div>
 
           {/* ── Right-side icon controls ── */}
-          <div className="hidden md:flex items-center gap-1 shrink-0">
+          <div className="hidden lg:flex items-center gap-1 shrink-0">
 
           {isStewardSignalsWorkspace && (
             <button
@@ -1125,6 +1252,8 @@ export default function TopBar() {
               {analyzingSignals ? "Analyzing..." : "Analyze"}
             </button>
           )}
+
+          <div className="hidden items-center gap-1 min-[1440px]:flex">
 
           {showTopBarAppLauncher ? (
             <button
@@ -1139,6 +1268,72 @@ export default function TopBar() {
           <FeedbackButton
             onClick={() => setFeedbackOpen(true)}
             className={`${chromeButtonBase} text-white/90 hover:text-white hover:bg-white/14 hover:border-white/30 hover:-translate-y-px`}
+          />
+          </div>
+
+          <div className="relative hidden lg:block min-[1440px]:hidden">
+            <button
+              type="button"
+              title="More workspace tools"
+              onClick={() => setCompactActionsOpen((current) => !current)}
+              className={`${chromeButtonBase} text-white/90 hover:text-white hover:bg-white/14 hover:border-white/30 hover:-translate-y-px`}
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h.01M12 12h.01M19 12h.01" />
+              </svg>
+            </button>
+
+            {compactActionsOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setCompactActionsOpen(false)} />
+                <div className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl">
+                  <div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">More</p>
+                  </div>
+                  <div className="p-2">
+                    {showTopBarAppLauncher ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCompactActionsOpen(false);
+                          setAppsOpen(true);
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        <AppsGridIcon className="h-4 w-4" />
+                        Apps
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCompactActionsOpen(false);
+                        setFeedbackOpen(true);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
+                      </svg>
+                      Feedback
+                    </button>
+                    <Link
+                      href={helpHref}
+                      onClick={() => setCompactActionsOpen(false)}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      <HelpCircleIcon className="h-4 w-4" />
+                      Help
+                    </Link>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          <StewardAiRuntimePill
+            canRunConnectionTest={canRunAiConnectionTest}
+            onOpenSettings={openAiSettings}
           />
 
           {/* AI Assistant */}
@@ -1157,7 +1352,7 @@ export default function TopBar() {
         <Link
           href={helpHref}
           title="Help & Documentation"
-          className={`${chromeButtonBase} text-white/90 hover:text-white hover:bg-white/14 hover:border-white/30 hover:-translate-y-px`}
+          className={`hidden min-[1440px]:inline-flex ${chromeButtonBase} text-white/90 hover:text-white hover:bg-white/14 hover:border-white/30 hover:-translate-y-px`}
         >
           <HelpCircleIcon className="w-5 h-5" />
         </Link>
@@ -1197,12 +1392,20 @@ export default function TopBar() {
               <div className="absolute right-0 top-full mt-2 w-[360px] max-w-[calc(100vw-1rem)] bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
                   <p className="text-sm font-semibold text-gray-900">Notifications</p>
-                  <button
-                    onClick={() => void loadNotifications()}
-                    className="text-xs text-gray-500 hover:text-gray-700"
-                  >
-                    Refresh
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => void apiFetch("/api/notifications/mark-all-read", { method: "POST", body: JSON.stringify({ module: moduleKey === "oshareview" || moduleKey === "hrm" ? "donor" : moduleKey }) }).then(() => loadNotifications())}
+                      className="text-xs text-slate-600 hover:text-slate-800"
+                    >
+                      Mark all read
+                    </button>
+                    <button
+                      onClick={() => void loadNotifications()}
+                      className="text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      Refresh
+                    </button>
+                  </div>
                 </div>
 
                 {notificationsLoading ? (
@@ -1214,23 +1417,40 @@ export default function TopBar() {
                 ) : (
                   <div className="max-h-[360px] overflow-y-auto">
                     {notifications.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => {
-                          setNotificationsOpen(false);
-                          router.push(item.href);
-                        }}
-                        className="w-full px-4 py-3 border-b border-gray-100 text-left hover:bg-gray-50"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm font-medium text-gray-900 line-clamp-1">{item.title}</p>
-                          <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${item.priority === "high" ? "bg-red-100 text-red-700" : item.priority === "medium" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
-                            {item.priority}
-                          </span>
+                      <div key={item.id} className="w-full px-4 py-3 border-b border-gray-100 text-left hover:bg-gray-50">
+                        <button onClick={() => void openNotification(item)} className="w-full text-left">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-medium text-gray-900 line-clamp-1">{item.title}</p>
+                            <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${item.priority === "high" ? "bg-red-100 text-red-700" : item.priority === "medium" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
+                              {item.priority}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{item.message}</p>
+                          <p className="text-[11px] text-gray-400 mt-1">{new Date(item.createdAt).toLocaleString()}</p>
+                        </button>
+                        <div className="mt-2 flex items-center gap-2">
+                          {item.status !== "read" ? (
+                            <button
+                              onClick={() => void runNotificationAction(item.id, "read")}
+                              className="text-[11px] font-medium text-slate-600 hover:text-slate-900"
+                            >
+                              Mark read
+                            </button>
+                          ) : null}
+                          <button
+                            onClick={() => void runNotificationAction(item.id, "snooze", { until: new Date(Date.now() + 60 * 60 * 1000).toISOString() })}
+                            className="text-[11px] font-medium text-slate-500 hover:text-slate-800"
+                          >
+                            Snooze 1h
+                          </button>
+                          <button
+                            onClick={() => void runNotificationAction(item.id, "dismiss")}
+                            className="text-[11px] font-medium text-red-600 hover:text-red-700"
+                          >
+                            Dismiss
+                          </button>
                         </div>
-                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{item.message}</p>
-                        <p className="text-[11px] text-gray-400 mt-1">{new Date(item.createdAt).toLocaleString()}</p>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -1248,7 +1468,7 @@ export default function TopBar() {
 
         {mobileQuickOpen && (
           <>
-            <div className="fixed inset-0 z-40 md:hidden" onClick={() => setMobileQuickOpen(false)} />
+            <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setMobileQuickOpen(false)} />
             <div className={`${mobileSheetBase}`}>
               <div className="px-3 py-2 border-b border-slate-100 bg-slate-50/80">
                 <p className="text-xs font-semibold text-slate-600">Quick actions</p>

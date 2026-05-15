@@ -4,6 +4,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
 /** Follow-up as returned from GET /api/compassion/follow-ups */
 interface CompassionFollowUp {
@@ -185,7 +189,7 @@ function AddFollowUpModal({ onClose, onCreated, clientList, staffList }: {
 /**
  * CompassionFollowUpsPage: follow-up list with overdue highlight, status/priority filters,
  * inline "Mark Complete" button, and Add Follow-up modal.
- * TODO: enforce Compassion workspace permission
+ * Access enforcement is handled by CompassionLayout and /api/compassion middleware.
  */
 export default function CompassionFollowUpsPage() {
   const [followUps, setFollowUps] = useState<CompassionFollowUp[]>([]);
@@ -245,22 +249,34 @@ export default function CompassionFollowUpsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-teal-100 flex items-center justify-center text-teal-600 text-xl">🔔</div>
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900">Follow-ups</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Track and complete client follow-up actions.</p>
-          </div>
-        </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
-        >
-          + Add Follow-up
-        </button>
-      </div>
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Compassion CRM", href: "/compassion/dashboard" },
+          { label: "Follow-ups" },
+        ]}
+        statusLabel={loading ? "Loading" : overdueCount > 0 ? "Needs Attention" : "Working"}
+        metadata={`${followUps.length.toLocaleString()} follow-up${followUps.length === 1 ? "" : "s"} · ${overdueCount.toLocaleString()} overdue`}
+        accentTone="blue"
+        primaryAction={<WorkspaceRibbonButton label="Add Follow-up" onClick={() => setShowModal(true)} variant="primary" accentTone="blue" />}
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="Create">
+          <WorkspaceRibbonButton label="Add Follow-up" onClick={() => setShowModal(true)} variant="primary" accentTone="blue" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Status">
+          <WorkspaceRibbonButton label="Pending" onClick={() => setStatusFilter("PENDING")} variant={statusFilter === "PENDING" ? "primary" : "secondary"} accentTone="blue" />
+          <WorkspaceRibbonButton label="Completed" onClick={() => setStatusFilter("COMPLETED")} variant={statusFilter === "COMPLETED" ? "primary" : "secondary"} accentTone="blue" />
+          <WorkspaceRibbonButton label="All" onClick={() => setStatusFilter("")} variant={!statusFilter ? "primary" : "secondary"} accentTone="blue" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Priority">
+          <WorkspaceRibbonButton label="Urgent" onClick={() => setPriorityFilter("URGENT")} variant={priorityFilter === "URGENT" ? "primary" : "secondary"} accentTone="blue" />
+          <WorkspaceRibbonButton label="High" onClick={() => setPriorityFilter("HIGH")} variant={priorityFilter === "HIGH" ? "primary" : "secondary"} accentTone="blue" />
+          <WorkspaceRibbonButton label="Clear" onClick={() => { setStatusFilter("PENDING"); setPriorityFilter(""); }} disabled={statusFilter === "PENDING" && !priorityFilter} accentTone="blue" />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       {/* Overdue banner */}
       {overdueCount > 0 && (

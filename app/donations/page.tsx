@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import DonationTable from "@/app/components/donations/DonationTable";
 import { DonationRow, formatCurrency } from "@/app/components/donations/donation-utils";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import { apiFetch } from "@/app/lib/auth-client";
 
 const PAGE_SIZE = 100;
@@ -222,17 +225,47 @@ export default function DonationsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Donations</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Gift entry, history, and acknowledgments</p>
-        </div>
-        <Link href="/donations/new"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
-          <span className="text-lg leading-none">+</span> Record Gift
-        </Link>
-      </div>
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Donor CRM", href: "/" },
+          { label: "Donations" },
+        ]}
+        statusLabel={loading ? "Loading" : "Working"}
+        metadata={`${total.toLocaleString()} records · ${formatCurrency(stats.totalRaised)} raised`}
+        primaryAction={<WorkspaceRibbonButton label="Record Gift" href="/donations/new" variant="primary" />}
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="Create">
+          <WorkspaceRibbonButton label="Record Gift" href="/donations/new" variant="primary" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Status">
+          <WorkspaceRibbonButton label="All" onClick={() => setStatus("")} variant={!status ? "primary" : "secondary"} />
+          <WorkspaceRibbonButton label="Completed" onClick={() => setStatus("COMPLETED")} variant={status === "COMPLETED" ? "primary" : "secondary"} />
+          <WorkspaceRibbonButton label="Pending" onClick={() => setStatus("PENDING")} variant={status === "PENDING" ? "primary" : "secondary"} />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Scope">
+          <WorkspaceRibbonButton label="YTD" onClick={() => setAllYears(false)} variant={!allYears ? "primary" : "secondary"} />
+          <WorkspaceRibbonButton label="All Years" onClick={() => setAllYears(true)} variant={allYears ? "primary" : "secondary"} />
+          <WorkspaceRibbonButton label="Refresh" onClick={() => void load()} />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Filter">
+          <WorkspaceRibbonButton
+            label="Clear"
+            onClick={() => {
+              setSearch("");
+              setStatus("");
+              setAllYears(false);
+              setFrom(defaultRange.from);
+              setTo(defaultRange.to);
+            }}
+            disabled={!search && !status && !allYears && from === defaultRange.from && to === defaultRange.to}
+          />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       {apiDown && (
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700 flex items-center gap-2">

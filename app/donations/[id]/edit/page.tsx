@@ -9,8 +9,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import DonationForm from "@/app/components/donations/DonationForm";
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface Constituent { id: string; firstName: string; lastName: string }
@@ -101,16 +102,16 @@ export default function EditDonationPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
-      <nav className="flex items-center gap-2 text-sm text-gray-500">
-        <Link href="/donations" className="hover:text-green-600 transition-colors">Donations</Link>
-        <span>/</span>
-        <span className="text-gray-900 font-medium">Edit</span>
-      </nav>
-
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Edit Donation</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Update gift details for {donorName}.</p>
-      </div>
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Donor CRM", href: "/" },
+          { label: "Donations", href: "/donations" },
+          { label: "Edit Donation" },
+        ]}
+        statusLabel="Edit"
+        metadata={`Updating gift details for ${donorName}`}
+        primaryAction={<WorkspaceRibbonButton label="Donation Ledger" href="/donations" />}
+      />
 
       <DonationForm
         mode="edit"

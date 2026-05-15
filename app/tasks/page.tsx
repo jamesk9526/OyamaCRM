@@ -13,6 +13,10 @@ import TaskTable from "@/app/components/tasks/TaskTable";
 import NewTaskModal from "@/app/components/tasks/NewTaskModal";
 import { apiFetch } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
 /** Task as returned from the API */
 export interface Task {
@@ -33,12 +37,13 @@ export interface Task {
 
 interface NotificationItem {
   id: string;
-  type: "task" | "meeting" | "follow_up" | "appointment";
+  type: string;
   title: string;
   message: string;
   href: string;
   createdAt: string;
   priority: "low" | "medium" | "high";
+  status?: "unread" | "read" | "dismissed";
 }
 
 interface UserOption {
@@ -106,6 +111,7 @@ export default function TasksPage() {
         page: "1",
         limit: "100",
         scope: focusMode === "team" && isAdmin ? "all" : "personal",
+        queue: focusMode === "team" ? "team" : focusMode === "followups" ? "assigned-to-me" : "my-today",
       });
       if (statusFilter) params.set("status", statusFilter);
       const data = await apiFetch<{ items?: Task[]; total?: number }>(`/api/tasks?${params}`);
@@ -188,17 +194,19 @@ export default function TasksPage() {
 
   /** Mark a task as COMPLETED via PATCH */
   async function handleComplete(id: string) {
-    await apiFetch(`/api/tasks/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ status: "COMPLETED" }),
+    await apiFetch(`/api/tasks/${id}/complete`, {
+      method: "POST",
+      body: JSON.stringify({}),
     });
-    loadTasks();
+    window.dispatchEvent(new CustomEvent("tasks:updated"));
+    void loadTasks();
   }
 
   /** Delete a task */
   async function handleDelete(id: string) {
     await apiFetch(`/api/tasks/${id}`, { method: "DELETE" });
-    loadTasks();
+    window.dispatchEvent(new CustomEvent("tasks:updated"));
+    void loadTasks();
   }
 
   /** Bulk-assign visible pending/in-progress tasks to one assignee. */
@@ -221,6 +229,7 @@ export default function TasksPage() {
       });
       const assigneeName = response.assignee?.name ?? "selected assignee";
       setBulkMessage(`Reassigned ${response.updatedCount} tasks to ${assigneeName}.`);
+      window.dispatchEvent(new CustomEvent("tasks:updated"));
       await loadTasks();
     } catch (err) {
       setBulkMessage(err instanceof Error ? err.message : "Bulk assignment failed.");
@@ -236,54 +245,75 @@ export default function TasksPage() {
     ? tasks.filter((task) => task.assignee?.id === user.id && task.status !== "COMPLETED").length
     : 0;
   const followUpCount = tasks.filter((task) => FOLLOW_UP_TYPES.has(task.type) && task.status !== "COMPLETED").length;
+  const focusLabel = focusMode === "team" ? "Team Queue" : focusMode === "followups" ? "Follow-Ups" : "My Work";
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Tasks</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Stewardship tasks, follow-ups, and team assignments</p>
-        </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
-        >
-          + New Task
-        </button>
-      </div>
-
-      {/* Workspace focus controls */}
-      <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Workspace Focus</p>
-        <div className="flex flex-wrap gap-2">
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Donor CRM", href: "/" },
+          { label: "Tasks", href: "/tasks" },
+          { label: focusLabel },
+        ]}
+        metadata={`${total} total · ${assignedToMe} assigned to me · ${overdue} overdue`}
+        primaryAction={(
           <button
-            onClick={() => setFocusMode("my")}
-            className={`px-3 py-1.5 text-sm font-medium rounded-full border transition-colors ${focusMode === "my" ? "border-green-600 bg-green-50 text-green-700" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}
+            onClick={() => setShowModal(true)}
+            className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
           >
-            My Queue ({assignedToMe})
+            New Task
           </button>
-          <button
+        )}
+        overflowActions={
+          highlightTaskId
+            ? <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">Notification context active</span>
+            : undefined
+        }
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="Work Queues">
+          <WorkspaceRibbonButton
+            label={`My Work (${assignedToMe})`}
+            onClick={() => setFocusMode("my")}
+            variant={focusMode === "my" ? "primary" : "secondary"}
+          />
+          <WorkspaceRibbonButton
+            label="Team Queue"
             onClick={() => setFocusMode(isAdmin ? "team" : "my")}
             disabled={!isAdmin}
-            className={`px-3 py-1.5 text-sm font-medium rounded-full border transition-colors ${focusMode === "team" ? "border-green-600 bg-green-50 text-green-700" : "border-gray-200 text-gray-600 hover:border-gray-300"} disabled:opacity-60`}
-            title={isAdmin ? "View all team assignments" : "Team view requires admin role"}
-          >
-            Team Assignments
-          </button>
-          <button
+            variant={focusMode === "team" ? "primary" : "secondary"}
+          />
+          <WorkspaceRibbonButton
+            label={`Follow-Ups (${followUpCount})`}
             onClick={() => setFocusMode("followups")}
-            className={`px-3 py-1.5 text-sm font-medium rounded-full border transition-colors ${focusMode === "followups" ? "border-green-600 bg-green-50 text-green-700" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}
-          >
-            Follow-Ups ({followUpCount})
-          </button>
-          {highlightTaskId && (
-            <span className="px-3 py-1.5 text-sm rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-              Notification context active
-            </span>
-          )}
-        </div>
-      </div>
+            variant={focusMode === "followups" ? "primary" : "secondary"}
+          />
+          <WorkspaceRibbonButton
+            label="Completed"
+            onClick={() => {
+              setFocusMode("my");
+              setStatusFilter("COMPLETED");
+            }}
+          />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Create">
+          <WorkspaceRibbonButton label="New Task" onClick={() => setShowModal(true)} variant="primary" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Assignment">
+          <WorkspaceRibbonButton label="Assigned To Me" onClick={() => setFocusMode("my")} />
+          <WorkspaceRibbonButton label="Assigned By Me" onClick={() => setFocusMode("my")} />
+          <WorkspaceRibbonButton label="Bulk Assign" onClick={handleBulkAssignVisible} disabled={bulkAssigning || !bulkAssigneeId} />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="View">
+          <WorkspaceRibbonButton label="Reset Filters" onClick={() => { setStatusFilter(""); setTypeFilter(""); }} />
+          <WorkspaceRibbonButton label="Refresh Tasks" onClick={() => void loadTasks()} />
+          <WorkspaceRibbonButton label="Refresh Notifications" onClick={() => void loadNotifications()} />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       {/* Notification-integrated task feed */}
       <div className="rounded-xl border border-gray-200 bg-white p-4">
@@ -416,7 +446,11 @@ export default function TasksPage() {
           defaultAssigneeId={user?.id}
           defaultType="FOLLOW_UP"
           onClose={() => setShowModal(false)}
-          onCreated={() => { setShowModal(false); loadTasks(); }}
+          onCreated={() => {
+            setShowModal(false);
+            window.dispatchEvent(new CustomEvent("tasks:updated"));
+            void loadTasks();
+          }}
         />
       )}
     </div>

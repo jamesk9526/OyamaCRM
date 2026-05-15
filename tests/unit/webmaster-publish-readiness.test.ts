@@ -67,11 +67,33 @@ describe("webmaster publish readiness", () => {
     expect(report.preflightPassed).toBe(false);
     expect(report.status).toBe("Broken");
     expect(report.pagesMissingSeo.length).toBe(1);
+    expect(report.draftDeltaSummary.newPages).toBe(1);
+    expect(report.draftDeltaSummary.totalDraftCandidates).toBe(1);
+    expect(report.draftDeltaItems[0]?.changeType).toBe("NEW");
     expect(report.checks.some((check) => check.id === "home-page" && check.status === "Broken")).toBe(true);
   });
 
   it("passes preflight when required checks are satisfied", () => {
     const now = new Date().toISOString();
+    const publishedHomePage = {
+      id: "page-2",
+      organizationId: "org-1",
+      siteId: "site-2",
+      siteName: "Ready Site",
+      createdById: null,
+      updatedById: null,
+      title: "Home",
+      slug: "home",
+      path: "/",
+      status: "PUBLISHED" as const,
+      contentJson: null,
+      seoTitle: "Home",
+      seoDescription: "Home description",
+      publishedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+
     const report = buildWebmasterPublishReadinessReport({
       site: {
         id: "site-2",
@@ -101,30 +123,16 @@ describe("webmaster publish readiness", () => {
         updatedAt: now,
       },
       pages: [
-        {
-          id: "page-2",
-          organizationId: "org-1",
-          siteId: "site-2",
-          siteName: "Ready Site",
-          createdById: null,
-          updatedById: null,
-          title: "Home",
-          slug: "home",
-          path: "/",
-          status: "PUBLISHED",
-          contentJson: null,
-          seoTitle: "Home",
-          seoDescription: "Home description",
-          publishedAt: now,
-          createdAt: now,
-          updatedAt: now,
-        },
+        publishedHomePage,
       ],
+      previousPublishedPages: [publishedHomePage],
     });
 
     expect(report.checks.some((check) => check.id === "site-not-archived" && check.status === "Working")).toBe(true);
     expect(report.checks.some((check) => check.id === "seo-required-fields" && check.status === "Working")).toBe(true);
     expect(report.preflightPassed).toBe(true);
+    expect(report.draftDeltaSummary.totalDraftCandidates).toBe(0);
+    expect(report.draftDeltaItems).toHaveLength(0);
     expect(report.previewLink).toContain("/webmaster/preview/site-2/page-2?draft=1");
     expect(report.publishExecutionStatus).toBe("Working");
     expect(report.rollbackStatus).toBe("Working");

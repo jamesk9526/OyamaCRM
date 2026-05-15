@@ -33,9 +33,9 @@ Rebuild OyamaWebMaster as a real website command center inside OyamaCRM with saf
 ### Phase 2: Publishing Layer (Partially Working)
 
 - Keep publish action review-first and explicit.
-- Add deployment target profile records and output adapters.
 - Add pre-publish checks (missing SEO, missing domain, unpublished pages).
-- Add publish version records and rollback flow.
+- Keep immutable version snapshot creation and rollback flows confirmation-gated.
+- Add deployment target profile records and output adapters for external publishing.
 
 ### Phase 3: CRM Integration Layer (Partially Working)
 
@@ -56,13 +56,15 @@ Rebuild OyamaWebMaster as a real website command center inside OyamaCRM with saf
 - Visual editor and page persistence: Partially Working
 - Draft preview route: Working
 - Publish readiness command center: Working
-- Template, CMS, publish targets, rollback UI: Partially Working
-- Production publishing pipeline: Not Implemented
+- Publish execution workflow: Working
+- Rollback execution workflow: Working
+- Template, CMS, assets/forms/settings/theme workspace depth: Partially Working
+- External deployment target pipeline: Not Implemented
 
 ## Required Follow-up
 
-1. Add `webmaster_publish_versions` table for immutable deployment history.
-2. Add publish queue APIs and worker execution model.
+1. Add deployment target profile persistence and management UI.
+2. Add publish queue APIs and worker execution model for external adapters.
 3. Expand preflight checks and launch readiness scoring detail.
 4. Add environment-specific deployment target settings UI.
 5. Add explicit backup and restore workflows in the dashboard.
@@ -74,4 +76,5 @@ Rebuild OyamaWebMaster as a real website command center inside OyamaCRM with saf
 - `/webmaster/preview/[siteId]/[pageId]` is a real draft preview route.
 - `/webmaster/publishing` is now a real readiness workspace.
 - `GET /api/webmaster/sites/:siteId/publish-readiness` is implemented for preflight checks.
-- Publish execution and rollback execution remain Not Implemented.
+- Publish execution and rollback execution are implemented with immutable version snapshots and explicit confirmation.
+- External deployment target adapters remain Not Implemented.

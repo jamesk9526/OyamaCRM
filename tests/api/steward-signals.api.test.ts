@@ -24,6 +24,29 @@ afterAll(async () => {
 });
 
 describe("steward signals api", () => {
+  it("returns opportunities in rules mode when AI runtime is disabled", async () => {
+    const auth = { Authorization: `Bearer ${adminToken}` };
+
+    await request(app)
+      .put("/api/steward-ai/config")
+      .set(auth)
+      .send({ enabled: false })
+      .expect(200);
+
+    const opportunities = await request(app)
+      .get("/api/steward-signals/opportunities?limit=10")
+      .set(auth);
+
+    expect(opportunities.status).toBe(200);
+    expect(Array.isArray(opportunities.body)).toBe(true);
+
+    await request(app)
+      .put("/api/steward-ai/config")
+      .set(auth)
+      .send({ enabled: true })
+      .expect(200);
+  });
+
   it("returns index state and supports manual rebuild", { timeout: 30000 }, async () => {
     const auth = { Authorization: `Bearer ${adminToken}` };
 

@@ -12,13 +12,13 @@
  */
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import RevenueProgress from "./components/dashboard/RevenueProgress";
 import DonorRetention from "./components/dashboard/DonorRetention";
 import TasksWidget from "./components/dashboard/TasksWidget";
 import TotalsByLevel from "./components/dashboard/TotalsByLevel";
-import StatCard from "./components/dashboard/StatCard";
 import DashboardWidget from "./components/dashboard/DashboardWidget";
 import GivingTrendChart from "./components/dashboard/GivingTrendChart";
 import RecentDonationsWidget from "./components/dashboard/RecentDonationsWidget";
@@ -27,6 +27,11 @@ import MeetingsWidget from "./components/dashboard/MeetingsWidget";
 import CampaignGoalHealthWidget from "./components/dashboard/CampaignGoalHealthWidget";
 import EngagementPulseWidget from "./components/dashboard/EngagementPulseWidget";
 import StewardshipAttentionWidget from "./components/dashboard/StewardshipAttentionWidget";
+import ActionableInsightsWidget from "./components/dashboard/ActionableInsightsWidget";
+import AiInsightsWidget from "./components/dashboard/AiInsightsWidget";
+import AiOpportunityWidget from "./components/dashboard/AiOpportunityWidget";
+import AiChatWidget from "./components/dashboard/AiChatWidget";
+import WorkspaceHelpTip from "./components/ui/WorkspaceHelpTip";
 import DashboardLayoutModal, { type RevenueGoalMode, type RevenueProgressSource } from "./components/dashboard/DashboardLayoutModal";
 import { apiFetch } from "@/app/lib/auth-client";
 
@@ -62,6 +67,22 @@ interface RetentionData {
   rate: number;
 }
 
+interface StartHereAction {
+  id: string;
+  title: string;
+  description: string;
+  href: string;
+  actionLabel: string;
+}
+
+interface DashboardFocusItem {
+  id: string;
+  title: string;
+  value: string;
+  description: string;
+  href: string;
+}
+
 /** Previous shipped default order (kept to support one-time migration logic). */
 const PREVIOUS_DEFAULT_WIDGET_ORDER = [
   "giving-trend",
@@ -76,6 +97,12 @@ const PREVIOUS_DEFAULT_WIDGET_ORDER = [
 
 /** Ordered list of widget IDs (CRM default). */
 const DEFAULT_WIDGET_ORDER = [
+  "start-here",
+  "todays-focus",
+  "actionable-insights",
+  "ai-insights",
+  "ai-opportunities",
+  "ai-chat",
   "revenue",
   "goal-health",
   "retention",
@@ -93,6 +120,12 @@ type WidgetId = (typeof DEFAULT_WIDGET_ORDER)[number];
 
 /** Human-readable label + description for each widget (used in the layout modal) */
 const WIDGET_META = [
+  { id: "start-here", label: "Start Here", description: "Guided first actions for daily work" },
+  { id: "todays-focus", label: "Today's Focus", description: "Plain-language priority snapshot" },
+  { id: "actionable-insights", label: "Actionable Insights", description: "Cross-workspace priorities and quick links" },
+  { id: "ai-insights", label: "AI Runtime + Controls", description: "Steward AI status and dashboard AI toggle" },
+  { id: "ai-opportunities", label: "AI Opportunities", description: "Top suggested stewardship opportunities" },
+  { id: "ai-chat", label: "AI Chat", description: "Compact ask-and-reply Steward assistant" },
   { id: "revenue", label: "Revenue Progress", description: "Active campaign goal tracking" },
   { id: "goal-health", label: "Campaign Goal Health", description: "Goal gap and campaign attainment" },
   { id: "retention", label: "Donor Retention", description: "Year-over-year retention rate" },
@@ -106,6 +139,86 @@ const WIDGET_META = [
   { id: "meetings", label: "Upcoming Meetings", description: "Scheduled donor meetings" },
 ];
 
+const START_HERE_ACTIONS: StartHereAction[] = [
+  {
+    id: "add-donor",
+    title: "Add a donor",
+    description: "Create or update a donor profile before recording gifts or follow-up work.",
+    href: "/constituents",
+    actionLabel: "Open Constituents",
+  },
+  {
+    id: "record-donation",
+    title: "Record a donation",
+    description: "Capture a gift so reporting, receipts, and stewardship tasks stay accurate.",
+    href: "/donations/new",
+    actionLabel: "Open Donation Entry",
+  },
+  {
+    id: "send-thank-you",
+    title: "Send a thank-you",
+    description: "Create an email or printable letter for a donor gift acknowledgement.",
+    href: "/communications/new/type",
+    actionLabel: "Start Communication",
+  },
+  {
+    id: "create-task",
+    title: "Create a task",
+    description: "Assign follow-up work so important donor outreach does not get missed.",
+    href: "/tasks",
+    actionLabel: "Open Tasks",
+  },
+  {
+    id: "todays-followups",
+    title: "View today's follow-ups",
+    description: "Review overdue and pending work to prioritize urgent donor touchpoints.",
+    href: "/tasks",
+    actionLabel: "Review Follow-Ups",
+  },
+  {
+    id: "create-campaign",
+    title: "Create a campaign",
+    description: "Launch a fundraising campaign with clear goals, timeline, and ownership.",
+    href: "/campaigns",
+    actionLabel: "Open Campaigns",
+  },
+  {
+    id: "generate-letters",
+    title: "Generate letters",
+    description: "Prepare printable letters for acknowledgements, appeals, and stewardship updates.",
+    href: "/letters-printables/generate/template",
+    actionLabel: "Open Letter Wizard",
+  },
+  {
+    id: "check-notifications",
+    title: "Check notifications",
+    description: "Review unread alerts for tasks, campaigns, and donor follow-up actions.",
+    href: "/tasks",
+    actionLabel: "Open Work Queue",
+  },
+  {
+    id: "ask-steward",
+    title: "Ask Steward",
+    description: "Review suggested donor next steps with evidence and human approval controls.",
+    href: "/steward-signals",
+    actionLabel: "Open Steward Signals",
+  },
+  {
+    id: "import-data",
+    title: "Import data",
+    description: "Upload and map donor records, then validate duplicates before final import.",
+    href: "/data-tools/import",
+    actionLabel: "Open Import Tool",
+  },
+  {
+    id: "review-reports",
+    title: "Review reports",
+    description: "Check fundraising progress, retention, and campaign outcomes with live data.",
+    href: "/reports",
+    actionLabel: "Open Reports",
+  },
+];
+
 const LS_ORDER_KEY = "dashboard-widget-order";
 const LS_LOCK_KEY = "dashboard-locked";
 const LS_HIDDEN_WIDGETS_KEY = "dashboard-hidden-widgets";
@@ -117,6 +230,8 @@ const LS_REVENUE_SOURCE_KEY = "dashboard-revenue-progress-source";
 const LS_REVENUE_GOAL_MODE_KEY = "dashboard-revenue-goal-mode";
 /** Persists manual Revenue Progress goal amount when override mode is enabled. */
 const LS_MANUAL_REVENUE_GOAL_KEY = "dashboard-manual-revenue-goal";
+/** Persists whether AI-specific dashboard widgets are enabled. */
+const LS_AI_WIDGETS_ENABLED_KEY = "dashboard-ai-widgets-enabled";
 
 function sameOrder(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false;
@@ -188,6 +303,16 @@ function loadManualRevenueGoalAmount(): number {
   return Number.isFinite(stored) && stored > 0 ? stored : 0;
 }
 
+/** Load AI widget visibility preference from localStorage. */
+function loadAiWidgetsEnabled(): boolean {
+  if (typeof window === "undefined") return true;
+  return localStorage.getItem(LS_AI_WIDGETS_ENABLED_KEY) !== "false";
+}
+
+function formatUsd(value: number): string {
+  return `$${value.toLocaleString()}`;
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -202,6 +327,8 @@ export default function DashboardPage() {
   const [editMode, setEditMode] = useState(false);
   const [locked, setLocked] = useState(loadLocked);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
+  const [aiWidgetsEnabled, setAiWidgetsEnabled] = useState(loadAiWidgetsEnabled);
+  const enableAiWidgets = () => setAiWidgetsEnabled(true);
 
   // ── Grant toggle — persisted to localStorage ──
   const [includeGrants, setIncludeGrants] = useState(loadIncludeGrants);
@@ -279,11 +406,61 @@ export default function DashboardPage() {
     localStorage.setItem(LS_MANUAL_REVENUE_GOAL_KEY, String(manualRevenueGoalAmount));
   }, [manualRevenueGoalAmount]);
 
+  // Persist dashboard AI widget enablement preference to localStorage
+  useEffect(() => {
+    localStorage.setItem(LS_AI_WIDGETS_ENABLED_KEY, aiWidgetsEnabled ? "true" : "false");
+  }, [aiWidgetsEnabled]);
+
   const autoGoal = summary?.activeGoalTotal ?? 0;
   const dynamicFallbackGoal = Math.max(autoGoal, summary?.ytdAmount ?? 0, 1000);
   const revenueGoal = revenueGoalMode === "MANUAL"
     ? Math.max(1, manualRevenueGoalAmount)
     : dynamicFallbackGoal;
+
+  const workSnapshot: DashboardFocusItem[] = [
+    {
+      id: "today-work",
+      title: "Today's Work",
+      value: `${summary?.pendingTasks ?? 0} open tasks`,
+      description: "Open assignments and due follow-ups.",
+      href: "/tasks",
+    },
+    {
+      id: "needs-attention",
+      title: "Needs Attention",
+      value: `${summary?.overdueTasks ?? 0} overdue tasks`,
+      description: "Urgent items that need immediate action.",
+      href: "/tasks",
+    },
+    {
+      id: "recent-giving",
+      title: "Recent Giving",
+      value: formatUsd(summary?.monthAmount ?? 0),
+      description: "Donations recorded this month.",
+      href: "/donations",
+    },
+    {
+      id: "follow-up-queue",
+      title: "Follow-Up Queue",
+      value: `${summary?.newDonorsThisMonth ?? 0} new donors`,
+      description: "Donors who may need welcome and thank-you outreach.",
+      href: "/steward-signals",
+    },
+    {
+      id: "campaign-snapshot",
+      title: "Campaign Snapshot",
+      value: `${summary?.activeCampaigns ?? 0} active campaigns`,
+      description: "Current campaign load and progress context.",
+      href: "/campaigns",
+    },
+    {
+      id: "steward-recommendations",
+      title: "Steward Recommendations",
+      value: `${(summary?.overdueTasks ?? 0) + (summary?.newDonorsThisMonth ?? 0)} priority signals`,
+      description: "Suggested next actions for stewardship follow-through.",
+      href: "/steward-signals",
+    },
+  ];
 
   /** Swap widget at `from` index to `to` index */
   function moveWidget(from: number, to: number) {
@@ -340,6 +517,81 @@ export default function DashboardPage() {
     };
 
     switch (id) {
+      case "start-here":
+        return (
+          <DashboardWidget
+            key={id}
+            id={id}
+            title="Start Here"
+            subtitle="Choose a common action to begin your day"
+            {...editProps}
+          >
+            <DashboardStartHereWidget />
+          </DashboardWidget>
+        );
+      case "todays-focus":
+        return (
+          <DashboardWidget
+            key={id}
+            id={id}
+            title="Today's Focus"
+            subtitle="A plain-language snapshot of what matters most right now"
+            {...editProps}
+          >
+            <DashboardTodaysFocusWidget items={workSnapshot} loading={loading} />
+          </DashboardWidget>
+        );
+      case "actionable-insights":
+        return (
+          <DashboardWidget
+            key={id}
+            id={id}
+            title="Actionable Insights"
+            subtitle="Cross-workspace priorities with direct action links"
+            {...editProps}
+          >
+            <ActionableInsightsWidget />
+          </DashboardWidget>
+        );
+      case "ai-insights":
+        return (
+          <DashboardWidget
+            key={id}
+            id={id}
+            title="AI Runtime + Controls"
+            subtitle="Steward status plus dashboard AI widget toggle"
+            {...editProps}
+          >
+            <AiInsightsWidget
+              dashboardEnabled={aiWidgetsEnabled}
+              onToggleDashboardEnabled={(next) => setAiWidgetsEnabled(next)}
+            />
+          </DashboardWidget>
+        );
+      case "ai-opportunities":
+        return (
+          <DashboardWidget
+            key={id}
+            id={id}
+            title="AI Opportunities"
+            subtitle="Suggested stewardship opportunities"
+            {...editProps}
+          >
+            <AiOpportunityWidget dashboardEnabled={aiWidgetsEnabled} onEnableDashboardAi={enableAiWidgets} />
+          </DashboardWidget>
+        );
+      case "ai-chat":
+        return (
+          <DashboardWidget
+            key={id}
+            id={id}
+            title="AI Chat"
+            subtitle="Ask Steward for fast donor guidance"
+            {...editProps}
+          >
+            <AiChatWidget dashboardEnabled={aiWidgetsEnabled} onEnableDashboardAi={enableAiWidgets} />
+          </DashboardWidget>
+        );
       case "giving-trend":
         return (
           <DashboardWidget key={id} id={id} title="Giving Trend" subtitle={`${new Date().getFullYear()} monthly totals`} className="lg:col-span-2 min-h-[250px]" {...editProps}>
@@ -579,6 +831,26 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {!loading && !summary && (
+        <section className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+          <h2 className="text-sm font-semibold text-blue-900">No dashboard data yet</h2>
+          <p className="text-sm text-blue-800 mt-1">
+            Start by adding a donor and recording your first donation, then refresh this page to load live metrics.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Link href="/constituents" className="px-3 py-1.5 text-xs font-semibold text-blue-700 bg-white border border-blue-200 rounded-md hover:bg-blue-100">
+              Add donor
+            </Link>
+            <Link href="/donations/new" className="px-3 py-1.5 text-xs font-semibold text-blue-700 bg-white border border-blue-200 rounded-md hover:bg-blue-100">
+              Record donation
+            </Link>
+            <button onClick={() => void load()} className="px-3 py-1.5 text-xs font-semibold text-blue-700 bg-white border border-blue-200 rounded-md hover:bg-blue-100">
+              Refresh dashboard
+            </button>
+          </div>
+        </section>
+      )}
+
       {/* ── Widget grid ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
         {visibleWidgetOrder.map((id, idx) => renderWidget(id, idx))}
@@ -606,5 +878,101 @@ export default function DashboardPage() {
         />
       )}
     </div>
+  );
+}
+
+interface DashboardStartHereCardProps {
+  action: StartHereAction;
+  compact?: boolean;
+}
+
+/** DashboardStartHereWidget renders guided "first action" cards for staff onboarding and daily work. */
+function DashboardStartHereWidget() {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-2 flex-wrap">
+        <p className="text-xs text-gray-600">
+          Choose a common action to begin your day. Each card opens a guided workspace.
+        </p>
+        <WorkspaceHelpTip
+          title="What is Start Here?"
+          summary="Common daily actions"
+          body="Use Start Here when you are not sure which workspace to open first. It is built for day-to-day nonprofit tasks."
+          example="Send a thank-you: create an email or printable letter for a recent donation."
+          href="/help?scope=donor&scopePath=/"
+          hrefLabel="Open donor help guides"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {START_HERE_ACTIONS.slice(0, 8).map((action) => (
+          <DashboardStartHereCard key={action.id} action={action} compact />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface DashboardTodaysFocusWidgetProps {
+  items: DashboardFocusItem[];
+  loading: boolean;
+}
+
+/** DashboardTodaysFocusWidget renders a concise priority summary for day-to-day staff work. */
+function DashboardTodaysFocusWidget({ items, loading }: DashboardTodaysFocusWidgetProps) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-2 flex-wrap">
+        <p className="text-xs text-gray-600">
+          A plain-language snapshot of what matters most right now.
+        </p>
+        <WorkspaceHelpTip
+          title="How to use this section"
+          summary="Read this first"
+          body="Use these cards to choose your next workspace quickly. Each card links to a page where you can take action safely."
+          example="If Needs Attention shows overdue tasks, open Tasks and clear urgent follow-ups first."
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {items.map((item) => (
+          <Link
+            key={item.id}
+            href={item.href}
+            className="rounded-lg border border-gray-200 bg-gray-50 hover:bg-white hover:border-green-300 transition-colors p-2.5"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{item.title}</p>
+            <p className="text-sm font-semibold text-gray-900 mt-1">{loading ? "Loading..." : item.value}</p>
+            <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.description}</p>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** DashboardStartHereCard renders a guided first-action card with one clear CTA. */
+function DashboardStartHereCard({ action, compact = false }: DashboardStartHereCardProps) {
+  return (
+    <DashboardStartHereCardContent action={action} compact={compact} />
+  );
+}
+
+interface DashboardStartHereCardContentProps {
+  action: StartHereAction;
+  compact: boolean;
+}
+
+/** DashboardStartHereCardContent supports full and compact card layouts. */
+function DashboardStartHereCardContent({ action, compact }: DashboardStartHereCardContentProps) {
+  return (
+    <Link
+      href={action.href}
+      className={`rounded-lg border border-green-200 bg-white hover:border-green-400 hover:bg-green-50/50 transition-colors ${compact ? "p-2.5" : "p-3"}`}
+    >
+      <p className={`${compact ? "text-xs" : "text-sm"} font-semibold text-gray-900`}>{action.title}</p>
+      <p className="text-xs text-gray-600 mt-1 line-clamp-2">{action.description}</p>
+      <p className="text-xs font-semibold text-green-700 mt-2">{action.actionLabel}</p>
+    </Link>
   );
 }

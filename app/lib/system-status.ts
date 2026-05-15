@@ -155,7 +155,7 @@ export const SYSTEM_STATUS_SECTIONS: SystemStatusSection[] = [
   {
     title: "AI Runtime Status",
     status: "Partially Working",
-    summary: "Steward AI configuration and provider switching are available, but runtime validation and governance hardening are ongoing.",
+    summary: "Steward AI now has live runtime status telemetry and TopBar visibility, while governance hardening and full workflow coverage are still in progress.",
   },
   {
     title: "Validation Pipeline Status",

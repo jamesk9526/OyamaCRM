@@ -8,6 +8,8 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import DonationForm from "@/app/components/donations/DonationForm";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface Constituent { id: string; firstName: string; lastName: string }
@@ -70,10 +72,16 @@ export default function NewDonationPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Record Gift</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Enter a new donation or gift</p>
-      </div>
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Donor CRM", href: "/" },
+          { label: "Donations", href: "/donations" },
+          { label: "Record Gift" },
+        ]}
+        statusLabel={source === "grant-award" ? "Grant Handoff" : "New Entry"}
+        metadata={source === "grant-award" ? "Recording awarded grant revenue in Donations ledger" : "Enter donation details and stewardship data"}
+        primaryAction={<WorkspaceRibbonButton label="Donation Ledger" href="/donations" />}
+      />
 
       {source === "grant-award" && (
         <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">

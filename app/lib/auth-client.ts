@@ -221,6 +221,16 @@ export async function apiFetch<T = unknown>(
 export async function apiFetchResponse(path: string, init: RequestInit = {}): Promise<Response> {
   const token = getAccessToken();
 
+  const isAbortError = (error: unknown): boolean => {
+    if (error instanceof DOMException) {
+      return error.name === "AbortError";
+    }
+    if (error instanceof Error) {
+      return error.name === "AbortError";
+    }
+    return false;
+  };
+
   const makeRequest = async (activeToken: string | null) => {
     try {
       return await fetch(`${API_BASE}${path}`, {
@@ -233,6 +243,9 @@ export async function apiFetchResponse(path: string, init: RequestInit = {}): Pr
         },
       });
     } catch (error) {
+      if (isAbortError(error)) {
+        throw error;
+      }
       const reason = error instanceof Error ? error.message : "Network request failed";
       throw new Error(`Unable to reach API at ${API_BASE}. ${reason}`);
     }

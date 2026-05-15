@@ -5,6 +5,7 @@
  * organizationId and protected by requireAuth.
  *
  * Routes:
+ *   GET  /api/compassion/access              — permission/access gate probe for frontend guards
  *   GET  /api/compassion/dashboard-summary   — aggregated metrics for dashboard
  *   GET  /api/compassion/staff               — list compassion staff directory
  *   GET  /api/compassion/staff/user-options  — list existing users for linking
@@ -239,8 +240,7 @@ function computeFamilyKey(client: {
   return `client:${client.id}`;
 }
 
-// All Compassion CRM routes require auth and at least readonly role (blocks report_viewer from client-care data).
-// TODO: enforce Compassion workspace permission
+// All Compassion CRM routes require auth and explicit Compassion workspace access.
 const COMPASSION_BASE_ROLES = new Set(["admin", "manager", "staff", "readonly"]);
 
 /**
@@ -257,6 +257,28 @@ async function requireCompassionAccess(
     return;
   }
 
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
+    return;
+  }
+
+  const workspaceSettings = await prisma.organizationSettings.findUnique({
+    where: { organizationId },
+    select: { compassionWorkspaceEnabled: true },
+  });
+
+  // Missing settings rows are treated as enabled for backwards compatibility.
+  if (workspaceSettings && !workspaceSettings.compassionWorkspaceEnabled) {
+    res.status(403).json({
+      error: {
+        code: "WORKSPACE_DISABLED",
+        message: "Compassion workspace is disabled for this organization.",
+      },
+    });
+    return;
+  }
+
   if (COMPASSION_BASE_ROLES.has(req.user.role)) {
     next();
     return;
@@ -269,12 +291,6 @@ async function requireCompassionAccess(
         message: "Compassion workspace access requires an approved role or a linked Compassion staff account.",
       },
     });
-    return;
-  }
-
-  const organizationId = await resolveOrganizationId({ req });
-  if (!organizationId) {
-    res.status(400).json({ error: { code: "NO_ORG", message: "No organization found" } });
     return;
   }
 
@@ -301,6 +317,14 @@ async function requireCompassionAccess(
 }
 
 router.use(requireAuth, requireCompassionAccess);
+
+/** GET /api/compassion/access — Returns current access resolution for frontend route guards. */
+router.get("/access", async (req, res) => {
+  res.json({
+    allowed: true,
+    role: req.user?.role ?? null,
+  });
+});
 
 // ─── Widget Builder Settings ────────────────────────────────────────────────
 

@@ -74,7 +74,7 @@ function DistributionCard({ title, rows }: { title: string; rows: ReportCountRow
 
 /**
  * CompassionReportsPage provides operational reporting for client-care teams.
- * TODO: enforce Compassion workspace permission
+ * Access enforcement is handled by CompassionLayout and /api/compassion middleware.
  */
 export default function CompassionReportsPage() {
   const [summary, setSummary] = useState<ReportsSummary | null>(null);

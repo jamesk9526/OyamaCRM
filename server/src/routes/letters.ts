@@ -186,7 +186,7 @@ function defaultLettersWorkflowPolicy(): LettersWorkflowPolicy {
     mailingSlaDays: 7,
     allowDirectMailQueue: false,
     enableAddressValidationGate: true,
-    pdfFallbackMode: "BROWSER_PRINT",
+    pdfFallbackMode: "SERVER_RENDER",
     notes: "",
   };
 }
@@ -219,6 +219,157 @@ function textToHtml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
   return escaped.replace(/\n\n+/g, "</p><p>").replace(/\n/g, "<br />");
+}
+
+type PdfExportStatus = "SUCCESS" | "FAILED";
+
+/** Reads persisted PDF export status from generated-letter metadata. */
+function readPdfExportStatus(value: unknown): PdfExportStatus | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const asObject = value as Record<string, unknown>;
+  const raw = asObject.pdfExport;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const status = (raw as Record<string, unknown>).lastStatus;
+  return status === "SUCCESS" || status === "FAILED" ? status : null;
+}
+
+/** Writes PDF export metadata while preserving existing metadata payload fields. */
+function buildMetadataWithPdfExport(
+  existing: unknown,
+  payload: {
+    lastStatus: PdfExportStatus;
+    lastError?: string | null;
+    lastExportedAt?: string | null;
+    updatedByUserId?: string | null;
+  },
+): Prisma.InputJsonValue {
+  const base = existing && typeof existing === "object" && !Array.isArray(existing)
+    ? { ...(existing as Record<string, unknown>) }
+    : {};
+
+  const previousPdfExport = base.pdfExport && typeof base.pdfExport === "object" && !Array.isArray(base.pdfExport)
+    ? (base.pdfExport as Record<string, unknown>)
+    : {};
+
+  return JSON.parse(JSON.stringify({
+    ...base,
+    pdfExport: {
+      ...previousPdfExport,
+      ...payload,
+    },
+  })) as Prisma.InputJsonValue;
+}
+
+/** Converts merged HTML into plain text for deterministic server-side PDF rendering. */
+function htmlToPlainText(value: string): string {
+  const withoutTags = value
+    .replace(/\r\n/g, "\n")
+    .replace(/<\s*br\s*\/?\s*>/gi, "\n")
+    .replace(/<\s*\/\s*(p|div|h\d|li|tr|table|section|article|blockquote)\s*>/gi, "\n")
+    .replace(/<\s*li\b[^>]*>/gi, "- ")
+    .replace(/<\s*hr\b[^>]*>/gi, "\n----------------\n")
+    .replace(/<[^>]+>/g, " ");
+
+  const decoded = withoutTags
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&#(\d+);/g, (_match, group) => {
+      const codePoint = Number.parseInt(group, 10);
+      if (!Number.isFinite(codePoint) || codePoint < 0 || codePoint > 0x10ffff) return "";
+      return String.fromCodePoint(codePoint);
+    })
+    .replace(/&#x([a-f0-9]+);/gi, (_match, group) => {
+      const codePoint = Number.parseInt(group, 16);
+      if (!Number.isFinite(codePoint) || codePoint < 0 || codePoint > 0x10ffff) return "";
+      return String.fromCodePoint(codePoint);
+    });
+
+  return decoded
+    .replace(/[\t\f\v]+/g, " ")
+    .replace(/[ ]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** Sanitizes a value for safe ASCII PDF filename usage. */
+function sanitizePdfFilename(value: string): string {
+  const normalized = value
+    .normalize("NFKD")
+    .replace(/[^a-zA-Z0-9_-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return normalized || "generated_letter";
+}
+
+/** Renders one generated letter into PDF bytes using jsPDF server-side. */
+async function renderGeneratedLetterPdf(params: {
+  templateName: string;
+  subject: string;
+  constituentName: string;
+  generatedAt: Date;
+  mergedPrintBody: string;
+}): Promise<Buffer> {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ unit: "pt", format: "letter", compress: true });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginX = 54;
+  const marginTop = 56;
+  const marginBottom = 56;
+  const maxTextWidth = pageWidth - marginX * 2;
+  let cursorY = marginTop;
+
+  const ensurePageSpace = (requiredHeight: number) => {
+    if (cursorY + requiredHeight <= pageHeight - marginBottom) return;
+    doc.addPage();
+    cursorY = marginTop;
+  };
+
+  const writeParagraph = (
+    text: string,
+    fontSize: number,
+    fontStyle: "normal" | "bold" = "normal",
+    marginAfter = 8,
+  ) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    doc.setFont("helvetica", fontStyle);
+    doc.setFontSize(fontSize);
+
+    const lines = doc.splitTextToSize(trimmed, maxTextWidth) as string[];
+    const lineHeight = Math.max(14, Math.round(fontSize * 1.45));
+
+    for (const line of lines) {
+      ensurePageSpace(lineHeight);
+      doc.text(line, marginX, cursorY);
+      cursorY += lineHeight;
+    }
+
+    cursorY += marginAfter;
+  };
+
+  writeParagraph(params.templateName || "Generated Letter", 16, "bold", 4);
+  writeParagraph(`Subject: ${params.subject || "Letter"}`, 11, "bold", 4);
+  if (params.constituentName) {
+    writeParagraph(`Constituent: ${params.constituentName}`, 10, "normal", 2);
+  }
+  writeParagraph(`Generated: ${params.generatedAt.toLocaleString()}`, 10, "normal", 10);
+
+  const plainTextBody = htmlToPlainText(params.mergedPrintBody || "");
+  const paragraphs = plainTextBody.length > 0 ? plainTextBody.split(/\n{2,}/g) : ["(No letter content)"];
+
+  for (const paragraph of paragraphs) {
+    writeParagraph(paragraph, 11, "normal", 8);
+  }
+
+  const pdfBytes = doc.output("arraybuffer");
+  return Buffer.from(pdfBytes);
 }
 
 /** Evaluates one permission key with explicit user override support. */
@@ -274,6 +425,7 @@ router.get("/dashboard", requirePermission("letters.view"), async (req, res) => 
     const queue = readQueueMetadata(row.metadataJson);
     const printStatus = derivePrintQueueStatus(row.status, queue);
     const mailStatus = deriveMailQueueStatus(row.status, queue);
+    const pdfExportStatus = readPdfExportStatus(row.metadataJson);
 
     if (printStatus === "NEEDS_REVIEW" || row.status === "GENERATED") acc.needsReview += 1;
     if (printStatus === "QUEUED_FOR_PRINT") acc.queuedForPrint += 1;
@@ -281,7 +433,7 @@ router.get("/dashboard", requirePermission("letters.view"), async (req, res) => 
     if (mailStatus === "QUEUED_FOR_MAIL" || row.status === "PRINTED") acc.queuedForMail += 1;
     if (row.mailedAt && row.mailedAt >= weekStart) acc.mailedThisWeek += 1;
     if (mailStatus === "ADDRESS_ISSUE") acc.addressIssues += 1;
-    if (queue.statusNote?.toLowerCase().includes("pdf export failed")) acc.pdfExportFailures += 1;
+    if (pdfExportStatus === "FAILED") acc.pdfExportFailures += 1;
     if (row.emailDraftCreatedAt) acc.emailDraftsCreated += 1;
 
     return acc;
@@ -325,8 +477,8 @@ router.get("/dashboard", requirePermission("letters.view"), async (req, res) => 
     pdfExportFailures: queueStats.pdfExportFailures,
     emailDraftsCreated: queueStats.emailDraftsCreated,
     recentlyUsedTemplates: recentlyUsed,
-    batchGenerationStatus: "PARTIAL",
-    pdfExportStatus: "PARTIAL",
+    batchGenerationStatus: "WORKING",
+    pdfExportStatus: "WORKING",
   });
 });
 
@@ -1907,7 +2059,7 @@ router.post("/generated/queue/mail/actions", requirePermission("letters.manage_m
   res.json({ success: true, updatedCount: rows.length, action });
 });
 
-/** POST /api/letters/generated/:id/export-pdf — Returns explicit partial notice until PDF engine is wired. */
+/** POST /api/letters/generated/:id/export-pdf — Generates and streams one letter PDF. */
 router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf"), async (req, res) => {
   const organizationId = await requireOrganizationId(req);
   const userId = req.user?.sub;
@@ -1916,30 +2068,108 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
     return;
   }
 
-  const exists = await prisma.generatedLetter.findFirst({ where: { id: getRouteId(req), organizationId }, select: { id: true } });
-  if (!exists) {
+  const generatedLetter = await prisma.generatedLetter.findFirst({
+    where: { id: getRouteId(req), organizationId },
+    select: {
+      id: true,
+      mergedPrintSubject: true,
+      mergedPrintBody: true,
+      generatedAt: true,
+      metadataJson: true,
+      template: { select: { name: true } },
+      constituent: { select: { firstName: true, lastName: true } },
+    },
+  });
+
+  if (!generatedLetter) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Generated letter not found." } });
     return;
   }
 
-  await logAudit({
-    action: "LETTER_PDF_EXPORT_REQUESTED",
-    entity: "GeneratedLetter",
-    entityId: exists.id,
-    organizationId,
-    userId,
-    metadata: {
-      status: "PARTIAL_IMPLEMENTATION",
-      note: "PDF pipeline not yet wired server-side",
-    },
-  });
+  const constituentName = [generatedLetter.constituent?.firstName, generatedLetter.constituent?.lastName]
+    .filter((value): value is string => Boolean(value && value.trim()))
+    .join(" ")
+    .trim();
+  const templateName = generatedLetter.template?.name?.trim() || "Generated Letter";
+  const subject = generatedLetter.mergedPrintSubject?.trim() || templateName;
 
-  res.status(501).json({
-    error: {
-      code: "PDF_EXPORT_PARTIAL",
-      message: "PDF export backend pipeline is not fully wired yet. Use browser print for now.",
-    },
-  });
+  try {
+    const pdfBuffer = await renderGeneratedLetterPdf({
+      templateName,
+      subject,
+      constituentName,
+      generatedAt: generatedLetter.generatedAt,
+      mergedPrintBody: generatedLetter.mergedPrintBody,
+    });
+
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const fileName = `${sanitizePdfFilename(templateName)}_${sanitizePdfFilename(constituentName || generatedLetter.id)}_${timestamp}.pdf`;
+
+    await prisma.generatedLetter.update({
+      where: { id: generatedLetter.id },
+      data: {
+        metadataJson: buildMetadataWithPdfExport(generatedLetter.metadataJson, {
+          lastStatus: "SUCCESS",
+          lastError: null,
+          lastExportedAt: new Date().toISOString(),
+          updatedByUserId: userId,
+        }),
+      },
+    });
+
+    await logAudit({
+      action: "LETTER_PDF_EXPORTED",
+      entity: "GeneratedLetter",
+      entityId: generatedLetter.id,
+      organizationId,
+      userId,
+      metadata: {
+        mode: "SERVER_RENDER",
+        status: "SUCCESS",
+        fileName,
+        byteLength: pdfBuffer.byteLength,
+      },
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=\"${fileName}\"`);
+    res.setHeader("Cache-Control", "no-store");
+    res.status(200).send(pdfBuffer);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown PDF export failure";
+
+    await prisma.generatedLetter.update({
+      where: { id: generatedLetter.id },
+      data: {
+        metadataJson: buildMetadataWithPdfExport(generatedLetter.metadataJson, {
+          lastStatus: "FAILED",
+          lastError: message.slice(0, 400),
+          lastExportedAt: new Date().toISOString(),
+          updatedByUserId: userId,
+        }),
+      },
+    });
+
+    await logAudit({
+      action: "LETTER_PDF_EXPORT_FAILED",
+      entity: "GeneratedLetter",
+      entityId: generatedLetter.id,
+      organizationId,
+      userId,
+      metadata: {
+        mode: "SERVER_RENDER",
+        status: "FAILED",
+        error: message,
+      },
+    });
+
+    res.status(500).json({
+      error: {
+        code: "PDF_EXPORT_FAILED",
+        message: "Failed to export this generated letter as PDF.",
+      },
+    });
+  }
 });
 
 /** POST /api/letters/generated/batch — Generates letters in bulk with eligibility checks and skip reasons. */

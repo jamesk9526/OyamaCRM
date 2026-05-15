@@ -83,7 +83,16 @@ interface OShareviewAdminWorkspaceProps {
   tool: ReportsToolId;
   filterText: string;
   minAmount: number;
+  fromDate?: string;
+  toDate?: string;
   canViewAdmin: boolean;
+}
+
+function normalizeDateValue(value: string | null): number | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.getTime();
 }
 
 function formatMoney(value: number): string {
@@ -241,7 +250,7 @@ function ServiceLoadChart({ rows }: { rows: AdminMonthlyTrendPoint[] }) {
  * Renders admin-level operational reporting with donor and compassion metrics.
  * Data is intentionally aggregate and operations-focused for privacy-safe dashboards.
  */
-export default function OShareviewAdminWorkspace({ year, allYears, tool, filterText, minAmount, canViewAdmin }: OShareviewAdminWorkspaceProps) {
+export default function OShareviewAdminWorkspace({ year, allYears, tool, filterText, minAmount, fromDate = "", toDate = "", canViewAdmin }: OShareviewAdminWorkspaceProps) {
   const [summary, setSummary] = useState<AdminSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -285,12 +294,24 @@ export default function OShareviewAdminWorkspace({ year, allYears, tool, filterT
   const filteredRows = useMemo(() => {
     const rows = summary?.riskRows ?? [];
     const query = filterText.trim().toLowerCase();
+    const fromDateMs = normalizeDateValue(fromDate);
+    const toDateMs = normalizeDateValue(toDate);
 
     return rows.filter((row) => {
       if (tool === "admin-donor-ops" && row.kind !== "donor") return false;
       if (tool === "admin-client-ops" && row.kind !== "client") return false;
       if (tool === "admin-data-quality" && !(row.missingContact || row.duplicateEmail)) return false;
       if (row.valueAmount < minAmount) return false;
+
+      if (fromDateMs || toDateMs) {
+        const lastActivityMs = normalizeDateValue(row.lastActivity);
+        if (!lastActivityMs) return false;
+        if (fromDateMs && lastActivityMs < fromDateMs) return false;
+        if (toDateMs) {
+          const inclusiveToDateMs = toDateMs + (24 * 60 * 60 * 1000) - 1;
+          if (lastActivityMs > inclusiveToDateMs) return false;
+        }
+      }
 
       if (!query) return true;
       return (
@@ -300,7 +321,7 @@ export default function OShareviewAdminWorkspace({ year, allYears, tool, filterT
         (row.email ?? "").toLowerCase().includes(query)
       );
     });
-  }, [filterText, minAmount, summary?.riskRows, tool]);
+  }, [filterText, fromDate, minAmount, summary?.riskRows, toDate, tool]);
 
   if (!canViewAdmin) {
     return (
@@ -388,8 +409,8 @@ export default function OShareviewAdminWorkspace({ year, allYears, tool, filterT
           <p className="text-xs text-slate-500">{filteredRows.length.toLocaleString()} rows after filters</p>
         </div>
 
-        <div className="mt-3 overflow-x-auto">
-          <table className="min-w-full text-left text-xs">
+        <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200">
+          <table className="min-w-[860px] text-left text-xs">
             <thead>
               <tr className="border-b border-slate-200 text-slate-600">
                 <th className="px-2 py-1.5 font-semibold">Record</th>

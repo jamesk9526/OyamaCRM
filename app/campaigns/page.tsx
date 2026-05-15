@@ -9,6 +9,11 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import CampaignCard from "@/app/components/campaigns/CampaignCard";
 import NewCampaignModal from "@/app/components/campaigns/NewCampaignModal";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import { apiFetch } from "@/app/lib/auth-client";
 
 /** Campaign as returned from the API */
@@ -34,6 +39,9 @@ export default function CampaignsPage() {
   const [year, setYear] = useState<number>(currentYear);
   const [allYears, setAllYears] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState<Campaign | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const router = useRouter();
 
   /** Load campaigns from API */
@@ -58,14 +66,27 @@ export default function CampaignsPage() {
 
   useEffect(() => { loadCampaigns(); }, [loadCampaigns]);
 
-  /** Delete a campaign after confirmation */
-  async function handleDelete(id: string) {
-    if (!confirm("Delete this campaign? This cannot be undone.")) return;
+  function openDeleteModal(id: string) {
+    const candidate = campaigns.find((campaign) => campaign.id === id);
+    if (!candidate) return;
+    setDeleteCandidate(candidate);
+    setDeleteError(null);
+  }
+
+  /** Delete a campaign after explicit modal confirmation. */
+  async function confirmDeleteCampaign() {
+    if (!deleteCandidate) return;
+
+    setDeleteBusy(true);
+    setDeleteError(null);
     try {
-      await apiFetch(`/api/campaigns/${id}`, { method: "DELETE" });
-      setCampaigns((prev) => prev.filter((c) => c.id !== id));
-    } catch {
-      alert("Failed to delete campaign. Please try again.");
+      await apiFetch(`/api/campaigns/${deleteCandidate.id}`, { method: "DELETE" });
+      setCampaigns((prev) => prev.filter((campaign) => campaign.id !== deleteCandidate.id));
+      setDeleteCandidate(null);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete campaign. Please try again.");
+    } finally {
+      setDeleteBusy(false);
     }
   }
 
@@ -83,19 +104,33 @@ export default function CampaignsPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Campaigns</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Fundraising campaigns and goal tracking</p>
-        </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
-        >
-          + New Campaign
-        </button>
-      </div>
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Donor CRM", href: "/" },
+          { label: "Campaigns" },
+        ]}
+        statusLabel={loading ? "Loading" : "Working"}
+        metadata={`${filtered.length.toLocaleString()} visible · ${campaigns.length.toLocaleString()} total (${scopeLabel})`}
+        primaryAction={<WorkspaceRibbonButton label="New Campaign" onClick={() => setShowModal(true)} variant="primary" />}
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="Create">
+          <WorkspaceRibbonButton label="New Campaign" onClick={() => setShowModal(true)} variant="primary" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="View">
+          <WorkspaceRibbonButton label="All" onClick={() => setFilter("all")} variant={filter === "all" ? "primary" : "secondary"} />
+          <WorkspaceRibbonButton label="Active" onClick={() => setFilter("active")} variant={filter === "active" ? "primary" : "secondary"} />
+          <WorkspaceRibbonButton label="Inactive" onClick={() => setFilter("inactive")} variant={filter === "inactive" ? "primary" : "secondary"} />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Scope">
+          <WorkspaceRibbonButton label="This Year" onClick={() => setAllYears(false)} variant={!allYears ? "primary" : "secondary"} />
+          <WorkspaceRibbonButton label="All Years" onClick={() => setAllYears(true)} variant={allYears ? "primary" : "secondary"} />
+          <WorkspaceRibbonButton label="Refresh" onClick={() => void loadCampaigns()} />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -190,7 +225,7 @@ export default function CampaignsPage() {
               campaign={campaign}
               onInfo={() => router.push(`/campaigns/${campaign.id}`)}
               onEdit={() => router.push(`/campaigns/${campaign.id}`)}
-              onDelete={handleDelete}
+              onDelete={openDeleteModal}
             />
           ))}
         </div>
@@ -201,6 +236,58 @@ export default function CampaignsPage() {
           onClose={() => setShowModal(false)}
           onCreated={() => { setShowModal(false); loadCampaigns(); }}
         />
+      )}
+
+      {deleteCandidate && (
+        <WorkspaceSetupModal
+          title="Delete Campaign"
+          subtitle="This action permanently deletes the campaign and cannot be undone."
+          checklist={["1. Verify campaign", "2. Confirm permanent deletion"]}
+          onClose={() => {
+            if (deleteBusy) return;
+            setDeleteCandidate(null);
+            setDeleteError(null);
+          }}
+          maxWidthClassName="max-w-3xl"
+        >
+          <div className="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-red-700">Destructive action</p>
+              <p className="mt-1 text-sm text-red-800">
+                Delete <span className="font-semibold">{deleteCandidate.name}</span> and remove all campaign-level metadata from this workspace.
+              </p>
+            </div>
+
+            {deleteError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (deleteBusy) return;
+                  setDeleteCandidate(null);
+                  setDeleteError(null);
+                }}
+                disabled={deleteBusy}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmDeleteCampaign()}
+                disabled={deleteBusy}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-60"
+              >
+                {deleteBusy ? "Deleting..." : "Delete Campaign"}
+              </button>
+            </div>
+          </div>
+        </WorkspaceSetupModal>
       )}
     </div>
   );

@@ -1,7 +1,7 @@
 /** Letters & Printables workspace dashboard route. */
-import LettersDashboard from "@/app/components/letters/LettersDashboard";
+import LettersRibbonHome from "@/app/components/letters/LettersRibbonHome";
 
 /** Renders dashboard metrics and quick actions for donor letters. */
 export default function LettersPrintablesPage() {
-  return <LettersDashboard />;
+  return <LettersRibbonHome />;
 }

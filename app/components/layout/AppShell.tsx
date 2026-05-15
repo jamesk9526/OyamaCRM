@@ -94,15 +94,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col h-screen bg-white">
       <TopBar />
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="relative flex min-w-0 flex-1 overflow-hidden">
         {!isOShareview && (
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <Sidebar />
           </div>
         )}
 
         {!isOShareview && mobileNavOpen && (
-          <div className="md:hidden fixed inset-0 z-40">
+          <div className="fixed inset-0 z-40 lg:hidden">
             <button
               aria-label="Close navigation menu"
               onClick={() => setMobileNavOpen(false)}
@@ -115,9 +115,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         )}
 
         {/* ErrorBoundary catches page-level render errors without crashing the whole shell */}
-        <main className="flex-1 overflow-auto bg-gray-50 p-3 sm:p-4 md:p-6">
+        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-gray-50 p-3 sm:p-4 lg:p-4 min-[1440px]:p-5 2xl:p-6">
           {!isOShareview && (
-            <div className="md:hidden mb-3">
+            <div className="mb-3 lg:hidden">
             <button
               type="button"
               onClick={() => setMobileNavOpen(true)}
@@ -131,7 +131,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           )}
           <ErrorBoundary>
-            {children}
+            <div className="min-w-0 max-w-full">{children}</div>
           </ErrorBoundary>
         </main>
       </div>

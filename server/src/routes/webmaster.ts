@@ -484,7 +484,15 @@ router.get("/sites/:siteId/publish-readiness", async (req, res) => {
   }
 
   const pages = await listWebmasterPages({ organizationId, siteId, limit: 500 });
-  const readiness = buildWebmasterPublishReadinessReport({ site, pages });
+  const lastPublishedVersion = site.publishedVersionId
+    ? await getWebmasterPublishVersionById({ organizationId, versionId: site.publishedVersionId })
+    : null;
+
+  const readiness = buildWebmasterPublishReadinessReport({
+    site,
+    pages,
+    previousPublishedPages: lastPublishedVersion?.snapshotJson.pages ?? [],
+  });
 
   res.json({
     data: readiness,

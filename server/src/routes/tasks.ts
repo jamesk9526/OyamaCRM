@@ -13,10 +13,12 @@
  * @module routes/tasks
  */
 import { Router } from "express";
+import type { Prisma, TaskStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
+import { createTaskAssignmentNotification, createTaskOverdueNotification } from "../services/notifications.js";
 
 const router = Router();
 
@@ -93,6 +95,7 @@ function canAccessTask(task: { createdById: string | null; assigneeId: string | 
 function taskOrganizationWhere(organizationId: string) {
   return {
     OR: [
+      { organizationId },
       { constituent: { organizationId } },
       { assignee: { organizationId } },
       { createdBy: { organizationId } },
@@ -124,6 +127,8 @@ router.get("/", async (req, res) => {
     assigneeId,
     status,
     constituentId,
+    queue = "all",
+    includeArchived = "false",
     scope = "personal",
     page = "1",
     limit = "25",
@@ -132,12 +137,39 @@ router.get("/", async (req, res) => {
   const parsedLimit = Math.min(Math.max(parseInt(limit) || 25, 1), 100);
   const skip = (parsedPage - 1) * parsedLimit;
   const personalScope = !(scope === "all" && role === "admin");
+  const now = new Date();
+  const activeTaskStatuses: TaskStatus[] = ["PENDING", "IN_PROGRESS"];
 
-  const where = {
+  const queueWhere: Prisma.TaskWhereInput =
+    queue === "my-today"
+      ? {
+          assigneeId: userId,
+          status: { in: activeTaskStatuses },
+          dueDate: { lte: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999) },
+        }
+      : queue === "overdue"
+        ? {
+            assigneeId: userId,
+            status: { in: activeTaskStatuses },
+            dueDate: { lt: now },
+          }
+        : queue === "completed"
+          ? { status: "COMPLETED" as const }
+          : queue === "assigned-by-me"
+            ? { createdById: userId }
+            : queue === "assigned-to-me"
+              ? { assigneeId: userId }
+              : queue === "team"
+                ? { status: { in: activeTaskStatuses } }
+                : {};
+
+  const where: Prisma.TaskWhereInput = {
     ...taskOrganizationWhere(organizationId),
     ...(assigneeId && { assigneeId }),
     ...(status && { status: status as never }),
     ...(constituentId && { constituentId }),
+    ...(includeArchived !== "true" && { archivedAt: null }),
+    ...queueWhere,
     ...(personalScope
       ? {
           OR: [{ createdById: userId }, { assigneeId: userId }],
@@ -155,6 +187,7 @@ router.get("/", async (req, res) => {
         constituent: { select: { id: true, firstName: true, lastName: true } },
         assignee: { select: { id: true, firstName: true, lastName: true } },
         createdBy: { select: { id: true, firstName: true, lastName: true } },
+        completedBy: { select: { id: true, firstName: true, lastName: true } },
       },
     }),
     prisma.task.count({ where }),
@@ -179,6 +212,12 @@ router.post("/", async (req, res) => {
     status,
     priority,
     dueDate,
+    reminderAt,
+    sourceModule,
+    sourceType,
+    sourceId,
+    checklistJson,
+    metadata,
     constituentId,
     assigneeId,
     meetingId,
@@ -213,12 +252,19 @@ router.post("/", async (req, res) => {
 
   const task = await prisma.task.create({
     data: {
+      organizationId,
       title: String(title).trim(),
       description: description ? String(description) : null,
       type: (type as never) || "FOLLOW_UP",
       status: (status as never) || "PENDING",
       priority: (priority as never) || "MEDIUM",
       dueDate: dueDate ? new Date(dueDate) : null,
+      reminderAt: reminderAt ? new Date(reminderAt) : null,
+      sourceModule: sourceModule ? String(sourceModule) : "donor",
+      sourceType: sourceType ? String(sourceType) : "manual",
+      sourceId: sourceId ? String(sourceId) : null,
+      checklistJson: checklistJson ?? null,
+      metadata: metadata ?? null,
       constituentId: constituentId || null,
       meetingId: meetingId || null,
       createdById: userId,
@@ -243,6 +289,28 @@ router.post("/", async (req, res) => {
       },
     });
   }
+
+  if (task.assigneeId && task.assigneeId !== userId) {
+    const assignedBy = task.createdBy ? `${task.createdBy.firstName} ${task.createdBy.lastName}`.trim() : null;
+    await createTaskAssignmentNotification({
+      organizationId,
+      assigneeId: task.assigneeId,
+      taskId: task.id,
+      taskTitle: task.title,
+      dueDate: task.dueDate,
+      assignedByName: assignedBy,
+    });
+  }
+
+  if (task.assigneeId && task.dueDate && task.dueDate < new Date()) {
+    await createTaskOverdueNotification({
+      organizationId,
+      assigneeId: task.assigneeId,
+      taskId: task.id,
+      taskTitle: task.title,
+    });
+  }
+
   res.status(201).json(task);
 });
 
@@ -280,6 +348,21 @@ router.patch("/:id", async (req, res) => {
       ...(req.body?.dueDate !== undefined && {
         dueDate: req.body?.dueDate ? new Date(req.body.dueDate) : null,
       }),
+      ...(req.body?.reminderAt !== undefined && {
+        reminderAt: req.body?.reminderAt ? new Date(req.body.reminderAt) : null,
+      }),
+      ...(req.body?.snoozedUntil !== undefined && {
+        snoozedUntil: req.body?.snoozedUntil ? new Date(req.body.snoozedUntil) : null,
+      }),
+      ...(req.body?.archivedAt !== undefined && {
+        archivedAt: req.body?.archivedAt ? new Date(req.body.archivedAt) : null,
+      }),
+      ...(req.body?.status === "COMPLETED"
+        ? {
+            completedAt: new Date(),
+            completedById: userId,
+          }
+        : {}),
     },
   });
 
@@ -295,6 +378,170 @@ router.patch("/:id", async (req, res) => {
       },
     });
   }
+
+  res.json(task);
+});
+
+/** POST /api/tasks/:id/start — Mark task as in progress. */
+router.post("/:id/start", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const existing = await prisma.task.findFirst({
+    where: { id: req.params.id, ...taskOrganizationWhere(organizationId), archivedAt: null },
+    select: { id: true, createdById: true, assigneeId: true },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Task not found" } });
+    return;
+  }
+  if (!canAccessTask(existing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this task" } });
+    return;
+  }
+
+  const task = await prisma.task.update({
+    where: { id: req.params.id },
+    data: {
+      status: "IN_PROGRESS",
+      snoozedUntil: null,
+    },
+  });
+
+  res.json(task);
+});
+
+/** POST /api/tasks/:id/complete — Complete a task with optional outcome. */
+router.post("/:id/complete", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const existing = await prisma.task.findFirst({
+    where: { id: req.params.id, ...taskOrganizationWhere(organizationId) },
+    select: { id: true, title: true, createdById: true, assigneeId: true, constituentId: true },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Task not found" } });
+    return;
+  }
+  if (!canAccessTask(existing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this task" } });
+    return;
+  }
+
+  const outcome = typeof req.body?.outcome === "string" ? req.body.outcome.trim() : "";
+  const task = await prisma.task.update({
+    where: { id: req.params.id },
+    data: {
+      status: "COMPLETED",
+      completedAt: new Date(),
+      completedById: userId,
+      snoozedUntil: null,
+      archivedAt: null,
+      outcome: outcome || null,
+    },
+  });
+
+  if (existing.constituentId) {
+    await prisma.activity.create({
+      data: {
+        constituentId: existing.constituentId,
+        taskId: existing.id,
+        userId,
+        type: "TASK_COMPLETED",
+        description: `Task completed: ${existing.title}`,
+        metadata: { source: "api/tasks:complete", outcome: outcome || null },
+      },
+    });
+  }
+
+  res.json(task);
+});
+
+/** POST /api/tasks/:id/snooze — Snooze a task by date and set status back to pending. */
+router.post("/:id/snooze", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const existing = await prisma.task.findFirst({
+    where: { id: req.params.id, ...taskOrganizationWhere(organizationId), archivedAt: null },
+    select: { id: true, createdById: true, assigneeId: true },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Task not found" } });
+    return;
+  }
+  if (!canAccessTask(existing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this task" } });
+    return;
+  }
+
+  const untilRaw = req.body?.until;
+  const until = typeof untilRaw === "string" || untilRaw instanceof Date
+    ? new Date(untilRaw)
+    : new Date(Date.now() + 60 * 60 * 1000);
+  if (Number.isNaN(until.getTime())) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid snooze date" } });
+    return;
+  }
+
+  const task = await prisma.task.update({
+    where: { id: req.params.id },
+    data: {
+      status: "PENDING",
+      snoozedUntil: until,
+    },
+  });
+
+  res.json(task);
+});
+
+/** POST /api/tasks/:id/archive — Archive a completed/canceled task for historical views. */
+router.post("/:id/archive", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const existing = await prisma.task.findFirst({
+    where: { id: req.params.id, ...taskOrganizationWhere(organizationId) },
+    select: { id: true, createdById: true, assigneeId: true, status: true },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Task not found" } });
+    return;
+  }
+  if (!canAccessTask(existing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this task" } });
+    return;
+  }
+  if (existing.status !== "COMPLETED" && existing.status !== "CANCELLED") {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Only completed or canceled tasks can be archived" } });
+    return;
+  }
+
+  const task = await prisma.task.update({
+    where: { id: req.params.id },
+    data: { archivedAt: new Date() },
+  });
 
   res.json(task);
 });
@@ -373,6 +620,7 @@ router.post("/bulk-assign", async (req, res) => {
     where: { id: { in: idsToUpdate } },
     data: {
       assigneeId: assignee.id,
+      snoozedUntil: null,
     },
   });
 
@@ -395,6 +643,18 @@ router.post("/bulk-assign", async (req, res) => {
   if (activityRows.length > 0) {
     await prisma.activity.createMany({ data: activityRows });
   }
+
+  await Promise.all(
+    tasks.map((task) =>
+      createTaskAssignmentNotification({
+        organizationId,
+        assigneeId: assignee.id,
+        taskId: task.id,
+        taskTitle: task.title,
+        assignedByName: reassignedByName,
+      })
+    )
+  );
 
   res.json({
     updatedCount: idsToUpdate.length,

@@ -69,13 +69,13 @@ function EventsLayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col h-screen bg-white">
       <TopBar />
-      <div className="flex flex-1 overflow-hidden relative">
-        <div className="hidden md:block">
+      <div className="relative flex min-w-0 flex-1 overflow-hidden">
+        <div className="hidden lg:block">
           <EventsSidebar />
         </div>
 
         {mobileNavOpen && (
-          <div className="md:hidden fixed inset-0 z-40">
+          <div className="fixed inset-0 z-40 lg:hidden">
             <button
               aria-label="Close Events navigation"
               onClick={() => setMobileNavOpen(false)}
@@ -87,8 +87,8 @@ function EventsLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        <main className="flex-1 overflow-auto bg-amber-50/30 p-3 sm:p-4 md:p-6">
-          <div className="md:hidden mb-3">
+        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-amber-50/30 p-3 sm:p-4 lg:p-4 min-[1440px]:p-5 2xl:p-6">
+          <div className="mb-3 lg:hidden">
             <button
               type="button"
               onClick={() => setMobileNavOpen(true)}
@@ -101,13 +101,13 @@ function EventsLayoutContent({ children }: { children: React.ReactNode }) {
             </button>
           </div>
           <ErrorBoundary>
-            {redirectTarget ? (
+            <div className="min-w-0 max-w-full">{redirectTarget ? (
               <section className="rounded-xl border border-amber-300 bg-amber-100 px-4 py-3 text-sm text-amber-900">
                 Redirecting to event-first workspace flow...
               </section>
             ) : (
               children
-            )}
+            )}</div>
           </ErrorBoundary>
         </main>
       </div>

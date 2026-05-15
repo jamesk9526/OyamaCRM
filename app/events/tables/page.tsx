@@ -4,9 +4,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
 interface Event {
   id: string;
@@ -213,23 +216,31 @@ export default function EventTablesPage() {
   }
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Tables & Seating</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Manage table assignments, capacity, and guest seating for events
-        </p>
-        <Link
-          href="/help?scope=events&scopePath=/events/tables"
-          className="mt-2 inline-flex rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100"
-        >
-          Need help with seating?
-        </Link>
-      </div>
+    <div className="p-6 space-y-6">
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Events CRM", href: "/events/workspace" },
+          { label: "Tables" },
+        ]}
+        statusLabel={eventScoped ? "Event Scoped" : "All Events"}
+        metadata={`${tables.length.toLocaleString()} tables · ${openSeats.toLocaleString()} open seats · ${overCapacityTables.toLocaleString()} over capacity`}
+        accentTone="amber"
+        primaryAction={selectedEventId ? <WorkspaceRibbonButton label="Create Table" onClick={() => setShowNewTableModal(true)} variant="primary" accentTone="amber" /> : undefined}
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="Create">
+          <WorkspaceRibbonButton label="Create Table" onClick={() => setShowNewTableModal(true)} variant="primary" disabled={!selectedEventId} accentTone="amber" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Actions">
+          <WorkspaceRibbonButton label="Refresh" onClick={() => void loadData()} disabled={!selectedEventId} accentTone="amber" />
+          <WorkspaceRibbonButton label="Seating Help" href="/help?scope=events&scopePath=/events/tables" accentTone="amber" />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       {/* Event Selector */}
-      <div className="mb-6">
+      <div>
         <label className="block text-sm font-semibold text-gray-700 mb-2">Event</label>
         <select
           value={selectedEventId}
@@ -270,16 +281,6 @@ export default function EventTablesPage() {
               <p className="text-xs text-gray-500 uppercase font-medium">Over Capacity</p>
               <p className="text-2xl font-bold text-red-600 mt-1">{overCapacityTables}</p>
             </div>
-          </div>
-
-          {/* Actions */}
-          <div className="mb-6">
-            <button
-              onClick={() => setShowNewTableModal(true)}
-              className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700"
-            >
-              + Create Table
-            </button>
           </div>
 
           {loading ? (

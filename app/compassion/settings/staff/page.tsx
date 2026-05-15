@@ -4,7 +4,7 @@ import CompassionStaffDirectoryManager from "@/app/components/compassion/setting
 
 /**
  * CompassionStaffSettingsPage renders the staff directory and optional account management UI.
- * TODO: enforce Compassion workspace permission
+ * Access enforcement is handled by CompassionLayout and /api/compassion middleware.
  */
 export default function CompassionStaffSettingsPage() {
   return (

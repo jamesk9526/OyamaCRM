@@ -29,8 +29,8 @@ export default function WorkspaceControlRail({
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   return (
-    <aside className={`sticky top-3 h-fit rounded-xl border border-gray-200 bg-white shadow-sm ${collapsed ? "w-14" : "w-full"}`}>
-      <div className="flex items-center justify-between border-b border-gray-200 px-2.5 py-2">
+    <aside data-workspace-control-rail="true" className={`sticky top-3 max-h-[calc(100vh-5rem)] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm ${collapsed ? "w-14" : "w-full"}`}>
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-2.5 py-2">
         {!collapsed && <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-600">{title}</h2>}
         {collapsible && (
           <button
@@ -45,7 +45,7 @@ export default function WorkspaceControlRail({
         )}
       </div>
 
-      <div className="space-y-3 p-2">
+      <div className="max-h-[calc(100vh-8rem)] space-y-3 overflow-y-auto p-2">
         {groups.map((group) => (
           <WorkspaceControlRailGroup key={group.id} label={collapsed ? "" : group.label}>
             {group.items.map((item) => (

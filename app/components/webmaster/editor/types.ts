@@ -54,6 +54,24 @@ export interface PublishReadinessCheck {
   detail: string;
 }
 
+export interface PublishDraftDeltaSummary {
+  newPages: number;
+  updatedPages: number;
+  removedPages: number;
+  unchangedPages: number;
+  totalDraftCandidates: number;
+}
+
+export interface PublishDraftDeltaItem {
+  id: string;
+  title: string;
+  path: string;
+  changeType: "NEW" | "UPDATED" | "REMOVED";
+  updatedAt: string | null;
+  currentStatus: "DRAFT" | "REVIEW_READY" | "PUBLISHED" | "ARCHIVED" | null;
+  previousStatus: "DRAFT" | "REVIEW_READY" | "PUBLISHED" | "ARCHIVED" | null;
+}
+
 export interface PublishReadinessData {
   status: "Working" | "Partially Working" | "Broken" | "Not Implemented";
   summary: string;
@@ -62,6 +80,8 @@ export interface PublishReadinessData {
   pagesMissingSeo: Array<{ id: string; title: string; path: string }>;
   pagesWithInvalidPath: Array<{ id: string; title: string; path: string }>;
   draftChangesSinceLastPublish: number;
+  draftDeltaSummary: PublishDraftDeltaSummary;
+  draftDeltaItems: PublishDraftDeltaItem[];
   previewLink: string | null;
   publishExecutionStatus: "Not Implemented" | "Working";
   rollbackStatus: "Not Implemented" | "Working";

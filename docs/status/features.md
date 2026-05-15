@@ -2,6 +2,88 @@
 
 _Last deep audit: 2026-05-13_
 
+## 2026-05-14 Production Pass Phase 1/2 (Audit + IA Cleanup)
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Central partial-implementation audit file | Working | `docs/status/PARTIAL_IMPLEMENTATION_AUDIT.md` | Created canonical issue inventory with finish/remove/backlog decisioning and explicit resolution tracking. |
+| CRM-wide production readiness matrix | Working | `docs/status/PRODUCTION_READINESS_MATRIX.md` | Created required matrix for all major systems using locked production-pass status labels. |
+| Events sidebar dead-link removal and scoped-link repair | Working | `app/components/layout/sidebar-configs.tsx` | Removed non-existent event-scoped routes from visible navigation and mapped active event links to existing route surfaces with `?eventId=` scoping. |
+| Compassion placeholder Tasks nav removal | Working | `app/components/layout/sidebar-configs.tsx` | Removed sidebar exposure of placeholder `app/compassion/tasks/page.tsx` route. |
+| Settings overview placeholder card removal | Working | `app/settings/page.tsx` | Removed visible card linking to placeholder `/settings/events` route from settings landing page. |
+| Campaign and communications native dialog hardening | Working | `app/campaigns/page.tsx`, `app/campaigns/[id]/page.tsx`, `app/communications/page.tsx` | Replaced route-level `confirm`/`prompt` destructive and clone-name flows with modal-based workspace UX. |
+| Webmaster starter dashboard dead-link guardrails | Working | `app/components/webmaster/WebmasterStarterDashboard.tsx` | Replaced direct links to missing template/import/media/theme routes with explicit in-development notices to avoid fake navigation. |
+| Remaining placeholder route inventory | Partially Working | `docs/status/PARTIAL_IMPLEMENTATION_AUDIT.md` | Compassion placeholder pages, Webmaster placeholder workspaces, permissions TODOs, and partial export pathways are tracked and remain open for completion or backlog isolation. |
+
+## 2026-05-14 User Friendliness Pass (Wave 1)
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Staff workflow audit by role | Working | `docs/status/USER_FRIENDLINESS_AUDIT.md` | Added daily/weekly workflow expectations, confusion points, and role-visibility recommendations for core nonprofit personas. |
+| Dashboard Start Here action workspace | Working | `app/page.tsx` | Added guided Start Here cards with plain-language descriptions and direct links to common staff tasks. |
+| Dashboard plain-language focus snapshot | Working | `app/page.tsx` | Added concise "Today's Focus" cards for immediate work prioritization and click-through actions. |
+| Dashboard Start Here and Today's Focus movable widget integration | Working | `app/page.tsx` | Converted both onboarding/priority sections into first-class movable dashboard widgets so teams can reorder, hide, and restore them through the existing layout system. |
+| Dashboard actionable insights widget | Working | `app/page.tsx`, `app/components/dashboard/ActionableInsightsWidget.tsx` | Added cross-workspace insight card with direct links for overdue work, acknowledgements, at-risk donors, and unread notifications. |
+| Dashboard AI widgets (runtime controls, opportunities, compact chat) | Working | `app/page.tsx`, `app/components/dashboard/AiInsightsWidget.tsx`, `app/components/dashboard/AiOpportunityWidget.tsx`, `app/components/dashboard/AiChatWidget.tsx` | Added enableable AI widgets with runtime status, opportunity suggestions, and compact ask/reply Steward chat linked to full AI workspace. |
+| Shared contextual help tip primitive | Working | `app/components/ui/WorkspaceHelpTip.tsx`, `app/page.tsx` | Added reusable compact help pattern and integrated it into dashboard sections. |
+| User-facing operational guide baseline | Working | `docs/howto/USER_GUIDE.md` | Added practical staff guide covering onboarding, daily workflows, and troubleshooting. |
+| CRM language standard baseline | Working | `docs/ui/CRM_LANGUAGE_GUIDE.md` | Added preferred terminology and plain-language replacement rules for staff-facing UI copy. |
+
+## 2026-05-14 CRM Header Cleanup Stage 1 (Autopilot)
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Shared compact breadcrumb bar component | Working | `app/components/layout/WorkspaceBreadcrumbBar.tsx` | Added canonical single-line workspace breadcrumb row with metadata, badge, and compact action slots. |
+| Ribbon frame and wizard chrome migrated to breadcrumb-first headers | Working | `app/components/workspace-ribbon/WorkspaceRibbonFrame.tsx`, `app/components/workspace-ribbon/WorkspaceWizard.tsx`, `app/components/communications/CommunicationsWizardStep.tsx` | Removed bulky title/subtitle cards from shared shells and aligned wizard steps with compact header behavior. |
+| Steward Paths bulky "Saved Visual Paths" top card removal | Working | `app/components/steward-paths/StewardPathsWorkspacePage.tsx` | Replaced large intro card with breadcrumb + ribbon controls and kept canonical run/share/archive actions. |
+| Tasks workspace header/ribbon refactor | Partially Working | `app/tasks/page.tsx` | Top-level header moved to breadcrumb + ribbon queues/actions. Full board/calendar/detail-drawer command-center redesign remains in progress. |
+| Grants, Settings, and Data Tools header standardization | Partially Working | `app/grants/page.tsx`, `app/settings/page.tsx`, `app/data-tools/page.tsx` | Bulky top headers replaced with breadcrumb + ribbon controls. Additional control deduping and deep workflow cleanup still pending in later phases. |
+| Constituents, Campaigns, and Donations workspace header standardization | Partially Working | `app/constituents/page.tsx`, `app/campaigns/page.tsx`, `app/donations/page.tsx` | Removed legacy title/subtitle button rows and replaced with compact breadcrumb + grouped ribbon actions. Additional workflow deduping still pending (especially Donations quick-action orchestration polish). |
+| Volunteers, Meetings, QuickBooks Sync, and Reports header standardization | Partially Working | `app/volunteers/page.tsx`, `app/meetings/page.tsx`, `app/quickbooks-sync/page.tsx`, `app/reports/page.tsx` | Replaced page-top title cards/rows with compact breadcrumb bars and ribbon command groups where applicable. Deeper route-level command deduping and advanced workflow polish are still pending. |
+| Donation record create/edit pages header standardization | Partially Working | `app/donations/new/page.tsx`, `app/donations/[id]/edit/page.tsx` | Replaced large form-page heading blocks with compact breadcrumb bars and contextual metadata so donation intake/edit remains consistent with workspace style. |
+| Compassion Clients/Cases/Follow-ups header standardization | Partially Working | `app/compassion/clients/page.tsx`, `app/compassion/cases/page.tsx`, `app/compassion/follow-ups/page.tsx` | Added compact breadcrumb + ribbon command rows with blue module accent while preserving Compassion-specific filters/modals. Additional Compassion routes still need migration. |
+| Events Guests/Orders/Check-In/Tickets/Tables/Sponsors/Overview header standardization | Partially Working | `app/events/guests/page.tsx`, `app/events/orders/page.tsx`, `app/events/check-in/page.tsx`, `app/events/tickets/page.tsx`, `app/events/tables/page.tsx`, `app/events/sponsors/page.tsx`, `app/events/[eventId]/overview/page.tsx` | Added compact breadcrumb + ribbon command rows with amber module accent while preserving event-scoped filter controls and operational workflows. Some secondary event detail routes may still need migration. |
+| Shared breadcrumb/ribbon accent support for module themes | Working | `app/components/layout/WorkspaceBreadcrumbBar.tsx`, `app/components/workspace-ribbon/WorkspaceRibbonButton.tsx` | Added optional blue and amber accent tone support so Compassion and Events workspaces can use ribbon/breadcrumb standards without violating module color boundaries. |
+
+## 2026-05-14 Tasks + Notifications Work Engine Foundation Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Durable notifications API with state actions | Working | `prisma/schema.prisma`, `server/src/routes/notifications.ts`, `server/src/services/notifications.ts` | Replaced ephemeral notifications feed with durable records and user actions (`read`, `dismiss`, `snooze`, `mark-all-read`, unread-count endpoint). |
+| Task lifecycle API expansion | Working | `prisma/schema.prisma`, `server/src/routes/tasks.ts` | Added lifecycle fields (reminder/snooze/archive/outcome/source metadata) and dedicated lifecycle endpoints (`start`, `complete`, `snooze`, `archive`) with compatibility-preserving CRUD. |
+| TopBar notification action controls | Partially Working | `app/components/layout/TopBar.tsx` | Added unread polling and inline read/snooze/dismiss actions. Additional module-specific event producers still need migration to durable notification writes. |
+| Tasks workspace deep-link refresh bridge | Partially Working | `app/tasks/page.tsx` | Task create/complete/delete/reassign now emits workspace update events used by TopBar badge refresh; full command-center board/calendar redesign remains in progress. |
+
+## 2026-05-14 Ribbon-First Workspace Clarity Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Shared workspace ribbon component set | Working | `app/components/workspace-ribbon/WorkspaceRibbonFrame.tsx`, `WorkspaceRibbon.tsx`, `WorkspaceRibbonGroup.tsx`, `WorkspaceRibbonButton.tsx`, `WorkspaceProjectLibrary.tsx`, `WorkspaceWizard.tsx`, `WorkspaceStepIndicator.tsx`, `WorkspaceInspectorDrawer.tsx` | Added reusable ribbon-first workspace foundation with project-library cards and guided wizard primitives. |
+| Communications workspace ribbon + project-library home | Working | `app/communications/page.tsx` | Communications now uses ribbon groups and project-library-first entry cards instead of permanent right-rail navigation. |
+| Communications guided wizard route scaffold | Partially Working | `app/communications/new/type/page.tsx`, `app/communications/new/audience/page.tsx`, `app/communications/new/preset/page.tsx`, `app/communications/new/editor/page.tsx`, `app/communications/new/review/page.tsx`, `app/communications/new/send/page.tsx`, `app/communications/[campaignId]/review/page.tsx`, `app/communications/[campaignId]/schedule/page.tsx` | Guided path routes are now explicit and navigable; deeper per-step persistence/validation remains in progress. |
+| Communications library/log helper routes | Working | `app/communications/library/templates/page.tsx`, `app/communications/library/segments/page.tsx`, `app/communications/log/page.tsx` | Added explicit route entry points for templates, segments, and log workflows. |
+| Letters & Printables ribbon-first home | Working | `app/components/letters/LettersRibbonHome.tsx`, `app/letters-printables/page.tsx` | Letters root route now starts with ribbon groups and project-library cards to reduce entry-point sprawl. |
+| Letters generation wizard route scaffold | Partially Working | `app/letters-printables/generate/template/page.tsx`, `app/letters-printables/generate/recipients/page.tsx`, `app/letters-printables/generate/preview/page.tsx`, `app/letters-printables/generate/complete/page.tsx` | Generation path steps are scaffolded for obvious start flow; deeper step functionality remains in progress. |
+| Letters presets route slices | Working | `app/letters-printables/presets/page.tsx`, `app/letters-printables/presets/headers/page.tsx`, `app/letters-printables/presets/footers/page.tsx`, `app/letters-printables/presets/signatures/page.tsx` | Added preset-oriented entry routes for headers/footers/signatures and compatibility redirects. |
+
+## 2026-05-14 Steward AI Runtime Status + Rules-Mode Engagement Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Steward AI runtime status service + API | Working | `server/src/services/steward-ai-runtime-status.ts`, `server/src/routes/steward-ai.ts` | Added cached runtime-state tracking with active task telemetry and `GET /api/steward-ai/status` for lightweight UI polling. |
+| Task-state wrapper around donor AI calls | Working | `server/src/routes/steward-ai.ts`, `server/src/routes/steward-signals.ts` | Wrapped chat, planner/reasoning stages, daily thought generation, and email draft generation with runtime task labels and status transitions. |
+| TopBar runtime status pill + diagnostics popover | Working | `app/components/layout/StewardAiRuntimePill.tsx`, `app/components/layout/TopBar.tsx` | Added visible Steward runtime state indicator with provider/model/task/error details plus quick actions for connection test and AI settings. |
+| Donor engagement queue rules-mode fallback | Working | `server/src/routes/steward-signals.ts`, `app/components/steward/OpportunityEnginePlaceholderTable.tsx`, `app/components/steward/StewardSignalsPage.tsx` | Opportunity queue now remains usable on deterministic rules when AI is unavailable and explicitly labels rules-mode versus live AI enhancement. |
+| Runtime + fallback regression tests | Working | `tests/api/steward-ai-status.api.test.ts`, `tests/unit/steward-ai-runtime-status.test.ts`, `tests/unit/steward-ai-runtime-pill.test.ts`, `tests/api/steward-signals.api.test.ts` | Added coverage for runtime status transitions, active task tracking, TopBar runtime pill mapping/rendering, and opportunities endpoint behavior in AI-unavailable mode. |
+
+## 2026-05-14 Small Laptop UI Fit Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Compact desktop shell breakpoints | Working | `app/components/layout/AppShell.tsx`, `app/components/layout/CrmSidebar.tsx`, `app/components/layout/TopBar.tsx`, `app/components/layout/AppProductShell.tsx`, `app/*/layout.tsx` | `<1024px` now uses drawer navigation, `1024-1439px` uses compact shell density, CRM sidebars default to icon-only mode, and shell content uses `min-w-0` plus contained overflow to prevent page-level sideways scroll. |
+| Workspace rail compact-laptop collapse behavior | Partially Working | `app/components/workspace/WorkspaceFrame.tsx`, `app/components/workspace/WorkspaceControlRail.tsx`, `app/components/workspace/WorkspaceHeader.tsx` | Legacy compatibility path remains for not-yet-migrated pages. Ribbon-first pattern is now the default for new workspace work. |
+| Responsive UI regression audit tooling | Working | `scripts/qa/responsive-ui-pass.mjs`, `package.json` | Added browser-driven audit coverage for compact laptop, tablet, and mobile widths with report output to `docs/status/responsive-ui-audit.json` and `docs/status/responsive-ui-audit.md` plus dated screenshot output. |
+
 ## 2026-05-13 Help Search Agentic Planner + UX Polish Pass
 
 | Area | Status | Evidence | Notes |
@@ -40,7 +122,7 @@ _Last deep audit: 2026-05-13_
 | Shared page renderer for edit + preview | Working | `app/components/webmaster/rendering/WebmasterPageRenderer.tsx`, `WebmasterSectionRenderer.tsx`, `WebmasterBlockRenderer.tsx` | Canvas now renders page-like output instead of only section-card stacks; edit overlays appear only during active editing. |
 | Draft preview route | Working | `app/webmaster/preview/[siteId]/[pageId]/page.tsx`, `app/components/webmaster/WebmasterDraftPreviewPage.tsx` | Preview now opens a real draft route without editor chrome, supports desktop/tablet/mobile widths, and listens for editor save updates via BroadcastChannel. |
 | Publish readiness API + command center | Working | `server/src/routes/webmaster.ts`, `server/src/services/webmaster-publish-readiness.ts`, `app/webmaster/publishing/page.tsx`, `app/components/webmaster/WebmasterPublishingWorkspace.tsx` | Replaced generic publish warning path with readiness checklist workspace and site-level preflight endpoint. |
-| Publish execution and rollback execution | Not Implemented | `app/components/webmaster/WebmasterPublishingWorkspace.tsx`, `server/src/services/webmaster-publish-readiness.ts` | Workspace is real and actionable for readiness, but deployment execution and rollback actions remain intentionally disabled/not implemented. |
+| Publish execution and rollback execution | Working | `app/components/webmaster/WebmasterPublishingWorkspace.tsx`, `server/src/routes/webmaster.ts`, `server/src/services/webmaster-store.ts` | Publish and rollback are now confirmation-gated and persist immutable version snapshots; external deployment target adapters remain Not Implemented. |
 
 ## 2026-05-14 Steward AI Bridge Pairing Automation Pass
 

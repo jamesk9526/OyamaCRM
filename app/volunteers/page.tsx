@@ -7,6 +7,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -75,21 +79,29 @@ export default function VolunteersPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Volunteers</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {loading ? "Loading..." : `${volunteers.length} volunteer${volunteers.length !== 1 ? "s" : ""} found`}
-          </p>
-        </div>
-        <Link
-          href="/constituents/new"
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
-        >
-          + Add Volunteer
-        </Link>
-      </div>
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Donor CRM", href: "/" },
+          { label: "Volunteers" },
+        ]}
+        statusLabel={loading ? "Loading" : "Working"}
+        metadata={loading ? "Loading volunteers" : `${volunteers.length.toLocaleString()} volunteer${volunteers.length !== 1 ? "s" : ""}`}
+        primaryAction={<WorkspaceRibbonButton label="Add Volunteer" href="/constituents/new" variant="primary" />}
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="Create">
+          <WorkspaceRibbonButton label="Add Volunteer" href="/constituents/new" variant="primary" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="View">
+          <WorkspaceRibbonButton label="All Volunteers" onClick={() => setSearch("")} variant={!search ? "primary" : "secondary"} />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="Filter">
+          <WorkspaceRibbonButton label="Clear Search" onClick={() => setSearch("")} disabled={!search} />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       {/* Search */}
       <div className="flex gap-3">

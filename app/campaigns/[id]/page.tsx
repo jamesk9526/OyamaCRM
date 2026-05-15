@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface CampaignDetailDonation {
@@ -42,6 +43,7 @@ export default function CampaignDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -124,12 +126,12 @@ export default function CampaignDetailPage() {
   /** Deletes the campaign and navigates back to campaigns list. */
   async function deleteCampaign() {
     if (!campaignId || typeof campaignId !== "string") return;
-    if (!window.confirm("Delete this campaign? This cannot be undone.")) return;
 
     setSaving(true);
     setError(null);
     try {
       await apiFetch(`/api/campaigns/${campaignId}`, { method: "DELETE" });
+      setShowDeleteModal(false);
       router.push("/campaigns");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete campaign.");
@@ -172,7 +174,7 @@ export default function CampaignDetailPage() {
         <div className="flex items-center gap-2">
           <Link href="/campaigns" className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50">Back to Campaigns</Link>
           <button
-            onClick={deleteCampaign}
+            onClick={() => setShowDeleteModal(true)}
             disabled={saving}
             className="px-3 py-2 rounded-lg border border-red-200 bg-red-50 text-sm text-red-700 hover:bg-red-100 disabled:opacity-60"
           >
@@ -368,6 +370,47 @@ export default function CampaignDetailPage() {
           )}
         </div>
       </section>
+
+      {showDeleteModal && (
+        <WorkspaceSetupModal
+          title="Delete Campaign"
+          subtitle="This action permanently deletes the campaign and cannot be undone."
+          checklist={["1. Verify campaign name", "2. Confirm deletion"]}
+          onClose={() => {
+            if (saving) return;
+            setShowDeleteModal(false);
+          }}
+          maxWidthClassName="max-w-3xl"
+        >
+          <div className="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-red-700">Destructive action</p>
+              <p className="mt-1 text-sm text-red-800">
+                Delete <span className="font-semibold">{campaign.name}</span> and remove the campaign record from this workspace.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={saving}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void deleteCampaign()}
+                disabled={saving}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-60"
+              >
+                {saving ? "Deleting..." : "Delete Campaign"}
+              </button>
+            </div>
+          </div>
+        </WorkspaceSetupModal>
+      )}
     </div>
   );
 }

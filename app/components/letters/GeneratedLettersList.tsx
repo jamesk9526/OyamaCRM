@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { apiFetch } from "@/app/lib/auth-client";
+import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import LettersWorkspaceNav from "@/app/components/letters/LettersWorkspaceNav";
 import type { GeneratedLetterSummary } from "@/app/components/letters/types";
 
@@ -57,16 +57,77 @@ export default function GeneratedLettersList() {
     }
   }
 
-  /** Requests PDF export endpoint; currently returns partial implementation notice from backend. */
+  /** Requests server PDF export endpoint and downloads the generated PDF binary. */
   async function exportPdf(letterId: string) {
     setWorkingId(letterId);
+    setError(null);
     try {
-      await apiFetch(`/api/letters/generated/${letterId}/export-pdf`, { method: "POST" });
+      const response = await apiFetchResponse(`/api/letters/generated/${letterId}/export-pdf`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body?.error?.message ?? "Failed to export generated letter PDF.");
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") || "";
+      const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+      const filename = filenameMatch?.[1] || `generated-letter-${letterId}.pdf`;
+
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
     } catch (requestError) {
-      alert(requestError instanceof Error ? requestError.message : "PDF export currently partially implemented.");
+      setError(requestError instanceof Error ? requestError.message : "Failed to export generated letter PDF.");
     } finally {
       setWorkingId(null);
     }
+  }
+
+  /** Opens browser print fallback using merged print HTML when server PDF is unavailable. */
+  function openBrowserPrint(letter: GeneratedLetterSummary) {
+    const printHtml = letter.mergedPrintBody;
+    if (!printHtml) {
+      setError("This generated letter does not include merged print output for browser fallback.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank", "noopener,noreferrer");
+    if (!printWindow) {
+      setError("Popup blocked. Allow popups to use browser print fallback.");
+      return;
+    }
+
+    const title = letter.mergedPrintSubject || letter.template?.name || "Generated Letter";
+
+    printWindow.document.open();
+    printWindow.document.write(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${title}</title>
+    <style>
+      body { font-family: "Segoe UI", Tahoma, sans-serif; margin: 24px; color: #111827; }
+      hr[data-page-break="true"] { border: 0; border-top: 2px dashed #9ca3af; margin: 24px 0; }
+    </style>
+  </head>
+  <body>
+    ${printHtml}
+    <script>
+      window.onload = function () {
+        window.print();
+      };
+    </script>
+  </body>
+</html>`);
+    printWindow.document.close();
   }
 
   return (
@@ -160,6 +221,13 @@ export default function GeneratedLettersList() {
                     className="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
                   >
                     Export PDF
+                  </button>
+                  <button
+                    onClick={() => openBrowserPrint(letter)}
+                    disabled={workingId === letter.id}
+                    className="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                  >
+                    Browser Print
                   </button>
                 </div>
               </div>
