@@ -68,6 +68,13 @@ function startUpstreamServer(handler) {
 
 test("bridge server enforces health/auth/cors and records request logs", async () => {
   const upstream = await startUpstreamServer((req, res) => {
+    if (req.url === "/api/fail") {
+      res.statusCode = 503;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ error: "upstream unavailable" }));
+      return;
+    }
+
     if (req.url !== "/api/ping") {
       res.statusCode = 404;
       res.end("not found");
@@ -95,6 +102,7 @@ test("bridge server enforces health/auth/cors and records request logs", async (
     const health = await requestJson({ port: bridgePort, path: "/health" });
     assert.equal(health.statusCode, 200);
     assert.equal(health.json?.ok, true);
+    assert.equal(health.json?.requestCount, 0);
 
     const unauthorized = await requestJson({
       port: bridgePort,
@@ -124,13 +132,29 @@ test("bridge server enforces health/auth/cors and records request logs", async (
     assert.equal(forwarded.statusCode, 200);
     assert.equal(forwarded.json?.ok, true);
 
+    const upstreamFailure = await requestJson({
+      port: bridgePort,
+      path: "/api/fail",
+      headers: {
+        origin: "http://allowed.example",
+        authorization: "Bearer test-api-key",
+      },
+    });
+    assert.equal(upstreamFailure.statusCode, 503);
+
     const runtime = bridge.getRuntimeState();
-    assert.equal(runtime.requestCount, 1);
+    assert.equal(runtime.requestCount, 2);
     assert.ok(Array.isArray(runtime.requestLog));
     assert.ok(runtime.requestLog.length >= 4);
     assert.ok(runtime.requestLog.some((entry) => entry.statusCode === 200));
     assert.ok(runtime.requestLog.some((entry) => entry.statusCode === 401));
     assert.ok(runtime.requestLog.some((entry) => entry.statusCode === 403));
+    assert.ok(runtime.requestLog.some((entry) => entry.statusCode === 503));
+    assert.equal(runtime.telemetry.successCount >= 2, true);
+    assert.equal(runtime.telemetry.clientErrorCount >= 2, true);
+    assert.equal(runtime.telemetry.serverErrorCount >= 1, true);
+    assert.equal(runtime.telemetry.recentErrorCount >= 1, true);
+    assert.equal(typeof runtime.telemetry.averageLatencyMs, "number");
   } finally {
     await bridge.stop();
     await new Promise((resolve) => upstream.server.close(resolve));
@@ -186,6 +210,72 @@ test("bridge injects CUDA options for /api/chat when device is pinned", async ()
     assert.equal(result.statusCode, 200);
     assert.equal(receivedPayload?.options?.main_gpu, 2);
     assert.equal(receivedPayload?.options?.num_gpu, 1);
+  } finally {
+    await bridge.stop();
+    await new Promise((resolve) => upstream.server.close(resolve));
+  }
+});
+
+test("bridge request metadata is operational and does not store prompt content", async () => {
+  let receivedPayload = null;
+
+  const upstream = await startUpstreamServer(async (req, res) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    await once(req, "end");
+    receivedPayload = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ ok: true, reply: "stored upstream only" }));
+  });
+
+  const bridgePort = await getFreePort();
+  const config = {
+    bridgePort,
+    bridgeApiKey: "metadata-key",
+    bridgeAllowedOrigins: "",
+    bridgeUpstreamUrl: `http://127.0.0.1:${upstream.port}`,
+    bridgeTimeoutMs: 3000,
+    bridgeCudaDevice: "auto",
+  };
+
+  const bridge = createBridgeServer(() => config);
+  await bridge.start();
+
+  try {
+    const secretPrompt = "private donor note should not appear in logs";
+    const result = await requestJson({
+      port: bridgePort,
+      method: "POST",
+      path: "/api/chat",
+      headers: {
+        authorization: "Bearer metadata-key",
+      },
+      body: {
+        model: "llama3.2:3b",
+        messages: [{ role: "user", content: secretPrompt }],
+      },
+    });
+
+    assert.equal(result.statusCode, 200);
+    assert.equal(receivedPayload?.messages?.[0]?.content, secretPrompt);
+
+    const runtime = bridge.getRuntimeState();
+    const entry = runtime.requestLog.find((item) => item.path === "/api/chat");
+    assert.ok(entry);
+    assert.equal(entry.model, "llama3.2:3b");
+    assert.equal(entry.routeGroup, "chat");
+    assert.equal(entry.errorClass, "success");
+    assert.equal(entry.upstreamHost, `127.0.0.1:${upstream.port}`);
+    assert.equal(entry.contentType.includes("application/json"), true);
+    assert.equal(entry.bodyBytes > 0, true);
+    assert.equal(entry.responseBytes > 0, true);
+    assert.equal(typeof entry.requestId, "string");
+
+    const serializedLog = JSON.stringify(runtime.requestLog);
+    assert.equal(serializedLog.includes(secretPrompt), false);
+    assert.equal(serializedLog.includes("metadata-key"), false);
+    assert.equal(serializedLog.includes("stored upstream only"), false);
   } finally {
     await bridge.stop();
     await new Promise((resolve) => upstream.server.close(resolve));

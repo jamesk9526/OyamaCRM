@@ -7,13 +7,27 @@ const startupStatusValue = document.getElementById("startupStatusValue");
 const bridgeLastError = document.getElementById("bridgeLastError");
 const bridgeMessage = document.getElementById("bridgeMessage");
 const lastSavedInfo = document.getElementById("lastSavedInfo");
+const titleEndpointValue = document.getElementById("titleEndpointValue");
+const titleStatusValue = document.getElementById("titleStatusValue");
+const titleModelValue = document.getElementById("titleModelValue");
+const serviceModeValue = document.getElementById("serviceModeValue");
+const latestLatencyValue = document.getElementById("latestLatencyValue");
+const averageLatencyValue = document.getElementById("averageLatencyValue");
+const errorCountValue = document.getElementById("errorCountValue");
+const recentErrorValue = document.getElementById("recentErrorValue");
+const requestSuccessRateValue = document.getElementById("requestSuccessRateValue");
+const upstreamHealthValue = document.getElementById("upstreamHealthValue");
+const selectedRequestStatus = document.getElementById("selectedRequestStatus");
+const requestDetailBody = document.getElementById("requestDetailBody");
 
 const requestLogBody = document.getElementById("requestLogBody");
+const dashboardRequestLogBody = document.getElementById("dashboardRequestLogBody");
 const errorLogBody = document.getElementById("errorLogBody");
 const requestLogMeta = document.getElementById("requestLogMeta");
 
 const bridgeStartBtn = document.getElementById("bridgeStartBtn");
 const bridgeStopBtn = document.getElementById("bridgeStopBtn");
+const bridgeRestartBtn = document.getElementById("bridgeRestartBtn");
 const bridgeRefreshBtn = document.getElementById("bridgeRefreshBtn");
 const bridgeSaveBtn = document.getElementById("bridgeSaveBtn");
 const clearLogBtn = document.getElementById("clearLogBtn");
@@ -93,6 +107,7 @@ const backupRunNowBtn = document.getElementById("backupRunNowBtn");
 const minBtn = document.getElementById("minBtn");
 const maxBtn = document.getElementById("maxBtn");
 const closeBtn = document.getElementById("closeBtn");
+const quitAppBtn = document.getElementById("quitAppBtn");
 
 let bridgeState = null;
 let startupState = null;
@@ -100,6 +115,9 @@ let runtimeTicker = null;
 let detachBridgeEvents = null;
 let displayRequestLog = [];
 let displayErrorLog = [];
+let requestFilter = "all";
+let selectedRequestId = "";
+let activePage = "dashboard";
 let lastPairing = null;
 let chatHistory = [];
 let draftSaveTimer = null;
@@ -144,7 +162,7 @@ function setLastSavedInfo(label, isoDate) {
 }
 
 function getActiveSection() {
-  return "live-logs";
+  return activePage;
 }
 
 function getActiveAuditTab() {
@@ -327,6 +345,7 @@ function restoreUiDraft() {
   renderChatHistory();
 
   switchAuditTab(draft.auditTab === "errors" ? "errors" : "requests");
+  switchPage(typeof draft.section === "string" ? draft.section : "dashboard");
   setLastSavedInfo("Auto-save", draft.savedAt);
   setBridgeMessage("Restored your previous workspace draft.");
 }
@@ -399,6 +418,12 @@ function updateRuntimeSummary(runtime) {
   const requestCount = Number(runtime?.requestCount || 0);
   const uptimeMs = Number(runtime?.uptimeMs || 0);
   const lastError = String(runtime?.lastError || "").trim();
+  const telemetry = runtime?.telemetry && typeof runtime.telemetry === "object" ? runtime.telemetry : {};
+  const successCount = Number(telemetry.successCount || 0);
+  const clientErrorCount = Number(telemetry.clientErrorCount || 0);
+  const serverErrorCount = Number(telemetry.serverErrorCount || 0);
+  const totalClassified = successCount + clientErrorCount + serverErrorCount;
+  const successRate = totalClassified > 0 ? Math.round((successCount / totalClassified) * 100) : 0;
 
   if (bridgeRunningDot) {
     bridgeRunningDot.classList.remove("running", "error");
@@ -410,6 +435,10 @@ function updateRuntimeSummary(runtime) {
     bridgeStatusValue.textContent = isRunning ? "Running" : (lastError ? "Stopped (error)" : "Stopped");
   }
 
+  if (titleStatusValue) {
+    titleStatusValue.textContent = isRunning ? "Running" : (lastError ? "Stopped: error" : "Stopped");
+  }
+
   if (bridgeRequestsValue) {
     bridgeRequestsValue.textContent = requestCount.toLocaleString();
   }
@@ -418,10 +447,142 @@ function updateRuntimeSummary(runtime) {
     bridgeUptimeValue.textContent = isRunning ? formatUptime(uptimeMs) : "0m";
   }
 
+  if (latestLatencyValue) {
+    latestLatencyValue.textContent = `${Math.max(0, Number(telemetry.lastLatencyMs || 0))} ms`;
+  }
+
+  if (averageLatencyValue) {
+    averageLatencyValue.textContent = `${Math.max(0, Number(telemetry.averageLatencyMs || 0))} ms avg`;
+  }
+
+  if (errorCountValue) {
+    errorCountValue.textContent = (clientErrorCount + serverErrorCount).toLocaleString();
+  }
+
+  if (recentErrorValue) {
+    recentErrorValue.textContent = `${Number(telemetry.recentErrorCount || 0).toLocaleString()} recent`;
+  }
+
+  if (requestSuccessRateValue) {
+    requestSuccessRateValue.textContent = totalClassified > 0 ? `${successRate}% success` : "No traffic yet";
+  }
+
+  if (upstreamHealthValue) {
+    upstreamHealthValue.textContent = telemetry.upstreamUrl ? `Upstream ${telemetry.upstreamUrl}` : "Upstream pending";
+  }
+
   setLastError(lastError, Boolean(lastError));
 
   if (bridgeStartBtn) bridgeStartBtn.disabled = isRunning;
   if (bridgeStopBtn) bridgeStopBtn.disabled = !isRunning;
+  if (bridgeRestartBtn) bridgeRestartBtn.disabled = !isRunning;
+}
+
+function formatBytes(value) {
+  const bytes = Math.max(0, Number(value || 0));
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${bytes} B`;
+}
+
+function filterRequestRows(rows) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  if (requestFilter === "all") return safeRows;
+  if (requestFilter === "health") {
+    return safeRows.filter((entry) => entry.routeGroup === "health" || String(entry.path || "").startsWith("/health"));
+  }
+  return safeRows.filter((entry) => String(entry.errorClass || "") === requestFilter);
+}
+
+function renderRequestDetail(entry) {
+  if (!requestDetailBody) return;
+
+  if (!entry) {
+    if (selectedRequestStatus) {
+      selectedRequestStatus.textContent = "None";
+      selectedRequestStatus.className = "status-pill";
+    }
+    requestDetailBody.innerHTML = '<p class="empty">Select a request row to inspect safe metadata.</p>';
+    return;
+  }
+
+  const statusCode = Number(entry.statusCode || 0);
+  if (selectedRequestStatus) {
+    selectedRequestStatus.textContent = String(statusCode || "-");
+    selectedRequestStatus.className = `status-pill ${statusTone(statusCode)}`;
+  }
+
+  const rows = [
+    ["Request ID", entry.requestId || entry.id || "-"],
+    ["Method", String(entry.method || "-").toUpperCase()],
+    ["Path", entry.path || "-"],
+    ["Route group", entry.routeGroup || "-"],
+    ["Error class", entry.errorClass || "-"],
+    ["Origin", entry.origin || "Local / none"],
+    ["Upstream", entry.upstreamHost || entry.upstreamUrl || "-"],
+    ["Model", entry.model || "Not supplied"],
+    ["Content type", entry.contentType || "Not supplied"],
+    ["Body bytes", formatBytes(entry.bodyBytes)],
+    ["Response bytes", formatBytes(entry.responseBytes)],
+    ["Latency", `${Math.max(0, Number(entry.durationMs || 0))} ms`],
+    ["Time", entry.timestamp ? new Date(entry.timestamp).toLocaleString() : "-"],
+    ["Detail", entry.detail || "-"],
+  ];
+
+  requestDetailBody.innerHTML = rows
+    .map(([label, value]) => `
+      <div class="detail-row">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(value)}</strong>
+      </div>
+    `)
+    .join("");
+}
+
+function switchPage(pageName) {
+  const nextPage = String(pageName || "dashboard");
+  const page = document.querySelector(`[data-tab-page="${CSS.escape(nextPage)}"]`);
+  if (!page) return;
+
+  activePage = nextPage;
+  document.querySelectorAll("[data-tab-page]").forEach((item) => {
+    item.classList.toggle("active", item === page);
+  });
+  document.querySelectorAll(".page-tab").forEach((button) => {
+    button.classList.toggle("active", button.getAttribute("data-tab-target") === nextPage);
+  });
+  persistUiDraft(false);
+}
+
+function renderDashboardRequestRows(rows) {
+  if (!dashboardRequestLogBody) return;
+  const safeRows = Array.isArray(rows) ? rows.slice(0, 8) : [];
+  if (safeRows.length === 0) {
+    dashboardRequestLogBody.innerHTML = '<tr><td class="empty" colspan="6">No bridge requests yet.</td></tr>';
+    return;
+  }
+
+  dashboardRequestLogBody.innerHTML = safeRows
+    .map((entry) => {
+      const statusCode = Number(entry.statusCode || 0);
+      const method = escapeHtml(String(entry.method || "-").toUpperCase());
+      const path = escapeHtml(entry.path || "-");
+      const routeGroup = escapeHtml(entry.routeGroup || "other");
+      const model = escapeHtml(entry.model || "-");
+      const latency = `${Math.max(0, Number(entry.durationMs || 0))} ms`;
+      const time = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : "-";
+      return `
+        <tr>
+          <td><span class="status-pill ${statusTone(statusCode)}">${statusCode || "-"}</span></td>
+          <td>${method}</td>
+          <td>${path}<br /><span style="color:#64748b;">${routeGroup}</span></td>
+          <td>${model}</td>
+          <td>${latency}</td>
+          <td>${escapeHtml(time)}</td>
+        </tr>
+      `;
+    })
+    .join("");
 }
 
 function renderCudaSelector(cudaDevices, selectedValue) {
@@ -449,35 +610,48 @@ function renderCudaSelector(cudaDevices, selectedValue) {
 function renderRequestLogRows(rows) {
   if (!requestLogBody) return;
 
-  if (!Array.isArray(rows) || rows.length === 0) {
-    requestLogBody.innerHTML = '<tr><td class="empty" colspan="5">No bridge requests yet.</td></tr>';
+  const filteredRows = filterRequestRows(rows);
+
+  if (!Array.isArray(filteredRows) || filteredRows.length === 0) {
+    requestLogBody.innerHTML = '<tr><td class="empty" colspan="7">No bridge requests match this view.</td></tr>';
     if (requestLogMeta) requestLogMeta.textContent = "Waiting for traffic...";
+    renderRequestDetail(null);
     return;
   }
 
-  const topTimestamp = rows[0]?.timestamp ? new Date(rows[0].timestamp) : null;
+  const selectedEntry = filteredRows.find((entry) => (entry.requestId || entry.id) === selectedRequestId) || filteredRows[0];
+  selectedRequestId = selectedEntry ? (selectedEntry.requestId || selectedEntry.id || "") : "";
+  renderRequestDetail(selectedEntry);
+
+  const topTimestamp = filteredRows[0]?.timestamp ? new Date(filteredRows[0].timestamp) : null;
   if (requestLogMeta) {
     requestLogMeta.textContent = topTimestamp
-      ? `Last activity ${topTimestamp.toLocaleTimeString()}`
+      ? `${filteredRows.length.toLocaleString()} shown | Last activity ${topTimestamp.toLocaleTimeString()}`
       : "Live stream active";
   }
 
-  requestLogBody.innerHTML = rows
+  requestLogBody.innerHTML = filteredRows
     .slice(0, 250)
     .map((entry) => {
       const statusCode = Number(entry.statusCode || 0);
+      const requestId = escapeHtml(entry.requestId || entry.id || "");
       const method = escapeHtml(String(entry.method || "-").toUpperCase());
       const path = escapeHtml(entry.path || "-");
-      const detail = escapeHtml(entry.detail || "");
+      const routeGroup = escapeHtml(entry.routeGroup || "other");
+      const model = escapeHtml(entry.model || "-");
+      const bytes = `${formatBytes(entry.bodyBytes)} / ${formatBytes(entry.responseBytes)}`;
       const latency = `${Math.max(0, Number(entry.durationMs || 0))} ms`;
       const time = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : "-";
       const statusClass = statusTone(statusCode);
+      const selectedClass = (entry.requestId || entry.id) === selectedRequestId ? " selected" : "";
 
       return `
-        <tr>
+        <tr class="request-row${selectedClass}" data-request-id="${requestId}">
           <td><span class="status-pill ${statusClass}">${statusCode || "-"}</span></td>
           <td>${method}</td>
-          <td title="${detail}">${path}${detail ? `<br /><span style="color:#94b8a6;">${detail}</span>` : ""}</td>
+          <td>${path}<br /><span style="color:#64748b;">${routeGroup}</span></td>
+          <td>${model}</td>
+          <td>${escapeHtml(bytes)}</td>
           <td>${latency}</td>
           <td>${escapeHtml(time)}</td>
         </tr>
@@ -787,6 +961,15 @@ function renderBridgeState(state) {
   updateRuntimeSummary(runtime);
 
   if (bridgeLocalEndpoint) bridgeLocalEndpoint.textContent = network.localEndpoint || "-";
+  if (titleEndpointValue) titleEndpointValue.textContent = network.localEndpoint || "Local LLM service dashboard";
+  if (titleModelValue) titleModelValue.textContent = config.bridgeModel ? `Model ${config.bridgeModel}` : "Model pending";
+  if (serviceModeValue) {
+    const serviceBits = [
+      config.bridgeAutostart ? "Autostart" : "Manual start",
+      config.minimizeToTaskbarOnClose ? "Tray close" : "Window close",
+    ];
+    serviceModeValue.textContent = serviceBits.join(" | ");
+  }
   if (bridgeLanEndpoints) bridgeLanEndpoints.textContent = (network.lanEndpoints || []).join(" | ") || "No LAN IP detected";
   if (bridgePublicEndpoint) bridgePublicEndpoint.textContent = network.publicEndpointCandidate || "No public IP detected";
 
@@ -802,6 +985,7 @@ function renderBridgeState(state) {
   displayErrorLog = Array.isArray(runtime.errorLog) ? runtime.errorLog.slice(0, 180) : displayErrorLog;
 
   renderRequestLogRows(displayRequestLog);
+  renderDashboardRequestRows(displayRequestLog);
   renderErrorLogRows(displayErrorLog);
 }
 
@@ -998,6 +1182,30 @@ async function stopBridge() {
   setBridgeMessage("Bridge stopped.");
 }
 
+async function restartBridge() {
+  if (bridgeRestartBtn) bridgeRestartBtn.disabled = true;
+  try {
+    const stopResult = await window.oyamaBridge.stopBridge();
+    if (!stopResult?.ok) {
+      setBridgeMessage(stopResult?.message || "Bridge failed to stop before restart.", true);
+      if (stopResult?.state) renderBridgeState(stopResult.state);
+      return;
+    }
+
+    const startResult = await window.oyamaBridge.startBridge();
+    if (!startResult?.ok) {
+      setBridgeMessage(startResult?.message || "Bridge failed to restart.", true);
+      if (startResult?.state) renderBridgeState(startResult.state);
+      return;
+    }
+
+    renderBridgeState(startResult.state);
+    setBridgeMessage("Bridge restarted.");
+  } finally {
+    if (bridgeRestartBtn) bridgeRestartBtn.disabled = !Boolean(bridgeState?.runtime?.running);
+  }
+}
+
 async function setStartupPatch(patch, successMessage) {
   const result = await window.oyamaBridge.setStartupSettings(patch);
   if (!result?.ok) {
@@ -1026,6 +1234,7 @@ function appendRequestLog(entry, runtimeSnapshot) {
   if (!entry || typeof entry !== "object") return;
   displayRequestLog = [entry, ...displayRequestLog.filter((row) => row.id !== entry.id)].slice(0, 250);
   renderRequestLogRows(displayRequestLog);
+  renderDashboardRequestRows(displayRequestLog);
 
   if (runtimeSnapshot) {
     updateRuntimeSummary(runtimeSnapshot);
@@ -1146,6 +1355,7 @@ async function bootstrap() {
   uiReadyForDraft = false;
   attachBridgeEventStream();
   wireCopyButtons();
+  switchPage("dashboard");
   switchAuditTab("requests");
 
   await refreshBridgeState(false);
@@ -1228,6 +1438,10 @@ bridgeStopBtn?.addEventListener("click", () => {
   void stopBridge();
 });
 
+bridgeRestartBtn?.addEventListener("click", () => {
+  void restartBridge();
+});
+
 bridgeRefreshBtn?.addEventListener("click", () => {
   void refreshBridgeState(true);
 });
@@ -1248,6 +1462,7 @@ clearLogBtn?.addEventListener("click", () => {
   displayRequestLog = [];
   displayErrorLog = [];
   renderRequestLogRows(displayRequestLog);
+  renderDashboardRequestRows(displayRequestLog);
   renderErrorLogRows(displayErrorLog);
   setBridgeMessage("Cleared local audit display. Live bridge stream is still active.");
 });
@@ -1359,6 +1574,38 @@ auditTabErrors?.addEventListener("click", () => {
   switchAuditTab("errors");
 });
 
+requestLogBody?.addEventListener("click", (event) => {
+  const target = event.target instanceof Element ? event.target.closest("[data-request-id]") : null;
+  if (!(target instanceof HTMLElement)) return;
+  selectedRequestId = target.dataset.requestId || "";
+  renderRequestLogRows(displayRequestLog);
+});
+
+document.querySelectorAll("[data-request-filter]").forEach((button) => {
+  button.addEventListener("click", () => {
+    requestFilter = button.getAttribute("data-request-filter") || "all";
+    document.querySelectorAll("[data-request-filter]").forEach((item) => {
+      item.classList.toggle("active", item === button);
+    });
+    selectedRequestId = "";
+    renderRequestLogRows(displayRequestLog);
+  });
+});
+
+document.querySelectorAll("[data-tab-target]").forEach((button) => {
+  button.addEventListener("click", () => {
+    switchPage(button.getAttribute("data-tab-target") || "dashboard");
+  });
+});
+
+document.querySelectorAll("[data-scroll-target]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const targetId = button.getAttribute("data-scroll-target");
+    const target = targetId ? document.getElementById(targetId) : null;
+    target?.scrollIntoView({ block: "start", behavior: "smooth" });
+  });
+});
+
 bridgeChatSendBtn?.addEventListener("click", () => {
   void sendBridgeChat();
 });
@@ -1397,6 +1644,10 @@ maxBtn?.addEventListener("click", () => {
 
 closeBtn?.addEventListener("click", () => {
   window.oyamaBridge.close();
+});
+
+quitAppBtn?.addEventListener("click", () => {
+  window.oyamaBridge.quitApp();
 });
 
 window.addEventListener("resize", () => {

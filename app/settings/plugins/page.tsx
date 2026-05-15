@@ -1,9 +1,6 @@
-/**
- * /settings/plugins page — Plugin management for admins.
- * Thin server page that renders the PluginsSettingsPage client component.
- */
-import PluginsSettingsPage from "@/app/components/settings/plugins/PluginsSettingsPage";
+/** /settings/plugins compatibility route redirects to unified integrations page. */
+import { redirect } from "next/navigation";
 
 export default function PluginsPage() {
-  return <PluginsSettingsPage />;
+  redirect("/settings/integrations#plugins");
 }

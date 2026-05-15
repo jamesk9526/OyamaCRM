@@ -1,7 +1,7 @@
 /**
  * StatCard — compact metric card for the dashboard top row.
  * Displays a label, formatted value, SVG icon, and optional alert badge.
- * Styled after Bloomerang's clean metric cards with a left accent bar.
+ * Styled after clean reference CRM metric cards with a left accent bar.
  */
 "use client";
 

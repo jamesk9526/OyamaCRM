@@ -7,6 +7,10 @@ Last updated: 2026-05-13
 This guide is for office staff who need practical daily steps in the current application state.
 It focuses on what works today, what is partially ready, and what should be avoided until fixes are shipped.
 
+For release-manager and super-admin deployment procedures, use:
+
+- `docs/howto/HOW_TO_PUBLISH_UPDATES.md`
+
 ## Current Release Gate Snapshot
 
 Current readiness gate: Broken

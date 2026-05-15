@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import AuditLogViewer from "@/app/components/settings/AuditLogViewer";
 import SettingsResetPanel from "@/app/components/settings/SettingsResetPanel";
 import SettingsRecoveryPanel from "@/app/components/settings/SettingsRecoveryPanel";
 import { apiFetch } from "@/app/lib/auth-client";
@@ -81,15 +82,15 @@ export default function SecuritySettingsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Security</h1>
+        <h1 className="text-xl font-semibold text-gray-900">Security &amp; Audit</h1>
         <p className="mt-0.5 text-sm text-gray-500">
-          Control authentication policies, destructive recovery behavior, and other high-risk settings.
+          Control authentication policies, destructive recovery behavior, and organization audit visibility in one workspace.
         </p>
       </div>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-6 space-y-3">
+      <section className="max-w-3xl rounded-lg border border-gray-200 bg-white p-6 space-y-3">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-sm font-semibold text-gray-900">Authentication Policy</h2>
           <span className="rounded-full border border-green-200 bg-green-50 px-2 py-1 text-xs font-medium text-green-700">
@@ -163,10 +164,18 @@ export default function SecuritySettingsPage() {
         )}
       </section>
 
-      <SettingsResetPanel />
+      <div className="max-w-3xl">
+        <SettingsResetPanel />
+      </div>
 
       {/* Recovery snapshots — restore from pre-reset backups */}
-      <SettingsRecoveryPanel />
+      <div className="max-w-3xl">
+        <SettingsRecoveryPanel />
+      </div>
+
+      <section id="audit-logs" className="rounded-lg border border-gray-200 bg-white p-5">
+        <AuditLogViewer />
+      </section>
     </div>
   );
 }

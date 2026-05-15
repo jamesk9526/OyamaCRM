@@ -13,7 +13,7 @@ import { apiFetch } from "@/app/lib/auth-client";
  * Full-page plugin management UI.
  * Shows a QuickBooks card with enable toggle, connection status, and connect/disconnect actions.
  */
-export default function PluginsSettingsPage() {
+export default function PluginsSettingsPage({ embedded = false }: { embedded?: boolean }) {
   const { qbConfigured, qbEnabled, loading, refresh, qbRuntimeSource, qbRedirectUri, qbEnvironment, qbClientIdPreview } = usePlugins();
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -111,12 +111,14 @@ export default function PluginsSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900">Plugins</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Manage third-party integrations. Plugins must be enabled by an admin before staff can use them.
-        </p>
-      </div>
+      {!embedded && (
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">Plugins</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Manage third-party integrations. Plugins must be enabled by an admin before staff can use them.
+          </p>
+        </div>
+      )}
 
       {/* Toast notification */}
       {toast && (

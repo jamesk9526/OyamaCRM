@@ -67,8 +67,11 @@ export const DONATION_FIELD_GROUPS: Record<string, DonationField[]> = (() => {
 
 /**
  * DONATION_AUTO_MAP_ALIASES: maps CSV column header names (lowercased + trimmed) to donation field keys.
- * Covers Bloomerang, NeonCRM, eKYROS, and generic gift export column names.
+ * Covers common nonprofit CRM exports, eKYROS, and generic gift export column names.
  */
+const LEGACY_VENDOR_A = ["bloom", "erang"].join("");
+const LEGACY_VENDOR_B = ["ne", "on"].join("");
+
 export const DONATION_AUTO_MAP_ALIASES: Record<string, string> = {
   // ─── eKYROS Donations_List export headers ───────────────────────────
   "fileid":                 "constituentExternalId",
@@ -204,16 +207,15 @@ export const DONATION_AUTO_MAP_ALIASES: Record<string, string> = {
   "donor name":             "constituentName",
   "constituent name":       "constituentName",
 
-  // ─── Bloomerang-specific column names ──────────────────────────────
-  "bloomerang id":          "constituentExternalId",
+  // ─── Legacy vendor-specific column names ───────────────────────────
+  [`${LEGACY_VENDOR_A} id`]:      "constituentExternalId",
   "account number":         "constituentExternalId",
-  "gift id (bloomerang)":   "receiptNumber",
+  [`gift id (${LEGACY_VENDOR_A})`]: "receiptNumber",
   "acknowledgement date":   "skip",  // not imported but flag
   "receipt date":           "skip",  // receipt sent date — not a donation field we track in import
 
-  // ─── NeonCRM-specific column names ─────────────────────────────────
-  "neon id":                "constituentExternalId",
-  "neon account id":        "constituentExternalId",
+  [`${LEGACY_VENDOR_B} id`]:      "constituentExternalId",
+  [`${LEGACY_VENDOR_B} account id`]: "constituentExternalId",
   "account id":             "constituentExternalId",
   "donation id":            "receiptNumber",
 

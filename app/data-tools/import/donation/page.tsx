@@ -40,8 +40,8 @@ export default function DonationImportPage() {
 
       {/* Supported source badges */}
       <div className="flex gap-2 flex-wrap">
-        <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">Bloomerang export</span>
-        <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full">NeonCRM</span>
+        <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">Modern donor CRM export</span>
+        <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full">Fundraising CRM export</span>
         <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded-full">eKYROS</span>
         <span className="px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded-full">DonorPerfect</span>
         <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded-full">Spreadsheet / Any CSV</span>

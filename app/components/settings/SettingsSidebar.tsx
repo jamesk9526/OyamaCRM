@@ -22,12 +22,10 @@ const SETTINGS_NAV: SettingsNavItem[] = [
   { label: "Events CRM", href: "/settings/events", icon: "contact-checklist" },
   { label: "AI Assistant", href: "/settings/ai", icon: "client-support-chat" },
   { label: "Integrations", href: "/settings/integrations", icon: "client-profile-sync" },
-  { label: "Plugins", href: "/settings/plugins", icon: "messaging-chat" },
   { label: "Site Embeds", href: "/settings/site-embeds", icon: "messaging-chat" },
-  { label: "Security", href: "/settings/security", icon: "goal-target" },
-  { label: "Audit Logs", href: "/settings/audit", icon: "reporting-dashboard" },
-  { label: "System Status", href: "/settings/system-status", icon: "momentum-growth" },
-  { label: "Project Status", href: "/settings/project-status", icon: "reporting-dashboard" },
+  { label: "Security & Audit", href: "/settings/security", icon: "goal-target" },
+  { label: "System Updates", href: "/settings/system-updates", icon: "momentum-growth" },
+  { label: "System Status", href: "/settings/system-status", icon: "reporting-dashboard" },
 ];
 
 /** SettingsSidebar highlights the current settings route and groups config pages. */

@@ -7,7 +7,7 @@
     "dev": "next dev",
     "dev:web": "next dev",
     "dev:api": "tsx watch server/src/index.ts",
-    "dev:all": "set DEV_CORS_ALLOW_ALL=1&& concurrently -k -n api,web -c cyan,green \"pnpm dev:api\" \"pnpm dev:web\"",
+    "dev:all": "node scripts/dev-all-open-cors.mjs",
     "dev:all:strict": "concurrently -k -n api,web -c cyan,green \"pnpm dev:api\" \"pnpm dev:web\"",
     "build": "next build",
     "build:server": "tsc --project server/tsconfig.json",

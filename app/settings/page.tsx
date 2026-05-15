@@ -37,14 +37,14 @@ const CARDS = [
     href: "/settings/modules",
   },
   {
-    title: "System Status",
-    description: "Audit-backed feature readiness, versioning, and production-readiness tracking.",
-    href: "/settings/system-status",
+    title: "System Updates",
+    description: "Admin-only release manager with backup, migration, smoke test, and rollback controls.",
+    href: "/settings/system-updates",
   },
   {
-    title: "Project Status",
-    description: "Real-data vs demo-data audit matrix with concrete next-step remediation.",
-    href: "/settings/project-status",
+    title: "System Status",
+    description: "Combined system readiness and project-status evidence for release planning.",
+    href: "/settings/system-status",
   },
   {
     title: "Branding",
@@ -52,9 +52,9 @@ const CARDS = [
     href: "/settings/branding",
   },
   {
-    title: "Plugins",
-    description: "Enable third-party integrations like QuickBooks. Control what features are available to staff.",
-    href: "/settings/plugins",
+    title: "Integrations",
+    description: "Unified integration readiness and plugin controls for QuickBooks, embeds, SMTP, and AI.",
+    href: "/settings/integrations",
   },
   {
     title: "Site Embeds",
@@ -62,8 +62,8 @@ const CARDS = [
     href: "/settings/site-embeds",
   },
   {
-    title: "Security",
-    description: "Authentication controls plus verified setup-reset recovery for the CRM installation.",
+    title: "Security & Audit",
+    description: "Authentication controls, recovery actions, and audit log visibility in one place.",
     href: "/settings/security",
   },
 ];
@@ -85,12 +85,13 @@ export default function SettingsOverviewPage() {
           <WorkspaceRibbonButton label="Organization" href="/settings/organization" />
           <WorkspaceRibbonButton label="Users" href="/settings/users" />
           <WorkspaceRibbonButton label="Roles" href="/settings/roles" />
-          <WorkspaceRibbonButton label="Security" href="/settings/security" />
+          <WorkspaceRibbonButton label="Security & Audit" href="/settings/security" />
         </WorkspaceRibbonGroup>
         <WorkspaceRibbonGroup label="System">
           <WorkspaceRibbonButton label="Modules" href="/settings/modules" />
           <WorkspaceRibbonButton label="AI" href="/settings/ai" />
-          <WorkspaceRibbonButton label="Plugins" href="/settings/plugins" />
+          <WorkspaceRibbonButton label="Integrations" href="/settings/integrations" />
+          <WorkspaceRibbonButton label="System Updates" href="/settings/system-updates" />
           <WorkspaceRibbonButton label="System Status" href="/settings/system-status" />
         </WorkspaceRibbonGroup>
       </WorkspaceRibbon>

@@ -23,7 +23,7 @@ const DEFAULT_CONFIG = {
   crmSiteUrl: "",
   startupLaunchEnabled: false,
   startHidden: false,
-  bridgeAutostart: false,
+  bridgeAutostart: true,
   bridgeEnabled: false,
   minimizeToTaskbarOnClose: true,
   bridgeUpstreamUrl: "http://127.0.0.1:11434",
@@ -525,24 +525,53 @@ function createTray() {
   if (tray) return tray;
 
   const iconPath = getPreferredTrayIconPath();
-  if (!iconPath) return null;
-
-  const image = nativeImage.createFromPath(iconPath);
+  // Keep tray support reliable in unpacked/dev builds where a standalone icon file is not present yet.
+  const image = iconPath
+    ? nativeImage.createFromPath(iconPath)
+    : nativeImage.createFromDataURL("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2316a34a'/%3E%3Cpath d='M18 37c0-10 6-18 14-18s14 8 14 18' fill='none' stroke='white' stroke-width='6' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='39' r='6' fill='white'/%3E%3C/svg%3E");
   if (image.isEmpty()) return null;
 
   tray = new Tray(image);
-  tray.setToolTip("Oyama Bridge");
+  updateTrayMenu();
+  tray.on("double-click", showWindowFromTray);
 
+  return tray;
+}
+
+function getTrayRuntimeLabel() {
+  const config = readConfig();
+  const runtime = bridgeManager ? bridgeManager.getRuntimeState() : { running: false };
+  const endpoint = `http://127.0.0.1:${config.bridgePort}`;
+  return {
+    running: Boolean(runtime.running),
+    endpoint,
+    tooltip: `Oyama Bridge - ${runtime.running ? "Running" : "Stopped"} - ${endpoint}`,
+  };
+}
+
+function updateTrayMenu() {
+  if (!tray) return;
+  const state = getTrayRuntimeLabel();
+  tray.setToolTip(state.tooltip);
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: "Open Oyama Bridge",
+      label: "Open Dashboard",
       click: showWindowFromTray,
     },
     {
+      label: state.running ? `Running on ${state.endpoint}` : `Stopped - ${state.endpoint}`,
+      enabled: false,
+    },
+    { type: "separator" },
+    {
       label: "Start Bridge",
+      enabled: !state.running,
       click: async () => {
         try {
-          if (bridgeManager) await bridgeManager.start();
+          if (bridgeManager) {
+            await bridgeManager.start();
+            updateTrayMenu();
+          }
         } catch {
           // Ignore tray action errors.
         }
@@ -550,22 +579,23 @@ function createTray() {
     },
     {
       label: "Stop Bridge",
+      enabled: state.running,
       click: async () => {
         try {
-          if (bridgeManager) await bridgeManager.stop();
+          if (bridgeManager) {
+            await bridgeManager.stop();
+            updateTrayMenu();
+          }
         } catch {
           // Ignore tray action errors.
         }
       },
     },
     { type: "separator" },
-    { label: "Quit", click: requestAppQuit },
+    { label: "Quit Oyama Bridge", click: requestAppQuit },
   ]);
 
   tray.setContextMenu(contextMenu);
-  tray.on("double-click", showWindowFromTray);
-
-  return tray;
 }
 
 function createMainWindow(showImmediately = true) {
@@ -911,6 +941,7 @@ ipcMain.handle("oyama-bridge:set-config", async (_event, payload) => {
   }
 
   emitBridgeEvent({ type: "config", config: toPublicConfig(next) });
+  updateTrayMenu();
 
   return {
     ok: true,
@@ -1044,6 +1075,7 @@ ipcMain.handle("oyama-bridge:start", async () => {
 
   try {
     await bridgeManager.start();
+    updateTrayMenu();
     return { ok: true, state: await buildBridgeState() };
   } catch (error) {
     return {
@@ -1063,6 +1095,7 @@ ipcMain.handle("oyama-bridge:stop", async () => {
   writeConfig({ ...current, bridgeEnabled: false });
 
   await bridgeManager.stop();
+  updateTrayMenu();
   return { ok: true, state: await buildBridgeState() };
 });
 
@@ -1121,6 +1154,8 @@ app.whenReady().then(() => {
   if (initialConfig.bridgeAutostart || initialConfig.bridgeEnabled) {
     bridgeManager.start().catch(() => {
       // Runtime issues are shown in renderer state.
+    }).finally(() => {
+      updateTrayMenu();
     });
   }
 
@@ -1128,8 +1163,8 @@ app.whenReady().then(() => {
   const launchedWithStartHidden = process.argv.includes("--start-hidden");
   const shouldStartHidden = launchedWithStartHidden || (initialConfig.startHidden && loginSettings.wasOpenedAtLogin);
 
-  // Security-desktop behavior: when startHidden is enabled, always initialize tray support early.
-  if (initialConfig.startHidden) {
+  // Service-style behavior: initialize tray support before the dashboard is shown or hidden.
+  if (initialConfig.startHidden || initialConfig.minimizeToTaskbarOnClose || initialConfig.bridgeAutostart) {
     createTray();
   }
 

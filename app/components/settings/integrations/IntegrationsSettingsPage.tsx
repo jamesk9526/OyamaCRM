@@ -56,7 +56,7 @@ function buildQuickBooksCard(payload: QuickBooksStatusPayload | null, error: str
       status: "Broken",
       summary: "QuickBooks status could not be loaded.",
       detail: error,
-      href: "/settings/plugins",
+      href: "/settings/integrations#plugins",
       hrefLabel: "Open Plugins",
     };
   }
@@ -68,7 +68,7 @@ function buildQuickBooksCard(payload: QuickBooksStatusPayload | null, error: str
       status: "Not Implemented",
       summary: "Plugin runtime credentials are missing.",
       detail: "Set QB_CLIENT_ID and QB_CLIENT_SECRET to enable OAuth setup.",
-      href: "/settings/plugins",
+      href: "/settings/integrations#plugins",
       hrefLabel: "Open Plugins",
     };
   }
@@ -80,7 +80,7 @@ function buildQuickBooksCard(payload: QuickBooksStatusPayload | null, error: str
       status: "Partially Working",
       summary: "Integration is available but currently disabled for this organization.",
       detail: `Environment: ${payload.environment}. Enable plugin access before staff can queue donation syncs.`,
-      href: "/settings/plugins",
+      href: "/settings/integrations#plugins",
       hrefLabel: "Enable QuickBooks",
     };
   }
@@ -92,7 +92,7 @@ function buildQuickBooksCard(payload: QuickBooksStatusPayload | null, error: str
       status: "Partially Working",
       summary: "Plugin is enabled but OAuth is not connected.",
       detail: `Environment: ${payload.environment}. Connect an Intuit realm to unlock manual queue syncing.`,
-      href: "/settings/plugins",
+      href: "/settings/integrations#plugins",
       hrefLabel: "Connect QuickBooks",
     };
   }
@@ -270,7 +270,7 @@ function buildSmtpCard(payload: SettingsPayload | null, error: string | null): I
 }
 
 /** IntegrationsSettingsPage shows live, audit-friendly integration readiness and quick links to each setup flow. */
-export default function IntegrationsSettingsPage() {
+export default function IntegrationsSettingsPage({ embedded = false }: { embedded?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [lastCheckedAt, setLastCheckedAt] = useState<string | null>(null);
 
@@ -380,12 +380,14 @@ export default function IntegrationsSettingsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Integrations</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
-            Live readiness for finance, public website widgets, AI runtime, and delivery providers.
-          </p>
-        </div>
+        {!embedded ? (
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900">Integrations</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Live readiness for finance, public website widgets, AI runtime, and delivery providers.
+            </p>
+          </div>
+        ) : <div />}
         <div className="text-xs text-gray-500">
           Last checked: {lastCheckedAt ? new Date(lastCheckedAt).toLocaleString() : "Not yet loaded"}
         </div>

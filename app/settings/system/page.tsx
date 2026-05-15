@@ -17,12 +17,20 @@ export default function SystemSettingsPage() {
             Review version metadata, runtime diagnostics, and core service readiness.
           </p>
         </div>
-        <Link
-          href="/settings/system-status"
-          className="inline-flex w-fit items-center rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-100"
-        >
-          Open System Status &amp; Feature Readiness
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/settings/system-updates"
+            className="inline-flex w-fit items-center rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+          >
+            Open System Updates
+          </Link>
+          <Link
+            href="/settings/system-status"
+            className="inline-flex w-fit items-center rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-100"
+          >
+            Open System Status &amp; Feature Readiness
+          </Link>
+        </div>
       </div>
 
       <SystemHealthPanel buildInfo={buildInfo} />

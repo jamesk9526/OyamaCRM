@@ -192,6 +192,17 @@ function createBridgeServer(readConfig, options = {}) {
     startedAt: null,
     requestCount: 0,
     lastError: null,
+    telemetry: {
+      lastRequestAt: null,
+      lastLatencyMs: 0,
+      averageLatencyMs: 0,
+      totalLoggedRequests: 0,
+      successCount: 0,
+      clientErrorCount: 0,
+      serverErrorCount: 0,
+      recentErrorCount: 0,
+      upstreamUrl: "",
+    },
   };
 
   const requestLog = [];
@@ -213,9 +224,84 @@ function createBridgeServer(readConfig, options = {}) {
       uptimeMs: runtime.startedAt ? Date.now() - runtime.startedAt : 0,
       requestCount: runtime.requestCount,
       lastError: runtime.lastError,
+      telemetry: {
+        ...runtime.telemetry,
+      },
       requestLog: requestLog.slice(0, MAX_REQUEST_LOGS),
       errorLog: errorLog.slice(0, MAX_ERROR_LOGS),
     };
+  }
+
+  function classifyStatus(statusCode) {
+    const code = Number(statusCode || 0);
+    if (code >= 500) return "server_error";
+    if (code >= 400) return "client_error";
+    if (code >= 300) return "redirect";
+    if (code >= 200) return "success";
+    return "unknown";
+  }
+
+  function classifyRoute(pathname) {
+    if (pathname === "/health") return "health";
+    if (pathname === "/api/chat") return "chat";
+    if (pathname === "/api/generate") return "generate";
+    if (pathname.startsWith("/api/")) return "api";
+    return "other";
+  }
+
+  function getUpstreamHost(rawUrl) {
+    try {
+      const parsed = new URL(String(rawUrl || ""));
+      return parsed.host;
+    } catch {
+      return "";
+    }
+  }
+
+  function extractSafeModel(bodyBuffer) {
+    if (!bodyBuffer || bodyBuffer.length === 0) return "";
+    try {
+      const payload = JSON.parse(bodyBuffer.toString("utf8"));
+      return typeof payload?.model === "string" ? payload.model.slice(0, 120) : "";
+    } catch {
+      return "";
+    }
+  }
+
+  function getContentType(req) {
+    const raw = req.headers && req.headers["content-type"];
+    return Array.isArray(raw) ? raw.join(", ").slice(0, 160) : String(raw || "").slice(0, 160);
+  }
+
+  function updateTelemetrySummary(entry) {
+    const statusCode = Number(entry.statusCode || 0);
+    const durationMs = Math.max(0, Number(entry.durationMs || 0));
+    const previousTotal = Number(runtime.telemetry.totalLoggedRequests || 0);
+    const nextTotal = previousTotal + 1;
+    const previousAverage = Number(runtime.telemetry.averageLatencyMs || 0);
+    const nextAverage = previousTotal === 0
+      ? durationMs
+      : ((previousAverage * previousTotal) + durationMs) / nextTotal;
+
+    runtime.telemetry.lastRequestAt = entry.timestamp || new Date().toISOString();
+    runtime.telemetry.lastLatencyMs = durationMs;
+    runtime.telemetry.averageLatencyMs = Math.round(nextAverage);
+    runtime.telemetry.totalLoggedRequests = nextTotal;
+    runtime.telemetry.upstreamUrl = String(entry.upstreamUrl || runtime.telemetry.upstreamUrl || "");
+
+    if (statusCode >= 200 && statusCode < 300) {
+      runtime.telemetry.successCount += 1;
+    } else if (statusCode >= 400 && statusCode < 500) {
+      runtime.telemetry.clientErrorCount += 1;
+    } else if (statusCode >= 500) {
+      runtime.telemetry.serverErrorCount += 1;
+    }
+
+    const cutoff = Date.now() - (15 * 60 * 1000);
+    runtime.telemetry.recentErrorCount = errorLog.filter((item) => {
+      const time = item.timestamp ? new Date(item.timestamp).getTime() : 0;
+      return time >= cutoff;
+    }).length;
   }
 
   function pushErrorLog(entry) {
@@ -240,7 +326,8 @@ function createBridgeServer(readConfig, options = {}) {
 
   function pushRequestLog(entry) {
     const normalizedEntry = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      id: entry.requestId || `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      requestId: String(entry.requestId || ""),
       timestamp: new Date().toISOString(),
       method: String(entry.method || "GET").toUpperCase(),
       path: String(entry.path || "/"),
@@ -249,12 +336,21 @@ function createBridgeServer(readConfig, options = {}) {
       origin: String(entry.origin || ""),
       detail: String(entry.detail || ""),
       upstreamUrl: String(entry.upstreamUrl || ""),
+      upstreamHost: String(entry.upstreamHost || getUpstreamHost(entry.upstreamUrl)),
+      bodyBytes: Math.max(0, Number(entry.bodyBytes || 0)),
+      responseBytes: Math.max(0, Number(entry.responseBytes || 0)),
+      contentType: String(entry.contentType || ""),
+      routeGroup: String(entry.routeGroup || "other"),
+      model: String(entry.model || ""),
+      errorClass: String(entry.errorClass || classifyStatus(entry.statusCode)),
     };
 
     requestLog.unshift(normalizedEntry);
     if (requestLog.length > MAX_REQUEST_LOGS) {
       requestLog.length = MAX_REQUEST_LOGS;
     }
+
+    updateTelemetrySummary(normalizedEntry);
 
     emitEvent({ type: "request", entry: normalizedEntry, runtime: getRuntimeState() });
   }
@@ -265,23 +361,17 @@ function createBridgeServer(readConfig, options = {}) {
 
   async function handleRequest(req, res) {
     const startedAt = Date.now();
+    const requestId = `${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 10)}`;
     const config = readConfig();
     const url = new URL(req.url || "/", "http://127.0.0.1");
     const allowedOrigins = parseAllowedOrigins(config.bridgeAllowedOrigins);
     const requestPath = `${url.pathname}${url.search}`;
     const requestOrigin = typeof req.headers.origin === "string" ? req.headers.origin : "";
+    let bodyBytes = 0;
+    let responseBytes = 0;
+    let safeModel = "";
 
     function logRequest(statusCode, detail, upstreamUrl = "") {
-      pushRequestLog({
-        method: req.method || "GET",
-        path: requestPath,
-        statusCode,
-        durationMs: Date.now() - startedAt,
-        origin: requestOrigin,
-        detail,
-        upstreamUrl,
-      });
-
       if (Number(statusCode) >= 400) {
         pushErrorLog({
           level: Number(statusCode) >= 500 ? "error" : "warn",
@@ -292,6 +382,24 @@ function createBridgeServer(readConfig, options = {}) {
           statusCode,
         });
       }
+
+      pushRequestLog({
+        requestId,
+        method: req.method || "GET",
+        path: requestPath,
+        statusCode,
+        durationMs: Date.now() - startedAt,
+        origin: requestOrigin,
+        detail,
+        upstreamUrl,
+        upstreamHost: getUpstreamHost(upstreamUrl),
+        bodyBytes,
+        responseBytes,
+        contentType: getContentType(req),
+        routeGroup: classifyRoute(url.pathname),
+        model: safeModel,
+        errorClass: classifyStatus(statusCode),
+      });
     }
 
     if (!setCorsHeaders(req, res, allowedOrigins)) {
@@ -341,11 +449,14 @@ function createBridgeServer(readConfig, options = {}) {
     let bodyBuffer = req.method === "GET" || req.method === "HEAD"
       ? Buffer.alloc(0)
       : await readRequestBody(req);
+    bodyBytes = bodyBuffer.length;
+    safeModel = extractSafeModel(bodyBuffer);
 
     bodyBuffer = injectCudaDeviceOptions(config, url.pathname, bodyBuffer);
 
     runtime.requestCount += 1;
     const upstreamResult = await forwardToUpstream(config, req, `${url.pathname}${url.search}`, bodyBuffer);
+    responseBytes = upstreamResult.body ? upstreamResult.body.length : 0;
 
     res.statusCode = upstreamResult.statusCode;
     for (const [key, value] of Object.entries(upstreamResult.headers)) {
@@ -381,6 +492,7 @@ function createBridgeServer(readConfig, options = {}) {
             statusCode: 502,
           });
           pushRequestLog({
+            requestId: `${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 10)}`,
             method: req.method || "GET",
             path: String(req.url || "/"),
             statusCode: 502,
@@ -388,6 +500,9 @@ function createBridgeServer(readConfig, options = {}) {
             origin: typeof req.headers.origin === "string" ? req.headers.origin : "",
             detail: runtime.lastError,
             upstreamUrl: String(config.bridgeUpstreamUrl || ""),
+            upstreamHost: getUpstreamHost(config.bridgeUpstreamUrl),
+            routeGroup: "api",
+            errorClass: "server_error",
           });
           emitRuntimeUpdate("request-error");
         });

@@ -62,6 +62,8 @@ import siteEmbedsRoutes from "./routes/site-embeds.js";
 import oyamaPasswordRoutes from "./routes/oyama-password.js";
 import triviaRoutes from "./routes/trivia.js";
 import helpAgentRoutes from "./routes/help-agent.js";
+import systemUpdatesRoutes from "./routes/system-updates.js";
+import { maintenanceModeGuard } from "./middleware/maintenance-mode.js";
 import { prisma } from "./lib/prisma.js";
 import { getAppInfo } from "./lib/app-info.js";
 import { getEmailQueueWorkerStatus, startEmailQueueWorker } from "./services/email-queue-worker.js";
@@ -192,6 +194,9 @@ app.get("/health", healthHandler);
 /** GET /api/health — API-prefixed health probe for frontend/admin diagnostics. */
 app.get("/api/health", healthHandler);
 
+// Block non-admin API traffic while maintenance mode is enabled by System Update Manager.
+app.use("/api", maintenanceModeGuard);
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 // Apply strict brute-force protection to login only; keep refresh/me stable during normal navigation.
@@ -223,6 +228,7 @@ app.use("/api/compassion", compassionRoutes);
 app.use("/api/quickbooks", quickbooksRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/help-agent", helpAgentRoutes);
+app.use("/api/system-updates", systemUpdatesRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/steward-signals", stewardSignalsRoutes);
 app.use("/api/steward-paths", stewardPathRoutes);

@@ -1,0 +1,14 @@
+{
+  "organizations": {
+    "org_demo": {
+      "currentVersion": "0.3.0",
+      "maintenanceMode": false,
+      "selectedChannel": "stable",
+      "latestRelease": null,
+      "latestCheckedAt": "2026-05-15T16:26:06.681Z",
+      "activeJob": null,
+      "history": [],
+      "updatedAt": "2026-05-15T16:26:06.681Z"
+    }
+  }
+}

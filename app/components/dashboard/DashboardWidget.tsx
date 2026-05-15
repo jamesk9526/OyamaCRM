@@ -1,7 +1,7 @@
 "use client";
 /**
  * DashboardWidget — card shell for all dashboard widgets.
- * In normal mode: clean white card, no drag handles (Bloomerang style).
+ * In normal mode: clean white card, no drag handles (reference CRM style).
  * In edit mode: reveals drag handle + move up/down arrows so the user can
  * rearrange widgets without accidentally triggering drags when interacting
  * with card content in normal usage.

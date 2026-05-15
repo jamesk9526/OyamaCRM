@@ -2,6 +2,16 @@
 
 _Last deep audit: 2026-05-13_
 
+## 2026-05-15 Settings IA Consolidation Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Integrations + Plugins unified workspace | Working | `app/settings/integrations/page.tsx`, `app/settings/plugins/page.tsx`, `app/components/settings/integrations/IntegrationsSettingsPage.tsx`, `app/components/settings/plugins/PluginsSettingsPage.tsx` | `/settings/integrations` is now the canonical combined page with embedded readiness and plugin controls; `/settings/plugins` remains a compatibility redirect. |
+| System Status + Project Status unified workspace | Working | `app/settings/system-status/page.tsx`, `app/settings/project-status/page.tsx` | Project status audit matrix is embedded into system status under an anchored section; legacy project-status route redirects for deep-link compatibility. |
+| Security + Audit unified workspace | Working | `app/settings/security/page.tsx`, `app/settings/audit/page.tsx`, `app/components/settings/AuditLogViewer.tsx` | Security controls and audit log visibility now live together on one page; legacy audit route redirects to the anchored audit section. |
+| Settings navigation deduplication | Working | `app/components/settings/SettingsSidebar.tsx`, `app/settings/page.tsx` | Duplicate settings entries/cards/ribbon actions were consolidated to the new canonical routes. |
+| CRM custom icon PNG dependency removal (settings and shared nav icon surface) | Working | `app/components/ui/OyamaGradientIcon.tsx` | Custom icon rendering now uses inline SVG path maps; `app/icons/*.png` imports are removed from active app code. |
+
 ## 2026-05-14 Production Pass Phase 1/2 (Audit + IA Cleanup)
 
 | Area | Status | Evidence | Notes |

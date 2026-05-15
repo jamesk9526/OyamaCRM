@@ -12,246 +12,329 @@
       <span id="bridgeRunningDot" class="dot" aria-hidden="true"></span>
       <div>
         <h1>Oyama Bridge</h1>
-        <p>Desktop Bridge Manager</p>
+        <p id="titleEndpointValue">Local LLM service dashboard</p>
       </div>
     </div>
-    <div class="title-actions">
-      <button id="saveAllBtn" class="btn" type="button">Save All</button>
-      <button id="toggleStartupBtn" class="btn ghost" type="button">Enable Computer Startup</button>
-      <button id="toggleHiddenBtn" class="btn ghost" type="button">Disable Start Hidden</button>
-      <button id="toggleAutostartBtn" class="btn ghost" type="button">Enable Bridge Autostart</button>
+    <div class="title-status">
+      <span id="titleStatusValue">Stopped</span>
+      <span id="titleModelValue">Model pending</span>
     </div>
     <div class="window-actions">
       <button id="minBtn" class="window-btn" type="button" aria-label="Minimize">-</button>
       <button id="maxBtn" class="window-btn" type="button" aria-label="Maximize">[]</button>
-      <button id="closeBtn" class="window-btn" type="button" aria-label="Close">x</button>
+      <button id="closeBtn" class="window-btn close" type="button" aria-label="Close">x</button>
     </div>
   </header>
 
-  <main class="crm-shell">
-    <aside class="sidebar">
-      <section class="sidebar-card metrics-card">
-        <h2>Bridge Status</h2>
-        <div class="metrics">
-          <div class="metric"><span>Status</span><strong id="bridgeStatusValue">Stopped</strong></div>
-          <div class="metric"><span>Requests</span><strong id="bridgeRequestsValue">0</strong></div>
-          <div class="metric"><span>Uptime</span><strong id="bridgeUptimeValue">0m</strong></div>
-          <div class="metric"><span>Startup</span><strong id="startupStatusValue">Disabled</strong></div>
+  <main class="app-frame">
+    <section class="ribbon" aria-label="Bridge command ribbon">
+      <div class="ribbon-group service-group">
+        <span class="ribbon-label">Service</span>
+        <div class="ribbon-actions">
+          <button id="bridgeStartBtn" class="ribbon-btn primary" type="button">Start</button>
+          <button id="bridgeStopBtn" class="ribbon-btn" type="button">Stop</button>
+          <button id="bridgeRestartBtn" class="ribbon-btn" type="button">Restart</button>
+          <button id="bridgeRefreshBtn" class="ribbon-btn" type="button">Refresh</button>
         </div>
+      </div>
+      <div class="ribbon-group">
+        <span class="ribbon-label">Persist</span>
+        <div class="ribbon-actions">
+          <button id="saveAllBtn" class="ribbon-btn primary" type="button">Save All</button>
+          <button id="saveAllBtnSettings" class="ribbon-btn" type="button">Save Settings</button>
+        </div>
+      </div>
+      <div class="ribbon-group">
+        <span class="ribbon-label">Startup</span>
+        <div class="ribbon-actions">
+          <button id="toggleStartupBtn" class="ribbon-btn" type="button">Enable Computer Startup</button>
+          <button id="toggleHiddenBtn" class="ribbon-btn" type="button">Enable Start Hidden</button>
+          <button id="toggleAutostartBtn" class="ribbon-btn" type="button">Disable Bridge Autostart</button>
+          <button id="toggleStartupBtnSettings" class="sr-only" type="button">Enable Computer Startup</button>
+          <button id="toggleHiddenBtnSettings" class="sr-only" type="button">Enable Start Hidden</button>
+          <button id="toggleAutostartBtnSettings" class="sr-only" type="button">Disable Bridge Autostart</button>
+        </div>
+      </div>
+      <div class="ribbon-group">
+        <span class="ribbon-label">Tools</span>
+        <div class="ribbon-actions">
+          <button class="ribbon-btn" type="button" data-tab-target="pairing">Pair CRM</button>
+          <button class="ribbon-btn" type="button" data-tab-target="backup">Backup</button>
+          <button class="ribbon-btn" type="button" data-tab-target="settings">Settings</button>
+          <button id="clearLogBtn" class="ribbon-btn" type="button">Clear Logs</button>
+          <button id="quitAppBtn" class="ribbon-btn danger" type="button">Quit</button>
+        </div>
+      </div>
+    </section>
+
+    <nav class="page-tabs" aria-label="Bridge pages">
+      <button class="page-tab active" type="button" data-tab-target="dashboard">Dashboard</button>
+      <button class="page-tab" type="button" data-tab-target="requests">Requests</button>
+      <button class="page-tab" type="button" data-tab-target="settings">Settings</button>
+      <button class="page-tab" type="button" data-tab-target="pairing">Pairing</button>
+      <button class="page-tab" type="button" data-tab-target="backup">Backup</button>
+      <button class="page-tab" type="button" data-tab-target="advanced">Advanced</button>
+    </nav>
+
+    <section class="page-host">
+      <section id="dashboardPage" class="tab-page active" data-tab-page="dashboard">
+        <section class="hero-grid" aria-label="Bridge service status">
+          <article class="service-card status-card">
+            <span class="card-label">Service</span>
+            <strong id="bridgeStatusValue">Stopped</strong>
+            <span id="serviceModeValue">Autostart ready</span>
+          </article>
+          <article class="service-card">
+            <span class="card-label">Requests</span>
+            <strong id="bridgeRequestsValue">0</strong>
+            <span id="requestSuccessRateValue">No traffic yet</span>
+          </article>
+          <article class="service-card">
+            <span class="card-label">Uptime</span>
+            <strong id="bridgeUptimeValue">0m</strong>
+            <span id="startupStatusValue">Disabled</span>
+          </article>
+          <article class="service-card">
+            <span class="card-label">Latency</span>
+            <strong id="latestLatencyValue">0 ms</strong>
+            <span id="averageLatencyValue">0 ms avg</span>
+          </article>
+          <article class="service-card">
+            <span class="card-label">Errors</span>
+            <strong id="errorCountValue">0</strong>
+            <span id="recentErrorValue">0 recent</span>
+          </article>
+          <article class="service-card endpoint-card">
+            <span class="card-label">Endpoint</span>
+            <strong id="bridgeLocalEndpoint">-</strong>
+            <span id="upstreamHealthValue">Upstream pending</span>
+          </article>
+        </section>
+
+        <section class="dashboard-grid">
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Recent Request Flow</h2>
+                <p class="panel-subtitle">Operational metadata only. Request and response bodies are not logged.</p>
+              </div>
+              <button class="btn ghost" type="button" data-tab-target="requests">Open Requests</button>
+            </div>
+            <div class="request-log-wrap compact-log">
+              <table>
+                <thead>
+                  <tr><th>Status</th><th>Method</th><th>Route</th><th>Model</th><th>Latency</th><th>Time</th></tr>
+                </thead>
+                <tbody id="dashboardRequestLogBody"><tr><td class="empty" colspan="6">No bridge requests yet.</td></tr></tbody>
+              </table>
+            </div>
+          </article>
+
+          <aside class="panel network-card">
+            <div class="panel-head">
+              <h2>Network Values</h2>
+            </div>
+            <div class="endpoints">
+              <div class="endpoint"><strong>LAN</strong><span id="bridgeLanEndpoints" class="mono-value">-</span></div>
+              <div class="endpoint"><strong>Public</strong><span id="bridgePublicEndpoint" class="mono-value">-</span></div>
+            </div>
+            <div class="copy-grid">
+              <div class="copy-row"><span>Endpoint</span><input id="bridgeCopyEndpoint" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyEndpoint" type="button">Copy</button></div>
+              <div class="copy-row"><span>API Key</span><input id="bridgeCopyApiKey" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyApiKey" type="button">Copy</button></div>
+              <div class="copy-row"><span>Model</span><input id="bridgeCopyModel" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyModel" type="button">Copy</button></div>
+              <div class="copy-row"><span>Thinking</span><input id="bridgeCopyThinkingModel" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyThinkingModel" type="button">Copy</button></div>
+              <div class="copy-row"><span>CUDA</span><input id="bridgeCopyCuda" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyCuda" type="button">Copy</button></div>
+              <div class="copy-row"><span>Temp</span><input id="bridgeCopyTemperature" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyTemperature" type="button">Copy</button></div>
+              <div class="copy-row"><span>Timeout</span><input id="bridgeCopyTimeout" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyTimeout" type="button">Copy</button></div>
+            </div>
+          </aside>
+        </section>
       </section>
 
-      <section class="sidebar-card">
-        <h2>Quick Actions</h2>
-        <div class="stack-actions">
-          <button id="bridgeStartBtn" class="btn primary" type="button">Start Bridge</button>
-          <button id="bridgeStopBtn" class="btn" type="button">Stop Bridge</button>
-          <button id="bridgeRefreshBtn" class="btn ghost" type="button">Refresh</button>
-          <button id="clearLogBtn" class="btn ghost" type="button">Clear Local Logs</button>
-        </div>
+      <section id="requestsPage" class="tab-page" data-tab-page="requests">
+        <section class="requests-layout">
+          <article class="panel live-log-shell">
+            <div class="panel-head">
+              <div>
+                <h2>Live Request Metadata</h2>
+                <p id="requestLogMeta" class="panel-subtitle">Waiting for traffic...</p>
+              </div>
+              <div class="audit-tabs">
+                <button id="auditTabRequests" class="tab active" type="button">Requests</button>
+                <button id="auditTabErrors" class="tab" type="button">Errors</button>
+              </div>
+            </div>
+            <div class="filter-row" aria-label="Request filters">
+              <button class="filter-pill active" type="button" data-request-filter="all">All</button>
+              <button class="filter-pill" type="button" data-request-filter="success">Success</button>
+              <button class="filter-pill" type="button" data-request-filter="client_error">Client Errors</button>
+              <button class="filter-pill" type="button" data-request-filter="server_error">Server Errors</button>
+              <button class="filter-pill" type="button" data-request-filter="health">Health</button>
+            </div>
+            <div id="auditRequestsPanel" class="audit-panel active">
+              <div class="request-log-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Status</th><th>Method</th><th>Route</th><th>Model</th><th>Bytes</th><th>Latency</th><th>Time</th></tr>
+                  </thead>
+                  <tbody id="requestLogBody"><tr><td class="empty" colspan="7">No bridge requests yet.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+            <div id="auditErrorsPanel" class="audit-panel">
+              <div class="request-log-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Level</th><th>Code</th><th>Message</th><th>Time</th></tr>
+                  </thead>
+                  <tbody id="errorLogBody"><tr><td class="empty" colspan="4">No bridge errors logged.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </article>
+
+          <aside class="panel request-detail-panel">
+            <div class="panel-head">
+              <h2>Request Detail</h2>
+              <span id="selectedRequestStatus" class="status-pill">None</span>
+            </div>
+            <div id="requestDetailBody" class="detail-list">
+              <p class="empty">Select a request row to inspect safe metadata.</p>
+            </div>
+          </aside>
+        </section>
       </section>
 
-      <section class="sidebar-card tool-card">
-        <h2>CRM Pairing</h2>
-        <div class="row-inline">
-          <button id="pairingApplyBtn" class="btn primary" type="button">Pair From URL/Token</button>
-          <button id="pairingImportKeyBtn" class="btn ghost" type="button">Import Key File</button>
-          <button id="pairingCopyTokenBtn" class="btn ghost" type="button">Copy Raw Pairing Token</button>
-        </div>
-        <div class="form-grid">
-          <div class="field span-2">
-            <label for="pairingInput">Pairing URL, Raw Token, or Connection Key JSON</label>
-            <textarea id="pairingInput" class="mono-value" rows="4" placeholder="Paste CRM-generated Pairing URL or token"></textarea>
-          </div>
-          <div class="field span-2">
-            <label for="pairingTokenOutput">Pairing Token</label>
-            <input id="pairingTokenOutput" class="mono-value" type="text" readonly />
-          </div>
-          <div class="field span-2">
-            <label for="pairingJsonOutput">Decoded Pairing Payload</label>
-            <textarea id="pairingJsonOutput" class="mono-value" rows="4" readonly></textarea>
-          </div>
-          <div class="field span-2">
-            <label for="pairingExpiresOutput">Pairing Expiration</label>
-            <input id="pairingExpiresOutput" type="text" readonly />
-          </div>
-        </div>
-        <input id="pairingImportKeyInput" type="file" accept="application/json,.json,.txt" hidden />
+      <section id="settingsPanel" class="tab-page" data-tab-page="settings">
+        <section class="settings-grid">
+          <section class="panel settings-card">
+            <div class="panel-head"><h2>Service Settings</h2></div>
+            <div class="checks compact-checks">
+              <label class="check"><input id="bridgeAutostartInput" type="checkbox" /> Start bridge when app opens</label>
+              <label class="check"><input id="bridgeMinimizeOnCloseInput" type="checkbox" /> Minimize to tray on close</label>
+              <label class="check"><input id="startupLaunchEnabledInput" type="checkbox" /> Start Oyama Bridge on computer login</label>
+              <label class="check"><input id="startHiddenInput" type="checkbox" /> Start hidden on login</label>
+            </div>
+          </section>
+
+          <section class="panel settings-card">
+            <div class="panel-head">
+              <h2>Network</h2>
+              <button id="bridgeSaveBtn" type="button" class="btn primary">Save Settings</button>
+            </div>
+            <div class="form-grid">
+              <div class="field span-2"><label for="crmSiteUrlInput">CRM Site URL</label><input id="crmSiteUrlInput" type="url" placeholder="https://crm.yourorg.org" /></div>
+              <div class="field span-2"><label for="bridgeDomainUrlInput">Domain AI Settings URL</label><input id="bridgeDomainUrlInput" type="url" placeholder="https://crm.yourorg.org/settings/ai" /></div>
+              <div class="field span-2"><label for="bridgeUpstreamUrlInput">Upstream URL</label><input id="bridgeUpstreamUrlInput" type="url" placeholder="http://127.0.0.1:11434" /></div>
+              <div class="field"><label for="bridgePortInput">Bridge Port</label><input id="bridgePortInput" type="number" min="1024" max="65535" step="1" /></div>
+              <div class="field"><label for="bridgePublicBaseUrlInput">Public Base URL</label><input id="bridgePublicBaseUrlInput" type="url" placeholder="https://bridge.yourorg.org" /></div>
+            </div>
+          </section>
+
+          <section class="panel settings-card">
+            <div class="panel-head"><h2>Model Runtime</h2></div>
+            <div class="form-grid">
+              <div class="field"><label for="bridgeModelInput">Model</label><input id="bridgeModelInput" type="text" /></div>
+              <div class="field"><label for="bridgeThinkingModelInput">Thinking Model</label><input id="bridgeThinkingModelInput" type="text" /></div>
+              <div class="field"><label for="bridgeCudaDeviceSelect">CUDA Device</label><select id="bridgeCudaDeviceSelect"></select></div>
+              <div class="field"><label for="bridgeTemperatureInput">Temperature</label><input id="bridgeTemperatureInput" type="number" min="0" max="2" step="0.1" /></div>
+              <div class="field"><label for="bridgeTimeoutInput">Timeout (ms)</label><input id="bridgeTimeoutInput" type="number" min="3650" max="120000" step="1000" /></div>
+            </div>
+          </section>
+
+          <section class="panel settings-card">
+            <div class="panel-head"><h2>Security</h2></div>
+            <div class="form-grid">
+              <div class="field span-2"><label for="bridgeAllowedOriginsInput">Allowed Origins</label><input id="bridgeAllowedOriginsInput" type="text" placeholder="https://crm.yourorg.org" /></div>
+              <div class="field span-2"><label for="bridgeApiKeyInput">Bridge API Key</label><input id="bridgeApiKeyInput" type="text" /></div>
+            </div>
+          </section>
+        </section>
       </section>
 
-      <section class="sidebar-card tool-card">
-        <div class="panel-head">
-          <h2>Bridge Settings</h2>
-          <button id="bridgeSaveBtn" type="button" class="btn primary">Save Settings</button>
-        </div>
-        <div class="row-inline">
-          <button id="saveAllBtnSettings" class="btn" type="button">Save All</button>
-          <button id="toggleStartupBtnSettings" class="btn ghost" type="button">Enable Computer Startup</button>
-          <button id="toggleHiddenBtnSettings" class="btn ghost" type="button">Disable Start Hidden</button>
-          <button id="toggleAutostartBtnSettings" class="btn ghost" type="button">Enable Bridge Autostart</button>
-        </div>
-        <div class="form-grid">
-          <div class="field span-2">
-            <label for="crmSiteUrlInput">CRM Site URL</label>
-            <input id="crmSiteUrlInput" type="url" placeholder="https://crm.yourorg.org" />
+      <section id="pairingPanel" class="tab-page" data-tab-page="pairing">
+        <section class="panel settings-card wide">
+          <div class="panel-head">
+            <div>
+              <h2>CRM Pairing</h2>
+              <p class="panel-subtitle">Import a CRM connection key or paste a pairing URL.</p>
+            </div>
+            <div class="row-inline">
+              <button id="pairingApplyBtn" class="btn primary" type="button">Apply Pairing</button>
+              <button id="pairingImportKeyBtn" class="btn ghost" type="button">Import Key</button>
+              <button id="pairingCopyTokenBtn" class="btn ghost" type="button">Copy Token</button>
+            </div>
           </div>
-          <div class="field span-2">
-            <label for="bridgeDomainUrlInput">Domain AI Settings URL</label>
-            <input id="bridgeDomainUrlInput" type="url" placeholder="https://crm.yourorg.org/settings/ai" />
+          <div class="form-grid">
+            <div class="field span-2"><label for="pairingInput">Pairing URL, Raw Token, or Connection Key JSON</label><textarea id="pairingInput" class="mono-value" rows="4" placeholder="Paste CRM-generated pairing URL or token"></textarea></div>
+            <div class="field span-2"><label for="pairingTokenOutput">Pairing Token</label><input id="pairingTokenOutput" class="mono-value" type="text" readonly /></div>
+            <div class="field span-2"><label for="pairingJsonOutput">Decoded Pairing Payload</label><textarea id="pairingJsonOutput" class="mono-value" rows="4" readonly></textarea></div>
+            <div class="field span-2"><label for="pairingExpiresOutput">Pairing Expiration</label><input id="pairingExpiresOutput" type="text" readonly /></div>
           </div>
-          <div class="field span-2">
-            <label for="bridgeUpstreamUrlInput">Upstream URL</label>
-            <input id="bridgeUpstreamUrlInput" type="url" placeholder="http://127.0.0.1:11434" />
-          </div>
-          <div class="field">
-            <label for="bridgePortInput">Bridge Port</label>
-            <input id="bridgePortInput" type="number" min="1024" max="65535" step="1" />
-          </div>
-          <div class="field">
-            <label for="bridgeAllowedOriginsInput">Allowed Origins</label>
-            <input id="bridgeAllowedOriginsInput" type="text" placeholder="https://crm.yourorg.org" />
-          </div>
-          <div class="field span-2">
-            <label for="bridgeApiKeyInput">Bridge API Key</label>
-            <input id="bridgeApiKeyInput" type="text" />
-          </div>
-          <div class="field span-2">
-            <label for="bridgePublicBaseUrlInput">Public Base URL (optional)</label>
-            <input id="bridgePublicBaseUrlInput" type="url" placeholder="https://bridge.yourorg.org" />
-          </div>
-          <div class="field"><label for="bridgeModelInput">Model</label><input id="bridgeModelInput" type="text" /></div>
-          <div class="field"><label for="bridgeThinkingModelInput">Thinking Model</label><input id="bridgeThinkingModelInput" type="text" /></div>
-          <div class="field"><label for="bridgeCudaDeviceSelect">CUDA Device</label><select id="bridgeCudaDeviceSelect"></select></div>
-          <div class="field"><label for="bridgeTemperatureInput">Temperature</label><input id="bridgeTemperatureInput" type="number" min="0" max="2" step="0.1" /></div>
-          <div class="field"><label for="bridgeTimeoutInput">Timeout (ms)</label><input id="bridgeTimeoutInput" type="number" min="3650" max="120000" step="1000" /></div>
-        </div>
-        <div class="checks">
-          <label class="check"><input id="bridgeAutostartInput" type="checkbox" /> Automatically start bridge when app opens</label>
-          <label class="check"><input id="bridgeMinimizeOnCloseInput" type="checkbox" /> Minimize to tray/taskbar on close</label>
-          <label class="check"><input id="startupLaunchEnabledInput" type="checkbox" /> Start Oyama Bridge on computer login</label>
-          <label class="check"><input id="startHiddenInput" type="checkbox" /> Start hidden on login</label>
-        </div>
+          <input id="pairingImportKeyInput" type="file" accept="application/json,.json,.txt" hidden />
+        </section>
       </section>
 
-      <section class="sidebar-card tool-card">
-        <h2>Network + Copy Values</h2>
-        <div class="endpoints">
-          <div class="endpoint"><strong>Local endpoint</strong><span id="bridgeLocalEndpoint" class="mono-value">-</span></div>
-          <div class="endpoint"><strong>LAN endpoints</strong><span id="bridgeLanEndpoints" class="mono-value">-</span></div>
-          <div class="endpoint"><strong>Public candidate</strong><span id="bridgePublicEndpoint" class="mono-value">-</span></div>
-        </div>
-        <div class="copy-grid">
-          <div class="copy-row"><span>Endpoint</span><input id="bridgeCopyEndpoint" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyEndpoint" type="button">Copy</button></div>
-          <div class="copy-row"><span>API Key</span><input id="bridgeCopyApiKey" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyApiKey" type="button">Copy</button></div>
-          <div class="copy-row"><span>Model</span><input id="bridgeCopyModel" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyModel" type="button">Copy</button></div>
-          <div class="copy-row"><span>Thinking</span><input id="bridgeCopyThinkingModel" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyThinkingModel" type="button">Copy</button></div>
-          <div class="copy-row"><span>CUDA</span><input id="bridgeCopyCuda" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyCuda" type="button">Copy</button></div>
-          <div class="copy-row"><span>Temp</span><input id="bridgeCopyTemperature" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyTemperature" type="button">Copy</button></div>
-          <div class="copy-row"><span>Timeout</span><input id="bridgeCopyTimeout" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyTimeout" type="button">Copy</button></div>
-        </div>
+      <section id="backupPanel" class="tab-page" data-tab-page="backup">
+        <section class="panel settings-card wide">
+          <div class="panel-head">
+            <div>
+              <h2>Secure Backup</h2>
+              <p class="panel-subtitle">Bridge configuration and runtime log snapshots.</p>
+            </div>
+            <div class="row-inline">
+              <button id="backupSaveBtn" type="button" class="btn">Save Backup Settings</button>
+              <button id="backupRunNowBtn" type="button" class="btn primary">Run Backup</button>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="field span-2"><label for="backupDirectoryInput">Backup Directory</label><input id="backupDirectoryInput" type="text" placeholder="C:\\Users\\...\\OyamaBridgeBackups" /></div>
+            <div class="field"><label for="backupIntervalHoursInput">Interval (hours)</label><input id="backupIntervalHoursInput" type="number" min="1" max="168" step="1" /></div>
+            <div class="field"><label for="backupRetentionDaysInput">Retention (days)</label><input id="backupRetentionDaysInput" type="number" min="1" max="365" step="1" /></div>
+            <div class="field span-2"><label for="backupPassphraseInput">Passphrase</label><input id="backupPassphraseInput" type="password" placeholder="Enter passphrase to encrypt backup" /></div>
+          </div>
+          <div class="checks compact-checks">
+            <label class="check"><input id="backupEnabledInput" type="checkbox" /> Enable secure background backup profile</label>
+            <label class="check"><input id="backupIncludeLogsInput" type="checkbox" /> Include request/error logs in backup snapshot</label>
+          </div>
+          <div class="copy-grid backup-output">
+            <div class="copy-row"><span>Last run</span><input id="backupLastRunOutput" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="backupLastRunOutput" type="button">Copy</button></div>
+            <div class="copy-row"><span>Last file</span><input id="backupLastFileOutput" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="backupLastFileOutput" type="button">Copy</button></div>
+            <div class="copy-row"><span>Status</span><input id="backupStatusOutput" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="backupStatusOutput" type="button">Copy</button></div>
+          </div>
+        </section>
       </section>
 
-      <section class="sidebar-card tool-card">
-        <div class="panel-head">
-          <h2>Background Tools</h2>
-          <div class="row-inline">
-            <button id="backupSaveBtn" type="button" class="btn">Save Backup Settings</button>
-            <button id="backupRunNowBtn" type="button" class="btn primary">Run Secure Backup Now</button>
-          </div>
-        </div>
-        <p class="hint">Future-ready secure backup workspace. This currently backs up Bridge configuration and runtime logs, and is designed for future database backup adapters.</p>
-        <div class="form-grid">
-          <div class="field span-2">
-            <label for="backupDirectoryInput">Backup Directory</label>
-            <input id="backupDirectoryInput" type="text" placeholder="C:\\Users\\...\\OyamaBridgeBackups" />
-          </div>
-          <div class="field">
-            <label for="backupIntervalHoursInput">Interval (hours)</label>
-            <input id="backupIntervalHoursInput" type="number" min="1" max="168" step="1" />
-          </div>
-          <div class="field">
-            <label for="backupRetentionDaysInput">Retention (days)</label>
-            <input id="backupRetentionDaysInput" type="number" min="1" max="365" step="1" />
-          </div>
-          <div class="field span-2">
-            <label for="backupPassphraseInput">Passphrase (required for run now)</label>
-            <input id="backupPassphraseInput" type="password" placeholder="Enter passphrase to encrypt backup" />
-          </div>
-        </div>
-        <div class="checks">
-          <label class="check"><input id="backupEnabledInput" type="checkbox" /> Enable secure background backup profile</label>
-          <label class="check"><input id="backupIncludeLogsInput" type="checkbox" /> Include bridge request/error logs in backup snapshot</label>
-        </div>
-        <div class="copy-grid">
-          <div class="copy-row"><span>Last run</span><input id="backupLastRunOutput" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="backupLastRunOutput" type="button">Copy</button></div>
-          <div class="copy-row"><span>Last file</span><input id="backupLastFileOutput" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="backupLastFileOutput" type="button">Copy</button></div>
-          <div class="copy-row"><span>Status</span><input id="backupStatusOutput" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="backupStatusOutput" type="button">Copy</button></div>
-        </div>
-      </section>
+      <section id="advancedPage" class="tab-page" data-tab-page="advanced">
+        <section class="advanced-grid">
+          <section class="panel settings-card">
+            <div class="panel-head"><h2>Advanced Prompting</h2></div>
+            <div class="form-grid">
+              <div class="field span-2"><label for="bridgeSystemPromptBaseInput">Bridge System Prompt</label><textarea id="bridgeSystemPromptBaseInput" rows="5" placeholder="System behavior for bridge-generated assistant calls"></textarea></div>
+              <div class="field span-2"><label for="bridgeInternalChatPromptInput">Internal Chat Prompt Addendum</label><textarea id="bridgeInternalChatPromptInput" rows="5" placeholder="Additional behavior for internal bridge chat"></textarea></div>
+            </div>
+          </section>
 
-      <section class="sidebar-card tool-card">
-        <h2>Advanced Prompting</h2>
-        <div class="form-grid">
-          <div class="field span-2">
-            <label for="bridgeSystemPromptBaseInput">Bridge System Prompt</label>
-            <textarea id="bridgeSystemPromptBaseInput" rows="5" placeholder="System behavior for bridge-generated assistant calls"></textarea>
-          </div>
-          <div class="field span-2">
-            <label for="bridgeInternalChatPromptInput">Internal Chat Prompt Addendum</label>
-            <textarea id="bridgeInternalChatPromptInput" rows="5" placeholder="Additional behavior for internal bridge chat"></textarea>
-          </div>
-        </div>
+          <section class="panel settings-card">
+            <div class="panel-head">
+              <h2>Internal Bridge Chat</h2>
+              <div class="row-inline">
+                <button id="bridgeChatSendBtn" type="button" class="btn primary">Send</button>
+                <button id="bridgeChatClearBtn" type="button" class="btn ghost">Clear</button>
+              </div>
+            </div>
+            <textarea id="bridgeChatInput" rows="3" placeholder="Ask about runtime health, donor/report flow, and next actions."></textarea>
+            <div id="bridgeChatLog" class="chat-log"></div>
+          </section>
+        </section>
       </section>
+    </section>
 
-      <section class="sidebar-card tool-card">
-        <div class="panel-head">
-          <h2>Internal Bridge Chat</h2>
-          <div class="row-inline">
-            <button id="bridgeChatSendBtn" type="button" class="btn primary">Send</button>
-            <button id="bridgeChatClearBtn" type="button" class="btn ghost">Clear</button>
-          </div>
-        </div>
-        <p class="hint">This chat uses live bridge runtime context and current model settings.</p>
-        <textarea id="bridgeChatInput" rows="3" placeholder="Ask about runtime health, donor/report flow, and next actions."></textarea>
-        <div id="bridgeChatLog" class="chat-log"></div>
-      </section>
-
+    <footer class="status-footer">
       <p id="bridgeLastError" class="message"></p>
       <p id="bridgeMessage" class="message"></p>
       <p id="lastSavedInfo" class="saved-info">Last saved: not yet</p>
-    </aside>
-
-    <section class="content-pane">
-      <article class="panel active live-log-shell">
-        <div class="panel-head">
-          <h2>Live Logs</h2>
-          <span id="requestLogMeta" class="mono-value">Waiting for traffic...</span>
-        </div>
-        <div class="audit-tabs">
-          <button id="auditTabRequests" class="tab active" type="button">Requests</button>
-          <button id="auditTabErrors" class="tab" type="button">Errors</button>
-        </div>
-        <div id="auditRequestsPanel" class="audit-panel active">
-          <div class="request-log-wrap">
-            <table>
-              <thead>
-                <tr><th style="width:70px;">Status</th><th style="width:78px;">Method</th><th>Path / Detail</th><th style="width:88px;">Latency</th><th style="width:120px;">Time</th></tr>
-              </thead>
-              <tbody id="requestLogBody"><tr><td class="empty" colspan="5">No bridge requests yet.</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div id="auditErrorsPanel" class="audit-panel">
-          <div class="request-log-wrap">
-            <table>
-              <thead>
-                <tr><th style="width:70px;">Level</th><th style="width:120px;">Code</th><th>Message</th><th style="width:120px;">Time</th></tr>
-              </thead>
-              <tbody id="errorLogBody"><tr><td class="empty" colspan="4">No bridge errors logged.</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-      </article>
-    </section>
+    </footer>
   </main>
 
   <script src="./renderer.js"></script>

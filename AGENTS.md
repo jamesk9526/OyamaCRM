@@ -16,9 +16,28 @@ Every feature, section, or UI concept must live in its own file/component. Never
 - **Pages**: `app/<route>/page.tsx` should be thin — import and compose components, do not inline large JSX blocks.
 - **"use client" boundary**: Keep Server Components as the default. Only add `"use client"` to the smallest component that actually needs it (event handlers, state, browser APIs, `usePathname`, etc.).
 - **No global side-effects in components**: Data fetching belongs in Server Components or Route Handlers, not scattered through client components.
-- **Theme**: White background, green-600 (`#16a34a`) accents, gray-50 content areas. Do not introduce dark mode unless explicitly requested.
-- **Layout**: All pages share `AppShell` (TopBar + Sidebar + main). Add new sidebar items in `app/components/layout/Sidebar.tsx`.
+- **Theme (default baseline)**: Prefer white background, green-600 (`#16a34a`) accents, and gray-50 content areas unless the current user request calls for a different visual direction.
+- **Layout (default baseline)**: DonorCRM pages should use `AppShell` (TopBar + Sidebar + main). Keep shared navigation ownership in `app/components/layout/Sidebar.tsx` unless a module-specific shell is intentionally required.
 <!-- END:modular-architecture-rules -->
+
+<!-- BEGIN:ui-ux-flexibility-rules -->
+## UI/UX Flexibility Rules
+
+The visual design rules in this file are default product guardrails, not permanent locks.
+
+Agents must preserve modularity, privacy boundaries, production safety, and clear module ownership, but they are allowed to change the UI/UX when the user explicitly asks for a redesign, navigation improvement, dashboard refinement, workspace cleanup, or enterprise-feel upgrade.
+
+When user direction conflicts with older UI defaults, the current user request takes priority as long as the change:
+- Keeps components modular and maintainable.
+- Preserves data boundaries between DonorCRM, Compassion CRM, Events CRM, Webmaster, and standalone apps.
+- Does not remove working functionality without an equal or better replacement.
+- Updates affected docs/status files when navigation, routes, or feature status changes.
+- Keeps accessibility, responsive layout, and clear user flows intact.
+
+Default theme notes such as green accents, white cards, reference CRM dashboard patterns, sidebar structure, and AppShell usage should be treated as starting points. They may be refined, reorganized, or replaced when a better product design is requested.
+
+Do not refuse a UI/UX improvement solely because a previous instruction described an older visual pattern.
+<!-- END:ui-ux-flexibility-rules -->
 
 <!-- BEGIN:ribbon-first-workspace-rules -->
 # Ribbon-First Workspace Rules
@@ -98,7 +117,7 @@ export function computeRetentionRate(lastYear: number, retained: number): number
 <!-- BEGIN:nonprofit-crm-domain -->
 # Nonprofit CRM Domain Context
 
-**OyamaCRM** is a nonprofit-focused donor management and fundraising platform inspired by Bloomerang and NeonCRM. The system helps nonprofits manage constituents (donors, volunteers, members), track donations, run campaigns, and measure fundraising performance.
+**OyamaCRM** is a nonprofit-focused donor management and fundraising platform built on modern nonprofit CRM best practices. The system helps nonprofits manage constituents (donors, volunteers, members), track donations, run campaigns, and measure fundraising performance.
 
 ## Core Terminology
 
@@ -140,7 +159,7 @@ Use nonprofit-specific language consistently:
 - Matching gift tracking (corporate matching programs)
 
 ### 4. Analytics & Reporting
-- **Dashboard widgets** (reference Bloomerang screenshot):
+- **Dashboard widgets** (reference CRM dashboard pattern):
   - Revenue progress charts (circular progress, goal tracking)
   - Donor retention metrics (% retained year-over-year)
   - Totals by donor level (major gifts, mid-level, annual fund)
@@ -177,9 +196,9 @@ Use nonprofit-specific language consistently:
 - Integration connectors (payment processors, email platforms, accounting software)
 - Audit logs (who changed what, when)
 
-## Design Patterns from Bloomerang
+## Reference CRM Dashboard Patterns
 
-Based on the provided screenshot, follow these UI patterns:
+Use these as default UI patterns, and refine them when a clearer product direction is requested:
 
 ### Dashboard Layout
 - **Personalized greeting**: "Good morning, [User Name]!"
@@ -388,7 +407,7 @@ Keep these three documents current as the Compassion CRM evolves:
 
 Compassion CRM is a client-services module. Keep top-level navigation focused and avoid turning the sidebar into a list of every form type.
 
-Primary sidebar items should remain:
+Primary sidebar defaults:
 - Dashboard
 - Clients
 - Cases
