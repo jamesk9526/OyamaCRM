@@ -79,6 +79,8 @@ export interface QuoteBlock extends BaseBlock {
   quote: string;
   attribution: string;
   align: 'left' | 'center' | 'right';
+  /** Brand accent color for the quote rule. */
+  accentColor?: string;
   padding: number;
 }
 
@@ -105,6 +107,8 @@ export interface ImpactStoryBlock extends BaseBlock {
   outcome: string;
   ctaLabel?: string;
   ctaUrl?: string;
+  /** Brand-derived color for the optional story CTA. */
+  ctaColor?: string;
   bgColor: string;
   textColor: string;
   padding: number;
@@ -235,6 +239,7 @@ export interface MonthlyDonorInvitationBlock extends BaseBlock {
   benefitBullets: string[];
   ctaLabel: string;
   ctaUrl: string;
+  buttonColor?: string;
   bgColor: string;
   textColor: string;
   padding: number;
@@ -248,6 +253,7 @@ export interface LapsedDonorReengagementBlock extends BaseBlock {
   impactReminder: string;
   ctaLabel: string;
   ctaUrl: string;
+  buttonColor?: string;
   bgColor: string;
   textColor: string;
   padding: number;
@@ -261,6 +267,7 @@ export interface FirstTimeDonorWelcomeBlock extends BaseBlock {
   contactPerson: string;
   ctaLabel: string;
   ctaUrl: string;
+  buttonColor?: string;
   bgColor: string;
   textColor: string;
   padding: number;

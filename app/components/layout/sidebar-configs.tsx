@@ -38,6 +38,7 @@ const DONOR_ICONS = {
   tasks: <Ico d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />,
   meetings: <Ico d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />,
   communications: <Ico d="M4 6h16v12H4zM4 7l8 6 8-6" />,
+  contactsManager: <Ico d="M4 6h16M4 12h10M4 18h16M17 10a3 3 0 110 6 3 3 0 010-6z" />,
   letters: <Ico d="M8 2h8l4 4v16H4V2h4zm1 9h6m-6 4h6m-6 4h4" />,
   livecom: <Ico d="M4 12a8 8 0 1116 0v5a2 2 0 01-2 2h-3v-6h5M4 13h5v6H6a2 2 0 01-2-2v-4z" />,
   stewardPaths: <Ico d="M5 7h5M14 7h5M7.5 7a2.5 2.5 0 105 0 2.5 2.5 0 00-5 0zM5 17h5m4 0h5m-7-10v10m-2.5 0a2.5 2.5 0 105 0 2.5 2.5 0 00-5 0z" />,
@@ -172,6 +173,15 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
       label: "Communication Tools",
       defaultOpen: true,
       items: [
+        {
+          id: "contacts-manager",
+          label: "Contacts Manager",
+          href: "/contacts-manager",
+          icon: DONOR_ICONS.contactsManager,
+          kind: "communication_tool",
+          badge: "New",
+          description: "Build reusable audiences and contact lists for email campaigns and printable mailings.",
+        },
         {
           id: "letters-printables",
           label: "Letters & Printables",

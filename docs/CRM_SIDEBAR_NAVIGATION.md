@@ -28,7 +28,7 @@ The donor sidebar now uses config-driven groups:
 
 - Fundraising: Dashboard, Constituents, Donations, Campaigns, Grants, Payments (+ QB Sync when plugin is enabled)
 - Engagement Workspace: Steward Paths, Tasks, Meetings, Communications
-- Communication Tools: Letters & Printables, LiveCom
+- Communication Tools: Contacts Manager, Letters & Printables, LiveCom
 - Insights: Steward Signals, Reports
 - People: Volunteers
 - System (collapsible): Imports, Data Tools, Custom Fields, Settings, Help, admin-only Feedback Tickets, admin-only Watchdog/WebMaster links
@@ -46,6 +46,10 @@ Letters & Printables now lives in Communication Tools with a Tool badge and desc
 Create thank-you letters, receipts, newsletters, and printable donor communication.
 
 This keeps it close to Communications and LiveCom while visually distinguishing it from daily action workflows.
+
+## Contacts Manager
+
+Contacts Manager lives in Communication Tools and opens `/contacts-manager`. It is the shared audience workspace for Communications and Letters & Printables: staff can search constituents, distinguish donors and non-donors, update tags, and save reusable audience lists that email campaigns can send to and printable workflows can use for mailing context.
 
 ## Badge Model
 

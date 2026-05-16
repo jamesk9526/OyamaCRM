@@ -1,6 +1,6 @@
 # DonorCRM Email Builder
 
-Last updated: 2026-05-13
+Last updated: 2026-05-16
 
 ## Purpose
 
@@ -10,7 +10,16 @@ Document the current Email Builder implementation, workflow relationship to Comm
 
 - Communications owns campaign lifecycle and send operations.
 - Email Builder is the visual authoring/editor layer for one campaign draft.
-- Builder should be launched from communications context, not treated as a disconnected product.
+- The canonical workflow is Communications -> Campaign Library -> select/create email project -> `/communications/[campaignId]` -> Build/Preview/Send/Activity tabs.
+- `/communications` opens directly to the Campaign Library; overview/project-picker cards are not the primary entry point.
+- `/email-builder?campaign=...` remains available for compatibility, but user-facing navigation should open `/communications/[campaignId]?mode=build`.
+- Builder should stay inside communications context, not be treated as a disconnected product.
+
+## Communications Project Library
+
+- Email campaigns are shown as projects with a rendered thumbnail preview.
+- Staff can switch between regular cards, small cards, and a dense list view.
+- Project actions open the same campaign workspace for build, preview, send, and activity management.
 
 ## Current UX Model
 
@@ -73,12 +82,16 @@ Document the current Email Builder implementation, workflow relationship to Comm
 | Saved sections library | Not Implemented | No persisted saved-sections registry yet. |
 | Version history and restore | Not Implemented | No revision timeline yet. |
 | Merge field validation before send | Working | Review tab now enforces recognized merge-token checks and malformed brace detection with actionable warnings. |
+| Campaign workspace embedded builder | Working | `/communications/[campaignId]?mode=build` embeds EmailBuilderApp alongside Preview, Send, and Activity tabs. |
+| Email project preview cards | Working | Communications campaign library supports rendered thumbnails, card view, small-card view, and list view. |
+| Branding settings enforcement | Working | New campaigns seed sender identity from CRM Branding Settings; builder save applies current CRM branding to template-level settings and brandable block accents. |
 
 ## Safety Constraints
 
 - Draft-first behavior is preserved.
 - Broad sends still require explicit send/schedule actions in campaign workflows.
 - Test-send path is available for review before production send.
+- Sender identity, email layout defaults, logo usage, and brandable colors should come from Settings -> Branding.
 
 ## Known Limits
 

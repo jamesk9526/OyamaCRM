@@ -83,6 +83,7 @@ export function createDefaultBlock(type: BlockType): EmailBlock {
         quote: 'Your support changed what was possible for our family.',
         attribution: 'Community Member',
         align: 'center',
+        accentColor: '#16a34a',
         padding: 16,
       } satisfies QuoteBlock;
 
@@ -111,6 +112,7 @@ export function createDefaultBlock(type: BlockType): EmailBlock {
         outcome: 'Now she has consistent support, practical resources, and a hopeful path forward.',
         ctaLabel: 'Read More Stories',
         ctaUrl: 'https://',
+        ctaColor: '#16a34a',
         bgColor: '#f8fafc',
         textColor: '#1f2937',
         padding: 16,
@@ -267,6 +269,7 @@ export function createDefaultBlock(type: BlockType): EmailBlock {
         ],
         ctaLabel: 'Start Monthly Giving',
         ctaUrl: 'https://',
+        buttonColor: '#16a34a',
         bgColor: '#f0f9ff',
         textColor: '#1e3a8a',
         padding: 16,
@@ -282,6 +285,7 @@ export function createDefaultBlock(type: BlockType): EmailBlock {
         impactReminder: 'Families are still receiving life-affirming care because of donors like you.',
         ctaLabel: 'Reconnect with a Gift',
         ctaUrl: 'https://',
+        buttonColor: '#16a34a',
         bgColor: '#fff7ed',
         textColor: '#9a3412',
         padding: 16,
@@ -297,6 +301,7 @@ export function createDefaultBlock(type: BlockType): EmailBlock {
         contactPerson: '{{staffName}}',
         ctaLabel: 'See Your Impact',
         ctaUrl: 'https://',
+        buttonColor: '#16a34a',
         bgColor: '#eff6ff',
         textColor: '#1e3a8a',
         padding: 16,
@@ -533,7 +538,7 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
     case 'quote':
       return `<tr>
   <td style="padding:${block.padding}px;text-align:${block.align};font-family:${fontFamily};">
-    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-left:4px solid #16a34a;background:#f8fafc;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-left:4px solid ${block.accentColor ?? '#16a34a'};background:#f8fafc;">
       <tr>
         <td style="padding:14px 16px;font-size:16px;line-height:1.5;color:#1f2937;font-style:italic;">
           &ldquo;${block.quote}&rdquo;
@@ -571,7 +576,7 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
           ${block.pseudonym ? `<div style="font-size:11px;line-height:1.4;margin-top:6px;opacity:.8;">${block.pseudonym}</div>` : ''}
           <div style="font-size:14px;line-height:1.6;margin-top:8px;">${block.story}</div>
           <div style="font-size:14px;line-height:1.6;margin-top:10px;font-weight:600;">Outcome: ${block.outcome}</div>
-          ${block.ctaLabel && block.ctaUrl ? `<div style="margin-top:14px;"><a href="${block.ctaUrl}" style="display:inline-block;background:#16a34a;color:#fff;font-size:13px;font-weight:700;text-decoration:none;padding:10px 18px;border-radius:6px;">${block.ctaLabel}</a></div>` : ''}
+          ${block.ctaLabel && block.ctaUrl ? `<div style="margin-top:14px;"><a href="${block.ctaUrl}" style="display:inline-block;background:${block.ctaColor ?? '#16a34a'};color:#fff;font-size:13px;font-weight:700;text-decoration:none;padding:10px 18px;border-radius:6px;">${block.ctaLabel}</a></div>` : ''}
         </td>
       </tr>
     </table>
@@ -736,7 +741,7 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
         <div style="font-size:14px;line-height:1.6;margin-top:8px;">${block.message}</div>
         <div style="margin-top:10px;">${monthlyAmounts}</div>
         <div style="margin-top:8px;">${benefits}</div>
-        <div style="margin-top:14px;"><a href="${block.ctaUrl}" style="display:inline-block;background:#1d4ed8;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;font-size:14px;font-weight:700;">${block.ctaLabel}</a></div>
+        <div style="margin-top:14px;"><a href="${block.ctaUrl}" style="display:inline-block;background:${block.buttonColor ?? '#16a34a'};color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;font-size:14px;font-weight:700;">${block.ctaLabel}</a></div>
       </td></tr>
     </table>
   </td>
@@ -752,7 +757,7 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
         <div style="font-size:14px;line-height:1.6;margin-top:8px;">It has been a while since your last gift on ${block.lastGiftDateToken}.</div>
         <div style="font-size:14px;line-height:1.6;margin-top:8px;">${block.message}</div>
         <div style="font-size:13px;line-height:1.5;margin-top:8px;font-weight:600;">${block.impactReminder}</div>
-        <div style="margin-top:12px;"><a href="${block.ctaUrl}" style="display:inline-block;background:#ea580c;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:700;">${block.ctaLabel}</a></div>
+        <div style="margin-top:12px;"><a href="${block.ctaUrl}" style="display:inline-block;background:${block.buttonColor ?? '#16a34a'};color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:700;">${block.ctaLabel}</a></div>
       </td></tr>
     </table>
   </td>
@@ -767,7 +772,7 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
         <div style="font-size:14px;line-height:1.6;margin-top:8px;">${block.missionIntro}</div>
         <div style="font-size:14px;line-height:1.6;margin-top:8px;">${block.whatToExpect}</div>
         <div style="font-size:13px;line-height:1.5;margin-top:10px;">Your contact person: ${block.contactPerson}</div>
-        <div style="margin-top:12px;"><a href="${block.ctaUrl}" style="display:inline-block;background:#1d4ed8;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:700;">${block.ctaLabel}</a></div>
+        <div style="margin-top:12px;"><a href="${block.ctaUrl}" style="display:inline-block;background:${block.buttonColor ?? '#16a34a'};color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:700;">${block.ctaLabel}</a></div>
       </td></tr>
     </table>
   </td>

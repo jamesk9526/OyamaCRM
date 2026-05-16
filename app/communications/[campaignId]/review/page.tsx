@@ -7,8 +7,8 @@ export default function CommunicationReviewPage() {
     <CommunicationCampaignActionPage
       title="Campaign Review"
       helper="Validate content, recipients, and compliance checks before schedule/send."
-      ctaLabel="Continue To Schedule"
-      ctaHref="/communications/new/send"
+      ctaLabel="Open Email Workspace"
+      ctaHref="/communications/:campaignId?mode=build"
     />
   );
 }

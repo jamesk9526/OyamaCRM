@@ -60,6 +60,10 @@ export interface SignatureBlock {
   signerName: string;
   signerTitle?: string | null;
   closingPhrase?: string | null;
+  signatureImageUrl?: string | null;
+  typedSignature?: string | null;
+  email?: string | null;
+  phone?: string | null;
   isDefault: boolean;
   isActive: boolean;
 }
@@ -70,6 +74,12 @@ export interface HeaderPreset {
   isDefault: boolean;
   isActive: boolean;
   logoAlignment: string;
+  showOrganizationName?: boolean;
+  showTagline?: boolean;
+  showAddress?: boolean;
+  showPhone?: boolean;
+  showWebsite?: boolean;
+  customHtml?: string | null;
 }
 
 export interface FooterPreset {
@@ -77,6 +87,15 @@ export interface FooterPreset {
   name: string;
   isDefault: boolean;
   isActive: boolean;
+  showOrganizationName?: boolean;
+  showAddress?: boolean;
+  showPhone?: boolean;
+  showEmail?: boolean;
+  showWebsite?: boolean;
+  showTaxId?: boolean;
+  showPageNumber?: boolean;
+  customText?: string | null;
+  customHtml?: string | null;
 }
 
 export interface MergeFieldSection {

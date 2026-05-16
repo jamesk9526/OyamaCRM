@@ -1,6 +1,6 @@
 # DonorCRM Communications Audit
 
-Last updated: 2026-05-13
+Last updated: 2026-05-16
 
 ## Audit Goal
 
@@ -23,10 +23,10 @@ Confirm the real implementation state of DonorCRM communications-related workflo
 
 | Area | Status | Persistence | Evidence | Notes |
 |---|---|---|---|---|
-| Communications campaign workspace | Partially Working | API-backed | app/communications/page.tsx, server/src/routes/email-campaigns.ts | Campaign CRUD, scheduling, send, and delivery events exist; segment/log UX depth is still evolving. |
+| Communications campaign workspace | Partially Working | API-backed | app/communications/page.tsx, app/components/communications/CampaignWorkspace.tsx, server/src/routes/email-campaigns.ts | `/communications` opens directly to the campaign library. Campaign CRUD, project preview cards, embedded build workspace, scheduling, send, and delivery events exist; segment/log UX depth is still evolving. |
 | Email campaign send safety | Working | API-backed | server/src/routes/email-campaigns.ts | Recipient filtering excludes doNotEmail/emailOptOut and validates SMTP/send constraints. |
 | Campaign recipient timeline logging | Working | API-backed | server/src/routes/email-campaigns.ts | Send flow writes per-recipient Activity entries when constituent email matches. |
-| Email Builder integration | Partially Working | API-backed | app/components/email-builder/EmailBuilderApp.tsx | Builder persists template/body, now includes donor-focused block library, workflow stage cues, grouped personalization fields, and review checklist; advanced versioning not complete. |
+| Email Builder integration | Partially Working | API-backed | app/components/email-builder/EmailBuilderApp.tsx | Builder persists template/body from `/communications/[campaignId]?mode=build`, includes donor-focused block library, workflow stage cues, grouped personalization fields, review checklist, and CRM Branding Settings enforcement; advanced versioning not complete. |
 | Letters and printables | Partially Working | API-backed | server/src/routes/letters.ts, app/components/letters/* | Template CRUD, generated letters, status updates, and email-draft bridge are real; PDF and batch remain partial. |
 | Letter to communication draft bridge | Working | API-backed | POST /api/letters/generated/:id/create-email-draft | Creates linked EmailCampaign draft and updates GeneratedLetter state. |
 | Steward path draft emails | Partially Working | API-backed | server/src/routes/steward-paths.ts | Draft listing and status updates are real; broader orchestration UI depth is still partial. |
@@ -41,8 +41,8 @@ Confirm the real implementation state of DonorCRM communications-related workflo
 No second disconnected systems were introduced in this pass.
 
 - Communications remains the campaign lifecycle home.
-- Email Builder remains editor-only and is launched from communications context.
-- Letters remain print/mail/PDF and bridge into communications drafts.
+- Email Builder remains editor-only and is embedded in the campaign workspace; direct `/email-builder` access is compatibility-only.
+- Letters remain print/mail/PDF in the separate Letters & Printables workspace and are not surfaced as a Communications tab.
 - Steward paths call existing tools rather than introducing alternate channels.
 
 ## Gaps

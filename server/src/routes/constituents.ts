@@ -119,6 +119,92 @@ router.get("/", async (req, res) => {
   res.json(items);
 });
 
+/** GET /api/constituents/tags/catalog — Lists tags used by constituents in the active organization. */
+router.get("/tags/catalog", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json([]);
+    return;
+  }
+
+  const tags = await prisma.tag.findMany({
+    where: {
+      constituents: {
+        some: {
+          constituent: { organizationId },
+        },
+      },
+    },
+    include: {
+      constituents: {
+        where: { constituent: { organizationId } },
+        select: { constituentId: true },
+      },
+    },
+    orderBy: { name: "asc" },
+  });
+
+  res.json(tags.map((tag) => ({
+    id: tag.id,
+    name: tag.name,
+    color: tag.color,
+    description: tag.description,
+    constituentsCount: tag.constituents.length,
+  })));
+});
+
+/** PUT /api/constituents/:id/tags — Replaces one constituent's tag list, creating missing tags by name. */
+router.put("/:id/tags", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const constituent = await prisma.constituent.findFirst({
+    where: { id: req.params.id, organizationId },
+    select: { id: true, firstName: true, lastName: true },
+  });
+  if (!constituent) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Constituent not found." } });
+    return;
+  }
+
+  const tagNames: string[] = Array.isArray(req.body?.tagNames)
+    ? req.body.tagNames.map((value: unknown) => String(value).trim()).filter(Boolean).slice(0, 30)
+    : [];
+  const uniqueNames: string[] = Array.from(new Set(tagNames.map((name) => name.slice(0, 80))));
+
+  const tags = [];
+  for (const name of uniqueNames) {
+    const existing = await prisma.tag.findFirst({ where: { name } });
+    if (existing) {
+      tags.push(existing);
+      continue;
+    }
+    tags.push(await prisma.tag.create({ data: { name, color: name.toLowerCase().includes("non") ? "#64748b" : "#16a34a" } }));
+  }
+
+  await prisma.constituentTag.deleteMany({ where: { constituentId: constituent.id } });
+  if (tags.length > 0) {
+    await prisma.constituentTag.createMany({
+      data: tags.map((tag) => ({ constituentId: constituent.id, tagId: tag.id })),
+      skipDuplicates: true,
+    });
+  }
+
+  await logAudit({
+    action: "CONSTITUENT_TAGS_UPDATED",
+    entity: "Constituent",
+    entityId: constituent.id,
+    organizationId,
+    userId: req.user?.sub,
+    metadata: { tagNames: uniqueNames },
+  });
+
+  res.json({ id: constituent.id, tagNames: uniqueNames });
+});
+
 /** GET /api/constituents/:id — Full constituent profile including donation history, tasks, tags, and household. */
 router.get("/:id", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
@@ -417,6 +503,41 @@ router.post("/import", async (req, res) => {
     return "ACTIVE";
   };
 
+  /** Map import contact-type labels into ConstituentType, using PROSPECT for generic non-donor contacts. */
+  const normalizeConstituentType = (raw: string | undefined, isOrg: boolean): ConstituentType => {
+    const v = (raw ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+    if (isOrg) return "ORGANIZATION";
+    if (!v) return "DONOR";
+    if (["non_donor", "nondonor", "contact", "newsletter", "prospect"].includes(v)) return "PROSPECT";
+    if (v === "volunteer") return "VOLUNTEER";
+    if (v === "member") return "MEMBER";
+    if (v === "sponsor") return "SPONSOR";
+    if (v === "board" || v === "board_member") return "BOARD_MEMBER";
+    if (v === "foundation") return "FOUNDATION";
+    if (v === "organization" || v === "company") return "ORGANIZATION";
+    return "DONOR";
+  };
+
+  /** Applies imported tag text plus donor/non-donor classification tags to one constituent. */
+  const applyImportedTags = async (constituentId: string, rawTags: string | undefined, type: ConstituentType) => {
+    const names = [
+      ...(rawTags ?? "").split(/[,;\n]+/).map((tag) => tag.trim()).filter(Boolean),
+      type === "DONOR" ? "Donor" : "Non-Donor",
+    ];
+    const uniqueNames = Array.from(new Set(names.map((name) => name.slice(0, 80))));
+    for (const name of uniqueNames) {
+      let tag = await prisma.tag.findFirst({ where: { name } });
+      if (!tag) {
+        tag = await prisma.tag.create({ data: { name, color: name === "Non-Donor" ? "#64748b" : "#16a34a" } });
+      }
+      await prisma.constituentTag.upsert({
+        where: { constituentId_tagId: { constituentId, tagId: tag.id } },
+        update: {},
+        create: { constituentId, tagId: tag.id },
+      });
+    }
+  };
+
   /** Build an import metadata note so non-modeled source fields are not silently dropped. */
   const buildImportNotes = (rec: Record<string, string>): string | undefined => {
     const parts: string[] = [];
@@ -484,8 +605,7 @@ router.post("/import", async (req, res) => {
         notes:        [deceasedFlag ? "DECEASED" : undefined, importNotes].filter(Boolean).join("\n") || undefined,
         donorStatus:  normalizeDonorStatus(rec.constituentStatus),
         externalId:   rec.externalId   || undefined,
-        // Set constituent type: org-flagged records → ORGANIZATION, others → DONOR
-        type:         (isOrg ? "ORGANIZATION" : "DONOR") as ConstituentType,
+        type:         normalizeConstituentType(rec.type, isOrg),
         organizationId: resolvedOrgId,
       };
 
@@ -553,11 +673,13 @@ router.post("/import", async (req, res) => {
         if (mode === "create_only") { skipped++; continue; }
         // upsert / update_only — update the existing record (do not change organizationId)
         await prisma.constituent.update({ where: { id: existing.id }, data: scalars });
+        await applyImportedTags(existing.id, rec.tags, data.type);
         updated++;
       } else {
         if (mode === "update_only") { skipped++; continue; }
         // Create new constituent — include organizationId relation key
-        await prisma.constituent.create({ data: { ...scalars, organizationId: resolvedOrgId } });
+        const createdConstituent = await prisma.constituent.create({ data: { ...scalars, organizationId: resolvedOrgId } });
+        await applyImportedTags(createdConstituent.id, rec.tags, data.type);
         created++;
       }
     } catch (err) {

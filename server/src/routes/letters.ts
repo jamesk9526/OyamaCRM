@@ -3,7 +3,10 @@
  * Provides template management, merge preview, generated letters, and email-draft integration.
  */
 import { Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { Router, type Request } from "express";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { logAudit } from "../lib/audit.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { hasDefaultPermission } from "../lib/permissions.js";
@@ -39,6 +42,14 @@ const MAIL_QUEUE_STATUSES = ["QUEUED_FOR_MAIL", "MAILED", "RETURNED", "ADDRESS_I
 const LETTER_PRIORITY = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
 const LETTER_WORKFLOW_POLICY_PLUGIN_KEY = "letters-workflow-settings";
 const PDF_FALLBACK_MODES = ["BROWSER_PRINT", "SERVER_RENDER"] as const;
+const LETTER_MEDIA_EXTENSIONS: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/svg+xml": "svg",
+};
 
 type PrintQueueStatus = (typeof PRINT_QUEUE_STATUSES)[number];
 type MailQueueStatus = (typeof MAIL_QUEUE_STATUSES)[number];
@@ -71,6 +82,15 @@ interface GeneratedLetterQueueMetadata {
 }
 
 router.use(requireAuth);
+
+/** Resolves a safe image extension for editor and signature uploads. */
+function resolveLetterMediaExtension(mimeType: string, fileName: string): string {
+  const normalized = mimeType.toLowerCase();
+  if (LETTER_MEDIA_EXTENSIONS[normalized]) return LETTER_MEDIA_EXTENSIONS[normalized];
+  const fromName = fileName.split(".").pop()?.toLowerCase() ?? "";
+  if (["png", "jpg", "jpeg", "webp", "gif", "svg"].includes(fromName)) return fromName === "jpeg" ? "jpg" : fromName;
+  return "png";
+}
 
 /** Validates and returns the active organization context for one request. */
 async function requireOrganizationId(req: Request): Promise<string | null> {
@@ -585,6 +605,67 @@ router.get("/merge-fields", requirePermission("letters.view"), async (req, res) 
     sections: sections.filter((section) => (section.sensitive ? canViewSensitive : true)),
     canViewSensitive,
   });
+});
+
+/**
+ * POST /api/letters/media — Uploads one editor/signature image and returns a public URL.
+ * Request: { fileName: string, mimeType: image/*, dataBase64: string, purpose?: "editor" | "signature" | "preset" }
+ * Response: { url, fileName, mimeType, sizeBytes }
+ */
+router.post("/media", requirePermission("letters.edit"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const fileName = typeof req.body?.fileName === "string" ? req.body.fileName.trim() : "";
+  const mimeType = typeof req.body?.mimeType === "string" ? req.body.mimeType.trim().toLowerCase() : "";
+  const dataBase64 = typeof req.body?.dataBase64 === "string" ? req.body.dataBase64.trim() : "";
+  const purpose = typeof req.body?.purpose === "string" ? req.body.purpose.trim().toLowerCase() : "editor";
+
+  if (!fileName || !dataBase64) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "fileName and dataBase64 are required." } });
+    return;
+  }
+  if (!mimeType.startsWith("image/")) {
+    res.status(400).json({ error: { code: "INVALID_MEDIA_TYPE", message: "Only image uploads are supported for printables." } });
+    return;
+  }
+
+  const normalizedData = dataBase64.includes(",") ? dataBase64.split(",").pop() ?? "" : dataBase64;
+  const buffer = Buffer.from(normalizedData, "base64");
+  if (!buffer || buffer.byteLength === 0) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid base64 payload." } });
+    return;
+  }
+
+  const maxBytes = purpose === "signature" ? 2 * 1024 * 1024 : 5 * 1024 * 1024;
+  if (buffer.byteLength > maxBytes) {
+    res.status(413).json({ error: { code: "PAYLOAD_TOO_LARGE", message: `Image upload must be ${Math.round(maxBytes / 1024 / 1024)}MB or smaller.` } });
+    return;
+  }
+
+  const ext = resolveLetterMediaExtension(mimeType, fileName);
+  const safeName = `${randomUUID()}.${ext}`;
+  const uploadDir = path.resolve(process.cwd(), "public", "uploads", "letter-media", organizationId);
+  const targetPath = path.join(uploadDir, safeName);
+
+  await mkdir(uploadDir, { recursive: true });
+  await writeFile(targetPath, buffer);
+
+  const publicUrl = `/uploads/letter-media/${organizationId}/${safeName}`;
+  await logAudit({
+    action: "LETTER_MEDIA_UPLOADED",
+    entity: "LetterMedia",
+    entityId: safeName,
+    organizationId,
+    userId,
+    metadata: { fileName, mimeType, purpose, sizeBytes: buffer.byteLength, publicUrl },
+  });
+
+  res.status(201).json({ url: publicUrl, fileName, mimeType, sizeBytes: buffer.byteLength });
 });
 
 /** GET /api/letters/templates — Lists letter templates for the active organization. */

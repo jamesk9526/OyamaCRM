@@ -1,7 +1,7 @@
 /** TipTap-based form letter editor with merge-token insertion, print-safe controls, and optional raw HTML mode. */
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Color from "@tiptap/extension-color";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
@@ -24,6 +24,9 @@ interface FormLetterRichEditorProps {
   minHeight?: number;
   htmlLabel?: string;
   onRegisterInsert?: (handler: (token: string) => void) => void;
+  mergeFields?: string[];
+  studioMode?: boolean;
+  onUploadImage?: (file: File) => Promise<string>;
 }
 
 interface ToolbarButtonProps {
@@ -58,10 +61,14 @@ export default function FormLetterRichEditor({
   minHeight = 260,
   htmlLabel = "Edit raw HTML",
   onRegisterInsert,
+  mergeFields = [],
+  studioMode = false,
+  onUploadImage,
 }: FormLetterRichEditorProps) {
   const [promptMode, setPromptMode] = useState<"link" | "image" | null>(null);
   const [promptValue, setPromptValue] = useState("");
   const [htmlMode, setHtmlMode] = useState(false);
+  const [mergeQuery, setMergeQuery] = useState<string | null>(null);
 
   const editor = useEditor({
     extensions: [
@@ -94,10 +101,13 @@ export default function FormLetterRichEditor({
     immediatelyRender: false,
     onUpdate: ({ editor: nextEditor }) => {
       onChange(nextEditor.getHTML());
+      updateMergeSuggestion(nextEditor);
     },
+    onSelectionUpdate: ({ editor: nextEditor }) => updateMergeSuggestion(nextEditor),
   });
 
   const editorRef = useRef(editor);
+  const imageFileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     editorRef.current = editor;
@@ -135,6 +145,59 @@ export default function FormLetterRichEditor({
     setPromptValue(previousHref ?? "https://");
   }
 
+  /** Reads the text immediately before the cursor so typing "{{" can surface merge tokens inline. */
+  function updateMergeSuggestion(nextEditor = editor) {
+    if (!nextEditor || mergeFields.length === 0) {
+      setMergeQuery(null);
+      return;
+    }
+
+    const selectionFrom = nextEditor.state.selection.from;
+    const textBeforeCursor = nextEditor.state.doc.textBetween(Math.max(0, selectionFrom - 60), selectionFrom, "\n", "\n");
+    const match = textBeforeCursor.match(/\{\{[a-zA-Z0-9_.-]*$/);
+    setMergeQuery(match ? match[0] : null);
+  }
+
+  /** Replaces the in-progress "{{" query with the chosen full merge token. */
+  function applyMergeSuggestion(token: string) {
+    if (!editor || !mergeQuery) return;
+    const to = editor.state.selection.from;
+    const from = Math.max(0, to - mergeQuery.length);
+    editor.chain().focus().deleteRange({ from, to }).insertContent([{ type: "text", text: token, marks: [{ type: "code" }] }]).run();
+    setMergeQuery(null);
+  }
+
+  /** Adds common content structures so users can build a printable without knowing HTML. */
+  function insertContentBlock(kind: "address" | "receipt" | "callout" | "signature") {
+    if (!editor) return;
+
+    if (kind === "address") {
+      editor.chain().focus().insertContent("<p>{{donor.fullName}}<br />{{donor.addressLine1}}<br />{{donor.city}}, {{donor.state}} {{donor.zip}}</p>").run();
+      return;
+    }
+    if (kind === "receipt") {
+      editor
+        .chain()
+        .focus()
+        .insertContent("<table><tbody><tr><th>Gift Date</th><th>Amount</th><th>Fund</th></tr><tr><td>{{gift.date}}</td><td>{{gift.amount}}</td><td>{{gift.designation}}</td></tr></tbody></table>")
+        .run();
+      return;
+    }
+    if (kind === "callout") {
+      editor.chain().focus().insertContent('<blockquote><p>Add an impact highlight or donor-specific note here.</p></blockquote>').run();
+      return;
+    }
+    editor.chain().focus().insertContent("<p>Sincerely,</p><p>{{organization.signerName}}<br />{{organization.signerTitle}}</p>").run();
+  }
+
+  const suggestedFields = useMemo(() => {
+    if (!mergeQuery) return [];
+    const normalizedQuery = mergeQuery.replace("{{", "").toLowerCase();
+    return mergeFields
+      .filter((field) => field.toLowerCase().includes(normalizedQuery))
+      .slice(0, 8);
+  }, [mergeFields, mergeQuery]);
+
   /** Inserts a print page-break marker as a semantic horizontal separator for letter layout. */
   function insertPageBreakMarker() {
     if (!editor) return;
@@ -146,6 +209,17 @@ export default function FormLetterRichEditor({
     if (!editor) return;
     setPromptMode("image");
     setPromptValue("https://");
+  }
+
+  /** Uploads a local image and inserts the returned public URL into the document. */
+  async function uploadImageFile(file: File | undefined) {
+    if (!file || !editor || !onUploadImage) return;
+    try {
+      const url = await onUploadImage(file);
+      editor.chain().focus().setImage({ src: url }).run();
+    } finally {
+      if (imageFileInputRef.current) imageFileInputRef.current.value = "";
+    }
   }
 
   /** Applies the active link/image prompt action and closes the dialog. */
@@ -227,12 +301,22 @@ export default function FormLetterRichEditor({
               <div className="flex flex-wrap gap-1 rounded-md border border-gray-200 bg-white p-1">
                 <ToolbarButton label="Link" active={!!editor?.isActive("link")} onClick={handleSetLink} />
                 <ToolbarButton label="Image" onClick={insertImageFromUrl} />
+                {onUploadImage && <ToolbarButton label="Upload Image" onClick={() => imageFileInputRef.current?.click()} />}
                 <ToolbarButton label="Table" onClick={() => editor?.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: true }).run()} />
                 <ToolbarButton label="Add Row" onClick={() => editor?.chain().focus().addRowAfter().run()} />
                 <ToolbarButton label="Add Col" onClick={() => editor?.chain().focus().addColumnAfter().run()} />
                 <ToolbarButton label="Page Break" onClick={insertPageBreakMarker} />
                 <ToolbarButton label="HR" onClick={() => editor?.chain().focus().setHorizontalRule().run()} />
               </div>
+
+              {studioMode && (
+                <div className="flex flex-wrap gap-1 rounded-md border border-gray-200 bg-white p-1">
+                  <ToolbarButton label="Address" onClick={() => insertContentBlock("address")} />
+                  <ToolbarButton label="Gift Table" onClick={() => insertContentBlock("receipt")} />
+                  <ToolbarButton label="Callout" onClick={() => insertContentBlock("callout")} />
+                  <ToolbarButton label="Signature" onClick={() => insertContentBlock("signature")} />
+                </div>
+              )}
 
               <div className="ml-auto flex flex-wrap gap-1 rounded-md border border-gray-200 bg-white p-1">
                 <ToolbarButton label="Undo" onClick={() => editor?.chain().focus().undo().run()} />
@@ -248,12 +332,43 @@ export default function FormLetterRichEditor({
               </div>
             </div>
           </div>
+          {onUploadImage && (
+            <input
+              ref={imageFileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+              className="sr-only"
+              onChange={(event) => void uploadImageFile(event.target.files?.[0])}
+            />
+          )}
 
-          <div
-            className="rounded border border-gray-300 bg-white px-3 py-3 text-sm text-gray-800 [&_.ProseMirror]:min-h-[220px] [&_.ProseMirror]:outline-none [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-green-50 [&_.ProseMirror_code]:px-1 [&_.ProseMirror_code]:py-0.5 [&_.ProseMirror_code]:text-green-700 [&_.ProseMirror_hr[data-page-break='true']]:my-6 [&_.ProseMirror_hr[data-page-break='true']]:border-t-2 [&_.ProseMirror_hr[data-page-break='true']]:border-dashed [&_.ProseMirror_hr[data-page-break='true']]:border-gray-400"
-            style={{ minHeight }}
-          >
-            <EditorContent editor={editor} />
+          <div className="relative">
+            {suggestedFields.length > 0 && (
+              <div className="absolute left-8 top-4 z-20 w-72 rounded-lg border border-green-200 bg-white p-2 shadow-lg">
+                <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-green-700">Merge Fields</p>
+                <div className="max-h-56 overflow-auto">
+                  {suggestedFields.map((field) => (
+                    <button
+                      key={field}
+                      type="button"
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        applyMergeSuggestion(field);
+                      }}
+                      className="block w-full rounded px-2 py-1.5 text-left font-mono text-xs text-gray-700 hover:bg-green-50"
+                    >
+                      {field}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div
+              className="rounded border border-gray-300 bg-white px-3 py-3 text-sm text-gray-800 [&_.ProseMirror]:min-h-[220px] [&_.ProseMirror]:outline-none [&_.ProseMirror_blockquote]:border-l-4 [&_.ProseMirror_blockquote]:border-green-200 [&_.ProseMirror_blockquote]:bg-green-50 [&_.ProseMirror_blockquote]:px-4 [&_.ProseMirror_blockquote]:py-2 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-green-50 [&_.ProseMirror_code]:px-1 [&_.ProseMirror_code]:py-0.5 [&_.ProseMirror_code]:text-green-700 [&_.ProseMirror_hr[data-page-break='true']]:my-6 [&_.ProseMirror_hr[data-page-break='true']]:border-t-2 [&_.ProseMirror_hr[data-page-break='true']]:border-dashed [&_.ProseMirror_hr[data-page-break='true']]:border-gray-400 [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-gray-300 [&_.ProseMirror_td]:p-2 [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-gray-300 [&_.ProseMirror_th]:bg-gray-50 [&_.ProseMirror_th]:p-2"
+              style={{ minHeight }}
+            >
+              <EditorContent editor={editor} />
+            </div>
           </div>
         </>
       )}

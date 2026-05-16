@@ -1,18 +1,49 @@
-/** Signature block management UI for reusable signer presets. */
+/** Signature block management UI for reusable signer presets with handwritten image uploads. */
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import type { SignatureBlock } from "@/app/components/letters/types";
 
-/** Manages create/edit for signature presets used by letter templates. */
+interface SignatureForm {
+  name: string;
+  signerName: string;
+  signerTitle: string;
+  closingPhrase: string;
+  signatureImageUrl: string;
+  typedSignature: string;
+  email: string;
+  phone: string;
+  isDefault: boolean;
+  isActive: boolean;
+}
+
+const EMPTY_FORM: SignatureForm = {
+  name: "",
+  signerName: "",
+  signerTitle: "",
+  closingPhrase: "With gratitude,",
+  signatureImageUrl: "",
+  typedSignature: "",
+  email: "",
+  phone: "",
+  isDefault: false,
+  isActive: true,
+};
+
+/** Manages create/edit for signature presets used by printable letter templates. */
 export default function LetterSignaturesManager() {
   const [items, setItems] = useState<SignatureBlock[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [form, setForm] = useState<SignatureForm>(EMPTY_FORM);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [signerName, setSignerName] = useState("");
-  const [signerTitle, setSignerTitle] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const selected = useMemo(() => items.find((item) => item.id === selectedId) ?? null, [items, selectedId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -20,83 +51,194 @@ export default function LetterSignaturesManager() {
     try {
       const result = await apiFetch<SignatureBlock[]>("/api/letters/signatures");
       setItems(result);
+      if (!selectedId && result.length > 0) setSelectedId(result[0].id);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to load signatures.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedId]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  /** Creates one signature block with the minimum required signer fields. */
-  async function createSignature() {
-    await apiFetch("/api/letters/signatures", {
-      method: "POST",
-      body: JSON.stringify({
-        name,
-        signerName,
-        signerTitle: signerTitle || null,
-        isActive: true,
-      }),
+  useEffect(() => {
+    if (!selected) {
+      setForm(EMPTY_FORM);
+      return;
+    }
+    setForm({
+      name: selected.name,
+      signerName: selected.signerName,
+      signerTitle: selected.signerTitle ?? "",
+      closingPhrase: selected.closingPhrase ?? "",
+      signatureImageUrl: selected.signatureImageUrl ?? "",
+      typedSignature: selected.typedSignature ?? "",
+      email: selected.email ?? "",
+      phone: selected.phone ?? "",
+      isDefault: selected.isDefault,
+      isActive: selected.isActive,
     });
-    setName("");
-    setSignerName("");
-    setSignerTitle("");
-    await load();
+  }, [selected]);
+
+  function startNew() {
+    setSelectedId(null);
+    setForm(EMPTY_FORM);
+    setMessage(null);
+    setError(null);
   }
 
-  /** Toggles one signature active state for soft enable/disable behavior. */
-  async function toggleActive(item: SignatureBlock) {
-    await apiFetch(`/api/letters/signatures/${item.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ isActive: !item.isActive }),
-    });
-    await load();
+  async function saveSignature() {
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const payload = {
+        ...form,
+        signerTitle: form.signerTitle || null,
+        closingPhrase: form.closingPhrase || null,
+        signatureImageUrl: form.signatureImageUrl || null,
+        typedSignature: form.typedSignature || null,
+        email: form.email || null,
+        phone: form.phone || null,
+      };
+
+      const saved = selectedId
+        ? await apiFetch<SignatureBlock>(`/api/letters/signatures/${selectedId}`, { method: "PATCH", body: JSON.stringify(payload) })
+        : await apiFetch<SignatureBlock>("/api/letters/signatures", { method: "POST", body: JSON.stringify(payload) });
+
+      setSelectedId(saved.id);
+      await load();
+      setMessage("Signature preset saved.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to save signature.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /** Uploads a scanned/photographed handwritten signature and stores its public URL on the preset. */
+  async function uploadSignature(file: File | undefined) {
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const dataBase64 = await readFileAsDataUrl(file);
+      const uploaded = await apiFetch<{ url: string }>("/api/letters/media", {
+        method: "POST",
+        body: JSON.stringify({
+          fileName: file.name,
+          mimeType: file.type || "image/png",
+          dataBase64,
+          purpose: "signature",
+        }),
+      });
+      setForm((prev) => ({ ...prev, signatureImageUrl: uploaded.url }));
+      setMessage("Signature image uploaded. Save the preset to keep it.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to upload signature image.");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   }
 
   return (
-    <div className="space-y-5 pt-2">
-      {error && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{error}</div>}
-
-      <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-gray-900">Add Signature Block</h2>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Preset name" className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-          <input value={signerName} onChange={(event) => setSignerName(event.target.value)} placeholder="Signer name" className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-          <input value={signerTitle} onChange={(event) => setSignerTitle(event.target.value)} placeholder="Signer title" className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+    <div className="grid gap-4 pt-2 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <section className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-gray-900">Saved Signatures</h2>
+          <button type="button" onClick={startNew} className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">New</button>
         </div>
-        <button onClick={() => void createSignature()} className="px-4 py-2 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700">Save Signature</button>
+        <div className="space-y-2">
+          {loading ? <p className="text-sm text-gray-500">Loading...</p> : items.length === 0 ? <p className="text-sm text-gray-500">No signatures yet.</p> : items.map((item) => (
+            <button key={item.id} type="button" onClick={() => setSelectedId(item.id)} className={`w-full rounded-lg border px-3 py-2 text-left ${selectedId === item.id ? "border-green-300 bg-green-50" : "border-gray-200 hover:bg-gray-50"}`}>
+              <p className="truncate text-sm font-semibold text-gray-900">{item.name}</p>
+              <p className="mt-0.5 text-xs text-gray-500">{item.signerName}{item.signerTitle ? ` · ${item.signerTitle}` : ""}</p>
+              <p className="mt-0.5 text-xs text-gray-400">{item.isDefault ? "Default" : "Custom"} · {item.isActive ? "Active" : "Inactive"}</p>
+            </button>
+          ))}
+        </div>
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-gray-900">Saved Signatures</h2>
-          <button onClick={() => void load()} className="text-xs text-gray-500 hover:text-gray-700">Refresh</button>
-        </div>
+        {error && <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{error}</div>}
+        {message && <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{message}</div>}
 
-        <div className="mt-3 space-y-2">
-          {loading ? (
-            <p className="text-sm text-gray-500">Loading...</p>
-          ) : items.length === 0 ? (
-            <p className="text-sm text-gray-500">No signatures yet.</p>
-          ) : (
-            items.map((item) => (
-              <div key={item.id} className="rounded-lg border border-gray-200 p-3 flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{item.name}</p>
-                  <p className="text-xs text-gray-500">{item.signerName}{item.signerTitle ? ` · ${item.signerTitle}` : ""}</p>
-                </div>
-                <button onClick={() => void toggleActive(item)} className="px-3 py-1.5 text-xs border border-gray-300 rounded text-gray-700 hover:bg-gray-50">
-                  {item.isActive ? "Disable" : "Enable"}
-                </button>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-gray-900">{selected ? "Edit Signature" : "New Signature"}</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Preset Name"><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" /></Field>
+              <Field label="Signer Name"><input value={form.signerName} onChange={(event) => setForm({ ...form, signerName: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" /></Field>
+              <Field label="Signer Title"><input value={form.signerTitle} onChange={(event) => setForm({ ...form, signerTitle: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" /></Field>
+              <Field label="Closing Phrase"><input value={form.closingPhrase} onChange={(event) => setForm({ ...form, closingPhrase: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" /></Field>
+              <Field label="Email"><input value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" /></Field>
+              <Field label="Phone"><input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" /></Field>
+            </div>
+            <Field label="Typed Signature Fallback">
+              <input value={form.typedSignature} onChange={(event) => setForm({ ...form, typedSignature: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Jane A. Smith" />
+            </Field>
+            <Field label="Handwritten Signature Image URL">
+              <div className="flex gap-2">
+                <input value={form.signatureImageUrl} onChange={(event) => setForm({ ...form, signatureImageUrl: event.target.value })} className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="/uploads/letter-media/..." />
+                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60">{uploading ? "Uploading..." : "Upload"}</button>
               </div>
-            ))
-          )}
+              <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="sr-only" onChange={(event) => void uploadSignature(event.target.files?.[0])} />
+              <p className="mt-1 text-xs text-gray-500">Use a transparent PNG or clean white-background scan for the most professional rendered letter.</p>
+            </Field>
+            <div className="flex flex-wrap gap-3">
+              <Toggle label="Default" checked={form.isDefault} onChange={(value) => setForm({ ...form, isDefault: value })} />
+              <Toggle label="Active" checked={form.isActive} onChange={(value) => setForm({ ...form, isActive: value })} />
+            </div>
+            <button type="button" onClick={() => void saveSignature()} disabled={saving || !form.name.trim() || !form.signerName.trim()} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60">{saving ? "Saving..." : "Save Signature"}</button>
+          </div>
+
+          <SignaturePreview form={form} />
         </div>
       </section>
     </div>
   );
+}
+
+function SignaturePreview({ form }: { form: SignatureForm }) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Rendered Preview</p>
+      <div className="mt-3 rounded border border-gray-300 bg-white p-6 text-sm text-gray-800 shadow-sm">
+        {form.closingPhrase && <p>{form.closingPhrase}</p>}
+        {form.signatureImageUrl ? (
+          <img src={form.signatureImageUrl} alt="" className="mt-4 max-h-20 max-w-56 object-contain" />
+        ) : (
+          <p className="mt-4 font-serif text-2xl text-gray-900">{form.typedSignature || form.signerName || "Signature"}</p>
+        )}
+        <p className="mt-4 font-semibold">{form.signerName || "Signer Name"}</p>
+        {form.signerTitle && <p className="text-gray-500">{form.signerTitle}</p>}
+        {[form.email, form.phone].filter(Boolean).length > 0 && <p className="mt-1 text-xs text-gray-500">{[form.email, form.phone].filter(Boolean).join(" | ")}</p>}
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return <label className="block text-xs font-semibold text-gray-600">{label}<div className="mt-1">{children}</div></label>;
+}
+
+function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-700">
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-4 w-4 rounded border-gray-300 text-green-600" />
+      {label}
+    </label>
+  );
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("Failed to read signature image."));
+    reader.readAsDataURL(file);
+  });
 }

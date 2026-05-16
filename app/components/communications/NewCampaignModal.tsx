@@ -1,17 +1,18 @@
 /** Modal for creating stewardship email campaigns with template, audience, and schedule setup. */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import { fetchBrandingSettings } from "@/app/lib/branding-settings";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 const TEMPLATES = [
-  { id: "newsletter", name: "Monthly Ministry Update", subject: "Monthly Ministry Update — {{organization_name}}", description: "Monthly stewardship newsletter with donor impact updates" },
+  { id: "newsletter", name: "Monthly Ministry Update", subject: "Monthly Ministry Update - {{organizationName}}", description: "Monthly stewardship newsletter with donor impact updates" },
   { id: "impact", name: "Donor Impact Newsletter", subject: "Your generosity in action, {{first_name | Friend}}", description: "Impact highlights, stories, and campaign progress" },
   { id: "thanks", name: "Thank-You Email", subject: "Thank you for your generosity, {{first_name | Friend}}", description: "Post-donation acknowledgment and next-step stewardship" },
   { id: "event", name: "Event Announcement", subject: "You’re invited: {{event_name}}", description: "Event invitation, details, and RSVP call-to-action" },
   { id: "appeal", name: "Giving Appeal", subject: "Help us reach more families this month", description: "Fundraising appeal tied to current ministry needs" },
-  { id: "board", name: "Board Update", subject: "Board Update — {{organization_name}}", description: "Internal board-level update template" },
+  { id: "board", name: "Board Update", subject: "Board Update - {{organizationName}}", description: "Internal board-level update template" },
   { id: "volunteer", name: "Volunteer Newsletter", subject: "Volunteer update and upcoming opportunities", description: "Volunteer stories, needs, and opportunities" },
   { id: "blank", name: "Blank", subject: "", description: "Start from scratch" },
 ];
@@ -56,8 +57,8 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
     name: "",
     subject: "",
     previewText: "",
-    fromName: "Hope Community Foundation",
-    fromEmail: "giving@hopecommunity.org",
+    fromName: "",
+    fromEmail: "",
     replyToEmail: "",
     audienceId: "all",
     scheduledAt: "",
@@ -69,6 +70,25 @@ export default function NewCampaignModal({ onClose, onCreated }: Props) {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewAudienceId, setPreviewAudienceId] = useState<string | null>(null);
   const [sharedWithOrganization, setSharedWithOrganization] = useState(false);
+
+  /** Seeds sender identity from CRM Branding Settings so new campaigns start on-brand. */
+  useEffect(() => {
+    let cancelled = false;
+    fetchBrandingSettings().then((branding) => {
+      if (cancelled) return;
+      setForm((current) => ({
+        ...current,
+        fromName: !current.fromName.trim()
+          ? branding.organizationDisplayName || branding.legalOrganizationName || current.fromName
+          : current.fromName,
+        fromEmail: !current.fromEmail.trim() ? branding.contactEmail || current.fromEmail : current.fromEmail,
+        replyToEmail: current.replyToEmail || branding.contactEmail || "",
+      }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function set(field: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [field]: value }));

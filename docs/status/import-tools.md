@@ -1,6 +1,6 @@
 # Import Tools Status
 
-_Last deep audit: 2026-05-11_
+_Last deep audit: 2026-05-16_
 
 ## Summary
 
@@ -13,6 +13,7 @@ Donor-side and Compassion-side import tooling is operational and API-backed for 
 | Data Tools | Constituent import wizard | Working | Real API Data | `app/data-tools/import/ImportWizard.tsx` posts to `/api/constituents/import` with dry-run support. | Add import history UI + rollback support for accepted imports. |
 | Data Tools | Donation import wizard | Working | Real API Data | `DonationImportWizard.tsx` posts to `/api/donations/import`; endpoint links constituents/campaigns/designations. Auto-map aliases now include eKYROS `Donations_List` headers (e.g. `FormDate1`, `AmountReceived`, `PaymentTypeDesc`, `EventName`). | Add dry-run parity checks and rollback tooling for donation imports. |
 | Data Tools | Field mapping engine | Working | Real API Data | `fieldMap.ts` + `donationFieldMap.ts` + `compassionFieldMap.ts` provide mapping aliases and required-field behavior, including real export headers from office datasets. | Keep maps synchronized whenever schema fields are added. |
+| Data Tools | Donor/non-donor tagging on constituent import | Working | Real API Data | Constituent import now maps Contact Type / Constituent Type into `Constituent.type` and applies Donor or Non-Donor tags alongside imported Tags / Keywords. | Add bulk tag cleanup tools in Contacts Manager after more production import runs. |
 | Data Tools | Duplicate review + merge | Partial | Mixed Real/Demo Data | `MergeWorkflow.tsx` provides review UI but no backend merge write endpoint. | Implement `POST /api/constituents/merge` with conflict-resolution options. |
 | Data Tools | Saved mapping templates | Partial | Mixed Real/Demo Data | Save support exists but load/history flow is not complete end-to-end. | Add mapping template management APIs and selector UI. |
 | Data Tools | Compassion client import wizard | Working | Real API Data | `app/compassion/import/clients/CompassionClientImportWizard.tsx` posts to `/api/compassion/clients/import` with dry-run, auto-delimiter, paste-text, downloadable error report, in-file dedup, and `Full Name(Preferred)` parsing. Import flow now preserves additional non-modeled demographics/source metadata in private notes for real eKYROS datasets. Validation lives in `clientImportValidator.ts` (unit-tested). | Add import-history page + rollback (Batch 2). |

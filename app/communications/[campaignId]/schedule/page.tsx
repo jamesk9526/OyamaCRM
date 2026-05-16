@@ -7,8 +7,8 @@ export default function CommunicationSchedulePage() {
     <CommunicationCampaignActionPage
       title="Campaign Schedule"
       helper="Set send time and execution options for this campaign."
-      ctaLabel="Open Send Queue"
-      ctaHref="/communications?view=send-queue"
+      ctaLabel="Open Send Workspace"
+      ctaHref="/communications/:campaignId?mode=send"
     />
   );
 }

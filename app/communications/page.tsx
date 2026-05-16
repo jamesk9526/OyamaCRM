@@ -6,9 +6,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import CommunicationsSegmentsPanel from "@/app/components/communications/CommunicationsSegmentsPanel";
 import CommunicationsSettingsPanel from "@/app/components/communications/CommunicationsSettingsPanel";
 import CommunicationsTemplatesPanel from "@/app/components/communications/CommunicationsTemplatesPanel";
+import EmailProjectLibrary from "@/app/components/communications/EmailProjectLibrary";
 import NewCampaignModal from "@/app/components/communications/NewCampaignModal";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
-import WorkspaceProjectLibrary from "@/app/components/workspace-ribbon/WorkspaceProjectLibrary";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonFrame from "@/app/components/workspace-ribbon/WorkspaceRibbonFrame";
@@ -20,7 +20,6 @@ type WorkspaceTab =
   | "overview"
   | "email-campaigns"
   | "email-drafts"
-  | "letters"
   | "templates"
   | "segments"
   | "send-queue"
@@ -59,34 +58,6 @@ interface Stats {
   draft: number;
   totalRecipientsSent: number;
   avgOpenRate: number;
-}
-
-interface LetterDashboardStats {
-  activeTemplates: number;
-  generatedThisMonth: number;
-  thankYouPending: number;
-  taxReceiptsGenerated: number;
-  emailDrafts: number;
-}
-
-interface GeneratedLetterRecord {
-  id: string;
-  templateId: string;
-  category: string;
-  status: string;
-  generatedAt: string;
-  emailCampaignId?: string | null;
-  constituent?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email?: string | null;
-  };
-  template?: {
-    id: string;
-    name: string;
-    category: string;
-  };
 }
 
 interface StewardPathEmailDraft {
@@ -144,7 +115,6 @@ const WORKSPACE_TABS: WorkspaceTab[] = [
   "overview",
   "email-campaigns",
   "email-drafts",
-  "letters",
   "templates",
   "segments",
   "send-queue",
@@ -170,22 +140,12 @@ function pct(n: number, d: number) {
   return `${Math.round((n / d) * 100)}%`;
 }
 
-function toCommonStatus(channel: "email" | "letter" | "pathDraft", status: string): string {
+function toCommonStatus(channel: "email" | "pathDraft", status: string): string {
   if (channel === "email") {
     if (status === "DRAFT") return "Draft";
     if (status === "SCHEDULED" || status === "SENDING") return "Scheduled";
     if (status === "SENT") return "Sent";
     if (status === "CANCELLED") return "Canceled";
-    return status;
-  }
-
-  if (channel === "letter") {
-    if (status === "GENERATED") return "Generated";
-    if (status === "PRINTED") return "Printed";
-    if (status === "MAILED") return "Mailed";
-    if (status === "EMAIL_DRAFT_CREATED") return "Draft";
-    if (status === "EMAIL_SENT") return "Sent";
-    if (status === "ARCHIVED") return "Archived";
     return status;
   }
 
@@ -198,18 +158,16 @@ function toCommonStatus(channel: "email" | "letter" | "pathDraft", status: strin
   return status;
 }
 
-/** CommunicationsPage is the donor outreach hub tying together campaigns, letters, drafts, and logs. */
+/** CommunicationsPage is the donor email outreach hub for campaign projects, drafts, queues, and logs. */
 export default function CommunicationsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [campaigns, setCampaigns] = useState<EmailCampaign[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [lettersStats, setLettersStats] = useState<LetterDashboardStats | null>(null);
-  const [generatedLetters, setGeneratedLetters] = useState<GeneratedLetterRecord[]>([]);
   const [pathDrafts, setPathDrafts] = useState<StewardPathEmailDraft[]>([]);
 
   const [loading, setLoading] = useState(true);
-  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("overview");
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("email-campaigns");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showModal, setShowModal] = useState(false);
   const [sending, setSending] = useState<string | null>(null);
@@ -225,18 +183,14 @@ export default function CommunicationsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [campaignResult, statsResult, lettersStatsResult, generatedLettersResult, pathDraftsResult] = await Promise.allSettled([
+      const [campaignResult, statsResult, pathDraftsResult] = await Promise.allSettled([
         apiFetch<EmailCampaign[]>("/api/email-campaigns"),
         apiFetch<Stats>("/api/email-campaigns/stats"),
-        apiFetch<LetterDashboardStats>("/api/letters/dashboard"),
-        apiFetch<GeneratedLetterRecord[]>("/api/letters/generated?limit=120"),
         apiFetch<StewardPathEmailDraft[]>("/api/steward-paths/email-drafts?limit=120"),
       ]);
 
       setCampaigns(campaignResult.status === "fulfilled" ? campaignResult.value : []);
       setStats(statsResult.status === "fulfilled" ? statsResult.value : null);
-      setLettersStats(lettersStatsResult.status === "fulfilled" ? lettersStatsResult.value : null);
-      setGeneratedLetters(generatedLettersResult.status === "fulfilled" ? generatedLettersResult.value : []);
       setPathDrafts(pathDraftsResult.status === "fulfilled" ? pathDraftsResult.value : []);
     } finally {
       setLoading(false);
@@ -253,6 +207,13 @@ export default function CommunicationsPage() {
     if (!view) return;
     if (WORKSPACE_TABS.includes(view as WorkspaceTab)) {
       setWorkspaceTab(view as WorkspaceTab);
+    }
+  }, [searchParams]);
+
+  /** Opens the new-campaign flow from project-library deep links. */
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setShowModal(true);
     }
   }, [searchParams]);
 
@@ -378,11 +339,7 @@ export default function CommunicationsPage() {
 
   /** Builds an email-builder href with return-path context. */
   function buildBuilderHref(id: string): string {
-    const params = new URLSearchParams({
-      campaign: id,
-      returnTo: `/communications/${id}`,
-    });
-    return `/email-builder?${params.toString()}`;
+    return `/communications/${id}?mode=build`;
   }
 
   function openEditor(id: string) {
@@ -409,11 +366,7 @@ export default function CommunicationsPage() {
     + pathDrafts.filter((draft) => REVIEW_REQUIRED_PATH_STATUSES.has(draft.status)).length;
   const failedCommunications = pathDrafts.filter((draft) => draft.status === "FAILED").length
     + campaigns.filter((campaign) => campaign.status === "CANCELLED").length;
-  const lettersWaitingPrint = generatedLetters.filter((letter) => letter.status === "GENERATED").length;
-  const lettersWaitingMail = generatedLetters.filter((letter) => letter.status === "PRINTED").length;
   const activePathDrafts = pathDrafts.filter((draft) => ACTIVE_PATH_STATUSES.has(draft.status)).length;
-
-  const letterEmailDrafts = generatedLetters.filter((letter) => letter.status === "EMAIL_DRAFT_CREATED" || Boolean(letter.emailCampaignId));
 
   const communicationLog = useMemo<CommunicationLogItem[]>(() => {
     const campaignLog: CommunicationLogItem[] = campaigns.map((campaign) => ({
@@ -427,19 +380,6 @@ export default function CommunicationsPage() {
       detail: campaign.subject || "No subject",
     }));
 
-    const letterLog: CommunicationLogItem[] = generatedLetters.map((letter) => ({
-      id: `letter-${letter.id}`,
-      title: letter.template?.name || "Generated letter",
-      channel: "Letter",
-      status: letter.status,
-      commonStatus: toCommonStatus("letter", letter.status),
-      at: letter.generatedAt,
-      href: letter.emailCampaignId ? `/communications/${letter.emailCampaignId}` : "/letters-printables/generated",
-      detail: letter.constituent
-        ? `${letter.constituent.firstName} ${letter.constituent.lastName}`
-        : "No constituent linked",
-    }));
-
     const pathDraftLog: CommunicationLogItem[] = pathDrafts.map((draft) => ({
       id: `path-draft-${draft.id}`,
       title: draft.subject,
@@ -451,63 +391,19 @@ export default function CommunicationsPage() {
       detail: draft.enrollment?.path?.name || "Steward Path",
     }));
 
-    return [...campaignLog, ...letterLog, ...pathDraftLog]
+    return [...campaignLog, ...pathDraftLog]
       .filter((item) => Boolean(item.at))
       .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
-  }, [campaigns, generatedLetters, pathDrafts]);
-
-  const canOpenBuilder = campaigns.length > 0;
-  const projectLibraryItems = [
-    {
-      id: "campaign-library",
-      title: "Campaign Library",
-      description: "Browse drafts, scheduled sends, and live campaigns from one workspace.",
-      href: "/communications?view=email-campaigns",
-      badge: `${campaigns.length}`,
-    },
-    {
-      id: "drafts-review",
-      title: "Drafts Needing Review",
-      description: "Review campaign drafts and steward-path draft handoffs before send.",
-      href: "/communications?view=email-drafts",
-      badge: `${draftsNeedingReview}`,
-    },
-    {
-      id: "scheduled-sends",
-      title: "Scheduled Sends",
-      description: "Monitor in-flight and scheduled outreach jobs.",
-      href: "/communications?view=send-queue",
-      badge: `${scheduledCampaigns.length}`,
-    },
-    {
-      id: "sent-archive",
-      title: "Sent / Archived",
-      description: "Inspect communication history, outcomes, and linked timeline artifacts.",
-      href: "/communications?view=communication-log",
-    },
-    {
-      id: "presets",
-      title: "Presets / Templates",
-      description: "Manage campaign templates, segments, and reusable structures.",
-      href: "/communications?view=templates",
-    },
-    {
-      id: "new-communication",
-      title: "Create New Communication",
-      description: "Start a guided wizard: type, audience, preset, edit, review, send.",
-      href: "/communications/new/type",
-      badge: "Wizard",
-    },
-  ];
+  }, [campaigns, pathDrafts]);
 
   return (
     <WorkspaceRibbonFrame
       title="Communications"
-      description="Project-library-first donor outreach workspace with guided create, review, and send paths."
+      description="Campaign library for creating, building, sending, and managing donor email projects."
       breadcrumbItems={[
         { label: "Donor CRM", href: "/" },
         { label: "Communications", href: "/communications" },
-        { label: "Campaign Workspace" },
+        { label: "Campaign Library" },
       ]}
       statusLabel="Partially Working"
       metadata={`${campaigns.length} campaigns · ${draftsNeedingReview} drafts needing review · ${scheduledCampaigns.length} scheduled`}
@@ -524,66 +420,27 @@ export default function CommunicationsPage() {
       )}
       ribbon={(
         <WorkspaceRibbon>
-          <WorkspaceRibbonGroup label="Projects">
-            <WorkspaceRibbonButton label="Campaign Library" onClick={() => selectWorkspaceTab("email-campaigns")} />
+          <WorkspaceRibbonGroup label="Email Projects">
+            <WorkspaceRibbonButton label="Campaign Library" onClick={() => selectWorkspaceTab("email-campaigns")} variant="primary" />
+            <WorkspaceRibbonButton label="New Email" onClick={() => setShowModal(true)} />
+            <WorkspaceRibbonButton label="Templates" onClick={() => selectWorkspaceTab("templates")} />
+          </WorkspaceRibbonGroup>
+
+          <WorkspaceRibbonGroup label="Queues">
             <WorkspaceRibbonButton label="Drafts" onClick={() => selectWorkspaceTab("email-drafts")} />
             <WorkspaceRibbonButton label="Scheduled" onClick={() => selectWorkspaceTab("send-queue")} />
-            <WorkspaceRibbonButton label="Sent Archive" onClick={() => selectWorkspaceTab("communication-log")} />
+            <WorkspaceRibbonButton label="Sent Log" onClick={() => selectWorkspaceTab("communication-log")} />
           </WorkspaceRibbonGroup>
 
-          <WorkspaceRibbonGroup label="Create">
-            <WorkspaceRibbonButton label="New Campaign" onClick={() => setShowModal(true)} variant="primary" />
-            <WorkspaceRibbonButton label="From Preset" onClick={() => selectWorkspaceTab("templates")} />
-            <WorkspaceRibbonButton label="AI Draft" href="/communications/new/editor" />
-            <WorkspaceRibbonButton label="Import Draft" href="/communications/new/type" />
-          </WorkspaceRibbonGroup>
-
-          <WorkspaceRibbonGroup label="Audience">
-            <WorkspaceRibbonButton label="Choose Segment" onClick={() => selectWorkspaceTab("segments")} />
-            <WorkspaceRibbonButton label="Preview Recipients" onClick={() => selectWorkspaceTab("email-campaigns")} />
-            <WorkspaceRibbonButton label="Exclusions" href="/communications/new/audience" />
-          </WorkspaceRibbonGroup>
-
-          <WorkspaceRibbonGroup label="Design">
-            <WorkspaceRibbonButton label="Open Builder" onClick={() => selectWorkspaceTab("email-campaigns")} disabled={!canOpenBuilder} />
-            <WorkspaceRibbonButton label="Saved Sections" href="/email-builder" />
-            <WorkspaceRibbonButton label="Brand Presets" href="/communications?view=settings" />
-          </WorkspaceRibbonGroup>
-
-          <WorkspaceRibbonGroup label="Review">
-            <WorkspaceRibbonButton label="Checklist" href="/communications/new/review" />
-            <WorkspaceRibbonButton label="Send Test" onClick={() => selectWorkspaceTab("email-campaigns")} />
-            <WorkspaceRibbonButton label="Merge Fields" href="/communications/new/review" />
-            <WorkspaceRibbonButton label="Compliance" href="/communications/new/review" />
-          </WorkspaceRibbonGroup>
-
-          <WorkspaceRibbonGroup label="Send">
-            <WorkspaceRibbonButton label="Schedule" href="/communications/new/send" />
-            <WorkspaceRibbonButton label="Send Now" onClick={() => selectWorkspaceTab("send-queue")} />
-            <WorkspaceRibbonButton label="Archive" onClick={() => selectWorkspaceTab("communication-log")} />
+          <WorkspaceRibbonGroup label="Setup">
+            <WorkspaceRibbonButton label="Segments" onClick={() => selectWorkspaceTab("segments")} />
+            <WorkspaceRibbonButton label="Branding" href="/settings/branding" />
+            <WorkspaceRibbonButton label="Settings" onClick={() => selectWorkspaceTab("settings")} />
           </WorkspaceRibbonGroup>
         </WorkspaceRibbon>
       )}
     >
       <div className="space-y-6">
-
-      <WorkspaceProjectLibrary
-        heading="Communications Home"
-        helper="Choose a project first, then move through a guided communication workflow."
-        items={projectLibraryItems}
-      />
-
-      <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Donor Engagement System</p>
-        <p className="mt-1 text-sm text-emerald-900">
-          Donation or constituent context flows into communications planning, template selection, draft review, send/print actions,
-          and timeline visibility across letters, campaigns, and steward path steps.
-        </p>
-        <p className="mt-1 text-xs text-emerald-800">
-          Shared status language: Draft, Needs Review, Approved, Scheduled, Sent, Generated, Printed, Mailed, Completed, Failed, Canceled, Archived.
-        </p>
-      </section>
-
       {workspaceTab === "overview" && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
@@ -591,10 +448,7 @@ export default function CommunicationsPage() {
             <OverviewCard label="Scheduled Sends" value={scheduledCampaigns.length} hint="Queue to monitor" tone="blue" />
             <OverviewCard label="Sent This Week" value={sentThisWeek} hint="Recent outbound" tone="green" />
             <OverviewCard label="Failed Communications" value={failedCommunications} hint="Requires retry" tone="red" />
-            <OverviewCard label="Letters Waiting Print" value={lettersWaitingPrint} hint="Generated not printed" tone="amber" />
-            <OverviewCard label="Letters Waiting Mail" value={lettersWaitingMail} hint="Printed not mailed" tone="orange" />
             <OverviewCard label="Active Path Drafts" value={activePathDrafts} hint="Open steward steps" tone="indigo" />
-            <OverviewCard label="Gifts Needing Acknowledgment" value={lettersStats?.thankYouPending ?? 0} hint="Thank-you follow-up" tone="amber" />
           </div>
 
           <div className="rounded-xl border border-gray-200 bg-white p-4">
@@ -652,23 +506,18 @@ export default function CommunicationsPage() {
           ) : filteredCampaigns.length === 0 ? (
             <EmptyState onNew={() => setShowModal(true)} />
           ) : (
-            <div className="space-y-3">
-              {filteredCampaigns.map((campaign) => (
-                <CampaignCard
-                  key={campaign.id}
-                  campaign={campaign}
-                  sending={sending === campaign.id}
-                  sharingUpdating={sharingUpdateId === campaign.id}
-                  onSend={() => sendNow(campaign.id)}
-                  onEdit={() => openEditor(campaign.id)}
-                  onWorkspace={() => openWorkspace(campaign.id)}
-                  onToggleSharing={() => toggleCampaignVisibility(campaign)}
-                  onPreparationStatusChange={(nextStatus) => setPreparationStatus(campaign, nextStatus)}
-                  onDelete={() => openDeleteCampaignModal(campaign.id)}
-                  preparationUpdating={preparationUpdateId === campaign.id}
-                />
-              ))}
-            </div>
+            <EmailProjectLibrary
+              campaigns={filteredCampaigns}
+              sendingId={sending}
+              sharingUpdateId={sharingUpdateId}
+              preparationUpdateId={preparationUpdateId}
+              onSend={(campaignId) => void sendNow(campaignId)}
+              onBuild={openEditor}
+              onOpen={openWorkspace}
+              onToggleSharing={(campaign) => void toggleCampaignVisibility(campaign)}
+              onPreparationStatusChange={(campaign, nextStatus) => void setPreparationStatus(campaign, nextStatus)}
+              onDelete={openDeleteCampaignModal}
+            />
           )}
         </div>
       )}
@@ -698,63 +547,6 @@ export default function CommunicationsPage() {
             </div>
           </section>
 
-          <section className="rounded-xl border border-gray-200 bg-white p-4">
-            <h2 className="text-sm font-semibold text-gray-900">Letter-to-Email Draft Bridge</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Generated letters that were converted into communication drafts.</p>
-            <div className="mt-3 space-y-2">
-              {letterEmailDrafts.slice(0, 12).map((letter) => (
-                <Link
-                  key={letter.id}
-                  href={letter.emailCampaignId ? `/communications/${letter.emailCampaignId}` : "/letters-printables/generated"}
-                  className="block rounded-lg border border-gray-200 px-3 py-2 hover:bg-gray-50"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-medium text-gray-900">{letter.template?.name || "Generated letter"}</p>
-                    <span className="text-xs text-gray-500">{toCommonStatus("letter", letter.status)}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {letter.constituent ? `${letter.constituent.firstName} ${letter.constituent.lastName}` : "No constituent linked"}
-                    {` · ${formatDateTime(letter.generatedAt)}`}
-                  </p>
-                </Link>
-              ))}
-              {letterEmailDrafts.length === 0 && <p className="text-sm text-gray-500">No letter-linked email drafts yet.</p>}
-            </div>
-          </section>
-        </div>
-      )}
-
-      {workspaceTab === "letters" && (
-        <div className="space-y-4">
-          <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <h2 className="text-sm font-semibold text-amber-900">Letter management lives in Letters &amp; Printables</h2>
-            <p className="text-sm text-amber-900 mt-1">
-              Communications owns email campaigns, drafts, and send logs. Letter templates, generated letters, the print queue, and the mail queue are managed in
-              {" "}
-              <Link href="/letters-printables" className="font-semibold underline">Letters &amp; Printables</Link>.
-              The numbers below are linked summaries; use the Letters &amp; Printables workspace for queue actions.
-            </p>
-          </section>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <OverviewCard label="Active Templates" value={lettersStats?.activeTemplates ?? 0} hint="Reusable letter templates" tone="green" />
-            <OverviewCard label="Generated This Month" value={lettersStats?.generatedThisMonth ?? 0} hint="Print and PDF queue" tone="blue" />
-            <OverviewCard label="Thank-You Pending" value={lettersStats?.thankYouPending ?? 0} hint="Needs acknowledgment" tone="amber" />
-            <OverviewCard label="Email Draft Bridges" value={lettersStats?.emailDrafts ?? 0} hint="Letter to email handoff" tone="indigo" />
-          </div>
-
-          <div className="rounded-xl border border-gray-200 bg-white p-4">
-            <h2 className="text-sm font-semibold text-gray-900">Open in Letters &amp; Printables</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Print, mail, and PDF workflows are managed in their own workspace.</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Link href="/letters-printables" className="px-3 py-1.5 text-xs font-semibold text-white bg-green-600 rounded-md hover:bg-green-700">Letters &amp; Printables Home</Link>
-              <Link href="/letters-printables/templates" className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">Templates</Link>
-              <Link href="/letters-printables/generate" className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">Generate</Link>
-              <Link href="/letters-printables/generated" className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">Generated Letters</Link>
-              <Link href="/letters-printables/print-queue" className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">Print Queue</Link>
-              <Link href="/letters-printables/mail-queue" className="px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">Mail Queue</Link>
-            </div>
-          </div>
         </div>
       )}
 

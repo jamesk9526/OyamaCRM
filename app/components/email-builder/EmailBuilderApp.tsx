@@ -163,6 +163,10 @@ interface Props {
   campaignId?: string;
   /** Route to return to after editing (e.g., campaign workspace). */
   returnTo?: string;
+  /** Renders the builder inside a larger campaign workspace instead of as a full-screen route. */
+  embedded?: boolean;
+  /** Optional callback fired after a successful draft save. */
+  onSaved?: () => void | Promise<void>;
 }
 
 interface CommunicationsAiTemplateResponse {
@@ -212,11 +216,18 @@ function hydrateGeneratedBlock(raw: Record<string, unknown>): EmailBlock {
     "text",
     "quote",
     "impactStat",
+    "impactStory",
+    "impactGrid",
     "callout",
     "progress",
     "featureList",
     "donorThankYou",
+    "donationReceipt",
+    "givingSummary",
     "donationCta",
+    "monthlyDonorInvitation",
+    "lapsedDonorReengagement",
+    "firstTimeDonorWelcome",
     "staffSignature",
     "footerCompliance",
     "image",
@@ -239,6 +250,7 @@ function hydrateGeneratedBlock(raw: Record<string, unknown>): EmailBlock {
       quote: String(raw.quote ?? "Your support made this possible."),
       attribution: String(raw.attribution ?? "Community Member"),
       align: raw.align === "center" || raw.align === "right" ? raw.align : "left",
+      accentColor: String(raw.accentColor ?? "#16a34a"),
       padding: toBoundedNumber(raw.padding, 16, 0, 100),
     } as EmailBlock;
   }
@@ -512,11 +524,25 @@ function applyBrandingToBlock(block: EmailBlock, branding: BrandingSettings): Em
       return { ...block, bgColor: branding.primaryColor || block.bgColor };
     case 'aiButton':
       return { ...block, bgColor: branding.primaryColor || block.bgColor };
+    case 'quote':
+      return { ...block, accentColor: branding.primaryColor || block.accentColor };
     case 'impactGrid':
       return { ...block, accentColor: branding.primaryColor || block.accentColor };
+    case 'impactStory':
+      return { ...block, ctaColor: branding.primaryColor || block.ctaColor };
     case 'progress':
       return { ...block, barColor: branding.primaryColor || block.barColor };
+    case 'callout':
+      return { ...block, borderColor: branding.accentColor || block.borderColor };
+    case 'givingSummary':
+      return { ...block, accentColor: branding.primaryColor || block.accentColor };
     case 'donationCta':
+      return { ...block, buttonColor: branding.primaryColor || block.buttonColor };
+    case 'monthlyDonorInvitation':
+      return { ...block, buttonColor: branding.primaryColor || block.buttonColor };
+    case 'lapsedDonorReengagement':
+      return { ...block, buttonColor: branding.primaryColor || block.buttonColor };
+    case 'firstTimeDonorWelcome':
       return { ...block, buttonColor: branding.primaryColor || block.buttonColor };
     case 'featureList':
       return { ...block, bulletColor: branding.primaryColor || block.bulletColor };
@@ -551,9 +577,17 @@ function applyBrandingToBlock(block: EmailBlock, branding: BrandingSettings): Em
   }
 }
 
+/** Reconciles a whole template with current CRM Branding Settings before rendering or saving. */
+function enforceBrandingOnTemplate(template: EmailTemplate, branding: BrandingSettings): EmailTemplate {
+  return applyBrandingToTemplate({
+    ...template,
+    blocks: template.blocks.map((block) => applyBrandingToBlock(block, branding)),
+  }, branding);
+}
+
 // ─── EmailBuilderApp ──────────────────────────────────────────────────────────
 
-export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
+export default function EmailBuilderApp({ campaignId, returnTo, embedded = false, onSaved }: Props) {
   // ── Template state ─────────────────────────────────────────────────────────
   const [template, setTemplate] = useState<EmailTemplate>(createDefaultTemplate);
 
@@ -814,7 +848,7 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
 
   /** Replaces the current canvas with a starter preset template. */
   const applyPreset = () => {
-    const next = applyBrandingToTemplate(createTemplateFromPreset(preset), branding);
+    const next = enforceBrandingOnTemplate(createTemplateFromPreset(preset), branding);
     setTemplate(next);
     setSelectedId(next.blocks[0]?.id ?? null);
     markDirty();
@@ -854,7 +888,7 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
         throw new Error("AI returned no blocks. Try a more specific brief.");
       }
 
-      const nextTemplate = applyBrandingToTemplate({
+      const nextTemplate = enforceBrandingOnTemplate({
         backgroundColor: String(draftTemplate.backgroundColor ?? "#f5f5f5"),
         contentWidth: toBoundedNumber(draftTemplate.contentWidth, 600, 420, 760),
         fontFamily: String(draftTemplate.fontFamily ?? "Arial, Helvetica, sans-serif"),
@@ -881,6 +915,7 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
             preparationStatus: 'DRAFT',
           }),
         });
+        await onSaved?.();
         dirtyRef.current = false;
         setDirty(false);
         setSaveSuccess(true);
@@ -903,6 +938,7 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
     campaignName,
     campaignPurpose,
     markDirty,
+    onSaved,
     previewText,
     subjectLine,
   ]);
@@ -986,8 +1022,9 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
     setSaveError(null);
     setSaveSuccess(false);
     try {
-      const bodyHtml = generateEmailHtml(template);
-      const bodyText = generatePlainText(template);
+      const brandedTemplate = enforceBrandingOnTemplate(template, branding);
+      const bodyHtml = generateEmailHtml(brandedTemplate);
+      const bodyText = generatePlainText(brandedTemplate);
       await apiFetch(`/api/email-campaigns/${campaignId}`, {
         method:      'PUT',
         body:        JSON.stringify({
@@ -997,10 +1034,12 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
           bodyHtml,
           bodyText,
           purpose: campaignPurpose,
-          templateJson: JSON.stringify(template),
+          templateJson: JSON.stringify(brandedTemplate),
           preparationStatus: 'DRAFT',
         }),
       });
+      await onSaved?.();
+      setTemplate(brandedTemplate);
       setSaveSuccess(true);
       dirtyRef.current = false;
       setDirty(false);
@@ -1147,7 +1186,7 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
+      <div className={`${embedded ? "h-[620px] rounded-xl border border-gray-200" : "h-screen"} flex items-center justify-center bg-gray-50`}>
         <div className="text-center space-y-3">
           <div className="w-10 h-10 border-2 border-green-600 border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-sm text-gray-500">Loading campaign…</p>
@@ -1158,7 +1197,7 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
 
   if (loadError) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
+      <div className={`${embedded ? "h-[620px] rounded-xl border border-gray-200" : "h-screen"} flex items-center justify-center bg-gray-50`}>
         <div className="bg-white rounded-xl border border-red-200 shadow p-8 max-w-md text-center space-y-4">
           <div className="text-3xl">⚠️</div>
           <h1 className="text-lg font-semibold text-gray-800">Could not load campaign</h1>
@@ -1185,7 +1224,14 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="h-screen flex flex-col bg-white overflow-hidden">
+      <div
+        className={[
+          embedded
+            ? "h-[calc(100vh-220px)] min-h-[620px] rounded-xl border border-gray-200"
+            : "h-screen",
+          "min-w-0 flex flex-col bg-white overflow-hidden",
+        ].join(" ")}
+      >
 
         {/* ── Top Bar ── */}
         <header className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-white shadow-sm z-30">
@@ -1421,6 +1467,16 @@ export default function EmailBuilderApp({ campaignId, returnTo }: Props) {
                     className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                   >
                     Apply preset
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTemplate((current) => enforceBrandingOnTemplate(current, branding));
+                      markDirty();
+                    }}
+                    className="w-full rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-100"
+                  >
+                    Apply current CRM branding
                   </button>
                   <button
                     type="button"

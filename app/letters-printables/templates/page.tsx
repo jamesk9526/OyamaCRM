@@ -1,7 +1,7 @@
-/** Template library route for Letters & Printables. */
-import LetterTemplatesList from "@/app/components/letters/LetterTemplatesList";
+/** Compatibility route that opens the unified Letters & Printables project manager. */
+import LettersRibbonHome from "@/app/components/letters/LettersRibbonHome";
 
-/** Renders template list with filter and management controls. */
+/** Renders the unified printable project manager instead of a separate template-only page. */
 export default function LettersTemplatesPage() {
-  return <LetterTemplatesList />;
+  return <LettersRibbonHome />;
 }

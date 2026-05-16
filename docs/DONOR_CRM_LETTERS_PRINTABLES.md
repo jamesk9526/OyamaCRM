@@ -1,6 +1,6 @@
 # DonorCRM Letters And Printables
 
-Last updated: 2026-05-12
+Last updated: 2026-05-16
 
 ## Purpose
 
@@ -8,7 +8,7 @@ Document the current Letters and Printables implementation, including integratio
 
 ## Workspace Role
 
-Letters and Printables is the print/mail/PDF channel workspace in the Donor Engagement System.
+Letters and Printables is the print/mail/PDF channel workspace in the Donor Engagement System. The current product direction is a single printable-project manager, closer to an Adobe Express-style workflow than a multi-page admin console.
 
 It should:
 
@@ -16,6 +16,19 @@ It should:
 - Generate donor-specific letter records
 - Track print/mail fulfillment status
 - Bridge to communications draft creation when an email version is needed
+- Keep organization identity, logo, address, and colors sourced from Organization Settings and Branding Settings
+
+## Current UX Workflow
+
+1. Open `/letters-printables`.
+2. Select an existing printable project or create a new one.
+3. Edit the project in the document studio at `/letters-printables/templates/[templateId]`.
+4. Use the Word-style paper canvas to write content, insert styled content blocks, and type `{{` for inline merge-field suggestions.
+5. Create or choose header/footer presets from the studio. Organization logo, name, address, colors, and identity always come from Organization Settings and Branding Settings.
+6. Search for a constituent and optional donation in the preview context instead of pasting IDs.
+7. Run print preview, then publish/generate and route to PDF export, print queue, or mail queue.
+
+The old template-library route now opens the same project manager for compatibility. Print queue, mail queue, and generated-output routes remain available as production views, but the primary user entry point is the project manager.
 
 ## Current Status
 
@@ -23,14 +36,21 @@ Status: Partially Working
 
 Reason:
 
-- Core template and generation flows are persisted and integrated.
+- Core printable project/template and generation flows are persisted and integrated.
+- `/letters-printables` now opens a project manager with large cards, small cards, and list views.
+- The editor route now opens a document-studio layout with a paper canvas, compact ribbon, left project/tools panel, right preview context, inline merge suggestions, and publish controls.
+- Header and footer preset creation is available from the editor, while organization branding remains sourced from Branding Settings.
+- Editor images can be uploaded to `/api/letters/media` and inserted into the printable canvas.
+- The editor can be opened in a full-screen new tab with `?fullscreen=1`.
+- Branding Settings now includes editable header/footer preset tools and uploaded handwritten signature images for rendered letters.
+- Constituent and donation preview context uses searchable API lookups.
 - Letter-to-email draft bridge is persisted and linked.
 - PDF export and batch generation are still partial/in-development.
 
 ## Implemented Routes
 
 - /letters-printables
-- /letters-printables/templates
+- /letters-printables/templates (compatibility route to the project manager)
 - /letters-printables/generate
 - /letters-printables/generated
 - /letters-printables/signatures
