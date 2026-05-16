@@ -192,8 +192,8 @@ const START_HERE_ACTIONS: StartHereAction[] = [
     id: "generate-letters",
     title: "Generate letters",
     description: "Prepare printable letters for acknowledgements, appeals, and stewardship updates.",
-    href: "/letters-printables/generate/template",
-    actionLabel: "Open Letter Wizard",
+    href: "/letters-printables/generate",
+    actionLabel: "Open Generator",
   },
   {
     id: "check-notifications",
@@ -834,7 +834,7 @@ export default function DashboardPage() {
             <WorkspaceRibbonGroup label="Create">
               <WorkspaceRibbonButton label="New Task" href="/tasks" />
               <WorkspaceRibbonButton label="Campaign" href="/campaigns" />
-              <WorkspaceRibbonButton label="Letter" href="/letters-printables/generate/template" />
+              <WorkspaceRibbonButton label="Letter" href="/letters-printables/generate" />
             </WorkspaceRibbonGroup>
             <WorkspaceRibbonGroup label="Dashboard">
               <WorkspaceRibbonButton label="Refresh" onClick={() => void load()} />

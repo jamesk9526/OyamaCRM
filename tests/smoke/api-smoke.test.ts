@@ -377,6 +377,13 @@ describe("API smoke tests", () => {
     const generatedId = (batch.body.generated as Array<{ id: string }>)?.[0]?.id;
     expect(generatedId).toBeTruthy();
 
+    const batchPdf = await request(app)
+      .post("/api/letters/generated/export-pdf-batch")
+      .set(auth)
+      .send({ letterIds: [generatedId] });
+    expect(batchPdf.status).toBe(200);
+    expect(String(batchPdf.headers["content-type"] || "")).toContain("application/pdf");
+
     const printQueue = await request(app)
       .get("/api/letters/generated/queue/print?queueStatus=QUEUED_FOR_PRINT")
       .set(auth);

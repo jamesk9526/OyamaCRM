@@ -80,15 +80,12 @@ This release includes a full browser-driven DonorCRM route pass with fresh scree
 ### Letters and printables workflow
 
 1. Go to Letters & Printables.
-2. Start in the project library cards (Templates, Generated, Print Queue, Mail Queue, Batch Jobs, Presets).
-3. Use Generate Letter to open the guided wizard flow:
-	- `/letters-printables/generate/template`
-	- `/letters-printables/generate/recipients`
-	- `/letters-printables/generate/preview`
-	- `/letters-printables/generate/complete`
-4. Use Print Queue for review, approval, and print transitions.
-5. Use Mail Queue for mailed, returned, and address-issue workflows.
-6. If an email version is needed, use Create Email Draft and continue in Communications.
+2. Start in the project library cards and open or create one printable project.
+3. Use the printable editor Publish tab to open `/letters-printables/generate` for single or batch generation.
+4. In the generator, choose single constituent or batch mode, run preview/dry-run checks, then generate PDFs or hand off to queues.
+5. Use Print Queue for review, approval, and print transitions.
+6. Use Mail Queue for mailed, returned, and address-issue workflows.
+7. If an email version is needed, use Create Email Draft and continue in Communications.
 
 ### Communications hub workflow
 

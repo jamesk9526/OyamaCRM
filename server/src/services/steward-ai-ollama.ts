@@ -319,17 +319,12 @@ function readNestedValue(root: unknown, path: string[]): unknown {
 function extractAssistantContent(payload: unknown): string {
   const paths = [
     ["message", "content"],
-    ["message", "reasoning_content"],
-    ["message", "thinking"],
     ["response"],
     ["output_text"],
     ["data", "message", "content"],
-    ["data", "message", "reasoning_content"],
     ["data", "response"],
     ["choices", "0", "message", "content"],
-    ["choices", "0", "message", "reasoning_content"],
     ["choices", "0", "delta", "content"],
-    ["choices", "0", "delta", "reasoning_content"],
     ["choices", "0", "text"],
   ];
 
@@ -348,13 +343,10 @@ function extractAssistantContent(payload: unknown): string {
 function extractStreamDelta(payload: unknown): string {
   const paths = [
     ["message", "content"],
-    ["message", "reasoning_content"],
     ["response"],
     ["output_text"],
     ["choices", "0", "delta", "content"],
-    ["choices", "0", "delta", "reasoning_content"],
     ["choices", "0", "message", "content"],
-    ["choices", "0", "message", "reasoning_content"],
     ["choices", "0", "text"],
   ];
 

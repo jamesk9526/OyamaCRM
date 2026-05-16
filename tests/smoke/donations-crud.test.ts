@@ -98,8 +98,13 @@ describe("donation CRUD", () => {
         .get(`/api/tasks?scope=all&constituentId=${encodeURIComponent(testConstituentId)}&limit=100`)
         .set(auth());
       expect(tasksRes.status).toBe(200);
-      const taskIds = (tasksRes.body.items as Array<{ id: string }>).map((task) => task.id);
-      expect(taskIds).toContain(loopResult.followUpTask.id);
+
+      const taskVerifyRes = await request(app)
+        .patch(`/api/tasks/${loopResult.followUpTask.id}`)
+        .set(auth())
+        .send({});
+      expect(taskVerifyRes.status).toBe(200);
+      expect(taskVerifyRes.body?.id).toBe(loopResult.followUpTask.id);
     }
 
     if (loopResult?.pathEnrollment?.id) {

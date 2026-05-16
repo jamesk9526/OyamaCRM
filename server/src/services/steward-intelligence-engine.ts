@@ -388,39 +388,48 @@ export function buildDailyStewardThoughtFallback(context: DailyThoughtContext): 
 }
 
 export function normalizeDailyThoughtAiResponse(raw: string, fallback: DailyStewardThought): DailyStewardThought {
-  const trimmed = String(raw || "").trim();
+  const trimmed = String(raw || "")
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/```(?:json)?/gi, "")
+    .replace(/```/g, "")
+    .trim();
   if (!trimmed) return fallback;
+
+  const toThought = (parsed: { title?: unknown; message?: unknown; reason?: unknown }): DailyStewardThought => {
+    const title = typeof parsed.title === "string" && parsed.title.trim() ? parsed.title.trim().slice(0, 70) : fallback.title;
+    const message = typeof parsed.message === "string" && parsed.message.trim() ? parsed.message.trim().slice(0, 320) : fallback.message;
+    const reason = typeof parsed.reason === "string" && parsed.reason.trim() ? parsed.reason.trim().slice(0, 180) : fallback.reason;
+    return {
+      title,
+      message,
+      reason,
+      sourceType: "ai",
+    };
+  };
 
   const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
   if (jsonMatch) {
     try {
       const parsed = JSON.parse(jsonMatch[0]) as { title?: unknown; message?: unknown; reason?: unknown };
-      const title = typeof parsed.title === "string" && parsed.title.trim() ? parsed.title.trim().slice(0, 80) : fallback.title;
-      const message = typeof parsed.message === "string" && parsed.message.trim() ? parsed.message.trim().slice(0, 420) : fallback.message;
-      const reason = typeof parsed.reason === "string" && parsed.reason.trim() ? parsed.reason.trim().slice(0, 220) : fallback.reason;
-      return {
-        title,
-        message,
-        reason,
-        sourceType: "ai",
-      };
+      return toThought(parsed);
     } catch {
-      // Continue to plain-text parsing.
+      // Continue to loose text parsing below.
     }
   }
 
-  const lines = trimmed.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  if (lines.length === 0) return fallback;
+  const titleMatch = trimmed.match(/(?:^|\n)\s*title\s*[:=-]\s*(.+?)(?=\n\s*(?:message|reason)\s*[:=-]|$)/i);
+  const messageMatch = trimmed.match(/(?:^|\n)\s*message\s*[:=-]\s*([\s\S]+?)(?=\n\s*(?:title|reason)\s*[:=-]|$)/i);
+  const reasonMatch = trimmed.match(/(?:^|\n)\s*reason\s*[:=-]\s*([\s\S]+?)(?=\n\s*(?:title|message)\s*[:=-]|$)/i);
 
-  const first = lines[0].replace(/^today\'s\s+/i, "Today's ").slice(0, 80);
-  const message = lines.slice(1).join(" ").trim().slice(0, 420) || lines[0].slice(0, 420);
+  if (titleMatch || messageMatch || reasonMatch) {
+    return toThought({
+      title: titleMatch?.[1]?.trim(),
+      message: messageMatch?.[1]?.trim(),
+      reason: reasonMatch?.[1]?.trim(),
+    });
+  }
 
-  return {
-    title: first.includes("Steward") ? first : fallback.title,
-    message,
-    reason: fallback.reason,
-    sourceType: "ai",
-  };
+  return fallback;
 }
 
 function escapeHtml(value: string): string {

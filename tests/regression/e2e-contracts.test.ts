@@ -21,4 +21,15 @@ describe("e2e contract regression", () => {
     expect(mobileAudit.includes('const API_BASE = process.env.E2E_API_BASE_URL || "http://localhost:4000";')).toBe(true);
     expect(mobileAudit.includes('page.request.post(`${API_BASE}/api/auth/login`')).toBe(true);
   });
+
+  it("keeps letters publish actions in template publish workspace", () => {
+    const templateEditor = read("app/components/letters/LetterTemplateEditor.tsx");
+    const ribbonHome = read("app/components/letters/LettersRibbonHome.tsx");
+    const templatePage = read("app/letters-printables/templates/[templateId]/page.tsx");
+
+    expect(templateEditor.includes("/letters-printables/generate?templateId=")).toBe(false);
+    expect(ribbonHome.includes("/letters-printables/generate?templateId=")).toBe(false);
+    expect(ribbonHome.includes("?panel=publish")).toBe(true);
+    expect(templatePage.includes("query.panel === \"publish\"")).toBe(true);
+  });
 });

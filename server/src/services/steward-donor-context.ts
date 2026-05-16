@@ -831,6 +831,7 @@ export interface DonorFullProfileResult {
   lastGiftDate: string | null;
   lastGiftAmount: number;
   tags: string[];
+  tagContexts: Array<{ name: string; description: string | null }>;
   recentDonations: Array<{
     id: string;
     amount: number;
@@ -876,7 +877,7 @@ export async function getDonorFullProfile(
         doNotCall: true,
         doNotMail: true,
         doNotContact: true,
-        tags: { select: { tag: { select: { name: true } } } },
+        tags: { select: { tag: { select: { name: true, description: true } } } },
       },
     }),
     prisma.donation.findMany({
@@ -918,7 +919,8 @@ export async function getDonorFullProfile(
     firstGiftDate: constituent.firstGiftDate ? fmtDate(constituent.firstGiftDate) : null,
     lastGiftDate: constituent.lastGiftDate ? fmtDate(constituent.lastGiftDate) : null,
     lastGiftAmount: asNumber(constituent.lastGiftAmount),
-    tags: constituent.tags.map((ct) => (ct as { tag: { name: string } }).tag.name),
+    tags: constituent.tags.map((ct) => ct.tag.name),
+    tagContexts: constituent.tags.map((ct) => ({ name: ct.tag.name, description: ct.tag.description })),
     recentDonations: recentDonations.map((d) => ({
       id: d.id,
       amount: asNumber(d.amount),

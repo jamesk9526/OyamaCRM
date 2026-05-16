@@ -89,7 +89,7 @@ export default function LettersDashboard() {
           <Link href="/letters-printables/mail-queue" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
             Open Mail Queue
           </Link>
-          <Link href="/letters-printables/batches" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+          <Link href="/letters-printables/generate?mode=batch" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
             Run Batch Generation
           </Link>
           <Link href="/letters-printables/generated" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">

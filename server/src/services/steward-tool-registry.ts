@@ -1774,6 +1774,10 @@ export async function buildDonorToolContextForChat(params: {
         if (profile.tags.length > 0) {
           lines.push(`  Tags: ${profile.tags.join(", ")}`);
         }
+        const describedTags = profile.tagContexts.filter((tag) => tag.description);
+        if (describedTags.length > 0) {
+          lines.push(`  Tag context: ${describedTags.map((tag) => `${tag.name} means ${tag.description}`).join("; ")}`);
+        }
         recordsUsed.push(`${profile.name} — $${profile.totalLifetimeGiving.toLocaleString()} lifetime, last gift ${profile.lastGiftDate ?? "none"}`);
       }
     } catch {
@@ -1812,6 +1816,10 @@ export async function buildDonorToolContextForChat(params: {
             for (const t of profile.openTasks) {
               lines.push(`    - ${t.title} [${t.priority}]${t.dueDate ? ` due ${t.dueDate}` : ""}`);
             }
+          }
+          const describedTags = profile.tagContexts.filter((tag) => tag.description);
+          if (describedTags.length > 0) {
+            lines.push(`  Tag context: ${describedTags.map((tag) => `${tag.name} means ${tag.description}`).join("; ")}`);
           }
           recordsUsed.push(`@${profile.name} — $${profile.totalLifetimeGiving.toLocaleString()} lifetime`);
         }

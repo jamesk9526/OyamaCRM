@@ -18,7 +18,7 @@ describe("resolveTopBarModuleKey", () => {
     expect(resolveTopBarModuleKey("/watchdog")).toBe("watchdog");
     expect(resolveTopBarModuleKey("/webmaster/pages")).toBe("webmaster");
     expect(resolveTopBarModuleKey("/ogentic")).toBe("donor");
-    expect(resolveTopBarModuleKey("/reports")).toBe("reportit");
+    expect(resolveTopBarModuleKey("/reports")).toBe("oshareview");
     expect(resolveTopBarModuleKey("/hrm/people")).toBe("hrm");
   });
 

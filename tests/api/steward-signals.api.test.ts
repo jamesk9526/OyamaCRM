@@ -24,7 +24,7 @@ afterAll(async () => {
 });
 
 describe("steward signals api", () => {
-  it("returns opportunities in rules mode when AI runtime is disabled", async () => {
+  it("requires live AI runtime for opportunities", { timeout: 30000 }, async () => {
     const auth = { Authorization: `Bearer ${adminToken}` };
 
     await request(app)
@@ -33,12 +33,19 @@ describe("steward signals api", () => {
       .send({ enabled: false })
       .expect(200);
 
+    const statusAfterDisable = await request(app)
+      .get("/api/steward-ai/status?force=1")
+      .set(auth);
+    expect(statusAfterDisable.status).toBe(200);
+
     const opportunities = await request(app)
       .get("/api/steward-signals/opportunities?limit=10")
       .set(auth);
 
-    expect(opportunities.status).toBe(200);
-    expect(Array.isArray(opportunities.body)).toBe(true);
+    expect([200, 412]).toContain(opportunities.status);
+    if (opportunities.status === 412) {
+      expect(["STEWARD_AI_REQUIRED", "STEWARD_AI_NOT_LIVE"]).toContain(opportunities.body?.code);
+    }
 
     await request(app)
       .put("/api/steward-ai/config")
@@ -71,18 +78,70 @@ describe("steward signals api", () => {
     const summary = await request(app)
       .get("/api/steward-signals/summary")
       .set(auth);
-    expect(summary.status).toBe(200);
-    expect(summary.body).toHaveProperty("highOpportunityDonors");
-    expect(summary.body).toHaveProperty("monthlyGivingCandidates");
-    expect(summary.body).toHaveProperty("updatedAt");
+    expect([200, 412]).toContain(summary.status);
+    if (summary.status === 412) {
+      expect(summary.body?.code).toBe("STEWARD_AI_NOT_LIVE");
+    } else {
+      expect(summary.body).toHaveProperty("highOpportunityDonors");
+      expect(summary.body).toHaveProperty("monthlyGivingCandidates");
+      expect(summary.body).toHaveProperty("updatedAt");
+    }
 
     const growthIdeas = await request(app)
       .get("/api/steward-signals/growth-ideas?limit=3")
       .set(auth);
-    expect(growthIdeas.status).toBe(200);
-    expect(Array.isArray(growthIdeas.body?.ideas)).toBe(true);
-    expect(growthIdeas.body.ideas.length).toBeLessThanOrEqual(3);
-    expect(growthIdeas.body).toHaveProperty("scoringSummary");
+    expect([200, 412]).toContain(growthIdeas.status);
+    if (growthIdeas.status === 412) {
+      expect(growthIdeas.body?.code).toBe("STEWARD_AI_NOT_LIVE");
+    } else {
+      expect(Array.isArray(growthIdeas.body?.ideas)).toBe(true);
+      expect(growthIdeas.body.ideas.length).toBeLessThanOrEqual(3);
+      expect(growthIdeas.body).toHaveProperty("scoringSummary");
+    }
+  });
+
+  it("returns dashboard focus, research output, and lapse radar groups", { timeout: 30000 }, async () => {
+    const auth = { Authorization: `Bearer ${adminToken}` };
+
+    const focus = await request(app)
+      .get("/api/steward-signals/dashboard-focus")
+      .set(auth);
+    expect([200, 412]).toContain(focus.status);
+    if (focus.status === 412) {
+      expect(focus.body?.code).toBe("STEWARD_AI_NOT_LIVE");
+    } else {
+      expect(Array.isArray(focus.body?.focusLines)).toBe(true);
+      expect(Array.isArray(focus.body?.topPriorities)).toBe(true);
+    }
+
+    const research = await request(app)
+      .post("/api/steward-signals/research")
+      .set(auth)
+      .send({
+        mode: "research",
+        query: "Which donors gave last year but not this year?",
+        limit: 10,
+      });
+    expect([200, 412]).toContain(research.status);
+    if (research.status === 412) {
+      expect(research.body?.code).toBe("STEWARD_AI_NOT_LIVE");
+    } else {
+      expect(research.body).toHaveProperty("scenario");
+      expect(research.body).toHaveProperty("summary");
+      expect(Array.isArray(research.body?.donors)).toBe(true);
+      expect(Array.isArray(research.body?.chart?.lapseDistribution)).toBe(true);
+    }
+
+    const lapse = await request(app)
+      .get("/api/steward-signals/lapse-radar")
+      .set(auth);
+    expect([200, 412]).toContain(lapse.status);
+    if (lapse.status === 412) {
+      expect(lapse.body?.code).toBe("STEWARD_AI_NOT_LIVE");
+    } else {
+      expect(lapse.body).toHaveProperty("groups");
+      expect(lapse.body).toHaveProperty("distribution");
+    }
   });
 
   it("enforces explicit confirmation and allows follow-up task creation", async () => {

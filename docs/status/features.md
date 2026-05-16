@@ -30,6 +30,29 @@ _Last deep audit: 2026-05-15_
 | Settings navigation deduplication | Working | `app/components/settings/SettingsSidebar.tsx`, `app/settings/page.tsx` | Duplicate settings entries/cards/ribbon actions were consolidated to the new canonical routes. |
 | CRM custom icon PNG dependency removal (settings and shared nav icon surface) | Working | `app/components/ui/OyamaGradientIcon.tsx` | Custom icon rendering now uses inline SVG path maps; `app/icons/*.png` imports are removed from active app code. |
 
+## 2026-05-16 Contacts Manager Segment Builder Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Shared segment builder for email and letters | Working | `app/components/contacts-manager/ContactsManagerPage.tsx`, `server/src/routes/constituents.ts` | Contacts Manager now has common segment starters for Donors, Churches, Organizations, Businesses, and Newsletter, plus filtered-view list drafting for reusable audience lists consumed by email sends and letter generation. |
+| Constituent tag library and bulk tag actions | Working | `app/components/contacts-manager/ContactsManagerPage.tsx`, `server/src/routes/constituents.ts`, `server/src/services/steward-donor-context.ts` | Added tag catalog create/update APIs, tag descriptions for staff/AI context, bulk add/remove tagging for selected constituents, and Steward AI donor context output that includes tag descriptions. |
+| Contacts Manager side-by-side list builder | Working | `app/components/contacts-manager/ContactsManagerPage.tsx`, `server/src/routes/constituents.ts` | Audience building now stays open beside the contact table. Staff add/remove people with arrow controls, bulk tag the selected list, load saved segments, and save/update reusable segments without leaving the selection view. Constituent fetch cap increased for larger list work, with the table showing a narrowed 250-row working view. |
+| Contacts Manager ribbon modal tools | Working | `app/components/contacts-manager/ContactsManagerPage.tsx` | Tag Library and Bulk Tags now launch from the workspace ribbon and open as focused modals instead of permanent right-side panels. Audience Lists moved into the dedicated side-by-side list builder. |
+
+## 2026-05-16 Sidebar IA Simplification Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Donor sidebar reduced default surface | Working | `app/components/layout/sidebar-configs.tsx`, `app/components/layout/Sidebar.tsx` | Donor CRM sidebar now defaults to a short Home group for daily work and moves secondary workflows into natural collapsed groups: Fundraising, Outreach, Insights & Reports, People & Service, and Admin. |
+| Active sidebar group auto-open | Working | `app/components/layout/CrmSidebar.tsx` | Collapsible sidebar groups now automatically open when the current route belongs to that group, keeping deep links understandable while reducing default visual clutter. |
+
+## 2026-05-16 Workspace Header + AGENTSteward Usability Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Contacts Manager standard breadcrumb header | Working | `app/components/contacts-manager/ContactsManagerPage.tsx` | Contacts Manager now uses the shared compact breadcrumb bar with status, counts, and related workspace actions instead of a large title card. |
+| AGENTSteward workspace orientation | Working | `app/components/ai/AGENTStewardWorkspace.tsx` | Full AGENTSteward now shows a compact breadcrumb/context row with active scope and mode guidance, plus mode-aware starter workflows for common CRM assistant tasks. |
+
 ## 2026-05-14 Production Pass Phase 1/2 (Audit + IA Cleanup)
 
 | Area | Status | Evidence | Notes |
@@ -91,7 +114,7 @@ _Last deep audit: 2026-05-15_
 | Communications guided wizard route scaffold | Partially Working | `app/communications/new/type/page.tsx`, `app/communications/new/audience/page.tsx`, `app/communications/new/preset/page.tsx`, `app/communications/new/editor/page.tsx`, `app/communications/new/review/page.tsx`, `app/communications/new/send/page.tsx`, `app/communications/[campaignId]/review/page.tsx`, `app/communications/[campaignId]/schedule/page.tsx` | Guided path routes are now explicit and navigable; deeper per-step persistence/validation remains in progress. |
 | Communications library/log helper routes | Working | `app/communications/library/templates/page.tsx`, `app/communications/library/segments/page.tsx`, `app/communications/log/page.tsx` | Added explicit route entry points for templates, segments, and log workflows. |
 | Letters & Printables ribbon-first home | Working | `app/components/letters/LettersRibbonHome.tsx`, `app/letters-printables/page.tsx` | Letters root route now starts with ribbon groups and project-library cards to reduce entry-point sprawl. |
-| Letters generation wizard route scaffold | Partially Working | `app/letters-printables/generate/template/page.tsx`, `app/letters-printables/generate/recipients/page.tsx`, `app/letters-printables/generate/preview/page.tsx`, `app/letters-printables/generate/complete/page.tsx` | Generation path steps are scaffolded for obvious start flow; deeper step functionality remains in progress. |
+| Letters unified generation workspace | Working | `app/letters-printables/generate/page.tsx`, `app/components/letters/LetterGenerateCenter.tsx` | Single and batch generation now live in one template-specific workspace. Legacy step URLs redirect here. |
 | Letters presets route slices | Working | `app/letters-printables/presets/page.tsx`, `app/letters-printables/presets/headers/page.tsx`, `app/letters-printables/presets/footers/page.tsx`, `app/letters-printables/presets/signatures/page.tsx` | Added preset-oriented entry routes for headers/footers/signatures and compatibility redirects. |
 
 ## 2026-05-14 Steward AI Runtime Status + Rules-Mode Engagement Pass
@@ -130,6 +153,25 @@ _Last deep audit: 2026-05-15_
 | Email Draft Studio (form mode) + draft/task actions | Working | `app/steward-signals/email-draft-studio/page.tsx`, `app/components/steward/EmailDraftStudioPage.tsx`, `server/src/routes/steward-signals.ts` | Added dedicated studio route, donor-form draft generation, optional AI refinement, save-as-draft endpoint, and confirm-first follow-up task creation. |
 | Structured email artifact contract expansion | Working | `app/components/ai/steward-artifact-types.ts`, `app/components/ai/artifacts/EmailDraftArtifactCard.tsx`, `server/src/routes/steward-ai.ts` | Email artifacts now support preview text and markdown/plain/html body variants while preserving legacy `body` fallback compatibility. |
 | Microsoft provider selector scaffolding | Partially Working | `server/src/routes/settings.ts`, `app/settings/organization/page.tsx` | Added provider settings and tests for Standard SMTP + Microsoft 365 SMTP; Microsoft Graph path is scaffolded with mock test response and not-yet-wired OAuth token exchange. |
+
+## 2026-05-16 Steward Signals Dashboard Refactor
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Dashboard-first Steward Signals workspace shell | Working | `app/components/steward/StewardSignalsPage.tsx`, `app/components/steward/StewardSignalsWorkspaceNav.tsx` | Replaced stacked widget layout with a command-center workspace: Today Focus hero, KPI intelligence row, local signal navigation, center decision workspace, and contextual AI side panel. |
+| Today Focus + expanded KPI intelligence APIs | Working | `server/src/routes/steward-signals.ts`, `app/components/steward/StewardTodaysFocusPanel.tsx`, `app/components/steward/StewardSignalsSummaryCards.tsx` | Added `GET /api/steward-signals/dashboard-focus` and expanded `GET /api/steward-signals/summary` for donor health, critical lapse, first-time follow-up, major movement, and open stewardship action KPIs. |
+| Opportunity Engine card mode + optional table mode | Working | `app/components/steward/OpportunityEnginePlaceholderTable.tsx` | Opportunity Engine now defaults to card-first decision workflow with explain context and review-first actions, while preserving a data-table mode for advanced review. |
+| Donor Research Mode + Cohort Builder API-backed workspace | Partially Working | `app/components/steward/StewardDonorResearchWorkspace.tsx`, `server/src/routes/steward-signals.ts` | Added deterministic `POST /api/steward-signals/research` with query scenario matching, cohort filters, chart summaries, and donor evidence list; one-click segment persistence remains in development. |
+| Lapse Radar 2.0 + Suggested Action Board layout | Partially Working | `app/components/steward/StewardLapseRadarPanel.tsx`, `app/components/steward/StewardTaskSuggestionsTable.tsx`, `server/src/routes/steward-signals.ts` | Added distribution/group outputs and grouped action board UX; full automation wiring for cohort-to-batch operations remains review-first and partially wired. |
+
+## 2026-05-16 Steward Signals AI-Only Data Enforcement
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| AI-required gating for Steward Signals read endpoints | Working | `server/src/routes/steward-signals.ts` | `summary`, `dashboard-focus`, `daily-thought`, `growth-ideas`, `opportunities`, `research`, `task-suggestions`, `lapse-radar`, and donor widget endpoints now require live Steward AI runtime and return explicit 412 codes when unavailable. |
+| Daily thought and email draft fallback removal | Working | `server/src/routes/steward-signals.ts`, `app/components/steward/DailyStewardThoughtCard.tsx`, `app/components/steward/EmailDraftStudioPage.tsx` | Daily thought is now AI-generated only and email draft generation no longer falls back to deterministic output when AI fails. |
+| Rules/demo language cleanup in Steward Signals UI | Working | `app/components/steward/OpportunityEnginePlaceholderTable.tsx`, `app/components/steward/DonorStewardSignalsWidget.tsx`, `app/components/steward/GrowthIdeasPanel.tsx`, `app/components/steward/StewardDonorResearchWorkspace.tsx`, `app/components/steward/StewardTaskSuggestionsTable.tsx` | Removed rules/demo wording and aligned runtime messaging with live AI requirement. |
+| Steward Signals API AI-required coverage | Working | `tests/api/steward-signals.api.test.ts` | Updated API tests to validate AI-required response codes and preserve pass behavior when runtime is connected. |
 
 ## 2026-05-14 Standalone Oyama Bridge App + Steward Structured Artifacts Pass
 
@@ -504,7 +546,7 @@ This document treats a feature as complete only when it uses real data, saves co
 | donor.lettersPrintables | Partially Working | `app/letters-printables/*` + `/api/letters` | Single and batch generation plus print/mail queue workflows are functional; server-side PDF export remains partial. |
 | donor.livecom | Working | `app/livecom/page.tsx` + `/api/livecom` | Interaction capture writes to timeline activity. |
 | donor.stewardPaths | Partially Working | `app/automations/page.tsx`, `/api/automations`, `/api/steward-paths` | Legacy and sequence workflows run together; builder depth still growing. |
-| donor.stewardSignals | Partially Working | `app/steward-signals/page.tsx` + `/api/steward-signals` | Suggestion-first insights; keep human review required. |
+| donor.stewardSignals | Partially Working | `app/steward-signals/page.tsx` + `/api/steward-signals` | Dashboard-first donor intelligence command center is live (Today Focus, KPI row, research/cohort workspace, card-first opportunities) and now requires live Steward AI for signal data; segment/export automation remains in development and write actions stay confirmation-gated. |
 | donor.volunteers | Partially Working | `app/volunteers/page.tsx` | Real data list with auth-helper consistency gap. |
 | donor.reports | Working | `app/reports/page.tsx` + `/api/reports/*` | Broad report coverage, admin operations summaries, and PDF packet print exports are available. |
 | donor.dataTools | Partially Working | `app/data-tools/*` | Import/export/data-quality tooling is live; merge depth still in progress. |

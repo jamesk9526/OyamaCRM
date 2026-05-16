@@ -1,6 +1,6 @@
 # CRM Sidebar Navigation
 
-Last updated: 2026-05-12
+Last updated: 2026-05-16
 
 ## Current Navigation Problem
 
@@ -15,23 +15,25 @@ Specific donor issues addressed in this pass:
 
 ## New Donor CRM Group Structure
 
-The donor sidebar now uses config-driven groups:
+The donor sidebar now uses a smaller default navigation with secondary tools tucked into clearer collapsible groups:
 
-1. Fundraising
-2. Engagement Workspace
-3. Communication Tools
-4. Insights
-5. People
-6. System
+1. Home
+2. Fundraising
+3. Outreach
+4. Insights & Reports
+5. People & Service
+6. Admin
 
 ### Group details
 
-- Fundraising: Dashboard, Constituents, Donations, Campaigns, Grants, Payments (+ QB Sync when plugin is enabled)
-- Engagement Workspace: Steward Paths, Tasks, Meetings, Communications
-- Communication Tools: Contacts Manager, Letters & Printables, LiveCom
-- Insights: Steward Signals, Reports
-- People: Volunteers
-- System (collapsible): Imports, Data Tools, Custom Fields, Settings, Help, admin-only Feedback Tickets, admin-only Watchdog/WebMaster links
+- Home: Dashboard, Constituents, Donations, Tasks, Communications
+- Fundraising (collapsed by default): Campaigns, Grants, Payments (+ QB Sync when plugin is enabled)
+- Outreach (collapsed by default): Contacts Manager, Letters & Printables, LiveCom, Meetings, Steward Paths
+- Insights & Reports (collapsed by default): AGENTSteward, Steward Signals, Reports
+- People & Service (collapsed by default): Volunteers
+- Admin (collapsed by default): Settings, Imports, Data Tools, Custom Fields, Help, admin-only Feedback Tickets, admin-only Watchdog/WebMaster links
+
+Collapsed groups automatically open when the current route belongs to that group, so deep links still orient the user without keeping every tool visible all the time.
 
 Donor-specific IA companion doc: [docs/DONOR_CRM_SIDEBAR_NAVIGATION.md](docs/DONOR_CRM_SIDEBAR_NAVIGATION.md)
 
@@ -49,7 +51,9 @@ This keeps it close to Communications and LiveCom while visually distinguishing 
 
 ## Contacts Manager
 
-Contacts Manager lives in Communication Tools and opens `/contacts-manager`. It is the shared audience workspace for Communications and Letters & Printables: staff can search constituents, distinguish donors and non-donors, update tags, and save reusable audience lists that email campaigns can send to and printable workflows can use for mailing context.
+Contacts Manager lives in Communication Tools and opens `/contacts-manager`. It is the shared audience workspace for Communications and Letters & Printables: staff can search constituents, distinguish donors and non-donors, build common lists such as Donors, Churches, Organizations, Businesses, and Newsletter, update tags in bulk, and save reusable audience lists that email campaigns can send to and printable workflows can use for mailing context. The canonical list-building workflow is side-by-side: contacts on the left, selected segment on the right, with arrow controls to add/remove people.
+
+Contacts Manager also owns the constituent tag library. Tags include color and description metadata so staff understand segment intent and AI-assisted workflows can use the tag descriptions as audience context.
 
 ## Badge Model
 

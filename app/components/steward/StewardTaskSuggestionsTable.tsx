@@ -1,42 +1,29 @@
-/** Steward Signals deterministic task suggestions table (non-AI). */
+/** Steward Signals task suggestions table. */
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
-
-interface TaskSuggestionRow {
-  id: string;
-  opportunityId: string;
-  constituentId: string;
-  donorName: string;
-  title: string;
-  description: string;
-  taskType: "THANK_YOU" | "FOLLOW_UP";
-  priority: "HIGH" | "MEDIUM" | "LOW";
-  channel: string;
-  dueDateIso: string;
-  confidence: number;
-  confidenceReason: string;
-  reason: string;
-}
+import type { StewardTaskSuggestionRow } from "@/app/components/steward/steward-signals-types";
 
 /**
- * StewardTaskSuggestionsTable shows deterministic, explainable task suggestions
- * derived from live donor signals without model-generated content.
+ * StewardTaskSuggestionsTable shows explainable task suggestions derived
+ * from live donor stewardship signals.
  */
 export default function StewardTaskSuggestionsTable() {
-  const [rows, setRows] = useState<TaskSuggestionRow[]>([]);
+  const [rows, setRows] = useState<StewardTaskSuggestionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"board" | "table">("board");
 
   async function loadRows() {
     setLoading(true);
     setError(null);
 
     try {
-      const data = await apiFetch<TaskSuggestionRow[]>("/api/steward-signals/task-suggestions?limit=40");
+      const data = await apiFetch<StewardTaskSuggestionRow[]>("/api/steward-signals/task-suggestions?limit=40");
       setRows(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load suggested tasks.");
@@ -59,7 +46,7 @@ export default function StewardTaskSuggestionsTable() {
   }, []);
 
   /** Creates a task from the linked opportunity via confirm-first endpoint. */
-  async function createTask(row: TaskSuggestionRow) {
+  async function createTask(row: StewardTaskSuggestionRow) {
     if (!window.confirm(`Create suggested task for ${row.donorName}?`)) return;
 
     setPendingId(row.id);
@@ -87,11 +74,40 @@ export default function StewardTaskSuggestionsTable() {
     return null;
   }, [loading, rows.length]);
 
-  const priorityClass = (priority: TaskSuggestionRow["priority"]): string => {
+  const priorityClass = (priority: StewardTaskSuggestionRow["priority"]): string => {
     if (priority === "HIGH") return "bg-red-50 text-red-700 border-red-200";
     if (priority === "MEDIUM") return "bg-amber-50 text-amber-700 border-amber-200";
     return "bg-gray-100 text-gray-700 border-gray-200";
   };
+
+  const groupedRows = useMemo(() => {
+    const groups: Record<"Thank" | "Reconnect" | "Invite" | "Upgrade" | "Research" | "Follow Up" | "Review", StewardTaskSuggestionRow[]> = {
+      Thank: [],
+      Reconnect: [],
+      Invite: [],
+      Upgrade: [],
+      Research: [],
+      "Follow Up": [],
+      Review: [],
+    };
+
+    const classify = (row: StewardTaskSuggestionRow): keyof typeof groups => {
+      const context = `${row.title} ${row.reason} ${row.description}`.toLowerCase();
+      if (row.taskType === "THANK_YOU" || context.includes("thank")) return "Thank";
+      if (context.includes("reconnect") || context.includes("lapse") || context.includes("cadence")) return "Reconnect";
+      if (context.includes("event") || context.includes("invite")) return "Invite";
+      if (context.includes("monthly") || context.includes("second-gift") || context.includes("upgrade")) return "Upgrade";
+      if (context.includes("major") || context.includes("review")) return "Research";
+      if (row.priority === "HIGH") return "Review";
+      return "Follow Up";
+    };
+
+    for (const row of rows) {
+      groups[classify(row)].push(row);
+    }
+
+    return groups;
+  }, [rows]);
 
   return (
     <div className="space-y-2">
@@ -102,6 +118,88 @@ export default function StewardTaskSuggestionsTable() {
         </div>
       )}
 
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => void loadRows()}
+          disabled={loading}
+          className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+        >
+          {loading ? "Refreshing..." : "Refresh"}
+        </button>
+        <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setViewMode("board")}
+          className={`rounded-md border px-2.5 py-1 text-xs font-medium ${viewMode === "board" ? "border-green-200 bg-green-50 text-green-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}
+        >
+          Action Board
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewMode("table")}
+          className={`rounded-md border px-2.5 py-1 text-xs font-medium ${viewMode === "table" ? "border-green-200 bg-green-50 text-green-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}
+        >
+          Data Table
+        </button>
+        </div>
+      </div>
+
+      {viewMode === "board" ? (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {(Object.entries(groupedRows) as Array<[keyof typeof groupedRows, StewardTaskSuggestionRow[]]>).map(([group, items]) => (
+            <article key={group} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-gray-900">{group}</p>
+                <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                  {items.length}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                {items.length === 0 ? "No recommendations in this group." : `${items.length} stewardship actions ready for review.`}
+              </p>
+
+              <div className="mt-3 space-y-2">
+                {items.slice(0, 3).map((row) => (
+                  <div key={row.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-semibold text-gray-900">{row.donorName}</p>
+                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${priorityClass(row.priority)}`}>
+                        {row.priority}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-700">{row.reason}</p>
+                    <p className="mt-1 text-xs text-gray-500">Due {new Date(row.dueDateIso).toLocaleDateString()} · {row.channel} · {row.confidence}% confidence</p>
+
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => createTask(row)}
+                        disabled={pendingId !== null}
+                        className="rounded-md border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 disabled:opacity-60"
+                      >
+                        {pendingId === row.id ? "Creating..." : "Create Task"}
+                      </button>
+                      <Link
+                        href={`/constituents/${row.constituentId}`}
+                        className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                      >
+                        View Donor
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))}
+
+          {emptyMessage && (
+            <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 lg:col-span-2">
+              {emptyMessage}
+            </div>
+          )}
+        </div>
+      ) : (
       <div className="overflow-x-auto rounded-lg border border-gray-200">
         <table className="w-full text-sm bg-white">
           <thead>
@@ -154,6 +252,7 @@ export default function StewardTaskSuggestionsTable() {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

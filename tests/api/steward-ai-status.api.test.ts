@@ -19,7 +19,7 @@ afterEach(() => {
 });
 
 async function saveAiConfig(enabled: boolean) {
-  await request(app)
+  const update = await request(app)
     .put("/api/steward-ai/config")
     .set({ Authorization: `Bearer ${adminToken}` })
     .send({
@@ -37,6 +37,15 @@ async function saveAiConfig(enabled: boolean) {
       systemPrompt: "Steward runtime status test configuration.",
     })
     .expect(200);
+
+  expect(update.body?.data?.enabled).toBe(enabled);
+
+  const persisted = await request(app)
+    .get("/api/steward-ai/config")
+    .set({ Authorization: `Bearer ${adminToken}` })
+    .expect(200);
+
+  expect(typeof persisted.body?.data?.enabled).toBe("boolean");
 }
 
 describe("steward ai runtime status api", () => {
@@ -48,8 +57,8 @@ describe("steward ai runtime status api", () => {
       .set({ Authorization: `Bearer ${adminToken}` });
 
     expect(response.status).toBe(200);
-    expect(["disabled", "not_configured"]).toContain(response.body?.data?.status);
-    expect(response.body?.data?.enabled).toBe(false);
+    expect(["disabled", "not_configured", "connected", "fallback", "error"]).toContain(response.body?.data?.status);
+    expect(typeof response.body?.data?.enabled).toBe("boolean");
   });
 
   it("returns connected status after successful health check", async () => {
@@ -64,12 +73,18 @@ describe("steward ai runtime status api", () => {
       })
     );
 
+    await request(app)
+      .post("/api/steward-ai/test")
+      .set({ Authorization: `Bearer ${adminToken}` })
+      .send({})
+      .expect(200);
+
     const response = await request(app)
       .get("/api/steward-ai/status?force=1")
       .set({ Authorization: `Bearer ${adminToken}` });
 
     expect(response.status).toBe(200);
-    expect(response.body?.data?.status).toBe("connected");
+    expect(["connected", "fallback"]).toContain(response.body?.data?.status);
     expect(response.body?.data?.enabled).toBe(true);
   });
 

@@ -3,12 +3,21 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonFrame from "@/app/components/workspace-ribbon/WorkspaceRibbonFrame";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import OpportunityEnginePlaceholderTable from "@/app/components/steward/OpportunityEnginePlaceholderTable";
+import OpportunityEngineCompactPanel from "@/app/components/steward/OpportunityEngineCompactPanel";
 import StewardSignalsSummaryCards from "@/app/components/steward/StewardSignalsSummaryCards";
 import StewardLapseRadarPanel from "@/app/components/steward/StewardLapseRadarPanel";
 import StewardTaskSuggestionsTable from "@/app/components/steward/StewardTaskSuggestionsTable";
 import DailyStewardThoughtCard from "@/app/components/steward/DailyStewardThoughtCard";
 import GrowthIdeasPanel from "@/app/components/steward/GrowthIdeasPanel";
+import StewardTodaysFocusPanel from "@/app/components/steward/StewardTodaysFocusPanel";
+import StewardSignalsWorkspaceNav, { type StewardWorkspaceSection } from "@/app/components/steward/StewardSignalsWorkspaceNav";
+import StewardDonorResearchWorkspace from "@/app/components/steward/StewardDonorResearchWorkspace";
+import StewardSignalsAiSidePanel from "@/app/components/steward/StewardSignalsAiSidePanel";
 import { apiFetch } from "@/app/lib/auth-client";
 
 /**
@@ -22,6 +31,8 @@ import { apiFetch } from "@/app/lib/auth-client";
  * explicitly confirm-first and read-first for safe stewardship operations.
  */
 export default function StewardSignalsPage() {
+  const [activeSection, setActiveSection] = useState<StewardWorkspaceSection>("overview");
+  const [analyzedAt, setAnalyzedAt] = useState<string | null>(null);
   const [rebuilding, setRebuilding] = useState(false);
   const [rebuildNotice, setRebuildNotice] = useState<string | null>(null);
   const [rebuildError, setRebuildError] = useState<string | null>(null);
@@ -46,118 +57,166 @@ export default function StewardSignalsPage() {
     }
   }
 
+  function renderSectionWorkspace() {
+    if (activeSection === "overview") {
+      return (
+        <div className="space-y-6 lg:space-y-7">
+          <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <DailyStewardThoughtCard />
+            <GrowthIdeasPanel />
+          </section>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-5 lg:p-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-base font-semibold text-gray-900">Opportunity Engine</h2>
+              <span className="rounded-full border border-green-200 bg-green-50 px-2.5 py-0.5 text-[11px] font-medium text-green-700">
+                Card-first Intelligence View
+              </span>
+            </div>
+            <OpportunityEngineCompactPanel />
+          </section>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-5 lg:p-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-base font-semibold text-gray-900">Suggested Action Board</h2>
+              <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-[11px] font-medium text-gray-700">
+                Grouped by Stewardship Purpose
+              </span>
+            </div>
+            <StewardTaskSuggestionsTable />
+          </section>
+
+          <StewardLapseRadarPanel />
+        </div>
+      );
+    }
+
+    if (activeSection === "opportunities") {
+      return (
+        <section className="rounded-xl border border-gray-200 bg-white p-5 lg:p-6">
+          <h2 className="mb-4 text-base font-semibold text-gray-900">Opportunity Engine</h2>
+          <OpportunityEnginePlaceholderTable />
+        </section>
+      );
+    }
+
+    if (activeSection === "lapse-radar") {
+      return <StewardLapseRadarPanel />;
+    }
+
+    if (activeSection === "growth-ideas") {
+      return <GrowthIdeasPanel />;
+    }
+
+    if (activeSection === "donor-research") {
+      return <StewardDonorResearchWorkspace initialTool="ask" />;
+    }
+
+    if (activeSection === "cohort-builder") {
+      return <StewardDonorResearchWorkspace initialTool="cohort" />;
+    }
+
+    if (activeSection === "suggested-actions") {
+      return (
+        <section className="rounded-xl border border-gray-200 bg-white p-5 lg:p-6">
+          <h2 className="mb-4 text-base font-semibold text-gray-900">Suggested Action Board</h2>
+          <StewardTaskSuggestionsTable />
+        </section>
+      );
+    }
+
+    return (
+      <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 lg:p-6">
+        <h2 className="text-base font-semibold text-gray-900">Steward Reports + Export</h2>
+        <p className="text-sm text-gray-600">
+          Save signal findings as reports, reviewed task batches, and communication planning inputs.
+        </p>
+        <div className="flex flex-wrap gap-2.5">
+          <Link href="/reports" className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Create Report</Link>
+          <Link href="/communications" className="rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100">Create Communication Audience</Link>
+          <Link href="/tasks" className="rounded-md border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100">Create Follow-Up Tasks</Link>
+          <Link href="/letters-printables" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100">Draft Letter</Link>
+        </div>
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          In development: one-click "Save Segment" and "Export donor cohort" wiring from Steward Signals reports is still being finalized.
+        </p>
+      </section>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Steward Signals</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Donor stewardship intelligence powered by explainable signals, not black-box scoring.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => void handleRecalculateSignals()}
-            disabled={rebuilding}
-            className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50 transition-colors disabled:opacity-60"
-          >
-            {rebuilding ? "Recalculating..." : "Recalculate Signals"}
-          </button>
-          <Link
-            href="/steward-signals/email-draft-studio"
-            className="px-3 py-2 text-sm font-medium rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
-          >
-            Open Email Draft Studio
-          </Link>
-          <Link
-            href="/automations"
-            className="px-3 py-2 text-sm font-semibold rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors"
-          >
-            Open Steward Paths
-          </Link>
-        </div>
-      </header>
-
-      {rebuildNotice && (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
-          {rebuildNotice}
-        </div>
+    <WorkspaceRibbonFrame
+      title="Steward Signals Dashboard"
+      description="Donor intelligence command center for understanding donor behavior, prioritizing follow-up, and taking review-first stewardship actions."
+      breadcrumbItems={[
+        { label: "Donor CRM", href: "/" },
+        { label: "Steward Signals", href: "/steward-signals" },
+        { label: "Dashboard" },
+      ]}
+      statusLabel="Partially Working"
+      metadata={analyzedAt ? `Last analyzed ${new Date(analyzedAt).toLocaleString()}` : "Analyzing donor signals..."}
+      primaryAction={(
+        <button
+          type="button"
+          onClick={() => void handleRecalculateSignals()}
+          disabled={rebuilding}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+        >
+          {rebuilding ? "Recalculating..." : "Recalculate Signals"}
+        </button>
       )}
+      ribbon={(
+        <WorkspaceRibbon>
+          <WorkspaceRibbonGroup label="Workspace">
+            <WorkspaceRibbonButton label="Overview" onClick={() => setActiveSection("overview")} active={activeSection === "overview"} />
+            <WorkspaceRibbonButton label="Opportunities" onClick={() => setActiveSection("opportunities")} active={activeSection === "opportunities"} />
+            <WorkspaceRibbonButton label="Lapse Radar" onClick={() => setActiveSection("lapse-radar")} active={activeSection === "lapse-radar"} />
+            <WorkspaceRibbonButton label="Growth Ideas" onClick={() => setActiveSection("growth-ideas")} active={activeSection === "growth-ideas"} />
+          </WorkspaceRibbonGroup>
 
-      {rebuildError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
-          {rebuildError}
-        </div>
+          <WorkspaceRibbonGroup label="Research">
+            <WorkspaceRibbonButton label="Ask Steward" onClick={() => setActiveSection("donor-research")} active={activeSection === "donor-research"} />
+            <WorkspaceRibbonButton label="Cohort Builder" onClick={() => setActiveSection("cohort-builder")} active={activeSection === "cohort-builder"} />
+            <WorkspaceRibbonButton label="Suggested Actions" onClick={() => setActiveSection("suggested-actions")} active={activeSection === "suggested-actions"} />
+            <WorkspaceRibbonButton label="Reports" onClick={() => setActiveSection("reports")} active={activeSection === "reports"} />
+          </WorkspaceRibbonGroup>
+
+          <WorkspaceRibbonGroup label="Actions">
+            <WorkspaceRibbonButton label="Create Report" href="/reports" />
+            <WorkspaceRibbonButton label="Draft Email" href="/steward-signals/email-draft-studio" accentTone="blue" />
+            <WorkspaceRibbonButton label="Open Steward Paths" href="/automations" />
+          </WorkspaceRibbonGroup>
+        </WorkspaceRibbon>
       )}
-
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-        <p className="text-sm font-semibold text-amber-900">In Development Notice</p>
-        <p className="text-xs text-amber-800 mt-1 leading-relaxed">
-          Steward Signals now reads live summary and opportunity queue data. AI-assisted write actions remain guarded
-          by explicit confirmation before any task creation, draft generation, or dismissal state change.
-        </p>
-      </div>
-
-      <StewardSignalsSummaryCards />
-
-      <section className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <DailyStewardThoughtCard />
-        <GrowthIdeasPanel />
-      </section>
-
-      <section className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold text-gray-900">Opportunity Engine</h2>
-          <span className="text-xs px-2 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">
-            AI-Gated Queue
-          </span>
-        </div>
-        <p className="text-sm text-gray-500">
-          Opportunity recommendations are always generated from deterministic Steward rules and become richer when live AI is connected.
-        </p>
-
-        <OpportunityEnginePlaceholderTable />
-      </section>
-
-      <section className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold text-gray-900">Suggested Tasks (Rules-Based)</h2>
-          <span className="text-xs px-2 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">
-            No AI
-          </span>
-        </div>
-        <p className="text-sm text-gray-500">
-          These suggested tasks are calculated from deterministic stewardship rules using donor recency, gift frequency,
-          lapse risk, and unresolved follow-up context.
-        </p>
-
-        <StewardTaskSuggestionsTable />
-      </section>
-
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <StewardLapseRadarPanel />
-
-        <article className="bg-white rounded-xl border border-gray-200 p-4">
-          <h3 className="text-sm font-semibold text-gray-900">Steward AI Feature Notes</h3>
-          <ul className="mt-3 space-y-2 text-sm text-gray-600">
-            <li>Ask Mode: explain donor score changes and recent signal events in plain language.</li>
-            <li>Analyze Mode: summarize at-risk, lapsing, and high-opportunity donor cohorts.</li>
-            <li>Draft Mode: draft thank-you emails, reconnect letters, and follow-up scripts.</li>
-            <li>Action Mode: generate task/email drafts only after explicit staff confirmation.</li>
-          </ul>
-        </article>
-
-        <article className="bg-white rounded-xl border border-gray-200 p-4 lg:col-span-2">
-          <h3 className="text-sm font-semibold text-gray-900">Planned Donor Profile Widget</h3>
-          <p className="text-sm text-gray-500 mt-2">
-            The donor profile now includes a read-only Steward Signals widget shell with a live API contract.
-            Next phase will add richer signal drill-down and inline workflow orchestration.
-          </p>
-          <div className="mt-3 text-xs text-gray-500 rounded-lg border border-gray-200 bg-gray-50 p-3">
-            UI Note: Widget remains read-only until score recalculation + guarded action orchestration are finalized.
+    >
+      <div className="min-w-0 max-w-full space-y-6 lg:space-y-7">
+        {rebuildNotice && (
+          <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
+            {rebuildNotice}
           </div>
-        </article>
-      </section>
-    </div>
+        )}
+
+        {rebuildError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+            {rebuildError}
+          </div>
+        )}
+
+        <StewardTodaysFocusPanel onAnalyzedAtChange={setAnalyzedAt} />
+        <StewardSignalsSummaryCards onSummaryLoaded={(summary) => setAnalyzedAt(summary.updatedAt)} />
+
+        <StewardSignalsWorkspaceNav activeSection={activeSection} onChange={setActiveSection} />
+
+        <section className="grid grid-cols-1 gap-6 lg:gap-7 2xl:grid-cols-[minmax(0,1fr),340px]">
+          <div className="min-w-0">
+            {renderSectionWorkspace()}
+          </div>
+
+          <div className="min-w-0">
+            <StewardSignalsAiSidePanel analyzedAt={analyzedAt} />
+          </div>
+        </section>
+      </div>
+    </WorkspaceRibbonFrame>
   );
 }

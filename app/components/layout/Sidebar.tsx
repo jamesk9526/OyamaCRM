@@ -25,7 +25,7 @@ export default function Sidebar({ forceExpanded = false }: SidebarProps) {
       storageKey="oyamacrm.sidebar.donor.collapsed"
       userRole={user?.role}
       forceExpanded={forceExpanded}
-      expandedWidthClass="w-64"
+      expandedWidthClass="w-60"
       collapsedWidthClass="w-20"
       organizationLabel="Oyama Organization"
     />

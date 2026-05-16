@@ -1,7 +1,7 @@
-/** Letters generation wizard step route: choose template and project context. */
-import LettersGenerateWizard from "@/app/components/letters/generate/LettersGenerateWizard";
+/** Deprecated generation wizard step redirected to the unified generate workspace. */
+import { redirect } from "next/navigation";
 
-/** Renders the functional template step in the letters generation wizard. */
+/** Preserves legacy step URL while using the new single-page generator. */
 export default function LettersGenerateTemplatePage() {
-  return <LettersGenerateWizard step="template" />;
+  redirect("/letters-printables/generate");
 }

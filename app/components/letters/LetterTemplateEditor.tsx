@@ -101,12 +101,13 @@ const DEFAULT_STARTER_BODY = `<p>{{donor.firstName}},</p><p>Thank you for suppor
 interface LetterTemplateEditorProps {
   templateId?: string;
   fullScreen?: boolean;
+  initialPanel?: StudioPanel;
 }
 
 /** Renders the printable document studio used by both new and existing printable projects. */
-export default function LetterTemplateEditor({ templateId, fullScreen = false }: LetterTemplateEditorProps) {
+export default function LetterTemplateEditor({ templateId, fullScreen = false, initialPanel = "document" }: LetterTemplateEditorProps) {
   const router = useRouter();
-  const [activePanel, setActivePanel] = useState<StudioPanel>("document");
+  const [activePanel, setActivePanel] = useState<StudioPanel>(initialPanel);
   const [form, setForm] = useState<LetterTemplateForm>(INITIAL_FORM);
   const [loading, setLoading] = useState(Boolean(templateId));
   const [saving, setSaving] = useState(false);
@@ -351,11 +352,21 @@ export default function LetterTemplateEditor({ templateId, fullScreen = false }:
     }
   }
 
-  /** Saves first, then moves the user into the existing generation and routing workflow. */
-  async function publishPrintable() {
+  /** Saves first, then keeps the user in the modern publish workspace tab. */
+  async function openPublishWorkspace() {
     const currentId = await saveTemplate({ silent: true });
     if (!currentId) return;
-    router.push(`/letters-printables/generate?templateId=${currentId}`);
+    setActivePanel("publish");
+    setNotice("Publish workspace is ready. Choose Generate PDF, Print Queue, or Mail Queue.");
+  }
+
+  /** Saves first, then opens the unified generation workspace with this template and target selected. */
+  async function openGenerateWorkspace(nextMode: "single" | "batch", target: "none" | "print" | "mail" = "none") {
+    const currentId = await saveTemplate({ silent: true });
+    if (!currentId) return;
+    const params = new URLSearchParams({ templateId: currentId, mode: nextMode });
+    if (target !== "none") params.set("target", target);
+    router.push(`/letters-printables/generate?${params.toString()}`);
   }
 
   /** Creates a reusable header or footer preset from the studio without duplicating organization branding settings. */
@@ -482,7 +493,7 @@ export default function LetterTemplateEditor({ templateId, fullScreen = false }:
             <button type="button" onClick={() => void saveTemplate()} disabled={saving} className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-100 disabled:opacity-60">
               {saving ? "Saving..." : "Save"}
             </button>
-            <button type="button" onClick={() => void publishPrintable()} className="rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700">
+            <button type="button" onClick={() => void openPublishWorkspace()} className="rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700">
               Publish
             </button>
           </div>
@@ -619,10 +630,39 @@ export default function LetterTemplateEditor({ templateId, fullScreen = false }:
           )}
 
           {activePanel === "publish" && (
-            <div className="mx-auto grid w-full max-w-[940px] gap-3 md:grid-cols-3">
-              <PublishCard title="Generate PDF" description="Create a donor-specific printable and use browser print or server PDF export." action="Preview And Generate" onClick={() => void publishPrintable()} />
-              <PublishCard title="Print Queue" description="Send generated printables into the production print queue for review and batching." action="Open Publish Flow" onClick={() => void publishPrintable()} />
-              <PublishCard title="Mail Queue" description="Route approved generated printables to mail operations with address review." action="Open Publish Flow" onClick={() => void publishPrintable()} />
+            <div className="mx-auto w-full max-w-[940px] space-y-3">
+              <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <h2 className="text-sm font-semibold text-gray-900">Publish This Printable</h2>
+                <p className="mt-1 text-xs text-gray-600">
+                  Choose single-letter generation for one constituent, or batch generation for a segment, contact search, or Contacts Manager audience list.
+                </p>
+              </section>
+              <div className="grid gap-3 md:grid-cols-2">
+                <PublishCard
+                  title="Generate Single Letter"
+                  description="Search one constituent, preview the merge, generate the letter, and export a PDF from the same workspace."
+                  action="Open Single Generator"
+                  onClick={() => void openGenerateWorkspace("single")}
+                />
+                <PublishCard
+                  title="Batch Generate Letters"
+                  description="Use segments, contact search, or saved audience lists, run a dry-run, then generate batch PDFs or queue output."
+                  action="Open Batch Generator"
+                  onClick={() => void openGenerateWorkspace("batch")}
+                />
+                <PublishCard
+                  title="Generate For Print Queue"
+                  description="Open batch generation with print queue handoff selected for this template."
+                  action="Open Print Workflow"
+                  onClick={() => void openGenerateWorkspace("batch", "print")}
+                />
+                <PublishCard
+                  title="Generate For Mail Queue"
+                  description="Open batch generation with mail queue handoff selected for this template."
+                  action="Open Mail Workflow"
+                  onClick={() => void openGenerateWorkspace("batch", "mail")}
+                />
+              </div>
             </div>
           )}
         </main>
@@ -751,12 +791,12 @@ function PresetSummary({ label, value }: { label: string; value: string }) {
   );
 }
 
-function PublishCard({ title, description, action, onClick }: { title: string; description: string; action: string; onClick: () => void }) {
+function PublishCard({ title, description, action, onClick, disabled = false }: { title: string; description: string; action: string; onClick: () => void; disabled?: boolean }) {
   return (
     <article className="rounded-xl border border-gray-200 bg-white p-4">
       <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
       <p className="mt-2 min-h-16 text-xs leading-5 text-gray-600">{description}</p>
-      <button type="button" onClick={onClick} className="mt-4 w-full rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700">
+      <button type="button" onClick={onClick} disabled={disabled} className="mt-4 w-full rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-60">
         {action}
       </button>
     </article>

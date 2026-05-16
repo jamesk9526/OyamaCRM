@@ -70,7 +70,7 @@ export default function DonorStewardSignalsWidget({ constituentId }: DonorStewar
     <section className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-gray-900">Steward Signals</h2>
-        <span className="text-[11px] px-2 py-0.5 rounded-full border border-green-200 bg-green-50 text-green-700">Live Rules</span>
+        <span className="text-[11px] px-2 py-0.5 rounded-full border border-blue-200 bg-blue-50 text-blue-700">Live AI</span>
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
@@ -99,7 +99,7 @@ export default function DonorStewardSignalsWidget({ constituentId }: DonorStewar
       <p className="text-xs text-gray-500">
         {loading
           ? "Loading signal explanation..."
-          : data?.explanation ?? "Rules use live giving behavior, cadence, and stewardship context."}
+          : data?.explanation ?? "Steward AI uses live giving behavior, cadence, and stewardship context."}
       </p>
 
       <p className="text-[11px] text-gray-400">{data?.inDevelopmentNote ?? "Read-only shell until full action orchestration is enabled."}</p>

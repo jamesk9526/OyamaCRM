@@ -1,0 +1,21 @@
+
+> agents-create-oyamam-crm-workspace@0.3.0 test:e2e C:\Users\James\Documents\GitHub\OyamaCRM
+> node tests/e2e/ui-production-smoke.mjs
+
+[e2e] checking route /
+[e2e] checking route /constituents
+[e2e] checking route /donations
+[e2e] checking route /campaigns
+[e2e] checking route /communications
+[e2e] checking route /events/workspace
+[e2e] checking route /events/reports
+[e2e] checking route /events/page-builder
+[e2e] checking route /events/templates
+[e2e] checking route /compassion/dashboard
+[e2e] checking route /compassion/clients
+[e2e] checking route /compassion/settings
+[e2e] checking route /settings
+[e2e] route /settings redirected to login, attempting session recovery
+[e2e] checking route /settings
+[e2e] checking route /data-tools/import
+E2E production smoke passed.

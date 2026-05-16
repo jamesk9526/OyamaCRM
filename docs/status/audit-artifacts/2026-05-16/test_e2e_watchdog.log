@@ -1,0 +1,6 @@
+
+> agents-create-oyamam-crm-workspace@0.3.0 test:e2e:watchdog C:\Users\James\Documents\GitHub\OyamaCRM
+> node tests/e2e/watchdog.e2e.mjs
+
+Watchdog vault list is rate-limited (429) during E2E run; skipping raw-field assertion.
+Watchdog E2E checks passed.

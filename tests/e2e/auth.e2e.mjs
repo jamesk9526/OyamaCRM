@@ -1,6 +1,5 @@
 // Authentication E2E checks for login, invalid login, and protected-route redirects.
 import { chromium } from "playwright";
-import { loginViaApi } from "../helpers/e2e-auth.mjs";
 
 const WEB_BASE = process.env.E2E_WEB_BASE_URL || "http://localhost:3000";
 
@@ -18,6 +17,8 @@ async function run() {
 
   try {
     await page.goto(`${WEB_BASE}/login`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('input[type="email"], input[name="email"]', { timeout: 45000 });
+    await page.waitForSelector('input[type="password"], input[name="password"]', { timeout: 45000 });
     await assertVisible(page, 'input[type="email"], input[name="email"]', "Login email input not visible.");
     await assertVisible(page, 'input[type="password"], input[name="password"]', "Login password input not visible.");
 
@@ -38,8 +39,23 @@ async function run() {
       throw new Error("Unauthenticated /watchdog access did not redirect to /login.");
     }
 
-    // API-based login should establish session and allow protected route access.
-    await loginViaApi(page, { webBase: WEB_BASE });
+    // UI login should establish session and allow protected route access.
+    await page.waitForSelector('input[type="email"], input[name="email"]', { timeout: 45000 });
+    await page.fill('input[type="email"], input[name="email"]', "admin@hopefoundation.org");
+    await page.fill('input[type="password"], input[name="password"]', "admin123!");
+    await page.click('button[type="submit"]');
+
+    const loginTimeoutMs = 45000;
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < loginTimeoutMs) {
+      if (!page.url().includes("/login")) break;
+      await page.waitForTimeout(400);
+    }
+
+    if (page.url().includes("/login")) {
+      throw new Error("UI login did not leave /login in time.");
+    }
+
     await page.goto(`${WEB_BASE}/watchdog`, { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle").catch(() => {});
 

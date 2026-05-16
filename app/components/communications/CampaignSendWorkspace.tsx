@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { apiFetch } from "@/app/lib/auth-client";
 import type {
   AudienceSummary,
@@ -355,6 +356,10 @@ export default function CampaignSendWorkspace({
 
         {sendMode === "SAVED_LIST" && (
           <div className="space-y-2">
+            <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-gray-700">
+              Reusable saved lists are built in Contacts Manager with side-by-side selection, tags, and segment notes.
+              <Link href="/contacts-manager" className="ml-2 font-semibold text-green-700 hover:text-green-800">Open Contacts Manager</Link>
+            </div>
             <label className="block text-sm text-gray-700">
               Saved List
               <select
@@ -379,6 +384,9 @@ export default function CampaignSendWorkspace({
 
         {sendMode === "LIST" && (
           <div className="space-y-2">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              One-time lists are best for quick tests. Use Contacts Manager for reusable newsletter, church, donor, and business segments.
+            </div>
             <label className="block text-sm text-gray-700">
               Recipient Emails
               <textarea

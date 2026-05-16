@@ -1,0 +1,5 @@
+
+> agents-create-oyamam-crm-workspace@0.3.0 db:verify:linux-casing C:\Users\James\Documents\GitHub\OyamaCRM
+> node scripts/verify-linux-migration-casing.mjs
+
+PASS: No risky lowercase migration table references found.

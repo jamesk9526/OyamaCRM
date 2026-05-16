@@ -445,7 +445,7 @@ function PrintableProjectCard({ template, branding, compact }: { template: Print
           <p className="text-xs text-gray-400">Updated {formatProjectDate(template.updatedAt)}</p>
           <div className="flex gap-2">
             <Link href={`/letters-printables/templates/${template.id}`} className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700">Edit</Link>
-            <Link href={`/letters-printables/generate?templateId=${template.id}`} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">Publish</Link>
+            <Link href={`/letters-printables/templates/${template.id}?panel=publish`} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">Publish</Link>
           </div>
         </div>
       </div>
@@ -486,7 +486,7 @@ function ProjectList({ templates, branding }: { templates: PrintableProject[]; b
               <td className="px-4 py-3">
                 <div className="flex gap-2">
                   <Link href={`/letters-printables/templates/${template.id}`} className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700">Edit</Link>
-                  <Link href={`/letters-printables/generate?templateId=${template.id}`} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">Publish</Link>
+                  <Link href={`/letters-printables/templates/${template.id}?panel=publish`} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">Publish</Link>
                 </div>
               </td>
             </tr>

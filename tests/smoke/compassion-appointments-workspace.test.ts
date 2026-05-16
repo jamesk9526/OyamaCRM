@@ -173,8 +173,22 @@ describe("compassion appointments workspace", () => {
 
     expect(configured.status).toBe(200);
 
-    const slots = await request(app)
-      .get(`/api/compassion-public/widget/${token}/slots?date=${dateKey}`);
+    let effectiveToken = token;
+    let slots = await request(app)
+      .get(`/api/compassion-public/widget/${effectiveToken}/slots?date=${dateKey}`);
+
+    if (slots.status === 404) {
+      // Another test may have updated the shared widget token; recover using the current configured token.
+      const currentWidget = await request(app)
+        .get("/api/compassion/appointment-widget")
+        .set("Authorization", `Bearer ${accessToken}`);
+      expect(currentWidget.status).toBe(200);
+      effectiveToken = String(currentWidget.body?.data?.config?.token ?? "");
+      expect(effectiveToken).toBeTruthy();
+
+      slots = await request(app)
+        .get(`/api/compassion-public/widget/${effectiveToken}/slots?date=${dateKey}`);
+    }
 
     expect(slots.status).toBe(200);
     expect(Array.isArray(slots.body.slots)).toBe(true);
@@ -185,7 +199,7 @@ describe("compassion appointments workspace", () => {
     const publicPhone = `555${Date.now().toString().slice(-7)}`;
 
     const booked = await request(app)
-      .post(`/api/compassion-public/widget/${token}/appointments`)
+      .post(`/api/compassion-public/widget/${effectiveToken}/appointments`)
       .send({
         firstName: "Widget",
         lastName: publicLastName,

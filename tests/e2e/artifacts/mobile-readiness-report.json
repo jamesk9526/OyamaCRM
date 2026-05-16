@@ -1,11 +1,11 @@
 {
   "summary": {
-    "generatedAt": "2026-05-13T21:29:53.393Z",
+    "generatedAt": "2026-05-16T07:06:33.232Z",
     "baseUrl": "http://localhost:3000",
     "totals": {
-      "all": 75,
+      "all": 78,
       "pass": 0,
-      "warn": 75,
+      "warn": 78,
       "fail": 0
     }
   },
@@ -24,12 +24,37 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
+      ],
+      "status": "warn"
+    },
+    {
+      "route": "/steward-paths",
+      "url": "/login",
+      "viewport": {
+        "name": "iphone-12",
+        "width": 390,
+        "height": 844
+      },
+      "diagnostics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentWidth": 390,
+        "bodyWidth": 390,
+        "hasHorizontalOverflow": false,
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "issues": [
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -47,12 +72,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -70,12 +96,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -93,12 +120,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -116,12 +144,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -139,12 +168,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -162,12 +192,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -185,12 +216,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -208,12 +240,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -231,12 +264,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -254,12 +288,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -277,12 +312,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -300,12 +336,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -323,12 +360,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -346,12 +384,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -369,12 +408,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -392,12 +432,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -415,12 +456,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -438,12 +480,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -461,12 +504,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -484,12 +528,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -507,12 +552,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -530,12 +576,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -553,12 +600,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -576,12 +624,13 @@
         "documentWidth": 390,
         "bodyWidth": 390,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -599,12 +648,37 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
+      ],
+      "status": "warn"
+    },
+    {
+      "route": "/steward-paths",
+      "url": "/login",
+      "viewport": {
+        "name": "android-small",
+        "width": 360,
+        "height": 800
+      },
+      "diagnostics": {
+        "viewportWidth": 360,
+        "viewportHeight": 800,
+        "documentWidth": 360,
+        "bodyWidth": 360,
+        "hasHorizontalOverflow": false,
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "issues": [
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -622,12 +696,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -645,12 +720,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -668,12 +744,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -691,12 +768,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -714,12 +792,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -737,12 +816,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -760,12 +840,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -783,12 +864,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -806,12 +888,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -829,12 +912,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -852,12 +936,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -875,12 +960,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -898,12 +984,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -921,12 +1008,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -944,12 +1032,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -967,12 +1056,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -990,12 +1080,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -1013,12 +1104,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -1036,12 +1128,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -1059,12 +1152,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -1082,12 +1176,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -1105,12 +1200,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -1128,12 +1224,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -1151,12 +1248,13 @@
         "documentWidth": 360,
         "bodyWidth": 360,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -1174,12 +1272,37 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
+      ],
+      "status": "warn"
+    },
+    {
+      "route": "/steward-paths",
+      "url": "/login",
+      "viewport": {
+        "name": "tablet-portrait",
+        "width": 768,
+        "height": 1024
+      },
+      "diagnostics": {
+        "viewportWidth": 768,
+        "viewportHeight": 1024,
+        "documentWidth": 768,
+        "bodyWidth": 768,
+        "hasHorizontalOverflow": false,
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
+      },
+      "issues": [
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -1197,12 +1320,13 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -1220,12 +1344,13 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -1243,12 +1368,13 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -1266,12 +1392,13 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -1289,18 +1416,19 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
     {
       "route": "/communications",
-      "url": "/communications",
+      "url": "/login",
       "viewport": {
         "name": "tablet-portrait",
         "width": 768,
@@ -1312,19 +1440,19 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 11,
-        "tinyTextCount": 33,
-        "bodyTextSample": "WORKSPACE\n\nDonorCRM\n\nCtrl+K\nAI Assistant\nSM\n\nFUNDRAISING\n\nDashboard\nConstituents\nDonations\nCampaigns\nGrants\nPayments\n\nENGAGEMENT WORKSPACE\n\nSteward Paths\nApp\nTasks\nMeetings\nCommunications\n\nCOMMUNICATION TOOLS\n\nLetters & Printables\nTool\nLiveCom\nNew\n\nINSIGHTS\n\nSteward Signals\nReports\n\nPEOPLE\n\nVoluntee"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:11",
-        "a11y:tiny-text:33"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
     {
       "route": "/reports",
-      "url": "/reports",
+      "url": "/login",
       "viewport": {
         "name": "tablet-portrait",
         "width": 768,
@@ -1336,19 +1464,19 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 24,
-        "tinyTextCount": 34,
-        "bodyTextSample": "WORKSPACE\n\nOyamaREPORTIT CRM\n\nCtrl+K\nAI Assistant\nSM\n\nFUNDRAISING\n\nDashboard\nConstituents\nDonations\nCampaigns\nGrants\nPayments\n\nENGAGEMENT WORKSPACE\n\nSteward Paths\nApp\nTasks\nMeetings\nCommunications\n\nCOMMUNICATION TOOLS\n\nLetters & Printables\nTool\nLiveCom\nNew\n\nINSIGHTS\n\nSteward Signals\nReports\n\nPEOPLE\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:24",
-        "a11y:tiny-text:34"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
     {
       "route": "/quickbooks-sync",
-      "url": "/quickbooks-sync",
+      "url": "/login",
       "viewport": {
         "name": "tablet-portrait",
         "width": 768,
@@ -1360,19 +1488,19 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 9,
-        "tinyTextCount": 11,
-        "bodyTextSample": "WORKSPACE\n\nDonorCRM\n\nCtrl+K\nAI Assistant\nSM\n\nFUNDRAISING\n\nDashboard\nConstituents\nDonations\nCampaigns\nGrants\nPayments\n\nENGAGEMENT WORKSPACE\n\nSteward Paths\nApp\nTasks\nMeetings\nCommunications\n\nCOMMUNICATION TOOLS\n\nLetters & Printables\nTool\nLiveCom\nNew\n\nINSIGHTS\n\nSteward Signals\nReports\n\nPEOPLE\n\nVoluntee"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:9",
-        "a11y:tiny-text:11"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
     {
       "route": "/settings",
-      "url": "/settings",
+      "url": "/login",
       "viewport": {
         "name": "tablet-portrait",
         "width": 768,
@@ -1384,19 +1512,19 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 24,
-        "tinyTextCount": 11,
-        "bodyTextSample": "WORKSPACE\n\nDonorCRM\n\nCtrl+K\nAI Assistant\nSM\n\nFUNDRAISING\n\nDashboard\nConstituents\nDonations\nCampaigns\nGrants\nPayments\n\nENGAGEMENT WORKSPACE\n\nSteward Paths\nApp\nTasks\nMeetings\nCommunications\n\nCOMMUNICATION TOOLS\n\nLetters & Printables\nTool\nLiveCom\nNew\n\nINSIGHTS\n\nSteward Signals\nReports\n\nPEOPLE\n\nVoluntee"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:24",
-        "a11y:tiny-text:11"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
     {
       "route": "/compassion/dashboard",
-      "url": "/compassion/dashboard",
+      "url": "/login",
       "viewport": {
         "name": "tablet-portrait",
         "width": 768,
@@ -1408,19 +1536,19 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 17,
-        "tinyTextCount": 4,
-        "bodyTextSample": "WORKSPACE\n\nCompassion CRM\n\nCtrl+K\nAI Assistant\nSM\n\nCARE WORKSPACE\n\nDashboard\nClients\nCases\nAppointments\nTasks\nFollow Ups\nReports\nSYSTEM\nOyama Organization\nGood afternoon, Sarah!\n\nHere's what's happening with your caseload today.\n\nUpdated 4:29 PM\nRefresh\n33\n\nTotal Clients\n\n33 active\n\nView all clients"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:17",
-        "a11y:tiny-text:4"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
     {
       "route": "/compassion/clients",
-      "url": "/compassion/clients",
+      "url": "/login",
       "viewport": {
         "name": "tablet-portrait",
         "width": 768,
@@ -1432,19 +1560,19 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 47,
-        "tinyTextCount": 4,
-        "bodyTextSample": "WORKSPACE\n\nCompassion CRM\n\nCtrl+K\nAI Assistant\nSM\n\nCARE WORKSPACE\n\nDashboard\nClients\nCases\nAppointments\nTasks\nFollow Ups\nReports\nSYSTEM\nOyama Organization\n👤\nClients\n\nManage client records, profiles, and histories.\n\n+ Add Client\nAll Statuses\nActive\nInactive\nGraduated\nArchived\nPending\nAny Assignment\n"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:47",
-        "a11y:tiny-text:4"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
     {
       "route": "/compassion/appointments",
-      "url": "/compassion/appointments",
+      "url": "/login",
       "viewport": {
         "name": "tablet-portrait",
         "width": 768,
@@ -1456,19 +1584,19 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 181,
-        "tinyTextCount": 36,
-        "bodyTextSample": "WORKSPACE\n\nCompassion CRM\n\nCtrl+K\nAI Assistant\nSM\n\nCARE WORKSPACE\n\nDashboard\nClients\nCases\nAppointments\nTasks\nFollow Ups\nReports\nSYSTEM\nOyama Organization\nAppointments\n\nProduction scheduling workspace for staff calendar and appointment operations.\n\nNeed help with appointments?\nOpen Calendar In New T"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:181",
-        "a11y:tiny-text:36"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
     {
       "route": "/compassion/cases",
-      "url": "/compassion/cases",
+      "url": "/login",
       "viewport": {
         "name": "tablet-portrait",
         "width": 768,
@@ -1480,19 +1608,19 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 11,
-        "tinyTextCount": 4,
-        "bodyTextSample": "WORKSPACE\n\nCompassion CRM\n\nCtrl+K\nAI Assistant\nSM\n\nCARE WORKSPACE\n\nDashboard\nClients\nCases\nAppointments\nTasks\nFollow Ups\nReports\nSYSTEM\nOyama Organization\n📋\nCases\n\nOpen, manage, and close client cases.\n\n+ New Case\n\nOPEN CASES\n\n8\n\nIN PROGRESS\n\n0\n\nURGENT PRIORITY\n\n0\n\nAll Statuses\nOpen\nIn Progress\nPen"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:11",
-        "a11y:tiny-text:4"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
     {
       "route": "/compassion/reports",
-      "url": "/compassion/reports",
+      "url": "/login",
       "viewport": {
         "name": "tablet-portrait",
         "width": 768,
@@ -1504,19 +1632,19 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 9,
-        "tinyTextCount": 4,
-        "bodyTextSample": "WORKSPACE\n\nCompassion CRM\n\nCtrl+K\nAI Assistant\nSM\n\nCARE WORKSPACE\n\nDashboard\nClients\nCases\nAppointments\nTasks\nFollow Ups\nReports\nSYSTEM\nOyama Organization\n📊\nReports\n\nLive caseload, appointment, and growth metrics for Compassion CRM.\n\nRefresh\n\nTOTAL CLIENTS\n\n33\n\nACTIVE CASES\n\n8\n\nAPPOINTMENTS THIS MO"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:9",
-        "a11y:tiny-text:4"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
     {
       "route": "/events/workspace",
-      "url": "/events/workspace",
+      "url": "/login",
       "viewport": {
         "name": "tablet-portrait",
         "width": 768,
@@ -1528,19 +1656,19 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 11,
-        "tinyTextCount": 4,
-        "bodyTextSample": "WORKSPACE\n\nEvents CRM\n\nCtrl+K\nAI Assistant\nSM\n\nCOMMAND CENTER\n\nDashboard\nEvents\nWorkspace Selector\nSetup\nGLOBAL TOOLS\nEvents Command Center\nEvent Workspace Selector\n\nChoose an event first, then open one scoped tool path. This keeps attendees, orders, tables, and reports tied to the same event contex"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:11",
-        "a11y:tiny-text:4"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
     {
       "route": "/events/events",
-      "url": "/events/events",
+      "url": "/login",
       "viewport": {
         "name": "tablet-portrait",
         "width": 768,
@@ -1552,19 +1680,19 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 66,
-        "tinyTextCount": 15,
-        "bodyTextSample": "WORKSPACE\n\nEvents CRM\n\nCtrl+K\nAI Assistant\nSM\n\nCOMMAND CENTER\n\nDashboard\nEvents\nWorkspace Selector\nSetup\nGLOBAL TOOLS\nEvents Command Center\nEvents\n\nCreate and manage fundraisers, galas, banquets, conferences, and ministry events.\n\nImport Event List\n+ New Event\n\nTOTAL EVENTS\n\n58\n\nAll events on record"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:66",
-        "a11y:tiny-text:15"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
     {
       "route": "/events/guests",
-      "url": "/events/workspace",
+      "url": "/login",
       "viewport": {
         "name": "tablet-portrait",
         "width": 768,
@@ -1576,19 +1704,19 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 11,
-        "tinyTextCount": 4,
-        "bodyTextSample": "WORKSPACE\n\nEvents CRM\n\nCtrl+K\nAI Assistant\nSM\n\nCOMMAND CENTER\n\nDashboard\nEvents\nWorkspace Selector\nSetup\nGLOBAL TOOLS\nEvents Command Center\nEvent Workspace Selector\n\nChoose an event first, then open one scoped tool path. This keeps attendees, orders, tables, and reports tied to the same event contex"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:11",
-        "a11y:tiny-text:4"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
     {
       "route": "/events/check-in",
-      "url": "/events/workspace",
+      "url": "/login",
       "viewport": {
         "name": "tablet-portrait",
         "width": 768,
@@ -1600,19 +1728,19 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 11,
-        "tinyTextCount": 4,
-        "bodyTextSample": "WORKSPACE\n\nEvents CRM\n\nCtrl+K\nAI Assistant\nSM\n\nCOMMAND CENTER\n\nDashboard\nEvents\nWorkspace Selector\nSetup\nGLOBAL TOOLS\nEvents Command Center\nEvent Workspace Selector\n\nChoose an event first, then open one scoped tool path. This keeps attendees, orders, tables, and reports tied to the same event contex"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:11",
-        "a11y:tiny-text:4"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
     {
       "route": "/events/reports",
-      "url": "/events/reports",
+      "url": "/login",
       "viewport": {
         "name": "tablet-portrait",
         "width": 768,
@@ -1624,19 +1752,19 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 8,
-        "tinyTextCount": 7,
-        "bodyTextSample": "WORKSPACE\n\nEvents CRM\n\nCtrl+K\nAI Assistant\nSM\n\nCOMMAND CENTER\n\nDashboard\nEvents\nWorkspace Selector\nSetup\nGLOBAL TOOLS\nEvents Command Center\nEvent Reports\n\nMeasure attendance, revenue, sponsorships, and event-driven donor growth\n\nAll Events Summary\n\nTOTAL EVENTS\n\n58\n\nAll events in the system\n\nTOTAL R"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:8",
-        "a11y:tiny-text:7"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
     {
       "route": "/watchdog",
-      "url": "/watchdog",
+      "url": "/login",
       "viewport": {
         "name": "tablet-portrait",
         "width": 768,
@@ -1648,13 +1776,13 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 15,
-        "tinyTextCount": 5,
-        "bodyTextSample": "WORKSPACE\n\nOyamaWatchdog\n\nCtrl+K\nAI Assistant\nSM\n\nOPERATIONS WORKSPACE\n\nOverview\nBackups\nRestore\nVault\n\nSECURITY & GOVERNANCE\n\nSecurity\nHealth\nAudit\nRunbooks\nSYSTEM\nSecurity telemetry across Donor, Compassion, Events, WebMaster\nOperations Command Center\n\nCentral backup, restore, security, and reliab"
+        "tooSmallTargets": 4,
+        "tinyTextCount": 6,
+        "bodyTextSample": "Sign in to your workspace\n\nEnter your credentials to continue\n\nEmail address\nPassword\nSign in\nForgot password?\nProtected with AES-256 encryption\n\nDev credentials\n\nadmin@hopefoundation.org / admin123!\n\njames@hopefoundation.org / staff123!"
       },
       "issues": [
-        "a11y:small-targets:15",
-        "a11y:tiny-text:5"
+        "a11y:small-targets:4",
+        "a11y:tiny-text:6"
       ],
       "status": "warn"
     },
@@ -1672,19 +1800,19 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 17,
-        "tinyTextCount": 11,
-        "bodyTextSample": "WORKSPACE\n\nOyamaWatchdog\n\nCtrl+K\nAI Assistant\nSM\n\nOPERATIONS WORKSPACE\n\nOverview\nBackups\nRestore\nVault\n\nSECURITY & GOVERNANCE\n\nSecurity\nHealth\nAudit\nRunbooks\nSYSTEM\nSecurity telemetry across Donor, Compassion, Events, WebMaster\nFeedback Ticketing Command Center\n\nCross-CRM user feedback queue with as"
+        "tooSmallTargets": 20,
+        "tinyTextCount": 58,
+        "bodyTextSample": "WORKSPACE\n\nDonorCRM\n\nSM\nFeedback Ticketing Command Center\n\nCross-CRM user feedback queue with assignment, status workflow, and resolution notes.\n\nTOTAL\n\n32\n\nUNRESOLVED\n\n32\n\nUNASSIGNED\n\n32\n\nURGENT\n\n0\n\nHIGH PRIORITY\n\n32\n\nOPEN >72H\n\n0\n\nQueue Filters\nReset\nSearch\nStatus\nAll statuses\nNew\nIn review\nIn pro"
       },
       "issues": [
-        "a11y:small-targets:17",
-        "a11y:tiny-text:11"
+        "a11y:small-targets:20",
+        "a11y:tiny-text:58"
       ],
       "status": "warn"
     },
     {
       "route": "/webmaster",
-      "url": "/login",
+      "url": "/webmaster",
       "viewport": {
         "name": "tablet-portrait",
         "width": 768,
@@ -1696,18 +1824,19 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 40,
+        "tinyTextCount": 3,
+        "bodyTextSample": "WORKSPACE\n\nDonorCRM\n\nSM\n\nOYAMAWEBMASTER\n\nCreate, manage, publish, and export websites from one visual workspace.\n\nSection-first editing with modular architecture, reusable sections, and durable site/page persistence.\n\nNew Website\nStart from Template\nImport Website Project\nOpen Recent Site\nCreate a S"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:40",
+        "a11y:tiny-text:3"
       ],
       "status": "warn"
     },
     {
       "route": "/hrm",
-      "url": "/login",
+      "url": "/hrm",
       "viewport": {
         "name": "tablet-portrait",
         "width": 768,
@@ -1719,18 +1848,19 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 9,
+        "tinyTextCount": 36,
+        "bodyTextSample": "WORKSPACE\n\nOyamaHRM\n\nSM\n\nOYAMAHRM\n\nInternal People And Scheduling Hub\n\nLive internal operations snapshot across people coverage, scheduling load, location readiness, and internal announcements.\n\nRefresh\nManage People\nOpen Scheduling\nInternal Messages\n\nActive Staff\n\n90\n\nInternal users currently activ"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:9",
+        "a11y:tiny-text:36"
       ],
       "status": "warn"
     },
     {
       "route": "/apps",
-      "url": "/login",
+      "url": "/apps",
       "viewport": {
         "name": "tablet-portrait",
         "width": 768,
@@ -1742,12 +1872,13 @@
         "documentWidth": 768,
         "bodyWidth": 768,
         "hasHorizontalOverflow": false,
-        "tooSmallTargets": 1,
-        "tinyTextCount": 0,
-        "bodyTextSample": "STEWARD ACCESS\n\nWelcome back to OyamaCRM\n\nYour nonprofit operations dashboard is ready. Sign in to continue managing constituents, donations, campaigns, and stewardship workflows.\n\nGuided and reliable\n\nSame premium interaction style as your setup experience, now in daily sign-in.\n\nSecure by design\n\n"
+        "tooSmallTargets": 3,
+        "tinyTextCount": 3,
+        "bodyTextSample": "A\n\nOyama Apps\n\nStandalone tools that are separate from CRM modules\n\nBack to CRM\nMenu\nApps Workspace\n\nApps are not CRM modules. They run in a basic shell and do not inherit CRM search, AI controls, or CRM data access without explicit integration work.\n\nAvailable app\nOpen Trivia Software"
       },
       "issues": [
-        "a11y:small-targets:1"
+        "a11y:small-targets:3",
+        "a11y:tiny-text:3"
       ],
       "status": "warn"
     }

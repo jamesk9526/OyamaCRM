@@ -392,6 +392,81 @@ async function renderGeneratedLetterPdf(params: {
   return Buffer.from(pdfBytes);
 }
 
+/** Renders many generated letters into one multi-page PDF for batch print/export workflows. */
+async function renderGeneratedLettersBatchPdf(items: Array<{
+  templateName: string;
+  subject: string;
+  constituentName: string;
+  generatedAt: Date;
+  mergedPrintBody: string;
+}>): Promise<Buffer> {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ unit: "pt", format: "letter", compress: true });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginX = 54;
+  const marginTop = 56;
+  const marginBottom = 56;
+  const maxTextWidth = pageWidth - marginX * 2;
+  let cursorY = marginTop;
+
+  const ensurePageSpace = (requiredHeight: number) => {
+    if (cursorY + requiredHeight <= pageHeight - marginBottom) return;
+    doc.addPage();
+    cursorY = marginTop;
+  };
+
+  const writeParagraph = (
+    text: string,
+    fontSize: number,
+    fontStyle: "normal" | "bold" = "normal",
+    marginAfter = 8,
+  ) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    doc.setFont("helvetica", fontStyle);
+    doc.setFontSize(fontSize);
+
+    const lines = doc.splitTextToSize(trimmed, maxTextWidth) as string[];
+    const lineHeight = Math.max(14, Math.round(fontSize * 1.45));
+
+    for (const line of lines) {
+      ensurePageSpace(lineHeight);
+      doc.text(line, marginX, cursorY);
+      cursorY += lineHeight;
+    }
+
+    cursorY += marginAfter;
+  };
+
+  items.forEach((item, index) => {
+    if (index > 0) {
+      doc.addPage();
+      cursorY = marginTop;
+    }
+
+    writeParagraph(item.templateName || "Generated Letter", 16, "bold", 4);
+    writeParagraph(`Subject: ${item.subject || "Letter"}`, 11, "bold", 4);
+    if (item.constituentName) {
+      writeParagraph(`Constituent: ${item.constituentName}`, 10, "normal", 2);
+    }
+    writeParagraph(`Generated: ${item.generatedAt.toLocaleString()}`, 10, "normal", 2);
+    writeParagraph(`Batch item ${index + 1} of ${items.length}`, 9, "normal", 10);
+
+    const plainTextBody = htmlToPlainText(item.mergedPrintBody || "");
+    const paragraphs = plainTextBody.length > 0 ? plainTextBody.split(/\n{2,}/g) : ["(No letter content)"];
+
+    for (const paragraph of paragraphs) {
+      writeParagraph(paragraph, 11, "normal", 8);
+    }
+  });
+
+  const pdfBytes = doc.output("arraybuffer");
+  return Buffer.from(pdfBytes);
+}
+
 /** Evaluates one permission key with explicit user override support. */
 async function hasPermission(req: { user?: { sub?: string; role?: string } }, permission: "letters.view_sensitive_merge_data"): Promise<boolean> {
   const userId = req.user?.sub;
@@ -2253,6 +2328,157 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
   }
 });
 
+/** POST /api/letters/generated/export-pdf-batch — Generates one combined PDF for multiple generated letters. */
+router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const requestedIds: string[] = Array.isArray(req.body?.letterIds)
+    ? (req.body.letterIds as unknown[])
+      .map((value) => String(value).trim())
+      .filter((value): value is string => value.length > 0)
+    : [];
+  const letterIds: string[] = [...new Set(requestedIds)];
+
+  if (letterIds.length === 0) {
+    res.status(400).json({ error: { code: "LETTER_IDS_REQUIRED", message: "letterIds is required." } });
+    return;
+  }
+
+  if (letterIds.length > 500) {
+    res.status(400).json({ error: { code: "TOO_MANY_LETTERS", message: "Batch PDF export supports up to 500 letters per request." } });
+    return;
+  }
+
+  const rows = await prisma.generatedLetter.findMany({
+    where: {
+      organizationId,
+      id: { in: letterIds },
+    },
+    select: {
+      id: true,
+      mergedPrintSubject: true,
+      mergedPrintBody: true,
+      generatedAt: true,
+      metadataJson: true,
+      template: { select: { name: true } },
+      constituent: { select: { firstName: true, lastName: true } },
+    },
+  });
+
+  if (rows.length === 0) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "No generated letters found for the requested IDs." } });
+    return;
+  }
+
+  const rowById = new Map(rows.map((row) => [row.id, row]));
+  const orderedRows: typeof rows = [];
+  for (const id of letterIds) {
+    const row = rowById.get(id);
+    if (row) orderedRows.push(row);
+  }
+
+  if (orderedRows.length === 0) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "No generated letters found for the requested IDs." } });
+    return;
+  }
+
+  const exportedAtIso = new Date().toISOString();
+
+  try {
+    const pdfBuffer = await renderGeneratedLettersBatchPdf(
+      orderedRows.map((row) => {
+        const constituentName = [row.constituent?.firstName, row.constituent?.lastName]
+          .filter((value): value is string => Boolean(value && value.trim()))
+          .join(" ")
+          .trim();
+        const templateName = row.template?.name?.trim() || "Generated Letter";
+        const subject = row.mergedPrintSubject?.trim() || templateName;
+
+        return {
+          templateName,
+          subject,
+          constituentName,
+          generatedAt: row.generatedAt,
+          mergedPrintBody: row.mergedPrintBody,
+        };
+      }),
+    );
+
+    await Promise.all(orderedRows.map((row) => prisma.generatedLetter.update({
+      where: { id: row.id },
+      data: {
+        metadataJson: buildMetadataWithPdfExport(row.metadataJson, {
+          lastStatus: "SUCCESS",
+          lastError: null,
+          lastExportedAt: exportedAtIso,
+          updatedByUserId: userId,
+        }),
+      },
+    })));
+
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const fileName = `letters_batch_${timestamp}.pdf`;
+
+    await logAudit({
+      action: "LETTER_BATCH_PDF_EXPORTED",
+      entity: "GeneratedLetter",
+      organizationId,
+      userId,
+      metadata: {
+        mode: "SERVER_RENDER",
+        status: "SUCCESS",
+        fileName,
+        count: orderedRows.length,
+        byteLength: pdfBuffer.byteLength,
+      },
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=\"${fileName}\"`);
+    res.setHeader("Cache-Control", "no-store");
+    res.status(200).send(pdfBuffer);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown batch PDF export failure";
+
+    await Promise.all(orderedRows.map((row) => prisma.generatedLetter.update({
+      where: { id: row.id },
+      data: {
+        metadataJson: buildMetadataWithPdfExport(row.metadataJson, {
+          lastStatus: "FAILED",
+          lastError: message.slice(0, 400),
+          lastExportedAt: exportedAtIso,
+          updatedByUserId: userId,
+        }),
+      },
+    })));
+
+    await logAudit({
+      action: "LETTER_BATCH_PDF_EXPORT_FAILED",
+      entity: "GeneratedLetter",
+      organizationId,
+      userId,
+      metadata: {
+        mode: "SERVER_RENDER",
+        status: "FAILED",
+        count: orderedRows.length,
+        error: message,
+      },
+    });
+
+    res.status(500).json({
+      error: {
+        code: "PDF_EXPORT_FAILED",
+        message: "Failed to export generated letters as batch PDF.",
+      },
+    });
+  }
+});
+
 /** POST /api/letters/generated/batch — Generates letters in bulk with eligibility checks and skip reasons. */
 router.post("/generated/batch", requirePermission("letters.generate_batch"), async (req, res) => {
   const organizationId = await requireOrganizationId(req);
@@ -2446,6 +2672,7 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
     totalSelected: candidates.length,
     eligible: candidates.length - skipped.length,
     generatedCount: generatedIds.length,
+    generatedIds,
     skippedCount: skipped.length,
     skippedByReason,
     skipped,

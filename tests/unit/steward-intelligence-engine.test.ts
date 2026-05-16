@@ -6,6 +6,7 @@ import {
   calculateLapseRisk,
   calculatePropensityWindow,
   calculateRfmScore,
+  normalizeDailyThoughtAiResponse,
   type StewardIntelligenceDonorInput,
 } from "@/server/src/services/steward-intelligence-engine";
 
@@ -106,5 +107,38 @@ describe("steward-intelligence-engine", () => {
     expect(draft.bodyPlainText).toContain("Dear Jane");
     expect(draft.bodyHtml).toContain("<p>");
     expect(draft.warnings.length).toBeGreaterThan(0);
+  });
+
+  it("parses fenced JSON AI daily thought payload", () => {
+    const thought = normalizeDailyThoughtAiResponse(
+      "```json\n{\"title\":\"Daily Focus\",\"message\":\"Call first-time donors today.\",\"reason\":\"Based on thank-you queue size.\"}\n```",
+      {
+        title: "Fallback",
+        message: "Fallback message",
+        reason: "Fallback reason",
+        sourceType: "ai",
+      },
+    );
+
+    expect(thought.title).toBe("Daily Focus");
+    expect(thought.message).toContain("first-time donors");
+    expect(thought.sourceType).toBe("ai");
+  });
+
+  it("parses loose title/message/reason AI daily thought payload", () => {
+    const thought = normalizeDailyThoughtAiResponse(
+      "Title: Daily Priority\nMessage: Send 5 gratitude messages before noon.\nReason: Thank-you tasks are currently open.",
+      {
+        title: "Fallback",
+        message: "Fallback message",
+        reason: "Fallback reason",
+        sourceType: "ai",
+      },
+    );
+
+    expect(thought.title).toBe("Daily Priority");
+    expect(thought.message).toContain("gratitude messages");
+    expect(thought.reason).toContain("Thank-you tasks");
+    expect(thought.sourceType).toBe("ai");
   });
 });

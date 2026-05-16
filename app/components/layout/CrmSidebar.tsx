@@ -320,6 +320,30 @@ export default function CrmSidebar({
       .filter((group) => group.items.length > 0);
   }, [groups, userRole]);
 
+  const activeGroupIds = useMemo(() => {
+    return visibleGroups
+      .filter((group) => group.items.some((item) => isSidebarItemActive(item, pathname, hash)))
+      .map((group) => group.id);
+  }, [hash, pathname, visibleGroups]);
+
+  useEffect(() => {
+    if (activeGroupIds.length === 0) return;
+
+    setGroupOpenState((current) => {
+      let changed = false;
+      const nextState = { ...current };
+
+      activeGroupIds.forEach((groupId) => {
+        if (nextState[groupId] === false) {
+          nextState[groupId] = true;
+          changed = true;
+        }
+      });
+
+      return changed ? nextState : current;
+    });
+  }, [activeGroupIds]);
+
   return (
     <aside
       className={`${styles.aside} ${isCollapsed ? collapsedWidthClass : expandedWidthClass} shrink-0 flex flex-col h-full select-none transition-[width] duration-200 ease-out`}
@@ -350,11 +374,12 @@ export default function CrmSidebar({
 
         {visibleGroups.map((group, index) => {
           const groupIsOpen = group.collapsible ? (groupOpenState[group.id] ?? true) : true;
+          const groupActive = activeGroupIds.includes(group.id);
 
           return (
             <div
               key={group.id}
-              className={`mb-2 border px-0.5 py-0.5 transition-colors ${styles.sectionBorder} ${styles.sectionHover}`}
+              className={`mb-1.5 rounded-lg border px-0.5 py-0.5 transition-colors ${groupActive && !isCollapsed ? "border-slate-100 bg-slate-50/70" : `${styles.sectionBorder} ${styles.sectionHover}`}`}
             >
               {isCollapsed ? (
                 <div className="px-2 py-1.5" aria-hidden="true">
@@ -371,7 +396,7 @@ export default function CrmSidebar({
                           [group.id]: !(current[group.id] ?? true),
                         }));
                       }}
-                      className={`w-full flex items-center justify-between px-1 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors ${styles.heading} ${styles.headingMuted}`}
+                      className={`w-full flex items-center justify-between px-1 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors ${groupActive ? "text-slate-700" : styles.heading} ${styles.headingMuted}`}
                     >
                       <span>{group.label}</span>
                       <svg

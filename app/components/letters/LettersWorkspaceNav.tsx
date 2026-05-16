@@ -11,7 +11,6 @@ const WORKFLOW_STEPS = [
   { href: "/letters-printables/generate", label: "4. Generate" },
   { href: "/letters-printables/print-queue", label: "5. Print Queue" },
   { href: "/letters-printables/mail-queue", label: "6. Mail Queue" },
-  { href: "/letters-printables/batches", label: "7. Batches" },
 ] as const;
 
 const SUPPORT_LINKS = [

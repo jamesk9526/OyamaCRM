@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface SavedRecipientList {
@@ -157,27 +158,12 @@ export default function CommunicationsSegmentsPanel() {
     }
   }
 
-  function startNew() {
-    setSelectedListId(null);
-    setName("");
-    setDescription("");
-    setEmailsInput("");
-    setMessage(null);
-    setError(null);
-  }
-
   return (
     <div className="grid gap-4 lg:grid-cols-[320px,1fr]">
       <section className="rounded-xl border border-gray-200 bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-900">Saved Segments</h2>
-          <button
-            type="button"
-            onClick={startNew}
-            className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
-          >
-            New
-          </button>
+          <Link href="/contacts-manager" className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">Open Builder</Link>
         </div>
 
         <div className="space-y-2">
@@ -206,10 +192,16 @@ export default function CommunicationsSegmentsPanel() {
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-gray-900">
-          {selectedList ? "Edit Segment" : "Create Segment"}
+        <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+          <h2 className="text-sm font-semibold text-gray-900">Build Segments In Contacts Manager</h2>
+          <p className="mt-1 text-xs text-gray-600">Contacts Manager is the canonical place to build lists with side-by-side contact selection, bulk tags, reusable descriptions, and AI context.</p>
+          <Link href="/contacts-manager" className="mt-3 inline-flex rounded-md bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700">Open Contacts Manager</Link>
+        </div>
+
+        <h2 className="mt-4 text-sm font-semibold text-gray-900">
+          {selectedList ? "Quick Email-Only Edit" : "Quick Email-Only Segment"}
         </h2>
-        <p className="mt-1 text-xs text-gray-500">Manage reusable recipient groups for communications sends.</p>
+        <p className="mt-1 text-xs text-gray-500">Use this only for simple pasted email lists. Constituents, tags, and AI segment context should be managed in Contacts Manager.</p>
 
         <div className="mt-4 space-y-3">
           <label className="block">

@@ -1,7 +1,7 @@
-/** Letters generation wizard step route: preview merge output. */
-import LettersGenerateWizard from "@/app/components/letters/generate/LettersGenerateWizard";
+/** Deprecated generation wizard step redirected to the unified generate workspace. */
+import { redirect } from "next/navigation";
 
-/** Renders the functional preview step in the letters generation wizard. */
+/** Preserves legacy step URL while using the new single-page generator. */
 export default function LettersGeneratePreviewPage() {
-  return <LettersGenerateWizard step="preview" />;
+  redirect("/letters-printables/generate");
 }

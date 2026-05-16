@@ -83,8 +83,8 @@ export default function LetterPresetsHub() {
           Choose project type, pick template/preset, choose recipients, preview merge output, then generate and route to print, mail, or email draft.
         </p>
         <div className="flex flex-wrap gap-2">
-          <Link href="/letters-printables/generate/template" className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
-            Start Wizard
+          <Link href="/letters-printables/generate" className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
+            Start Generator
           </Link>
           <Link href="/letters-printables/templates" className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
             Open Template Library

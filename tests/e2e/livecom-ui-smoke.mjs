@@ -19,32 +19,41 @@ async function recoverSessionViaRefresh(page) {
 
 /** Logs in through the real UI and waits until we leave /login. */
 async function login(page) {
-  await page.goto(`${WEB_BASE}/login`, { waitUntil: "domcontentloaded" });
-  await page.waitForSelector('input[type="email"], input[name="email"]', { timeout: 45000 });
-  await page.fill('input[type="email"], input[name="email"]', "admin@hopefoundation.org");
-  await page.fill('input[type="password"], input[name="password"]', "admin123!");
-  await page.click('button[type="submit"]');
+  const maxAttempts = 3;
 
-  // Setup checks and workspace landing-path resolution can delay navigation after submit.
-  const timeoutMs = 45000;
-  const startedAt = Date.now();
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    await page.goto(`${WEB_BASE}/login`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('input[type="email"], input[name="email"]', { timeout: 45000 });
+    await page.fill('input[type="email"], input[name="email"]', "admin@hopefoundation.org");
+    await page.fill('input[type="password"], input[name="password"]', "admin123!");
+    await page.click('button[type="submit"]');
 
-  while (Date.now() - startedAt < timeoutMs) {
-    if (!page.url().includes("/login")) {
-      return;
+    // Setup checks and workspace landing-path resolution can delay navigation after submit.
+    const timeoutMs = 45000;
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < timeoutMs) {
+      if (!page.url().includes("/login")) {
+        return;
+      }
+
+      const hasError = await page.getByText(/login failed|session expired|invalid/i).count();
+      if (hasError > 0) {
+        throw new Error("Login failed with visible error message on the form.");
+      }
+
+      const hasRateLimit = await page.getByText(/too many auth attempts|too many requests|rate limit/i).count();
+      if (hasRateLimit > 0) {
+        break;
+      }
+
+      await page.waitForTimeout(500);
     }
 
-    const hasError = await page.getByText(/login failed|session expired|invalid/i).count();
-    if (hasError > 0) {
-      throw new Error("Login failed with visible error message on the form.");
+    if (attempt < maxAttempts) {
+      await page.waitForTimeout(1500);
+      continue;
     }
-
-    const hasRateLimit = await page.getByText(/too many auth attempts|too many requests|rate limit/i).count();
-    if (hasRateLimit > 0) {
-      throw new Error("Login is currently rate-limited.");
-    }
-
-    await page.waitForTimeout(500);
   }
 
   throw new Error("Login did not leave /login within 45s.");
@@ -94,6 +103,13 @@ async function main() {
 
     await login(page);
 
+    // Validate the session on an authenticated workspace route before continuing.
+    await page.goto(`${WEB_BASE}/watchdog`, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle").catch(() => {});
+    if (page.url().includes("/login")) {
+      await login(page);
+    }
+
     await page.goto(`${WEB_BASE}/livecom`, { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle").catch(() => {});
 
@@ -113,7 +129,7 @@ async function main() {
     }
 
     const uniqueText = `LiveCom e2e ${Date.now()}`;
-    const constituentSelect = page.getByLabel("Constituent");
+    const constituentSelect = page.getByLabel("ConstituentSelect");
     let optionCount = 0;
     const optionsWaitStarted = Date.now();
 
@@ -154,10 +170,16 @@ async function main() {
     await page.waitForLoadState("domcontentloaded");
     assertAuthed(page.url());
 
-    const timelineTab = page.getByRole("button", { name: /Timeline \(/ });
-    await timelineTab.click();
+    const timelineButton = page.getByRole("button", { name: /Timeline/i }).first();
+    const timelineLink = page.getByRole("link", { name: /Timeline/i }).first();
+    if (await timelineButton.count()) {
+      await timelineButton.click();
+    } else if (await timelineLink.count()) {
+      await timelineLink.click();
+      await page.waitForLoadState("domcontentloaded");
+    }
 
-    await page.getByText(uniqueText, { exact: false }).first().waitFor({ timeout: 15000 });
+    await page.getByText(uniqueText, { exact: false }).first().waitFor({ state: "attached", timeout: 15000 });
     console.log("LiveCom UI smoke passed.");
 
     await context.close();

@@ -1,0 +1,139 @@
+
+> agents-create-oyamam-crm-workspace@0.3.0 test C:\Users\James\Documents\GitHub\OyamaCRM
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.5 [39m[90mC:/Users/James/Documents/GitHub/OyamaCRM[39m
+
+ [32m✓[39m tests/unit/constituent-utils.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m tests/unit/help-content.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 47[2mms[22m[39m
+ [32m✓[39m tests/unit/donation-utils.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m tests/unit/compassion-appointment-widget-slots.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m tests/unit/compassion-client-import-validator.test.ts [2m([22m[2m40 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m tests/unit/reporting-utils.test.ts [2m([22m[2m37 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m tests/unit/auth-client.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m tests/unit/steward-ai-runtime-pill.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m tests/unit/webmaster-publish-readiness.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m tests/unit/crm-sidebar-navigation.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m tests/unit/email-builder-utils.extra.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m tests/unit/engagement-status.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m tests/unit/email-builder-utils.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m tests/unit/steward-paths-workflow-builder.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m tests/unit/steward-ai-runtime-status.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m tests/unit/compassion-appointments-utils.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m tests/unit/steward-action-executor.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m tests/unit/navigation-boundaries.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m tests/unit/steward-paths-status-change.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m tests/unit/email-compliance.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+[90mstdout[2m | tests/smoke/critical-hardening.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+
+[90mstdout[2m | tests/api/steward-paths.api.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+
+[90mstdout[2m | tests/api/watchdog.api.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+
+[90mstdout[2m | tests/smoke/webmaster-publishing-smoke.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+[90mstdout[2m | tests/api/email-provider-graph.api.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+
+[90mstdout[2m | tests/smoke/livecom-workflow.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌘ suppress logs { quiet: true }
+
+[90mstdout[2m | tests/smoke/site-embeds-smoke.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+
+[90mstdout[2m | tests/smoke/compassion-appointments-workspace.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+
+[90mstdout[2m | tests/smoke/compassion-public-scheduling-smoke.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+
+[90mstdout[2m | tests/smoke/feedback-ticketing-smoke.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌘ enable debugging { debug: true }
+
+[90mstdout[2m | tests/smoke/api-smoke.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+[90mstdout[2m | tests/api/auth.api.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+[90mstdout[2m | tests/smoke/reports-smoke.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+[90mstdout[2m | tests/smoke/events-crud.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+[90mstdout[2m | tests/api/steward-signals.api.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌘ override existing { override: true }
+
+[90mstdout[2m | tests/smoke/donations-crud.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌘ override existing { override: true }
+
+[90mstdout[2m | tests/api/steward-ai-status.api.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌘ enable debugging { debug: true }
+
+[90mstdout[2m | tests/smoke/routes-workflow.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+[90mstdout[2m | tests/smoke/grants-crud.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+
+[90mstdout[2m | tests/smoke/hrm-api-smoke.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+
+[90mstdout[2m | tests/smoke/watchdog-ops-smoke.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+
+ [32m✓[39m tests/unit/letters-print-layout.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m tests/unit/letters-merge.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m tests/unit/webmaster-editor-utils.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m tests/unit/steward-paths-adapters.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m tests/smoke/webmaster-publishing-smoke.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 4115[2mms[22m[39m
+ [32m✓[39m tests/api/steward-paths.api.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 4140[2mms[22m[39m
+     [33m[2m✓[22m[39m supports duplicate/share/test-run/history operations for one template [33m 334[2mms[22m[39m
+ [32m✓[39m tests/api/email-provider-graph.api.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 4166[2mms[22m[39m
+ [32m✓[39m tests/smoke/critical-hardening.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 4216[2mms[22m[39m
+ [32m✓[39m tests/api/steward-ai-status.api.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 4239[2mms[22m[39m
+ [32m✓[39m tests/smoke/livecom-workflow.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 4231[2mms[22m[39m
+ [32m✓[39m tests/api/auth.api.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 4330[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects invalid credentials [33m 524[2mms[22m[39m
+     [33m[2m✓[22m[39m returns an access token for valid admin credentials [33m 464[2mms[22m[39m
+ [32m✓[39m tests/smoke/hrm-api-smoke.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 4303[2mms[22m[39m
+ [32m✓[39m tests/smoke/grants-crud.test.ts [2m([22m[2m21 tests[22m[2m)[22m[33m 4441[2mms[22m[39m
+ [32m✓[39m tests/regression/e2e-contracts.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m tests/smoke/site-embeds-smoke.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 4461[2mms[22m[39m
+ [32m✓[39m tests/smoke/compassion-appointments-workspace.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 4467[2mms[22m[39m
+ [32m✓[39m tests/unit/engagement-orchestration.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m tests/smoke/events-crud.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 4479[2mms[22m[39m
+ [32m✓[39m tests/unit/reset-verification.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m tests/unit/steward-intelligence-engine.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m tests/unit/workspace-control-rail-presets.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m tests/unit/feedback-context.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m tests/smoke/compassion-public-scheduling-smoke.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 4672[2mms[22m[39m
+ [32m✓[39m tests/unit/system-status.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m tests/api/watchdog.api.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4745[2mms[22m[39m
+ [32m✓[39m tests/smoke/feedback-ticketing-smoke.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 5046[2mms[22m[39m
+ [32m✓[39m tests/smoke/routes-workflow.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 5143[2mms[22m[39m
+     [33m[2m✓[22m[39m authenticates seeded admin user [33m 680[2mms[22m[39m
+ [32m✓[39m tests/smoke/api-smoke.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 5635[2mms[22m[39m
+     [33m[2m✓[22m[39m processes GENERATE_LETTER step and creates linked task [33m 530[2mms[22m[39m
+     [33m[2m✓[22m[39m runs batch generation and processes print/mail queue actions [33m 386[2mms[22m[39m
+ [32m✓[39m tests/smoke/reports-smoke.test.ts [2m([22m[2m37 tests[22m[2m)[22m[33m 5657[2mms[22m[39m
+ [32m✓[39m tests/smoke/watchdog-ops-smoke.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 6300[2mms[22m[39m
+     [33m[2m✓[22m[39m creates a backup, verifies it, and runs restore dry-run with pre-restore warning [33m 1335[2mms[22m[39m
+ [32m✓[39m tests/smoke/donations-crud.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 6853[2mms[22m[39m
+     [33m[2m✓[22m[39m creates a new donation and returns 201 [33m 2370[2mms[22m[39m
+ [32m✓[39m tests/api/steward-signals.api.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 15512[2mms[22m[39m
+     [33m[2m✓[22m[39m returns index state and supports manual rebuild [33m 5924[2mms[22m[39m
+     [33m[2m✓[22m[39m returns summary and bounded growth ideas payloads [33m 4938[2mms[22m[39m
+     [33m[2m✓[22m[39m returns dashboard focus, research output, and lapse radar groups [33m 524[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m52 passed[39m[22m[90m (52)[39m
+[2m      Tests [22m [1m[32m463 passed[39m[22m[90m (463)[39m
+[2m   Start at [22m 02:12:31
+[2m   Duration [22m 16.48s[2m (transform 23.03s, setup 0ms, import 12.22s, tests 111.54s, environment 7ms)[22m
+

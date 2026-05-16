@@ -9,7 +9,7 @@ interface DailyThoughtResponse {
     title: string;
     message: string;
     reason: string;
-    sourceType: "ai" | "rules";
+    sourceType: "ai";
   };
   dateKey: string;
   generatedAt: string;
@@ -74,12 +74,46 @@ export default function DailyStewardThoughtCard() {
     }
   }
 
-  const sourceBadge = data?.thought.sourceType === "ai"
-    ? "border-blue-200 bg-blue-50 text-blue-700"
-    : "border-green-200 bg-green-50 text-green-700";
+  function looksLeakedThought(value: string): boolean {
+    const normalized = String(value || "").toLowerCase();
+    return [
+      "key constraints",
+      "signal context",
+      "system prompt",
+      "key elements",
+      "firsttimedonorsthismonth",
+      "thankyousneeded",
+      "atriskcount",
+      "monthlygivingcandidates",
+      "<think>",
+      "</think>",
+    ].some((marker) => normalized.includes(marker));
+  }
+
+  const hasLeakedContent = Boolean(
+    data && (
+      looksLeakedThought(data.thought.title)
+      || looksLeakedThought(data.thought.message)
+      || looksLeakedThought(data.thought.reason)
+    )
+  );
+
+  const displayTitle = hasLeakedContent
+    ? "Daily Steward Thought Unavailable"
+    : (loading ? "Loading..." : data?.thought.title || "Today's Steward Thought");
+
+  const displayMessage = hasLeakedContent
+    ? "Steward AI returned internal prompt text instead of a final thought. Click Refresh Thought to request a clean response."
+    : (loading ? "Preparing today's guidance..." : data?.thought.message);
+
+  const displayReason = hasLeakedContent
+    ? "Awaiting a valid AI-generated thought."
+    : (data?.thought.reason || "Signal evidence is loading.");
+
+  const sourceBadge = "border-blue-200 bg-blue-50 text-blue-700";
 
   return (
-    <article className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+    <article className="bg-white rounded-xl border border-gray-200 p-4 space-y-3 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-gray-900">Daily Steward Thought</h2>
@@ -90,7 +124,7 @@ export default function DailyStewardThoughtCard() {
 
         <div className="flex items-center gap-2">
           <span className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${sourceBadge}`}>
-            {data?.thought.sourceType === "ai" ? "AI Assisted" : "Rules"}
+            AI Generated
           </span>
           {data?.canRegenerate && (
             <button
@@ -107,20 +141,29 @@ export default function DailyStewardThoughtCard() {
 
       {error && <p className="text-xs text-red-600">{error}</p>}
       {notice && <p className="text-xs text-green-700">{notice}</p>}
+      {hasLeakedContent && (
+        <p className="text-xs text-amber-700">
+          Internal AI reasoning text was blocked from display to keep this card donor-safe.
+        </p>
+      )}
 
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
         <p className="text-sm font-semibold text-gray-900">
-          {loading ? "Loading..." : data?.thought.title || "Today's Steward Thought"}
+          {displayTitle}
         </p>
         <p className="text-sm text-gray-700 mt-2 leading-relaxed">
-          {loading ? "Preparing today's guidance..." : data?.thought.message}
+          {displayMessage}
         </p>
       </div>
 
       <div className="rounded-lg border border-green-200 bg-green-50 p-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-green-800">Why this thought?</p>
-        <p className="text-xs text-green-700 mt-1">{data?.thought.reason || "Signal evidence is loading."}</p>
+        <p className="text-xs text-green-700 mt-1">{displayReason}</p>
       </div>
+
+      <p className="text-[11px] text-gray-500">
+        In development: direct "Explain" and "Save note" actions from this card will be connected to the Steward side panel and reporting flow.
+      </p>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 text-[11px]">
         <Metric label="First-Time This Month" value={data?.context.firstTimeDonorsThisMonth} />

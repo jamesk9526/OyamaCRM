@@ -134,7 +134,7 @@ export default function EmailDraftStudioPage() {
       setResult(response);
       setNotice(response.aiUsed
         ? "AI-assisted email draft generated. Review before saving or sending."
-        : "Deterministic email draft generated. Review before saving.");
+        : "AI email draft generated. Review before saving.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate draft.");
     } finally {
@@ -211,7 +211,7 @@ export default function EmailDraftStudioPage() {
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Email Draft Studio</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Build review-first donor drafts with deterministic stewardship context and optional AI refinement.
+            Build review-first donor drafts with live Steward AI context.
           </p>
         </div>
         <Link

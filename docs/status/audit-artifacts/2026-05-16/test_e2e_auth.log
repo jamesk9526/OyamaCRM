@@ -1,0 +1,5 @@
+
+> agents-create-oyamam-crm-workspace@0.3.0 test:e2e:auth C:\Users\James\Documents\GitHub\OyamaCRM
+> node tests/e2e/auth.e2e.mjs
+
+Auth E2E checks passed.

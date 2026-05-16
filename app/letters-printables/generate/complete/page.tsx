@@ -1,7 +1,7 @@
-/** Letters generation wizard step route: generate and route outputs. */
-import LettersGenerateWizard from "@/app/components/letters/generate/LettersGenerateWizard";
+/** Deprecated generation wizard step redirected to the unified generate workspace. */
+import { redirect } from "next/navigation";
 
-/** Renders the functional completion step in the letters generation wizard. */
+/** Preserves legacy step URL while using the new single-page generator. */
 export default function LettersGenerateCompletePage() {
-  return <LettersGenerateWizard step="complete" />;
+  redirect("/letters-printables/generate");
 }

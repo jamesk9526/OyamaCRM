@@ -166,6 +166,21 @@ const STARTER_PROMPTS: Record<ModuleKey, string[]> = {
   ],
 };
 
+const MODE_HELP: Record<ChatMode, string> = {
+  ask: "Ask questions and retrieve CRM context without changing records.",
+  analyze: "Compare, summarize, and find patterns across the selected scope.",
+  draft: "Write email, letter, report, and follow-up copy for human review.",
+  action: "Prepare CRM actions with confirmation before anything is changed.",
+  help: "Explain where to go and how to use OyamaCRM workflows.",
+};
+
+const QUICK_WORKFLOWS: Array<{ label: string; mode: ChatMode; prompt: string }> = [
+  { label: "Today’s priorities", mode: "analyze", prompt: "Review my donor CRM data and summarize the most important stewardship priorities for today." },
+  { label: "Draft outreach", mode: "draft", prompt: "Draft a donor outreach email for the selected audience. Include subject, preview text, and a warm nonprofit tone." },
+  { label: "Find a segment", mode: "analyze", prompt: "Find a useful donor segment for outreach and explain the selection criteria before suggesting next steps." },
+  { label: "Create follow-up plan", mode: "action", prompt: "Create a review-first follow-up plan with tasks I can confirm before anything is written to the CRM." },
+];
+
 // ─── Storage helpers ──────────────────────────────────────────────────────────
 
 const THREAD_LIMIT = 30;
@@ -1078,6 +1093,20 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         </div>
         )} {/* end dockMode ? dock-header : full-header */}
 
+        {!dockMode && (
+          <div className="shrink-0 border-b border-slate-100 bg-slate-50/70 px-3 py-2 sm:px-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-slate-600">
+                <Link href="/" className="hover:text-emerald-700 hover:underline">Donor CRM</Link>
+                <span className="text-slate-300">/</span>
+                <span className="font-semibold text-slate-900">AGENTSteward</span>
+                <span className={`ml-1 rounded-full border px-2 py-0.5 font-semibold ${scopeColor}`}>{scopeLabel}</span>
+              </div>
+              <span className="max-w-full truncate text-slate-500">{MODE_HELP[mode]}</span>
+            </div>
+          </div>
+        )}
+
         {/* ── Conversation ────────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
           <div className="mx-auto max-w-3xl px-3 py-4 sm:px-4 sm:py-6">
@@ -1097,6 +1126,18 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                 </div>
 
                 <div className="grid w-full max-w-xl gap-2 sm:grid-cols-2">
+                  {QUICK_WORKFLOWS.map((workflow) => (
+                    <button
+                      key={workflow.label}
+                      type="button"
+                      onClick={() => { setMode(workflow.mode); void send(workflow.prompt); }}
+                      disabled={sending}
+                      className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-left text-sm text-emerald-800 shadow-sm transition-all hover:border-emerald-300 hover:bg-emerald-100"
+                    >
+                      <span className="block text-xs font-semibold uppercase tracking-wide text-emerald-600">{workflow.mode}</span>
+                      {workflow.label}
+                    </button>
+                  ))}
                   {prompts.map((p) => (
                     <button
                       key={p}

@@ -1,0 +1,5 @@
+
+> agents-create-oyamam-crm-workspace@0.3.0 test:e2e:livecom C:\Users\James\Documents\GitHub\OyamaCRM
+> node tests/e2e/livecom-ui-smoke.mjs
+
+LiveCom UI smoke passed.

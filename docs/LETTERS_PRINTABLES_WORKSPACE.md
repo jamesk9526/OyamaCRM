@@ -15,7 +15,7 @@ Implemented routes:
 - `/letters-printables/templates/new`
 - `/letters-printables/templates/[templateId]`
 - `/letters-printables/generate`
-- `/letters-printables/batches`
+- `/letters-printables/batches` (compatibility redirect to `/letters-printables/generate?mode=batch`)
 - `/letters-printables/print-queue`
 - `/letters-printables/mail-queue`
 - `/letters-printables/generated`
@@ -46,6 +46,7 @@ Implemented endpoints:
 - `GET /signatures`
 - `POST /signatures`
 - `PATCH /signatures/:id`
+- `POST /media`
 - `GET /generated`
 - `GET /constituents/:id/generated`
 - `POST /generated/preview`
@@ -57,7 +58,8 @@ Implemented endpoints:
 - `POST /generated/queue/print/actions`
 - `POST /generated/queue/mail/actions`
 - `POST /generated/batch`
-- `POST /generated/:id/export-pdf` (returns explicit partial-implementation notice)
+- `POST /generated/:id/export-pdf`
+- `POST /generated/export-pdf-batch`
 
 `GET /generated` supports trace-aware filters for unified workflow navigation:
 
@@ -99,10 +101,10 @@ Status: Partially Working
 Working now:
 
 - Template CRUD and duplication/archive
-- TipTap-based rich form-letter editor in template text modes (print and email)
+- Document-studio printable editor with image upload and full-screen mode
 - Inline merge token insertion at editor cursor
-- Single-letter merge preview and generation
-- Batch generation with dry-run, skip reasons, household dedupe option, and optional queue handoff
+- Unified single and batch generation workspace at `/letters-printables/generate`
+- Batch generation with segment search, contact search, saved audience list matching, dry-run, skip reasons, household dedupe option, PDF export, and optional queue handoff
 - Print queue list and bulk actions (approve, queue, mark printed, move to mail queue, cancel, archive)
 - Mail queue list and bulk actions (queue for mail, mark mailed, mark returned, address issue, reprint, archive)
 - Signature/header/footer preset CRUD (create/update/list)
@@ -111,9 +113,13 @@ Working now:
 - Timeline and audit logging for key letter and queue events
 - Shared letter execution service reused by letters API and steward-path letter steps
 
+Compatibility:
+
+- Old wizard step URLs under `/letters-printables/generate/*` redirect to `/letters-printables/generate`.
+- Old `/letters-printables/batches` links redirect to `/letters-printables/generate?mode=batch`.
+
 Partially implemented:
 
-- Server-side PDF rendering/export pipeline (`POST /generated/:id/export-pdf`) is still explicit partial status
 - Workflow settings persistence APIs are not yet wired (settings page is guidance-only)
 
 ## Notes

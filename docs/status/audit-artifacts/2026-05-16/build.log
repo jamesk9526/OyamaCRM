@@ -1,0 +1,227 @@
+
+> agents-create-oyamam-crm-workspace@0.3.0 build C:\Users\James\Documents\GitHub\OyamaCRM
+> next build
+
+▲ Next.js 16.2.5 (Turbopack)
+- Environments: .env.production, .env
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 9.4s
+  Running TypeScript ...
+  Finished TypeScript in 29.4s ...
+  Collecting page data using 23 workers ...
+  Generating static pages using 23 workers (0/165) ...
+  Generating static pages using 23 workers (41/165) 
+  Generating static pages using 23 workers (82/165) 
+  Generating static pages using 23 workers (123/165) 
+✓ Generating static pages using 23 workers (165/165) in 1233ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api/pwa/icon
+├ ○ /apple-icon.png
+├ ○ /apps
+├ ○ /apps/trivia
+├ ƒ /apps/trivia/display/[eventId]
+├ ○ /apps/trivia/events
+├ ƒ /apps/trivia/events/[eventId]/answer-key
+├ ƒ /apps/trivia/events/[eventId]/builder
+├ ƒ /apps/trivia/events/[eventId]/host
+├ ƒ /apps/trivia/events/[eventId]/scores
+├ ○ /apps/trivia/events/new
+├ ○ /automations
+├ ○ /board
+├ ○ /campaigns
+├ ƒ /campaigns/[id]
+├ ○ /communications
+├ ƒ /communications/[campaignId]
+├ ƒ /communications/[campaignId]/review
+├ ƒ /communications/[campaignId]/schedule
+├ ○ /communications/library/segments
+├ ○ /communications/library/templates
+├ ○ /communications/log
+├ ○ /communications/new
+├ ○ /communications/new/audience
+├ ○ /communications/new/editor
+├ ○ /communications/new/preset
+├ ○ /communications/new/review
+├ ○ /communications/new/send
+├ ○ /communications/new/type
+├ ○ /compassion/activities
+├ ○ /compassion/appointments
+├ ○ /compassion/assessments
+├ ○ /compassion/care-plans
+├ ○ /compassion/cases
+├ ○ /compassion/clients
+├ ƒ /compassion/clients/[id]
+├ ○ /compassion/communications
+├ ○ /compassion/dashboard
+├ ○ /compassion/dashboards
+├ ○ /compassion/data-tools
+├ ○ /compassion/families
+├ ○ /compassion/follow-ups
+├ ○ /compassion/import/clients
+├ ƒ /compassion/public/appointments/[token]
+├ ○ /compassion/reports
+├ ○ /compassion/settings
+├ ○ /compassion/settings/staff
+├ ○ /compassion/tasks
+├ ○ /constituents
+├ ƒ /constituents/[id]
+├ ƒ /constituents/[id]/edit
+├ ○ /constituents/new
+├ ○ /contacts-manager
+├ ○ /custom-fields
+├ ○ /data-tools
+├ ○ /data-tools/import
+├ ○ /data-tools/import/donation
+├ ○ /donations
+├ ƒ /donations/[id]/edit
+├ ○ /donations/new
+├ ƒ /email-builder
+├ ○ /events
+├ ƒ /events/[eventId]
+├ ƒ /events/[eventId]/check-in
+├ ƒ /events/[eventId]/communications
+├ ƒ /events/[eventId]/files
+├ ƒ /events/[eventId]/fundraising
+├ ƒ /events/[eventId]/guests
+├ ƒ /events/[eventId]/orders
+├ ƒ /events/[eventId]/overview
+├ ƒ /events/[eventId]/reports
+├ ƒ /events/[eventId]/settings
+├ ƒ /events/[eventId]/sponsors
+├ ƒ /events/[eventId]/tables
+├ ƒ /events/[eventId]/tasks
+├ ƒ /events/[eventId]/tickets
+├ ƒ /events/[eventId]/volunteers
+├ ○ /events/check-in
+├ ○ /events/communications
+├ ○ /events/events
+├ ○ /events/files
+├ ○ /events/fundraising
+├ ○ /events/guests
+├ ○ /events/orders
+├ ○ /events/page-builder
+├ ○ /events/reports
+├ ○ /events/settings
+├ ○ /events/setup
+├ ○ /events/sponsors
+├ ○ /events/tables
+├ ○ /events/tasks
+├ ○ /events/templates
+├ ○ /events/tickets
+├ ○ /events/volunteers
+├ ○ /events/workspace
+├ ○ /grants
+├ ƒ /grants/[id]
+├ ƒ /help
+├ ƒ /help/[slug]
+├ ○ /hrm
+├ ○ /hrm/locations
+├ ○ /hrm/messages
+├ ○ /hrm/people
+├ ○ /hrm/scheduling
+├ ○ /hrm/settings
+├ ○ /icon.png
+├ ○ /letters-printables
+├ ○ /letters-printables/batches
+├ ○ /letters-printables/branding
+├ ○ /letters-printables/generate
+├ ○ /letters-printables/generate/complete
+├ ○ /letters-printables/generate/preview
+├ ○ /letters-printables/generate/recipients
+├ ○ /letters-printables/generate/template
+├ ○ /letters-printables/generated
+├ ○ /letters-printables/mail-queue
+├ ○ /letters-printables/presets
+├ ○ /letters-printables/presets/footers
+├ ○ /letters-printables/presets/headers
+├ ○ /letters-printables/presets/signatures
+├ ○ /letters-printables/print-queue
+├ ○ /letters-printables/settings
+├ ○ /letters-printables/signatures
+├ ○ /letters-printables/templates
+├ ƒ /letters-printables/templates/[templateId]
+├ ƒ /letters-printables/templates/new
+├ ○ /livecom
+├ ○ /login
+├ ○ /login/forgot-password
+├ ○ /login/reset-password
+├ ○ /manifest.webmanifest
+├ ○ /meetings
+├ ○ /ogentic
+├ ○ /password
+├ ○ /payments
+├ ƒ /preferences/[token]
+├ ○ /quickbooks-sync
+├ ○ /reports
+├ ○ /reports/donor-crm
+├ ○ /reports/manager
+├ ○ /robots.txt
+├ ○ /settings
+├ ○ /settings/ai
+├ ○ /settings/audit
+├ ○ /settings/branding
+├ ○ /settings/branding/letter-presets
+├ ○ /settings/branding/signatures
+├ ○ /settings/compassion
+├ ○ /settings/desktop-app
+├ ○ /settings/donor
+├ ○ /settings/email
+├ ○ /settings/events
+├ ○ /settings/forms
+├ ○ /settings/import-export
+├ ○ /settings/integrations
+├ ○ /settings/meetings
+├ ○ /settings/modules
+├ ○ /settings/organization
+├ ○ /settings/plugins
+├ ○ /settings/project-status
+├ ○ /settings/roles
+├ ○ /settings/scheduling
+├ ○ /settings/security
+├ ○ /settings/site-embeds
+├ ○ /settings/system
+├ ○ /settings/system-status
+├ ○ /settings/system-updates
+├ ○ /settings/tasks
+├ ○ /settings/users
+├ ○ /settings/workspaces
+├ ○ /setup
+├ ○ /steward-ai-workspace
+├ ○ /steward-paths
+├ ƒ /steward-paths/[id]
+├ ƒ /steward-paths/[id]/history
+├ ○ /steward-paths/builder
+├ ƒ /steward-paths/builder/[id]
+├ ○ /steward-signals
+├ ○ /steward-signals/email-draft-studio
+├ ○ /tasks
+├ ƒ /unsubscribe/[token]
+├ ○ /volunteers
+├ ○ /watchdog
+├ ○ /watchdog/alerts
+├ ○ /watchdog/audit
+├ ○ /watchdog/backups
+├ ○ /watchdog/feedback-tickets
+├ ○ /watchdog/health
+├ ○ /watchdog/restore
+├ ○ /watchdog/runbooks
+├ ○ /watchdog/security
+├ ○ /watchdog/settings
+├ ○ /watchdog/vault
+├ ○ /webmaster
+├ ƒ /webmaster/[workspace]
+├ ƒ /webmaster/builder
+├ ○ /webmaster/editor
+├ ○ /webmaster/page-builder
+├ ƒ /webmaster/preview/[siteId]/[pageId]
+└ ○ /webmaster/publishing
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

@@ -91,7 +91,7 @@ export default function ActionableInsightsWidget() {
         label: "Thank-yous needed",
         value: String(stewardSummary?.thankYousNeeded ?? 0),
         hint: "Acknowledgements pending",
-        href: "/letters-printables/generate/template",
+        href: "/letters-printables/generate",
         tone: "amber",
       },
       {

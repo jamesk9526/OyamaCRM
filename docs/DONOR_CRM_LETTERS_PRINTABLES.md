@@ -29,6 +29,7 @@ It should:
 7. Run print preview, then publish/generate and route to PDF export, print queue, or mail queue.
 
 The old template-library route now opens the same project manager for compatibility. Print queue, mail queue, and generated-output routes remain available as production views, but the primary user entry point is the project manager.
+The old batch exporter route redirects into the unified generator at `/letters-printables/generate?mode=batch`.
 
 ## Current Status
 
@@ -44,6 +45,7 @@ Reason:
 - The editor can be opened in a full-screen new tab with `?fullscreen=1`.
 - Branding Settings now includes editable header/footer preset tools and uploaded handwritten signature images for rendered letters.
 - Constituent and donation preview context uses searchable API lookups.
+- Single-letter and batch generation now share `/letters-printables/generate`, with segment search, contact search, saved audience list matching, dry-run checks, PDF export, and queue handoff.
 - Letter-to-email draft bridge is persisted and linked.
 - PDF export and batch generation are still partial/in-development.
 

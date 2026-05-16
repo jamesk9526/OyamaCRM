@@ -22,7 +22,7 @@ import { executeStewardPathsForTrigger } from "../services/stewardPathsEngine.js
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
-import type { DonorStatus, ConstituentType, ActivityType, Prisma } from "@prisma/client";
+import type { DonorStatus, ConstituentType, ActivityType, Prisma, Tag } from "@prisma/client";
 
 const router = Router();
 
@@ -56,6 +56,8 @@ const CONSTITUENT_SELECT = {
   lastName: true,
   email: true,
   phone: true,
+  employer: true,
+  occupation: true,
   city: true,
   state: true,
   type: true,
@@ -86,6 +88,22 @@ const MEMBER_SELECT = {
   totalLifetimeGiving: true,
 };
 
+const normalizeTagNames = (values: unknown, limit = 30): string[] => {
+  if (!Array.isArray(values)) return [];
+  return Array.from(
+    new Set(
+      values
+        .map((value) => String(value).trim().slice(0, 80))
+        .filter(Boolean),
+    ),
+  ).slice(0, limit);
+};
+
+const normalizeTagColor = (value: unknown, fallback = "#16a34a"): string => {
+  const color = typeof value === "string" ? value.trim() : "";
+  return /^#[0-9a-fA-F]{6}$/.test(color) ? color : fallback;
+};
+
 /** GET /api/constituents — List constituents with optional search, type, and status filters. */
 router.get("/", async (req, res) => {
   const { search, type, status, limit = "50" } = req.query as Record<string, string>;
@@ -111,7 +129,7 @@ router.get("/", async (req, res) => {
 
   const items = await prisma.constituent.findMany({
     where,
-    take: Math.min(parseInt(limit), 500),
+    take: Math.min(parseInt(limit), 2000),
     orderBy: { lastName: "asc" },
     select: CONSTITUENT_SELECT,
   });
@@ -129,11 +147,16 @@ router.get("/tags/catalog", async (req, res) => {
 
   const tags = await prisma.tag.findMany({
     where: {
-      constituents: {
-        some: {
-          constituent: { organizationId },
+      OR: [
+        {
+          constituents: {
+            some: {
+              constituent: { organizationId },
+            },
+          },
         },
-      },
+        { constituents: { none: {} } },
+      ],
     },
     include: {
       constituents: {
@@ -153,6 +176,166 @@ router.get("/tags/catalog", async (req, res) => {
   })));
 });
 
+/** POST /api/constituents/tags/catalog — Creates or updates a reusable tag definition. */
+router.post("/tags/catalog", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const name = typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 80) : "";
+  if (!name) {
+    res.status(400).json({ error: { code: "INVALID_TAG", message: "Tag name is required." } });
+    return;
+  }
+
+  const color = normalizeTagColor(req.body?.color, name.toLowerCase().includes("non") ? "#64748b" : "#16a34a");
+  const description = typeof req.body?.description === "string" ? req.body.description.trim().slice(0, 500) : "";
+  const existing = await prisma.tag.findFirst({
+    where: { name },
+    include: {
+      constituents: {
+        where: { constituent: { organizationId } },
+        select: { constituentId: true },
+      },
+    },
+  });
+  const tag = existing
+    ? await prisma.tag.update({
+        where: { id: existing.id },
+        data: { color, description: description || null },
+      })
+    : await prisma.tag.create({
+        data: { name, color, description: description || null },
+      });
+
+  await logAudit({
+    action: existing ? "CONSTITUENT_TAG_CATALOG_UPDATED" : "CONSTITUENT_TAG_CATALOG_CREATED",
+    entity: "Tag",
+    entityId: tag.id,
+    organizationId,
+    userId: req.user?.sub,
+    metadata: { name: tag.name, color: tag.color },
+  });
+
+  res.status(existing ? 200 : 201).json({ ...tag, constituentsCount: existing?.constituents.length ?? 0 });
+});
+
+/** PATCH /api/constituents/tags/catalog/:tagId — Updates tag color/description metadata for segmentation and AI context. */
+router.patch("/tags/catalog/:tagId", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const existing = await prisma.tag.findFirst({
+    where: {
+      id: req.params.tagId,
+      OR: [
+        { constituents: { some: { constituent: { organizationId } } } },
+        { constituents: { none: {} } },
+      ],
+    },
+    include: {
+      constituents: {
+        where: { constituent: { organizationId } },
+        select: { constituentId: true },
+      },
+    },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Tag not found." } });
+    return;
+  }
+
+  const name = typeof req.body?.name === "string" && req.body.name.trim()
+    ? req.body.name.trim().slice(0, 80)
+    : existing.name;
+  const color = req.body?.color !== undefined ? normalizeTagColor(req.body.color, existing.color) : existing.color;
+  const description = typeof req.body?.description === "string" ? req.body.description.trim().slice(0, 500) : existing.description;
+  const updated = await prisma.tag.update({
+    where: { id: existing.id },
+    data: { name, color, description: description || null },
+  });
+
+  await logAudit({
+    action: "CONSTITUENT_TAG_CATALOG_UPDATED",
+    entity: "Tag",
+    entityId: updated.id,
+    organizationId,
+    userId: req.user?.sub,
+    metadata: { name: updated.name, color: updated.color },
+  });
+
+  res.json({ ...updated, constituentsCount: existing.constituents.length });
+});
+
+/** POST /api/constituents/tags/bulk-actions — Adds or removes tags across selected constituents. */
+router.post("/tags/bulk-actions", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const action = req.body?.action === "REMOVE" ? "REMOVE" : "ADD";
+  const constituentIds = normalizeTagNames(req.body?.constituentIds, 500);
+  const tagNames = normalizeTagNames(req.body?.tagNames, 30);
+  if (constituentIds.length === 0 || tagNames.length === 0) {
+    res.status(400).json({ error: { code: "INVALID_BULK_TAGS", message: "Select at least one constituent and one tag." } });
+    return;
+  }
+
+  const constituents = await prisma.constituent.findMany({
+    where: { id: { in: constituentIds }, organizationId },
+    select: { id: true },
+  });
+  const safeConstituentIds = constituents.map((constituent) => constituent.id);
+  if (safeConstituentIds.length === 0) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "No matching constituents found." } });
+    return;
+  }
+
+  const tags: Tag[] = [];
+  for (const name of tagNames) {
+    let tag = await prisma.tag.findFirst({ where: { name } });
+    if (!tag && action === "ADD") {
+      tag = await prisma.tag.create({ data: { name, color: name.toLowerCase().includes("non") ? "#64748b" : "#16a34a" } });
+    }
+    if (tag) tags.push(tag);
+  }
+  if (tags.length === 0) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "No matching tags found." } });
+    return;
+  }
+
+  if (action === "ADD") {
+    await prisma.constituentTag.createMany({
+      data: safeConstituentIds.flatMap((constituentId) => tags.map((tag) => ({ constituentId, tagId: tag.id }))),
+      skipDuplicates: true,
+    });
+  } else {
+    await prisma.constituentTag.deleteMany({
+      where: {
+        constituentId: { in: safeConstituentIds },
+        tagId: { in: tags.map((tag) => tag.id) },
+      },
+    });
+  }
+
+  await logAudit({
+    action: "CONSTITUENT_TAGS_BULK_UPDATED",
+    entity: "Constituent",
+    organizationId,
+    userId: req.user?.sub,
+    metadata: { action, tagNames, constituentsCount: safeConstituentIds.length },
+  });
+
+  res.json({ success: true, action, tagNames, updatedCount: safeConstituentIds.length });
+});
+
 /** PUT /api/constituents/:id/tags — Replaces one constituent's tag list, creating missing tags by name. */
 router.put("/:id/tags", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
@@ -170,12 +353,9 @@ router.put("/:id/tags", async (req, res) => {
     return;
   }
 
-  const tagNames: string[] = Array.isArray(req.body?.tagNames)
-    ? req.body.tagNames.map((value: unknown) => String(value).trim()).filter(Boolean).slice(0, 30)
-    : [];
-  const uniqueNames: string[] = Array.from(new Set(tagNames.map((name) => name.slice(0, 80))));
+  const uniqueNames = normalizeTagNames(req.body?.tagNames);
 
-  const tags = [];
+  const tags: Tag[] = [];
   for (const name of uniqueNames) {
     const existing = await prisma.tag.findFirst({ where: { name } });
     if (existing) {
