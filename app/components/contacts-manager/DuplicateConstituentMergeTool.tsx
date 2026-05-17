@@ -35,6 +35,8 @@ interface MergeCandidate {
 export default function DuplicateConstituentMergeTool({ constituents, onReload, onMessage, onError }: DuplicateMergeToolProps) {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [processingKey, setProcessingKey] = useState("");
+  const [mergeAllConfirm, setMergeAllConfirm] = useState("");
+  const [mergeAllRunning, setMergeAllRunning] = useState(false);
 
   const candidates = useMemo(() => findNameDuplicateCandidates(constituents).filter((candidate) => !dismissed.has(candidate.key)), [constituents, dismissed]);
 
@@ -55,6 +57,42 @@ export default function DuplicateConstituentMergeTool({ constituents, onReload, 
     }
   }
 
+  async function mergeAllVisible() {
+    if (mergeAllConfirm !== "MERGE" || candidates.length === 0) return;
+
+    const visibleCandidates = [...candidates];
+    setMergeAllRunning(true);
+    setProcessingKey("MERGE_ALL");
+
+    let merged = 0;
+    let failed = 0;
+
+    for (const candidate of visibleCandidates) {
+      try {
+        await apiFetch("/api/constituents/merge", {
+          method: "POST",
+          body: JSON.stringify({ keepId: candidate.keep.id, mergeId: candidate.merge.id }),
+        });
+        merged += 1;
+        setDismissed((prev) => new Set(prev).add(candidate.key));
+      } catch {
+        failed += 1;
+      }
+    }
+
+    try {
+      await onReload();
+      const result = `Merged ${merged.toLocaleString()} duplicate constituent${merged === 1 ? "" : "s"}.`;
+      onMessage?.(failed > 0 ? `${result} ${failed.toLocaleString()} could not be merged and should be reviewed individually.` : result);
+      setMergeAllConfirm("");
+    } catch (requestError) {
+      onError?.(requestError instanceof Error ? requestError.message : "Merged duplicates, but failed to refresh the list.");
+    } finally {
+      setMergeAllRunning(false);
+      setProcessingKey("");
+    }
+  }
+
   function decline(candidate: MergeCandidate) {
     setDismissed((prev) => new Set(prev).add(candidate.key));
   }
@@ -69,6 +107,34 @@ export default function DuplicateConstituentMergeTool({ constituents, onReload, 
         <Metric label="Potential Matches" value={candidates.length.toLocaleString()} />
         <Metric label="Scanned Constituents" value={constituents.length.toLocaleString()} />
         <Metric label="Declined This Session" value={dismissed.size.toLocaleString()} />
+      </div>
+
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
+          <div>
+            <p className="text-sm font-semibold text-amber-950">Merge all visible matches</p>
+            <p className="mt-1 text-xs leading-5 text-amber-800">
+              This applies the same reviewed merge rule to every currently visible candidate. Type MERGE to confirm. Use this only after scanning the list because each approved merge removes the duplicate record after moving its history.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={mergeAllConfirm}
+              onChange={(event) => setMergeAllConfirm(event.target.value)}
+              disabled={mergeAllRunning || candidates.length === 0}
+              className="min-w-0 flex-1 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900 placeholder:text-amber-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:opacity-60"
+              placeholder="Type MERGE"
+            />
+            <button
+              type="button"
+              onClick={() => void mergeAllVisible()}
+              disabled={mergeAllConfirm !== "MERGE" || candidates.length === 0 || mergeAllRunning}
+              className="rounded-lg bg-amber-700 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {mergeAllRunning ? "Merging..." : "Merge All"}
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="max-h-[62vh] overflow-auto rounded-lg border border-gray-200">
@@ -93,8 +159,8 @@ export default function DuplicateConstituentMergeTool({ constituents, onReload, 
                 <td className="px-3 py-2 text-gray-600">{candidate.reason}</td>
                 <td className="px-3 py-2">
                   <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => void approve(candidate)} disabled={processingKey === candidate.key} className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50">Yes, Merge</button>
-                    <button type="button" onClick={() => decline(candidate)} disabled={processingKey === candidate.key} className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">No</button>
+                    <button type="button" onClick={() => void approve(candidate)} disabled={mergeAllRunning || processingKey === candidate.key} className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50">Yes, Merge</button>
+                    <button type="button" onClick={() => decline(candidate)} disabled={mergeAllRunning || processingKey === candidate.key} className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">No</button>
                   </div>
                 </td>
               </tr>

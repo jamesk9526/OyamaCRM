@@ -1,7 +1,7 @@
 /** Branding settings workspace for identity defaults consumed by Email Builder and other modules. */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import {
   DEFAULT_BRANDING_SETTINGS,
@@ -15,8 +15,12 @@ export default function BrandingSettingsPage() {
   const [form, setForm] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState<"primary" | "square" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+  const primaryLogoInputRef = useRef<HTMLInputElement | null>(null);
+  const squareLogoInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -45,6 +49,35 @@ export default function BrandingSettingsPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
     setSaved(false);
     setError(null);
+  }
+
+  /** Uploads one branding logo file and writes the returned public URL into the selected logo field. */
+  async function uploadLogo(file: File, field: "logoUrl" | "logoSquareUrl") {
+    if (!file) return;
+    setUploadingLogo(field === "logoUrl" ? "primary" : "square");
+    setError(null);
+    setUploadMessage(null);
+
+    try {
+      const dataBase64 = await readFileAsDataUrl(file);
+      const uploaded = await apiFetch<{ url: string }>("/api/settings/branding/logo-upload", {
+        method: "POST",
+        body: JSON.stringify({
+          fileName: file.name,
+          mimeType: file.type || "image/png",
+          dataBase64,
+          slot: field === "logoUrl" ? "primary" : "square",
+        }),
+      });
+      setField(field, uploaded.url);
+      setUploadMessage(`${field === "logoUrl" ? "Primary" : "Square"} logo uploaded. Save Branding Defaults to publish changes.`);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to upload logo file.");
+    } finally {
+      setUploadingLogo(null);
+      if (field === "logoUrl" && primaryLogoInputRef.current) primaryLogoInputRef.current.value = "";
+      if (field === "logoSquareUrl" && squareLogoInputRef.current) squareLogoInputRef.current.value = "";
+    }
   }
 
   /** Saves branding defaults for all downstream module consumers. */
@@ -94,6 +127,12 @@ export default function BrandingSettingsPage() {
         </div>
       )}
 
+      {uploadMessage && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          {uploadMessage}
+        </div>
+      )}
+
       <form onSubmit={saveBranding} className="space-y-5">
         <section className="rounded-lg border border-gray-200 bg-white p-5 space-y-4">
           <h2 className="text-sm font-semibold text-gray-900">Identity</h2>
@@ -110,11 +149,65 @@ export default function BrandingSettingsPage() {
             <Field label="Mission Statement">
               <input value={form.missionStatement} onChange={(e) => setField("missionStatement", e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Serving families with practical care and hope." />
             </Field>
-            <Field label="Primary Logo URL">
-              <input value={form.logoUrl} onChange={(e) => setField("logoUrl", e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="https://.../logo.png" />
+            <Field label="Primary Logo (Upload or URL)">
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => primaryLogoInputRef.current?.click()}
+                    disabled={uploadingLogo === "primary"}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                  >
+                    {uploadingLogo === "primary" ? "Uploading..." : "Upload Primary Logo"}
+                  </button>
+                  <input
+                    ref={primaryLogoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void uploadLogo(file, "logoUrl");
+                    }}
+                  />
+                </div>
+                {form.logoUrl && (
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-2">
+                    <img src={form.logoUrl} alt="Primary logo preview" className="max-h-20 w-auto max-w-full object-contain" />
+                  </div>
+                )}
+                <input value={form.logoUrl} onChange={(e) => setField("logoUrl", e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="https://.../logo.png" />
+              </div>
             </Field>
-            <Field label="Square Logo URL">
-              <input value={form.logoSquareUrl} onChange={(e) => setField("logoSquareUrl", e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="https://.../logo-square.png" />
+            <Field label="Square Logo (Upload or URL)">
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => squareLogoInputRef.current?.click()}
+                    disabled={uploadingLogo === "square"}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                  >
+                    {uploadingLogo === "square" ? "Uploading..." : "Upload Square Logo"}
+                  </button>
+                  <input
+                    ref={squareLogoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void uploadLogo(file, "logoSquareUrl");
+                    }}
+                  />
+                </div>
+                {form.logoSquareUrl && (
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-2">
+                    <img src={form.logoSquareUrl} alt="Square logo preview" className="max-h-20 w-auto max-w-full object-contain" />
+                  </div>
+                )}
+                <input value={form.logoSquareUrl} onChange={(e) => setField("logoSquareUrl", e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="https://.../logo-square.png" />
+              </div>
             </Field>
           </div>
         </section>
@@ -242,4 +335,14 @@ function Field({ label, children }: FieldProps) {
       {children}
     </label>
   );
+}
+
+/** Reads a browser File as a base64 data URL for API upload payloads. */
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () => reject(reader.error ?? new Error("Failed to read file."));
+    reader.readAsDataURL(file);
+  });
 }

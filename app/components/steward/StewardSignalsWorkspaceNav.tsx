@@ -41,7 +41,7 @@ export default function StewardSignalsWorkspaceNav({ activeSection, onChange }: 
   return (
     <section className="space-y-2">
       <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Signal Navigation</p>
-      <WorkspaceRibbon scrollable>
+      <WorkspaceRibbon>
         <WorkspaceRibbonGroup label="Intelligence Views">
           {NAV_ITEMS.map((item) => (
             <WorkspaceRibbonButton

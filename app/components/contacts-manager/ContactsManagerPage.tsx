@@ -464,7 +464,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
       {error && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{error}</div>}
       {message && <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{message}</div>}
 
-      <WorkspaceRibbon scrollable>
+      <WorkspaceRibbon>
         <WorkspaceRibbonGroup label="Audiences">
           <WorkspaceRibbonButton label="List Builder" onClick={() => setBuilderOpen((value) => !value)} variant="primary" active={builderOpen} title="Show or hide the side-by-side audience list builder" />
           <WorkspaceRibbonButton label="List Manager" onClick={() => setActiveModal("LISTS")} title="Manage, preview, merge, duplicate, rename, and delete saved segment lists" />

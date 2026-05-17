@@ -203,6 +203,10 @@ export default function ConstituentDetailPage() {
 
   const c = constituent;
   const fullName = `${c.prefix ? c.prefix + " " : ""}${c.firstName} ${c.lastName}`;
+  const emailAddresses = [
+    c.email ? { label: "Primary", value: c.email } : null,
+    c.email2 ? { label: "Secondary", value: c.email2 } : null,
+  ].filter(Boolean) as Array<{ label: string; value: string }>;
 
   function handleRailSelect(itemId: string) {
     if (itemId.startsWith("view:")) {
@@ -237,111 +241,60 @@ export default function ConstituentDetailPage() {
       </nav>
 
       {/* Profile header */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="flex items-start justify-between flex-wrap gap-4">
-          <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center text-green-700 text-xl font-bold shrink-0">
-              {isHousehold ? (
-                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>
-              ) : `${c.firstName[0]}${c.lastName[0]}`}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl font-semibold text-gray-900">{fullName}</h1>
-                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(c.donorStatus)}`}>
-                  {statusLabel(c.donorStatus)}
-                </span>
-                <span className="text-xs text-gray-400">{typeLabel(c.type)}</span>
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="min-w-0 p-5 sm:p-6">
+            <div className="flex items-start gap-4">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-green-200 bg-green-50 text-xl font-bold text-green-700">
+                {isHousehold ? (
+                  <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                ) : `${c.firstName[0]}${c.lastName[0]}`}
               </div>
-              {c.employer && <p className="text-sm text-gray-500 mt-0.5">{c.employer}{c.occupation ? ` · ${c.occupation}` : ""}</p>}
-              {/* Household membership badge */}
-              {c.household && !isHousehold && (
-                <p className="text-xs text-gray-400 mt-1">
-                  Member of{" "}
-                  <Link href={`/constituents/${c.household.head?.id}`} className="text-green-600 hover:underline">
-                    {c.household.name}
-                  </Link>
-                </p>
-              )}
-              <div className="flex flex-wrap gap-1 mt-2">
-                {c.tags.map((t) => (
-                  <span key={t.tagId} className="inline-flex px-1.5 py-0.5 rounded text-xs font-medium text-white" style={{ backgroundColor: t.tag.color }}>
-                    {t.tag.name}
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="min-w-0 text-xl font-semibold text-gray-950">{fullName}</h1>
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(c.donorStatus)}`}>
+                    {statusLabel(c.donorStatus)}
                   </span>
-                ))}
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">{typeLabel(c.type)}</span>
+                </div>
+                {c.employer && <p className="mt-1 text-sm text-gray-600">{c.employer}{c.occupation ? ` · ${c.occupation}` : ""}</p>}
+                {c.household && !isHousehold && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Member of{" "}
+                    <Link href={`/constituents/${c.household.head?.id}`} className="font-semibold text-green-700 hover:underline">
+                      {c.household.name}
+                    </Link>
+                  </p>
+                )}
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {c.tags.length === 0 ? (
+                    <span className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-500">No tags</span>
+                  ) : c.tags.map((t) => (
+                    <span key={t.tagId} className="inline-flex rounded px-2 py-1 text-xs font-medium text-white" style={{ backgroundColor: t.tag.color }}>
+                      {t.tag.name}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-          <div className="flex items-stretch gap-2 flex-wrap w-full lg:w-auto">
-            {/* Record Gift — primary stewardship action */}
-            <button
-              onClick={() => setShowGiftModal(true)}
-              className="w-full sm:w-auto justify-center px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors inline-flex items-center gap-1.5"
-            >
-              💚 Record Gift
-            </button>
-            <Link
-              href={`/letters-printables/generate?constituentId=${id}`}
-              className="w-full sm:w-auto text-center px-4 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors"
-            >
-              Generate Letter
-            </Link>
-            <Link
-              href={`/communications?new=1&source=constituent&constituentId=${id}`}
-              className="w-full sm:w-auto text-center px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-            >
-              Create Communication
-            </Link>
-            <Link
-              href={`/automations?source=constituent&constituentId=${id}`}
-              className="w-full sm:w-auto text-center px-3 py-2 text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
-            >
-              Start Steward Path
-            </Link>
-            <Link
-              href={`/tasks?focus=my&constituentId=${id}`}
-              className="w-full sm:w-auto text-center px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors"
-            >
-              Create Task
-            </Link>
-            <Link
-              href={`/meetings?constituentId=${id}`}
-              className="w-full sm:w-auto text-center px-3 py-2 text-sm font-medium text-sky-700 bg-sky-50 border border-sky-200 rounded-lg hover:bg-sky-100 transition-colors"
-            >
-              Schedule Meeting
-            </Link>
-            <Link
-              href={`/constituents/${id}/edit`}
-              className="w-full sm:w-auto text-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Edit
-            </Link>
-          </div>
-        </div>
 
-        {/* Contact grid */}
-        <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3 text-sm border-t border-gray-100 pt-4">
-          {c.email && <ContactRow label="Email" value={c.email} href={`mailto:${c.email}`} />}
-          {c.phone && <ContactRow label="Phone" value={c.phone} href={`tel:${c.phone}`} />}
-          {c.mobile && <ContactRow label="Mobile" value={c.mobile} href={`tel:${c.mobile}`} />}
-          {(c.city || c.state) && (
-            <ContactRow label="Location" value={[c.city, c.state, c.zip].filter(Boolean).join(", ")} />
-          )}
-        </div>
+            <ProfileContactPanel
+              emails={emailAddresses}
+              phone={c.phone}
+              mobile={c.mobile}
+              location={[c.city, c.state, c.zip].filter(Boolean).join(", ")}
+              flags={{ doNotEmail: c.doNotEmail, doNotCall: c.doNotCall, doNotMail: c.doNotMail }}
+            />
 
-        {/* Communication flags */}
-        {(c.doNotEmail || c.doNotCall || c.doNotMail) && (
-          <div className="mt-3 flex gap-2 flex-wrap">
-            {c.doNotEmail && <Flag label="Do Not Email" />}
-            {c.doNotCall && <Flag label="Do Not Call" />}
-            {c.doNotMail && <Flag label="Do Not Mail" />}
+            <div className="mt-4">
+              <EmailPreferencePanel constituentId={id} email={c.email} />
+            </div>
           </div>
-        )}
 
-        <div className="mt-4">
-          <EmailPreferencePanel constituentId={id} email={c.email} />
+          <ProfileToolsPanel constituentId={id} onRecordGift={() => setShowGiftModal(true)} />
         </div>
       </div>
 
@@ -428,6 +381,103 @@ export default function ConstituentDetailPage() {
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
+
+function ProfileToolsPanel({ constituentId, onRecordGift }: { constituentId: string; onRecordGift: () => void }) {
+  return (
+    <aside className="border-t border-gray-200 bg-gray-50 p-4 sm:p-5 lg:border-l lg:border-t-0">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Profile Tools</p>
+          <h2 className="text-sm font-semibold text-gray-950">Work with this constituent</h2>
+        </div>
+        <Link
+          href={`/constituents/${constituentId}/edit`}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+        >
+          Edit
+        </Link>
+      </div>
+
+      <div className="mt-4 grid gap-2">
+        <button
+          type="button"
+          onClick={onRecordGift}
+          className="inline-flex w-full items-center justify-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700"
+        >
+          Record Gift
+        </button>
+        <Link href={`/letters-printables/generate?constituentId=${constituentId}`} className={PROFILE_TOOL_LINK_CLS}>
+          Generate Letter
+        </Link>
+        <Link href={`/communications?new=1&source=constituent&constituentId=${constituentId}`} className={PROFILE_TOOL_LINK_CLS}>
+          Create Communication
+        </Link>
+        <div className="grid grid-cols-2 gap-2">
+          <Link href={`/tasks?focus=my&constituentId=${constituentId}`} className={PROFILE_TOOL_LINK_CLS}>
+            Task
+          </Link>
+          <Link href={`/meetings?constituentId=${constituentId}`} className={PROFILE_TOOL_LINK_CLS}>
+            Meeting
+          </Link>
+        </div>
+        <Link href={`/automations?source=constituent&constituentId=${constituentId}`} className={PROFILE_TOOL_LINK_CLS}>
+          Start Steward Path
+        </Link>
+      </div>
+    </aside>
+  );
+}
+
+function ProfileContactPanel({
+  emails,
+  phone,
+  mobile,
+  location,
+  flags,
+}: {
+  emails: Array<{ label: string; value: string }>;
+  phone?: string;
+  mobile?: string;
+  location?: string;
+  flags: { doNotEmail: boolean; doNotCall: boolean; doNotMail: boolean };
+}) {
+  const hasFlags = flags.doNotEmail || flags.doNotCall || flags.doNotMail;
+  return (
+    <div className="mt-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Email Addresses</p>
+          <div className="mt-2 space-y-2">
+            {emails.length === 0 ? (
+              <p className="text-sm text-gray-500">No email addresses on profile.</p>
+            ) : emails.map((email) => (
+              <div key={`${email.label}:${email.value}`} className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-gray-200 bg-white px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{email.label}</p>
+                  <a href={`mailto:${email.value}`} className="block truncate text-sm font-medium text-green-700 hover:underline">{email.value}</a>
+                </div>
+                {email.label === "Primary" && <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">Default</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-3 text-sm">
+          {phone && <ContactDetail label="Phone" value={phone} href={`tel:${phone}`} />}
+          {mobile && <ContactDetail label="Mobile" value={mobile} href={`tel:${mobile}`} />}
+          {location && <ContactDetail label="Location" value={location} />}
+          {hasFlags && (
+            <div className="flex flex-wrap gap-2">
+              {flags.doNotEmail && <Flag label="Do Not Email" />}
+              {flags.doNotCall && <Flag label="Do Not Call" />}
+              {flags.doNotMail && <Flag label="Do Not Mail" />}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function GivingTab({
   donations,
@@ -541,14 +591,14 @@ function StatCard({ label, value, sub, valueClass }: { label: string; value: str
   );
 }
 
-function ContactRow({ label, value, href }: { label: string; value: string; href?: string }) {
+function ContactDetail({ label, value, href }: { label: string; value: string; href?: string }) {
   return (
-    <div>
-      <p className="text-xs text-gray-400 font-medium">{label}</p>
+    <div className="min-w-0">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">{label}</p>
       {href ? (
-        <a href={href} className="text-green-600 hover:underline">{value}</a>
+        <a href={href} className="block truncate font-medium text-green-700 hover:underline">{value}</a>
       ) : (
-        <p className="text-gray-700">{value}</p>
+        <p className="truncate font-medium text-gray-800">{value}</p>
       )}
     </div>
   );
@@ -556,11 +606,13 @@ function ContactRow({ label, value, href }: { label: string; value: string; href
 
 function Flag({ label }: { label: string }) {
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
-      ⛔ {label}
+    <span className="inline-flex items-center rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-200">
+      {label}
     </span>
   );
 }
+
+const PROFILE_TOOL_LINK_CLS = "inline-flex w-full items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100";
 
 function LoadingState() {
   return (

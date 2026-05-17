@@ -6,7 +6,9 @@
  * @module routes/settings
  */
 import { Router, Request, Response } from "express";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import type { Prisma } from "@prisma/client";
 import nodemailer from "nodemailer";
 import { REFRESH_COOKIE } from "../lib/auth.js";
@@ -511,6 +513,21 @@ function normalizeBrandingPayload(input: unknown) {
   };
 }
 
+/** Returns a safe image extension for branding logo uploads. */
+function resolveBrandingLogoExtension(mimeType: string, fileName: string): string {
+  const normalizedMime = mimeType.trim().toLowerCase();
+  if (normalizedMime === "image/png") return "png";
+  if (normalizedMime === "image/jpeg") return "jpg";
+  if (normalizedMime === "image/webp") return "webp";
+  if (normalizedMime === "image/gif") return "gif";
+
+  const ext = path.extname(fileName).replace(".", "").toLowerCase();
+  if (["png", "jpg", "jpeg", "webp", "gif"].includes(ext)) {
+    return ext === "jpeg" ? "jpg" : ext;
+  }
+  return "png";
+}
+
 /**
  * Resolves the single active installation organization for settings surfaces.
  * The app still behaves as a single-install CRM, so the oldest org is the
@@ -764,6 +781,75 @@ router.put("/branding", requireAuth, requireRole("admin"), async (req: Request, 
     return res.json(normalized);
   } catch {
     return res.status(500).json({ error: { code: "BRANDING_SETTINGS_WRITE_FAILED", message: "Failed to save branding settings" } });
+  }
+});
+
+/**
+ * POST /api/settings/branding/logo-upload — Uploads one branding logo image and returns a public URL.
+ * Request: { fileName: string, mimeType: image/*, dataBase64: string, slot?: "primary" | "square" }
+ * Response: { url, fileName, mimeType, sizeBytes }
+ */
+router.post("/branding/logo-upload", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await resolveSettingsOrganizationId(req);
+    const userId = req.user?.sub;
+    if (!organizationId || !userId) {
+      return res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    }
+
+    const fileName = typeof req.body?.fileName === "string" ? req.body.fileName.trim() : "";
+    const mimeType = typeof req.body?.mimeType === "string" ? req.body.mimeType.trim().toLowerCase() : "";
+    const dataBase64 = typeof req.body?.dataBase64 === "string" ? req.body.dataBase64.trim() : "";
+    const slot = req.body?.slot === "square" ? "square" : "primary";
+
+    if (!fileName || !dataBase64) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "fileName and dataBase64 are required." } });
+    }
+
+    const allowedMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+    if (!allowedMimeTypes.has(mimeType)) {
+      return res.status(400).json({
+        error: {
+          code: "INVALID_MEDIA_TYPE",
+          message: "Only PNG, JPEG, WEBP, and GIF uploads are supported for branding logos.",
+        },
+      });
+    }
+
+    const normalizedData = dataBase64.includes(",") ? dataBase64.split(",").pop() ?? "" : dataBase64;
+    const buffer = Buffer.from(normalizedData, "base64");
+    if (!buffer || buffer.byteLength === 0) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid base64 payload." } });
+    }
+
+    const maxBytes = 5 * 1024 * 1024;
+    if (buffer.byteLength > maxBytes) {
+      return res.status(413).json({ error: { code: "PAYLOAD_TOO_LARGE", message: "Logo upload must be 5MB or smaller." } });
+    }
+
+    const ext = resolveBrandingLogoExtension(mimeType, fileName);
+    const safeName = `${slot}-${randomUUID()}.${ext}`;
+    const uploadDir = path.resolve(process.cwd(), "public", "uploads", "branding", organizationId);
+    const targetPath = path.join(uploadDir, safeName);
+
+    await mkdir(uploadDir, { recursive: true });
+    await writeFile(targetPath, buffer);
+
+    const publicUrl = `/uploads/branding/${organizationId}/${safeName}`;
+    await logAudit({
+      action: "BRANDING_LOGO_UPLOADED",
+      entity: "OrganizationBranding",
+      entityId: organizationId,
+      userId,
+      organizationId,
+      metadata: { slot, fileName, mimeType, sizeBytes: buffer.byteLength, publicUrl },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    return res.status(201).json({ url: publicUrl, fileName, mimeType, sizeBytes: buffer.byteLength });
+  } catch {
+    return res.status(500).json({ error: { code: "BRANDING_LOGO_UPLOAD_FAILED", message: "Failed to upload branding logo." } });
   }
 });
 
