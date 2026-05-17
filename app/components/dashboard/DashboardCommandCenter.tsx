@@ -5,7 +5,9 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import StatCard from "@/app/components/dashboard/StatCard";
+import { apiFetch } from "@/app/lib/auth-client";
 
 interface DashboardCommandCenterProps {
   greeting: string;
@@ -21,6 +23,7 @@ interface DashboardCommandCenterProps {
   activeCampaigns: number;
   newDonorsThisMonth: number;
   monthTrend: number | null;
+  reportingYearMode: "calendar" | "fiscal";
 }
 
 interface QuickTool {
@@ -36,6 +39,31 @@ interface PriorityAction {
   href: string;
   cta: string;
   toneClassName: string;
+  actionType?: "DRAFT_THANK_YOU_NEW_DONORS";
+}
+
+interface NextMoveDraftResponse {
+  message: string;
+  counts: {
+    cohort: number;
+    emailable: number;
+    lettersNeeded: number;
+    suppressed: number;
+    generatedLetters?: number;
+  };
+  communications?: {
+    campaignId: string;
+    recipientListId: string | null;
+    redirectTo: string | null;
+  } | null;
+  letters?: {
+    templateId: string;
+    generatedCount: number;
+    redirectTo: string | null;
+  } | null;
+  warnings?: {
+    lettersPermissionMissing?: boolean;
+  };
 }
 
 const QUICK_TOOLS: QuickTool[] = [
@@ -109,6 +137,7 @@ function getPriorityAction(params: {
       href: "/letters-printables/generate",
       cta: "Draft Thank-You",
       toneClassName: "border-emerald-200 bg-emerald-50 text-emerald-900",
+      actionType: "DRAFT_THANK_YOU_NEW_DONORS",
     };
   }
 
@@ -188,6 +217,7 @@ export default function DashboardCommandCenter({
   activeCampaigns,
   newDonorsThisMonth,
   monthTrend,
+  reportingYearMode,
 }: DashboardCommandCenterProps) {
   const revenuePercent = revenueGoal > 0 ? Math.max(0, Math.min(100, Math.round((ytdAmount / revenueGoal) * 100))) : 0;
   const paceLabel = getPaceLabel(revenuePercent);
@@ -198,6 +228,27 @@ export default function DashboardCommandCenter({
     activeCampaigns,
     revenuePercent,
   });
+  const [runningNextMove, setRunningNextMove] = useState(false);
+  const [nextMoveError, setNextMoveError] = useState<string | null>(null);
+  const [nextMoveResult, setNextMoveResult] = useState<NextMoveDraftResponse | null>(null);
+
+  /** Executes the high-priority donor welcome draft pack and returns links to both workspaces. */
+  async function runNewDonorDraftAction() {
+    setRunningNextMove(true);
+    setNextMoveError(null);
+    setNextMoveResult(null);
+    try {
+      const query = reportingYearMode === "fiscal" ? "?dateBasis=fiscal" : "";
+      const payload = await apiFetch<NextMoveDraftResponse>(`/api/reports/actions/draft-thank-you-new-donors${query}`, {
+        method: "POST",
+      });
+      setNextMoveResult(payload);
+    } catch (error) {
+      setNextMoveError(error instanceof Error ? error.message : "Failed to create donor thank-you drafts.");
+    } finally {
+      setRunningNextMove(false);
+    }
+  }
 
   return (
     <section className="relative overflow-hidden rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(22,163,74,0.18),_transparent_28%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.12),_transparent_24%),linear-gradient(135deg,_rgba(255,255,255,1)_0%,_rgba(240,253,244,0.85)_52%,_rgba(248,250,252,1)_100%)] px-5 py-5 shadow-sm sm:px-6 sm:py-6">
@@ -297,12 +348,59 @@ export default function DashboardCommandCenter({
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] opacity-80">{priorityAction.eyebrow}</p>
             <h2 className="mt-2 text-xl font-semibold tracking-tight">{priorityAction.title}</h2>
             <p className="mt-2 text-sm leading-6 opacity-85">{priorityAction.description}</p>
-            <Link
-              href={priorityAction.href}
-              className="mt-4 inline-flex items-center rounded-full border border-current/15 bg-white/80 px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors hover:bg-white"
-            >
-              {priorityAction.cta}
-            </Link>
+            {priorityAction.actionType === "DRAFT_THANK_YOU_NEW_DONORS" ? (
+              <button
+                type="button"
+                onClick={() => void runNewDonorDraftAction()}
+                disabled={runningNextMove}
+                className="mt-4 inline-flex items-center rounded-full border border-current/15 bg-white/80 px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {runningNextMove ? "Building Drafts..." : priorityAction.cta}
+              </button>
+            ) : (
+              <Link
+                href={priorityAction.href}
+                className="mt-4 inline-flex items-center rounded-full border border-current/15 bg-white/80 px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors hover:bg-white"
+              >
+                {priorityAction.cta}
+              </Link>
+            )}
+
+            {nextMoveError ? (
+              <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {nextMoveError}
+              </p>
+            ) : null}
+
+            {nextMoveResult ? (
+              <div className="mt-3 rounded-lg border border-emerald-200 bg-white/85 px-3 py-3 text-xs text-emerald-900">
+                <p className="font-semibold">{nextMoveResult.message}</p>
+                <p className="mt-1 opacity-80">
+                  {nextMoveResult.counts.emailable} emailable, {nextMoveResult.counts.lettersNeeded} to letters, {nextMoveResult.counts.suppressed} suppressed.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {nextMoveResult.communications?.redirectTo ? (
+                    <Link
+                      href={nextMoveResult.communications.redirectTo}
+                      className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700 hover:bg-emerald-100"
+                    >
+                      Open Email Draft
+                    </Link>
+                  ) : null}
+                  {nextMoveResult.letters?.redirectTo ? (
+                    <Link
+                      href={nextMoveResult.letters.redirectTo}
+                      className="inline-flex items-center rounded-full border border-sky-300 bg-sky-50 px-2.5 py-1 font-semibold text-sky-700 hover:bg-sky-100"
+                    >
+                      Open Letter Drafts
+                    </Link>
+                  ) : null}
+                </div>
+                {nextMoveResult.warnings?.lettersPermissionMissing ? (
+                  <p className="mt-2 text-[11px] text-amber-700">Letter drafts were skipped because letters permissions are missing.</p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-4 space-y-3">

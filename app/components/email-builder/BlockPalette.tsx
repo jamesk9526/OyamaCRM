@@ -36,7 +36,7 @@ function PaletteDragCard({ item }: CardProps) {
       {...attributes}
       {...listeners}
       className={[
-        'group flex items-center gap-3 px-3 py-2.5 bg-white rounded-lg border border-gray-200',
+        'group flex min-h-[118px] flex-col items-start gap-2 bg-white rounded-lg border border-gray-200 p-3',
         'cursor-grab select-none transition-all duration-150',
         'hover:shadow-md hover:-translate-y-0.5 hover:border-green-300',
         isDragging ? 'opacity-40 shadow-lg scale-105' : '',
@@ -45,24 +45,19 @@ function PaletteDragCard({ item }: CardProps) {
     >
       {/* Icon */}
       <span
-        className="w-7 h-7 flex items-center justify-center rounded bg-gray-100 text-gray-600 font-bold text-sm shrink-0"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-gray-100 text-sm font-bold text-gray-600"
         aria-hidden
       >
         {item.icon}
       </span>
 
       {/* Label + description */}
-      <div className="min-w-0">
-        <div className="flex items-center gap-1.5">
-          <p className="text-sm font-medium text-gray-800 leading-tight">{item.label}</p>
-          <span className="rounded-full border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-            {item.section}
-          </span>
-        </div>
-        <p className="text-xs text-gray-400 leading-tight truncate">{item.description}</p>
+      <div className="min-w-0 space-y-1">
+        <p className="line-clamp-2 text-sm font-semibold leading-tight text-gray-800">{item.label}</p>
+        <p className="line-clamp-3 text-xs leading-tight text-gray-500">{item.description}</p>
       </div>
 
-      <span className="ml-auto text-gray-300 group-hover:text-gray-400">⋮⋮</span>
+      <span className="mt-auto self-end text-xs font-semibold text-gray-300 group-hover:text-gray-400">Drag</span>
     </div>
   );
 }
@@ -122,7 +117,7 @@ export default function BlockPalette() {
   );
 
   return (
-    <aside className="w-72 shrink-0 bg-gray-50 border-r border-gray-200 flex flex-col overflow-y-auto">
+    <aside className="h-full w-full bg-gray-50 border-r border-gray-200 flex flex-col overflow-y-auto">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200 bg-white space-y-2">
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -154,7 +149,7 @@ export default function BlockPalette() {
                 <span className="text-xs text-gray-400">{isCollapsed ? '+' : '-'}</span>
               </button>
               {!isCollapsed && (
-                <div className="space-y-1.5">
+                <div className="grid grid-cols-2 gap-2">
                   {items.map((item) => (
                     <PaletteDragCard key={item.blockType} item={item} />
                   ))}

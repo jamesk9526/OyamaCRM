@@ -430,6 +430,7 @@ export function createDefaultBlock(type: BlockType): EmailBlock {
       return {
         id,
         type: 'columns',
+        columnCount: 2,
         columns: [
           [
             {
@@ -896,23 +897,24 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
     }
 
     case 'columns': {
-      const col0 = block.columns[0]?.map((b) => renderBlockHtml(b, fontFamily)).join('') ?? '';
-      const col1 = block.columns[1]?.map((b) => renderBlockHtml(b, fontFamily)).join('') ?? '';
+      const requestedCount = block.columnCount ?? block.columns.length;
+      const totalColumns = requestedCount >= 3 ? 3 : 2;
+      const cols = Array.from({ length: totalColumns }, (_, index) => {
+        const content = block.columns[index]?.map((child) => renderBlockHtml(child, fontFamily)).join('') ?? '';
+        const width = Math.floor(100 / totalColumns);
+        return `<td width="${width}%" valign="top" style="vertical-align:top;${index === 0 ? '' : 'padding-left:8px;'}">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            ${content}
+          </table>
+        </td>`;
+      }).join('');
       return `<tr>
   <td style="padding:${block.padding}px;">
-    <!--[if mso]><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="50%" valign="top"><![endif]-->
-    <div style="display:inline-block;width:48%;vertical-align:top;min-width:200px;">
-      <table width="100%" cellpadding="0" cellspacing="0" border="0">
-        ${col0}
-      </table>
-    </div>
-    <!--[if mso]></td><td width="50%" valign="top"><![endif]-->
-    <div style="display:inline-block;width:48%;vertical-align:top;min-width:200px;margin-left:4%;">
-      <table width="100%" cellpadding="0" cellspacing="0" border="0">
-        ${col1}
-      </table>
-    </div>
-    <!--[if mso]></td></tr></table><![endif]-->
+    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        ${cols}
+      </tr>
+    </table>
   </td>
 </tr>`;
     }
@@ -926,12 +928,35 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
   }
 }
 
+/** Ensures generated output always contains a valid footer compliance block with unsubscribe/manage-preferences tokens. */
+function ensureComplianceFooterBlock(template: EmailTemplate): EmailTemplate {
+  const normalizedBlocks = template.blocks.map((block) => {
+    if (block.type !== 'footerCompliance') return block;
+    return {
+      ...block,
+      unsubscribeToken: block.unsubscribeToken.trim() || '{{unsubscribeUrl}}',
+      managePreferencesToken: block.managePreferencesToken.trim() || '{{managePreferencesUrl}}',
+    };
+  });
+
+  const hasFooterCompliance = normalizedBlocks.some((block) => block.type === 'footerCompliance');
+  if (hasFooterCompliance) {
+    return { ...template, blocks: normalizedBlocks };
+  }
+
+  return {
+    ...template,
+    blocks: [...normalizedBlocks, createDefaultBlock('footerCompliance')],
+  };
+}
+
 /**
  * Generates a complete, table-based HTML email from an EmailTemplate.
  * Includes MSO (Outlook) conditional comments for best compatibility.
  */
 export function generateEmailHtml(template: EmailTemplate): string {
-  const { blocks, backgroundColor, contentWidth, fontFamily } = template;
+  const normalizedTemplate = ensureComplianceFooterBlock(template);
+  const { blocks, backgroundColor, contentWidth, fontFamily } = normalizedTemplate;
   const blockRows = blocks.map((b) => renderBlockHtml(b, fontFamily)).join('\n');
 
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -972,7 +997,8 @@ function stripHtml(html: string): string {
  * Used as the `bodyText` payload when saving to the API.
  */
 export function generatePlainText(template: EmailTemplate): string {
-  return template.blocks
+  const normalizedTemplate = ensureComplianceFooterBlock(template);
+  return normalizedTemplate.blocks
     .map((block) => {
       switch (block.type) {
         case 'heading':
@@ -1046,6 +1072,7 @@ export function createTemplateFromPreset(preset: TemplatePreset): EmailTemplate 
         { ...createDefaultBlock('image'), src: 'https://images.unsplash.com/photo-1559027615-cd4628902d4a?auto=format&fit=crop&w=1200&q=80', alt: 'Community impact', width: 100 } as ImageBlock,
         { ...createDefaultBlock('text'), content: '<h2>Program Spotlight</h2><p>This month we served 240 families across three neighborhoods.</p>' } as TextBlock,
         { ...createDefaultBlock('button'), label: 'Read Full Story', href: 'https://oyamacrm.org/story' } as ButtonBlock,
+        createDefaultBlock('footerCompliance'),
       ],
     };
   }
@@ -1060,6 +1087,7 @@ export function createTemplateFromPreset(preset: TemplatePreset): EmailTemplate 
         { ...createDefaultBlock('button'), label: 'Donate Now', href: 'https://oyamacrm.org/donate', bgColor: '#16a34a' } as ButtonBlock,
         { ...createDefaultBlock('divider') } as DividerBlock,
         { ...createDefaultBlock('text'), content: '<p><strong>$50</strong> funds one week of meals for a student.<br/><strong>$250</strong> funds a month of tutoring support.</p>' } as TextBlock,
+        createDefaultBlock('footerCompliance'),
       ],
     };
   }
@@ -1073,6 +1101,7 @@ export function createTemplateFromPreset(preset: TemplatePreset): EmailTemplate 
       { ...createDefaultBlock('image'), src: 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1200&q=80', alt: 'Event banner' } as ImageBlock,
       { ...createDefaultBlock('text'), content: '<p><strong>Date:</strong> September 21<br/><strong>Location:</strong> Hope Hall</p>' } as TextBlock,
       { ...createDefaultBlock('button'), label: 'RSVP Today', href: 'https://oyamacrm.org/rsvp' } as ButtonBlock,
+      createDefaultBlock('footerCompliance'),
     ],
   };
 }
@@ -1083,6 +1112,6 @@ export function createDefaultTemplate(): EmailTemplate {
     backgroundColor: '#f5f5f5',
     contentWidth: 600,
     fontFamily: 'Arial, Helvetica, sans-serif',
-    blocks: [createDefaultBlock('text')],
+    blocks: [createDefaultBlock('text'), createDefaultBlock('footerCompliance')],
   };
 }

@@ -12,7 +12,7 @@ interface WorkspaceRibbonProps {
 export default function WorkspaceRibbon({ children }: WorkspaceRibbonProps) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-wrap items-stretch gap-1.5 px-1.5 py-1.5">
+      <div className="flex flex-wrap items-stretch gap-1 px-1 py-1 min-[1360px]:gap-1.5 min-[1360px]:px-1.5 min-[1360px]:py-1.5">
         {children}
       </div>
     </div>

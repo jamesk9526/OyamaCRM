@@ -87,12 +87,14 @@ export default function WorkflowMap({
   return (
     <div className={compact ? "space-y-2" : "space-y-3"}>
       <div
-        className="h-2 rounded border border-dashed border-transparent transition-colors hover:border-emerald-200"
+        className="flex h-6 items-center justify-center rounded-md border border-dashed border-emerald-200 bg-emerald-50/60 text-[11px] font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
         onDragOver={(event) => {
           event.preventDefault();
         }}
         onDrop={(event) => handleDrop(event, 0)}
-      />
+      >
+        Drop or add step at top
+      </div>
       {nodeIds.map((nodeId, index) => {
         const node = doc.nodesById[nodeId];
         if (!node) return null;
@@ -152,12 +154,14 @@ export default function WorkflowMap({
             />
 
             <div
-              className="h-2 w-full max-w-4xl rounded border border-dashed border-transparent transition-colors hover:border-emerald-200"
+              className="flex h-6 w-full max-w-4xl items-center justify-center rounded-md border border-dashed border-emerald-200 bg-white/80 text-[11px] font-medium text-emerald-700 transition-colors hover:bg-emerald-50"
               onDragOver={(event) => {
                 event.preventDefault();
               }}
               onDrop={(event) => handleDrop(event, index + 1)}
-            />
+            >
+              Insert after step {index + 1}
+            </div>
           </div>
         );
       })}
@@ -176,13 +180,13 @@ export default function WorkflowMap({
 
       {nodeIds.length === 0 && container.kind === "branch-lane" && (
         <div
-          className="rounded-lg border border-dashed border-emerald-300 bg-emerald-50/70 p-2 text-center text-xs text-emerald-800"
+          className="rounded-lg border border-dashed border-emerald-300 bg-emerald-50/70 p-3 text-center text-xs text-emerald-800"
           onDragOver={(event) => {
             event.preventDefault();
           }}
           onDrop={(event) => handleDrop(event, 0)}
         >
-          Drop step here
+          Drop first step in this lane
         </div>
       )}
     </div>

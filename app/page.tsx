@@ -927,6 +927,7 @@ export default function DashboardPage() {
           activeCampaigns={summary?.activeCampaigns ?? 0}
           newDonorsThisMonth={summary?.newDonorsThisMonth ?? 0}
           monthTrend={summary?.momTrend ?? null}
+          reportingYearMode={reportingYearMode}
         />
 
       {loadError && (

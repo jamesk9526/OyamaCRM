@@ -10,7 +10,7 @@
 
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type {
   EmailBlock,
   EmailTemplate,
@@ -1072,12 +1072,83 @@ function FooterComplianceEditor({
 function ImageEditor({
   block,
   onUpdate,
+  onUploadImage,
+  imageUploadInProgress,
+  organizationLogoUrl,
+  organizationDisplayName,
 }: {
   block: ImageBlock;
   onUpdate: (partial: Partial<ImageBlock>) => void;
+  onUploadImage?: (file: File) => Promise<string>;
+  imageUploadInProgress?: boolean;
+  organizationLogoUrl?: string;
+  organizationDisplayName?: string;
 }) {
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleImageFilePicked = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !onUploadImage) return;
+
+    setUploadError(null);
+    try {
+      const uploadedUrl = await onUploadImage(file);
+      onUpdate({
+        src: uploadedUrl,
+        alt: block.alt.trim() ? block.alt : file.name,
+      });
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Image upload failed.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
   return (
     <>
+      {onUploadImage && (
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(event) => {
+              void handleImageFilePicked(event);
+            }}
+          />
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={Boolean(imageUploadInProgress)}
+              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+            >
+              {imageUploadInProgress ? 'Uploading image...' : 'Upload Image'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!organizationLogoUrl?.trim()) {
+                  setUploadError('No organization logo found. Set it in Branding Settings first.');
+                  return;
+                }
+                setUploadError(null);
+                onUpdate({
+                  src: organizationLogoUrl,
+                  alt: `${organizationDisplayName || 'Organization'} logo`,
+                });
+              }}
+              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              Use Organization Logo
+            </button>
+          </div>
+          {uploadError && <p className="text-xs text-red-600">{uploadError}</p>}
+        </>
+      )}
+
       <Field label="Image URL">
         <input
           type="url"
@@ -1659,8 +1730,26 @@ function ColumnsEditor({
   block: ColumnsBlock;
   onUpdate: (partial: Partial<ColumnsBlock>) => void;
 }) {
+  const totalColumns = block.columnCount === 3 ? 3 : 2;
+
+  const normalizeColumns = useCallback((targetCount: 2 | 3): EmailBlock[][] => {
+    const nextColumns = Array.from({ length: targetCount }, (_, index) => block.columns[index] ?? []);
+    return nextColumns.map((column, index) => {
+      if (column.length > 0) return column;
+      return [{
+        id: crypto.randomUUID(),
+        type: 'text',
+        content: `<p>Column ${index + 1} text</p>`,
+        fontSize: 14,
+        color: '#333333',
+        align: 'left',
+        padding: 8,
+      }];
+    });
+  }, [block.columns]);
+
   const updateColText = (colIndex: number, html: string) => {
-    const cols = block.columns.map((col, i) => {
+    const cols = normalizeColumns(totalColumns as 2 | 3).map((col, i) => {
       if (i !== colIndex) return col;
       if (col.length === 0) {
         return [
@@ -1682,31 +1771,41 @@ function ColumnsEditor({
     onUpdate({ columns: cols });
   };
 
-  const col0Text = block.columns[0]?.[0]?.type === 'text'
-    ? (block.columns[0][0] as TextBlock).content
-    : '';
-  const col1Text = block.columns[1]?.[0]?.type === 'text'
-    ? (block.columns[1][0] as TextBlock).content
-    : '';
+  const normalizedColumns = normalizeColumns(totalColumns as 2 | 3);
 
   return (
     <>
-      <Field label="Column 1 (HTML)">
-        <textarea
-          className={`${inputCls} font-mono text-xs`}
-          rows={4}
-          value={col0Text}
-          onChange={(e) => updateColText(0, e.target.value)}
-        />
+      <Field label="Grid Columns">
+        <select
+          className={selectCls}
+          value={totalColumns}
+          onChange={(event) => {
+            const nextCount = event.target.value === '3' ? 3 : 2;
+            onUpdate({
+              columnCount: nextCount,
+              columns: normalizeColumns(nextCount),
+            });
+          }}
+        >
+          <option value={2}>2 Columns</option>
+          <option value={3}>3 Columns</option>
+        </select>
       </Field>
-      <Field label="Column 2 (HTML)">
-        <textarea
-          className={`${inputCls} font-mono text-xs`}
-          rows={4}
-          value={col1Text}
-          onChange={(e) => updateColText(1, e.target.value)}
-        />
-      </Field>
+
+      {normalizedColumns.map((column, index) => {
+        const columnText = column[0]?.type === 'text' ? (column[0] as TextBlock).content : '';
+        return (
+          <Field key={`columns-editor-${index + 1}`} label={`Column ${index + 1} (HTML)`}>
+            <textarea
+              className={`${inputCls} font-mono text-xs`}
+              rows={4}
+              value={columnText}
+              onChange={(e) => updateColText(index, e.target.value)}
+            />
+          </Field>
+        );
+      })}
+
       <Field label="Padding (px)">
         <input
           type="number"
@@ -1798,6 +1897,10 @@ interface Props {
   template:         EmailTemplate;
   onUpdateBlock:    (id: string, partial: Partial<EmailBlock>) => void;
   onUpdateTemplate: (partial: Partial<EmailTemplate>) => void;
+  onUploadImage?: (file: File) => Promise<string>;
+  imageUploadInProgress?: boolean;
+  organizationLogoUrl?: string;
+  organizationDisplayName?: string;
   onGenerateAiBlock?: (id: string) => void;
   aiGeneratingBlockId?: string | null;
   embedded?: boolean;
@@ -1812,6 +1915,10 @@ export default function BlockEditor({
   template,
   onUpdateBlock,
   onUpdateTemplate,
+  onUploadImage,
+  imageUploadInProgress,
+  organizationLogoUrl,
+  organizationDisplayName,
   onGenerateAiBlock,
   aiGeneratingBlockId,
   embedded = false,
@@ -1962,6 +2069,10 @@ export default function BlockEditor({
               <ImageEditor
                 block={selectedBlock as ImageBlock}
                 onUpdate={update as (p: Partial<ImageBlock>) => void}
+                onUploadImage={onUploadImage}
+                imageUploadInProgress={imageUploadInProgress}
+                organizationLogoUrl={organizationLogoUrl}
+                organizationDisplayName={organizationDisplayName}
               />
             )}
             {selectedBlock.type === 'video' && (

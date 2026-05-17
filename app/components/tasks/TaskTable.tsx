@@ -181,7 +181,7 @@ export default function TaskTable({ tasks, loading, highlightTaskId, onComplete,
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       {task.generatedLetterId && (
                         <Link
-                          href={`/letters-printables/generated?sourceTaskId=${task.id}`}
+                          href={`/letters-printables/queues?view=production&sourceTaskId=${task.id}`}
                           className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700 hover:bg-blue-100"
                         >
                           Linked Letter
@@ -189,7 +189,7 @@ export default function TaskTable({ tasks, loading, highlightTaskId, onComplete,
                       )}
                       {task.stewardPathEnrollmentId && (
                         <Link
-                          href={`/letters-printables/generated?stewardPathEnrollmentId=${task.stewardPathEnrollmentId}`}
+                          href={`/letters-printables/queues?view=production&stewardPathEnrollmentId=${task.stewardPathEnrollmentId}`}
                           className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] text-indigo-700 hover:bg-indigo-100"
                         >
                           Steward Step

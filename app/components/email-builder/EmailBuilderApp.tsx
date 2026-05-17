@@ -184,8 +184,38 @@ interface CommunicationsAiBlockResponse {
   sourceModel: string;
 }
 
+interface CampaignSendLogEvent {
+  action: string;
+  createdAt: string;
+}
+
 type SidebarTab = 'block' | 'campaign' | 'personalize' | 'review' | 'ai';
 type CampaignPurpose = 'MARKETING' | 'FUNDRAISING' | 'NEWSLETTER' | 'EVENT_PROMOTION' | 'RECEIPT' | 'THANK_YOU' | 'TRANSACTIONAL' | 'ADMINISTRATIVE' | 'PERSONAL';
+type BuilderJourneyStep = 'audience' | 'design' | 'personalize' | 'review' | 'schedule';
+
+const SIDEBAR_TABS: Array<{ key: SidebarTab; label: string; short: string }> = [
+  { key: 'block', label: 'Block', short: 'B' },
+  { key: 'campaign', label: 'Campaign', short: 'C' },
+  { key: 'personalize', label: 'Personalize', short: 'P' },
+  { key: 'review', label: 'Review', short: 'R' },
+  { key: 'ai', label: 'AI', short: 'AI' },
+];
+
+const BUILDER_JOURNEY_STEPS: Array<{ key: BuilderJourneyStep; label: string }> = [
+  { key: 'audience', label: 'Audience' },
+  { key: 'design', label: 'Design' },
+  { key: 'personalize', label: 'Personalize' },
+  { key: 'review', label: 'Review' },
+  { key: 'schedule', label: 'Schedule' },
+];
+
+const BUILDER_JOURNEY_ORDER: Record<BuilderJourneyStep, number> = {
+  audience: 0,
+  design: 1,
+  personalize: 2,
+  review: 3,
+  schedule: 4,
+};
 
 const PURPOSE_OPTIONS: Array<{ value: CampaignPurpose; label: string }> = [
   { value: 'MARKETING', label: 'Marketing' },
@@ -200,6 +230,9 @@ const PURPOSE_OPTIONS: Array<{ value: CampaignPurpose; label: string }> = [
 ];
 
 const COMPLIANCE_REQUIRED_PURPOSES = new Set<CampaignPurpose>(['MARKETING', 'FUNDRAISING', 'NEWSLETTER', 'EVENT_PROMOTION']);
+const BLOCK_LIBRARY_MIN_WIDTH = 240;
+const BLOCK_LIBRARY_MAX_WIDTH = 460;
+const BLOCK_LIBRARY_DEFAULT_WIDTH = 304;
 
 /** Safely converts unknown values to bounded numbers used in block hydration. */
 function toBoundedNumber(value: unknown, fallback: number, min: number, max: number): number {
@@ -626,7 +659,10 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
   const [testEmail, setTestEmail] = useState('');
   const [sendingTest, setSendingTest] = useState(false);
   const [testStatus, setTestStatus] = useState<string | null>(null);
+  const [hasPersistedTestSend, setHasPersistedTestSend] = useState(false);
+  const [lastPersistedTestSentAt, setLastPersistedTestSentAt] = useState<string | null>(null);
   const [activeSidebarTab, setActiveSidebarTab] = useState<SidebarTab>('block');
+  const [blockLibraryWidth, setBlockLibraryWidth] = useState(BLOCK_LIBRARY_DEFAULT_WIDTH);
   const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
   const dirtyRef = useRef(false);
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
@@ -701,6 +737,31 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
       .finally(() => setLoading(false));
   }, [campaignId, authLoading]);
 
+  /** Loads persisted test-send evidence so readiness survives page reloads. */
+  useEffect(() => {
+    if (!campaignId) return;
+    if (authLoading) return;
+
+    let cancelled = false;
+    apiFetch<CampaignSendLogEvent[]>(`/api/email-campaigns/${campaignId}/send-log?limit=100`)
+      .then((rows) => {
+        if (cancelled) return;
+        const sendLogs = Array.isArray(rows) ? rows : [];
+        const latestTestSend = sendLogs.find((entry) => entry.action === 'EMAIL_CAMPAIGN_TEST_SENT') ?? null;
+        setHasPersistedTestSend(Boolean(latestTestSend));
+        setLastPersistedTestSentAt(latestTestSend?.createdAt ?? null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setHasPersistedTestSend(false);
+        setLastPersistedTestSentAt(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [campaignId, authLoading, testStatus]);
+
   /** Seeds the test-send target from signed-in user email when available. */
   useEffect(() => {
     if (!user?.email) return;
@@ -714,6 +775,21 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
       setActiveSidebarTab('block');
     }
   }, [selectedId]);
+
+  /** Restores saved block-library width from local storage on first mount. */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const savedWidthRaw = window.localStorage.getItem('emailBuilder.blockLibraryWidth');
+    const savedWidth = Number.parseInt(savedWidthRaw ?? '', 10);
+    if (!Number.isFinite(savedWidth)) return;
+    setBlockLibraryWidth(Math.min(BLOCK_LIBRARY_MAX_WIDTH, Math.max(BLOCK_LIBRARY_MIN_WIDTH, savedWidth)));
+  }, []);
+
+  /** Persists block-library width changes so staff keep their preferred layout density. */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('emailBuilder.blockLibraryWidth', String(blockLibraryWidth));
+  }, [blockLibraryWidth]);
 
   // ── Block helpers ──────────────────────────────────────────────────────────
 
@@ -855,6 +931,86 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
     });
     markDirty();
   }, [markDirty]);
+
+  /** Starts drag-resizing for the block library pane while clamping to ergonomic min/max widths. */
+  const handleBlockLibraryResizeStart = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = blockLibraryWidth;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const delta = moveEvent.clientX - startX;
+      const nextWidth = startWidth + delta;
+      setBlockLibraryWidth(Math.min(BLOCK_LIBRARY_MAX_WIDTH, Math.max(BLOCK_LIBRARY_MIN_WIDTH, nextWidth)));
+    };
+
+    const handleMouseUp = () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  }, [blockLibraryWidth]);
+
+  /** Appends a new block to the end of the canvas and selects it for immediate editing. */
+  const appendBlock = useCallback((type: BlockType, transform?: (block: EmailBlock) => EmailBlock) => {
+    const brandedBlock = applyBrandingToBlock(createDefaultBlock(type), branding);
+    const nextBlock = transform ? transform(brandedBlock) : brandedBlock;
+    setTemplate((prev) => ({ ...prev, blocks: [...prev.blocks, nextBlock] }));
+    setSelectedId(nextBlock.id);
+    markDirty();
+  }, [branding, markDirty]);
+
+  /** Inserts a dedicated organization logo block using Branding Settings as the source of truth. */
+  const addOrganizationLogoBlock = useCallback(() => {
+    appendBlock('image', (block) => {
+      if (block.type !== 'image') return block;
+      const logoUrl = branding.logoUrl.trim();
+      if (!logoUrl) {
+        setMediaError('Set a logo in Branding Settings first, then add the logo block again.');
+      }
+      return {
+        ...block,
+        src: logoUrl,
+        alt: `${branding.organizationDisplayName || 'Organization'} logo`,
+        width: 42,
+        align: 'left',
+      };
+    });
+  }, [appendBlock, branding.logoUrl, branding.organizationDisplayName]);
+
+  /** Adds a three-column content grid block for campaign layouts on desktop and mobile email clients. */
+  const addThreeColumnGridBlock = useCallback(() => {
+    appendBlock('columns', (block) => {
+      if (block.type !== 'columns') return block;
+      const createColumnTextBlock = (label: string): EmailBlock => ({
+        id: crypto.randomUUID(),
+        type: 'text',
+        content: `<p><strong>${label}</strong><br/>Add one concise highlight.</p>`,
+        fontSize: 14,
+        color: '#333333',
+        align: 'left',
+        padding: 8,
+      });
+      return {
+        ...block,
+        columnCount: 3,
+        columns: [
+          [createColumnTextBlock('Column 1')],
+          [createColumnTextBlock('Column 2')],
+          [createColumnTextBlock('Column 3')],
+        ],
+      };
+    });
+  }, [appendBlock]);
 
   /** Replaces the current canvas with a starter preset template. */
   const applyPreset = () => {
@@ -1083,6 +1239,8 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
         body: JSON.stringify({ toEmail }),
       });
       setTestStatus(`Test sent to ${toEmail}`);
+      setHasPersistedTestSend(true);
+      setLastPersistedTestSentAt(new Date().toISOString());
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -1090,39 +1248,58 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
     }
   };
 
+  /** Uploads a media file and returns the public URL used by email image blocks. */
+  const uploadMediaFile = useCallback(async (file: File): Promise<string> => {
+    if (!campaignId) {
+      throw new Error('Open this editor from a campaign before uploading media.');
+    }
+
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ''));
+      reader.onerror = () => reject(new Error('Failed to read selected file'));
+      reader.readAsDataURL(file);
+    });
+
+    const media = await apiFetch<{ url: string }>(`/api/email-campaigns/${campaignId}/media`, {
+      method: 'POST',
+      body: JSON.stringify({
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        dataBase64: base64,
+      }),
+    });
+
+    return media.url;
+  }, [campaignId]);
+
+  /** Shared uploader used by both the campaign actions panel and Image block editor controls. */
+  const uploadMediaWithStatus = useCallback(async (file: File): Promise<string> => {
+    setMediaUploading(true);
+    setMediaError(null);
+    try {
+      return await uploadMediaFile(file);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Media upload failed.';
+      setMediaError(message);
+      throw new Error(message);
+    } finally {
+      setMediaUploading(false);
+    }
+  }, [uploadMediaFile]);
+
   /** Uploads one media file to the campaign media endpoint and inserts an image block with that URL. */
   const handleMediaFilePicked = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!campaignId) {
-      setMediaError("Open this editor from a campaign before uploading media.");
-      return;
-    }
-
-    setMediaUploading(true);
-    setMediaError(null);
     try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result ?? ""));
-        reader.onerror = () => reject(new Error("Failed to read selected file"));
-        reader.readAsDataURL(file);
-      });
-
-      const media = await apiFetch<{ url: string }>(`/api/email-campaigns/${campaignId}/media`, {
-        method: "POST",
-        body: JSON.stringify({
-          fileName: file.name,
-          mimeType: file.type || "application/octet-stream",
-          dataBase64: base64,
-        }),
-      });
+      const mediaUrl = await uploadMediaWithStatus(file);
 
       const imageBlock = createDefaultBlock("image");
       const nextImageBlock: EmailBlock = {
         id: imageBlock.id,
         type: "image",
-        src: media.url,
+        src: mediaUrl,
         alt: file.name,
         width: 100,
         align: "center",
@@ -1132,13 +1309,17 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
       setTemplate((prev) => ({ ...prev, blocks: [...prev.blocks, nextImageBlock] }));
       setSelectedId(nextImageBlock.id);
       markDirty();
-    } catch (error) {
-      setMediaError(error instanceof Error ? error.message : "Media upload failed.");
+    } catch {
+      // uploadMediaWithStatus already publishes a user-facing error.
     } finally {
       event.target.value = "";
-      setMediaUploading(false);
     }
-  }, [campaignId, markDirty]);
+  }, [markDirty, uploadMediaWithStatus]);
+
+  /** Enables direct upload from Image block controls and returns the new media URL. */
+  const handleImageBlockUpload = useCallback(async (file: File): Promise<string> => {
+    return uploadMediaWithStatus(file);
+  }, [uploadMediaWithStatus]);
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
@@ -1146,15 +1327,36 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
   const campaignWorkspaceHref = campaignId ? `/communications/${campaignId}` : "/communications";
   const safeReturnHref = returnTo && returnTo.startsWith("/") ? returnTo : campaignWorkspaceHref;
   const returnLabel = safeReturnHref.startsWith("/communications/") ? "Campaign Workspace" : "Communications";
+  const audienceWorkspaceHref = campaignId ? `/communications/${campaignId}?mode=send#audience` : safeReturnHref;
+  const scheduleWorkspaceHref = campaignId ? `/communications/${campaignId}?mode=send#schedule` : safeReturnHref;
+  const reviewRouteHref = campaignId ? `/communications/${campaignId}/review` : safeReturnHref;
+  const scheduleRouteHref = campaignId ? `/communications/${campaignId}/schedule` : safeReturnHref;
+  const activityRouteHref = campaignId ? `/communications/${campaignId}?mode=activity` : safeReturnHref;
+  const fullScreenBuilderHref = useMemo(() => {
+    const params = new URLSearchParams();
+    if (campaignId) params.set('campaign', campaignId);
+    params.set('returnTo', safeReturnHref);
+    return `/email-builder?${params.toString()}`;
+  }, [campaignId, safeReturnHref]);
+  const currentJourneyStep: BuilderJourneyStep =
+    activeSidebarTab === 'personalize'
+      ? 'personalize'
+      : activeSidebarTab === 'review'
+        ? 'review'
+        : 'design';
+  const generatedHtmlPreview = useMemo(() => generateEmailHtml(template), [template]);
   const plainTextFallback = useMemo(() => generatePlainText(template), [template]);
-  const hasFooterCompliance = template.blocks.some((block) => block.type === 'footerCompliance');
+  const hasFooterCompliance =
+    template.blocks.some((block) => block.type === 'footerCompliance')
+    || generatedHtmlPreview.includes('{{unsubscribeUrl}}')
+    || generatedHtmlPreview.includes('{{managePreferencesUrl}}');
   const hasUnsubscribeToken = template.blocks.some((block) => {
     if (block.type === 'footerCompliance') return block.unsubscribeToken.trim().length > 0;
     if (block.type === 'text' || block.type === 'aiText') {
       return block.content.includes('{{unsubscribeUrl}}') || block.content.includes('{{managePreferencesUrl}}');
     }
     return false;
-  });
+  }) || generatedHtmlPreview.includes('{{unsubscribeUrl}}') || generatedHtmlPreview.includes('{{managePreferencesUrl}}');
   const hasMissingImageAlt = template.blocks.some((block) => block.type === 'image' && !block.alt.trim());
   const hasButtonMissingUrl = template.blocks.some((block) => {
     if (block.type === 'button') return !block.href.trim();
@@ -1167,30 +1369,52 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
   });
   const mergeTokenValidation = useMemo(() => validateTemplateMergeTokens(template), [template]);
   const requiresCompliance = COMPLIANCE_REQUIRED_PURPOSES.has(campaignPurpose);
+  const hasSavedDraft = !dirty;
+  const hasRouteContext = Boolean(campaignId && campaignId.trim().length > 0);
+  const hasTestEvidence = Boolean(testStatus) || hasPersistedTestSend;
   const reviewChecks = [
     { label: 'Subject line added', pass: subjectLine.trim().length > 0 },
     { label: 'Preview text added', pass: previewText.trim().length > 0 },
+    { label: 'Draft saved (no pending unsaved changes)', pass: hasSavedDraft },
+    { label: 'Campaign route context available', pass: hasRouteContext },
     {
       label: 'Merge tokens are recognized and well-formed',
       pass: mergeTokenValidation.unknownTokens.length === 0 && mergeTokenValidation.malformedBraceCount === 0,
     },
     ...(requiresCompliance
       ? [
-        { label: 'Footer compliance block present', pass: hasFooterCompliance },
-        { label: 'Unsubscribe or manage preferences present', pass: hasUnsubscribeToken },
+        { label: 'Footer compliance included', pass: hasFooterCompliance },
+        { label: 'Unsubscribe or manage preferences included', pass: hasUnsubscribeToken },
       ]
       : []),
     { label: 'Images include alt text', pass: !hasMissingImageAlt },
     { label: 'Buttons include URLs', pass: !hasButtonMissingUrl },
-    { label: 'Test email sent in this session', pass: Boolean(testStatus) },
+    { label: 'Test email sent (session or activity log)', pass: hasTestEvidence },
   ];
   const reviewPassCount = reviewChecks.filter((item) => item.pass).length;
+  const readinessPercent = Math.round((reviewPassCount / Math.max(reviewChecks.length, 1)) * 100);
+  const lastTestSendLabel = lastPersistedTestSentAt
+    ? new Date(lastPersistedTestSentAt).toLocaleString()
+    : null;
   const readinessLabel =
     reviewPassCount === reviewChecks.length
       ? 'Ready to Send'
       : reviewPassCount >= Math.ceil(reviewChecks.length / 2)
         ? 'Needs Review'
         : 'Draft';
+
+  /** Opens the builder in a separate popout window, with new-tab fallback when blocked. */
+  const openBuilderPopout = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const popout = window.open(
+      fullScreenBuilderHref,
+      'oyamacrm-email-builder-popout',
+      'popup=yes,width=1560,height=920,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes',
+    );
+    if (!popout) {
+      window.open(fullScreenBuilderHref, '_blank', 'noopener,noreferrer');
+    }
+  }, [fullScreenBuilderHref]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -1244,122 +1468,224 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
       >
 
         {/* ── Top Bar ── */}
-        <header className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-white shadow-sm z-30">
-          {/* Left: back link + campaign name */}
-          <div className="flex items-center gap-3">
-            <a
-              href={safeReturnHref}
-              target="_self"
-              className="text-xs text-gray-500 hover:text-green-600 transition-colors flex items-center gap-1"
-              title={`Back to ${returnLabel}`}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M19 12H5M12 19l-7-7 7-7" />
-              </svg>
-              {returnLabel}
-            </a>
-            <span className="text-gray-200">|</span>
-            <span className="text-sm font-semibold text-gray-800 truncate max-w-xs">
-              {campaignName}
-            </span>
-            {campaignId && (
-              <span className="text-xs text-gray-400 font-mono">#{campaignId}</span>
-            )}
-            {campaignId && (
-              <a
-                href={campaignWorkspaceHref}
-                target="_self"
-                className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50"
-              >
-                Campaign Workspace
-              </a>
-            )}
-          </div>
-
-          <div className="hidden lg:flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1">
-            {['Audience', 'Design', 'Personalize', 'Review', 'Schedule'].map((step, index) => (
-              <div key={step} className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold text-gray-600">{step}</span>
-                {index < 4 && <span className="text-gray-300">→</span>}
+        <header className="z-30 shrink-0 border-b border-gray-200 bg-white px-4 py-3 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <a
+                  href={safeReturnHref}
+                  target="_self"
+                  className="text-gray-500 hover:text-green-600 transition-colors flex items-center gap-1"
+                  title={`Back to ${returnLabel}`}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                  </svg>
+                  {returnLabel}
+                </a>
+                <span className="text-gray-300">/</span>
+                <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 font-semibold text-gray-600">
+                  Email Builder
+                </span>
               </div>
-            ))}
-          </div>
 
-          {/* Right: status + actions */}
-          <div className="flex items-center gap-3">
-            {/* Save status messages */}
-            {saveSuccess && (
-              <span className="text-xs text-green-600 font-medium">✓ Saved to Draft</span>
-            )}
-            {saveError && (
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <h2 className="truncate text-sm font-semibold text-gray-800 sm:text-base">
+                  {campaignName}
+                </h2>
+                {campaignId && (
+                  <span className="rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[11px] font-mono text-gray-500">
+                    #{campaignId}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                <span>
+                  {template.blocks.length} block{template.blocks.length !== 1 ? 's' : ''}
+                </span>
+                <span className="text-gray-300">•</span>
+                <span className={dirty ? 'font-medium text-amber-700' : 'text-gray-500'}>
+                  {dirty ? 'Unsaved changes' : 'Saved'}
+                </span>
+                {campaignId && (
+                  <a
+                    href={campaignWorkspaceHref}
+                    target="_self"
+                    className="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50"
+                  >
+                    Open Campaign Workspace
+                  </a>
+                )}
+              </div>
+            </div>
+
+            <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
+              <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
+                Status: Draft-first
+              </span>
               <span
-                className="text-xs text-red-500 max-w-xs truncate cursor-help"
-                title={saveError}
+                className={[
+                  'rounded-md px-2 py-1 text-[11px] font-semibold',
+                  readinessLabel === 'Ready to Send'
+                    ? 'border border-green-200 bg-green-50 text-green-700'
+                    : readinessLabel === 'Needs Review'
+                      ? 'border border-amber-200 bg-amber-50 text-amber-700'
+                      : 'border border-gray-200 bg-gray-100 text-gray-600',
+                ].join(' ')}
               >
-                ⚠ {saveError}
+                {readinessLabel}
               </span>
-            )}
-            {testStatus && (
-              <span className="text-xs text-green-700 max-w-xs truncate" title={testStatus}>
-                {testStatus}
-              </span>
-            )}
-            {mediaError && (
-              <span className="text-xs text-red-500 max-w-xs truncate" title={mediaError}>
-                ⚠ {mediaError}
-              </span>
-            )}
 
-            <span className="text-xs text-gray-400">
-              {template.blocks.length} block{template.blocks.length !== 1 ? 's' : ''}
-            </span>
-            <span className={`text-xs font-medium ${dirty ? "text-amber-600" : "text-gray-400"}`}>
-              {dirty ? "Unsaved changes" : "Saved"}
-            </span>
-            <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
-              Status: Draft-first
-            </span>
-            <span
-              className={[
-                'rounded-md px-2 py-1 text-[11px] font-semibold',
-                readinessLabel === 'Ready to Send'
-                  ? 'border border-green-200 bg-green-50 text-green-700'
-                  : readinessLabel === 'Needs Review'
-                    ? 'border border-amber-200 bg-amber-50 text-amber-700'
-                    : 'border border-gray-200 bg-gray-100 text-gray-600',
-              ].join(' ')}
-            >
-              {readinessLabel}
-            </span>
+              {embedded && (
+                <>
+                  <a
+                    href={fullScreenBuilderHref}
+                    target="_self"
+                    className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Fullscreen
+                  </a>
+                  <a
+                    href={fullScreenBuilderHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    New Tab
+                  </a>
+                  <button
+                    type="button"
+                    onClick={openBuilderPopout}
+                    className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Popout
+                  </button>
+                </>
+              )}
 
-            {/* Preview */}
-            <button
-              onClick={() => setShowPreview(true)}
-              className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              Preview
-            </button>
+              <button
+                onClick={() => setShowPreview(true)}
+                className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                Preview
+              </button>
 
-            {/* Save */}
-            <button
-              onClick={handleSave}
-              disabled={saving || !campaignId || authLoading || loading}
-              className={[
-                'text-sm px-4 py-1.5 rounded-lg font-medium transition-colors',
-                saving
-                  ? 'bg-green-400 text-white cursor-wait'
-                  : 'bg-green-600 hover:bg-green-700 text-white',
-              ].join(' ')}
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
+              <button
+                onClick={handleSave}
+                disabled={saving || !campaignId || authLoading || loading}
+                className={[
+                  'rounded-lg px-3 py-1 text-xs font-semibold transition-colors',
+                  saving
+                    ? 'bg-green-400 text-white cursor-wait'
+                    : 'bg-green-600 hover:bg-green-700 text-white',
+                ].join(' ')}
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
           </div>
+
+          <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-2 py-2">
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Current stage: {BUILDER_JOURNEY_STEPS.find((step) => step.key === currentJourneyStep)?.label}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {BUILDER_JOURNEY_STEPS.map((step, index) => {
+                const isCurrent = step.key === currentJourneyStep;
+                const isComplete = BUILDER_JOURNEY_ORDER[step.key] < BUILDER_JOURNEY_ORDER[currentJourneyStep];
+                const stepClassName = [
+                  "inline-flex items-center rounded px-2 py-1 text-[11px] font-semibold transition-colors",
+                  isCurrent
+                    ? "border border-green-300 bg-green-100 text-green-800"
+                    : isComplete
+                      ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100",
+                ].join(" ");
+
+                let stageAction: React.ReactNode;
+                if (step.key === 'audience') {
+                  stageAction = (
+                    <a href={audienceWorkspaceHref} target="_self" className={stepClassName}>
+                      {step.label}
+                    </a>
+                  );
+                } else if (step.key === 'schedule') {
+                  stageAction = (
+                    <a href={scheduleWorkspaceHref} target="_self" className={stepClassName}>
+                      {step.label}
+                    </a>
+                  );
+                } else {
+                  const sidebarTabTarget: SidebarTab =
+                    step.key === 'personalize' ? 'personalize' : step.key === 'review' ? 'review' : 'block';
+
+                  stageAction = (
+                    <button
+                      type="button"
+                      onClick={() => setActiveSidebarTab(sidebarTabTarget)}
+                      className={stepClassName}
+                      aria-current={isCurrent ? 'step' : undefined}
+                    >
+                      {step.label}
+                    </button>
+                  );
+                }
+
+                return (
+                  <div key={step.key} className="inline-flex items-center gap-1.5">
+                    {stageAction}
+                    {index < BUILDER_JOURNEY_STEPS.length - 1 && <span className="text-gray-300">→</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {(saveSuccess || saveError || testStatus || mediaError) && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              {saveSuccess && (
+                <span className="rounded border border-green-200 bg-green-50 px-2 py-0.5 font-medium text-green-700">
+                  Saved to Draft
+                </span>
+              )}
+              {saveError && (
+                <span className="max-w-full rounded border border-red-200 bg-red-50 px-2 py-0.5 text-red-600" title={saveError}>
+                  Save issue: {saveError}
+                </span>
+              )}
+              {testStatus && (
+                <span className="max-w-full rounded border border-green-200 bg-green-50 px-2 py-0.5 text-green-700" title={testStatus}>
+                  {testStatus}
+                </span>
+              )}
+              {mediaError && (
+                <span className="max-w-full rounded border border-red-200 bg-red-50 px-2 py-0.5 text-red-600" title={mediaError}>
+                  Media issue: {mediaError}
+                </span>
+              )}
+            </div>
+          )}
         </header>
 
         {/* ── Three-panel body ── */}
         <div className="flex flex-1 overflow-hidden">
           {/* Left: block palette */}
-          <BlockPalette />
+          <div className="min-w-0 shrink-0" style={{ width: blockLibraryWidth }}>
+            <BlockPalette />
+          </div>
+
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize block library"
+            title="Drag to resize block library. Double-click to reset."
+            onMouseDown={handleBlockLibraryResizeStart}
+            onDoubleClick={() => setBlockLibraryWidth(BLOCK_LIBRARY_DEFAULT_WIDTH)}
+            className="group relative w-2 shrink-0 cursor-col-resize bg-gray-50 hover:bg-green-50 active:bg-green-100"
+          >
+            <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-200 group-hover:bg-green-400 group-active:bg-green-600" />
+          </div>
 
           {/* Center: email canvas */}
           <EmailCanvas
@@ -1374,27 +1700,25 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
 
           {/* Right: tabbed sidebar */}
           <aside className="w-[360px] shrink-0 border-l border-gray-200 bg-white flex flex-col overflow-hidden">
-            <div className="border-b border-gray-200 px-3 py-2">
-              <div className="grid grid-cols-5 gap-1 rounded-lg bg-gray-100 p-1">
-                {([
-                  { key: 'block', label: 'Block' },
-                  { key: 'campaign', label: 'Campaign' },
-                  { key: 'personalize', label: 'Personalize' },
-                  { key: 'review', label: 'Review' },
-                  { key: 'ai', label: 'AI' },
-                ] as Array<{ key: SidebarTab; label: string }>).map((tab) => (
+            <div className="border-b border-gray-200 bg-gradient-to-b from-gray-50 to-white px-3 py-2">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-500">Builder Controls</p>
+              <div className="grid grid-cols-5 gap-1 rounded-lg border border-gray-200 bg-gray-100/80 p-1">
+                {SIDEBAR_TABS.map((tab) => (
                   <button
                     key={tab.key}
                     type="button"
                     onClick={() => setActiveSidebarTab(tab.key)}
                     className={[
-                      'rounded-md px-2 py-1.5 text-xs font-semibold transition-colors',
+                      'rounded-md px-1.5 py-1.5 text-[11px] font-semibold transition-colors',
                       activeSidebarTab === tab.key
-                        ? 'bg-white text-green-700 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-800',
+                        ? 'bg-white text-green-700 shadow-sm ring-1 ring-green-200'
+                        : 'text-gray-600 hover:bg-white hover:text-gray-800',
                     ].join(' ')}
                   >
-                    {tab.label}
+                    <span className="mx-auto mb-1 block w-fit rounded-sm border border-gray-200 bg-gray-50 px-1 text-[9px] leading-4 text-gray-500">
+                      {tab.short}
+                    </span>
+                    <span className="block truncate">{tab.label}</span>
                   </button>
                 ))}
               </div>
@@ -1407,6 +1731,10 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
                 template={template}
                 onUpdateBlock={updateBlock}
                 onUpdateTemplate={updateTemplate}
+                onUploadImage={handleImageBlockUpload}
+                imageUploadInProgress={mediaUploading}
+                organizationLogoUrl={branding.logoUrl}
+                organizationDisplayName={branding.organizationDisplayName}
                 onGenerateAiBlock={(id) => {
                   void generateSelectedAiBlock(id);
                 }}
@@ -1487,6 +1815,20 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
                     className="w-full rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-100"
                   >
                     Apply current CRM branding
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addOrganizationLogoBlock}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                  >
+                    Add Organization Logo Block
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addThreeColumnGridBlock}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                  >
+                    Add 3-Column Grid Block
                   </button>
                   <button
                     type="button"
@@ -1601,27 +1943,77 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
 
             {activeSidebarTab === 'review' && (
               <div className="flex-1 overflow-y-auto space-y-4 p-4">
-                <div className="rounded-lg border border-gray-200 bg-white p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Campaign Readiness</p>
-                  <p className="mt-1 text-sm font-semibold text-gray-800">
-                    {reviewPassCount}/{reviewChecks.length} checks complete
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
+                <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Campaign Readiness</p>
+                      <p className="mt-1 text-sm font-semibold text-gray-800">
+                        {reviewPassCount}/{reviewChecks.length} checks complete
+                      </p>
+                    </div>
+                    <span
+                      className={[
+                        'rounded-md px-2 py-0.5 text-[11px] font-semibold',
+                        readinessLabel === 'Ready to Send'
+                          ? 'border border-green-200 bg-green-50 text-green-700'
+                          : readinessLabel === 'Needs Review'
+                            ? 'border border-amber-200 bg-amber-50 text-amber-700'
+                            : 'border border-gray-200 bg-gray-50 text-gray-600',
+                      ].join(' ')}
+                    >
+                      {readinessLabel}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 h-2 rounded-full bg-gray-100">
+                    <div
+                      className="h-2 rounded-full bg-green-500 transition-all"
+                      style={{ width: `${readinessPercent}%` }}
+                    />
+                  </div>
+
+                  <p className="mt-2 text-xs text-gray-500">
                     Complete these checks before scheduling or broad send.
                   </p>
+                  {lastTestSendLabel && (
+                    <p className="mt-1 text-[11px] text-gray-400">Latest test send: {lastTestSendLabel}</p>
+                  )}
                 </div>
 
-                <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-3">
+                <div className="space-y-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Checklist</p>
                   {reviewChecks.map((check) => (
-                    <div key={check.label} className="flex items-center gap-2 text-sm">
-                      <span className={check.pass ? 'text-green-600' : 'text-amber-600'}>{check.pass ? '✓' : '•'}</span>
-                      <span className={check.pass ? 'text-gray-700' : 'text-gray-500'}>{check.label}</span>
+                    <div
+                      key={check.label}
+                      className={[
+                        'flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-sm',
+                        check.pass
+                          ? 'border-green-100 bg-green-50/40'
+                          : 'border-amber-100 bg-amber-50/40',
+                      ].join(' ')}
+                    >
+                      <span className={check.pass ? 'text-gray-700' : 'text-gray-600'}>{check.label}</span>
+                      <span className={check.pass ? 'text-green-600' : 'text-amber-600'}>{check.pass ? 'PASS' : 'CHECK'}</span>
                     </div>
                   ))}
                 </div>
 
+                <div className="space-y-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Route Checks</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <a href={campaignWorkspaceHref} target="_self" className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Campaign</a>
+                    <a href={fullScreenBuilderHref} target="_self" className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Builder</a>
+                    <a href={reviewRouteHref} target="_self" className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Review</a>
+                    <a href={scheduleRouteHref} target="_self" className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Schedule</a>
+                    <a href={activityRouteHref} target="_self" className="col-span-2 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Activity Log</a>
+                  </div>
+                  {!hasRouteContext && (
+                    <p className="text-xs text-amber-700">Route context is missing. Open this workspace from a campaign page.</p>
+                  )}
+                </div>
+
                 {(mergeTokenValidation.unknownTokens.length > 0 || mergeTokenValidation.malformedBraceCount > 0) && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-1">
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-1">
                     {mergeTokenValidation.malformedBraceCount > 0 && (
                       <p>Malformed merge braces detected: {mergeTokenValidation.malformedBraceCount}</p>
                     )}
@@ -1635,7 +2027,7 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
                 )}
 
                 {requiresCompliance && !hasFooterCompliance && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
                     Add the Footer Compliance block from the Block Library to satisfy unsubscribe and contact requirements.
                   </div>
                 )}

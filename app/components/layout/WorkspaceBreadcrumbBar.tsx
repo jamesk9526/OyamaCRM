@@ -44,7 +44,7 @@ export default function WorkspaceBreadcrumbBar({
   accentTone = "green",
 }: WorkspaceBreadcrumbBarProps) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+    <section className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 min-[1360px]:px-3 min-[1360px]:py-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-1 text-sm text-slate-600">
           {items.map((item, index) => {

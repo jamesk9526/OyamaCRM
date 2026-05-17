@@ -1,7 +1,28 @@
-/** Mail queue route for letters operations. */
-import LetterMailQueue from "@/app/components/letters/LetterMailQueue";
+/** Compatibility route that forwards mail-queue links to the unified queues workspace. */
+import { redirect } from "next/navigation";
 
-/** Renders the mail queue management workspace. */
-export default function LettersMailQueuePage() {
-  return <LetterMailQueue />;
+interface LettersMailQueuePageProps {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}
+
+/** Preserves query params while opening the mail queue view. */
+export default async function LettersMailQueuePage({ searchParams }: LettersMailQueuePageProps) {
+  const query = searchParams ? await searchParams : {};
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(query)) {
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        params.append(key, entry);
+      }
+      continue;
+    }
+
+    if (value) {
+      params.set(key, value);
+    }
+  }
+
+  params.set("view", "mail");
+  redirect(`/letters-printables/queues?${params.toString()}`);
 }

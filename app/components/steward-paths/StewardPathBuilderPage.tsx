@@ -60,10 +60,113 @@ function formatSavedAt(value: string | null): string {
   return date.toLocaleString();
 }
 
+/** Returns true when a node kind belongs to the "action" phase for quick progress hints. */
+function isActionKind(kind: string): boolean {
+  return kind.startsWith("email.")
+    || kind.startsWith("print.")
+    || kind.startsWith("task.")
+    || kind.startsWith("donor.")
+    || kind.startsWith("safety.");
+}
+
+type QuickStartPresetKey = "donor-welcome" | "lapsed-reengagement" | "event-follow-up";
+
+interface QuickStartStepPreset {
+  kind: string;
+  title?: string;
+  note?: string;
+  config?: Record<string, unknown>;
+}
+
+interface QuickStartPreset {
+  key: QuickStartPresetKey;
+  name: string;
+  pathName: string;
+  audienceLabel: string;
+  steps: QuickStartStepPreset[];
+}
+
+const QUICK_START_PRESETS: QuickStartPreset[] = [
+  {
+    key: "donor-welcome",
+    name: "Donor Welcome",
+    pathName: "Donor Welcome Journey",
+    audienceLabel: "New donors",
+    steps: [
+      { kind: "trigger.new_donation", title: "New donation received" },
+      { kind: "timing.delay", title: "Wait 2 days", config: { amount: 2, unit: "days" } },
+      { kind: "email.create_draft", title: "Create thank-you draft", note: "Draft-first thank-you with personalization tokens." },
+      { kind: "task.create", title: "Assign welcome call", config: { title: "Call donor to say thank you", priority: "MEDIUM" } },
+    ],
+  },
+  {
+    key: "lapsed-reengagement",
+    name: "Lapsed Reengagement",
+    pathName: "Lapsed Donor Reengagement",
+    audienceLabel: "Lapsed donors",
+    steps: [
+      { kind: "trigger.donor_lapsed", title: "Donor lapsed trigger" },
+      { kind: "logic.if_else", title: "Branch by last gift amount", config: { field: "lastGiftAmount" } },
+      { kind: "email.create_draft", title: "Create re-engagement draft", note: "Personalize by donor history and stewardship tone." },
+      { kind: "task.create", title: "Major donor follow-up task", config: { title: "Follow up with lapsed major donor", priority: "HIGH" } },
+    ],
+  },
+  {
+    key: "event-follow-up",
+    name: "Event Follow-up",
+    pathName: "Event Attendance Follow-up",
+    audienceLabel: "Event attendees",
+    steps: [
+      { kind: "trigger.event_attended", title: "Event attendance captured" },
+      { kind: "timing.delay", title: "Wait 1 day", config: { amount: 1, unit: "days" } },
+      { kind: "email.create_draft", title: "Create post-event draft" },
+      { kind: "print.generate_letter", title: "Generate follow-up letter", config: { templateId: "" } },
+    ],
+  },
+];
+
+/** Builds a starter visual workflow document from a quick-start preset key. */
+function buildQuickStartDocument(
+  presetKey: string,
+  idFactory: () => string,
+): WorkflowDocument | null {
+  const preset = QUICK_START_PRESETS.find((item) => item.key === presetKey);
+  if (!preset) return null;
+
+  let nextDoc = createWorkflowDocument(idFactory);
+  nextDoc = {
+    ...nextDoc,
+    pathName: preset.pathName,
+    audienceLabel: preset.audienceLabel,
+    status: "draft",
+  };
+
+  for (const step of preset.steps) {
+    const paletteItem = PALETTE_ITEMS.find((item) => item.kind === step.kind);
+    if (!paletteItem) continue;
+
+    const baseNode = createNodeFromPalette(paletteItem, idFactory);
+    const nextNode: WorkflowNode = {
+      ...baseNode,
+      title: step.title ?? baseNode.title,
+      note: step.note ?? baseNode.note,
+      config: {
+        ...baseNode.config,
+        ...(step.config ?? {}),
+      },
+    };
+
+    nextDoc = insertNodeAtTarget(nextDoc, { kind: "root-end" }, nextNode);
+  }
+
+  return nextDoc;
+}
+
 /** Three-panel builder with top controls, map canvas, and inspector drawer. */
 export default function StewardPathBuilderPage({ templateIdFromRoute }: { templateIdFromRoute?: string }) {
   const searchParams = useSearchParams();
   const templateIdFromQuery = templateIdFromRoute || searchParams.get("templateId") || searchParams.get("pathId");
+  const quickStartFromQuery = searchParams.get("quickStart");
 
   const [doc, setDoc] = useState<WorkflowDocument>(() => createWorkflowDocument(makeBuilderId));
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -74,6 +177,23 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
 
   const supportReport = useMemo(() => analyzeWorkflowSupport(doc), [doc]);
   const insertTargetLabel = useMemo(() => describeInsertTarget(doc, insertTarget), [doc, insertTarget]);
+  const allNodes = useMemo(() => Object.values(doc.nodesById), [doc.nodesById]);
+  const stageProgress = useMemo(() => {
+    const hasTrigger = allNodes.some((node) => node.kind.startsWith("trigger."));
+    const hasCondition = allNodes.some((node) => node.kind === "logic.if_else");
+    const hasAction = allNodes.some((node) => isActionKind(node.kind));
+    const hasDelay = allNodes.some((node) => node.kind.startsWith("timing."));
+    return { hasTrigger, hasCondition, hasAction, hasDelay };
+  }, [allNodes]);
+
+  const lifecycleState = useMemo<"draft" | "needs-review" | "active" | "paused" | "error">(() => {
+    const hasError = Boolean(feedbackMessage && /fail|error|blocked/i.test(feedbackMessage));
+    if (hasError) return "error";
+    if (doc.status === "active") return "active";
+    if (doc.status === "archived") return "paused";
+    if (!supportReport.canActivate) return "needs-review";
+    return "draft";
+  }, [doc.status, feedbackMessage, supportReport.canActivate]);
 
   const selectedNode = useMemo(
     () => (selectedNodeId ? doc.nodesById[selectedNodeId] ?? null : null),
@@ -305,6 +425,23 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
     };
   }, [templateIdFromQuery]);
 
+  /** Applies one quick-start preset when requested from query string and no template id is loaded. */
+  useEffect(() => {
+    if (templateIdFromQuery) return;
+    if (!quickStartFromQuery) return;
+
+    const nextDoc = buildQuickStartDocument(quickStartFromQuery, makeBuilderId);
+    if (!nextDoc) {
+      setFeedbackMessage("Unknown quick-start preset. Opening blank builder.");
+      return;
+    }
+
+    setDoc(nextDoc);
+    setSelectedNodeId(nextDoc.rootNodeIds[0] ?? null);
+    setInsertTarget({ kind: "root-end" });
+    setFeedbackMessage(`Quick-start loaded: ${nextDoc.pathName}.`);
+  }, [quickStartFromQuery, templateIdFromQuery]);
+
   /** Updates branch lane labels. */
   const renameLane = useCallback((branchNodeId: string, laneId: string, label: string) => {
     setDoc((prev) => renameBranchLane(prev, branchNodeId, laneId, label));
@@ -355,7 +492,18 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
     <div className="flex h-screen flex-col">
       <header className="border-b border-gray-200 bg-white px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
+          <div className="min-w-0 space-y-2">
+            <div className="flex items-center gap-2 text-[11px] text-gray-500">
+              <span className="font-semibold uppercase tracking-wide text-gray-600">Steward Paths</span>
+              <span>/</span>
+              <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5">Visual Builder</span>
+              {doc.persistence.templateId && (
+                <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 font-mono text-[10px] text-gray-600">
+                  {doc.persistence.templateId}
+                </span>
+              )}
+            </div>
+
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -366,11 +514,72 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
               <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
                 Visual Canvas
               </span>
+              {doc.status === "test-mode" && (
+                <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-800">
+                  Test Mode
+                </span>
+              )}
               {loadingTemplate && (
                 <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-800">
                   Loading template...
                 </span>
               )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { key: "draft", label: "Draft" },
+                { key: "needs-review", label: "Needs Review" },
+                { key: "active", label: "Active" },
+                { key: "paused", label: "Paused" },
+                { key: "error", label: "Error" },
+              ].map((item) => (
+                <span
+                  key={item.key}
+                  className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                    lifecycleState === item.key
+                      ? item.key === "active"
+                        ? "border-green-300 bg-green-100 text-green-800"
+                        : item.key === "needs-review"
+                          ? "border-amber-300 bg-amber-100 text-amber-800"
+                          : item.key === "paused"
+                            ? "border-slate-300 bg-slate-100 text-slate-700"
+                            : item.key === "error"
+                              ? "border-rose-300 bg-rose-100 text-rose-800"
+                              : "border-sky-300 bg-sky-100 text-sky-800"
+                      : "border-gray-200 bg-gray-50 text-gray-500"
+                  }`}
+                >
+                  {item.label}
+                </span>
+              ))}
+            </div>
+
+            <div className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5">
+              <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                Build path flow
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                {[
+                  { label: "Trigger", complete: stageProgress.hasTrigger },
+                  { label: "Conditions", complete: stageProgress.hasCondition },
+                  { label: "Actions", complete: stageProgress.hasAction },
+                  { label: "Delays", complete: stageProgress.hasDelay },
+                ].map((item, index, list) => (
+                  <div key={item.label} className="inline-flex items-center gap-1.5">
+                    <span
+                      className={`rounded-full border px-2 py-0.5 font-semibold ${
+                        item.complete
+                          ? "border-emerald-300 bg-emerald-100 text-emerald-800"
+                          : "border-gray-200 bg-white text-gray-600"
+                      }`}
+                    >
+                      {item.complete ? "Done" : "Pending"} {item.label}
+                    </span>
+                    {index < list.length - 1 && <span className="text-gray-300">→</span>}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -460,7 +669,19 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
             {" · "}
             Last saved: {formatSavedAt(doc.persistence.lastSavedAt)}
           </p>
-          {doc.persistence.templateId && <p>Template ID: {doc.persistence.templateId}</p>}
+          <div className="flex items-center gap-2">
+            <a href="/steward-paths" className="rounded-md border border-gray-300 bg-white px-2 py-0.5 text-[11px] font-medium text-gray-700 hover:bg-gray-50">
+              Saved paths
+            </a>
+            {doc.persistence.templateId && (
+              <a
+                href={`/steward-paths/${encodeURIComponent(doc.persistence.templateId)}/history`}
+                className="rounded-md border border-gray-300 bg-white px-2 py-0.5 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+              >
+                View history
+              </a>
+            )}
+          </div>
         </div>
 
         {feedbackMessage && (

@@ -1,7 +1,7 @@
 /** Send controls workspace for a single campaign mailing. */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/app/lib/auth-client";
 import type {
@@ -18,10 +18,72 @@ interface Props {
   status: string;
   scheduledAt?: string | null;
   defaultAudienceType: (typeof AUDIENCE_TYPES)[number];
+  campaignAudienceFilter?: string | null;
   onSent: () => Promise<void>;
 }
 
 type SendMode = "CAMPAIGN_AUDIENCE" | "SEGMENT" | "SAVED_LIST" | "LIST" | "INDIVIDUAL" | "MULTI_SEGMENT" | "MULTI_LIST";
+
+interface InitialSendPreset {
+  sendMode: SendMode;
+  segmentType: (typeof AUDIENCE_TYPES)[number];
+  selectedSegmentTypes: Set<(typeof AUDIENCE_TYPES)[number]>;
+  selectedSavedListId: string;
+  selectedSavedListIds: Set<string>;
+  individualEmail: string;
+}
+
+/** Parses optional quick-selection metadata from campaign audienceFilter into send workspace defaults. */
+function parseInitialSendPreset(
+  rawAudienceFilter: string | null | undefined,
+  defaultAudienceType: (typeof AUDIENCE_TYPES)[number],
+): InitialSendPreset {
+  const fallback: InitialSendPreset = {
+    sendMode: "CAMPAIGN_AUDIENCE",
+    segmentType: defaultAudienceType,
+    selectedSegmentTypes: new Set([defaultAudienceType]),
+    selectedSavedListId: "",
+    selectedSavedListIds: new Set(),
+    individualEmail: "",
+  };
+
+  if (!rawAudienceFilter) return fallback;
+
+  try {
+    const parsed = JSON.parse(rawAudienceFilter) as Record<string, unknown>;
+    const quick = parsed._quickSelection;
+    if (!quick || typeof quick !== "object" || Array.isArray(quick)) return fallback;
+    const quickObj = quick as Record<string, unknown>;
+
+    const mode = typeof quickObj.sendMode === "string"
+      ? quickObj.sendMode.toUpperCase()
+      : "";
+
+    const allowedModes: SendMode[] = [
+      "CAMPAIGN_AUDIENCE",
+      "SEGMENT",
+      "SAVED_LIST",
+      "LIST",
+      "INDIVIDUAL",
+      "MULTI_SEGMENT",
+      "MULTI_LIST",
+    ];
+
+    const sendMode = allowedModes.includes(mode as SendMode) ? (mode as SendMode) : fallback.sendMode;
+    const selectedSavedListId = typeof quickObj.recipientListId === "string" ? quickObj.recipientListId : "";
+    const individualEmail = typeof quickObj.individualRecipientEmail === "string" ? quickObj.individualRecipientEmail : "";
+
+    return {
+      ...fallback,
+      sendMode,
+      selectedSavedListId,
+      individualEmail,
+      selectedSavedListIds: selectedSavedListId ? new Set([selectedSavedListId]) : new Set(),
+    };
+  } catch {
+    return fallback;
+  }
+}
 
 /** Converts an ISO datetime string into a local datetime-local input value. */
 function toDatetimeLocalValue(isoValue?: string | null): string {
@@ -43,18 +105,24 @@ export default function CampaignSendWorkspace({
   status,
   scheduledAt,
   defaultAudienceType,
+  campaignAudienceFilter,
   onSent,
 }: Props) {
-  const [sendMode, setSendMode] = useState<SendMode>("CAMPAIGN_AUDIENCE");
-  const [segmentType, setSegmentType] = useState<(typeof AUDIENCE_TYPES)[number]>(defaultAudienceType);
-  const [selectedSegmentTypes, setSelectedSegmentTypes] = useState<Set<(typeof AUDIENCE_TYPES)[number]>>(new Set([defaultAudienceType]));
+  const initialPreset = useMemo(
+    () => parseInitialSendPreset(campaignAudienceFilter, defaultAudienceType),
+    [campaignAudienceFilter, defaultAudienceType],
+  );
+
+  const [sendMode, setSendMode] = useState<SendMode>(initialPreset.sendMode);
+  const [segmentType, setSegmentType] = useState<(typeof AUDIENCE_TYPES)[number]>(initialPreset.segmentType);
+  const [selectedSegmentTypes, setSelectedSegmentTypes] = useState<Set<(typeof AUDIENCE_TYPES)[number]>>(new Set(initialPreset.selectedSegmentTypes));
   const [recipientListText, setRecipientListText] = useState("");
-  const [individualEmail, setIndividualEmail] = useState("");
+  const [individualEmail, setIndividualEmail] = useState(initialPreset.individualEmail);
   const [testEmail, setTestEmail] = useState("");
   const [scheduledAtInput, setScheduledAtInput] = useState(toDatetimeLocalValue(scheduledAt));
   const [savedLists, setSavedLists] = useState<SavedRecipientList[]>([]);
-  const [selectedSavedListId, setSelectedSavedListId] = useState<string>("");
-  const [selectedSavedListIds, setSelectedSavedListIds] = useState<Set<string>>(new Set());
+  const [selectedSavedListId, setSelectedSavedListId] = useState<string>(initialPreset.selectedSavedListId);
+  const [selectedSavedListIds, setSelectedSavedListIds] = useState<Set<string>>(new Set(initialPreset.selectedSavedListIds));
   const [newSavedListName, setNewSavedListName] = useState("");
   const [audienceSummary, setAudienceSummary] = useState<AudienceSummary | null>(null);
   const [loadingAudience, setLoadingAudience] = useState(false);
@@ -76,7 +144,7 @@ export default function CampaignSendWorkspace({
   );
 
   /** Loads saved recipient lists for reusable list-based sends across campaigns. */
-  async function refreshSavedLists() {
+  const refreshSavedLists = useCallback(async () => {
     setLoadingLists(true);
     try {
       const lists = await apiFetch<SavedRecipientList[]>("/api/email-campaigns/lists");
@@ -87,16 +155,24 @@ export default function CampaignSendWorkspace({
     } finally {
       setLoadingLists(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void refreshSavedLists();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refreshSavedLists]);
 
   useEffect(() => {
     setScheduledAtInput(toDatetimeLocalValue(scheduledAt));
   }, [scheduledAt]);
+
+  useEffect(() => {
+    setSendMode(initialPreset.sendMode);
+    setSegmentType(initialPreset.segmentType);
+    setSelectedSegmentTypes(new Set(initialPreset.selectedSegmentTypes));
+    setIndividualEmail(initialPreset.individualEmail);
+    setSelectedSavedListId(initialPreset.selectedSavedListId);
+    setSelectedSavedListIds(new Set(initialPreset.selectedSavedListIds));
+  }, [initialPreset]);
 
   useEffect(() => {
     let cancelled = false;
@@ -179,6 +255,32 @@ export default function CampaignSendWorkspace({
     setSending(true);
     setError(null);
     setMessage(null);
+
+    if (sendMode === "SAVED_LIST" && !selectedSavedListId) {
+      setSending(false);
+      setError("Choose a saved list before sending.");
+      return;
+    }
+    if (sendMode === "MULTI_LIST" && selectedSavedListIds.size === 0) {
+      setSending(false);
+      setError("Select at least one saved list for multi-list sends.");
+      return;
+    }
+    if (sendMode === "MULTI_SEGMENT" && selectedSegmentTypes.size === 0) {
+      setSending(false);
+      setError("Select at least one segment for multi-segment sends.");
+      return;
+    }
+    if (sendMode === "LIST" && recipientList.length === 0) {
+      setSending(false);
+      setError("Add at least one recipient email for one-time list sends.");
+      return;
+    }
+    if (sendMode === "INDIVIDUAL" && !individualEmail.trim()) {
+      setSending(false);
+      setError("Enter one recipient email for individual sends.");
+      return;
+    }
 
     try {
       const recipientEmails = sendMode === "LIST"
@@ -286,6 +388,21 @@ export default function CampaignSendWorkspace({
   }
 
   const canSendCampaign = status === "DRAFT" || status === "SCHEDULED";
+  const hasValidAudienceSelection = useMemo(() => {
+    if (sendMode === "SAVED_LIST") return Boolean(selectedSavedListId);
+    if (sendMode === "MULTI_LIST") return selectedSavedListIds.size > 0;
+    if (sendMode === "MULTI_SEGMENT") return selectedSegmentTypes.size > 0;
+    if (sendMode === "LIST") return recipientList.length > 0;
+    if (sendMode === "INDIVIDUAL") return individualEmail.trim().length > 0;
+    return true;
+  }, [
+    individualEmail,
+    recipientList.length,
+    selectedSavedListId,
+    selectedSavedListIds.size,
+    selectedSegmentTypes.size,
+    sendMode,
+  ]);
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white">
@@ -556,7 +673,7 @@ export default function CampaignSendWorkspace({
           disabled={
             sending
             || !canSendCampaign
-            || (sendMode === "SAVED_LIST" && !selectedSavedListId)
+            || !hasValidAudienceSelection
           }
           className="w-full rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
         >

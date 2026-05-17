@@ -22,10 +22,12 @@ import type { EmailCategory, EmailPurpose, EmailRecipientEligibilityStatus, Pris
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 import {
+  categoryForPurpose,
   evaluateRecipientEligibility,
   getCampaignComplianceIssues,
   hashPublicEmailToken,
   parseEmailPurpose,
+  requiresPreferenceCompliance,
 } from "../services/email-compliance.js";
 import { createOrganizationEmailSender } from "../services/smtp-service.js";
 import { requireAuth } from "../middleware/requireAuth.js";
@@ -125,10 +127,74 @@ function parseDeliveryEventType(raw: unknown): DeliveryEventType | null {
 const EMAIL_PATTERN =
   /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
 
+const COMPLIANCE_TOKEN_PATTERN = /\{\{\s*(unsubscribe(?:Url|_url)|managePreferencesUrl|preferences(?:Url|_url))\s*\}\}/i;
+const UNSUBSCRIBE_LINK_PATTERN = /\{\{\s*unsubscribe(?:Url|_url)\s*\}\}|\/unsubscribe\//i;
+const PREFERENCES_LINK_PATTERN = /\{\{\s*(managePreferencesUrl|preferences(?:Url|_url))\s*\}\}|\/preferences\//i;
+
 /** Basic email format check for send-test and from/reply fields. */
 function isValidEmail(value: string): boolean {
   const email = value.trim();
   return EMAIL_PATTERN.test(email);
+}
+
+function buildAutomaticComplianceFooterHtml(missingUnsubscribe: boolean, missingPreferences: boolean): string {
+  const controls: string[] = [];
+  if (missingUnsubscribe) {
+    controls.push('<a href="{{unsubscribeUrl}}" style="color:#4b5563;text-decoration:underline;">Unsubscribe</a>');
+  }
+  if (missingPreferences) {
+    controls.push('<a href="{{managePreferencesUrl}}" style="color:#4b5563;text-decoration:underline;">Manage Preferences</a>');
+  }
+
+  if (controls.length === 0) return "";
+
+  return `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:16px;background:#f9fafb;border-top:1px solid #e5e7eb;">
+  <tr>
+    <td style="padding:12px 16px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#4b5563;text-align:center;">
+      Email preferences: ${controls.join(" · ")}
+    </td>
+  </tr>
+</table>`.trim();
+}
+
+function buildAutomaticComplianceFooterText(missingUnsubscribe: boolean, missingPreferences: boolean): string {
+  const controls: string[] = [];
+  if (missingUnsubscribe) controls.push("Unsubscribe: {{unsubscribeUrl}}");
+  if (missingPreferences) controls.push("Manage Preferences: {{managePreferencesUrl}}");
+  if (controls.length === 0) return "";
+  return `\n\nEmail preferences: ${controls.join(" | ")}`;
+}
+
+function ensureComplianceFooter(content: string, format: "html" | "text"): string {
+  const safeContent = content.trim();
+  const hasUnsubscribeControl = UNSUBSCRIBE_LINK_PATTERN.test(safeContent);
+  const hasPreferencesControl = PREFERENCES_LINK_PATTERN.test(safeContent);
+
+  const missingUnsubscribe = !hasUnsubscribeControl;
+  const missingPreferences = !hasPreferencesControl;
+  if (!missingUnsubscribe && !missingPreferences) return safeContent;
+
+  if (format === "html") {
+    const footer = buildAutomaticComplianceFooterHtml(missingUnsubscribe, missingPreferences);
+    return `${safeContent}\n${footer}`;
+  }
+
+  return `${safeContent}${buildAutomaticComplianceFooterText(missingUnsubscribe, missingPreferences)}`;
+}
+
+function buildCampaignDeliveryBodies(campaign: { bodyHtml: string | null; bodyText: string | null }, purpose: EmailPurpose) {
+  const baseHtml = campaign.bodyHtml?.trim() || `<p>${campaign.bodyText || "No content"}</p>`;
+  const baseText = campaign.bodyText?.trim() || "No text content";
+
+  if (!requiresPreferenceCompliance(purpose)) {
+    return { html: baseHtml, text: baseText };
+  }
+
+  return {
+    html: ensureComplianceFooter(baseHtml, "html"),
+    text: ensureComplianceFooter(baseText, "text"),
+  };
 }
 
 /** Resolves audience filters into a Prisma where clause for constituents. */
@@ -440,6 +506,9 @@ async function resolveRecipientPlan(
   if (sendMode === "MULTI_SEGMENT") {
     const filterObj = options?.audienceFilter as { types?: string[] } | undefined;
     types = filterObj?.types ?? [];
+    if (types.length === 0) {
+      throw new CampaignSendError("At least one segment type is required for multi-segment sends.", 400);
+    }
   }
 
   if (sendMode === "MULTI_SEGMENT" && types.length > 0) {
@@ -885,11 +954,12 @@ export async function sendCampaignNow(
   }
 
   const purpose = parseEmailPurpose((campaign as { purpose?: unknown }).purpose);
+  const deliveryBodies = buildCampaignDeliveryBodies(campaign, purpose);
   const complianceIssues = getCampaignComplianceIssues({
     purpose,
     subject: campaign.subject,
-    bodyHtml: campaign.bodyHtml,
-    bodyText: campaign.bodyText,
+    bodyHtml: deliveryBodies.html,
+    bodyText: deliveryBodies.text,
     fromEmail: campaign.fromEmail,
     replyToEmail: campaign.replyToEmail,
   });
@@ -966,14 +1036,11 @@ export async function sendCampaignNow(
         category: recipientPlan.category,
       });
 
-      const rawHtml = campaign.bodyHtml || `<p>${campaign.bodyText || "No content"}</p>`;
-      const rawText = campaign.bodyText || "No text content";
-
       await sender.send({
         to: recipientEmail,
         subject: campaign.subject || campaign.name,
-        text: applyComplianceLinkTokens(rawText, links),
-        html: applyComplianceLinkTokens(rawHtml, links),
+        text: applyComplianceLinkTokens(deliveryBodies.text, links),
+        html: applyComplianceLinkTokens(deliveryBodies.html, links),
         fromNameOverride: campaign.fromName,
       });
     }
@@ -2036,11 +2103,31 @@ router.post("/:id/send-test", async (req, res) => {
 
   try {
     const sender = await createOrganizationEmailSender(campaign.organizationId);
+    const purpose = parseEmailPurpose((campaign as { purpose?: unknown }).purpose);
+    const deliveryBodies = buildCampaignDeliveryBodies(campaign, purpose);
+    const shouldIssueLinks =
+      requiresPreferenceCompliance(purpose)
+      || COMPLIANCE_TOKEN_PATTERN.test(deliveryBodies.html)
+      || COMPLIANCE_TOKEN_PATTERN.test(deliveryBodies.text);
+
+    let htmlContent = deliveryBodies.html;
+    let textContent = deliveryBodies.text;
+    if (shouldIssueLinks) {
+      const links = await issueRecipientComplianceLinks({
+        organizationId: campaign.organizationId,
+        campaignId: campaign.id,
+        email: toEmail.trim().toLowerCase(),
+        category: categoryForPurpose(purpose),
+      });
+      htmlContent = applyComplianceLinkTokens(htmlContent, links);
+      textContent = applyComplianceLinkTokens(textContent, links);
+    }
+
     await sender.send({
       to: toEmail.trim().toLowerCase(),
       subject: `[TEST] ${campaign.subject || campaign.name}`,
-      text: campaign.bodyText || "No text content",
-      html: campaign.bodyHtml || `<p>${campaign.bodyText || "No content"}</p>`,
+      text: textContent,
+      html: htmlContent,
       fromNameOverride: campaign.fromName,
     });
   } catch (error) {
@@ -2106,11 +2193,12 @@ router.post("/:id/schedule", async (req, res) => {
   }
 
   const schedulePurpose = parseEmailPurpose((campaign as { purpose?: unknown }).purpose);
+  const scheduleBodies = buildCampaignDeliveryBodies(campaign, schedulePurpose);
   const scheduleComplianceIssues = getCampaignComplianceIssues({
     purpose: schedulePurpose,
     subject: campaign.subject,
-    bodyHtml: campaign.bodyHtml,
-    bodyText: campaign.bodyText,
+    bodyHtml: scheduleBodies.html,
+    bodyText: scheduleBodies.text,
     fromEmail: campaign.fromEmail,
     replyToEmail: campaign.replyToEmail,
   });

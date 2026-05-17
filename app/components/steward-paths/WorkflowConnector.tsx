@@ -13,12 +13,12 @@ interface WorkflowConnectorProps {
 export default function WorkflowConnector({ showLine = true, onAdd, addLabel = "Add step" }: WorkflowConnectorProps) {
   return (
     <div className="flex flex-col items-center py-2">
-      {showLine && <span className="h-6 w-px bg-emerald-200" />}
+      {showLine && <span className="h-8 w-px bg-gradient-to-b from-emerald-300 to-emerald-100" />}
       {onAdd && (
         <button
           type="button"
           onClick={onAdd}
-          className="mt-1 inline-flex h-7 w-7 items-center justify-center rounded-full border border-emerald-300 bg-white text-emerald-700 shadow-sm transition hover:bg-emerald-50"
+          className="mt-1 inline-flex h-7 w-7 items-center justify-center rounded-full border border-emerald-300 bg-white text-emerald-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-50"
           aria-label={addLabel}
           title={addLabel}
         >

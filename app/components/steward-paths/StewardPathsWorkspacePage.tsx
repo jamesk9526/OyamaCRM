@@ -70,7 +70,8 @@ export default function StewardPathsWorkspacePage() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [viewFilter, setViewFilter] = useState<"all" | "active" | "archived">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | StewardPathTemplate["status"]>("all");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,13 +92,24 @@ export default function StewardPathsWorkspacePage() {
   }, [load]);
 
   const activeCount = useMemo(() => items.filter((item) => item.status === "ACTIVE").length, [items]);
+  const pausedCount = useMemo(() => items.filter((item) => item.status === "PAUSED").length, [items]);
+  const archivedCount = useMemo(() => items.filter((item) => item.status === "ARCHIVED").length, [items]);
   const visibleItems = useMemo(
-    () => items.filter((item) => {
-      if (viewFilter === "active") return item.status === "ACTIVE";
-      if (viewFilter === "archived") return item.status === "ARCHIVED";
-      return true;
-    }),
-    [items, viewFilter],
+    () => items
+      .filter((item) => {
+        if (statusFilter !== "all" && item.status !== statusFilter) return false;
+
+        const needle = searchQuery.trim().toLowerCase();
+        if (!needle) return true;
+
+        return item.name.toLowerCase().includes(needle)
+          || (item.description ?? "").toLowerCase().includes(needle)
+          || item.triggerType.toLowerCase().includes(needle)
+          || item.targetType.toLowerCase().includes(needle)
+          || item.crmScope.toLowerCase().includes(needle);
+      })
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+    [items, searchQuery, statusFilter],
   );
 
   async function toggleStatus(item: StewardPathTemplate): Promise<void> {
@@ -187,7 +199,7 @@ export default function StewardPathsWorkspacePage() {
           { label: "Steward Paths", href: "/steward-paths" },
           { label: "Saved Visual Paths" },
         ]}
-        metadata={`${items.length} total paths · ${activeCount} active`}
+        metadata={`${items.length} total paths · ${visibleItems.length} shown · ${activeCount} active`}
         primaryAction={(
           <Link href="/steward-paths/builder" className="rounded-md bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700">
             New Path
@@ -204,23 +216,34 @@ export default function StewardPathsWorkspacePage() {
         <WorkspaceRibbonGroup label="Library">
           <WorkspaceRibbonButton
             label="Saved Paths"
-            onClick={() => setViewFilter("all")}
-            variant={viewFilter === "all" ? "primary" : "secondary"}
+            onClick={() => setStatusFilter("all")}
+            variant={statusFilter === "all" ? "primary" : "secondary"}
           />
           <WorkspaceRibbonButton
             label="Active Only"
-            onClick={() => setViewFilter("active")}
-            variant={viewFilter === "active" ? "primary" : "secondary"}
+            onClick={() => setStatusFilter("ACTIVE")}
+            variant={statusFilter === "ACTIVE" ? "primary" : "secondary"}
+          />
+          <WorkspaceRibbonButton
+            label="Paused"
+            onClick={() => setStatusFilter("PAUSED")}
+            variant={statusFilter === "PAUSED" ? "primary" : "secondary"}
           />
           <WorkspaceRibbonButton
             label="Archived"
-            onClick={() => setViewFilter("archived")}
-            variant={viewFilter === "archived" ? "primary" : "secondary"}
+            onClick={() => setStatusFilter("ARCHIVED")}
+            variant={statusFilter === "ARCHIVED" ? "primary" : "secondary"}
           />
         </WorkspaceRibbonGroup>
 
         <WorkspaceRibbonGroup label="Create">
           <WorkspaceRibbonButton label="New Path" href="/steward-paths/builder" variant="primary" />
+        </WorkspaceRibbonGroup>
+
+        <WorkspaceRibbonGroup label="New From Template">
+          <WorkspaceRibbonButton label="Donor Welcome" href="/steward-paths/builder?quickStart=donor-welcome" />
+          <WorkspaceRibbonButton label="Lapsed Reengage" href="/steward-paths/builder?quickStart=lapsed-reengagement" />
+          <WorkspaceRibbonButton label="Event Follow-up" href="/steward-paths/builder?quickStart=event-follow-up" />
         </WorkspaceRibbonGroup>
 
         <WorkspaceRibbonGroup label="Run">
@@ -235,6 +258,72 @@ export default function StewardPathsWorkspacePage() {
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
         Legacy /automations builder is deprecated. Use this workspace for all new and edited Steward Paths.
       </div>
+
+      <section className="grid gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(300px,0.7fr)]">
+        <div className="rounded-xl border border-gray-200 bg-white p-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-gray-900">Path library filters</p>
+            <span className="text-xs text-gray-500">Sorted by most recently updated</span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-xs font-medium text-gray-700">Search</span>
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Name, trigger, target, CRM scope"
+                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium text-gray-700">Status</span>
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              >
+                <option value="all">All statuses</option>
+                <option value="DRAFT">Draft</option>
+                <option value="ACTIVE">Active</option>
+                <option value="PAUSED">Paused</option>
+                <option value="ARCHIVED">Archived</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+          <p className="text-sm font-semibold text-emerald-900">New from template quick-start</p>
+          <p className="mt-1 text-xs text-emerald-800">Open the builder with a pre-wired starter flow.</p>
+          <div className="mt-2 grid gap-2">
+            <Link href="/steward-paths/builder?quickStart=donor-welcome" className="rounded-md border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50">
+              Donor Welcome Journey
+            </Link>
+            <Link href="/steward-paths/builder?quickStart=lapsed-reengagement" className="rounded-md border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50">
+              Lapsed Reengagement Journey
+            </Link>
+            <Link href="/steward-paths/builder?quickStart=event-follow-up" className="rounded-md border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50">
+              Event Follow-up Journey
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Active</p>
+          <p className="mt-1 text-lg font-semibold text-gray-900">{activeCount}</p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Paused</p>
+          <p className="mt-1 text-lg font-semibold text-gray-900">{pausedCount}</p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Archived</p>
+          <p className="mt-1 text-lg font-semibold text-gray-900">{archivedCount}</p>
+        </div>
+      </section>
 
       {message && <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">{message}</div>}
       {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div>}

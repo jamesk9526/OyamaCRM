@@ -13,11 +13,11 @@ interface WorkspaceRibbonGroupProps {
  */
 export default function WorkspaceRibbonGroup({ label, children }: WorkspaceRibbonGroupProps) {
   return (
-    <div className="flex min-w-fit flex-col gap-1 rounded-lg border border-slate-100 bg-slate-50 px-2 pt-1.5 pb-1">
+    <div className="flex min-w-fit flex-col gap-0.5 rounded-lg border border-slate-100 bg-slate-50 px-1.5 pt-1 pb-0.5 min-[1360px]:gap-1 min-[1360px]:px-2 min-[1360px]:pt-1.5 min-[1360px]:pb-1">
       {/* Buttons row */}
-      <div className="flex flex-wrap items-center gap-1">{children}</div>
-      {/* Group label — below buttons, Office-style */}
-      <p className="text-center text-[9px] font-semibold uppercase tracking-widest text-slate-400 select-none">
+      <div className="flex flex-wrap items-center gap-0.5 min-[1360px]:gap-1">{children}</div>
+      {/* Group label — always visible so compact ribbons remain readable. */}
+      <p className="block text-center text-[9px] font-semibold uppercase tracking-widest text-slate-400 select-none">
         {label}
       </p>
     </div>

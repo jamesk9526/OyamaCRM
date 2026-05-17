@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 import {
   DEFAULT_BRANDING_SETTINGS,
@@ -71,6 +72,7 @@ const EMPTY_FOOTER: FooterForm = {
 
 /** Manages letter branding presets that can be reused by templates. */
 export default function LetterBrandingManager() {
+  const searchParams = useSearchParams();
   const [tab, setTab] = useState<PresetTab>("headers");
   const [headers, setHeaders] = useState<HeaderPreset[]>([]);
   const [footers, setFooters] = useState<FooterPreset[]>([]);
@@ -86,6 +88,13 @@ export default function LetterBrandingManager() {
 
   const selectedHeader = useMemo(() => headers.find((item) => item.id === selectedHeaderId) ?? null, [headers, selectedHeaderId]);
   const selectedFooter = useMemo(() => footers.find((item) => item.id === selectedFooterId) ?? null, [footers, selectedFooterId]);
+
+  useEffect(() => {
+    const tabQuery = searchParams.get("tab");
+    if (tabQuery === "headers" || tabQuery === "footers") {
+      setTab(tabQuery);
+    }
+  }, [searchParams]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -311,30 +320,106 @@ function FooterEditor({ form, setForm, saving, onSave }: { form: FooterForm; set
 function PresetPreview({ branding, header, footer, tab }: { branding: BrandingSettings; header: HeaderForm; footer: FooterForm; tab: PresetTab }) {
   const orgName = branding.organizationDisplayName || branding.legalOrganizationName || "Organization Name";
   const address = formatBrandingAddress(branding);
+  const customHtml = tab === "headers" ? header.customHtml.trim() : footer.customHtml.trim();
+  const headerCustomHtml = header.customHtml.trim();
+  const footerCustomHtml = footer.customHtml.trim();
+  const htmlPreviewDoc = buildHtmlPreviewDocument(customHtml);
+  const footerContactLine = [
+    footer.showPhone ? branding.contactPhone : "",
+    footer.showEmail ? branding.contactEmail : "",
+    footer.showWebsite ? branding.websiteUrl : "",
+  ]
+    .filter(Boolean)
+    .join(" | ");
+
   return (
     <div className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
       <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Rendered Letter Preview</p>
       <div className="mx-auto max-w-[620px] rounded border border-gray-300 bg-white p-8 shadow-sm">
         <header className={`border-b pb-4 ${header.logoAlignment === "CENTER" ? "text-center" : header.logoAlignment === "RIGHT" ? "text-right" : "text-left"}`} style={{ borderColor: branding.primaryColor }}>
-          {tab === "headers" && header.logoAlignment !== "NONE" && <div className="mb-2 inline-flex h-10 w-16 items-center justify-center rounded border text-[10px] text-gray-400">Logo</div>}
-          {header.showOrganizationName && <p className="font-semibold text-gray-900">{orgName}</p>}
-          {header.showTagline && branding.tagline && <p className="text-xs text-gray-500">{branding.tagline}</p>}
-          {header.showAddress && address && <p className="text-xs text-gray-500">{address}</p>}
-          {header.showPhone && branding.contactPhone && <p className="text-xs text-gray-500">{branding.contactPhone}</p>}
-          {header.showWebsite && branding.websiteUrl && <p className="text-xs text-gray-500">{branding.websiteUrl}</p>}
+          {headerCustomHtml ? (
+            <div
+              className="text-sm text-gray-700 [&_img]:max-w-full [&_img]:h-auto [&_p]:my-1"
+              dangerouslySetInnerHTML={{ __html: headerCustomHtml }}
+            />
+          ) : (
+            <>
+              {tab === "headers" && header.logoAlignment !== "NONE" && <div className="mb-2 inline-flex h-10 w-16 items-center justify-center rounded border text-[10px] text-gray-400">Logo</div>}
+              {header.showOrganizationName && <p className="font-semibold text-gray-900">{orgName}</p>}
+              {header.showTagline && branding.tagline && <p className="text-xs text-gray-500">{branding.tagline}</p>}
+              {header.showAddress && address && <p className="text-xs text-gray-500">{address}</p>}
+              {header.showPhone && branding.contactPhone && <p className="text-xs text-gray-500">{branding.contactPhone}</p>}
+              {header.showWebsite && branding.websiteUrl && <p className="text-xs text-gray-500">{branding.websiteUrl}</p>}
+            </>
+          )}
         </header>
         <main className="min-h-40 py-8 text-sm text-gray-500">Letter content appears here.</main>
         <footer className="border-t pt-3 text-center text-[11px] text-gray-500">
-          {footer.showOrganizationName && <p className="font-semibold text-gray-700">{orgName}</p>}
-          {footer.showAddress && address && <p>{address}</p>}
-          {[footer.showPhone ? branding.contactPhone : "", footer.showEmail ? branding.contactEmail : "", footer.showWebsite ? branding.websiteUrl : ""].filter(Boolean).join(" | ")}
-          {footer.showTaxId && branding.taxId && <p>Tax ID: {branding.taxId}</p>}
-          {footer.customText && <p>{footer.customText}</p>}
-          {footer.showPageNumber && <p>Page 1</p>}
+          {footerCustomHtml ? (
+            <div
+              className="text-sm text-gray-700 [&_img]:max-w-full [&_img]:h-auto [&_p]:my-1"
+              dangerouslySetInnerHTML={{ __html: footerCustomHtml }}
+            />
+          ) : (
+            <>
+              {footer.showOrganizationName && <p className="font-semibold text-gray-700">{orgName}</p>}
+              {footer.showAddress && address && <p>{address}</p>}
+              {footerContactLine && <p>{footerContactLine}</p>}
+              {footer.showTaxId && branding.taxId && <p>Tax ID: {branding.taxId}</p>}
+              {footer.customText && <p className="whitespace-pre-line">{footer.customText}</p>}
+              {footer.showPageNumber && <p>Page 1</p>}
+            </>
+          )}
         </footer>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Custom HTML Preview</p>
+        <p className="mt-1 text-xs text-gray-600">
+          {tab === "headers" ? "Header HTML renders here using a sandboxed preview surface." : "Footer HTML renders here using a sandboxed preview surface."}
+        </p>
+        {customHtml ? (
+          <div className="mt-3 space-y-3">
+            <iframe
+              title={tab === "headers" ? "Header HTML preview" : "Footer HTML preview"}
+              sandbox=""
+              srcDoc={htmlPreviewDoc}
+              className="h-44 w-full rounded-md border border-gray-200 bg-white"
+            />
+            <details className="rounded-md border border-gray-200 bg-gray-50 p-2">
+              <summary className="cursor-pointer text-xs font-semibold text-gray-700">View raw HTML</summary>
+              <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 font-mono text-[11px] text-gray-700">{customHtml}</pre>
+            </details>
+          </div>
+        ) : (
+          <div className="mt-3 rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-4 text-xs text-gray-500">
+            Add custom HTML in the editor above to render a live preview.
+          </div>
+        )}
       </div>
     </div>
   );
+}
+
+function buildHtmlPreviewDocument(customHtml: string): string {
+  return [
+    "<!DOCTYPE html>",
+    "<html>",
+    "<head>",
+    "<meta charset=\"utf-8\" />",
+    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />",
+    "<style>",
+    "body { margin: 0; padding: 12px; font-family: Segoe UI, Arial, sans-serif; color: #1f2937; background: #ffffff; }",
+    "img { max-width: 100%; height: auto; }",
+    "table { width: 100%; border-collapse: collapse; }",
+    "th, td { border: 1px solid #d1d5db; padding: 6px; }",
+    "</style>",
+    "</head>",
+    "<body>",
+    customHtml,
+    "</body>",
+    "</html>",
+  ].join("");
 }
 
 function TabButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {

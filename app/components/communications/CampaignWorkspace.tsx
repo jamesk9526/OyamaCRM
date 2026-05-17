@@ -162,6 +162,14 @@ export default function CampaignWorkspace({ campaignId }: Props) {
           >
             Build Email
           </button>
+          <a
+            href={`/email-builder?campaign=${campaign.id}&returnTo=${encodeURIComponent(`/communications/${campaign.id}`)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+          >
+            Open Builder Fullscreen
+          </a>
           <button
             onClick={() => void refreshAll()}
             className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
@@ -217,6 +225,7 @@ export default function CampaignWorkspace({ campaignId }: Props) {
             status={campaign.status}
             scheduledAt={campaign.scheduledAt}
             defaultAudienceType={defaultAudienceType}
+            campaignAudienceFilter={campaign.audienceFilter}
             onSent={refreshAll}
           />
         </section>

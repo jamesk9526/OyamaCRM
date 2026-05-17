@@ -16,62 +16,40 @@ interface Props {
 
 /** Renders a two-column layout block in the email canvas. */
 export default function ColumnsBlock({ block }: Props) {
+  const totalColumns = block.columnCount === 3 ? 3 : 2;
+  const columns = Array.from({ length: totalColumns }, (_, index) => block.columns[index] ?? []);
+
   return (
     <div style={{ padding: block.padding }}>
-      <div style={{ display: 'flex', gap: 8 }}>
-        {/* Column 1 */}
-        <div
-          style={{
-            flex:         1,
-            border:       '1px dashed #d1d5db',
-            borderRadius: 4,
-            minHeight:    60,
-            overflow:     'hidden',
-          }}
-        >
-          {(block.columns[0] ?? []).map((child) => (
-            <BlockRenderer key={child.id} block={child} />
-          ))}
-          {(block.columns[0] ?? []).length === 0 && (
-            <div
-              style={{
-                padding:    16,
-                textAlign:  'center',
-                color:      '#9ca3af',
-                fontSize:   12,
-              }}
-            >
-              Column 1 (empty)
-            </div>
-          )}
-        </div>
-
-        {/* Column 2 */}
-        <div
-          style={{
-            flex:         1,
-            border:       '1px dashed #d1d5db',
-            borderRadius: 4,
-            minHeight:    60,
-            overflow:     'hidden',
-          }}
-        >
-          {(block.columns[1] ?? []).map((child) => (
-            <BlockRenderer key={child.id} block={child} />
-          ))}
-          {(block.columns[1] ?? []).length === 0 && (
-            <div
-              style={{
-                padding:    16,
-                textAlign:  'center',
-                color:      '#9ca3af',
-                fontSize:   12,
-              }}
-            >
-              Column 2 (empty)
-            </div>
-          )}
-        </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+        {columns.map((column, index) => (
+          <div
+            key={`column-${index + 1}`}
+            style={{
+              flex: 1,
+              border: '1px dashed #d1d5db',
+              borderRadius: 4,
+              minHeight: 60,
+              overflow: 'hidden',
+            }}
+          >
+            {column.map((child) => (
+              <BlockRenderer key={child.id} block={child} />
+            ))}
+            {column.length === 0 && (
+              <div
+                style={{
+                  padding: 16,
+                  textAlign: 'center',
+                  color: '#9ca3af',
+                  fontSize: 12,
+                }}
+              >
+                Column {index + 1} (empty)
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );

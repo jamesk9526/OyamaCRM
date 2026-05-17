@@ -10,9 +10,14 @@ import type { GeneratedLetterSummary } from "@/app/components/letters/types";
 
 const STATUS_OPTIONS = ["ALL", "GENERATED", "PRINTED", "MAILED", "ARCHIVED"] as const;
 
+interface GeneratedLettersListProps {
+  embedded?: boolean;
+}
+
 /** Lists generated letter instances and supports downstream workflow actions. */
-export default function GeneratedLettersList() {
+export default function GeneratedLettersList({ embedded = false }: GeneratedLettersListProps) {
   const searchParams = useSearchParams();
+  const templateIdFilter = searchParams.get("templateId") || "";
   const sourceTaskIdFilter = searchParams.get("sourceTaskId") || "";
   const stewardPathEnrollmentIdFilter = searchParams.get("stewardPathEnrollmentId") || "";
 
@@ -28,6 +33,7 @@ export default function GeneratedLettersList() {
     try {
       const params = new URLSearchParams();
       if (status !== "ALL") params.set("status", status);
+      if (templateIdFilter) params.set("templateId", templateIdFilter);
       if (sourceTaskIdFilter) params.set("sourceTaskId", sourceTaskIdFilter);
       if (stewardPathEnrollmentIdFilter) params.set("stewardPathEnrollmentId", stewardPathEnrollmentIdFilter);
       const result = await apiFetch<GeneratedLetterSummary[]>(`/api/letters/generated?${params.toString()}`);
@@ -37,7 +43,7 @@ export default function GeneratedLettersList() {
     } finally {
       setLoading(false);
     }
-  }, [status, sourceTaskIdFilter, stewardPathEnrollmentIdFilter]);
+  }, [status, templateIdFilter, sourceTaskIdFilter, stewardPathEnrollmentIdFilter]);
 
   useEffect(() => {
     void load();
@@ -132,17 +138,19 @@ export default function GeneratedLettersList() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Generated Media</h1>
-          <p className="mt-0.5 text-sm text-gray-500">Track, preview, and fulfill donor-specific generated outputs through print and mail queues.</p>
+      {!embedded && (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900">Generated Media</h1>
+            <p className="mt-0.5 text-sm text-gray-500">Track, preview, and fulfill donor-specific generated outputs through print and mail queues.</p>
+          </div>
+          <Link href="/letters-printables/generate" className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700">
+            Generate New Media
+          </Link>
         </div>
-        <Link href="/letters-printables/generate" className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700">
-          Generate New Media
-        </Link>
-      </div>
+      )}
 
-      <LettersWorkspaceNav />
+      {!embedded && <LettersWorkspaceNav />}
 
       <div className="flex flex-wrap gap-2">
         {STATUS_OPTIONS.map((entry) => (
@@ -158,6 +166,11 @@ export default function GeneratedLettersList() {
         {sourceTaskIdFilter && (
           <span className="px-3 py-1.5 text-xs rounded-full border border-blue-200 bg-blue-50 text-blue-700">
             Filter: Source Task {sourceTaskIdFilter}
+          </span>
+        )}
+        {templateIdFilter && (
+          <span className="px-3 py-1.5 text-xs rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700">
+            Filter: Draft Template {templateIdFilter}
           </span>
         )}
         {stewardPathEnrollmentIdFilter && (
@@ -193,7 +206,7 @@ export default function GeneratedLettersList() {
                       </Link>
                     )}
                     {letter.stewardPathEnrollmentId && (
-                      <Link href={`/letters-printables/generated?stewardPathEnrollmentId=${letter.stewardPathEnrollmentId}`} className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] text-indigo-700 hover:bg-indigo-100">
+                      <Link href={`/letters-printables/queues?view=production&stewardPathEnrollmentId=${letter.stewardPathEnrollmentId}`} className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] text-indigo-700 hover:bg-indigo-100">
                         Steward Path
                       </Link>
                     )}

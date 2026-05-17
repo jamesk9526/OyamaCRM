@@ -1521,6 +1521,7 @@ router.get("/generated", requirePermission("letters.view"), async (req, res) => 
 
   const status = parseEnum(req.query.status, LETTER_GENERATED_STATUSES);
   const category = parseEnum(req.query.category, LETTER_CATEGORIES);
+  const templateId = typeof req.query.templateId === "string" ? req.query.templateId : undefined;
   const constituentId = typeof req.query.constituentId === "string" ? req.query.constituentId : undefined;
   const sourceTaskId = typeof req.query.sourceTaskId === "string" ? req.query.sourceTaskId : undefined;
   const stewardPathEnrollmentId = typeof req.query.stewardPathEnrollmentId === "string" ? req.query.stewardPathEnrollmentId : undefined;
@@ -1532,6 +1533,7 @@ router.get("/generated", requirePermission("letters.view"), async (req, res) => 
       organizationId,
       ...(status ? { status } : {}),
       ...(category ? { category } : {}),
+      ...(templateId ? { templateId } : {}),
       ...(constituentId ? { constituentId } : {}),
       ...(sourceTaskId ? { sourceTaskId } : {}),
       ...(stewardPathEnrollmentId ? { stewardPathEnrollmentId } : {}),

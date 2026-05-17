@@ -33,6 +33,7 @@ interface StewardAiRuntimePillProps {
   canRunConnectionTest: boolean;
   onOpenSettings: () => void;
   initialState?: StewardAiRuntimeState | null;
+  compact?: boolean;
 }
 
 function formatTimestamp(value: string | null): string {
@@ -140,7 +141,7 @@ export function statusCopy(status: StewardAiRuntimeStatus): {
 /**
  * Shows a compact runtime-status badge and gives staff one-click runtime diagnostics.
  */
-export default function StewardAiRuntimePill({ canRunConnectionTest, onOpenSettings, initialState = null }: StewardAiRuntimePillProps) {
+export default function StewardAiRuntimePill({ canRunConnectionTest, onOpenSettings, initialState = null, compact = false }: StewardAiRuntimePillProps) {
   const [open, setOpen] = useState(false);
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -172,6 +173,17 @@ export default function StewardAiRuntimePill({ canRunConnectionTest, onOpenSetti
   }, [open, loadStatus]);
 
   const tone = useMemo(() => statusCopy(state?.status ?? "disabled"), [state?.status]);
+  const compactLabel = useMemo(() => {
+    const status = state?.status ?? "disabled";
+    if (status === "connected") return "Connected";
+    if (status === "thinking") return "Thinking";
+    if (status === "running_task") return "Running";
+    if (status === "connecting") return "Connecting";
+    if (status === "fallback") return "Offline";
+    if (status === "error") return "Error";
+    if (status === "not_configured") return "Setup";
+    return "Disabled";
+  }, [state?.status]);
 
   const tooltip = `${tone.helper} ${state ? `${state.mode === "local" ? "Local" : "Remote"} mode · ${state.model}.` : ""}`.trim();
 
@@ -198,15 +210,24 @@ export default function StewardAiRuntimePill({ canRunConnectionTest, onOpenSetti
         type="button"
         title={tooltip}
         onClick={() => setOpen((current) => !current)}
-        className={`inline-flex h-9 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition-colors ${tone.pillTone}`}
+        className={`inline-flex items-center rounded-full border font-semibold transition-colors ${tone.pillTone} ${compact ? "h-8 gap-1.5 px-2.5 text-[11px]" : "h-9 gap-2 px-3 text-xs"}`}
       >
         {tone.spinner ? (
-          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-r-transparent" aria-hidden="true" />
+          <span className={`${compact ? "h-3 w-3" : "h-3.5 w-3.5"} animate-spin rounded-full border-2 border-current border-r-transparent`} aria-hidden="true" />
         ) : (
-          <span className={`h-2.5 w-2.5 rounded-full ${tone.dotTone} ${tone.dotPulse ? "animate-pulse" : ""}`} aria-hidden="true" />
+          <span className={`${compact ? "h-2 w-2" : "h-2.5 w-2.5"} rounded-full ${tone.dotTone} ${tone.dotPulse ? "animate-pulse" : ""}`} aria-hidden="true" />
         )}
-        <span className="hidden min-[1280px]:inline">{tone.label}</span>
-        <span className="min-[1280px]:hidden">AI</span>
+        {compact ? (
+          <>
+            <span className="hidden min-[1320px]:inline">Steward</span>
+            <span>{compactLabel}</span>
+          </>
+        ) : (
+          <>
+            <span className="hidden min-[1280px]:inline">{tone.label}</span>
+            <span className="min-[1280px]:hidden">AI</span>
+          </>
+        )}
       </button>
 
       {open ? (

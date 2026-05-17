@@ -10,13 +10,17 @@ import type { LetterPrintQueueItem } from "@/app/components/letters/types";
 const FILTERS = ["ALL", "GENERATED", "NEEDS_REVIEW", "APPROVED", "QUEUED_FOR_PRINT", "PRINTED", "CANCELED", "ARCHIVED"] as const;
 const ACTIONS = ["APPROVE", "QUEUE_FOR_PRINT", "MARK_PRINTED", "MOVE_TO_MAIL_QUEUE", "CANCEL", "ARCHIVE"] as const;
 
+interface LetterPrintQueueProps {
+  embedded?: boolean;
+}
+
 /** Converts queue action constants into readable button labels. */
 function actionLabel(action: (typeof ACTIONS)[number]): string {
   return action.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (value) => value.toUpperCase());
 }
 
 /** Renders print queue controls with multi-select bulk status actions. */
-export default function LetterPrintQueue() {
+export default function LetterPrintQueue({ embedded = false }: LetterPrintQueueProps) {
   const [items, setItems] = useState<LetterPrintQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -111,12 +115,14 @@ export default function LetterPrintQueue() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900">Print Queue</h1>
-        <p className="mt-0.5 text-sm text-gray-500">Review generated letters, bulk-approve them, and send batches to print operations.</p>
-      </div>
+      {!embedded && (
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">Print Queue</h1>
+          <p className="mt-0.5 text-sm text-gray-500">Review generated letters, bulk-approve them, and send batches to print operations.</p>
+        </div>
+      )}
 
-      <LettersWorkspaceNav />
+      {!embedded && <LettersWorkspaceNav />}
 
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">

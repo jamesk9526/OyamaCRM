@@ -67,10 +67,13 @@ export default function WorkflowNodeCard({
   const selectedClass = isSelected
     ? "border-emerald-500 ring-2 ring-emerald-200 shadow-md"
     : "border-gray-200 hover:border-emerald-300";
+  const cardToneClass = isBranchNode(node)
+    ? "bg-gradient-to-b from-emerald-50/70 to-white"
+    : "bg-white";
 
   return (
     <div
-      className={`rounded-xl border bg-white ${compact ? "p-2.5" : "p-3"} transition-shadow ${selectedClass}`}
+      className={`rounded-xl border ${cardToneClass} ${compact ? "p-2.5" : "p-3"} transition-shadow ${selectedClass}`}
       role="button"
       tabIndex={0}
       draggable

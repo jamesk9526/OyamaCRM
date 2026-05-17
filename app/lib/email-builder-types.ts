@@ -412,7 +412,9 @@ export interface SocialBlock extends BaseBlock {
 
 export interface ColumnsBlock extends BaseBlock {
   type: 'columns';
-  /** Two columns; each column is an array of EmailBlocks. */
+  /** Number of rendered columns (currently 2 or 3). */
+  columnCount?: 2 | 3;
+  /** Ordered columns, each column holding nested EmailBlocks. */
   columns: EmailBlock[][];
   padding: number;
 }
@@ -523,7 +525,7 @@ export const PALETTE_ITEMS: PaletteItem[] = [
 
   // Existing media/layout/elements
   { blockType: 'video', label: 'Video', description: 'YouTube, Vimeo, OneDrive', icon: 'V', section: 'Media' },
-  { blockType: 'columns', label: 'Columns', description: 'Two-column layout', icon: 'C', section: 'Layout' },
+  { blockType: 'columns', label: 'Columns / Grid', description: 'Flexible 2-3 column layout grid', icon: 'C', section: 'Layout' },
   { blockType: 'customHtml', label: 'Custom HTML', description: 'Insert custom HTML markup block', icon: '</>', section: 'Layout' },
   { blockType: 'divider', label: 'Divider', description: 'Horizontal rule', icon: '-', section: 'Layout' },
   { blockType: 'spacer', label: 'Spacer', description: 'Vertical spacing', icon: '+', section: 'Layout' },

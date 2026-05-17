@@ -33,10 +33,10 @@ interface PrintableProject extends LetterTemplateSummary {
 }
 
 const PROJECT_TYPES = [
-  { id: "THANK_YOU", label: "Thank-You Letter", body: "Dear {{constituent.firstName}},\n\nThank you for your generous support. Your gift helps move our mission forward in practical, meaningful ways.\n\nWith gratitude,\n{{organization.name}}" },
-  { id: "TAX_RECEIPT", label: "Tax Receipt", body: "Dear {{constituent.firstName}},\n\nThank you for your contribution of {{donation.amount}} on {{donation.date}}. Please keep this letter with your tax records.\n\n{{organization.name}}\n{{organization.taxId}}" },
+  { id: "THANK_YOU", label: "Thank-You Letter", body: "Dear {{donor.firstName}},\n\nThank you for your generous support. Your gift helps move our mission forward in practical, meaningful ways.\n\nWith gratitude,\n{{organization.name}}" },
+  { id: "TAX_RECEIPT", label: "Tax Receipt", body: "Dear {{donor.firstName}},\n\nThank you for your contribution of {{gift.amount}} on {{gift.date}}. Please keep this letter with your tax records.\n\n{{organization.name}}\n{{organization.taxId}}" },
   { id: "NEWSLETTER", label: "Printable Newsletter", body: "{{organization.name}} Update\n\nThis month, your support helped create measurable impact for the people we serve.\n\nHighlights:\n- Program milestone\n- Community story\n- Upcoming opportunity" },
-  { id: "GENERAL", label: "Blank Printable", body: "Start writing your printable here.\n\nUse merge fields like {{constituent.firstName}} when the piece needs donor-specific content." },
+  { id: "GENERAL", label: "Blank Printable", body: "Start writing your printable here.\n\nUse merge fields like {{donor.firstName}} when the piece needs donor-specific content." },
 ] as const;
 
 /** Converts dates into compact project metadata text. */
@@ -229,9 +229,9 @@ export default function LettersRibbonHome() {
           </WorkspaceRibbonGroup>
 
           <WorkspaceRibbonGroup label="Publish">
-            <WorkspaceRibbonButton label="Production Queue" onClick={() => setView("production")} />
-            <WorkspaceRibbonButton label="Print Queue" href="/letters-printables/print-queue" />
-            <WorkspaceRibbonButton label="Mail Queue" href="/letters-printables/mail-queue" />
+            <WorkspaceRibbonButton label="Production Queue" href="/letters-printables/queues?view=production" />
+            <WorkspaceRibbonButton label="Print Queue" href="/letters-printables/queues?view=print" />
+            <WorkspaceRibbonButton label="Mail Queue" href="/letters-printables/queues?view=mail" />
           </WorkspaceRibbonGroup>
 
           <WorkspaceRibbonGroup label="Brand">
@@ -335,13 +335,13 @@ export default function LettersRibbonHome() {
               title="Print Queue"
               count={stats?.queuedForPrint ?? 0}
               detail="Review, approve, export PDF, and mark printed."
-              href="/letters-printables/print-queue"
+              href="/letters-printables/queues?view=print"
             />
             <ProductionCard
               title="Mail Queue"
               count={stats?.queuedForMail ?? 0}
               detail="Move printed pieces through mail-ready, mailed, returned, and completed states."
-              href="/letters-printables/mail-queue"
+              href="/letters-printables/queues?view=mail"
             />
           </section>
         )}

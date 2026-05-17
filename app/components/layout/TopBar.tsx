@@ -10,7 +10,6 @@ import AppsDrawer, { AppsGridIcon } from "@/app/components/layout/AppsDrawer";
 import StewardAiRuntimePill from "@/app/components/layout/StewardAiRuntimePill";
 import StewardDockPanel from "@/app/components/ai/StewardDockPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
-import { FeedbackButton } from "@/app/components/feedback/FeedbackButton";
 import { FeedbackModal } from "@/app/components/feedback/FeedbackModal";
 import { apiFetch } from "@/app/lib/auth-client";
 import {
@@ -558,23 +557,23 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
               ? "border-cyan-500"
           : "border-green-400";
   const placeholder = moduleKey === "compassion"
-    ? "Search tools, clients, cases, commands... (Ctrl+K)"
+    ? "Search clients, cases, tools..."
     : moduleKey === "events"
-      ? "Search tools, events, guests, commands... (Ctrl+K)"
+      ? "Search events, guests, tools..."
       : moduleKey === "watchdog"
-        ? "Search security tools, vault items, commands... (Ctrl+K)"
+        ? "Search alerts, vault, security tools..."
         : moduleKey === "webmaster"
-          ? "Search templates, pages, website tools, commands... (Ctrl+K)"
+          ? "Search sites, pages, publish tools..."
           : moduleKey === "hrm"
-            ? "Search staff, schedules, locations, messages... (Ctrl+K)"
+            ? "Search staff, schedules, locations..."
           : moduleKey === "oshareview"
-              ? "Search reports, segments, analytics views, commands... (Ctrl+K)"
-          : "Search tools, constituents, campaigns, commands... (Ctrl+K)";
+              ? "Search reports, segments, analytics..."
+          : "Search constituents, campaigns, tools...";
 
   return (
-    <div className="relative w-full min-w-0 max-w-2xl">
+    <div className="relative w-full min-w-0 max-w-xl">
       <div className="group/search relative transition-colors duration-200 ease-out">
-        <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none transition-colors duration-200 ease-out group-focus-within/search:text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500 pointer-events-none transition-colors duration-200 ease-out group-focus-within/search:text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
         </svg>
         <input
@@ -585,13 +584,13 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           placeholder={placeholder}
-          className={`w-full pl-10 pr-14 py-2 text-[13px] bg-white/82 text-slate-900 placeholder:text-slate-500 border border-white/55 rounded-xl shadow-[0_1px_0_rgba(255,255,255,0.82),0_12px_30px_rgba(2,6,23,0.18)] backdrop-blur-xl focus:outline-none focus:ring-1 ${focusRing} focus:bg-white/95 transition-colors duration-200 ease-out`}
+          className={`w-full rounded-lg border border-white/55 bg-white/82 py-1.5 pl-8 pr-12 text-xs text-slate-900 placeholder:text-slate-500 shadow-[0_1px_0_rgba(255,255,255,0.82),0_10px_24px_rgba(2,6,23,0.16)] backdrop-blur-xl transition-colors duration-200 ease-out focus:bg-white/95 focus:outline-none focus:ring-1 ${focusRing}`}
         />
-        <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-500 bg-white/70 px-1.5 py-0.5 rounded border border-white/70 hidden md:block transition-colors duration-200 ease-out group-focus-within/search:text-slate-700 group-focus-within/search:bg-white/90">
+        <kbd className="absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border border-white/70 bg-white/70 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 transition-colors duration-200 ease-out group-focus-within/search:bg-white/90 group-focus-within/search:text-slate-700 min-[1120px]:block">
           Ctrl+K
         </kbd>
         {loading && (
-          <div className={`absolute right-10 top-1/2 -translate-y-1/2 w-3 h-3 border-2 ${spinnerColor} border-t-transparent rounded-full animate-spin`} />
+          <div className={`absolute right-9 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin rounded-full border-2 ${spinnerColor} border-t-transparent`} />
         )}
       </div>
 
@@ -737,8 +736,10 @@ export default function TopBar() {
   const [mobileQuickOpen, setMobileQuickOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [compactActionsOpen, setCompactActionsOpen] = useState(false);
+  const [reportingModeJustChanged, setReportingModeJustChanged] = useState(false);
   const reactiveGlowFrameRef = useRef<number | null>(null);
   const reactiveGlowTimeoutRef = useRef<number | null>(null);
+  const reportingModeChangedTimeoutRef = useRef<number | null>(null);
   const desktopNotificationsRef = useRef<HTMLDivElement | null>(null);
 
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
@@ -775,6 +776,11 @@ export default function TopBar() {
     scope: mapModuleKeyToHelpScope(moduleKey),
     scopePath: pathname,
   });
+  const currentFiscalYear = getFiscalYearForDate(new Date(), fiscalSettings.fiscalYearStart);
+  const donorReportingModeLabel = reportingYearMode === "fiscal" ? `FY ${currentFiscalYear}` : "Calendar Year";
+  const donorReportingModeDescription = reportingYearMode === "fiscal"
+    ? `Fiscal year mode is on. FY${currentFiscalYear} runs month ${fiscalSettings.fiscalYearStart}-${fiscalSettings.fiscalYearEnd}.`
+    : "Calendar year mode is on. Click to use the fiscal year offset from Organization Settings.";
   const canRunAiConnectionTest = user?.role === "admin" || user?.role === "super_admin";
 
   /** Briefly pulses module accent glow to acknowledge meaningful workspace actions. */
@@ -982,6 +988,9 @@ export default function TopBar() {
       }
       if (reactiveGlowTimeoutRef.current) {
         window.clearTimeout(reactiveGlowTimeoutRef.current);
+      }
+      if (reportingModeChangedTimeoutRef.current) {
+        window.clearTimeout(reportingModeChangedTimeoutRef.current);
       }
     };
   }, []);
@@ -1236,14 +1245,14 @@ export default function TopBar() {
 
         <div className="relative z-10 hidden lg:flex w-full min-w-0 flex-1 items-center gap-2 lg:gap-3 min-[1440px]:gap-4">
           {/* ── Search (right-biased) ── */}
-          <div className="flex min-w-0 flex-1 justify-end pr-2 sm:pr-4 lg:pr-2 min-[1440px]:pr-3">
-            <div className="w-full max-w-[640px] min-[1440px]:max-w-[720px]">
+          <div className="flex min-w-0 flex-1 justify-end pr-1 sm:pr-2 lg:pr-1 min-[1440px]:pr-2">
+            <div className="w-full max-w-[520px] min-[1440px]:max-w-[600px]">
               <GlobalSearch moduleKey={moduleKey} pathname={pathname} />
             </div>
           </div>
 
           {/* ── Right-side icon controls ── */}
-          <div className="hidden lg:flex items-center gap-1 shrink-0">
+          <div className="hidden lg:flex items-center gap-1.5 shrink-0">
 
           {isStewardSignalsWorkspace && (
             <button
@@ -1256,25 +1265,13 @@ export default function TopBar() {
             </button>
           )}
 
-          <div className="hidden items-center gap-1 min-[1440px]:flex">
-
-          {showTopBarAppLauncher ? (
-            <button
-              title="Apps"
-              onClick={() => setAppsOpen((v) => !v)}
-              className={`${darkIconButtonBase} ${appsOpen ? "border-slate-500 bg-slate-600/90 text-slate-50" : ""}`}
-            >
-              <AppsGridIcon className="w-4 h-4" />
-            </button>
-          ) : null}
-
-          <FeedbackButton
-            onClick={() => setFeedbackOpen(true)}
-            className={darkIconButtonBase}
+          <StewardAiRuntimePill
+            canRunConnectionTest={canRunAiConnectionTest}
+            onOpenSettings={openAiSettings}
+            compact
           />
-          </div>
 
-          <div className="relative hidden lg:block min-[1440px]:hidden">
+          <div className="relative hidden lg:block">
             <button
               type="button"
               title="More workspace tools"
@@ -1291,7 +1288,7 @@ export default function TopBar() {
                 <div className="fixed inset-0 z-40" onClick={() => setCompactActionsOpen(false)} />
                 <div className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl">
                   <div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">More</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Workspace Tools</p>
                   </div>
                   <div className="p-2">
                     {showTopBarAppLauncher ? (
@@ -1321,6 +1318,14 @@ export default function TopBar() {
                       Feedback
                     </button>
                     <Link
+                      href="/steward-ai-workspace"
+                      onClick={() => setCompactActionsOpen(false)}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      <StewardAvatarIcon size={16} alt="Steward" className="ring-slate-300/80" />
+                      Open Steward Workspace
+                    </Link>
+                    <Link
                       href={helpHref}
                       onClick={() => setCompactActionsOpen(false)}
                       className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
@@ -1328,61 +1333,45 @@ export default function TopBar() {
                       <HelpCircleIcon className="h-4 w-4" />
                       Help
                     </Link>
+                    {moduleKey === "donor" ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          toggleReportingYearMode();
+                          setReportingModeJustChanged(true);
+                          if (reportingModeChangedTimeoutRef.current) {
+                            window.clearTimeout(reportingModeChangedTimeoutRef.current);
+                          }
+                          reportingModeChangedTimeoutRef.current = window.setTimeout(() => {
+                            setReportingModeJustChanged(false);
+                          }, 1400);
+                          triggerTopBarReactiveGlow();
+                        }}
+                        title={donorReportingModeDescription}
+                        className={`mt-1 flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm font-medium transition-all ${
+                          reportingYearMode === "fiscal"
+                            ? "border-emerald-300 bg-emerald-50/80 text-emerald-800 hover:bg-emerald-100"
+                            : "border-sky-300 bg-sky-50/80 text-sky-800 hover:bg-sky-100"
+                        } ${reportingModeJustChanged ? "ring-2 ring-emerald-300/70" : ""}`}
+                      >
+                        <span className="inline-flex items-center gap-1.5">
+                          <span>Reporting Window</span>
+                          {reportingModeJustChanged ? (
+                            <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">Updated</span>
+                          ) : null}
+                        </span>
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                          reportingYearMode === "fiscal"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-sky-100 text-sky-700"
+                        }`}>{donorReportingModeLabel}</span>
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               </>
             )}
           </div>
-
-          {moduleKey === "donor" ? (
-            <button
-              type="button"
-              onClick={toggleReportingYearMode}
-              title={
-                reportingYearMode === "fiscal"
-                  ? `Fiscal year mode is on. FY${getFiscalYearForDate(new Date(), fiscalSettings.fiscalYearStart)} runs month ${fiscalSettings.fiscalYearStart}-${fiscalSettings.fiscalYearEnd}.`
-                  : "Calendar year mode is on. Click to use the fiscal year offset from Organization Settings."
-              }
-              className={`hidden h-9 items-center gap-2 rounded-lg border px-2.5 text-xs font-semibold transition-all min-[1440px]:inline-flex ${
-                reportingYearMode === "fiscal"
-                  ? "border-green-600/50 bg-green-600/15 text-green-400 hover:border-green-500/60 hover:bg-green-600/25"
-                  : "border-white/10 bg-white/8 text-slate-300 hover:border-white/20 hover:bg-white/14 hover:text-white"
-              }`}
-            >
-              <span className={`flex h-3.5 w-3.5 items-center justify-center rounded border text-[10px] font-bold ${
-                reportingYearMode === "fiscal" ? "border-green-500/60 bg-green-600/30 text-green-300" : "border-slate-400/30 bg-slate-600/20 text-slate-400"
-              }`}>
-                {reportingYearMode === "fiscal" ? "FY" : "C"}
-              </span>
-              <span>{reportingYearMode === "fiscal" ? `${getFiscalYearForDate(new Date(), fiscalSettings.fiscalYearStart)}` : "Calendar"}</span>
-            </button>
-          ) : null}
-
-          <StewardAiRuntimePill
-            canRunConnectionTest={canRunAiConnectionTest}
-            onOpenSettings={openAiSettings}
-          />
-
-          {/* AGENTSteward workspace link — dock is handled by the floating chat-head from StewardDockPanel */}
-          <Link
-            href="/steward-ai-workspace"
-            title="Open AGENTSteward workspace"
-            className={`${darkIconButtonBase} relative group`}
-          >
-            <StewardAvatarIcon size={16} alt="AGENTSteward" className="ring-white/40" />
-            <span className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-              AGENTSteward
-            </span>
-          </Link>
-
-        {/* Help */}
-        <Link
-          href={helpHref}
-          title="Help & Documentation"
-          className={`hidden min-[1440px]:inline-flex ${darkIconButtonBase}`}
-        >
-          <HelpCircleIcon className="w-4 h-4" />
-        </Link>
 
           {/* Notifications */}
         <div ref={desktopNotificationsRef} className="relative">

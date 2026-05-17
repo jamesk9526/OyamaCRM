@@ -18,6 +18,7 @@ interface WorkspaceRibbonButtonProps {
 
 function AutoRibbonIcon({ label }: { label: string }) {
   const key = label.toLowerCase();
+  const hasWord = (word: string) => new RegExp(`\\b${word}\\b`).test(key);
 
   if (key.includes("overview") || key.includes("dashboard") || key.includes("home")) {
     return (
@@ -56,6 +57,98 @@ function AutoRibbonIcon({ label }: { label: string }) {
       <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" d="M5 7h14M5 12h14M5 17h8" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M16 17l1.5 1.5L21 15" />
+      </svg>
+    );
+  }
+
+  if (key.includes("duplicate") || key.includes("dedupe") || key.includes("duplicates") || key.includes("merge")) {
+    return (
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4.5" y="7.5" width="10" height="10" rx="2" />
+        <rect x="9.5" y="4.5" width="10" height="10" rx="2" />
+      </svg>
+    );
+  }
+
+  if (key.includes("tag")) {
+    return (
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 11l7-7h7l2 2v7l-7 7-9-9z" />
+        <circle cx="15.5" cy="8.5" r="1.2" />
+      </svg>
+    );
+  }
+
+  if (key.includes("import") || key.includes("csv") || key.includes("upload")) {
+    return (
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v10M8.5 8.5L12 5l3.5 3.5" />
+        <rect x="4" y="14" width="16" height="6" rx="2" />
+      </svg>
+    );
+  }
+
+  if (key.includes("full screen") || key.includes("fullscreen") || key.includes("expand")) {
+    return (
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 4H4v4M16 4h4v4M8 20H4v-4M20 20h-4v-4" />
+      </svg>
+    );
+  }
+
+  if (key.includes("list builder") || key.includes("builder")) {
+    return (
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h4v4H4zM10 6h10M4 14h4v4H4zM10 14h10" />
+      </svg>
+    );
+  }
+
+  if (key.includes("list manager") || (key.includes("list") && key.includes("manage"))) {
+    return (
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12M8 12h12M8 17h12" />
+        <circle cx="4.5" cy="7" r="1" />
+        <circle cx="4.5" cy="12" r="1" />
+        <circle cx="4.5" cy="17" r="1" />
+      </svg>
+    );
+  }
+
+  if (hasWord("view")) {
+    return (
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z" />
+        <circle cx="12" cy="12" r="2.5" />
+      </svg>
+    );
+  }
+
+  if (key.includes("select") || key.includes("selection") || hasWord("clear")) {
+    return (
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="4" width="16" height="16" rx="2" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 12.5l2.6 2.6L16.5 9" />
+      </svg>
+    );
+  }
+
+  if (key.includes("list")) {
+    return (
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h11M9 12h11M9 17h11" />
+        <circle cx="5" cy="7" r="1" />
+        <circle cx="5" cy="12" r="1" />
+        <circle cx="5" cy="17" r="1" />
+      </svg>
+    );
+  }
+
+  if (hasWord("open") || key.includes("workspace")) {
+    return (
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14 5h5v5M19 5l-8 8" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4" />
       </svg>
     );
   }
@@ -162,8 +255,10 @@ function AutoRibbonIcon({ label }: { label: string }) {
   }
 
   return (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5v14" />
+    <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="6" cy="12" r="1.6" />
+      <circle cx="12" cy="12" r="1.6" />
+      <circle cx="18" cy="12" r="1.6" />
     </svg>
   );
 }
@@ -212,7 +307,7 @@ export default function WorkspaceRibbonButton({
   const tip = title ?? label;
 
   const className = [
-    "inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-md border px-2",
+    "inline-flex h-7 shrink-0 items-center justify-center gap-1 min-[1360px]:gap-1.5 rounded-md border px-1.5 min-[1360px]:px-2",
     "text-left text-xs font-medium leading-none transition-all touch-manipulation",
     tone,
     disabled ? "cursor-not-allowed opacity-50" : "",
@@ -224,7 +319,7 @@ export default function WorkspaceRibbonButton({
     return (
       <Link href={href} className={className} title={tip}>
         <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center">{iconNode}</span>
-        <span className="whitespace-nowrap">{label}</span>
+        <span className="inline max-w-[11rem] truncate whitespace-nowrap">{label}</span>
       </Link>
     );
   }
@@ -232,7 +327,7 @@ export default function WorkspaceRibbonButton({
   return (
     <button type="button" onClick={onClick} disabled={disabled} className={className} title={tip}>
       <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center">{iconNode}</span>
-      <span className="whitespace-nowrap">{label}</span>
+      <span className="inline max-w-[11rem] truncate whitespace-nowrap">{label}</span>
     </button>
   );
 }

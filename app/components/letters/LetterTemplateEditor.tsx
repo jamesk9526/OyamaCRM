@@ -7,7 +7,17 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 import FormLetterRichEditor from "@/app/components/letters/FormLetterRichEditor";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import { bodyToPrintLayout, parsePrintLayout } from "@/app/components/letters/print-layout-utils";
+import {
+  buildLetterFooterContactLine,
+  normalizeHeaderLogoAlignment,
+  resolveLetterLogoUrl,
+  shouldShowLetterLogo,
+  type HeaderLogoAlignment,
+} from "@/app/components/letters/letter-branding-rendering";
 import {
   DEFAULT_BRANDING_SETTINGS,
   fetchBrandingSettings,
@@ -17,6 +27,7 @@ import {
 import type { FooterPreset, HeaderPreset, MergeFieldSection, PrintLayoutDocument, SignatureBlock } from "@/app/components/letters/types";
 
 type StudioPanel = "document" | "preview" | "publish";
+type RibbonTab = "home" | "insert" | "mailings" | "review";
 type PresetModalKind = "header" | "footer" | null;
 
 interface LetterTemplateForm {
@@ -96,7 +107,57 @@ const CATEGORY_OPTIONS = [
   "GENERAL",
 ];
 
-const DEFAULT_STARTER_BODY = `<p>{{donor.firstName}},</p><p>Thank you for supporting {{organization.name}}. Your generosity makes practical care possible for the people we serve.</p><p>Gift details:</p><table><tbody><tr><th>Gift Date</th><th>Amount</th><th>Designation</th></tr><tr><td>{{gift.date}}</td><td>{{gift.amount}}</td><td>{{gift.designation}}</td></tr></tbody></table><p>Sincerely,</p><p>{{organization.signerName}}<br />{{organization.signerTitle}}</p>`;
+const DEFAULT_STARTER_BODY = `<p>{{donor.firstName}},</p><p>Thank you for supporting {{organization.name}}. Your generosity makes practical care possible for the people we serve.</p><p>Gift details:</p><table><tbody><tr><th>Gift Date</th><th>Amount</th><th>Fund</th></tr><tr><td>{{gift.date}}</td><td>{{gift.amount}}</td><td>{{gift.fund}}</td></tr></tbody></table><p>Sincerely,</p><p>{{staff.fullName}}<br />{{staff.title}}</p>`;
+
+const LEGACY_TOKEN_NORMALIZERS: Array<{ pattern: RegExp; replacement: string }> = [
+  { pattern: /\{\{\s*constituent\.firstName\s*\}\}/g, replacement: "{{donor.firstName}}" },
+  { pattern: /\{\{\s*constituent\.lastName\s*\}\}/g, replacement: "{{donor.lastName}}" },
+  { pattern: /\{\{\s*constituent\.fullName\s*\}\}/g, replacement: "{{donor.fullName}}" },
+  { pattern: /\{\{\s*constituent\.preferredName\s*\}\}/g, replacement: "{{donor.preferredName}}" },
+  { pattern: /\{\{\s*constituent\.email\s*\}\}/g, replacement: "{{donor.email}}" },
+  { pattern: /\{\{\s*constituent\.phone\s*\}\}/g, replacement: "{{donor.phone}}" },
+  { pattern: /\{\{\s*constituent\.addressLine1\s*\}\}/g, replacement: "{{donor.addressLine1}}" },
+  { pattern: /\{\{\s*constituent\.addressLine2\s*\}\}/g, replacement: "{{donor.addressLine2}}" },
+  { pattern: /\{\{\s*constituent\.city\s*\}\}/g, replacement: "{{donor.city}}" },
+  { pattern: /\{\{\s*constituent\.state\s*\}\}/g, replacement: "{{donor.state}}" },
+  { pattern: /\{\{\s*constituent\.zip\s*\}\}/g, replacement: "{{donor.zip}}" },
+  { pattern: /\{\{\s*constituent\.salutation\s*\}\}/g, replacement: "{{donor.salutation}}" },
+  { pattern: /\{\{\s*donation\.amount\s*\}\}/g, replacement: "{{gift.amount}}" },
+  { pattern: /\{\{\s*donation\.date\s*\}\}/g, replacement: "{{gift.date}}" },
+  { pattern: /\{\{\s*donation\.designation\s*\}\}/g, replacement: "{{gift.fund}}" },
+  { pattern: /\{\{\s*donation\.campaign\s*\}\}/g, replacement: "{{gift.campaign}}" },
+  { pattern: /\{\{\s*donation\.paymentMethod\s*\}\}/g, replacement: "{{gift.paymentMethod}}" },
+  { pattern: /\{\{\s*donation\.receiptNumber\s*\}\}/g, replacement: "{{gift.receiptNumber}}" },
+  { pattern: /\{\{\s*donation\.taxDeductibleAmount\s*\}\}/g, replacement: "{{gift.taxDeductibleAmount}}" },
+  { pattern: /\{\{\s*gift\.designation\s*\}\}/g, replacement: "{{gift.fund}}" },
+  { pattern: /\{\{\s*organization\.signerName\s*\}\}/g, replacement: "{{staff.fullName}}" },
+  { pattern: /\{\{\s*organization\.signerTitle\s*\}\}/g, replacement: "{{staff.title}}" },
+];
+
+const LEGACY_MERGE_TOKEN_ALIASES: Readonly<Record<string, string>> = {
+  "{{constituent.firstName}}": "{{donor.firstName}}",
+  "{{constituent.lastName}}": "{{donor.lastName}}",
+  "{{constituent.fullName}}": "{{donor.fullName}}",
+  "{{constituent.preferredName}}": "{{donor.preferredName}}",
+  "{{constituent.email}}": "{{donor.email}}",
+  "{{constituent.phone}}": "{{donor.phone}}",
+  "{{constituent.addressLine1}}": "{{donor.addressLine1}}",
+  "{{constituent.addressLine2}}": "{{donor.addressLine2}}",
+  "{{constituent.city}}": "{{donor.city}}",
+  "{{constituent.state}}": "{{donor.state}}",
+  "{{constituent.zip}}": "{{donor.zip}}",
+  "{{constituent.salutation}}": "{{donor.salutation}}",
+  "{{donation.amount}}": "{{gift.amount}}",
+  "{{donation.date}}": "{{gift.date}}",
+  "{{donation.designation}}": "{{gift.fund}}",
+  "{{donation.campaign}}": "{{gift.campaign}}",
+  "{{donation.paymentMethod}}": "{{gift.paymentMethod}}",
+  "{{donation.receiptNumber}}": "{{gift.receiptNumber}}",
+  "{{donation.taxDeductibleAmount}}": "{{gift.taxDeductibleAmount}}",
+  "{{gift.designation}}": "{{gift.fund}}",
+  "{{organization.signerName}}": "{{staff.fullName}}",
+  "{{organization.signerTitle}}": "{{staff.title}}",
+};
 
 interface LetterTemplateEditorProps {
   templateId?: string;
@@ -104,10 +165,45 @@ interface LetterTemplateEditorProps {
   initialPanel?: StudioPanel;
 }
 
+function stripHtmlToText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractMergeTokens(html: string): string[] {
+  const matches = html.match(/\{\{\s*[^{}]+\s*\}\}/g) ?? [];
+  return Array.from(new Set(matches.map((token) => token.replace(/\s+/g, ""))));
+}
+
+function canonicalizeMergeToken(token: string): string {
+  const normalized = token.replace(/\s+/g, "");
+  return LEGACY_MERGE_TOKEN_ALIASES[normalized] ?? normalized;
+}
+
+function normalizeLegacyMergeTokens(html: string): { html: string; replacements: number } {
+  let next = html;
+  let replacements = 0;
+
+  for (const rule of LEGACY_TOKEN_NORMALIZERS) {
+    next = next.replace(rule.pattern, () => {
+      replacements += 1;
+      return rule.replacement;
+    });
+  }
+
+  return { html: next, replacements };
+}
+
 /** Renders the printable document studio used by both new and existing printable projects. */
 export default function LetterTemplateEditor({ templateId, fullScreen = false, initialPanel = "document" }: LetterTemplateEditorProps) {
   const router = useRouter();
   const [activePanel, setActivePanel] = useState<StudioPanel>(initialPanel);
+  const [ribbonTab, setRibbonTab] = useState<RibbonTab>("home");
   const [form, setForm] = useState<LetterTemplateForm>(INITIAL_FORM);
   const [loading, setLoading] = useState(Boolean(templateId));
   const [saving, setSaving] = useState(false);
@@ -145,6 +241,34 @@ export default function LetterTemplateEditor({ templateId, fullScreen = false, i
   const selectedFooter = useMemo(() => footerPresets.find((item) => item.id === form.footerPresetId), [form.footerPresetId, footerPresets]);
   const selectedSignature = useMemo(() => signatures.find((item) => item.id === form.signatureBlockId), [form.signatureBlockId, signatures]);
   const mergeFields = useMemo(() => mergeSections.flatMap((section) => section.fields), [mergeSections]);
+  const quickInsertTokens = useMemo(() => {
+    const preferred = [
+      "{{donor.firstName}}",
+      "{{donor.fullName}}",
+      "{{gift.amount}}",
+      "{{gift.date}}",
+      "{{gift.fund}}",
+      "{{organization.name}}",
+      "{{organization.website}}",
+      "{{staff.fullName}}",
+    ];
+    const availablePreferred = preferred.filter((field) => mergeFields.includes(field));
+    return availablePreferred.length > 0 ? availablePreferred : mergeFields.slice(0, 8);
+  }, [mergeFields]);
+  const mergeHealth = useMemo(() => {
+    const plainText = stripHtmlToText(form.printBody || "");
+    const words = plainText ? plainText.split(/\s+/).length : 0;
+    const characters = plainText.length;
+    const usedTokens = extractMergeTokens(form.printBody || "");
+    const known = new Set(mergeFields);
+    const unsupportedTokens = usedTokens.filter((token) => !known.has(canonicalizeMergeToken(token)));
+    return {
+      words,
+      characters,
+      usedTokens,
+      unsupportedTokens,
+    };
+  }, [form.printBody, mergeFields]);
 
   const loadSupports = useCallback(async () => {
     const [fields, headers, footers, signatureRows] = await Promise.all([
@@ -273,6 +397,17 @@ export default function LetterTemplateEditor({ templateId, fullScreen = false, i
       return;
     }
     updatePrintBody(`${form.printBody}${form.printBody ? " " : ""}${token}`);
+  }
+
+  /** Converts common legacy merge-field aliases to current token names used by merge preview and generation. */
+  function normalizeTokens() {
+    const result = normalizeLegacyMergeTokens(form.printBody || "");
+    if (result.replacements === 0) {
+      setNotice("No legacy tokens detected. Merge fields already use current naming.");
+      return;
+    }
+    updatePrintBody(result.html);
+    setNotice(`Normalized ${result.replacements} merge field token${result.replacements === 1 ? "" : "s"}.`);
   }
 
   /** Saves template changes by POST (create) or PATCH (update), returning the current project ID. */
@@ -456,8 +591,8 @@ export default function LetterTemplateEditor({ templateId, fullScreen = false, i
 
   return (
     <div className={fullScreen ? "fixed inset-0 z-[90] min-w-0 overflow-auto bg-gray-50 p-3" : "min-w-0 space-y-3"}>
-      <div className="rounded-xl border border-gray-200 bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gradient-to-r from-white via-gray-50 to-white px-4 py-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
               <Link href="/letters-printables" className="font-medium text-green-700 hover:underline">Project Manager</Link>
@@ -473,6 +608,7 @@ export default function LetterTemplateEditor({ templateId, fullScreen = false, i
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-600">Session: {activePanel === "document" ? "Editing" : activePanel === "preview" ? "Previewing" : "Publishing"}</span>
             {!fullScreen && (
               <Link
                 href={`${savedId || templateId ? `/letters-printables/templates/${savedId ?? templateId}` : "/letters-printables/templates/new"}?fullscreen=1`}
@@ -499,16 +635,95 @@ export default function LetterTemplateEditor({ templateId, fullScreen = false, i
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 px-4 py-2">
-          <RibbonButton active={activePanel === "document"} label="Document" onClick={() => setActivePanel("document")} />
-          <RibbonButton active={activePanel === "preview"} label="Preview" onClick={() => setActivePanel("preview")} />
-          <RibbonButton active={activePanel === "publish"} label="Publish" onClick={() => setActivePanel("publish")} />
-          <span className="mx-1 h-8 border-l border-gray-200" />
-          <RibbonButton label="Header Tool" onClick={() => setPresetModal("header")} />
-          <RibbonButton label="Footer Tool" onClick={() => setPresetModal("footer")} />
-          <Link href="/settings/branding" className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
-            Branding Settings
-          </Link>
+        <div className="border-b border-gray-200 bg-white px-3 py-1.5">
+          <div className="flex flex-wrap items-center gap-1">
+            <RibbonButton active={ribbonTab === "home"} label="Home" onClick={() => setRibbonTab("home")} />
+            <RibbonButton active={ribbonTab === "insert"} label="Insert" onClick={() => setRibbonTab("insert")} />
+            <RibbonButton active={ribbonTab === "mailings"} label="Mailings" onClick={() => setRibbonTab("mailings")} />
+            <RibbonButton active={ribbonTab === "review"} label="Review" onClick={() => setRibbonTab("review")} />
+          </div>
+        </div>
+
+        <div className="px-2 py-2">
+          <WorkspaceRibbon>
+            {ribbonTab === "home" && (
+              <>
+                <WorkspaceRibbonGroup label="Workspace">
+                  <WorkspaceRibbonButton label="Document" active={activePanel === "document"} onClick={() => setActivePanel("document")} />
+                  <WorkspaceRibbonButton label="Preview" active={activePanel === "preview"} onClick={() => setActivePanel("preview")} />
+                  <WorkspaceRibbonButton label="Publish" active={activePanel === "publish"} onClick={() => setActivePanel("publish")} />
+                </WorkspaceRibbonGroup>
+                <WorkspaceRibbonGroup label="Session">
+                  <WorkspaceRibbonButton label="Save" onClick={() => void saveTemplate()} />
+                  <WorkspaceRibbonButton label="Print Preview" onClick={() => void runPreview()} />
+                  <WorkspaceRibbonButton label="Publish Workspace" onClick={() => void openPublishWorkspace()} />
+                </WorkspaceRibbonGroup>
+                <WorkspaceRibbonGroup label="Layout">
+                  <WorkspaceRibbonButton label="Header Tool" href="/settings/branding/letter-presets?tab=headers" />
+                  <WorkspaceRibbonButton label="Footer Tool" href="/settings/branding/letter-presets?tab=footers" />
+                  <WorkspaceRibbonButton label="Branding Settings" onClick={() => router.push("/settings/branding")} />
+                </WorkspaceRibbonGroup>
+              </>
+            )}
+
+            {ribbonTab === "insert" && (
+              <>
+                <WorkspaceRibbonGroup label="Merge Tokens">
+                  {quickInsertTokens.slice(0, 5).map((token) => (
+                    <WorkspaceRibbonButton key={token} label={token.replaceAll("{{", "").replaceAll("}}", "")} onClick={() => insertField(token)} />
+                  ))}
+                </WorkspaceRibbonGroup>
+                <WorkspaceRibbonGroup label="Structure">
+                  <WorkspaceRibbonButton label="Header Tool" href="/settings/branding/letter-presets?tab=headers" />
+                  <WorkspaceRibbonButton label="Footer Tool" href="/settings/branding/letter-presets?tab=footers" />
+                </WorkspaceRibbonGroup>
+                <WorkspaceRibbonGroup label="Preview">
+                  <WorkspaceRibbonButton label="Run Merged Preview" onClick={() => void runPreview()} />
+                </WorkspaceRibbonGroup>
+              </>
+            )}
+
+            {ribbonTab === "mailings" && (
+              <>
+                <WorkspaceRibbonGroup label="Merge Run">
+                  <WorkspaceRibbonButton label="Run Merged Preview" onClick={() => void runPreview()} />
+                  <WorkspaceRibbonButton label="Single Generator" onClick={() => void openGenerateWorkspace("single")} />
+                  <WorkspaceRibbonButton label="Batch Generator" onClick={() => void openGenerateWorkspace("batch")} />
+                </WorkspaceRibbonGroup>
+                <WorkspaceRibbonGroup label="Queue Handoff">
+                  <WorkspaceRibbonButton label="Print Queue" onClick={() => void openGenerateWorkspace("batch", "print")} />
+                  <WorkspaceRibbonButton label="Mail Queue" onClick={() => void openGenerateWorkspace("batch", "mail")} />
+                </WorkspaceRibbonGroup>
+              </>
+            )}
+
+            {ribbonTab === "review" && (
+              <>
+                <WorkspaceRibbonGroup label="Quality">
+                  <WorkspaceRibbonButton
+                    label={`Unsupported Tokens (${mergeHealth.unsupportedTokens.length})`}
+                    disabled={mergeHealth.unsupportedTokens.length === 0}
+                    onClick={() => setActivePanel("preview")}
+                  />
+                  <WorkspaceRibbonButton label="Normalize Legacy Tokens" onClick={normalizeTokens} />
+                </WorkspaceRibbonGroup>
+                <WorkspaceRibbonGroup label="Status">
+                  <WorkspaceRibbonButton label={`${mergeHealth.words} Words`} disabled />
+                  <WorkspaceRibbonButton label={`${mergeHealth.characters} Chars`} disabled />
+                  <WorkspaceRibbonButton label={`${mergeHealth.usedTokens.length} Merge Fields`} disabled />
+                </WorkspaceRibbonGroup>
+              </>
+            )}
+          </WorkspaceRibbon>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-gray-200 bg-gray-50 px-4 py-2 text-[11px] text-gray-600">
+          <span>Words: <span className="font-semibold text-gray-800">{mergeHealth.words}</span></span>
+          <span>Characters: <span className="font-semibold text-gray-800">{mergeHealth.characters}</span></span>
+          <span>Merge Fields Used: <span className="font-semibold text-gray-800">{mergeHealth.usedTokens.length}</span></span>
+          <span>
+            Unsupported: <span className={`font-semibold ${mergeHealth.unsupportedTokens.length > 0 ? "text-amber-700" : "text-green-700"}`}>{mergeHealth.unsupportedTokens.length}</span>
+          </span>
         </div>
       </div>
 
@@ -700,9 +915,46 @@ export default function LetterTemplateEditor({ templateId, fullScreen = false, i
             </button>
           </PanelSection>
 
+          <PanelSection title="Merge Health">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5">
+                <p className="text-[10px] uppercase tracking-wide text-gray-500">Words</p>
+                <p className="text-sm font-semibold text-gray-900">{mergeHealth.words}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5">
+                <p className="text-[10px] uppercase tracking-wide text-gray-500">Merge Fields</p>
+                <p className="text-sm font-semibold text-gray-900">{mergeHealth.usedTokens.length}</p>
+              </div>
+            </div>
+            {mergeHealth.unsupportedTokens.length > 0 ? (
+              <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-2">
+                <p className="text-[11px] font-semibold text-amber-800">Unsupported merge fields detected</p>
+                <div className="max-h-28 space-y-1 overflow-auto">
+                  {mergeHealth.unsupportedTokens.map((token) => (
+                    <p key={token} className="truncate rounded bg-white px-2 py-1 font-mono text-[10px] text-amber-800">
+                      {token}
+                    </p>
+                  ))}
+                </div>
+                <button type="button" onClick={normalizeTokens} className="w-full rounded-md border border-amber-300 bg-white px-2 py-1.5 text-[11px] font-semibold text-amber-800 hover:bg-amber-100">
+                  Normalize Legacy Tokens
+                </button>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-green-200 bg-green-50 px-2 py-1.5 text-[11px] text-green-700">
+                All merge fields are using current token naming.
+              </div>
+            )}
+          </PanelSection>
+
           <PanelSection title="Brand Source">
-            <p className="text-sm font-semibold text-gray-900">{branding.organizationDisplayName || branding.legalOrganizationName || "Organization"}</p>
-            <p className="text-xs text-gray-500">{formatBrandingAddress(branding) || "No organization address configured."}</p>
+            <div className="flex items-start gap-3">
+              <BrandSourceLogo branding={branding} />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-gray-900">{branding.organizationDisplayName || branding.legalOrganizationName || "Organization"}</p>
+                <p className="text-xs text-gray-500">{formatBrandingAddress(branding) || "No organization address configured."}</p>
+              </div>
+            </div>
             <div className="flex items-center gap-2 text-xs text-gray-600">
               <span className="h-4 w-4 rounded-full border border-gray-200" style={{ backgroundColor: branding.primaryColor }} />
               {branding.primaryColor}
@@ -882,40 +1134,116 @@ function PrintablePageShell({
 }) {
   const orgName = branding.organizationDisplayName || branding.legalOrganizationName || "Organization Name";
   const address = formatBrandingAddress(branding);
+  const alignment = normalizeHeaderLogoAlignment(header?.logoAlignment);
+  const logoUrl = resolveLetterLogoUrl(branding.logoUrl, branding.logoSquareUrl);
+  const footerContactLine = buildLetterFooterContactLine(branding, footer);
+  const borderColor = branding.primaryColor || DEFAULT_BRANDING_SETTINGS.primaryColor;
+  const headerCustomHtml = header?.customHtml?.trim();
+  const footerCustomHtml = footer?.customHtml?.trim();
 
   return (
-    <div className="mx-auto min-h-[1056px] w-full max-w-[816px] rounded-sm border border-gray-300 bg-white px-12 py-10 shadow-sm">
-      <header className={`mb-8 flex gap-4 border-b pb-5 ${header?.logoAlignment === "CENTER" ? "flex-col items-center text-center" : "items-start"}`} style={{ borderColor: branding.primaryColor }}>
-        {branding.logoUrl ? <img src={branding.logoUrl} alt="" className="max-h-16 max-w-40 object-contain" /> : <div className="flex h-14 w-14 items-center justify-center rounded border text-xs font-semibold text-gray-400">Logo</div>}
-        <div className="min-w-0">
-          {(header?.showOrganizationName ?? true) && <p className="text-lg font-semibold text-gray-900">{orgName}</p>}
-          {(header?.showTagline ?? true) && branding.tagline && <p className="text-xs text-gray-500">{branding.tagline}</p>}
-          {(header?.showAddress ?? true) && address && <p className="mt-1 text-xs text-gray-500">{address}</p>}
-          {(header?.showPhone ?? true) && branding.contactPhone && <p className="text-xs text-gray-500">{branding.contactPhone}</p>}
-          {(header?.showWebsite ?? true) && branding.websiteUrl && <p className="text-xs text-gray-500">{branding.websiteUrl}</p>}
-        </div>
+    <div className="mx-auto flex min-h-[1056px] w-full max-w-[816px] flex-col rounded-sm border border-gray-300 bg-white px-12 py-10 shadow-sm">
+      <header className={`${getPrintableHeaderClassName(alignment)} mb-8 border-b pb-5`} style={{ borderColor }}>
+        {headerCustomHtml ? (
+          <div
+            className="w-full text-sm text-gray-700 [&_img]:h-auto [&_img]:max-w-full [&_p]:my-1 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-gray-200 [&_td]:p-1.5 [&_th]:border [&_th]:border-gray-200 [&_th]:p-1.5"
+            dangerouslySetInnerHTML={{ __html: headerCustomHtml }}
+          />
+        ) : (
+          <>
+            {shouldShowLetterLogo(header) && (logoUrl ? <LetterheadLogo logoUrl={logoUrl} orgName={orgName} alignment={alignment} /> : <LetterheadLogoPlaceholder alignment={alignment} />)}
+            <div className={alignment === "CENTER" ? "min-w-0" : "min-w-0 flex-1"}>
+              {(header?.showOrganizationName ?? true) && <p className="text-lg font-semibold text-gray-900">{orgName}</p>}
+              {(header?.showTagline ?? true) && branding.tagline && <p className="text-xs text-gray-500">{branding.tagline}</p>}
+              {(header?.showAddress ?? true) && address && <p className="mt-1 text-xs text-gray-500">{address}</p>}
+              {(header?.showPhone ?? true) && branding.contactPhone && <p className="text-xs text-gray-500">{branding.contactPhone}</p>}
+              {(header?.showWebsite ?? true) && branding.websiteUrl && <p className="text-xs text-gray-500">{branding.websiteUrl}</p>}
+            </div>
+          </>
+        )}
       </header>
-      {children}
+      <main className="flex-1">{children}</main>
       {signature && (
         <section className="mt-10 text-sm text-gray-800">
           {signature.closingPhrase && <p>{signature.closingPhrase}</p>}
-          {signature.signatureImageUrl && <img src={signature.signatureImageUrl} alt="" className="mt-4 max-h-20 max-w-56 object-contain" />}
+          {signature.signatureImageUrl && <img src={signature.signatureImageUrl} alt="" className="mt-4 h-auto max-h-20 w-auto max-w-56 object-contain" />}
           {signature.typedSignature && !signature.signatureImageUrl && <p className="mt-4 font-serif text-2xl text-gray-900">{signature.typedSignature}</p>}
           <p className="mt-4 font-semibold">{signature.signerName}</p>
           {signature.signerTitle && <p className="text-gray-500">{signature.signerTitle}</p>}
           {[signature.email, signature.phone].filter(Boolean).length > 0 && <p className="text-xs text-gray-500">{[signature.email, signature.phone].filter(Boolean).join(" | ")}</p>}
         </section>
       )}
-      <footer className="mt-10 border-t pt-4 text-center text-[11px] leading-5 text-gray-500">
-        {(footer?.showOrganizationName ?? true) && <p className="font-semibold text-gray-700">{orgName}</p>}
-        {(footer?.showAddress ?? true) && address && <p>{address}</p>}
-        {(footer?.showPhone ?? true) && [branding.contactPhone, branding.contactEmail, branding.websiteUrl].filter(Boolean).join(" | ")}
-        {(footer?.showTaxId ?? false) && branding.taxId && <p>Tax ID: {branding.taxId}</p>}
-        {footer?.customText && <p>{footer.customText}</p>}
-        {branding.footerLegalText && <p>{branding.footerLegalText}</p>}
+      <footer className="mt-auto border-t pt-4 text-center text-[11px] leading-5 text-gray-500" style={{ borderColor }}>
+        {footerCustomHtml ? (
+          <div
+            className="text-gray-600 [&_img]:mx-auto [&_img]:h-auto [&_img]:max-w-full [&_p]:my-1 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-gray-200 [&_td]:p-1.5 [&_th]:border [&_th]:border-gray-200 [&_th]:p-1.5"
+            dangerouslySetInnerHTML={{ __html: footerCustomHtml }}
+          />
+        ) : (
+          <>
+            {(footer?.showOrganizationName ?? true) && <p className="font-semibold text-gray-700">{orgName}</p>}
+            {(footer?.showAddress ?? true) && address && <p>{address}</p>}
+            {footerContactLine && <p>{footerContactLine}</p>}
+            {(footer?.showTaxId ?? false) && branding.taxId && <p>Tax ID: {branding.taxId}</p>}
+            {footer?.customText && <p className="whitespace-pre-line">{footer.customText}</p>}
+            {(footer?.showPageNumber ?? true) && <p>Page 1</p>}
+            {branding.footerLegalText && <p>{branding.footerLegalText}</p>}
+          </>
+        )}
       </footer>
     </div>
   );
+}
+
+function BrandSourceLogo({ branding }: { branding: BrandingSettings }) {
+  const [logoFailed, setLogoFailed] = useState(false);
+  const logoUrl = resolveLetterLogoUrl(branding.logoUrl, branding.logoSquareUrl);
+
+  if (!logoUrl || logoFailed) {
+    return (
+      <div className="flex h-10 w-24 items-center justify-center rounded border border-dashed border-gray-300 bg-gray-50 px-2 text-center text-[10px] font-semibold text-gray-400">
+        No logo
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={logoUrl}
+      alt=""
+      className="h-auto max-h-10 w-auto max-w-24 rounded border border-gray-200 bg-white object-contain p-1"
+      onError={() => setLogoFailed(true)}
+    />
+  );
+}
+
+function LetterheadLogo({ logoUrl, orgName, alignment }: { logoUrl: string; orgName: string; alignment: HeaderLogoAlignment }) {
+  const [logoFailed, setLogoFailed] = useState(false);
+
+  if (logoFailed) return <LetterheadLogoPlaceholder alignment={alignment} />;
+
+  return (
+    <img
+      src={logoUrl}
+      alt={`${orgName} logo`}
+      className={`h-auto max-h-16 w-auto max-w-40 object-contain ${alignment === "CENTER" ? "mx-auto" : ""}`}
+      onError={() => setLogoFailed(true)}
+    />
+  );
+}
+
+function LetterheadLogoPlaceholder({ alignment }: { alignment: HeaderLogoAlignment }) {
+  return (
+    <div className={`flex h-14 w-28 items-center justify-center rounded border border-dashed border-gray-300 bg-gray-50 px-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400 ${alignment === "CENTER" ? "mx-auto" : ""}`}>
+      No logo configured
+    </div>
+  );
+}
+
+function getPrintableHeaderClassName(alignment: HeaderLogoAlignment): string {
+  if (alignment === "CENTER") return "flex flex-col items-center gap-3 text-center";
+  if (alignment === "RIGHT") return "flex flex-row-reverse items-start gap-4 text-right";
+  return "flex items-start gap-4 text-left";
 }
 
 function formatConstituentName(row: ConstituentLookup): string {

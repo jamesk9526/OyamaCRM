@@ -10,13 +10,17 @@ import type { LetterMailQueueItem } from "@/app/components/letters/types";
 const FILTERS = ["ALL", "QUEUED_FOR_MAIL", "MAILED", "RETURNED", "ADDRESS_ISSUE", "COMPLETED", "CANCELED", "ARCHIVED"] as const;
 const ACTIONS = ["QUEUE_FOR_MAIL", "MARK_MAILED", "MARK_RETURNED", "ADDRESS_ISSUE", "REPRINT", "ARCHIVE"] as const;
 
+interface LetterMailQueueProps {
+  embedded?: boolean;
+}
+
 /** Converts queue action constants into human-friendly labels. */
 function actionLabel(action: (typeof ACTIONS)[number]): string {
   return action.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (value) => value.toUpperCase());
 }
 
 /** Renders mail queue operations with bulk state transitions and return handling. */
-export default function LetterMailQueue() {
+export default function LetterMailQueue({ embedded = false }: LetterMailQueueProps) {
   const [items, setItems] = useState<LetterMailQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -120,12 +124,14 @@ export default function LetterMailQueue() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900">Mail Queue</h1>
-        <p className="mt-0.5 text-sm text-gray-500">Move printed letters into outbound mail, log mailed status, and track returned mail.</p>
-      </div>
+      {!embedded && (
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">Mail Queue</h1>
+          <p className="mt-0.5 text-sm text-gray-500">Move printed letters into outbound mail, log mailed status, and track returned mail.</p>
+        </div>
+      )}
 
-      <LettersWorkspaceNav />
+      {!embedded && <LettersWorkspaceNav />}
 
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">

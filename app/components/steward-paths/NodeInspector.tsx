@@ -37,6 +37,46 @@ interface NodeInspectorProps {
   ) => void;
 }
 
+type BranchFieldInputKind = "text" | "number" | "boolean";
+
+interface BranchFieldOption {
+  value: string;
+  label: string;
+  hint: string;
+  inputKind: BranchFieldInputKind;
+}
+
+const BRANCH_FIELD_OPTIONS: BranchFieldOption[] = [
+  { value: "lastGiftAmount", label: "Last donation amount", hint: "Number value from latest donation", inputKind: "number" },
+  { value: "totalLifetimeGiving", label: "Lifetime giving", hint: "Number value across all donations", inputKind: "number" },
+  { value: "engagementScore", label: "Engagement score", hint: "0 to 100 score", inputKind: "number" },
+  { value: "donorStatus", label: "Donor status", hint: "Active, Lapsed, New, and similar statuses", inputKind: "text" },
+  { value: "constituentType", label: "Constituent type", hint: "Donor, Volunteer, Member, etc.", inputKind: "text" },
+  { value: "doNotEmail", label: "Do not email", hint: "Boolean preference flag", inputKind: "boolean" },
+  { value: "emailOptOut", label: "Email opt-out", hint: "Boolean preference flag", inputKind: "boolean" },
+  { value: "doNotMail", label: "Do not mail", hint: "Boolean preference flag", inputKind: "boolean" },
+  { value: "city", label: "City", hint: "Constituent city field", inputKind: "text" },
+  { value: "state", label: "State/region", hint: "Constituent state field", inputKind: "text" },
+];
+
+/** Resolves branch field metadata used by the condition builder. */
+function getBranchFieldOption(field: string): BranchFieldOption | null {
+  return BRANCH_FIELD_OPTIONS.find((option) => option.value === field) ?? null;
+}
+
+/** Builds a human-readable lane condition summary. */
+function summarizeConditionGroups(groups: WorkflowBranchConditionGroup[]): string {
+  if (groups.length === 0) return "No conditions configured.";
+  return groups
+    .map((group) => {
+      if (group.operator === "between") {
+        return `${group.operator} ${group.value || "?"} and ${group.valueTo || "?"}`;
+      }
+      return `${group.operator} ${group.value || "?"}`;
+    })
+    .join(" AND ");
+}
+
 /** Reads a string value from the node config safely. */
 function readString(config: Record<string, unknown>, key: string): string {
   const value = config[key];
@@ -69,6 +109,18 @@ function fromDateTimeLocalInput(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "";
   return parsed.toISOString();
+}
+
+/** Placeholder text used by branch value inputs based on operator and position. */
+function getConditionValuePlaceholder(
+  option: BranchFieldOption | null,
+  operator: WorkflowBranchConditionGroup["operator"],
+  upperBound: boolean,
+): string {
+  if (operator === "between") return upperBound ? "Upper value" : "Lower value";
+  if (operator === "in" || operator === "not_in") return "Comma-separated values";
+  if (option?.inputKind === "number") return "Numeric value";
+  return "Value";
 }
 
 /** Right-panel inspector for the selected node. */
@@ -174,6 +226,12 @@ export default function NodeInspector({
     onChange({ ...activeNode, config: { ...activeNode.config, ...partial } });
   }
 
+  const configuredBranchField = isBranchNode(activeNode)
+    ? (readString(activeNode.config, "field") || "lastGiftAmount")
+    : "lastGiftAmount";
+  const selectedBranchField = isBranchNode(activeNode) ? getBranchFieldOption(configuredBranchField) : null;
+  const usingCustomBranchField = isBranchNode(activeNode) && selectedBranchField === null;
+
   return (
     <aside className="w-[360px] shrink-0 overflow-y-auto border-l border-gray-200 bg-white">
       <div className="border-b border-emerald-500 bg-emerald-600 px-4 py-3 text-white">
@@ -214,14 +272,41 @@ export default function NodeInspector({
 
             <label className="block">
               <span className="text-xs font-medium text-gray-700">Condition field</span>
-              <input
-                type="text"
-                value={readString(activeNode.config, "field") || "lastGiftAmount"}
-                onChange={(event) => updateConfig("field", event.target.value)}
+              <select
+                value={usingCustomBranchField ? "__custom__" : configuredBranchField}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  if (nextValue === "__custom__") {
+                    updateConfig("field", "");
+                    return;
+                  }
+                  updateConfig("field", nextValue);
+                }}
                 className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
-                placeholder="Example: lastGiftAmount"
-              />
+              >
+                {BRANCH_FIELD_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+                <option value="__custom__">Custom field...</option>
+              </select>
             </label>
+
+            {usingCustomBranchField && (
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700">Custom field key</span>
+                <input
+                  type="text"
+                  value={configuredBranchField}
+                  onChange={(event) => updateConfig("field", event.target.value)}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  placeholder="Example: lastGiftAmount"
+                />
+              </label>
+            )}
+
+            <p className="rounded-md border border-emerald-200 bg-white px-2 py-1 text-[11px] text-emerald-800">
+              {selectedBranchField?.hint ?? "Custom fields use text-based comparison by default in this editor."}
+            </p>
 
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-gray-700">Branch lanes</p>
@@ -262,49 +347,80 @@ export default function NodeInspector({
 
                   {!lane.isFallback && (
                     <div className="mt-2 space-y-2">
-                      {lane.conditionGroups.map((group) => (
-                        <div key={group.id} className="grid grid-cols-[1fr_1fr_auto] gap-1">
-                          <select
-                            value={group.operator}
-                            onChange={(event) => onUpdateConditionGroup(activeNode.id, lane.id, group.id, { operator: event.target.value as WorkflowBranchConditionGroup["operator"] })}
-                            className="rounded-md border border-gray-300 px-1.5 py-1 text-[11px]"
-                          >
-                            {BRANCH_OPERATOR_OPTIONS.map((option) => (
-                              <option key={option.value} value={option.value}>{option.label}</option>
-                            ))}
-                          </select>
-                          <input
-                            type="text"
-                            value={group.value}
-                            onChange={(event) => onUpdateConditionGroup(activeNode.id, lane.id, group.id, { value: event.target.value })}
-                            className="rounded-md border border-gray-300 px-1.5 py-1 text-[11px]"
-                            placeholder="Value"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => onRemoveConditionGroup(activeNode.id, lane.id, group.id)}
-                            className="rounded-md border border-red-200 px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-50"
-                          >
-                            x
-                          </button>
-                          {group.operator === "between" && (
-                            <input
-                              type="text"
-                              value={group.valueTo ?? ""}
-                              onChange={(event) => onUpdateConditionGroup(activeNode.id, lane.id, group.id, { valueTo: event.target.value })}
-                              className="col-span-2 rounded-md border border-gray-300 px-1.5 py-1 text-[11px]"
-                              placeholder="Upper value"
-                            />
-                          )}
-                        </div>
-                      ))}
+                      <p className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] text-gray-700">
+                        {summarizeConditionGroups(lane.conditionGroups)}
+                      </p>
+
+                      {lane.conditionGroups.map((group, index) => {
+                        const inputKind = selectedBranchField?.inputKind ?? "text";
+                        const isListOperator = group.operator === "in" || group.operator === "not_in";
+                        const isBetween = group.operator === "between";
+
+                        return (
+                          <div key={group.id} className="space-y-1 rounded-md border border-gray-200 bg-gray-50 p-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                              Condition {index + 1}
+                            </p>
+
+                            <div className="grid grid-cols-[1fr_1fr_auto] gap-1">
+                              <select
+                                value={group.operator}
+                                onChange={(event) => onUpdateConditionGroup(activeNode.id, lane.id, group.id, { operator: event.target.value as WorkflowBranchConditionGroup["operator"] })}
+                                className="rounded-md border border-gray-300 px-1.5 py-1 text-[11px]"
+                              >
+                                {BRANCH_OPERATOR_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                              </select>
+
+                              {inputKind === "boolean" && !isListOperator && !isBetween ? (
+                                <select
+                                  value={group.value}
+                                  onChange={(event) => onUpdateConditionGroup(activeNode.id, lane.id, group.id, { value: event.target.value })}
+                                  className="rounded-md border border-gray-300 px-1.5 py-1 text-[11px]"
+                                >
+                                  <option value="">Select</option>
+                                  <option value="true">True</option>
+                                  <option value="false">False</option>
+                                </select>
+                              ) : (
+                                <input
+                                  type={inputKind === "number" && !isListOperator ? "number" : "text"}
+                                  value={group.value}
+                                  onChange={(event) => onUpdateConditionGroup(activeNode.id, lane.id, group.id, { value: event.target.value })}
+                                  className="rounded-md border border-gray-300 px-1.5 py-1 text-[11px]"
+                                  placeholder={getConditionValuePlaceholder(selectedBranchField, group.operator, false)}
+                                />
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => onRemoveConditionGroup(activeNode.id, lane.id, group.id)}
+                                className="rounded-md border border-red-200 px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-50"
+                              >
+                                x
+                              </button>
+
+                              {isBetween && (
+                                <input
+                                  type={inputKind === "number" ? "number" : "text"}
+                                  value={group.valueTo ?? ""}
+                                  onChange={(event) => onUpdateConditionGroup(activeNode.id, lane.id, group.id, { valueTo: event.target.value })}
+                                  className="col-span-2 rounded-md border border-gray-300 px-1.5 py-1 text-[11px]"
+                                  placeholder={getConditionValuePlaceholder(selectedBranchField, group.operator, true)}
+                                />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
 
                       <button
                         type="button"
                         onClick={() => onAddConditionGroup(activeNode.id, lane.id)}
                         className="rounded-md border border-gray-300 px-2 py-1 text-[10px] font-semibold text-gray-700 hover:bg-gray-50"
                       >
-                        + Add condition group
+                        + Add AND condition
                       </button>
                     </div>
                   )}

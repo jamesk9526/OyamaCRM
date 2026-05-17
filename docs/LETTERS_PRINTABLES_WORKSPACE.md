@@ -16,9 +16,10 @@ Implemented routes:
 - `/letters-printables/templates/[templateId]`
 - `/letters-printables/generate`
 - `/letters-printables/batches` (compatibility redirect to `/letters-printables/generate?mode=batch`)
-- `/letters-printables/print-queue`
-- `/letters-printables/mail-queue`
-- `/letters-printables/generated`
+- `/letters-printables/queues` (canonical production/print/mail workspace)
+- `/letters-printables/print-queue` (compatibility redirect to `/letters-printables/queues?view=print`)
+- `/letters-printables/mail-queue` (compatibility redirect to `/letters-printables/queues?view=mail`)
+- `/letters-printables/generated` (compatibility redirect to `/letters-printables/queues?view=production`)
 - `/letters-printables/signatures`
 - `/letters-printables/branding`
 - `/letters-printables/settings`

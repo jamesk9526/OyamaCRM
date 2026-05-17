@@ -2,15 +2,15 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 const WORKFLOW_STEPS = [
   { href: "/letters-printables", label: "1. Dashboard" },
   { href: "/letters-printables/templates", label: "2. Templates" },
-  { href: "/letters-printables/generated", label: "3. Generated Media" },
+  { href: "/letters-printables/queues?view=production", label: "3. Production Queue" },
   { href: "/letters-printables/generate", label: "4. Generate" },
-  { href: "/letters-printables/print-queue", label: "5. Print Queue" },
-  { href: "/letters-printables/mail-queue", label: "6. Mail Queue" },
+  { href: "/letters-printables/queues?view=print", label: "5. Print Queue" },
+  { href: "/letters-printables/queues?view=mail", label: "6. Mail Queue" },
 ] as const;
 
 const SUPPORT_LINKS = [
@@ -48,7 +48,7 @@ const PAGE_GUIDANCE: Array<{ matcher: RegExp; title: string; steps: string[] }> 
     ],
   },
   {
-    matcher: /^\/letters-printables\/(print-queue|mail-queue)/,
+    matcher: /^\/letters-printables\/(queues|print-queue|mail-queue|generated)/,
     title: "Queue Workflow",
     steps: [
       "Select rows requiring action.",
@@ -70,6 +70,8 @@ const PAGE_GUIDANCE: Array<{ matcher: RegExp; title: string; steps: string[] }> 
 /** Renders workflow steps + right-hand guidance to reduce navigation confusion. */
 export default function LettersWorkspaceNav() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeQueueView = searchParams.get("view") ?? "production";
 
   const guidance = PAGE_GUIDANCE.find((entry) => entry.matcher.test(pathname)) ?? {
     title: "Workflow Tips",
@@ -98,9 +100,12 @@ export default function LettersWorkspaceNav() {
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Letters Tools</p>
           <div className="mt-2 space-y-2">
             {WORKFLOW_STEPS.map((link) => {
-              const active = link.href === "/letters-printables"
-                ? pathname === link.href
-                : pathname.startsWith(link.href);
+              const queueViewMatch = link.href.match(/\/letters-printables\/queues\?view=([a-z]+)/);
+              const active = queueViewMatch
+                ? pathname === "/letters-printables/queues" && activeQueueView === queueViewMatch[1]
+                : (link.href === "/letters-printables"
+                  ? pathname === link.href
+                  : pathname.startsWith(link.href));
 
               return (
                 <Link

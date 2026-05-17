@@ -83,16 +83,16 @@ export default function LettersDashboard() {
       <section className="rounded-xl border border-gray-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-gray-900">Queue Operations</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Link href="/letters-printables/print-queue" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+          <Link href="/letters-printables/queues?view=print" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
             Open Print Queue
           </Link>
-          <Link href="/letters-printables/mail-queue" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+          <Link href="/letters-printables/queues?view=mail" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
             Open Mail Queue
           </Link>
           <Link href="/letters-printables/generate?mode=batch" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
             Run Batch Generation
           </Link>
-          <Link href="/letters-printables/generated" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+          <Link href="/letters-printables/queues?view=production" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
             Review Generated Letters
           </Link>
         </div>

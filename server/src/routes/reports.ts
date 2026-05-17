@@ -14,9 +14,11 @@ import { Router } from "express";
 import { Prisma } from "@prisma/client";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
+import { hasDefaultPermission, type PermissionKey } from "../lib/permissions.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 import { completedDonationWhere } from "../lib/donationScope.js";
+import { generateLetterFromTemplate } from "../services/letters-execution.js";
 import {
   getYearRange,
   getFiscalYearForDate,
@@ -183,6 +185,43 @@ function campaignOverlapRangeFilter(range: { gte: Date; lt?: Date; lte?: Date })
   };
 }
 
+function normalizeEmail(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const next = value.trim().toLowerCase();
+  return next.length > 0 ? next : null;
+}
+
+function formatScopeLabel(params: { dateBasis: "calendar" | "fiscal"; year: number }): string {
+  return params.dateBasis === "fiscal" ? `FY ${params.year}` : String(params.year);
+}
+
+function pluralizeDonor(count: number): string {
+  return `${count} donor${count === 1 ? "" : "s"}`;
+}
+
+/**
+ * Evaluates one permission key using explicit UserPermission overrides, matching middleware behavior.
+ */
+async function userCanPermission(req: { user?: { sub?: string; role?: string } }, permission: PermissionKey): Promise<boolean> {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  if (!userId || !role) return false;
+
+  const override = await prisma.userPermission.findUnique({
+    where: {
+      userId_permission: {
+        userId,
+        permission,
+      },
+    },
+    select: { granted: true },
+  });
+
+  if (override && !override.granted) return false;
+  if (override && override.granted) return true;
+  return hasDefaultPermission(role, permission);
+}
+
 /** Returns report freshness metadata for UI badges and API clients. */
 function buildFreshnessMetadata(dataThrough: Date = new Date()) {
   return {
@@ -206,12 +245,6 @@ function buildCsv(rows: Array<Record<string, unknown>>): string {
   const headers = Object.keys(rows[0]);
   const lines = rows.map((row) => headers.map((header) => csvCell(row[header])).join(","));
   return [headers.join(","), ...lines].join("\n");
-}
-
-function normalizeEmail(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const normalized = value.trim().toLowerCase();
-  return normalized.length > 0 ? normalized : null;
 }
 
 /** Reads persisted OShareview admin notes from plugin config payload. */
@@ -657,6 +690,296 @@ router.get("/summary", async (req, res) => {
     pendingTasks,
     overdueTasks,
     freshness: buildFreshnessMetadata(new Date()),
+  });
+});
+
+/**
+ * POST /api/reports/actions/draft-thank-you-new-donors
+ *
+ * Creates the "Best next move" draft pack for newly acquired donors in the active reporting scope:
+ * 1) communications email draft tied to either a temp saved segment (many) or one individual (single)
+ * 2) letters draft split for donors who cannot be emailed
+ */
+router.post("/actions/draft-thank-you-new-donors", requirePermission("edit:communications"), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Organization and authenticated user are required." } });
+    return;
+  }
+
+  const scope = await parseReportScope(req.query, organizationId);
+  const scopeLabel = formatScopeLabel({ dateBasis: scope.dateBasis, year: scope.year });
+  const stamp = new Date().toISOString().slice(0, 10);
+
+  const cohort = await prisma.constituent.findMany({
+    where: {
+      organizationId,
+      ...(scope.useAllYears ? { firstGiftDate: { not: null } } : { firstGiftDate: scope.yearRange }),
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      doNotEmail: true,
+      doNotMail: true,
+      doNotContact: true,
+      emailOptOut: true,
+      firstGiftDate: true,
+    },
+    orderBy: { firstGiftDate: "desc" },
+    take: 200,
+  });
+
+  if (cohort.length === 0) {
+    res.status(200).json({
+      message: `No newly acquired donors were found for ${scopeLabel}.`,
+      scope: { dateBasis: scope.dateBasis, year: scope.year, label: scopeLabel },
+      counts: {
+        cohort: 0,
+        emailable: 0,
+        lettersNeeded: 0,
+        suppressed: 0,
+      },
+    });
+    return;
+  }
+
+  const emailable = cohort.filter((row) => {
+    const email = normalizeEmail(row.email);
+    if (!email) return false;
+    if (row.doNotContact) return false;
+    if (row.doNotEmail) return false;
+    if (row.emailOptOut) return false;
+    return true;
+  });
+  const emailableIds = new Set(emailable.map((row) => row.id));
+
+  const lettersNeeded = cohort.filter((row) => {
+    if (emailableIds.has(row.id)) return false;
+    if (row.doNotContact) return false;
+    if (row.doNotMail) return false;
+    return true;
+  });
+  const lettersNeededIds = new Set(lettersNeeded.map((row) => row.id));
+
+  const suppressed = cohort.filter((row) => !emailableIds.has(row.id) && !lettersNeededIds.has(row.id));
+
+  let recipientListId: string | null = null;
+  let communicationsDraftId: string | null = null;
+  let communicationsRedirectTo: string | null = null;
+
+  if (emailable.length > 0) {
+    if (emailable.length > 1) {
+      const tempList = await prisma.emailRecipientList.create({
+        data: {
+          organizationId,
+          name: `Temp Segment: New Donors Thank-You (${scopeLabel}) - ${emailable.length}`,
+          description: `Auto-generated temporary segment from Dashboard Command Center on ${stamp}.`,
+          createdById: userId,
+        },
+        select: { id: true },
+      });
+      recipientListId = tempList.id;
+
+      await prisma.emailRecipientListMember.createMany({
+        data: emailable.flatMap((row) => {
+          const email = normalizeEmail(row.email);
+          if (!email) return [];
+          return [{
+            listId: tempList.id,
+            email,
+            firstName: row.firstName,
+            lastName: row.lastName,
+          }];
+        }),
+        skipDuplicates: true,
+      });
+    }
+
+    const settings = await prisma.organizationSettings.findUnique({
+      where: { organizationId },
+      select: { smtpFromName: true, smtpFromEmail: true },
+    });
+
+    const selectionMode = emailable.length === 1 ? "INDIVIDUAL" : "SAVED_LIST";
+    const individualRecipientEmail = emailable.length === 1 ? normalizeEmail(emailable[0].email) : null;
+
+    const campaign = await prisma.emailCampaign.create({
+      data: {
+        organizationId,
+        name: `Draft Thank-You: New Donors (${scopeLabel}) - ${emailable.length}`,
+        subject: "Thank you for your first gift",
+        purpose: "THANK_YOU",
+        previewText: `Stewardship thank-you draft for ${pluralizeDonor(emailable.length)} in ${scopeLabel}.`,
+        fromName: settings?.smtpFromName || "OyamaCRM",
+        fromEmail: settings?.smtpFromEmail || "noreply@oyamacrm.org",
+        bodyText: [
+          "Dear Friend,",
+          "",
+          "Thank you for your recent gift and for joining this mission with us.",
+          "Your generosity makes this work possible, and we are grateful to welcome you as a new donor.",
+          "",
+          "With gratitude,",
+          "{{staffName}}",
+        ].join("\n"),
+        bodyHtml: "<p>Dear Friend,</p><p>Thank you for your recent gift and for joining this mission with us. Your generosity makes this work possible, and we are grateful to welcome you as a new donor.</p><p>With gratitude,<br/>{{staffName}}</p>",
+        audienceFilter: JSON.stringify({
+          type: "new",
+          source: "dashboard-next-move",
+          sourceAction: "draft-thank-you-new-donors",
+          scopeLabel,
+          cohortConstituentIds: cohort.map((row) => row.id),
+          selectionMode,
+          recipientConstituentIds: emailable.map((row) => row.id),
+          recipientListId,
+          individualRecipientEmail,
+          _quickSelection: {
+            sendMode: selectionMode === "INDIVIDUAL" ? "INDIVIDUAL" : "SAVED_LIST",
+            recipientListId,
+            individualRecipientEmail,
+          },
+          _sharing: {
+            ownerId: userId,
+            sharedWithOrganization: true,
+          },
+          _workflow: {
+            preparationStatus: "DRAFT",
+          },
+        }),
+        status: "DRAFT",
+      },
+      select: { id: true },
+    });
+
+    communicationsDraftId = campaign.id;
+    communicationsRedirectTo = `/communications/${campaign.id}?mode=send`;
+
+    await prisma.activity.createMany({
+      data: emailable.map((row) => ({
+        constituentId: row.id,
+        userId,
+        type: "NOTE",
+        description: `Dashboard next move created thank-you email draft for new donor cohort (${scopeLabel}).`,
+        metadata: {
+          source: "api/reports:actions/draft-thank-you-new-donors",
+          campaignId: campaign.id,
+          selectionMode,
+          recipientListId,
+        } as Prisma.InputJsonValue,
+      })),
+    });
+  }
+
+  const canCreateLetters = await userCanPermission(req, "letters.create");
+  const canGenerateLetters = await userCanPermission(req, "letters.generate");
+  const canBuildLetters = canCreateLetters && canGenerateLetters;
+
+  let lettersTemplateId: string | null = null;
+  let lettersRedirectTo: string | null = null;
+  let generatedLetterCount = 0;
+
+  if (lettersNeeded.length > 0 && canBuildLetters) {
+    const letterTemplate = await prisma.letterTemplate.create({
+      data: {
+        organizationId,
+        name: `Draft Thank-You Letters: New Donors Missing Email (${scopeLabel}) - ${lettersNeeded.length}`,
+        category: "THANK_YOU",
+        description: `Auto-generated from Dashboard Command Center on ${stamp} for donors missing emailable addresses.`,
+        status: "DRAFT",
+        printSubject: "Thank you for your support",
+        printBody: [
+          "{{donor.salutation}}",
+          "",
+          "Thank you for your recent gift and for joining this mission with us.",
+          "Your support already makes a meaningful difference.",
+          "",
+          "With gratitude,",
+          "{{staff.fullName}}",
+        ].join("\n"),
+        emailSubject: "Thank you for your support",
+        emailBody: [
+          "{{donor.salutation}}",
+          "",
+          "Thank you for your recent gift and for joining this mission with us.",
+          "Your support already makes a meaningful difference.",
+          "",
+          "With gratitude,",
+          "{{staff.fullName}}",
+        ].join("\n"),
+        crmScope: "DONOR",
+        createdByUserId: userId,
+        updatedByUserId: userId,
+      },
+      select: { id: true },
+    });
+
+    lettersTemplateId = letterTemplate.id;
+
+    for (const row of lettersNeeded.slice(0, 100)) {
+      const created = await generateLetterFromTemplate({
+        organizationId,
+        templateId: letterTemplate.id,
+        actorUserId: userId,
+        constituentId: row.id,
+        year: scope.year,
+      });
+      if (created?.generated?.id) {
+        generatedLetterCount += 1;
+      }
+    }
+
+    lettersRedirectTo = `/letters-printables/generated?templateId=${encodeURIComponent(letterTemplate.id)}`;
+  }
+
+  if (!communicationsDraftId && !lettersTemplateId) {
+    res.status(200).json({
+      message: `No draft workspaces were created for ${scopeLabel}.`,
+      scope: { dateBasis: scope.dateBasis, year: scope.year, label: scopeLabel },
+      counts: {
+        cohort: cohort.length,
+        emailable: emailable.length,
+        lettersNeeded: lettersNeeded.length,
+        suppressed: suppressed.length,
+      },
+      warnings: {
+        lettersPermissionMissing: lettersNeeded.length > 0 && !canBuildLetters,
+      },
+    });
+    return;
+  }
+
+  const primaryRedirectTo = communicationsRedirectTo || lettersRedirectTo || "/";
+
+  res.status(201).json({
+    message: `Created stewardship drafts for ${pluralizeDonor(cohort.length)} in ${scopeLabel}.`,
+    scope: { dateBasis: scope.dateBasis, year: scope.year, label: scopeLabel },
+    counts: {
+      cohort: cohort.length,
+      emailable: emailable.length,
+      lettersNeeded: lettersNeeded.length,
+      suppressed: suppressed.length,
+      generatedLetters: generatedLetterCount,
+    },
+    communications: communicationsDraftId
+      ? {
+          campaignId: communicationsDraftId,
+          recipientListId,
+          redirectTo: communicationsRedirectTo,
+        }
+      : null,
+    letters: lettersTemplateId
+      ? {
+          templateId: lettersTemplateId,
+          generatedCount: generatedLetterCount,
+          redirectTo: lettersRedirectTo,
+        }
+      : null,
+    warnings: {
+      lettersPermissionMissing: lettersNeeded.length > 0 && !canBuildLetters,
+    },
+    redirectTo: primaryRedirectTo,
   });
 });
 

@@ -2,8 +2,11 @@
 
 ## Queue Routes
 
-- Print queue: `/letters-printables/print-queue`
-- Mail queue: `/letters-printables/mail-queue`
+- Canonical queue workspace: `/letters-printables/queues`
+- Print queue tab: `/letters-printables/queues?view=print`
+- Mail queue tab: `/letters-printables/queues?view=mail`
+- Production queue tab: `/letters-printables/queues?view=production`
+- Legacy compatibility redirects: `/letters-printables/print-queue`, `/letters-printables/mail-queue`, `/letters-printables/generated`
 
 ## API Endpoints
 

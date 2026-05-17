@@ -190,7 +190,7 @@ export default function FormLetterRichEditor({
       editor
         .chain()
         .focus()
-        .insertContent("<table><tbody><tr><th>Gift Date</th><th>Amount</th><th>Fund</th></tr><tr><td>{{gift.date}}</td><td>{{gift.amount}}</td><td>{{gift.designation}}</td></tr></tbody></table>")
+        .insertContent("<table><tbody><tr><th>Gift Date</th><th>Amount</th><th>Fund</th></tr><tr><td>{{gift.date}}</td><td>{{gift.amount}}</td><td>{{gift.fund}}</td></tr></tbody></table>")
         .run();
       return;
     }
@@ -198,7 +198,7 @@ export default function FormLetterRichEditor({
       editor.chain().focus().insertContent('<blockquote><p>Add an impact highlight or donor-specific note here.</p></blockquote>').run();
       return;
     }
-    editor.chain().focus().insertContent("<p>Sincerely,</p><p>{{organization.signerName}}<br />{{organization.signerTitle}}</p>").run();
+    editor.chain().focus().insertContent("<p>Sincerely,</p><p>{{staff.fullName}}<br />{{staff.title}}</p>").run();
   }
 
   const suggestedFields = useMemo(() => {
@@ -286,7 +286,7 @@ export default function FormLetterRichEditor({
         ) : (
           <>
             {/* Home Ribbon — compact icon toolbar locked above the editor */}
-            <div className="flex flex-wrap items-center gap-0.5 border-b border-gray-200 bg-white px-2 py-1.5">
+            <div className="flex flex-wrap items-center gap-0.5 border-b border-gray-200 bg-gradient-to-b from-white to-gray-50 px-2 py-1.5">
               {/* Text format */}
               <IconBtn title="Bold" active={!!editor?.isActive("bold")} onClick={() => editor?.chain().focus().toggleBold().run()}>
                 <span className="font-sans text-[13px] font-black leading-none">B</span>
@@ -477,6 +477,18 @@ export default function FormLetterRichEditor({
                   aria-label="Text Color"
                 />
               </label>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-gray-200 bg-gray-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+              <span>Font</span>
+              <span>Headings</span>
+              <span>Lists</span>
+              <span>Paragraph</span>
+              <span>Insert</span>
+              <span>Table</span>
+              <span>Page</span>
+              {studioMode && <span>Form Blocks</span>}
+              <span>History</span>
             </div>
 
             {onUploadImage && (
