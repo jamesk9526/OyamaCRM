@@ -26,9 +26,11 @@ type StatusFilter = "all" | MappingStatus;
 
 /** How to handle existing CRM records during import */
 type ImportMode = "create_only" | "upsert" | "update_only";
+type DuplicateResolution = "merge" | "skip";
 
 /** Whether constituent records should be created as individuals or organizations */
 type RecordType = "individual" | "organization";
+type ImportPreset = "generic" | "ekyros" | "hubspot";
 
 /** Result of running validateAndTransform in Step 3 */
 interface ValidationResult {
@@ -43,12 +45,17 @@ interface ExistingConstituent {
   firstName: string;
   lastName: string;
   email?: string;
+  phone?: string;
 }
 
 /** Props for the main ImportWizard component */
 interface ImportWizardProps {
   /** Existing CRM constituents used for client-side duplicate count estimation */
   existingConstituents: ExistingConstituent[];
+  /** Opens the wizard in CSV-to-audience-list mode for Contacts Manager workflows. */
+  defaultAudienceListMode?: boolean;
+  /** Source-system preset used to tune copy and defaults for common exports. */
+  defaultImportPreset?: ImportPreset;
 }
 
 // ─── Module-level constants ───────────────────────────────────────────────────
@@ -124,6 +131,22 @@ function formatPhone(raw: string): string {
   return raw;
 }
 
+function normalizePhoneDigits(raw: string | undefined): string {
+  return (raw ?? "").replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
+}
+
+function normalizeCommunicationPreferenceValue(csvColumn: string, raw: string): string {
+  if (/opted out|unsubscribed|opt-out/i.test(csvColumn)) {
+    return /^(true|yes|1|y)$/i.test(raw.trim()) ? "Do Not Email" : "";
+  }
+  return raw.split(/[,;]+/).map((value) => value.trim()).filter(Boolean).join(";");
+}
+
+function appendUniqueTokens(current: string | undefined, next: string): string {
+  const tokens = [...(current ?? "").split(";"), ...next.split(";")].map((value) => value.trim()).filter(Boolean);
+  return Array.from(new Set(tokens)).join(";");
+}
+
 /** CRM field keys that contain phone numbers — all get formatPhone() applied */
 const PHONE_FIELDS = new Set(["phone", "mobilePhone", "workPhone", "spousePhone"]);
 
@@ -161,6 +184,7 @@ function validateAndTransform(
     for (const [csvCol, crmKey] of Object.entries(mapping)) {
       if (crmKey === "skip") continue;
       let value = (rawRow[csvCol] ?? "").trim();
+      if (value.toUpperCase() === "NULL") value = "";
 
       // Apply field-specific transformations
       if (PHONE_FIELDS.has(crmKey)) {
@@ -172,8 +196,11 @@ function validateAndTransform(
       } else if (crmKey === "deceased" || crmKey === "spouseDeceased") {
         value = value.toLowerCase() === "yes" || value.toLowerCase() === "true" ? "true" : "false";
       } else if (crmKey === "communicationPreferences") {
-        // "Email, Mail, Phone, Text" -> "Email;Mail;Phone;Text"
-        value = value.split(",").map((v) => v.trim()).filter(Boolean).join(";");
+        value = normalizeCommunicationPreferenceValue(csvCol, value);
+        if (value !== "") {
+          mapped[crmKey] = appendUniqueTokens(mapped[crmKey], value);
+        }
+        continue;
       }
 
       if (value !== "") mapped[crmKey] = value;
@@ -397,7 +424,7 @@ function FieldDetailsPanel({
  *
  * @param existingConstituents — used for client-side duplicate email count estimation
  */
-export default function ImportWizard({ existingConstituents }: ImportWizardProps) {
+export default function ImportWizard({ existingConstituents, defaultAudienceListMode = false, defaultImportPreset = "generic" }: ImportWizardProps) {
   // ── Wizard step ──────────────────────────────────────────────────────────
   const [step, setStep] = useState(1);
 
@@ -419,19 +446,25 @@ export default function ImportWizard({ existingConstituents }: ImportWizardProps
 
   // ── Step 4: Import settings ──────────────────────────────────────────────
   const [importMode, setImportMode] = useState<ImportMode>("upsert");
+  const [duplicateResolution, setDuplicateResolution] = useState<DuplicateResolution>("merge");
+  const [importPreset, setImportPreset] = useState<ImportPreset>(defaultImportPreset);
   const [recordType, setRecordType] = useState<RecordType>("individual");
   const [dryRun, setDryRun] = useState(false);
   const [matchExtId, setMatchExtId] = useState(true);
   const [matchEmail, setMatchEmail] = useState(true);
+  const [matchPhone, setMatchPhone] = useState(true);
   /** Import records with no first/last name as ORGANIZATION constituents when org name is available */
   const [allowOrgImport, setAllowOrgImport] = useState(true);
   /** When true, sample values in each column are scanned for church/ministry name patterns */
   const [churchDetectionMode, setChurchDetectionMode] = useState(true);
+  /** When enabled, imported email rows are saved as a Contacts Manager audience list after import. */
+  const [addToAudienceList, setAddToAudienceList] = useState(defaultAudienceListMode);
+  const [audienceListName, setAudienceListName] = useState("");
 
   // ── Step 5: Import result ────────────────────────────────────────────────
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{
-    created: number; updated: number; skipped: number; errors: number;
+    created: number; updated: number; skipped: number; errors: number; audienceRecipients?: number; audienceSegments?: number;
   } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
 
@@ -471,19 +504,30 @@ export default function ImportWizard({ existingConstituents }: ImportWizardProps
     () => new Set(existingConstituents.map((c) => c.email?.toLowerCase()).filter(Boolean) as string[]),
     [existingConstituents],
   );
+  const existingPhoneSet = useMemo(
+    () => new Set(existingConstituents.map((c) => normalizePhoneDigits(c.phone)).filter((phone) => phone.length >= 7)),
+    [existingConstituents],
+  );
 
   /** How many valid import rows collide with existing email addresses */
   const dupCount = useMemo(() => {
     if (!validationResult) return 0;
-    return validationResult.valid.filter(
-      (row) => row.email && existingEmailSet.has(row.email.toLowerCase()),
-    ).length;
-  }, [validationResult, existingEmailSet]);
+    return validationResult.valid.filter((row) => {
+      const emailMatch = matchEmail && row.email && existingEmailSet.has(row.email.toLowerCase());
+      const phone = normalizePhoneDigits(row.phone);
+      const phoneMatch = matchPhone && phone.length >= 7 && existingPhoneSet.has(phone);
+      return emailMatch || phoneMatch;
+    }).length;
+  }, [existingEmailSet, existingPhoneSet, matchEmail, matchPhone, validationResult]);
+  const importEmailCount = useMemo(() => {
+    if (!validationResult) return 0;
+    return new Set(validationResult.valid.map((row) => row.email?.trim().toLowerCase()).filter(Boolean)).size;
+  }, [validationResult]);
 
   /** Data-quality observations derived from column statistics — shown in Step 1 */
   const dataWarnings = useMemo<string[]>(() => {
     if (!parseResult) return [];
-    const w: string[] = [];
+    const w: string[] = [...parseResult.warnings];
     const emptyCols = parseResult.headers.filter((h) => (columnStats[h]?.fillRate ?? 0) === 0);
     if (emptyCols.length > 0) {
       w.push(`${emptyCols.length} column(s) are completely empty: ${emptyCols.slice(0, 5).join(", ")}${emptyCols.length > 5 ? "…" : ""}`);
@@ -579,11 +623,34 @@ export default function ImportWizard({ existingConstituents }: ImportWizardProps
             recordType,
             matchExtId,
             matchEmail,
+            matchPhone,
+            duplicateResolution,
             allowOrgImport,
           }),
         },
       );
-      setImportResult(res);
+      const recipientEmails = Array.from(new Set(validationResult.valid.map((row) => row.email?.trim().toLowerCase()).filter(Boolean) as string[]));
+      const segmentLists = deriveImportSegments(validationResult.valid);
+      if (!dryRun && addToAudienceList && recipientEmails.length > 0) {
+        const baseName = audienceListName.trim() || `${file?.name?.replace(/\.[^.]+$/, "") || "Imported"} Audience`;
+        await apiFetch("/api/email-campaigns/lists", {
+          method: "POST",
+          body: JSON.stringify({
+            name: baseName,
+            description: "Created from donor-side CSV import. Client service files should be imported in Compassion CRM instead.",
+            recipientEmails,
+          }),
+        });
+        await Promise.all(segmentLists.map((segment) => apiFetch("/api/email-campaigns/lists", {
+          method: "POST",
+          body: JSON.stringify({
+            name: `${baseName} - ${segment.name}`,
+            description: `Auto-segmented from imported ${importPreset} CSV rows tagged or detected as ${segment.name}.`,
+            recipientEmails: segment.emails,
+          }),
+        })));
+      }
+      setImportResult({ ...res, audienceRecipients: !dryRun && addToAudienceList ? recipientEmails.length : undefined, audienceSegments: !dryRun && addToAudienceList ? segmentLists.length : undefined });
     } catch (err) {
       setImportError(err instanceof Error ? err.message : "Import failed. Please try again.");
     } finally {
@@ -632,6 +699,31 @@ export default function ImportWizard({ existingConstituents }: ImportWizardProps
             Supports eKYROS &ldquo;Donor File Address List&rdquo; exports and standard constituent CSVs.
             Column headers are auto-detected even when the file contains title rows above the data.
           </p>
+        </div>
+
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <strong>Client data safety:</strong> do not import Compassion client files here. Client-service records belong in the Compassion CRM client import workspace. If a client is also a donor, import the client file in Compassion first, then intentionally tag or link that person as a donor through the approved donor workflow.
+        </div>
+
+        <div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">Source preset</p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {([
+              ["generic", "Generic CSV", "Standard donor/contact fields."],
+              ["ekyros", "eKYROS", "Donor File Address List export."],
+              ["hubspot", "HubSpot", "Contacts export with Email Lists tags."],
+            ] as const).map(([preset, title, description]) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setImportPreset(preset)}
+                className={`rounded-lg border px-4 py-3 text-left ${importPreset === preset ? "border-green-500 bg-green-50" : "border-gray-200 hover:border-green-300"}`}
+              >
+                <span className="block text-sm font-semibold text-gray-900">{title}</span>
+                <span className="mt-0.5 block text-xs text-gray-500">{description}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Drop zone */}
@@ -1115,11 +1207,65 @@ export default function ImportWizard({ existingConstituents }: ImportWizardProps
               />
               <span className="text-sm text-gray-700">Match on Email Address</span>
             </label>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox" checked={matchPhone}
+                onChange={(e) => setMatchPhone(e.target.checked)}
+                className="rounded border-gray-300 text-green-600 focus:ring-green-400"
+              />
+              <span className="text-sm text-gray-700">Match on Phone Number</span>
+            </label>
           </div>
           {dupCount > 0 && (
-            <p className="text-xs text-orange-600 mt-2">
-              ⚠ {dupCount} record(s) match existing email addresses in the CRM.
-            </p>
+            <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 p-3">
+              <p className="text-xs font-semibold text-orange-800">{dupCount} record(s) match existing contact info in the CRM.</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <label className={`cursor-pointer rounded-lg border p-3 ${duplicateResolution === "merge" ? "border-green-500 bg-white" : "border-orange-200 bg-orange-50"}`}>
+                  <input type="radio" name="duplicateResolution" value="merge" checked={duplicateResolution === "merge"} onChange={() => setDuplicateResolution("merge")} className="sr-only" />
+                  <span className="block text-sm font-semibold text-gray-900">Merge / update existing</span>
+                  <span className="mt-0.5 block text-xs text-gray-600">Keep one contact and update it with mapped CSV fields and tags.</span>
+                </label>
+                <label className={`cursor-pointer rounded-lg border p-3 ${duplicateResolution === "skip" ? "border-green-500 bg-white" : "border-orange-200 bg-orange-50"}`}>
+                  <input type="radio" name="duplicateResolution" value="skip" checked={duplicateResolution === "skip"} onChange={() => setDuplicateResolution("skip")} className="sr-only" />
+                  <span className="block text-sm font-semibold text-gray-900">Skip duplicate contact</span>
+                  <span className="mt-0.5 block text-xs text-gray-600">Leave existing CRM contact unchanged and only import new records.</span>
+                </label>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Contacts Manager audience list */}
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-green-900">Add imported emails to a Contacts Manager list</p>
+              <p className="mt-0.5 text-xs text-green-700">
+                Use this for newsletter, announcement, church, business, or donor audience CSVs. Rows without email can still import as constituents, but they cannot be added to an email list.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAddToAudienceList((value) => !value)}
+              aria-pressed={addToAudienceList}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors ${addToAudienceList ? "bg-green-600" : "bg-gray-200"}`}
+            >
+              <span className={`mt-0.5 inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${addToAudienceList ? "translate-x-5" : "translate-x-0.5"}`} />
+            </button>
+          </div>
+          {addToAudienceList && (
+            <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_160px]">
+              <input
+                value={audienceListName}
+                onChange={(event) => setAudienceListName(event.target.value)}
+                placeholder="Imported Spring Newsletter Audience"
+                className="rounded-lg border border-green-200 bg-white px-3 py-2 text-sm"
+              />
+              <div className="rounded-lg bg-white px-3 py-2 text-xs text-green-800">
+                <span className="block font-semibold">{importEmailCount.toLocaleString()}</span>
+                emails detected
+              </div>
+            </div>
           )}
         </div>
 
@@ -1215,6 +1361,12 @@ export default function ImportWizard({ existingConstituents }: ImportWizardProps
             <StatCard label="Skipped" value={importResult.skipped} />
             <StatCard label="Errors" value={importResult.errors} accent={importResult.errors > 0 ? "text-red-600" : "text-gray-400"} />
           </div>
+          {typeof importResult.audienceRecipients === "number" && (
+            <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+              Contacts Manager audience list created with {importResult.audienceRecipients.toLocaleString()} imported email recipient{importResult.audienceRecipients === 1 ? "" : "s"}.
+              {typeof importResult.audienceSegments === "number" && importResult.audienceSegments > 0 ? ` ${importResult.audienceSegments} auto-segment list${importResult.audienceSegments === 1 ? "" : "s"} also created.` : ""}
+            </div>
+          )}
           <button
             onClick={() => {
               setStep(1);
@@ -1257,7 +1409,8 @@ export default function ImportWizard({ existingConstituents }: ImportWizardProps
               {importMode.replace("_", " ")} · {recordType}
             </p>
             <p className="text-xs text-gray-500">
-              {[matchExtId && "Match ExtID", matchEmail && "Match Email"].filter(Boolean).join(" · ") || "No dedup matching"}
+              {[matchExtId && "Match ExtID", matchEmail && "Match Email", matchPhone && "Match Phone"].filter(Boolean).join(" · ") || "No dedup matching"}
+              {` · Duplicates ${duplicateResolution === "merge" ? "merge/update" : "skip"}`}
               {dryRun ? " · DRY RUN" : ""}
             </p>
           </div>
@@ -1267,6 +1420,12 @@ export default function ImportWizard({ existingConstituents }: ImportWizardProps
           <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-xs text-blue-700">
             🔬 <strong>Dry Run Mode is ON.</strong> No data will be saved.
             Toggle it off in Import Settings to perform the real import.
+          </div>
+        )}
+
+        {addToAudienceList && !dryRun && (
+          <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-xs text-green-700">
+            This import will also create a Contacts Manager audience list from {importEmailCount.toLocaleString()} unique email recipient{importEmailCount === 1 ? "" : "s"} and auto-segment Newsletter, Churches, Businesses, and Organizations when those tags or names are detected.
           </div>
         )}
 
@@ -1345,4 +1504,27 @@ export default function ImportWizard({ existingConstituents }: ImportWizardProps
       {step === 5 && renderStep5()}
     </div>
   );
+}
+
+function deriveImportSegments(rows: MappedRow[]): Array<{ name: string; emails: string[] }> {
+  const segments = new Map<string, Set<string>>();
+  const add = (name: string, email: string) => {
+    if (!email) return;
+    if (!segments.has(name)) segments.set(name, new Set());
+    segments.get(name)?.add(email);
+  };
+
+  for (const row of rows) {
+    const email = row.email?.trim().toLowerCase();
+    if (!email) continue;
+    const haystack = [row.tags, row.organizationName, row.churchAffiliation, row.displayName, row.lastName].filter(Boolean).join(" ");
+    if (/newsletter/i.test(haystack)) add("Newsletter", email);
+    if (/church|chapel|ministry|parish|congregation|fellowship|worship/i.test(haystack)) add("Churches", email);
+    if (/business|company|co\.|inc|llc|ltd|corp/i.test(haystack)) add("Businesses", email);
+    if (row.organizationName || /organization|foundation|sponsor/i.test(haystack)) add("Organizations", email);
+  }
+
+  return Array.from(segments.entries())
+    .map(([name, emails]) => ({ name, emails: Array.from(emails) }))
+    .filter((segment) => segment.emails.length > 0);
 }

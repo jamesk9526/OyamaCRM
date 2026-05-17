@@ -126,10 +126,11 @@ router.get("/", async (req, res) => {
     ...(type && { type: type as never }),
     ...(status && { donorStatus: status as never }),
   };
+  const normalizedLimit = limit.toLowerCase() === "all" ? undefined : Math.min(Number.parseInt(limit, 10) || 50, 2000);
 
   const items = await prisma.constituent.findMany({
     where,
-    take: Math.min(parseInt(limit), 2000),
+    ...(normalizedLimit ? { take: normalizedLimit } : {}),
     orderBy: { lastName: "asc" },
     select: CONSTITUENT_SELECT,
   });
@@ -617,6 +618,7 @@ router.put("/:id", async (req, res) => {
  * Duplicate matching uses (in priority order):
  *   1. externalId (DirID) when matchExtId = true
  *   2. email when matchEmail = true
+ *   3. phone when matchPhone = true
  *
  * Response: { created, updated, skipped, errors, dryRun }
  */
@@ -627,6 +629,8 @@ router.post("/import", async (req, res) => {
     dryRun = true,
     matchExtId = true,
     matchEmail = true,
+    matchPhone = true,
+    duplicateResolution = "merge",
     allowOrgImport = true,
   } = req.body as {
     records: Array<Record<string, string>>;
@@ -634,6 +638,8 @@ router.post("/import", async (req, res) => {
     dryRun: boolean;
     matchExtId: boolean;
     matchEmail: boolean;
+    matchPhone?: boolean;
+    duplicateResolution?: "merge" | "skip";
     /** When true, records tagged _isOrg="true" by the wizard are imported as ORGANIZATION constituents */
     allowOrgImport: boolean;
   };
@@ -683,6 +689,23 @@ router.post("/import", async (req, res) => {
     return "ACTIVE";
   };
 
+  const normalizePhoneDigits = (raw?: string): string => (raw ?? "").replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
+
+  const findExistingByPhone = async (rawPhone?: string) => {
+    const phoneDigits = normalizePhoneDigits(rawPhone);
+    if (!matchPhone || phoneDigits.length < 7) return null;
+    const lastFour = phoneDigits.slice(-4);
+    const candidates = await prisma.constituent.findMany({
+      where: {
+        organizationId: resolvedOrgId,
+        OR: [{ phone: { contains: lastFour } }, { mobile: { contains: lastFour } }, { phone2: { contains: lastFour } }],
+      },
+      select: { id: true, phone: true, mobile: true, phone2: true },
+      take: 25,
+    });
+    return candidates.find((candidate) => [candidate.phone, candidate.mobile, candidate.phone2].some((value) => normalizePhoneDigits(value ?? undefined) === phoneDigits)) ?? null;
+  };
+
   /** Map import contact-type labels into ConstituentType, using PROSPECT for generic non-donor contacts. */
   const normalizeConstituentType = (raw: string | undefined, isOrg: boolean): ConstituentType => {
     const v = (raw ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
@@ -699,11 +722,15 @@ router.post("/import", async (req, res) => {
   };
 
   /** Applies imported tag text plus donor/non-donor classification tags to one constituent. */
-  const applyImportedTags = async (constituentId: string, rawTags: string | undefined, type: ConstituentType) => {
+  const applyImportedTags = async (constituentId: string, rawTags: string | undefined, type: ConstituentType, rec: Record<string, string>) => {
     const names = [
       ...(rawTags ?? "").split(/[,;\n]+/).map((tag) => tag.trim()).filter(Boolean),
       type === "DONOR" ? "Donor" : "Non-Donor",
     ];
+    const haystack = [rawTags, rec.organizationName, rec.churchAffiliation, rec.displayName, rec.lastName].filter(Boolean).join(" ");
+    if (/newsletter/i.test(haystack)) names.push("Newsletter");
+    if (/church|chapel|ministry|parish|congregation|fellowship|worship/i.test(haystack)) names.push("Church", "Organization");
+    if (/business|company|co\.|inc|llc|ltd|corp/i.test(haystack)) names.push("Business", "Organization");
     const uniqueNames = Array.from(new Set(names.map((name) => name.slice(0, 80))));
     for (const name of uniqueNames) {
       let tag = await prisma.tag.findFirst({ where: { name } });
@@ -743,10 +770,11 @@ router.post("/import", async (req, res) => {
 
       const communicationRaw = rec.communicationPreferences?.trim() || "";
       const communicationTokens = communicationRaw
-        ? communicationRaw.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean)
+        ? communicationRaw.split(/[,;]+/).map((t) => t.trim().toLowerCase()).filter(Boolean)
         : [];
       const hasExplicitPrefs = communicationTokens.length > 0;
-      const allowsEmail = communicationTokens.some((t) => t.includes("email"));
+      const blocksEmail = communicationTokens.some((t) => /no_email|no email|do_not_email|do not email|opted_out|opted out|unsubscribe|unsubscribed/.test(t));
+      const allowsEmail = !blocksEmail && communicationTokens.some((t) => t.includes("email"));
       const allowsPhone = communicationTokens.some((t) => t.includes("phone") || t.includes("call") || t.includes("voice"));
       const allowsMail = communicationTokens.some((t) => t.includes("mail") || t.includes("postal"));
 
@@ -830,10 +858,11 @@ router.post("/import", async (req, res) => {
         const existingByEmail = !existingByExtId && matchEmail && data.email
           ? await prisma.constituent.findFirst({ where: { email: data.email, organizationId: resolvedOrgId }, select: { id: true } })
           : null;
+        const existingByPhone = !existingByExtId && !existingByEmail ? await findExistingByPhone(data.phone) : null;
 
-        const exists = existingByExtId ?? existingByEmail;
+        const exists = existingByExtId ?? existingByEmail ?? existingByPhone;
         if (exists) {
-          mode === "create_only" ? skipped++ : updated++;
+          duplicateResolution === "skip" || mode === "create_only" ? skipped++ : updated++;
         } else {
           mode === "update_only" ? skipped++ : created++;
         }
@@ -847,19 +876,20 @@ router.post("/import", async (req, res) => {
       const existingByEmail = !existingByExtId && matchEmail && data.email
         ? await prisma.constituent.findFirst({ where: { email: data.email, organizationId: resolvedOrgId }, select: { id: true } })
         : null;
-      const existing = existingByExtId ?? existingByEmail;
+      const existingByPhone = !existingByExtId && !existingByEmail ? await findExistingByPhone(data.phone) : null;
+      const existing = existingByExtId ?? existingByEmail ?? existingByPhone;
 
       if (existing) {
-        if (mode === "create_only") { skipped++; continue; }
+        if (mode === "create_only" || duplicateResolution === "skip") { skipped++; continue; }
         // upsert / update_only — update the existing record (do not change organizationId)
         await prisma.constituent.update({ where: { id: existing.id }, data: scalars });
-        await applyImportedTags(existing.id, rec.tags, data.type);
+        await applyImportedTags(existing.id, rec.tags, data.type, rec);
         updated++;
       } else {
         if (mode === "update_only") { skipped++; continue; }
         // Create new constituent — include organizationId relation key
         const createdConstituent = await prisma.constituent.create({ data: { ...scalars, organizationId: resolvedOrgId } });
-        await applyImportedTags(createdConstituent.id, rec.tags, data.type);
+        await applyImportedTags(createdConstituent.id, rec.tags, data.type, rec);
         created++;
       }
     } catch (err) {
@@ -880,6 +910,112 @@ router.post("/import", async (req, res) => {
   }
 
   res.json({ created, updated, skipped, errors: errors.length, dryRun });
+});
+
+/** POST /api/constituents/merge — Review-approved merge of one duplicate constituent into a kept record. */
+router.post("/merge", async (req, res) => {
+  const { keepId, mergeId } = req.body as { keepId?: string; mergeId?: string };
+  if (!keepId || !mergeId || keepId === mergeId) {
+    res.status(400).json({ error: { code: "INVALID_MERGE", message: "Keep and merge constituent IDs are required." } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const [keep, source] = await Promise.all([
+    prisma.constituent.findFirst({ where: { id: keepId, organizationId }, include: { tags: true } }),
+    prisma.constituent.findFirst({ where: { id: mergeId, organizationId }, include: { tags: true } }),
+  ]);
+  if (!keep || !source) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "One or both constituents were not found." } });
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const fill = <T>(current: T | null | undefined, incoming: T | null | undefined): T | undefined => {
+      if (current !== null && current !== undefined && String(current).trim() !== "") return undefined;
+      return incoming !== null && incoming !== undefined && String(incoming).trim() !== "" ? incoming : undefined;
+    };
+
+    await tx.constituent.update({
+      where: { id: keep.id },
+      data: {
+        email: fill(keep.email, source.email),
+        email2: fill(keep.email2, source.email2),
+        phone: fill(keep.phone, source.phone),
+        phone2: fill(keep.phone2, source.phone2),
+        mobile: fill(keep.mobile, source.mobile),
+        addressLine1: fill(keep.addressLine1, source.addressLine1),
+        addressLine2: fill(keep.addressLine2, source.addressLine2),
+        city: fill(keep.city, source.city),
+        state: fill(keep.state, source.state),
+        zip: fill(keep.zip, source.zip),
+        employer: fill(keep.employer, source.employer),
+        occupation: fill(keep.occupation, source.occupation),
+        externalId: fill(keep.externalId, source.externalId),
+        doNotEmail: keep.doNotEmail || source.doNotEmail,
+        doNotCall: keep.doNotCall || source.doNotCall,
+        doNotMail: keep.doNotMail || source.doNotMail,
+        doNotContact: keep.doNotContact || source.doNotContact,
+        emailOptOut: keep.emailOptOut || source.emailOptOut,
+        notes: [keep.notes, source.notes ? `Merged duplicate ${source.firstName} ${source.lastName} (${source.id}):\n${source.notes}` : `Merged duplicate ${source.firstName} ${source.lastName} (${source.id}).`].filter(Boolean).join("\n\n"),
+      },
+    });
+
+    for (const tag of source.tags) {
+      await tx.constituentTag.upsert({
+        where: { constituentId_tagId: { constituentId: keep.id, tagId: tag.tagId } },
+        update: {},
+        create: { constituentId: keep.id, tagId: tag.tagId },
+      });
+    }
+
+    await tx.donation.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+    await tx.pledge.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+    await tx.task.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+    await tx.meeting.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+    await tx.activity.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+    await tx.eventAttendance.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+    await tx.eventOrder.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+    await tx.eventGuest.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+    await tx.eventSponsor.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+    await tx.volunteerHour.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+    await tx.stewardPathEnrollment.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+    await tx.stewardPathEmailDraft.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+    await tx.generatedLetter.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+    await tx.emailSubscription.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+    await tx.emailSuppression.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+    await tx.emailConsentEvent.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+    await tx.emailSendRecipient.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+    await tx.compassionClient.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+    await tx.constituentTag.deleteMany({ where: { constituentId: source.id } });
+    await tx.constituent.delete({ where: { id: source.id } });
+    await tx.activity.create({
+      data: {
+        constituentId: keep.id,
+        type: "NOTE",
+        description: `Merged duplicate constituent ${source.firstName} ${source.lastName}.`,
+        metadata: { source: "contacts-manager:duplicate-merge", mergedConstituentId: source.id },
+      },
+    });
+  });
+
+  logAudit({
+    action: "CONSTITUENT_MERGED",
+    entity: "Constituent",
+    entityId: keep.id,
+    userId: req.user?.sub,
+    organizationId,
+    metadata: { mergedConstituentId: source.id, keptName: `${keep.firstName} ${keep.lastName}`, mergedName: `${source.firstName} ${source.lastName}` },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({ merged: true, keepId: keep.id, mergeId: source.id });
 });
 
 

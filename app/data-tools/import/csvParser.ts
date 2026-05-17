@@ -16,6 +16,8 @@ export interface CsvParseResult {
   detectedHeaderRow: number;
   /** The delimiter that was actually used (resolved from "auto" if needed). */
   delimiter: Exclude<Delimiter, "auto">;
+  /** Non-fatal parser warnings such as duplicate headers or extra cells. */
+  warnings: string[];
 }
 
 /**
@@ -90,6 +92,21 @@ function coalesceMultilineRows(lines: string[]): string[] {
 
   if (buffer) rows.push(buffer);
   return rows;
+}
+
+function makeUniqueHeaders(headers: string[]): { headers: string[]; warnings: string[] } {
+  const seen = new Map<string, number>();
+  const warnings: string[] = [];
+  const unique = headers.map((header, index) => {
+    const base = header.trim() || `Column ${index + 1}`;
+    const count = seen.get(base.toLowerCase()) ?? 0;
+    seen.set(base.toLowerCase(), count + 1);
+    if (count === 0) return base;
+    const renamed = `${base} (${count + 1})`;
+    warnings.push(`Duplicate column "${base}" was renamed to "${renamed}".`);
+    return renamed;
+  });
+  return { headers: unique, warnings };
 }
 
 /**
@@ -175,27 +192,34 @@ export function detectHeaderRow(lines: string[], delimiter: string = ","): numbe
  */
 export function parseCSV(text: string, delimiter: Delimiter = "auto"): CsvParseResult {
   // Strip UTF-8 BOM if present (common in Windows / Excel exports)
-  const cleaned = text.replace(/^\uFEFF/, "");
-  const physicalLines = cleaned.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  const cleaned = text.replace(/^\uFEFF/, "").replace(/\0/g, "");
+  const initialLines = cleaned.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  const excelSep = initialLines[0]?.match(/^sep=(.)$/i)?.[1];
+  const physicalLines = excelSep ? initialLines.slice(1) : initialLines;
   if (physicalLines.length === 0) {
-    return { headers: [], rows: [], detectedHeaderRow: 1, delimiter: "," };
+    return { headers: [], rows: [], detectedHeaderRow: 1, delimiter: ",", warnings: [] };
   }
 
   const resolvedDelimiter: Exclude<Delimiter, "auto"> =
-    delimiter === "auto" ? detectDelimiter(physicalLines) : delimiter;
+    delimiter === "auto" ? ((excelSep as Exclude<Delimiter, "auto"> | undefined) ?? detectDelimiter(physicalLines)) : delimiter;
 
   // Merge wrapped quoted rows so downstream header/row parsing stays column-aligned.
   const lines = coalesceMultilineRows(physicalLines);
 
   const headerIdx = detectHeaderRow(lines, resolvedDelimiter);
   // Filter empty trailing header cells (from trailing delimiters)
-  const headers = splitCsvLine(lines[headerIdx], resolvedDelimiter).filter((h) => h.trim() !== "");
+  const headerResult = makeUniqueHeaders(splitCsvLine(lines[headerIdx], resolvedDelimiter).filter((h) => h.trim() !== ""));
+  const headers = headerResult.headers;
+  const warnings = [...headerResult.warnings];
   const rows: RawRow[] = [];
 
   for (let i = headerIdx + 1; i < lines.length; i++) {
     const line = lines[i];
     if (!line.trim()) continue; // skip blank lines
     const values = splitCsvLine(line, resolvedDelimiter);
+    if (values.length > headers.length) {
+      warnings.push(`Row ${i + 1} has ${values.length - headers.length} extra cell(s); extra values were ignored.`);
+    }
     const row: RawRow = {};
     headers.forEach((h, idx) => { row[h] = values[idx] ?? ""; });
     rows.push(row);
@@ -206,6 +230,7 @@ export function parseCSV(text: string, delimiter: Delimiter = "auto"): CsvParseR
     rows,
     detectedHeaderRow: headerIdx + 1, // +1 for 1-based display
     delimiter: resolvedDelimiter,
+    warnings: Array.from(new Set(warnings)).slice(0, 50),
   };
 }
 

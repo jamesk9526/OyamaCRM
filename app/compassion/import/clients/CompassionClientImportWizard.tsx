@@ -395,7 +395,7 @@ export default function CompassionClientImportWizard() {
   /** Data-quality observations derived from column statistics — shown in Step 1 */
   const dataWarnings = useMemo<string[]>(() => {
     if (!parseResult) return [];
-    const w: string[] = [];
+    const w: string[] = [...parseResult.warnings];
     const emptyCols = parseResult.headers.filter((h) => (columnStats[h]?.fillRate ?? 0) === 0);
     if (emptyCols.length > 0) {
       w.push(`${emptyCols.length} column(s) are completely empty: ${emptyCols.slice(0, 5).join(", ")}${emptyCols.length > 5 ? "…" : ""}`);

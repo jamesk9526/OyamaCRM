@@ -365,6 +365,15 @@ export default function DonationImportWizard() {
                   <StatCard label="Header Row" value={`Row ${parsed.detectedHeaderRow}`} color="green" />
                 </div>
 
+                {parsed.warnings.length > 0 && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <p className="font-semibold">CSV parser warnings</p>
+                    <ul className="mt-1 list-disc space-y-1 pl-5">
+                      {parsed.warnings.slice(0, 6).map((warning) => <li key={warning}>{warning}</li>)}
+                    </ul>
+                  </div>
+                )}
+
                 {/* Column preview */}
                 <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                   <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">

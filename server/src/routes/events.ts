@@ -9,7 +9,7 @@ import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
-import type { Prisma } from "@prisma/client";
+import type { EventGuestPaymentStatus, EventGuestRsvpStatus, Prisma } from "@prisma/client";
 
 const router = Router();
 
@@ -917,6 +917,142 @@ router.post("/:eventId/guests", async (req, res) => {
   }
 
   res.status(201).json(guest);
+});
+
+/** POST /api/events/:eventId/guests/import — Bulk import event guest CSV rows into one selected event. */
+router.post("/:eventId/guests/import", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({ where: { id: req.params.eventId, organizationId }, select: { id: true } });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const { records, dryRun = true, duplicateResolution = "skip" } = req.body as {
+    records?: Array<Record<string, string>>;
+    dryRun?: boolean;
+    duplicateResolution?: "skip" | "update";
+  };
+  if (!Array.isArray(records) || records.length === 0) {
+    res.status(400).json({ error: { code: "NO_RECORDS", message: "No guest records to import." } });
+    return;
+  }
+
+  const normalizePayment = (value?: string): EventGuestPaymentStatus => {
+    const normalized = (value ?? "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+    if (normalized === "PAID") return "PAID";
+    if (normalized === "PENDING_CHECK") return "PENDING_CHECK";
+    if (normalized === "COMP") return "COMP";
+    if (normalized === "SPONSORED") return "SPONSORED";
+    return "DUE";
+  };
+  const normalizeRsvp = (value?: string): EventGuestRsvpStatus => {
+    const normalized = (value ?? "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+    if (normalized === "CONFIRMED") return "CONFIRMED";
+    if (normalized === "DECLINED") return "DECLINED";
+    if (normalized === "WAITLIST") return "WAITLIST";
+    return "PENDING";
+  };
+  const parseSeatNumber = (value?: string): number | undefined => {
+    const number = Number.parseInt(value ?? "", 10);
+    return Number.isFinite(number) ? number : undefined;
+  };
+  const parseDate = (value?: string): Date | undefined => {
+    if (!value?.trim()) return undefined;
+    const date = new Date(value.trim());
+    return Number.isNaN(date.getTime()) ? undefined : date;
+  };
+  const normalizeNullable = (value?: string): string | undefined => {
+    const trimmed = (value ?? "").trim();
+    return trimmed && trimmed.toUpperCase() !== "NULL" ? trimmed : undefined;
+  };
+  async function createCheckinCode(preferred?: string): Promise<string> {
+    const candidate = normalizeNullable(preferred)?.toUpperCase();
+    if (candidate) {
+      const existing = await prisma.eventGuest.findUnique({ where: { checkinCode: candidate } });
+      if (!existing) return candidate;
+    }
+    for (let attempts = 0; attempts < 10; attempts++) {
+      const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+      const existing = await prisma.eventGuest.findUnique({ where: { checkinCode: code } });
+      if (!existing) return code;
+    }
+    return Date.now().toString(36).toUpperCase().slice(-8);
+  }
+
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (const rec of records) {
+    try {
+      const firstName = normalizeNullable(rec.firstName);
+      const lastName = normalizeNullable(rec.lastName);
+      const email = normalizeNullable(rec.email)?.toLowerCase();
+      const checkinCode = normalizeNullable(rec.checkinCode)?.toUpperCase();
+      if (!firstName && !lastName && !email) {
+        skipped++;
+        continue;
+      }
+
+      const existing = checkinCode
+        ? await prisma.eventGuest.findFirst({ where: { eventId: event.id, checkinCode }, select: { id: true } })
+        : email
+          ? await prisma.eventGuest.findFirst({ where: { eventId: event.id, email, firstName: firstName ?? undefined, lastName: lastName ?? undefined }, select: { id: true } })
+          : null;
+
+      if (dryRun) {
+        if (existing) duplicateResolution === "update" ? updated++ : skipped++;
+        else created++;
+        continue;
+      }
+
+      const data = {
+        firstName,
+        lastName,
+        email,
+        phone: normalizeNullable(rec.phone),
+        dietaryRestrictions: normalizeNullable(rec.dietaryRestrictions),
+        specialNeeds: normalizeNullable(rec.specialRequests),
+        notes: [normalizeNullable(rec.notes), normalizeNullable(rec.warnings), normalizeNullable(rec.ticketType) ? `Ticket type: ${normalizeNullable(rec.ticketType)}` : undefined, normalizeNullable(rec.seatType) ? `Seat type: ${normalizeNullable(rec.seatType)}` : undefined].filter(Boolean).join("\n") || undefined,
+        paymentStatus: normalizePayment(rec.paymentStatus),
+        rsvpStatus: normalizeRsvp(rec.rsvpStatus),
+        mealPreference: normalizeNullable(rec.mealPreference),
+        seatNumber: parseSeatNumber(rec.seatNumber),
+        partyName: normalizeNullable(rec.partyName),
+        checkedIn: (rec.checkInStatus ?? "").trim().toLowerCase() === "checked-in",
+        checkedInAt: parseDate(rec.checkedInAt) ?? parseDate(rec.arrivalTime),
+      };
+
+      if (existing) {
+        if (duplicateResolution !== "update") {
+          skipped++;
+          continue;
+        }
+        await prisma.eventGuest.update({ where: { id: existing.id }, data });
+        updated++;
+      } else {
+        await prisma.eventGuest.create({
+          data: {
+            eventId: event.id,
+            ...data,
+            checkinCode: await createCheckinCode(checkinCode),
+          },
+        });
+        created++;
+      }
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  res.json({ created, updated, skipped, errors: errors.length, errorMessages: errors.slice(0, 10), dryRun });
 });
 
 /** PATCH /api/events/guests/:guestId — Update a guest. */
