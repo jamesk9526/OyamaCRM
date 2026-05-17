@@ -145,8 +145,8 @@ export default function DashboardLayoutModal({
       onClose={onClose}
       maxWidthClassName="max-w-5xl"
     >
-      <div>
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-6 py-4">
           <div>
             <h2 className="text-base font-semibold text-gray-900">Customize Layout</h2>
             <p className="mt-0.5 text-xs text-gray-400">Reorder, hide, and restore widgets for your workflow</p>
@@ -162,7 +162,7 @@ export default function DashboardLayoutModal({
           </button>
         </div>
 
-        <div className="grid max-h-[460px] gap-4 overflow-y-auto px-4 py-3 md:grid-cols-2">
+        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto px-4 py-3 md:grid-cols-2">
           <div>
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Visible Widgets</p>
             <div className="space-y-1.5">
@@ -345,7 +345,7 @@ export default function DashboardLayoutModal({
           </div>
         </div>
 
-        <div className="flex items-center justify-between rounded-b-2xl border-t border-gray-100 bg-gray-50 px-6 py-4">
+        <div className="flex shrink-0 items-center justify-between rounded-b-2xl border-t border-gray-100 bg-gray-50 px-6 py-4">
           <button
             onClick={onClose}
             className="text-sm font-medium text-gray-500 transition-colors hover:text-gray-700"

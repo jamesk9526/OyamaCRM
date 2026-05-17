@@ -31,6 +31,7 @@ import ActionableInsightsWidget from "./components/dashboard/ActionableInsightsW
 import AiInsightsWidget from "./components/dashboard/AiInsightsWidget";
 import AiOpportunityWidget from "./components/dashboard/AiOpportunityWidget";
 import AiChatWidget from "./components/dashboard/AiChatWidget";
+import DashboardCommandCenter from "./components/dashboard/DashboardCommandCenter";
 import EnterprisePageShell from "./components/layout/EnterprisePageShell";
 import WorkspaceBreadcrumbBar from "./components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceHelpTip from "./components/ui/WorkspaceHelpTip";
@@ -523,6 +524,9 @@ export default function DashboardPage() {
   const revenueGoal = revenueGoalMode === "MANUAL"
     ? Math.max(1, manualRevenueGoalAmount)
     : dynamicFallbackGoal;
+  const dataThroughLabel = summary?.freshness?.dataThrough
+    ? `Data through ${new Date(summary.freshness.dataThrough).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
+    : `Refreshed ${lastRefreshed.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
 
   const workSnapshot: DashboardFocusItem[] = [
     {
@@ -909,21 +913,21 @@ export default function DashboardPage() {
       )}
     >
       <div className="space-y-5">
-        <section className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold leading-tight text-slate-950">
-              {greeting}, {name}!
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              What&apos;s happening with your fundraising work today.
-            </p>
-          </div>
-          {summary?.freshness?.dataThrough ? (
-            <p className="text-xs text-slate-500">
-              Data through {new Date(summary.freshness.dataThrough).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-            </p>
-          ) : null}
-        </section>
+        <DashboardCommandCenter
+          greeting={greeting}
+          name={name}
+          loading={loading}
+          dataThroughLabel={dataThroughLabel}
+          ytdAmount={summary?.ytdAmount ?? 0}
+          monthAmount={summary?.monthAmount ?? 0}
+          revenueGoal={revenueGoal}
+          retentionRate={retention?.rate ?? 0}
+          pendingTasks={summary?.pendingTasks ?? 0}
+          overdueTasks={summary?.overdueTasks ?? 0}
+          activeCampaigns={summary?.activeCampaigns ?? 0}
+          newDonorsThisMonth={summary?.newDonorsThisMonth ?? 0}
+          monthTrend={summary?.momTrend ?? null}
+        />
 
       {loadError && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">

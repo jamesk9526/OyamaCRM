@@ -55,10 +55,10 @@ export default function WorkspaceSetupModal({
   const theme = useMemo(() => getAccentTheme(moduleKey), [moduleKey]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className={`w-full ${maxWidthClassName} bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden`}>
-        <div className="grid lg:grid-cols-[260px_1fr]">
-          <aside className={`relative bg-gradient-to-b ${theme.sidebarGradient} text-white p-5`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
+      <div className={`w-full ${maxWidthClassName} max-h-[calc(100dvh-2rem)] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl`}>
+        <div className="grid max-h-[calc(100dvh-2rem)] lg:grid-cols-[260px_minmax(0,1fr)]">
+          <aside className={`relative overflow-y-auto bg-gradient-to-b ${theme.sidebarGradient} p-5 text-white`}>
             <div className="absolute -right-10 -top-8 w-28 h-28 rounded-full bg-white/15 blur-md animate-pulse" />
             <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-white/80">CRM Workspace Modal</p>
             <h2 className="mt-2 text-xl font-semibold">{title}</h2>
@@ -72,7 +72,7 @@ export default function WorkspaceSetupModal({
             )}
           </aside>
 
-          <div className="relative">
+          <div className="relative min-h-0 overflow-hidden">
             <button
               onClick={onClose}
               className="absolute right-4 top-4 text-gray-400 hover:text-gray-600 transition-colors"
