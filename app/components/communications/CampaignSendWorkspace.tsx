@@ -21,7 +21,7 @@ interface Props {
   onSent: () => Promise<void>;
 }
 
-type SendMode = "CAMPAIGN_AUDIENCE" | "SEGMENT" | "SAVED_LIST" | "LIST" | "INDIVIDUAL";
+type SendMode = "CAMPAIGN_AUDIENCE" | "SEGMENT" | "SAVED_LIST" | "LIST" | "INDIVIDUAL" | "MULTI_SEGMENT" | "MULTI_LIST";
 
 /** Converts an ISO datetime string into a local datetime-local input value. */
 function toDatetimeLocalValue(isoValue?: string | null): string {
@@ -47,12 +47,14 @@ export default function CampaignSendWorkspace({
 }: Props) {
   const [sendMode, setSendMode] = useState<SendMode>("CAMPAIGN_AUDIENCE");
   const [segmentType, setSegmentType] = useState<(typeof AUDIENCE_TYPES)[number]>(defaultAudienceType);
+  const [selectedSegmentTypes, setSelectedSegmentTypes] = useState<Set<(typeof AUDIENCE_TYPES)[number]>>(new Set([defaultAudienceType]));
   const [recipientListText, setRecipientListText] = useState("");
   const [individualEmail, setIndividualEmail] = useState("");
   const [testEmail, setTestEmail] = useState("");
   const [scheduledAtInput, setScheduledAtInput] = useState(toDatetimeLocalValue(scheduledAt));
   const [savedLists, setSavedLists] = useState<SavedRecipientList[]>([]);
   const [selectedSavedListId, setSelectedSavedListId] = useState<string>("");
+  const [selectedSavedListIds, setSelectedSavedListIds] = useState<Set<string>>(new Set());
   const [newSavedListName, setNewSavedListName] = useState("");
   const [audienceSummary, setAudienceSummary] = useState<AudienceSummary | null>(null);
   const [loadingAudience, setLoadingAudience] = useState(false);
@@ -80,9 +82,6 @@ export default function CampaignSendWorkspace({
       const lists = await apiFetch<SavedRecipientList[]>("/api/email-campaigns/lists");
       const safeLists = Array.isArray(lists) ? lists : [];
       setSavedLists(safeLists);
-      if (!selectedSavedListId && safeLists.length > 0) {
-        setSelectedSavedListId(safeLists[0].id);
-      }
     } catch {
       setSavedLists([]);
     } finally {
@@ -164,6 +163,10 @@ export default function CampaignSendWorkspace({
       setNewSavedListName("");
       await refreshSavedLists();
       setSelectedSavedListId(created.id);
+      // For single-list mode, set it as selected
+      if (sendMode === "SAVED_LIST") {
+        setSelectedSavedListIds(new Set([created.id]));
+      }
       setSendMode("SAVED_LIST");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create saved list.");
@@ -186,14 +189,20 @@ export default function CampaignSendWorkspace({
 
       const audienceFilter = sendMode === "SEGMENT"
         ? { type: segmentType }
-        : undefined;
+        : sendMode === "MULTI_SEGMENT"
+          ? { types: Array.from(selectedSegmentTypes) }
+          : undefined;
+
+      const recipientListId = sendMode === "SAVED_LIST" ? selectedSavedListId : undefined;
+      const recipientListIds = sendMode === "MULTI_LIST" ? Array.from(selectedSavedListIds) : undefined;
 
       await apiFetch(`/api/email-campaigns/${campaignId}/send`, {
         method: "POST",
         body: JSON.stringify({
           sendMode,
           audienceFilter,
-          recipientListId: sendMode === "SAVED_LIST" ? selectedSavedListId : undefined,
+          recipientListId,
+          recipientListIds,
           recipientEmails,
         }),
       });
@@ -315,11 +324,13 @@ export default function CampaignSendWorkspace({
         </div>
 
         <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500">Send Mode</label>
-        <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-3">
           {[
             { id: "CAMPAIGN_AUDIENCE", label: "Saved Audience" },
             { id: "SEGMENT", label: "Segment" },
+            { id: "MULTI_SEGMENT", label: "Multi Segment" },
             { id: "SAVED_LIST", label: "Saved List" },
+            { id: "MULTI_LIST", label: "Multi List" },
             { id: "LIST", label: "One-time List" },
             { id: "INDIVIDUAL", label: "Individual" },
           ].map((mode) => (
@@ -354,6 +365,36 @@ export default function CampaignSendWorkspace({
           </label>
         )}
 
+        {sendMode === "MULTI_SEGMENT" && (
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-gray-700">Select multiple segments to include in send:</p>
+            <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              {AUDIENCE_TYPES.map((type) => (
+                <label key={type} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectedSegmentTypes.has(type)}
+                    onChange={(event) => {
+                      const newSet = new Set(selectedSegmentTypes);
+                      if (event.target.checked) {
+                        newSet.add(type);
+                      } else {
+                        newSet.delete(type);
+                      }
+                      setSelectedSegmentTypes(newSet);
+                    }}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-gray-700">{AUDIENCE_TYPE_LABELS[type]}</span>
+                </label>
+              ))}
+              {selectedSegmentTypes.size === 0 && (
+                <p className="text-xs italic text-gray-500">Select at least one segment</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {sendMode === "SAVED_LIST" && (
           <div className="space-y-2">
             <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-gray-700">
@@ -379,6 +420,47 @@ export default function CampaignSendWorkspace({
                 )}
               </select>
             </label>
+          </div>
+        )}
+
+        {sendMode === "MULTI_LIST" && (
+          <div className="space-y-3">
+            <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-gray-700">
+              Select multiple saved lists to combine and send to. Recipients will be deduplicated.
+              <Link href="/contacts-manager" className="ml-2 font-semibold text-green-700 hover:text-green-800">Open Contacts Manager</Link>
+            </div>
+            {loadingLists ? (
+              <p className="text-sm text-gray-600">Loading lists...</p>
+            ) : savedLists.length === 0 ? (
+              <p className="text-sm text-gray-600">No saved lists available. Create one first in Contacts Manager.</p>
+            ) : (
+              <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                {savedLists.map((list) => (
+                  <label key={list.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selectedSavedListIds.has(list.id)}
+                      onChange={(event) => {
+                        const newSet = new Set(selectedSavedListIds);
+                        if (event.target.checked) {
+                          newSet.add(list.id);
+                        } else {
+                          newSet.delete(list.id);
+                        }
+                        setSelectedSavedListIds(newSet);
+                      }}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-gray-700">
+                      {list.name} ({list.recipientsCount})
+                    </span>
+                  </label>
+                ))}
+                {selectedSavedListIds.size === 0 && (
+                  <p className="text-xs italic text-gray-500">Select at least one list</p>
+                )}
+              </div>
+            )}
           </div>
         )}
 

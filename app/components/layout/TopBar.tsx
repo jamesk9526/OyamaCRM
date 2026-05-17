@@ -3,8 +3,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useRef, useEffect, useCallback } from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import AppsDrawer, { AppsGridIcon } from "@/app/components/layout/AppsDrawer";
 import StewardAiRuntimePill from "@/app/components/layout/StewardAiRuntimePill";
@@ -170,7 +170,7 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
 
   const storageKey = `oyama:topbar-search:recent:${moduleKey}`;
 
-  const quickActions: SearchResult[] = moduleKey === "compassion"
+  const quickActions: SearchResult[] = useMemo(() => moduleKey === "compassion"
     ? [
       { id: "quick-compassion-dashboard", type: "tool", label: "Open Compassion Dashboard", sublabel: "Workspace home", href: "/compassion/dashboard", group: "tools" },
       { id: "quick-compassion-clients", type: "tool", label: "Open Clients", sublabel: "Client records and profiles", href: "/compassion/clients", group: "tools" },
@@ -219,14 +219,14 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
               { id: "quick-donor-donations", type: "tool", label: "Open Donations", sublabel: "Gift records", href: "/donations", group: "tools" },
               { id: "quick-donor-campaigns", type: "tool", label: "Open Campaigns", sublabel: "Fundraising initiatives", href: "/campaigns", group: "tools" },
               { id: "quick-help", type: "tool", label: "Open Help Center", sublabel: "Guides and walkthroughs", href: `/help?scope=donor&scopePath=${encodeURIComponent(pathname || "/")}`, group: "tools" },
-            ];
+            ], [moduleKey, pathname]);
 
-  const filteredResults = (resultGroupFilter === "all"
+  const filteredResults = useMemo(() => (resultGroupFilter === "all"
     ? results
     : results.filter((result) => result.group === resultGroupFilter)
-  ).slice(0, 12);
+  ).slice(0, 12), [resultGroupFilter, results]);
 
-  const quickActionMatches = (() => {
+  const quickActionMatches = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return quickActions.slice(0, 5);
     return quickActions
@@ -235,11 +235,11 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
         || (action.sublabel ?? "").toLowerCase().includes(normalized)
       )
       .slice(0, 4);
-  })();
+  }, [query, quickActions]);
 
-  const combinedNavigableResults = query.trim()
+  const combinedNavigableResults = useMemo(() => query.trim()
     ? [...filteredResults, ...quickActionMatches.filter((action) => !filteredResults.some((result) => result.href === action.href))]
-    : quickActions.slice(0, 5);
+    : quickActions.slice(0, 5), [filteredResults, query, quickActionMatches, quickActions]);
 
   function storeRecentQuery(value: string) {
     const normalized = value.trim();
@@ -718,7 +718,6 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
 export default function TopBar() {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { user } = useAuth();
   const moduleKey = resolveTopBarModuleKey(pathname);
   const showTopBarAppLauncher = true;
@@ -740,24 +739,12 @@ export default function TopBar() {
   const [compactActionsOpen, setCompactActionsOpen] = useState(false);
   const reactiveGlowFrameRef = useRef<number | null>(null);
   const reactiveGlowTimeoutRef = useRef<number | null>(null);
+  const desktopNotificationsRef = useRef<HTMLDivElement | null>(null);
 
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
-  const chromeButtonBase = "w-10 h-10 md:w-9 md:h-9 rounded-xl border border-white/45 bg-white/80 text-slate-700 shadow-[0_1px_0_rgba(255,255,255,0.75),0_10px_24px_rgba(2,6,23,0.16)] backdrop-blur-xl flex items-center justify-center transition-colors hover:border-white/70 hover:bg-white/95 hover:text-slate-950";
-  const darkIconButtonBase = "w-9 h-9 rounded-lg border border-white/10 bg-white/8 text-slate-300 flex items-center justify-center transition-all hover:border-white/20 hover:bg-white/14 hover:text-white active:scale-95";
+  const chromeButtonBase = "w-10 h-10 md:w-9 md:h-9 rounded-xl border border-white/55 bg-white/82 text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_10px_24px_rgba(2,6,23,0.16)] backdrop-blur-xl flex items-center justify-center transition-all hover:-translate-y-px hover:border-white/80 hover:bg-white/95 hover:text-slate-950 active:translate-y-0";
+  const darkIconButtonBase = "w-9 h-9 rounded-xl border border-white/20 bg-white/14 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_8px_18px_rgba(2,6,23,0.24)] backdrop-blur-xl flex items-center justify-center transition-all hover:-translate-y-px hover:border-white/35 hover:bg-white/22 hover:text-white active:translate-y-0 active:scale-95";
   const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-2xl z-50 overflow-hidden md:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
-  const iconActiveTone = moduleKey === "compassion"
-    ? "text-blue-700 border-blue-200/80 bg-blue-50/90"
-    : moduleKey === "events"
-      ? "text-amber-700 border-amber-200/80 bg-amber-50/90"
-      : moduleKey === "watchdog"
-        ? "text-red-700 border-red-200/80 bg-red-50/90"
-        : moduleKey === "webmaster"
-          ? "text-indigo-700 border-indigo-200/80 bg-indigo-50/90"
-          : moduleKey === "hrm"
-            ? "text-teal-700 border-teal-200/80 bg-teal-50/90"
-          : moduleKey === "oshareview"
-            ? "text-cyan-700 border-cyan-200/80 bg-cyan-50/90"
-            : "text-green-700 border-green-200/80 bg-green-50/90";
   const moduleAccentClass = moduleKey === "compassion"
     ? "bg-blue-600"
     : moduleKey === "events"
@@ -804,7 +791,7 @@ export default function TopBar() {
         setTopBarReactiveGlow(false);
       }, 900);
     });
-  }, []);
+  }, [setTopBarReactiveGlow]);
 
   useEffect(() => {
     let active = true;
@@ -856,7 +843,7 @@ export default function TopBar() {
     } finally {
       setNotificationsLoading(false);
     }
-  }, [moduleKey]);
+  }, [moduleKey, setNotificationsLoading, setNotificationsError, setNotifications, setUnreadCount]);
 
   const loadUnreadCount = useCallback(async () => {
     try {
@@ -866,7 +853,7 @@ export default function TopBar() {
     } catch {
       // Keep existing badge state if lightweight polling fails.
     }
-  }, [moduleKey]);
+  }, [moduleKey, setUnreadCount]);
 
   const runNotificationAction = useCallback(async (
     id: string,
@@ -891,7 +878,7 @@ export default function TopBar() {
 
     setNotificationsOpen(false);
     router.push(item.href);
-  }, [router]);
+  }, [router, setNotificationsOpen]);
 
   useEffect(() => {
     if (!notificationsOpen) return;
@@ -904,6 +891,27 @@ export default function TopBar() {
       window.clearTimeout(timer);
     };
   }, [notificationsOpen, loadNotifications]);
+
+  // Desktop notifications should close on outside click without using a full-screen overlay.
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    if (!window.matchMedia("(min-width: 1024px)").matches) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const container = desktopNotificationsRef.current;
+      if (!container) return;
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (!container.contains(target)) {
+        setNotificationsOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [notificationsOpen]);
 
   useEffect(() => {
     void loadUnreadCount();
@@ -1001,7 +1009,7 @@ export default function TopBar() {
     } finally {
       setAnalyzingSignals(false);
     }
-  }, [isStewardSignalsWorkspace, analyzingSignals]);
+  }, [isStewardSignalsWorkspace, analyzingSignals, setAnalyzingSignals, setSignalsAnalyzeError]);
 
   /** Opens AI settings for runtime diagnostics and provider configuration. */
   const openAiSettings = useCallback(() => {
@@ -1011,7 +1019,7 @@ export default function TopBar() {
     setFeedbackOpen(false);
     setCompactActionsOpen(false);
     router.push("/settings/ai");
-  }, [router]);
+  }, [router, setNotificationsOpen, setMobileQuickOpen, setAppsOpen, setFeedbackOpen, setCompactActionsOpen]);
 
   return (
     <>
@@ -1028,7 +1036,7 @@ export default function TopBar() {
       {mobileSearchOpen && (
         <>
           <div className="fixed inset-0 z-50 lg:hidden" onClick={() => setMobileSearchOpen(false)} />
-          <div className="fixed inset-x-0 top-0 z-50 lg:hidden flex items-center gap-2 bg-slate-950 border-b border-slate-700 px-3" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))", paddingBottom: "0.75rem" }}>
+          <div className="fixed inset-x-0 top-0 z-50 flex items-center gap-2 border-b border-slate-700/80 bg-[linear-gradient(135deg,#172033_0%,#0f172a_54%,#10251b_100%)] px-3 shadow-[0_18px_42px_rgba(2,6,23,0.28)] lg:hidden" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))", paddingBottom: "0.75rem" }}>
             <button
               type="button"
               aria-label="Close search"
@@ -1045,14 +1053,26 @@ export default function TopBar() {
           </div>
         </>
       )}
-      <header data-topbar-root="true" className="sticky top-0 relative isolate z-20 flex w-full shrink-0 items-center border-b border-slate-800 bg-slate-950 px-2 shadow-sm h-14 gap-2 lg:gap-3 min-[1440px]:gap-4 lg:px-3 min-[1440px]:px-4" style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
+      <header data-topbar-root="true" className="fixed top-0 left-0 right-0 isolate z-20 flex h-14 w-full shrink-0 items-center gap-2 border-b border-slate-700/80 bg-[linear-gradient(135deg,#172033_0%,#0f172a_48%,#10251b_100%)] px-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_12px_28px_rgba(2,6,23,0.18)] lg:gap-3 lg:px-3 min-[1440px]:gap-4 min-[1440px]:px-4" style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
         <div
           aria-hidden="true"
-          className={`absolute inset-x-0 bottom-0 h-0.5 pointer-events-none transition-opacity duration-300 ${moduleAccentClass} ${topBarReactiveGlow ? "opacity-100" : "opacity-80"}`}
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/20"
         />
         <div
           aria-hidden="true"
-          className="absolute left-0 top-0 hidden h-full w-[min(390px,37vw)] border-r border-white/20 bg-white pointer-events-none lg:block min-[1440px]:w-[min(460px,40vw)]"
+          className="pointer-events-none absolute -top-16 left-[18%] h-24 w-[34rem] rounded-full bg-white/10 blur-3xl"
+        />
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute -bottom-20 right-[12%] h-24 w-[26rem] rounded-full blur-3xl transition-opacity duration-300 ${moduleAccentClass} ${topBarReactiveGlow ? "opacity-25" : "opacity-12"}`}
+        />
+        <div
+          aria-hidden="true"
+          className={`absolute inset-x-0 bottom-0 h-0.5 pointer-events-none shadow-[0_-1px_10px_rgba(255,255,255,0.24)] transition-opacity duration-300 ${moduleAccentClass} ${topBarReactiveGlow ? "opacity-100" : "opacity-80"}`}
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-0 top-0 hidden h-full w-[min(390px,37vw)] border-r border-white/40 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_62%,#ecfdf5_100%)] shadow-[inset_-18px_0_28px_rgba(15,23,42,0.06)] lg:block min-[1440px]:w-[min(460px,40vw)]"
           style={{ clipPath: "polygon(0 0, 88% 0, 100% 100%, 0 100%)" }}
         />
 
@@ -1070,14 +1090,13 @@ export default function TopBar() {
             </svg>
           </button>
           {/* ── TopBar Brand ── */}
-          <Link href={homeHref} className="shrink-0 flex items-center rounded-lg px-1.5 py-1 hover:bg-slate-200/70 transition-colors" aria-label="Go to workspace home">
+          <Link href={homeHref} className="flex shrink-0 items-center rounded-xl border border-transparent px-1 py-0.5 transition-all hover:border-white/70 hover:bg-white/80 hover:shadow-[0_8px_18px_rgba(15,23,42,0.12)]" aria-label="Go to workspace home">
             <Image
-              src="/branding/oyama-logo-w384.png"
+              src="/branding/oyama-logo-topbar-wordmark.png"
               alt="OyamaCRM"
-              width={132}
-              height={24}
-              className="block h-5 w-auto object-contain min-[1440px]:h-6"
-              style={{ width: "auto" }}
+              width={124}
+              height={20}
+              className="block h-5 w-[124px] object-contain object-left"
               priority
             />
           </Link>
@@ -1366,7 +1385,7 @@ export default function TopBar() {
         </Link>
 
           {/* Notifications */}
-        <div className="relative">
+        <div ref={desktopNotificationsRef} className="relative">
           <button
             title="Notifications"
             onClick={() => setNotificationsOpen((v) => !v)}
@@ -1396,7 +1415,6 @@ export default function TopBar() {
 
           {notificationsOpen && (
             <>
-              <div className="fixed inset-0 z-40" onClick={() => setNotificationsOpen(false)} />
               <div className="absolute right-0 top-full mt-2 w-[360px] max-w-[calc(100vw-1rem)] bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
                   <p className="text-sm font-semibold text-gray-900">Notifications</p>

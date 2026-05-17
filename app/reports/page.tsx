@@ -24,6 +24,7 @@ import OShareviewCoveragePanel from "@/app/components/reports/OShareviewCoverage
 import OShareviewAdminWorkspace from "@/app/components/reports/OShareviewAdminWorkspace";
 import DonorPacketReportTool from "@/app/components/reports/DonorPacketReportTool";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import StewardContextButton from "@/app/components/ai/StewardContextButton";
 import { apiFetch } from "@/app/lib/auth-client";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -2003,6 +2004,41 @@ export default function ReportsPage() {
       {activeModule === "donor" && donorReportsError && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {donorReportsError}
+        </div>
+      )}
+
+      {/* Steward contextual actions for the active report view */}
+      {activeModule === "donor" && (
+        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2">
+          <span className="mr-1 text-xs font-medium text-emerald-600">Ask Steward:</span>
+          <StewardContextButton
+            label="Explain this report"
+            prompt={`Explain the current fundraising report for ${scopeLabel}. Key metrics: Revenue $${fmtCurrency((summary?.ytdAmount ?? 0) + (includeGrants ? (summary?.ytdGrantAmount ?? 0) : 0))}, Donor Retention ${retention ? `${retention.rate}%` : "unknown"}, Open Follow-ups ${summary?.pendingTasks ?? 0}, Active Campaigns ${summary?.activeCampaigns ?? 0}. What do these numbers tell us about our fundraising health?`}
+            moduleKey="donor"
+            mode="ask"
+            variant="mini"
+          />
+          <StewardContextButton
+            label="Find risks"
+            prompt={`Based on our fundraising data for ${scopeLabel}: Revenue $${fmtCurrency((summary?.ytdAmount ?? 0) + (includeGrants ? (summary?.ytdGrantAmount ?? 0) : 0))}, Retention ${retention ? `${retention.rate}%` : "unknown"}. Identify the top 3 fundraising risks we should address immediately and what specific actions to take.`}
+            moduleKey="donor"
+            mode="analyze"
+            variant="mini"
+          />
+          <StewardContextButton
+            label="Suggest next actions"
+            prompt={`Based on our fundraising performance for ${scopeLabel}: ${summary?.pendingTasks ?? 0} open follow-ups, ${summary?.activeCampaigns ?? 0} active campaigns, retention ${retention ? `${retention.rate}%` : "unknown"}. What are the top 3-5 actions we should prioritize this week?`}
+            moduleKey="donor"
+            mode="action"
+            variant="mini"
+          />
+          <StewardContextButton
+            label="Draft appeal"
+            prompt={`Draft a compelling fundraising appeal for our current campaign push. Context: ${scopeLabel} revenue is $${fmtCurrency((summary?.ytdAmount ?? 0) + (includeGrants ? (summary?.ytdGrantAmount ?? 0) : 0))} with ${summary?.activeCampaigns ?? 0} active campaigns. Write a short appeal email (under 250 words) focused on impact and urgency.`}
+            moduleKey="donor"
+            mode="draft"
+            variant="mini"
+          />
         </div>
       )}
 

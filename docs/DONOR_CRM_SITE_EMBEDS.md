@@ -40,6 +40,9 @@ Public endpoints (no auth; token + domain validated):
   - Script health signal for connection diagnostics.
 - `POST /api/site-embeds/public/livecom`
   - Accepts public website LiveCom messages and writes Activity records.
+- `GET /api/site-embeds/public/livecom-thread`
+  - Returns the visitor's current LiveCom thread for the same token, site, conversation, and browser session.
+  - Uses no-store cache headers so CRM replies can refresh quickly in the public widget.
 - `GET /api/site-embeds/public/widget-data`
   - Returns public-safe payloads for inline embed widgets.
 - `POST /api/site-embeds/public/widget-submit`
@@ -114,7 +117,16 @@ Admin mutations and public message ingestion are audit logged.
 - Finds constituent by email when available.
 - Creates a `PROSPECT` constituent when no match exists.
 - Creates `Activity` row with metadata source `livecom` and channel `WEB_CHAT`.
+- Stores `conversationId`, `visitorSessionId`, and public site metadata so CRM replies can flow back to the same widget session.
+- Creates staff notifications for new visitor messages.
 - Updates script-load status to reflect active public traffic.
+
+CRM staff replies use `/api/livecom/conversations/:id/messages`.
+
+- Public replies are visible to the visitor widget.
+- Internal notes stay CRM-only.
+- Resolve, archive, and reopen lifecycle events stay CRM-only and are not displayed in the visitor widget.
+- The public widget polls the thread every 3 seconds and keeps the current thread visible during reconnects.
 
 ## Inline Widget Behavior
 
@@ -199,6 +211,9 @@ Fix:
 - Enable LiveCom in settings.
 - Re-copy snippet after any token change.
 - Confirm website domain matches allow-list.
+- Use `/livecom/embed-test` to mount the widget locally with the selected token.
+- Open `/livecom/inbox` in a second tab, send a CRM reply, and verify the public widget refreshes without reloading.
+- Check that visitor messages and staff replies share the same `conversationId` and `visitorSessionId`.
 
 ## Future Architecture Notes
 

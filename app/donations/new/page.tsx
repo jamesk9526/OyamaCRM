@@ -55,6 +55,8 @@ export default function NewDonationPage() {
   }, []);
 
   const source = searchParams.get("source") ?? "";
+  const campaignId = searchParams.get("campaignId") ?? "";
+  const campaignName = searchParams.get("campaignName") ?? "";
   const grantTitle = searchParams.get("grantTitle") ?? "";
   const funderName = searchParams.get("funderName") ?? "";
   const suggestedAmount = searchParams.get("suggestedAmount") ?? "";
@@ -70,6 +72,12 @@ export default function NewDonationPage() {
       }
     : undefined;
 
+  const campaignPrefill = campaignId ? { campaignId } : undefined;
+  const defaultDonationValues = {
+    ...(campaignPrefill ?? {}),
+    ...(grantPrefill ?? {}),
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <WorkspaceBreadcrumbBar
@@ -78,8 +86,14 @@ export default function NewDonationPage() {
           { label: "Donations", href: "/donations" },
           { label: "Record Gift" },
         ]}
-        statusLabel={source === "grant-award" ? "Grant Handoff" : "New Entry"}
-        metadata={source === "grant-award" ? "Recording awarded grant revenue in Donations ledger" : "Enter donation details and stewardship data"}
+        statusLabel={source === "grant-award" ? "Grant Handoff" : source === "campaign" && campaignId ? "Campaign Entry" : "New Entry"}
+        metadata={
+          source === "grant-award"
+            ? "Recording awarded grant revenue in Donations ledger"
+            : source === "campaign" && campaignId
+              ? `Recording a donation for ${campaignName || "the selected campaign"}`
+              : "Enter donation details and stewardship data"
+        }
         primaryAction={<WorkspaceRibbonButton label="Donation Ledger" href="/donations" />}
       />
 
@@ -89,12 +103,18 @@ export default function NewDonationPage() {
         </div>
       )}
 
+      {source === "campaign" && campaignId && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          This donation will be linked to campaign <span className="font-semibold">{campaignName || campaignId}</span> by default.
+        </div>
+      )}
+
       {loading ? (
         <div className="py-16 text-center text-gray-400 text-sm animate-pulse">Loading form…</div>
       ) : (
         <DonationForm
           mode="create"
-          defaultValues={grantPrefill}
+          defaultValues={defaultDonationValues}
           constituents={selectData.constituents}
           campaigns={selectData.campaigns}
           designations={selectData.designations}

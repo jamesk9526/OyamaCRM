@@ -42,6 +42,7 @@ import type {
   SpacerBlock,
   SocialBlock,
   ColumnsBlock,
+  CustomHtmlBlock,
   SocialPlatform,
 } from '@/app/lib/email-builder-types';
 import { parseVideoUrl } from '@/app/lib/email-builder-utils';
@@ -128,6 +129,37 @@ function TextEditor({
           <option value="center">Center</option>
           <option value="right">Right</option>
         </select>
+      </Field>
+      <Field label="Padding (px)">
+        <input
+          type="number"
+          className={inputCls}
+          min={0}
+          max={100}
+          value={block.padding}
+          onChange={(e) => onUpdate({ padding: Number(e.target.value) })}
+        />
+      </Field>
+    </>
+  );
+}
+
+function CustomHtmlEditor({
+  block,
+  onUpdate,
+}: {
+  block: CustomHtmlBlock;
+  onUpdate: (partial: Partial<CustomHtmlBlock>) => void;
+}) {
+  return (
+    <>
+      <Field label="Custom HTML" hint="Rendered directly in email output. Keep markup email-safe.">
+        <textarea
+          className={inputCls}
+          rows={14}
+          value={block.html}
+          onChange={(e) => onUpdate({ html: e.target.value })}
+        />
       </Field>
       <Field label="Padding (px)">
         <input
@@ -1982,6 +2014,12 @@ export default function BlockEditor({
               <ColumnsEditor
                 block={selectedBlock as ColumnsBlock}
                 onUpdate={update as (p: Partial<ColumnsBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'customHtml' && (
+              <CustomHtmlEditor
+                block={selectedBlock as CustomHtmlBlock}
+                onUpdate={update as (p: Partial<CustomHtmlBlock>) => void}
               />
             )}
           </>

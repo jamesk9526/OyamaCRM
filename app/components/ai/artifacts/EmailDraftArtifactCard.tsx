@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { StewardEmailDraftArtifact } from "@/app/components/ai/steward-artifact-types";
 
 interface EmailDraftArtifactCardProps {
@@ -80,7 +81,7 @@ export default function EmailDraftArtifactCard({ artifact }: EmailDraftArtifactC
           <button type="button" onClick={() => void copyValue("HTML", artifact.bodyHtml || "")} className="rounded-md border border-emerald-300 bg-white px-2 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100">Copy HTML</button>
         )}
         <button type="button" onClick={() => void copyValue("Full Email", joinDraftText(artifact))} className="rounded-md border border-emerald-300 bg-white px-2 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100">Copy Full Email</button>
-        <a href="/communications" className="rounded-md border border-emerald-300 bg-white px-2 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100">Open Communications</a>
+        <Link href="/communications" className="rounded-md border border-emerald-300 bg-white px-2 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100">Open Communications</Link>
       </div>
 
       {notice && <p className="text-[11px] text-emerald-700">{notice}</p>}

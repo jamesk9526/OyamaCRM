@@ -16,6 +16,9 @@ import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 import type { StewardStructuredResponse } from "@/app/components/ai/steward-artifact-types";
 import { executeStewardSuggestedAction } from "@/app/components/ai/steward-action-executor";
 import DonorMentionPicker, { type MentionedDonor } from "@/app/components/ai/DonorMentionPicker";
+import EmailBuilderApp from "@/app/components/email-builder/EmailBuilderApp";
+import LetterTemplateEditor from "@/app/components/letters/LetterTemplateEditor";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -121,6 +124,47 @@ const SCOPE_COLOR: Record<ModuleKey, string> = {
   watchdog:   "bg-slate-50 text-slate-700 border-slate-200",
   all:        "bg-slate-900 text-white border-slate-900",
 };
+
+type AddContextActionKey =
+  | "attach_file"
+  | "upload_csv"
+  | "add_crm_record"
+  | "add_donor_list"
+  | "add_campaign"
+  | "add_report_context";
+
+const ADD_CONTEXT_MENU_ITEMS: Array<{ key: AddContextActionKey; label: string; icon: string }> = [
+  {
+    key: "attach_file",
+    label: "Attach file",
+    icon: "M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13",
+  },
+  {
+    key: "upload_csv",
+    label: "Upload CSV",
+    icon: "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+  },
+  {
+    key: "add_crm_record",
+    label: "Add CRM record",
+    icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
+  },
+  {
+    key: "add_donor_list",
+    label: "Add donor list",
+    icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0",
+  },
+  {
+    key: "add_campaign",
+    label: "Add campaign",
+    icon: "M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z",
+  },
+  {
+    key: "add_report_context",
+    label: "Add report context",
+    icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
+  },
+];
 
 // ─── Starter prompts ──────────────────────────────────────────────────────────
 
@@ -271,12 +315,29 @@ interface AGENTStewardWorkspaceProps {
   dockMode?: boolean;
   /** Called when user clicks close in dock mode. */
   onCloseDock?: () => void;
+  /**
+   * Contextual prompt injected from StewardContextButton.
+   * When set, starts a new chat with this prompt pre-sent automatically.
+   */
+  externalPrompt?: { prompt: string; moduleKey?: string; mode?: string };
+  /** Called after the externalPrompt has been consumed so the parent can clear it. */
+  onExternalPromptConsumed?: () => void;
+}
+
+interface StewardEmailWorkspaceState {
+  campaignId: string;
+  returnTo?: string;
+}
+
+interface StewardLetterWorkspaceState {
+  templateId: string;
+  initialPanel?: "document" | "preview" | "publish";
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 /** AGENTStewardWorkspace — clean ChatGPT-style full-page CRM AI assistant. */
-export default function AGENTStewardWorkspace({ initialModule = "donor", dockMode = false, onCloseDock }: AGENTStewardWorkspaceProps) {
+export default function AGENTStewardWorkspace({ initialModule = "donor", dockMode = false, onCloseDock, externalPrompt, onExternalPromptConsumed }: AGENTStewardWorkspaceProps) {
   // --- State ---
   const [threads, setThreads]           = useState<ChatThread[]>([]);
   const [activeId, setActiveId]         = useState<string | null>(null);
@@ -304,6 +365,8 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
   const [fiscalYearStart, setFiscalYearStart]     = useState<number>(1);
   // iOS visual viewport height — tracks keyboard-open shrinkage on Safari
   const [viewportH, setViewportH] = useState<number | null>(null);
+  const [emailWorkspace, setEmailWorkspace] = useState<StewardEmailWorkspaceState | null>(null);
+  const [letterWorkspace, setLetterWorkspace] = useState<StewardLetterWorkspaceState | null>(null);
 
   const bottomRef     = useRef<HTMLDivElement | null>(null);
   const textareaRef   = useRef<HTMLTextAreaElement | null>(null);
@@ -587,6 +650,77 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  const openAnyFilePicker = useCallback(() => {
+    const input = fileInputRef.current;
+    if (!input) return;
+    input.accept = "*/*";
+    input.click();
+  }, []);
+
+  const openCsvFilePicker = useCallback(() => {
+    const input = fileInputRef.current;
+    if (!input) return;
+    input.accept = ".csv,text/csv";
+    input.click();
+  }, []);
+
+  const focusTextarea = useCallback(() => {
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  }, []);
+
+  const handleAddContextAction = useCallback((key: AddContextActionKey) => {
+    setAddOpen(false);
+
+    if (key === "attach_file") {
+      openAnyFilePicker();
+      return;
+    }
+
+    if (key === "upload_csv") {
+      openCsvFilePicker();
+      return;
+    }
+
+    if (key === "add_crm_record" || key === "add_donor_list") {
+      setDraft((d) => (d.endsWith(" ") || d === "" ? `${d}@` : `${d} @`));
+      setMentionQuery("");
+      focusTextarea();
+      return;
+    }
+
+    if (key === "add_campaign") {
+      setDraft((d) => {
+        const prefix = d ? `${d}\n` : "";
+        return `${prefix}Focus on the campaign: `;
+      });
+      focusTextarea();
+      return;
+    }
+
+    if (key === "add_report_context") {
+      setDraft((d) => {
+        const prefix = d ? `${d}\n` : "";
+        return `${prefix}Pull the current KPI summary, YTD giving, and retention rate.`;
+      });
+      focusTextarea();
+    }
+  }, [setAddOpen, openAnyFilePicker, openCsvFilePicker, setDraft, setMentionQuery, focusTextarea]);
+
+  const normalizeStructured = useCallback((raw: unknown): StewardStructuredResponse | undefined => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+    const c = raw as Partial<StewardStructuredResponse>;
+    if (c.version !== 1 || typeof c.replyMarkdown !== "string") return undefined;
+    if (!Array.isArray(c.artifacts) || !Array.isArray(c.suggestedActions) || !Array.isArray(c.evidence)) return undefined;
+    return {
+      version: 1,
+      replyMarkdown: c.replyMarkdown,
+      artifacts: c.artifacts,
+      suggestedActions: c.suggestedActions,
+      evidence: c.evidence,
+      parseWarning: typeof c.parseWarning === "string" ? c.parseWarning : undefined,
+    };
+  }, []);
+
   interface SendOpts {
     historyOverride?: UiMessage[];
     appendUser?: boolean;
@@ -747,22 +881,6 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft, messages, mode, scope, sending]);
 
-  // ─── Normalize structured ──────────────────────────────────────────────────
-  function normalizeStructured(raw: unknown): StewardStructuredResponse | undefined {
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
-    const c = raw as Partial<StewardStructuredResponse>;
-    if (c.version !== 1 || typeof c.replyMarkdown !== "string") return undefined;
-    if (!Array.isArray(c.artifacts) || !Array.isArray(c.suggestedActions) || !Array.isArray(c.evidence)) return undefined;
-    return {
-      version: 1,
-      replyMarkdown: c.replyMarkdown,
-      artifacts: c.artifacts,
-      suggestedActions: c.suggestedActions,
-      evidence: c.evidence,
-      parseWarning: typeof c.parseWarning === "string" ? c.parseWarning : undefined,
-    };
-  }
-
   // ─── Regenerate ────────────────────────────────────────────────────────────
   function regenerate(assistantMsgId: string) {
     if (sending) return;
@@ -784,6 +902,35 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     try { await navigator.clipboard.writeText(content); } catch { /* ignore */ }
   }
 
+  /** Opens supported editor routes inside Steward so users can build/preview/edit without leaving chat. */
+  function openWorkspaceFromPath(path: string): boolean {
+    const [pathname, query = ""] = path.split("?");
+    const params = new URLSearchParams(query);
+
+    if (pathname === "/email-builder") {
+      const campaignId = params.get("campaign")?.trim();
+      if (!campaignId) return false;
+      setEmailWorkspace({
+        campaignId,
+        returnTo: params.get("returnTo") ?? undefined,
+      });
+      return true;
+    }
+
+    const letterMatch = pathname.match(/^\/letters-printables\/templates\/([^/]+)$/);
+    if (letterMatch?.[1]) {
+      const panelRaw = params.get("panel");
+      const initialPanel = panelRaw === "preview" || panelRaw === "publish" ? panelRaw : "document";
+      setLetterWorkspace({
+        templateId: decodeURIComponent(letterMatch[1]),
+        initialPanel,
+      });
+      return true;
+    }
+
+    return false;
+  }
+
   // ─── Run suggested action ──────────────────────────────────────────────────
   async function runAction(messageId: string, actionIndex: number) {
     const src = messages.find((m) => m.id === messageId && m.role === "assistant");
@@ -797,7 +944,10 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         replyContent: src.content,
         confirm: (msg) => typeof window !== "undefined" ? window.confirm(msg) : false,
         callApi: async (path, init) => { await apiFetch(path, { method: init?.method, body: init?.body, headers: { "Content-Type": "application/json" } }); },
-        navigate: (path) => { if (typeof window !== "undefined") window.location.href = path; },
+        navigate: (path) => {
+          const openedInWorkspace = openWorkspaceFromPath(path);
+          if (!openedInWorkspace && typeof window !== "undefined") window.location.href = path;
+        },
         copyText: async (val) => { await navigator.clipboard.writeText(val); },
       });
       setActionStatus({ tone: res.status === "executed" ? "success" : "error", message: res.message });
@@ -805,6 +955,30 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       setActionStatus({ tone: "error", message: e instanceof Error ? e.message : "Action failed." });
     }
   }
+
+  // ─── External prompt (from StewardContextButton) ────────────────────────────
+  // When a contextual button outside the dock fires a prompt, start a fresh chat
+  // and auto-send the message so the user immediately sees a response.
+  const externalPromptRef = useRef<typeof externalPrompt>(null);
+  useEffect(() => {
+    if (!externalPrompt?.prompt) return;
+    if (externalPromptRef.current === externalPrompt) return; // already consumed
+    externalPromptRef.current = externalPrompt;
+
+    // Don't fire while a response is already streaming
+    if (sending) return;
+
+    // Start a new thread so the context is clean
+    startNewChat();
+
+    // Small delay to allow the new thread state to flush before sending
+    const timer = setTimeout(() => {
+      void send(externalPrompt.prompt);
+      onExternalPromptConsumed?.();
+    }, 80);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalPrompt]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -830,9 +1004,9 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         className={`
           fixed inset-y-0 left-0 z-40 flex flex-col
           w-72 sm:w-64 bg-slate-50 border-r border-slate-100
-          transition-transform duration-200
+          transition-transform duration-300 ease-out
           sm:static sm:z-auto sm:shrink-0
-          ${sidebarOpen ? "translate-x-0 shadow-xl sm:shadow-none" : "-translate-x-full sm:-translate-x-full sm:w-0 sm:overflow-hidden"}
+          ${sidebarOpen ? "translate-x-0 shadow-xl sm:shadow-none animate-sidebar-slide-in" : "-translate-x-full sm:-translate-x-full sm:w-0 sm:overflow-hidden"}
         `}
       >
         <div className="flex items-center justify-between gap-2 px-3 pt-4 pb-3">
@@ -859,7 +1033,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
             type="button"
             onClick={startNewChat}
             disabled={sending}
-            className="flex w-full items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-300 transition-colors"
+            className="flex w-full items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all duration-150"
           >
             <svg className="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16M4 12h16" /></svg>
             New chat
@@ -869,13 +1043,13 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         {/* Search */}
         <div className="px-3 pb-2">
           <div className="relative">
-            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" /></svg>
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 transition-colors duration-200" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" /></svg>
             <input
               type="text"
               placeholder="Search chats…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-xs text-slate-700 placeholder-slate-400 outline-none focus:border-slate-300 focus:ring-1 focus:ring-slate-200"
+              className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-xs text-slate-700 placeholder-slate-400 outline-none focus:border-emerald-300 focus:ring-1 focus:ring-emerald-100 transition-all duration-150"
             />
           </div>
         </div>
@@ -887,10 +1061,10 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           ) : filteredThreads.map((t) => (
             <div
               key={t.id}
-              className={`group flex items-center gap-1.5 rounded-lg px-2 py-3 sm:py-1.5 cursor-pointer transition-colors touch-manipulation ${
+              className={`group flex items-center gap-1.5 rounded-lg px-2 py-3 sm:py-1.5 cursor-pointer transition-all duration-150 touch-manipulation ${
                 t.id === activeId
-                  ? "bg-white shadow-sm border border-slate-200 text-slate-900"
-                  : "text-slate-600 hover:bg-white hover:text-slate-900"
+                  ? "bg-white shadow-sm border border-slate-200 text-slate-900 ring-1 ring-emerald-100"
+                  : "text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm"
               }`}
               onClick={() => { switchThread(t.id); if (window.innerWidth < 640) setSidebarOpen(false); }}
             >
@@ -965,7 +1139,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                 <svg className={`h-2.5 w-2.5 transition-transform ${headerScopeOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
               </button>
               {headerScopeOpen && (
-                <div className="absolute left-0 top-full z-50 mt-1.5 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                <div className="absolute left-0 top-full z-50 mt-1.5 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl animate-dropdown-slide-down">
                   <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Working scope</p>
                   {SCOPE_OPTIONS.map((opt) => (
                     <button key={opt.key} type="button" onClick={() => { changeScope(opt.key); setHeaderScopeOpen(false); }}
@@ -1022,7 +1196,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
             </button>
 
             {headerScopeOpen && (
-              <div className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+              <div className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl animate-dropdown-slide-down">
                 <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Working scope</p>
                 {SCOPE_OPTIONS.map((opt) => (
                   <button
@@ -1200,9 +1374,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         <div className="shrink-0 border-t border-slate-100 bg-white px-3 pt-3 sm:px-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
           <div className="mx-auto max-w-3xl">
             {/* Composer card */}
-            <div ref={composerRef} className="relative rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow focus-within:shadow-md focus-within:border-slate-300">
-
-              {/* Locked donor context pills */}
+            <div ref={composerRef} className="relative rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 focus-within:shadow-lg focus-within:border-emerald-300 hover:shadow-md">
               {lockedDonors.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 px-3 pt-2.5 sm:px-4">
                   {lockedDonors.map((d) => {
@@ -1210,7 +1382,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     return (
                       <span
                         key={d.id}
-                        className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-medium text-emerald-700"
+                        className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-medium text-emerald-700 animate-scale-in shadow-sm"
                       >
                         <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                         {name}
@@ -1266,8 +1438,8 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
 
               {/* Composer toolbar */}
               <div className="flex items-center justify-between gap-1.5 border-t border-slate-100 px-2 py-2 sm:px-3">
-                {/* Left: Add · Scope · Tools — horizontally scrollable on small screens */}
-                <div className="flex items-center gap-1 min-w-0 overflow-x-auto scrollbar-none">
+                {/* Left: Add · Scope · Tools — allow wrapping so dropdowns are not clipped */}
+                <div className="flex min-w-0 flex-wrap items-center gap-1 overflow-visible sm:flex-nowrap">
 
                   {/* + Add */}
                   <div className="relative shrink-0" data-composer-dropdown>
@@ -1281,45 +1453,14 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                       <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" /></svg>
                     </button>
                     {addOpen && (
-                      <div className="absolute bottom-full left-0 mb-2 z-50 w-[calc(100vw-2rem)] max-w-[240px] sm:w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
-                        <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Add context</div>
-                        {[
-                          {
-                            label: "Attach file",
-                            icon: "M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13",
-                            action: () => { setAddOpen(false); if (fileInputRef.current) { fileInputRef.current.accept = "*/*"; fileInputRef.current.click(); } },
-                          },
-                          {
-                            label: "Upload CSV",
-                            icon: "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
-                            action: () => { setAddOpen(false); if (fileInputRef.current) { fileInputRef.current.accept = ".csv,text/csv"; fileInputRef.current.click(); } },
-                          },
-                          {
-                            label: "Add CRM record",
-                            icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
-                            action: () => { setAddOpen(false); setDraft((d) => d.endsWith(" ") || d === "" ? `${d}@` : `${d} @`); setMentionQuery(""); setTimeout(() => textareaRef.current?.focus(), 50); },
-                          },
-                          {
-                            label: "Add donor list",
-                            icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0",
-                            action: () => { setAddOpen(false); setDraft((d) => d.endsWith(" ") || d === "" ? `${d}@` : `${d} @`); setMentionQuery(""); setTimeout(() => textareaRef.current?.focus(), 50); },
-                          },
-                          {
-                            label: "Add campaign",
-                            icon: "M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z",
-                            action: () => { setAddOpen(false); setDraft((d) => { const prefix = d ? `${d}\n` : ""; return `${prefix}Focus on the campaign: `; }); setTimeout(() => textareaRef.current?.focus(), 50); },
-                          },
-                          {
-                            label: "Add report context",
-                            icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-                            action: () => { setAddOpen(false); setDraft((d) => { const prefix = d ? `${d}\n` : ""; return `${prefix}Pull the current KPI summary, YTD giving, and retention rate.`; }); setTimeout(() => textareaRef.current?.focus(), 50); },
-                          },
-                        ].map(({ label, icon, action }) => (
+                      <div className="absolute bottom-full left-0 mb-2 z-50 w-[calc(100vw-2rem)] max-w-[240px] sm:w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl animate-dropdown-slide-down">
+                        <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 animate-fade-in">Add context</div>
+                        {ADD_CONTEXT_MENU_ITEMS.map(({ key, label, icon }) => (
                           <button
                             key={label}
                             type="button"
-                            onClick={action}
-                            className="flex w-full items-center gap-2.5 px-3 py-3 sm:py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                            onClick={() => handleAddContextAction(key)}
+                            className="flex w-full items-center gap-2.5 px-3 py-3 sm:py-2 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-all duration-150"
                           >
                             <svg className="h-4 w-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={icon} /></svg>
                             {label}
@@ -1342,8 +1483,8 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                       <svg className={`h-3 w-3 transition-transform ${scopeOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                     </button>
                     {scopeOpen && (
-                      <div className="absolute bottom-full left-0 mb-2 z-50 w-[calc(100vw-2rem)] max-w-[260px] sm:w-60 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
-                        <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Scope</div>
+                      <div className="absolute bottom-full left-0 mb-2 z-50 w-[calc(100vw-2rem)] max-w-[260px] sm:w-60 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl animate-dropdown-slide-down">
+                        <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 animate-fade-in">Scope</div>
                         {SCOPE_OPTIONS.map((opt) => (
                           <button
                             key={opt.key}
@@ -1377,8 +1518,8 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                       <svg className={`h-3 w-3 transition-transform ${toolsOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                     </button>
                     {toolsOpen && (
-                      <div className="absolute bottom-full left-0 mb-2 z-50 w-[calc(100vw-2rem)] max-w-[240px] sm:w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
-                        <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Tools</div>
+                      <div className="absolute bottom-full left-0 mb-2 z-50 w-[calc(100vw-2rem)] max-w-[240px] sm:w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl animate-dropdown-slide-down">
+                        <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 animate-fade-in">Tools</div>
                         {[
                           { label: "Create report",        prompt: "Create a report on " },
                           { label: "Draft email",          prompt: "Draft an email to " },
@@ -1401,7 +1542,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                                 if (ta) { ta.focus(); ta.setSelectionRange(prompt.length, prompt.length); }
                               }, 50);
                             }}
-                            className="flex w-full items-center px-3 py-3 sm:py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                            className="flex w-full items-center px-3 py-3 sm:py-2 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-all duration-150"
                           >
                             {label}
                           </button>
@@ -1477,7 +1618,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     <button
                       type="button"
                       onClick={stopGeneration}
-                      className="flex h-9 w-9 sm:h-7 sm:w-7 items-center justify-center rounded-xl sm:rounded-lg bg-slate-900 text-white hover:bg-slate-700 transition-colors"
+                      className="flex h-9 w-9 sm:h-7 sm:w-7 items-center justify-center rounded-xl sm:rounded-lg bg-slate-900 text-white hover:bg-slate-700 active:scale-95 transition-all duration-150"
                       title="Stop generation"
                     >
                       <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg>
@@ -1487,7 +1628,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                       type="button"
                       onClick={() => void send()}
                       disabled={!draft.trim()}
-                      className="flex h-9 w-9 sm:h-7 sm:w-7 items-center justify-center rounded-xl sm:rounded-lg bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className="flex h-9 w-9 sm:h-7 sm:w-7 items-center justify-center rounded-xl sm:rounded-lg bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 hover:shadow-md active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
                       title="Send (Enter)"
                     >
                       <svg className="h-4 w-4 sm:h-3.5 sm:w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5M5 12l7-7 7 7" /></svg>
@@ -1503,6 +1644,66 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           </div>
         </div>
       </div>
+
+      {emailWorkspace && (
+        <WorkspaceSetupModal
+          title="Steward Email Workspace"
+          subtitle="Build, preview, and revise this draft without leaving AGENTSteward."
+          onClose={() => setEmailWorkspace(null)}
+          maxWidthClassName="max-w-[96vw]"
+        >
+          <div className="px-4 pb-4 pt-12">
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+              <span>Use Preview in the builder header, then ask Steward for edits and run the next build action.</span>
+              <a
+                href={`/email-builder?campaign=${encodeURIComponent(emailWorkspace.campaignId)}${emailWorkspace.returnTo ? `&returnTo=${encodeURIComponent(emailWorkspace.returnTo)}` : ""}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+              >
+                Open full page
+              </a>
+            </div>
+            <EmailBuilderApp
+              campaignId={emailWorkspace.campaignId}
+              returnTo={emailWorkspace.returnTo}
+              embedded
+              onSaved={async () => {
+                setActionStatus({ tone: "success", message: "Email draft saved from AGENTSteward workspace." });
+              }}
+            />
+          </div>
+        </WorkspaceSetupModal>
+      )}
+
+      {letterWorkspace && (
+        <WorkspaceSetupModal
+          title="Steward Letter Workspace"
+          subtitle="Build, preview, and revise this letter draft directly in AGENTSteward."
+          onClose={() => setLetterWorkspace(null)}
+          maxWidthClassName="max-w-[96vw]"
+        >
+          <div className="px-4 pb-4 pt-12">
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+              <span>Switch to Preview inside the letter editor and continue revisions from chat prompts.</span>
+              <a
+                href={`/letters-printables/templates/${encodeURIComponent(letterWorkspace.templateId)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+              >
+                Open full page
+              </a>
+            </div>
+            <div className="h-[82vh] min-h-[640px] overflow-hidden rounded-xl border border-gray-200 bg-white">
+              <LetterTemplateEditor
+                templateId={letterWorkspace.templateId}
+                initialPanel={letterWorkspace.initialPanel ?? "document"}
+              />
+            </div>
+          </div>
+        </WorkspaceSetupModal>
+      )}
     </div>
   );
 }
@@ -1521,8 +1722,8 @@ interface MessageRowProps {
 function MessageRow({ msg, isStreaming, isLast, onRegenerate, onCopy, onRunAction }: MessageRowProps) {
   if (msg.role === "user") {
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[85%] sm:max-w-[80%] rounded-2xl rounded-br-sm bg-slate-900 px-4 py-3 text-sm text-white shadow-sm">
+      <div className="flex justify-end animate-slide-up-fade-in">
+        <div className="max-w-[85%] sm:max-w-[80%] rounded-2xl rounded-br-sm bg-slate-900 px-4 py-3 text-sm text-white shadow-sm hover:shadow-md transition-shadow duration-200">
           <p className="whitespace-pre-wrap break-words">{msg.content}</p>
         </div>
       </div>
@@ -1531,18 +1732,21 @@ function MessageRow({ msg, isStreaming, isLast, onRegenerate, onCopy, onRunActio
 
   // Assistant message
   return (
-    <div className="group flex flex-col gap-2">
+    <div className="group flex flex-col gap-2 animate-slide-up-fade-in">
       {/* Avatar + name row */}
       <div className="flex items-center gap-2">
-        <StewardAvatarIcon size={24} alt="Steward" />
+        <div className="relative">
+          <StewardAvatarIcon size={24} alt="Steward" />
+          {isStreaming && <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-emerald-400 animate-spin-slow" />}
+        </div>
         <span className="text-xs font-semibold text-slate-700">Steward</span>
         {msg.runtimeMode && (
-          <span className="text-[10px] text-slate-400">
+          <span className="text-[10px] text-slate-400 animate-fade-in">
             {msg.runtimeMode === "local" ? "local AI" : msg.runtimeMode === "remote" ? "remote AI" : ""}
           </span>
         )}
         {isStreaming && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600">
+          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 animate-fade-in">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
             Thinking…
           </span>
@@ -1589,3 +1793,5 @@ function MessageRow({ msg, isStreaming, isLast, onRegenerate, onCopy, onRunActio
     </div>
   );
 }
+
+

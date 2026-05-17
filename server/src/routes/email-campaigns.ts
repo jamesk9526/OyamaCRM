@@ -18,7 +18,6 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import nodemailer from "nodemailer";
 import type { EmailCategory, EmailPurpose, EmailRecipientEligibilityStatus, Prisma } from "@prisma/client";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
@@ -28,6 +27,7 @@ import {
   hashPublicEmailToken,
   parseEmailPurpose,
 } from "../services/email-compliance.js";
+import { createOrganizationEmailSender } from "../services/smtp-service.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 
@@ -71,16 +71,6 @@ interface AudiencePreview {
   recipients: string[];
 }
 
-interface SmtpSettingsSnapshot {
-  smtpHost: string | null;
-  smtpPort: number | null;
-  smtpSecure: boolean;
-  smtpUser: string | null;
-  smtpPass: string | null;
-  smtpFromName?: string | null;
-  smtpFromEmail?: string | null;
-}
-
 interface CampaignSharingSettings {
   ownerId: string | null;
   sharedWithOrganization: boolean;
@@ -94,12 +84,13 @@ interface CampaignWorkflowSettings {
 
 const CAMPAIGN_PREPARATION_STATUSES: CampaignPreparationStatus[] = ["NOT_STARTED", "DRAFT", "READY"];
 
-type CampaignSendMode = "CAMPAIGN_AUDIENCE" | "SEGMENT" | "SAVED_LIST" | "LIST" | "INDIVIDUAL";
+type CampaignSendMode = "CAMPAIGN_AUDIENCE" | "SEGMENT" | "SAVED_LIST" | "LIST" | "INDIVIDUAL" | "MULTI_SEGMENT" | "MULTI_LIST";
 
 interface CampaignSendOptions {
   sendMode?: CampaignSendMode;
-  audienceFilter?: AudienceFilter;
+  audienceFilter?: AudienceFilter | { types?: string[] };
   recipientListId?: string;
+  recipientListIds?: string[];
   recipientEmails?: string[];
 }
 
@@ -207,22 +198,6 @@ async function computeAudiencePreview(
   };
 }
 
-/** Builds an SMTP transport from organization settings, returning null when SMTP is incomplete. */
-function getTransport(settings: SmtpSettingsSnapshot) {
-  if (!settings.smtpHost || !settings.smtpPort) return null;
-  return nodemailer.createTransport({
-    host: settings.smtpHost,
-    port: settings.smtpPort,
-    secure: settings.smtpSecure,
-    auth: settings.smtpUser ? { user: settings.smtpUser, pass: settings.smtpPass ?? "" } : undefined,
-  });
-}
-
-/** Parses truthy environment values like "1", "true", or "yes". */
-function parseEnvBool(value: string | undefined): boolean {
-  return /^(1|true|yes|on)$/i.test((value ?? "").trim());
-}
-
 /** Normalizes and validates recipient emails from manual list payloads. */
 function normalizeRecipientEmails(raw: string[] | undefined): string[] {
   if (!raw || raw.length === 0) return [];
@@ -245,6 +220,86 @@ function normalizeRecipientEmails(raw: string[] | undefined): string[] {
   }
 
   return unique;
+}
+
+/** Loads multiple saved recipient lists and combines their recipients with deduplication. */
+async function resolveMultiSavedListRecipients(
+  listIds: string[] | undefined,
+  organizationId: string,
+): Promise<{ listIds: string[]; recipients: string[]; names: string[] }> {
+  if (!listIds || listIds.length === 0) {
+    throw new CampaignSendError("At least one recipientListId is required for multi-list sends.", 400);
+  }
+
+  const lists = await prisma.emailRecipientList.findMany({
+    where: {
+      id: { in: listIds },
+      organizationId,
+    },
+    include: {
+      recipients: {
+        select: { email: true },
+      },
+    },
+  });
+
+  if (lists.length === 0) {
+    throw new CampaignSendError("No saved recipient lists found.", 404);
+  }
+
+  // Combine all recipients and deduplicate
+  const recipientSet = new Set<string>();
+  for (const list of lists) {
+    for (const recipient of list.recipients) {
+      if (recipient.email) {
+        recipientSet.add(recipient.email.trim().toLowerCase());
+      }
+    }
+  }
+
+  return {
+    listIds: lists.map((l) => l.id),
+    names: lists.map((l) => l.name),
+    recipients: Array.from(recipientSet),
+  };
+}
+
+/** Gets all constituents matching multiple segment types and combines with deduplication. */
+async function getMultiSegmentConstituents(
+  types: string[],
+  organizationId: string,
+): Promise<AudienceConstituent[]> {
+  if (!types || types.length === 0) {
+    return [];
+  }
+
+  const whereConditions = types.map((type) => audienceWhere({ type }));
+  const uniqueConstituents = new Map<string, AudienceConstituent>();
+
+  for (const where of whereConditions) {
+    const rows = await prisma.constituent.findMany({
+      where: {
+        organizationId,
+        ...where,
+      },
+      select: {
+        id: true,
+        email: true,
+        doNotEmail: true,
+        doNotContact: true,
+        emailOptOut: true,
+      },
+      take: 5000,
+    });
+
+    for (const row of rows) {
+      if (!uniqueConstituents.has(row.id)) {
+        uniqueConstituents.set(row.id, row);
+      }
+    }
+  }
+
+  return Array.from(uniqueConstituents.values());
 }
 
 /** Loads one saved recipient list and normalizes member emails for sending. */
@@ -286,6 +341,36 @@ async function resolveRecipientPlan(
   options?: CampaignSendOptions,
 ): Promise<ResolvedRecipientPlan> {
   const sendMode = options?.sendMode ?? "CAMPAIGN_AUDIENCE";
+
+  if (sendMode === "MULTI_LIST") {
+    const multi = await resolveMultiSavedListRecipients(options?.recipientListIds, campaign.organizationId);
+    const evaluation = await evaluateRecipientEligibility({
+      organizationId: campaign.organizationId,
+      purpose: campaign.purpose,
+      candidates: multi.recipients.map((email) => ({ email })),
+    });
+
+    return {
+      sendMode,
+      recipients: evaluation.recipients,
+      decisions: evaluation.decisions,
+      category: evaluation.category,
+      audience: {
+        totalMatched: evaluation.summary.totalMatched,
+        validEmail: evaluation.summary.validEmail,
+        missingEmail: evaluation.summary.missingEmail,
+        optedOut: evaluation.summary.optedOut,
+        duplicateEmails: evaluation.summary.duplicateEmails,
+        suppressionCount: evaluation.summary.suppressionCount,
+        categoryOptOut: evaluation.summary.categoryOptOut,
+        doNotContact: evaluation.summary.doNotContact,
+        invalidEmail: evaluation.summary.invalidEmail,
+        suppressed: evaluation.summary.suppressed,
+        finalSendCount: evaluation.summary.finalSendCount,
+      },
+      audienceType: `multi-lists:${multi.names.join(", ")}`,
+    };
+  }
 
   if (sendMode === "SAVED_LIST") {
     const saved = await resolveSavedListRecipients(options?.recipientListId, campaign.organizationId);
@@ -348,10 +433,55 @@ async function resolveRecipientPlan(
     };
   }
 
+  // Handle MULTI_SEGMENT and SEGMENT/CAMPAIGN_AUDIENCE
   const stored = parseCampaignAudienceFilter(campaign.audienceFilter);
-  const effectiveFilter = sendMode === "SEGMENT"
-    ? (options?.audienceFilter ?? stored.filter)
-    : stored.filter;
+  let types: string[] = [];
+
+  if (sendMode === "MULTI_SEGMENT") {
+    const filterObj = options?.audienceFilter as { types?: string[] } | undefined;
+    types = filterObj?.types ?? [];
+  }
+
+  if (sendMode === "MULTI_SEGMENT" && types.length > 0) {
+    const rows = await getMultiSegmentConstituents(types, campaign.organizationId);
+    const evaluation = await evaluateRecipientEligibility({
+      organizationId: campaign.organizationId,
+      purpose: campaign.purpose,
+      candidates: rows.map((row) => ({
+        email: row.email ?? "",
+        constituentId: row.id,
+        doNotEmail: row.doNotEmail,
+        doNotContact: row.doNotContact,
+        emailOptOut: row.emailOptOut,
+      })),
+    });
+
+    return {
+      sendMode,
+      recipients: evaluation.recipients,
+      decisions: evaluation.decisions,
+      category: evaluation.category,
+      audience: {
+        totalMatched: evaluation.summary.totalMatched,
+        validEmail: evaluation.summary.validEmail,
+        missingEmail: evaluation.summary.missingEmail,
+        optedOut: evaluation.summary.optedOut,
+        duplicateEmails: evaluation.summary.duplicateEmails,
+        suppressionCount: evaluation.summary.suppressionCount,
+        categoryOptOut: evaluation.summary.categoryOptOut,
+        doNotContact: evaluation.summary.doNotContact,
+        invalidEmail: evaluation.summary.invalidEmail,
+        suppressed: evaluation.summary.suppressed,
+        finalSendCount: evaluation.summary.finalSendCount,
+      },
+      audienceType: `multi-segments:${types.join(", ")}`,
+    };
+  }
+
+  // SEGMENT or CAMPAIGN_AUDIENCE
+  // For SEGMENT mode, use options.audienceFilter as AudienceFilter; otherwise use stored filter
+  const segmentFilter = sendMode === "SEGMENT" ? (options?.audienceFilter as AudienceFilter | undefined) : undefined;
+  const effectiveFilter = segmentFilter ?? stored.filter;
 
   const rows = await getAudienceConstituents(effectiveFilter, campaign.organizationId);
   const evaluation = await evaluateRecipientEligibility({
@@ -388,23 +518,6 @@ async function resolveRecipientPlan(
       effectiveFilter && typeof effectiveFilter === "object" && typeof effectiveFilter.type === "string"
         ? effectiveFilter.type
         : "all",
-  };
-}
-
-/** Coerces environment SMTP values into one effective settings snapshot. */
-function resolveSmtpSettings(settings: SmtpSettingsSnapshot | null): SmtpSettingsSnapshot {
-  const envPortRaw = (process.env.SMTP_PORT ?? "").trim();
-  const envPort = envPortRaw ? Number.parseInt(envPortRaw, 10) : NaN;
-  const envPortSafe = Number.isFinite(envPort) ? envPort : null;
-
-  return {
-    smtpHost: settings?.smtpHost?.trim() || process.env.SMTP_HOST?.trim() || null,
-    smtpPort: settings?.smtpPort ?? envPortSafe,
-    smtpSecure: settings?.smtpSecure ?? parseEnvBool(process.env.SMTP_SECURE),
-    smtpUser: settings?.smtpUser?.trim() || process.env.SMTP_USER?.trim() || null,
-    smtpPass: settings?.smtpPass || process.env.SMTP_PASS || null,
-    smtpFromName: settings?.smtpFromName?.trim() || process.env.SMTP_FROM_NAME?.trim() || null,
-    smtpFromEmail: settings?.smtpFromEmail?.trim() || process.env.SMTP_FROM_EMAIL?.trim() || null,
   };
 }
 
@@ -796,25 +909,10 @@ export async function sendCampaignNow(
   let resolvedPlan: ResolvedRecipientPlan | null = null;
 
   try {
-    const settingsRaw = await prisma.organizationSettings.findUnique({
-      where: { organizationId: campaign.organizationId },
-      select: {
-        smtpHost: true,
-        smtpPort: true,
-        smtpSecure: true,
-        smtpUser: true,
-        smtpPass: true,
-        smtpFromName: true,
-        smtpFromEmail: true,
-      },
+    const sender = await createOrganizationEmailSender(campaign.organizationId).catch((error) => {
+      const message = error instanceof Error ? error.message : "Outbound email provider is not ready.";
+      throw new CampaignSendError(message, 400);
     });
-    const settings = resolveSmtpSettings(settingsRaw);
-    if (!settings.smtpHost || !settings.smtpPort || !settings.smtpFromEmail) {
-      throw new CampaignSendError(
-        "SMTP is not configured. Open Settings and save SMTP host/port/from email before sending.",
-        400
-      );
-    }
 
     const recipientPlan = await resolveRecipientPlan({
       organizationId: campaign.organizationId,
@@ -836,11 +934,6 @@ export async function sendCampaignNow(
 
     if (recipientCount === 0) {
       throw new CampaignSendError("No recipients match this audience filter.", 400);
-    }
-
-    const transporter = getTransport(settings);
-    if (!transporter) {
-      throw new CampaignSendError("SMTP host/port are required before sending campaigns.", 400);
     }
 
     await createDeliveryEvents({
@@ -876,12 +969,12 @@ export async function sendCampaignNow(
       const rawHtml = campaign.bodyHtml || `<p>${campaign.bodyText || "No content"}</p>`;
       const rawText = campaign.bodyText || "No text content";
 
-      await transporter.sendMail({
-        from: `"${settings.smtpFromName || campaign.fromName}" <${settings.smtpFromEmail}>`,
+      await sender.send({
         to: recipientEmail,
         subject: campaign.subject || campaign.name,
         text: applyComplianceLinkTokens(rawText, links),
         html: applyComplianceLinkTokens(rawHtml, links),
+        fromNameOverride: campaign.fromName,
       });
     }
 
@@ -1941,38 +2034,20 @@ router.post("/:id/send-test", async (req, res) => {
     return;
   }
 
-  const settingsRaw = await prisma.organizationSettings.findUnique({
-    where: { organizationId: campaign.organizationId },
-    select: {
-      smtpHost: true,
-      smtpPort: true,
-      smtpSecure: true,
-      smtpUser: true,
-      smtpPass: true,
-      smtpFromName: true,
-      smtpFromEmail: true,
-    },
-  });
-  const settings = resolveSmtpSettings(settingsRaw);
-  if (!settings.smtpFromEmail) {
-    res.status(400).json({
-      error: "SMTP from email is not configured. Save SMTP settings before sending test emails.",
+  try {
+    const sender = await createOrganizationEmailSender(campaign.organizationId);
+    await sender.send({
+      to: toEmail.trim().toLowerCase(),
+      subject: `[TEST] ${campaign.subject || campaign.name}`,
+      text: campaign.bodyText || "No text content",
+      html: campaign.bodyHtml || `<p>${campaign.bodyText || "No content"}</p>`,
+      fromNameOverride: campaign.fromName,
     });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Outbound email provider is not ready.";
+    res.status(400).json({ error: message });
     return;
   }
-  const transporter = getTransport(settings);
-  if (!transporter) {
-    res.status(400).json({ error: "SMTP host/port are required before sending test emails." });
-    return;
-  }
-
-  await transporter.sendMail({
-    from: `"${settings.smtpFromName || campaign.fromName}" <${settings.smtpFromEmail}>`,
-    to: toEmail.trim().toLowerCase(),
-    subject: `[TEST] ${campaign.subject || campaign.name}`,
-    text: campaign.bodyText || "No text content",
-    html: campaign.bodyHtml || `<p>${campaign.bodyText || "No content"}</p>`,
-  });
 
   await prisma.auditLog.create({
     data: {

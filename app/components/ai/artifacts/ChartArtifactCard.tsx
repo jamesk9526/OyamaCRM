@@ -264,9 +264,11 @@ function PieChart({
   const total = slices.reduce((s, sl) => s + sl.value, 0);
   if (total === 0) return null;
 
-  // Build SVG arcs
-  let startAngle = -Math.PI / 2;
-  const paths = slices.map((sl) => {
+  // Build SVG arcs without mutating render-time locals.
+  const paths = slices.reduce<Array<{ d: string; color: string; name: string; value: number; pct: number; midAngle: number }>>((acc, sl) => {
+    const startAngle = acc.length === 0
+      ? -Math.PI / 2
+      : acc.reduce((sum, segment) => sum + (segment.value / total) * 2 * Math.PI, -Math.PI / 2);
     const angle = (sl.value / total) * 2 * Math.PI;
     const endAngle = startAngle + angle;
     const x1 = cx + R * Math.cos(startAngle);
@@ -283,10 +285,16 @@ function PieChart({
       ? `M ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${innerR} ${innerR} 0 ${largeArc} 0 ${ix1} ${iy1} Z`
       : `M ${cx} ${cy} L ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} Z`;
 
-    const midAngle = startAngle + angle / 2;
-    startAngle = endAngle;
-    return { d, color: sl.color, name: sl.name, value: sl.value, pct: Math.round((sl.value / total) * 100), midAngle };
-  });
+    acc.push({
+      d,
+      color: sl.color,
+      name: sl.name,
+      value: sl.value,
+      pct: Math.round((sl.value / total) * 100),
+      midAngle: startAngle + angle / 2,
+    });
+    return acc;
+  }, []);
 
   const totalFormatted = fmtValue(total, yAxisPrefix);
 

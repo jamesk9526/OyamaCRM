@@ -9,6 +9,16 @@
       "activeJob": null,
       "history": [],
       "updatedAt": "2026-05-15T16:26:06.681Z"
+    },
+    "org_math_demo": {
+      "currentVersion": "0.3.0",
+      "maintenanceMode": false,
+      "selectedChannel": "stable",
+      "latestRelease": null,
+      "latestCheckedAt": "2026-05-17T06:25:11.212Z",
+      "activeJob": null,
+      "history": [],
+      "updatedAt": "2026-05-17T06:25:11.213Z"
     }
   }
 }

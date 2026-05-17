@@ -35,6 +35,7 @@ import DividerBlock from './blocks/DividerBlock';
 import SpacerBlock  from './blocks/SpacerBlock';
 import SocialBlock  from './blocks/SocialBlock';
 import ColumnsBlock from './blocks/ColumnsBlock';
+import CustomHtmlBlock from './blocks/CustomHtmlBlock';
 
 interface Props {
   block: EmailBlock;
@@ -73,6 +74,7 @@ export default function BlockRenderer({ block, editable = false, onChangeContent
     case 'spacer':  return <SpacerBlock  block={block} />;
     case 'social':  return <SocialBlock  block={block} />;
     case 'columns': return <ColumnsBlock block={block} />;
+    case 'customHtml': return <CustomHtmlBlock block={block} />;
     default:        return null;
   }
 }

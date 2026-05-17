@@ -2,11 +2,23 @@
 
 export type LiveComChannel = "WEB_CHAT" | "CONTACT_FORM" | "SURVEY";
 
-export type LiveComConversationStatus = "NEW" | "IN_PROGRESS" | "WAITING_ON_DONOR" | "RESOLVED";
+export type LiveComConversationStatus = "NEW" | "OPEN" | "IN_PROGRESS" | "WAITING_ON_DONOR" | "RESOLVED" | "ARCHIVED" | "SPAM";
 
 export type LiveComPriority = "LOW" | "MEDIUM" | "HIGH";
 
-export type LiveComInboxFilter = "ALL" | "NEW" | "ACTIVE" | "WAITING";
+export type LiveComInboxFilter = "ALL" | "UNREAD" | "NEW" | "OPEN" | "ACTIVE" | "WAITING" | "WAITING_ON_DONOR" | "RESOLVED" | "ARCHIVED" | "SPAM";
+
+export type LiveComMessageRole = "visitor" | "staff" | "note" | "system";
+
+/** One message bubble in a persisted LiveCom conversation thread. */
+export interface LiveComConversationMessage {
+  id: string;
+  role: LiveComMessageRole;
+  body: string;
+  authorName: string;
+  createdAt: string;
+  deliveryState?: "sending" | "failed" | "sent";
+}
 
 /**
  * Lightweight constituent option used by the interaction capture form.
@@ -23,14 +35,36 @@ export interface LiveComConstituentOption {
  */
 export interface LiveComConversation {
   id: string;
-  donorName: string;
-  constituentId?: string;
-  channel: LiveComChannel;
+  visitorSessionId?: string | null;
+  constituentId: string | null;
+  visitorName: string;
+  visitorEmail: string | null;
+  visitorPhone: string | null;
+  sourceSiteId?: string | null;
+  publicSiteId?: string | null;
+  sourceWebsite: string;
+  pageUrl: string;
   status: LiveComConversationStatus;
   priority: LiveComPriority;
-  messagePreview: string;
-  receivedAt: string;
+  unread: boolean;
   owner: string;
+  assignedTo: string;
+  archivedAt: string | null;
+  resolvedAt?: string | null;
+  archiveReason: string | null;
+  linkedDonorName: string | null;
+  lastMessagePreview: string;
+  startedAt: string;
+  updatedAt: string;
+  messages: LiveComConversationMessage[];
+  /** Legacy table-panel alias retained while older LiveCom panels are phased out. */
+  donorName?: string;
+  /** Legacy channel field retained for older intake panels. */
+  channel?: LiveComChannel;
+  /** Legacy preview field retained for older intake panels. */
+  messagePreview?: string;
+  /** Legacy received timestamp retained for older intake panels. */
+  receivedAt?: string;
 }
 
 export type LiveComSurveyStatus = "DRAFT" | "LIVE" | "PAUSED";

@@ -8,16 +8,6 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyAccessToken, JwtPayload } from "../lib/auth.js";
 
-// Extend Express Request to carry the decoded user
-declare global {
-  namespace Express {
-    interface Request {
-      /** Decoded JWT payload populated by `requireAuth` middleware. */
-      user?: JwtPayload;
-    }
-  }
-}
-
 /**
  * Express middleware that enforces JWT authentication on a route.
  * Reads the `Authorization: Bearer <token>` header, verifies the access token,

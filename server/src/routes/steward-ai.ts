@@ -31,6 +31,7 @@ import {
   StewardToolError,
   type StewardToolExecutionContext,
 } from "../services/steward-tool-registry.js";
+import { searchStewardHelpGuides } from "../services/steward-help-knowledge.js";
 import { fmtDate } from "../services/steward-donor-context.js";
 import type { Prisma } from "@prisma/client";
 import type { Router as ExpressRouter } from "express";
@@ -159,6 +160,7 @@ interface StewardToolExecutePayload {
 }
 
 type StewardChatMode = NonNullable<StewardAiChatPayload["mode"]>;
+type StewardResponseIntent = "draft_email" | "how_to" | "action_plan" | "analysis" | "summary" | "general";
 
 interface StewardContextResult {
   contextText: string;
@@ -176,6 +178,7 @@ interface AgenticPreparationResult {
   reasoningModel: string;
   stageSummaries: string[];
   toolsUsed: string[];
+  userIntent: StewardResponseIntent;
 }
 
 type StewardArtifactType =
@@ -228,8 +231,10 @@ const ALLOWED_SUGGESTED_ACTION_TYPES = new Set<string>([
   "copy_csv",
   "prepare_steward_loop",
   "communications.create_email_draft",
+  "communications.build_full_email_workspace",
   "tasks.create_follow_up_task",
   "letters.create_letter_draft",
+  "letters.build_full_letter_draft",
 ]);
 
 function asSafeText(value: unknown, fallback = "", maxLength = 4000): string {
@@ -796,6 +801,7 @@ function defaultNextStepsByMode(mode: StewardChatMode): string[] {
 /** Returns a clean reply string for deterministic paths. Does not add robot-style Evidence sections. */
 function formatReplyByMode(options: {
   mode: StewardChatMode;
+  userIntent?: StewardResponseIntent;
   reply: string;
   toolsUsed: string[];
   recordsUsed: string[];
@@ -803,6 +809,9 @@ function formatReplyByMode(options: {
   // Return the reply as-is. The UI renders metadata separately in the "About this answer" panel.
   // Only append next steps when the reply itself does not already end with one.
   const cleaned = options.reply.trim() || "No summary was returned from the CRM data.";
+  if (options.userIntent === "draft_email") {
+    return cleaned;
+  }
   const hasNextSteps = /next step|recommended|suggest|you can|you should/i.test(cleaned);
   if (!hasNextSteps && (options.mode === "analyze" || options.mode === "ask")) {
     const steps = defaultNextStepsByMode(options.mode);
@@ -888,9 +897,126 @@ function extractFiscalYearFromContext(contextText: string): { fiscalYearLabel?: 
   };
 }
 
+/** Detects the user's primary requested deliverable so prompts can enforce a tighter response contract. */
+function detectStewardIntent(userQuery: string, mode: StewardChatMode): StewardResponseIntent {
+  const q = userQuery.toLowerCase();
+
+  if (mode === "draft" || /(draft|write|compose|create)\s+.*\b(email|letter|message)\b/.test(q)) {
+    return "draft_email";
+  }
+  if (mode === "help" || /(how\s+do\s+i|how\s+to|where\s+is|steps?\s+to|walk\s+me\s+through)/.test(q)) {
+    return "how_to";
+  }
+  if (mode === "action" || /(plan|next\s+step|what\s+should\s+we\s+do|execute|workflow|follow\s*up)/.test(q)) {
+    return "action_plan";
+  }
+  if (mode === "analyze" || /(analy[sz]e|why|trend|compare|risk|retention|kpi|forecast)/.test(q)) {
+    return "analysis";
+  }
+  if (/(summarize|summary|recap|brief|tl;dr)/.test(q)) {
+    return "summary";
+  }
+  return "general";
+}
+
+/** Returns strict output rules that match the user's requested deliverable. */
+function buildIntentResponseContract(intent: StewardResponseIntent): string {
+  if (intent === "draft_email") {
+    return [
+      "Response contract: output a real, sendable draft email.",
+      "Format exactly as:",
+      "Subject: <single line>",
+      "Preview Text: <single line>",
+      "Body:",
+      "<email body in natural paragraphs>",
+      "Do not output donor data tables, tool traces, record dumps, JSON, or bullet lists of raw CRM fields.",
+      "Use only facts needed for the draft and keep placeholders explicit only when data is missing.",
+    ].join("\n");
+  }
+
+  if (intent === "how_to") {
+    return [
+      "Response contract: output concise procedural guidance.",
+      "Use numbered steps in execution order.",
+      "Keep to one workflow path unless the user asked for alternatives.",
+    ].join("\n");
+  }
+
+  if (intent === "action_plan") {
+    return [
+      "Response contract: output an actionable plan.",
+      "Use: 1) Immediate next action, 2) This week plan, 3) Risks/checks.",
+      "Do not claim any action is already executed.",
+    ].join("\n");
+  }
+
+  if (intent === "analysis") {
+    return [
+      "Response contract: output an evidence-backed analysis.",
+      "Use concise findings and include only the most decision-relevant metrics.",
+      "Avoid listing raw records unless explicitly requested.",
+    ].join("\n");
+  }
+
+  if (intent === "summary") {
+    return [
+      "Response contract: output a concise summary.",
+      "Keep to a short paragraph plus up to 3 bullets for key takeaways.",
+    ].join("\n");
+  }
+
+  return "Response contract: answer directly and match the user's requested format and scope.";
+}
+
+/** Reduces noisy retrieval lines for model prompts while retaining decision-critical facts. */
+function buildModelContextForIntent(contextText: string, intent: StewardResponseIntent): string {
+  const lines = contextText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (intent !== "draft_email") {
+    return lines.slice(0, 220).join("\n");
+  }
+
+  const keepPatterns = [
+    /^Donor scope path:/i,
+    /^Fiscal year context:/i,
+    /^Current fiscal year:/i,
+    /^Calendar year:/i,
+    /^Focused donor profile:/i,
+    /^@Mentioned donor:/i,
+    /^Status:/i,
+    /^Preferred channel:/i,
+    /^Lapse risk:/i,
+    /^Best next step:/i,
+    /^Communication preference flags:/i,
+    /^Do not/i,
+  ];
+
+  const bannedPatterns = [
+    /^- Top donor:/i,
+    /^- Opportunity:/i,
+    /^- Lapse signal:/i,
+    /^- LYBUNT:/i,
+    /^Top donors by lifetime giving:/i,
+    /^Monthly giving \(/i,
+    /^KPI report \(/i,
+  ];
+
+  const filtered = lines
+    .filter((line) => keepPatterns.some((pattern) => pattern.test(line)) || !bannedPatterns.some((pattern) => pattern.test(line)))
+    .filter((line) => !bannedPatterns.some((pattern) => pattern.test(line)))
+    .slice(0, 80);
+
+  return filtered.join("\n");
+}
+
 /** Builds the planner stage prompt for agentic multi-stage preparation. */
 function buildPlannerPrompt(options: {
   mode: StewardChatMode;
+  userIntent: StewardResponseIntent;
+  responseContract: string;
   moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>;
   scopePath: string;
   userQuery: string;
@@ -900,8 +1026,11 @@ function buildPlannerPrompt(options: {
     "You are Steward's planning engine. Produce concise planning notes only.",
     "Do not answer the user yet.",
     `Mode: ${options.mode}`,
+    `Intent: ${options.userIntent}`,
     `Module: ${options.moduleKey}`,
     `Scope: ${options.scopePath}`,
+    "Required response contract:",
+    options.responseContract,
     "Return exactly three sections:",
     "1) Key intent",
     "2) Evidence to prioritize",
@@ -917,6 +1046,8 @@ function buildPlannerPrompt(options: {
 /** Builds the reasoning stage prompt that pressure-tests the planner output. */
 function buildReasoningPrompt(options: {
   mode: StewardChatMode;
+  userIntent: StewardResponseIntent;
+  responseContract: string;
   userQuery: string;
   contextText: string;
   plannerNotes: string;
@@ -925,6 +1056,9 @@ function buildReasoningPrompt(options: {
     "You are Steward's reasoning verifier.",
     "Do not answer the user directly.",
     `Mode: ${options.mode}`,
+    `Intent: ${options.userIntent}`,
+    "Required response contract:",
+    options.responseContract,
     "Validate the planner notes against evidence and identify any weak assumptions.",
     "Return exactly three sections:",
     "1) Validated evidence",
@@ -940,12 +1074,77 @@ function buildReasoningPrompt(options: {
   ].join("\n\n");
 }
 
+/** Builds the composer stage prompt that converts planning notes into a concrete answer blueprint. */
+function buildComposerPrompt(options: {
+  mode: StewardChatMode;
+  userIntent: StewardResponseIntent;
+  responseContract: string;
+  userQuery: string;
+  contextText: string;
+  plannerNotes: string;
+  reasoningNotes: string;
+}): string {
+  return [
+    "You are Steward's response composer.",
+    "Do not answer the user directly.",
+    `Mode: ${options.mode}`,
+    `Intent: ${options.userIntent}`,
+    "Required response contract:",
+    options.responseContract,
+    "Return exactly two sections:",
+    "1) Must-include points",
+    "2) Response shape checklist",
+    "Each section: max 6 bullets, no filler.",
+    "User query:",
+    options.userQuery || "(empty query)",
+    "Planner notes:",
+    options.plannerNotes || "(none)",
+    "Reasoning notes:",
+    options.reasoningNotes || "(none)",
+    "Retrieved context:",
+    options.contextText || "No retrieval context available.",
+  ].join("\n\n");
+}
+
+/** Builds a final meta-reflection prompt to stress-test instruction fidelity before answer generation. */
+function buildMetaReflectionPrompt(options: {
+  userIntent: StewardResponseIntent;
+  responseContract: string;
+  userQuery: string;
+  plannerNotes: string;
+  reasoningNotes: string;
+  composerNotes: string;
+}): string {
+  return [
+    "You are Steward's meta-reflection validator.",
+    "Do not answer the user directly.",
+    `Intent: ${options.userIntent}`,
+    "Required response contract:",
+    options.responseContract,
+    "Return exactly three sections:",
+    "1) Instruction-following risks",
+    "2) Data accuracy checks",
+    "3) Final guardrails",
+    "Each section max 5 bullets.",
+    "User query:",
+    options.userQuery || "(empty query)",
+    "Planner notes:",
+    options.plannerNotes || "(none)",
+    "Reasoning notes:",
+    options.reasoningNotes || "(none)",
+    "Composer notes:",
+    options.composerNotes || "(none)",
+  ].join("\n\n");
+}
+
 /** Runs agentic planning + reasoning stages when enabled and returns summary artifacts. */
 async function buildAgenticPreparation(options: {
   organizationId: string;
   enabled: boolean;
   config: ReturnType<typeof parseStewardAiConfig>;
   mode: StewardChatMode;
+  userIntent: StewardResponseIntent;
+  responseContract: string;
   moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>;
   scopePath: string;
   userQuery: string;
@@ -956,6 +1155,7 @@ async function buildAgenticPreparation(options: {
       reasoningModel: options.config.model,
       stageSummaries: [],
       toolsUsed: [],
+      userIntent: options.userIntent,
     };
   }
 
@@ -983,6 +1183,8 @@ async function buildAgenticPreparation(options: {
             role: "system",
             content: buildPlannerPrompt({
               mode: options.mode,
+              userIntent: options.userIntent,
+              responseContract: options.responseContract,
               moduleKey: options.moduleKey,
               scopePath: options.scopePath,
               userQuery: options.userQuery,
@@ -1017,6 +1219,8 @@ async function buildAgenticPreparation(options: {
             role: "system",
             content: buildReasoningPrompt({
               mode: options.mode,
+              userIntent: options.userIntent,
+              responseContract: options.responseContract,
               userQuery: options.userQuery,
               contextText: options.contextText,
               plannerNotes: plannerResult.content,
@@ -1034,10 +1238,82 @@ async function buildAgenticPreparation(options: {
     stageSummaries.push(`Reasoning Notes:\n${reasoningResult.content}`);
     toolsUsed.push("agentic.reason");
 
+    const composerResult = await withStewardAiTask(
+      {
+        organizationId: options.organizationId,
+        enabled: options.enabled,
+        config: options.config,
+        label: "Composing response blueprint",
+        status: "thinking",
+        fallbackOnError: true,
+      },
+      () => runStewardAiChat(
+        options.config,
+        [
+          {
+            role: "system",
+            content: buildComposerPrompt({
+              mode: options.mode,
+              userIntent: options.userIntent,
+              responseContract: options.responseContract,
+              userQuery: options.userQuery,
+              contextText: options.contextText,
+              plannerNotes: plannerResult.content,
+              reasoningNotes: reasoningResult.content,
+            }),
+          },
+        ],
+        {
+          model: reasoningModel,
+          temperature: 0.1,
+          maxTokens: 700,
+        }
+      )
+    );
+
+    stageSummaries.push(`Composer Notes:\n${composerResult.content}`);
+    toolsUsed.push("agentic.compose");
+
+    const metaResult = await withStewardAiTask(
+      {
+        organizationId: options.organizationId,
+        enabled: options.enabled,
+        config: options.config,
+        label: "Running meta instruction-check",
+        status: "thinking",
+        fallbackOnError: true,
+      },
+      () => runStewardAiChat(
+        options.config,
+        [
+          {
+            role: "system",
+            content: buildMetaReflectionPrompt({
+              userIntent: options.userIntent,
+              responseContract: options.responseContract,
+              userQuery: options.userQuery,
+              plannerNotes: plannerResult.content,
+              reasoningNotes: reasoningResult.content,
+              composerNotes: composerResult.content,
+            }),
+          },
+        ],
+        {
+          model: reasoningModel,
+          temperature: 0.05,
+          maxTokens: 700,
+        }
+      )
+    );
+
+    stageSummaries.push(`Meta Notes:\n${metaResult.content}`);
+    toolsUsed.push("agentic.meta");
+
     return {
       reasoningModel,
       stageSummaries,
       toolsUsed,
+      userIntent: options.userIntent,
     };
   } catch {
     // Graceful fallback keeps chat responsive when the configured thinking model is unavailable.
@@ -1045,6 +1321,7 @@ async function buildAgenticPreparation(options: {
       reasoningModel: options.config.model,
       stageSummaries,
       toolsUsed,
+      userIntent: options.userIntent,
     };
   }
 }
@@ -1052,6 +1329,8 @@ async function buildAgenticPreparation(options: {
 /** Creates a runtime instruction block tailored to mode/module/context. */
 function buildRuntimeSystemPrompt(options: {
   mode: NonNullable<StewardAiChatPayload["mode"]>;
+  userIntent: StewardResponseIntent;
+  responseContract: string;
   moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>;
   scopePath: string;
   contextText: string;
@@ -1090,6 +1369,7 @@ function buildRuntimeSystemPrompt(options: {
   return [
     "You are Steward, a CRM analyst assistant for a nonprofit organization. Answer as a helpful, calm, and knowledgeable analyst — not as a debug console or system trace.",
     `Current module: ${options.moduleKey}.`,
+    `Detected user intent: ${options.userIntent}.`,
     `Current scope path: ${options.scopePath}.`,
     options.fiscalYearLabel
       ? `Current fiscal year: ${options.fiscalYearLabel}. Calendar year: ${options.calendarYear ?? new Date().getFullYear()}.`
@@ -1105,6 +1385,12 @@ function buildRuntimeSystemPrompt(options: {
     "6. Use markdown formatting: bold labels, bullet lists, numbered steps, and tables where they add clarity.",
     "7. Do not expose internal planning notes, reasoning traces, or retrieval metadata. Those stay hidden.",
     "8. End with 2-3 concrete next steps the user can take inside the CRM right now.",
+    "9. Follow the user request format first. If they asked for a draft email, output the draft email itself, not an analysis of donor records.",
+    "10. Never dump raw CRM record lines into the final answer unless the user explicitly asked for a record list.",
+    "11. For numeric questions, do not estimate. Use deterministic values from context and show exact formulas when relevant.",
+    "12. When a full email or letter build is requested, include one suggested action using actionType 'communications.build_full_email_workspace' or 'letters.build_full_letter_draft' with payload fields (goal/audience/tone/campaignName or name/subject/category).",
+    "Required response contract:",
+    options.responseContract,
     structuredProtocol,
     options.agenticNotes && options.agenticNotes.length > 0
       ? [
@@ -1307,6 +1593,7 @@ async function buildEventsContext(params: {
 async function buildRetrievalContext(params: {
   organizationId: string;
   moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>;
+  mode: StewardChatMode;
   scopePath: string;
   userQuery: string;
   userId: string;
@@ -1315,23 +1602,21 @@ async function buildRetrievalContext(params: {
 }): Promise<StewardContextResult> {
   const tokens = tokenizeQuery(params.userQuery);
 
+  let base: StewardContextResult;
+
   if (params.moduleKey === "compassion") {
-    return buildCompassionContext({
+    base = await buildCompassionContext({
       organizationId: params.organizationId,
       tokens,
       scopePath: params.scopePath,
     });
-  }
-
-  if (params.moduleKey === "events") {
-    return buildEventsContext({
+  } else if (params.moduleKey === "events") {
+    base = await buildEventsContext({
       organizationId: params.organizationId,
       tokens,
       scopePath: params.scopePath,
     });
-  }
-
-  if (params.moduleKey === "watchdog") {
+  } else if (params.moduleKey === "watchdog") {
     const recentSecurityAudits = await prisma.auditLog.findMany({
       where: {
         organizationId: params.organizationId,
@@ -1353,7 +1638,7 @@ async function buildRetrievalContext(params: {
       take: 8,
     });
 
-    return {
+    base = {
       toolsUsed: ["watchdog.auditSnapshot", "watchdog.accessRiskSummary"],
       contextText: [
         `Watchdog scope path: ${params.scopePath}`,
@@ -1364,10 +1649,8 @@ async function buildRetrievalContext(params: {
         `${entry.action}${entry.entity ? ` (${entry.entity})` : ""}`
       ),
     };
-  }
-
-  if (params.moduleKey === "webmaster") {
-    return {
+  } else if (params.moduleKey === "webmaster") {
+    base = {
       toolsUsed: ["webmaster.planningContext"],
       contextText: [
         `WebMaster scope path: ${params.scopePath}`,
@@ -1380,17 +1663,61 @@ async function buildRetrievalContext(params: {
         "WebMaster starter dashboard context",
       ],
     };
+  } else {
+    base = await buildDonorContext({
+      organizationId: params.organizationId,
+      scopePath: params.scopePath,
+      userId: params.userId,
+      role: params.role,
+      moduleKey: params.moduleKey === "oshareview" ? "oshareview" : "donor",
+      userQuery: params.userQuery,
+      mentionedConstituentIds: params.mentionedConstituentIds,
+    });
   }
 
-  return buildDonorContext({
-    organizationId: params.organizationId,
-    scopePath: params.scopePath,
-    userId: params.userId,
-    role: params.role,
-    moduleKey: params.moduleKey === "oshareview" ? "oshareview" : "donor",
-    userQuery: params.userQuery,
-    mentionedConstituentIds: params.mentionedConstituentIds,
+  if (params.mode !== "help") {
+    return base;
+  }
+
+  const helpScope = params.moduleKey === "compassion"
+    ? "compassion"
+    : params.moduleKey === "events"
+      ? "events"
+      : "donor";
+  const guideMatches = searchStewardHelpGuides({
+    scope: helpScope,
+    query: params.userQuery,
+    limit: 6,
   });
+
+  if (guideMatches.length === 0) {
+    return {
+      ...base,
+      toolsUsed: [...base.toolsUsed, "help.guides"],
+      contextText: [
+        base.contextText,
+        `Help scope: ${helpScope}`,
+        "No direct help guides matched this query. Use /help search with broader terms.",
+      ].join("\n"),
+      recordsUsed: [...base.recordsUsed, `Help scope: ${helpScope}`],
+    };
+  }
+
+  const helpLines = [
+    `Help scope: ${helpScope}`,
+    `Matched help guides: ${guideMatches.length}`,
+    ...guideMatches.map((guide) => `- ${guide.title} (/help/${guide.slug}?scope=${guide.scope})`),
+  ];
+
+  return {
+    ...base,
+    toolsUsed: [...base.toolsUsed, "help.guides"],
+    contextText: [base.contextText, ...helpLines].join("\n"),
+    recordsUsed: [
+      ...base.recordsUsed,
+      ...guideMatches.map((guide) => `${guide.title} (/help/${guide.slug})`),
+    ],
+  };
 }
 
 /** Resolves active org ID, failing gracefully with null when unavailable. */
@@ -2068,6 +2395,8 @@ router.post("/chat/stream", async (req, res) => {
   const moduleKey = payload.moduleKey ?? "donor";
   const scopePath = payload.scopePath ?? "/";
   const latestUserMessage = [...normalizedMessages].reverse().find((message) => message.role === "user")?.content ?? "";
+  const userIntent = detectStewardIntent(latestUserMessage, mode);
+  const responseContract = buildIntentResponseContract(userIntent);
   const clientReportingYearMode = payload.reportingYearMode === "fiscal" ? "fiscal" : "calendar";
   const clientFiscalYear = typeof payload.fiscalYear === "number" ? payload.fiscalYear : undefined;
   const clientFiscalYearStart = typeof payload.fiscalYearStart === "number" ? payload.fiscalYearStart : undefined;
@@ -2108,6 +2437,7 @@ router.post("/chat/stream", async (req, res) => {
       });
       const templatedReply = formatReplyByMode({
         mode,
+        userIntent,
         reply: topDonorResult.reply,
         toolsUsed: topDonorResult.toolsUsed,
         recordsUsed: topDonorResult.recordsUsed,
@@ -2172,12 +2502,14 @@ router.post("/chat/stream", async (req, res) => {
     const retrieval = await buildRetrievalContext({
       organizationId,
       moduleKey,
+      mode,
       scopePath,
       userQuery: latestUserMessage,
       userId: req.user?.sub ?? "",
       role: req.user?.role ?? "readonly",
       mentionedConstituentIds: mentionedConstituentIds.length > 0 ? mentionedConstituentIds : undefined,
     });
+    const modelContextText = buildModelContextForIntent(retrieval.contextText, userIntent);
 
     if (retrieval.toolsUsed.length > 1) {
       writeProgress(`Checking ${retrieval.toolsUsed.length} data sources…`);
@@ -2193,10 +2525,12 @@ router.post("/chat/stream", async (req, res) => {
       enabled: Boolean(setting?.enabled),
       config,
       mode,
+      userIntent,
+      responseContract,
       moduleKey,
       scopePath,
       userQuery: latestUserMessage,
-      contextText: retrieval.contextText,
+      contextText: modelContextText,
     });
 
     if (agenticPreparation.stageSummaries.length > 0) {
@@ -2213,9 +2547,11 @@ router.post("/chat/stream", async (req, res) => {
       : `The user is in calendar year mode (${resolvedCalendarYear}).`;
     const runtimeSystemPrompt = buildRuntimeSystemPrompt({
       mode,
+      userIntent,
+      responseContract,
       moduleKey,
       scopePath,
-      contextText: retrieval.contextText + `\n\n${yearModeNote}`,
+      contextText: modelContextText + `\n\n${yearModeNote}`,
       agenticNotes: agenticPreparation.stageSummaries,
       fiscalYearLabel: resolvedFyLabel,
       calendarYear: resolvedCalendarYear,
@@ -2279,6 +2615,7 @@ router.post("/chat/stream", async (req, res) => {
 
     const templatedReply = formatReplyByMode({
       mode,
+      userIntent,
       reply: parsedStructured.replyMarkdown || completion.content,
       toolsUsed,
       recordsUsed: retrieval.recordsUsed,
@@ -2304,6 +2641,7 @@ router.post("/chat/stream", async (req, res) => {
         agenticMultiStage: config.agenticMultiStage,
         agenticStageCount: agenticPreparation.stageSummaries.length,
         chatMode: mode,
+        userIntent,
         moduleKey,
         scopePath,
         messageCount: normalizedMessages.length,
@@ -2379,6 +2717,8 @@ router.post("/chat", async (req, res) => {
   const moduleKey = payload.moduleKey ?? "donor";
   const scopePath = payload.scopePath ?? "/";
   const latestUserMessage = [...normalizedMessages].reverse().find((message) => message.role === "user")?.content ?? "";
+  const userIntent = detectStewardIntent(latestUserMessage, mode);
+  const responseContract = buildIntentResponseContract(userIntent);
   const clientReportingYearMode = payload.reportingYearMode === "fiscal" ? "fiscal" : "calendar";
   const clientFiscalYear = typeof payload.fiscalYear === "number" ? payload.fiscalYear : undefined;
   const clientFiscalYearStart = typeof payload.fiscalYearStart === "number" ? payload.fiscalYearStart : undefined;
@@ -2402,6 +2742,7 @@ router.post("/chat", async (req, res) => {
       });
       const templatedReply = formatReplyByMode({
         mode,
+        userIntent,
         reply: topDonorResult.reply,
         toolsUsed: topDonorResult.toolsUsed,
         recordsUsed: topDonorResult.recordsUsed,
@@ -2453,22 +2794,26 @@ router.post("/chat", async (req, res) => {
     const retrieval = await buildRetrievalContext({
       organizationId,
       moduleKey,
+      mode,
       scopePath,
       userQuery: latestUserMessage,
       userId: req.user?.sub ?? "",
       role: req.user?.role ?? "readonly",
       mentionedConstituentIds: mentionedConstituentIds.length > 0 ? mentionedConstituentIds : undefined,
     });
+    const modelContextText = buildModelContextForIntent(retrieval.contextText, userIntent);
 
     const agenticPreparation = await buildAgenticPreparation({
       organizationId,
       enabled: Boolean(setting?.enabled),
       config,
       mode,
+      userIntent,
+      responseContract,
       moduleKey,
       scopePath,
       userQuery: latestUserMessage,
-      contextText: retrieval.contextText,
+      contextText: modelContextText,
     });
 
     const fyMeta = extractFiscalYearFromContext(retrieval.contextText);
@@ -2480,9 +2825,11 @@ router.post("/chat", async (req, res) => {
       : `The user is in calendar year mode (${resolvedCalendarYearSync}).`;
     const runtimeSystemPrompt = buildRuntimeSystemPrompt({
       mode,
+      userIntent,
+      responseContract,
       moduleKey,
       scopePath,
-      contextText: retrieval.contextText + `\n\n${yearModeNoteSync}`,
+      contextText: modelContextText + `\n\n${yearModeNoteSync}`,
       agenticNotes: agenticPreparation.stageSummaries,
       fiscalYearLabel: resolvedFyLabelSync,
       calendarYear: resolvedCalendarYearSync,
@@ -2533,6 +2880,7 @@ router.post("/chat", async (req, res) => {
 
     const templatedReply = formatReplyByMode({
       mode,
+      userIntent,
       reply: parsedStructured.replyMarkdown || completion.content,
       toolsUsed,
       recordsUsed: retrieval.recordsUsed,
@@ -2558,6 +2906,7 @@ router.post("/chat", async (req, res) => {
         agenticMultiStage: config.agenticMultiStage,
         agenticStageCount: agenticPreparation.stageSummaries.length,
         chatMode: mode,
+        userIntent,
         moduleKey,
         scopePath,
         messageCount: normalizedMessages.length,

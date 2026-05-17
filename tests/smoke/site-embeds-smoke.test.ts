@@ -6,6 +6,8 @@ let app: Awaited<typeof import("@/server/src/index")>["default"];
 let accessToken = "";
 let siteId = "";
 let embedToken = "";
+let liveComConversationId = "";
+let liveComVisitorSessionId = "";
 const primaryDomain = `smoke-${Date.now()}.example.org`;
 const blockedDomain = `blocked-${Date.now()}.example.org`;
 const liveComMessage = `Smoke LiveCom message ${Date.now()}`;
@@ -48,6 +50,19 @@ describe("site embeds smoke", () => {
         primaryDomain,
         allowedDomains: [primaryDomain, `www.${primaryDomain}`, "*.preview.example.org"],
         active: true,
+        appearance: {
+          accentColor: "#0f766e",
+          backgroundColor: "#ffffff",
+          textColor: "#111827",
+          mutedTextColor: "#4b5563",
+          borderColor: "#d1d5db",
+          themeMode: "soft",
+          density: "compact",
+          cornerRadius: "rounded",
+          cardStyle: "bordered",
+          buttonStyle: "soft",
+          fontFamily: "rounded",
+        },
         widgets: {
           liveCom: {
             enabled: true,
@@ -67,6 +82,8 @@ describe("site embeds smoke", () => {
 
     expect(res.status).toBe(200);
     expect(res.body?.data?.site?.primaryDomain).toBe(primaryDomain);
+    expect(res.body?.data?.site?.appearance?.accentColor).toBe("#0f766e");
+    expect(res.body?.data?.site?.appearance?.buttonStyle).toBe("soft");
     expect(res.body?.data?.site?.widgets?.liveCom?.enabled).toBe(true);
 
     siteId = String(res.body?.data?.site?.id ?? siteId);
@@ -82,6 +99,8 @@ describe("site embeds smoke", () => {
     expect(allowed.status).toBe(200);
     expect(String(allowed.text)).toContain("OyamaCRM Site Embed Loader");
     expect(String(allowed.text)).toContain("/api/site-embeds/public/ping");
+    expect(String(allowed.text)).toContain("\"appearance\"");
+    expect(String(allowed.text)).toContain("#0f766e");
 
     const blocked = await request(app)
       .get(`/api/site-embeds/loader.js?token=${encodeURIComponent(embedToken)}&domain=${encodeURIComponent(blockedDomain)}`);
@@ -138,6 +157,10 @@ describe("site embeds smoke", () => {
 
     expect(submit.status).toBe(201);
     expect(submit.body?.data?.queued).toBe(true);
+    liveComConversationId = String(submit.body?.data?.conversationId ?? "");
+    liveComVisitorSessionId = String(submit.body?.data?.visitorSessionId ?? "");
+    expect(liveComConversationId).toBeTruthy();
+    expect(liveComVisitorSessionId).toBeTruthy();
 
     const interactions = await request(app)
       .get(`/api/livecom/interactions?search=${encodeURIComponent(liveComMessage)}&limit=200`)
@@ -147,6 +170,62 @@ describe("site embeds smoke", () => {
     expect(Array.isArray(interactions.body)).toBe(true);
     const found = (interactions.body as Array<{ detail: string }>).some((row) => row.detail.includes(liveComMessage));
     expect(found).toBe(true);
+  });
+
+  it("supports two-way LiveCom refresh without exposing archive/resolve events publicly", async () => {
+    expect(liveComConversationId).toBeTruthy();
+    expect(liveComVisitorSessionId).toBeTruthy();
+    const staffReply = `Smoke staff reply ${Date.now()}`;
+
+    const reply = await request(app)
+      .post(`/api/livecom/conversations/${encodeURIComponent(liveComConversationId)}/messages`)
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({
+        role: "staff",
+        body: staffReply,
+        status: "WAITING_ON_DONOR",
+      });
+
+    expect(reply.status).toBe(201);
+    expect(reply.body?.messages?.some((message: { body: string; role: string }) => message.role === "staff" && message.body === staffReply)).toBe(true);
+
+    const publicThread = await request(app)
+      .get(`/api/site-embeds/public/livecom-thread?token=${encodeURIComponent(embedToken)}&domain=${encodeURIComponent(primaryDomain)}&conversationId=${encodeURIComponent(liveComConversationId)}&visitorSessionId=${encodeURIComponent(liveComVisitorSessionId)}&_=${Date.now()}`);
+
+    expect(publicThread.status).toBe(200);
+    const publicMessages = publicThread.body?.data?.conversation?.messages ?? [];
+    expect(publicMessages.map((message: { body: string }) => message.body)).toContain(staffReply);
+
+    const archive = await request(app)
+      .patch(`/api/livecom/conversations/${encodeURIComponent(liveComConversationId)}`)
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ status: "ARCHIVED", archiveReason: "Resolved" });
+
+    expect(archive.status).toBe(200);
+    expect(archive.body?.status).toBe("ARCHIVED");
+    expect(archive.body?.archivedAt).toBeTruthy();
+
+    const duplicateArchive = await request(app)
+      .patch(`/api/livecom/conversations/${encodeURIComponent(liveComConversationId)}`)
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ status: "ARCHIVED", archiveReason: "Resolved" });
+
+    expect(duplicateArchive.status).toBe(200);
+    const publicAfterArchive = await request(app)
+      .get(`/api/site-embeds/public/livecom-thread?token=${encodeURIComponent(embedToken)}&domain=${encodeURIComponent(primaryDomain)}&conversationId=${encodeURIComponent(liveComConversationId)}&visitorSessionId=${encodeURIComponent(liveComVisitorSessionId)}&_=${Date.now()}`);
+
+    expect(publicAfterArchive.status).toBe(200);
+    const publicAfterArchiveBodies = (publicAfterArchive.body?.data?.conversation?.messages ?? []).map((message: { body: string }) => message.body);
+    expect(publicAfterArchiveBodies.some((body: string) => /archived|resolved|conversation updated/i.test(body))).toBe(false);
+
+    const reopen = await request(app)
+      .patch(`/api/livecom/conversations/${encodeURIComponent(liveComConversationId)}`)
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ status: "OPEN" });
+
+    expect(reopen.status).toBe(200);
+    expect(reopen.body?.status).toBe("OPEN");
+    expect(reopen.body?.archivedAt).toBeNull();
   });
 
   it("accepts newsletter widget submissions and updates script-load reason", async () => {

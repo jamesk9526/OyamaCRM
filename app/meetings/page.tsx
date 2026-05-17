@@ -14,6 +14,7 @@ import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbB
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
+import { STATUS_LABELS } from "@/app/components/meetings/meeting-status";
 
 /** Meeting shape as returned from the API */
 export interface Meeting {
@@ -34,23 +35,6 @@ export interface Meeting {
 }
 
 const STATUS_OPTIONS = ["", "SCHEDULED", "COMPLETED", "CANCELED", "NO_SHOW", "NEEDS_FOLLOW_UP"];
-const STATUS_LABELS: Record<string, string> = {
-  "": "All Statuses",
-  SCHEDULED: "Scheduled",
-  COMPLETED: "Completed",
-  CANCELED: "Canceled",
-  NO_SHOW: "No-Show",
-  NEEDS_FOLLOW_UP: "Needs Follow-Up",
-};
-const STATUS_COLORS: Record<string, string> = {
-  SCHEDULED: "bg-blue-100 text-blue-700",
-  COMPLETED: "bg-green-100 text-green-700",
-  CANCELED: "bg-gray-100 text-gray-500",
-  NO_SHOW: "bg-red-100 text-red-700",
-  RESCHEDULED: "bg-yellow-100 text-yellow-700",
-  NEEDS_FOLLOW_UP: "bg-orange-100 text-orange-700",
-};
-export { STATUS_COLORS, STATUS_LABELS };
 
 /** Meetings list page */
 export default function MeetingsPage() {

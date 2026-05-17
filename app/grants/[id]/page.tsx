@@ -6,7 +6,7 @@
  */
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/app/lib/auth-client";
@@ -133,7 +133,7 @@ export default function GrantDetailPage() {
   const activities = grant.activities ?? [];
   const completedSections = sections.filter((s) => s.completed).length;
 
-  const railGroups = useMemo<WorkspaceControlGroup[]>(() => [
+  const railGroups: WorkspaceControlGroup[] = [
     {
       id: "workspace-views",
       label: "Workspace Views",
@@ -157,7 +157,7 @@ export default function GrantDetailPage() {
         { id: "action:record-award", label: "Record Award in Donations", status: "Working" },
       ],
     },
-  ], [activities.length, completedSections, sections.length]);
+  ];
 
   function handleRailSelect(itemId: string) {
     if (itemId.startsWith("view:")) {

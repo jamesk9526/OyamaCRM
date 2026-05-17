@@ -205,7 +205,7 @@ export default function LiveComInboxPanel({
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">{channelLabel(conversation.channel)} • {formatRelativeTime(conversation.receivedAt)}</span>
+                  <span className="text-xs text-gray-500">{channelLabel(conversation.channel)} • {formatRelativeTime(conversation.receivedAt ?? conversation.updatedAt)}</span>
                   <button
                     type="button"
                     onClick={() => void handleSave(conversation)}
@@ -303,7 +303,7 @@ export default function LiveComInboxPanel({
                         placeholder="Unassigned"
                       />
                     </td>
-                    <td className="px-4 py-2.5 text-gray-600">{formatRelativeTime(conversation.receivedAt)}</td>
+                    <td className="px-4 py-2.5 text-gray-600">{formatRelativeTime(conversation.receivedAt ?? conversation.updatedAt)}</td>
                     <td className="px-4 py-2.5">
                       <button
                         type="button"
@@ -329,12 +329,16 @@ export default function LiveComInboxPanel({
 function channelLabel(channel: LiveComConversation["channel"]): string {
   if (channel === "WEB_CHAT") return "Web Chat";
   if (channel === "CONTACT_FORM") return "Contact Form";
-  return "Survey";
+  if (channel === "SURVEY") return "Survey";
+  return "Web Chat";
 }
 
 function statusLabel(status: LiveComConversationStatus): string {
+  if (status === "OPEN") return "Open";
   if (status === "IN_PROGRESS") return "In Progress";
   if (status === "WAITING_ON_DONOR") return "Waiting On Donor";
+  if (status === "ARCHIVED") return "Archived";
+  if (status === "SPAM") return "Spam";
   return status.charAt(0) + status.slice(1).toLowerCase();
 }
 

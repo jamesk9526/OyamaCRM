@@ -29,6 +29,14 @@ interface SettingsPayload {
   smtpFromEmail?: string;
 }
 
+interface PaymentsHealthPayload {
+  stripeReady: boolean;
+  paypalReady: boolean;
+  activeProvider: "stripe" | "paypal" | null;
+  currency: string;
+  issues: string[];
+}
+
 interface IntegrationCard {
   key: string;
   title: string;
@@ -269,6 +277,55 @@ function buildSmtpCard(payload: SettingsPayload | null, error: string | null): I
   };
 }
 
+/** Builds the payment gateway card from live readiness diagnostics. */
+function buildPaymentsCard(payload: PaymentsHealthPayload | null, error: string | null): IntegrationCard {
+  if (error) {
+    return {
+      key: "payments",
+      title: "Payments and Webhooks",
+      status: "Broken",
+      summary: "Payment gateway status could not be loaded.",
+      detail: error,
+      href: "/settings/payments",
+      hrefLabel: "Open Payment Settings",
+    };
+  }
+
+  if (!payload) {
+    return {
+      key: "payments",
+      title: "Payments and Webhooks",
+      status: "Not Implemented",
+      summary: "Payment provider diagnostics are unavailable.",
+      detail: "Open payment settings to configure Stripe or PayPal.",
+      href: "/settings/payments",
+      hrefLabel: "Open Payment Settings",
+    };
+  }
+
+  if (payload.stripeReady || payload.paypalReady) {
+    return {
+      key: "payments",
+      title: "Payments and Webhooks",
+      status: "Working",
+      summary: "At least one payment provider is ready for donation checkout.",
+      detail: `Active provider: ${payload.activeProvider ?? "none"}. Currency: ${payload.currency}.`,
+      href: "/settings/payments",
+      hrefLabel: "Manage Payments",
+    };
+  }
+
+  return {
+    key: "payments",
+    title: "Payments and Webhooks",
+    status: "Partially Working",
+    summary: "Payment APIs are available but provider setup is incomplete.",
+    detail: payload.issues.length > 0 ? payload.issues.join(" ") : "Configure Stripe or PayPal credentials.",
+    href: "/settings/payments",
+    hrefLabel: "Complete Payment Setup",
+  };
+}
+
 /** IntegrationsSettingsPage shows live, audit-friendly integration readiness and quick links to each setup flow. */
 export default function IntegrationsSettingsPage({ embedded = false }: { embedded?: boolean }) {
   const [loading, setLoading] = useState(true);
@@ -278,11 +335,13 @@ export default function IntegrationsSettingsPage({ embedded = false }: { embedde
   const [siteEmbedsPayload, setSiteEmbedsPayload] = useState<SiteEmbedsConfigPayload | null>(null);
   const [stewardAiPayload, setStewardAiPayload] = useState<StewardAiConfigPayload | null>(null);
   const [settingsPayload, setSettingsPayload] = useState<SettingsPayload | null>(null);
+  const [paymentsPayload, setPaymentsPayload] = useState<PaymentsHealthPayload | null>(null);
 
   const [quickBooksError, setQuickBooksError] = useState<string | null>(null);
   const [siteEmbedsError, setSiteEmbedsError] = useState<string | null>(null);
   const [stewardAiError, setStewardAiError] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [paymentsError, setPaymentsError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -290,11 +349,12 @@ export default function IntegrationsSettingsPage({ embedded = false }: { embedde
     async function loadIntegrationState() {
       setLoading(true);
 
-      const [quickBooksResult, siteEmbedsResult, stewardAiResult, settingsResult] = await Promise.allSettled([
+      const [quickBooksResult, siteEmbedsResult, stewardAiResult, settingsResult, paymentsResult] = await Promise.allSettled([
         apiFetch<QuickBooksStatusPayload>("/api/quickbooks/status"),
         apiFetch<SiteEmbedsConfigPayload>("/api/site-embeds/config"),
         apiFetch<StewardAiConfigPayload>("/api/steward-ai/config"),
         apiFetch<SettingsPayload>("/api/settings"),
+        apiFetch<PaymentsHealthPayload>("/api/payments/health"),
       ]);
 
       if (!active) return;
@@ -331,6 +391,14 @@ export default function IntegrationsSettingsPage({ embedded = false }: { embedde
         setSettingsError(toErrorMessage(settingsResult.reason));
       }
 
+      if (paymentsResult.status === "fulfilled") {
+        setPaymentsPayload(paymentsResult.value);
+        setPaymentsError(null);
+      } else {
+        setPaymentsPayload(null);
+        setPaymentsError(toErrorMessage(paymentsResult.reason));
+      }
+
       setLastCheckedAt(new Date().toISOString());
       setLoading(false);
     }
@@ -351,15 +419,7 @@ export default function IntegrationsSettingsPage({ embedded = false }: { embedde
       buildSiteEmbedsCard(siteEmbedsPayload, siteEmbedsError),
       buildStewardAiCard(stewardAiPayload, stewardAiError),
       buildSmtpCard(settingsPayload, settingsError),
-      {
-        key: "payments",
-        title: "Payments and Webhooks",
-        status: "Not Implemented",
-        summary: "Provider-level payment/webhook integrations are still pending implementation.",
-        detail: "No Stripe/ACH webhook provider is currently wired in the integrations workspace.",
-        href: "/payments",
-        hrefLabel: "Open Payments Workspace",
-      },
+      buildPaymentsCard(paymentsPayload, paymentsError),
     ],
     [
       quickBooksPayload,
@@ -370,6 +430,8 @@ export default function IntegrationsSettingsPage({ embedded = false }: { embedde
       stewardAiError,
       settingsPayload,
       settingsError,
+      paymentsPayload,
+      paymentsError,
     ]
   );
 

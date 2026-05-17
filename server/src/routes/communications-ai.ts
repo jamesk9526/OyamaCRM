@@ -20,20 +20,31 @@ type SupportedBuilderBlockKind =
   | "text"
   | "quote"
   | "impactStat"
+  | "impactStory"
+  | "impactGrid"
+  | "timeline"
   | "callout"
   | "progress"
   | "featureList"
   | "donorThankYou"
+  | "donationReceipt"
+  | "givingSummary"
   | "donationCta"
+  | "monthlyDonorInvitation"
+  | "lapsedDonorReengagement"
+  | "firstTimeDonorWelcome"
   | "staffSignature"
   | "footerCompliance"
   | "image"
+  | "video"
   | "social"
   | "button"
   | "aiText"
   | "aiButton"
   | "divider"
-  | "spacer";
+  | "spacer"
+  | "columns"
+  | "customHtml";
 
 interface BuilderTemplateGenerationPayload {
   goal?: string;
@@ -85,9 +96,36 @@ interface BuilderBlockDraft {
   barColor?: string;
   trackColor?: string;
   body?: string;
+  story?: string;
+  message?: string;
   appealText?: string;
   borderColor?: string;
-  items?: string[];
+  accentColor?: string;
+  items?: Array<string | { value?: string; label?: string; title?: string; detail?: string }>;
+  benefitBullets?: string[];
+  suggestedMonthlyAmounts?: string[];
+  whatToExpect?: string;
+  contactPerson?: string;
+  missionIntro?: string;
+  greeting?: string;
+  impactReminder?: string;
+  ctaLabel?: string;
+  ctaUrl?: string;
+  imageUrl?: string;
+  pseudonym?: string;
+  outcome?: string;
+  yearToken?: string;
+  totalGivingToken?: string;
+  giftCountToken?: string;
+  firstGiftDateToken?: string;
+  lastGiftDateToken?: string;
+  campaignsSupportedToken?: string;
+  donorNameToken?: string;
+  receiptNumberToken?: string;
+  taxDeductibleToken?: string;
+  designationToken?: string;
+  organizationTaxIdToken?: string;
+  goodsServicesStatement?: string;
   buttonLabel?: string;
   buttonUrl?: string;
   buttonColor?: string;
@@ -113,6 +151,11 @@ interface BuilderBlockDraft {
   src?: string;
   alt?: string;
   width?: number;
+  url?: string;
+  embedType?: "youtube" | "vimeo" | "onedrive" | "generic";
+  caption?: string;
+  columns?: Array<Array<Record<string, unknown>>>;
+  html?: string;
   links?: Array<{ platform?: "facebook" | "twitter" | "instagram" | "linkedin" | "youtube"; url?: string }>;
 }
 
@@ -407,6 +450,75 @@ function normalizeDraftBlock(block: BuilderBlockDraft): BuilderBlockDraft {
     };
   }
 
+  if (type === "impactStory") {
+    return {
+      type,
+      headline: String(block.headline ?? block.title ?? "Impact Story"),
+      story: String(block.content ?? block.body ?? "Share a donor-safe story of impact."),
+      pseudonym: block.subtitle ? String(block.subtitle) : undefined,
+      imageUrl: block.imageUrl ? String(block.imageUrl) : undefined,
+      outcome: String(block.outcome ?? "Families received practical support and hope."),
+      ctaLabel: block.ctaLabel ? String(block.ctaLabel) : undefined,
+      ctaUrl: block.ctaUrl ? String(block.ctaUrl) : undefined,
+      bgColor: safeColor(block.bgColor, "#f8fafc"),
+      textColor: safeColor(block.textColor, "#1f2937"),
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
+  if (type === "impactGrid") {
+    const items = Array.isArray(block.items)
+      ? block.items
+        .map((item) => {
+          const raw = String(item ?? "").trim();
+          if (!raw) return null;
+          const [value, ...rest] = raw.split("|");
+          return {
+            value: value.trim() || "0",
+            label: rest.join("|").trim() || "Metric",
+          };
+        })
+        .filter((item): item is { value: string; label: string } => Boolean(item))
+        .slice(0, 4)
+      : [];
+
+    return {
+      type,
+      title: block.title ? String(block.title) : "Impact Snapshot",
+      items: items.length > 0 ? items : [
+        { value: "327", label: "Families Served" },
+        { value: "54", label: "New Volunteers" },
+      ],
+      bgColor: safeColor(block.bgColor, "#ecfdf3"),
+      textColor: safeColor(block.textColor, "#14532d"),
+      accentColor: safeColor(block.borderColor, "#16a34a"),
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
+  if (type === "timeline") {
+    const items = Array.isArray(block.items)
+      ? block.items
+        .flatMap((item) => {
+          const raw = String(item ?? "").trim();
+          if (!raw) return [] as Array<{ title: string; detail?: string }>;
+          const [title, ...rest] = raw.split("|");
+          if (!title.trim()) return [] as Array<{ title: string; detail?: string }>;
+          return [{ title: title.trim(), detail: rest.join("|").trim() || undefined }];
+        })
+        .slice(0, 6)
+      : [];
+
+    return {
+      type,
+      title: block.title ? String(block.title) : "Timeline",
+      items: items.length > 0 ? items : [{ title: "Milestone", detail: "Update detail" }],
+      accentColor: safeColor(block.borderColor, "#16a34a"),
+      textColor: safeColor(block.textColor, "#1f2937"),
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
   if (type === "callout") {
     return {
       type,
@@ -480,6 +592,95 @@ function normalizeDraftBlock(block: BuilderBlockDraft): BuilderBlockDraft {
     };
   }
 
+  if (type === "donationReceipt") {
+    return {
+      type,
+      donorNameToken: String(block.donorNameToken ?? "{{fullName}}"),
+      giftAmountToken: String(block.giftAmountToken ?? "{{lastGiftAmount}}"),
+      giftDateToken: String(block.giftDateToken ?? "{{lastGiftDate}}"),
+      receiptNumberToken: String(block.receiptNumberToken ?? "{{receiptNumber}}"),
+      taxDeductibleToken: String(block.taxDeductibleToken ?? "{{taxDeductibleAmount}}"),
+      designationToken: String(block.designationToken ?? "{{campaignName}}"),
+      organizationTaxIdToken: String(block.organizationTaxIdToken ?? "{{organizationTaxId}}"),
+      goodsServicesStatement: String(block.goodsServicesStatement ?? "No goods or services were provided in exchange for this contribution unless noted."),
+      bgColor: safeColor(block.bgColor, "#ffffff"),
+      borderColor: safeColor(block.borderColor, "#d1d5db"),
+      textColor: safeColor(block.textColor, "#111827"),
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
+  if (type === "givingSummary") {
+    return {
+      type,
+      yearToken: String(block.yearToken ?? "{{currentYear}}"),
+      totalGivingToken: String(block.totalGivingToken ?? "{{totalYtdGiving}}"),
+      giftCountToken: String(block.giftCountToken ?? "{{giftCount}}"),
+      firstGiftDateToken: String(block.firstGiftDateToken ?? "{{firstGiftDate}}"),
+      lastGiftDateToken: String(block.lastGiftDateToken ?? "{{lastGiftDate}}"),
+      campaignsSupportedToken: String(block.campaignsSupportedToken ?? "{{campaignsSupported}}"),
+      bgColor: safeColor(block.bgColor, "#f0fdf4"),
+      textColor: safeColor(block.textColor, "#14532d"),
+      accentColor: safeColor(block.borderColor, "#16a34a"),
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
+  if (type === "monthlyDonorInvitation") {
+    const suggestedMonthlyAmounts = Array.isArray(block.suggestedMonthlyAmounts)
+      ? block.suggestedMonthlyAmounts.map((item) => String(item).trim()).filter(Boolean).slice(0, 6)
+      : [];
+    const benefitBullets = Array.isArray(block.benefitBullets)
+      ? block.benefitBullets.map((item) => String(item).trim()).filter(Boolean).slice(0, 6)
+      : [];
+
+    return {
+      type,
+      headline: String(block.headline ?? block.title ?? "Become a Monthly Partner"),
+      message: String(block.message ?? block.content ?? "Monthly support helps sustain this mission all year."),
+      suggestedMonthlyAmounts: suggestedMonthlyAmounts.length > 0 ? suggestedMonthlyAmounts : ["$15/mo", "$30/mo", "$50/mo"],
+      benefitBullets: benefitBullets.length > 0 ? benefitBullets : ["Sustained impact", "Predictable support"],
+      ctaLabel: String(block.ctaLabel ?? block.buttonLabel ?? "Start Monthly Giving"),
+      ctaUrl: String(block.ctaUrl ?? block.buttonUrl ?? "https://"),
+      buttonColor: safeColor(block.buttonColor, "#16a34a"),
+      bgColor: safeColor(block.bgColor, "#f0f9ff"),
+      textColor: safeColor(block.textColor, "#1e3a8a"),
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
+  if (type === "lapsedDonorReengagement") {
+    return {
+      type,
+      greeting: String(block.greeting ?? "We have missed you, {{preferredName}}."),
+      lastGiftDateToken: String(block.lastGiftDateToken ?? "{{lastGiftDate}}"),
+      message: String(block.message ?? block.content ?? "We are grateful for your past partnership and wanted to reconnect."),
+      impactReminder: String(block.impactReminder ?? "Your previous support made meaningful impact possible."),
+      ctaLabel: String(block.ctaLabel ?? block.buttonLabel ?? "Reconnect with a Gift"),
+      ctaUrl: String(block.ctaUrl ?? block.buttonUrl ?? "https://"),
+      buttonColor: safeColor(block.buttonColor, "#16a34a"),
+      bgColor: safeColor(block.bgColor, "#fff7ed"),
+      textColor: safeColor(block.textColor, "#9a3412"),
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
+  if (type === "firstTimeDonorWelcome") {
+    return {
+      type,
+      headline: String(block.headline ?? block.title ?? "Welcome to the Mission"),
+      missionIntro: String(block.missionIntro ?? "Thank you for taking your first step with us."),
+      whatToExpect: String(block.whatToExpect ?? "You will receive thoughtful updates and impact stories."),
+      contactPerson: String(block.contactPerson ?? "{{staffName}}"),
+      ctaLabel: String(block.ctaLabel ?? block.buttonLabel ?? "See Your Impact"),
+      ctaUrl: String(block.ctaUrl ?? block.buttonUrl ?? "https://"),
+      buttonColor: safeColor(block.buttonColor, "#16a34a"),
+      bgColor: safeColor(block.bgColor, "#eff6ff"),
+      textColor: safeColor(block.textColor, "#1e3a8a"),
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
   if (type === "staffSignature") {
     return {
       type,
@@ -516,6 +717,16 @@ function normalizeDraftBlock(block: BuilderBlockDraft): BuilderBlockDraft {
       alt: String(block.alt ?? "Campaign image"),
       width: boundedInt(block.width, 100, 10, 100),
       align: block.align === "left" || block.align === "right" ? block.align : "center",
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
+  if (type === "video") {
+    return {
+      type,
+      url: String(block.url ?? ""),
+      embedType: block.embedType === "youtube" || block.embedType === "vimeo" || block.embedType === "onedrive" ? block.embedType : "generic",
+      caption: block.caption ? String(block.caption) : undefined,
       padding: boundedInt(block.padding, 16, 0, 100),
     };
   }
@@ -604,6 +815,22 @@ function normalizeDraftBlock(block: BuilderBlockDraft): BuilderBlockDraft {
     return {
       type,
       height: boundedInt(block.height, 28, 4, 200),
+    };
+  }
+
+  if (type === "columns") {
+    return {
+      type,
+      columns: Array.isArray(block.columns) ? block.columns : [[], []],
+      padding: boundedInt(block.padding, 16, 0, 100),
+    };
+  }
+
+  if (type === "customHtml") {
+    return {
+      type,
+      html: sanitizeGeneratedHtml(String(block.html ?? block.content ?? "<div>Custom HTML</div>")),
+      padding: boundedInt(block.padding, 16, 0, 100),
     };
   }
 
@@ -712,10 +939,13 @@ router.post("/email-builder/generate-template", async (req, res) => {
   const systemPrompt = [
     "You generate nonprofit fundraising email templates as strict JSON.",
     "Return JSON only. Do not include markdown code fences.",
-    "Use block types only from: heading, text, quote, impactStat, callout, progress, featureList, donorThankYou, donationCta, staffSignature, footerCompliance, image, social, button, aiText, aiButton, divider, spacer.",
+    "Use block types only from: heading, text, quote, impactStat, impactStory, impactGrid, timeline, callout, progress, featureList, donorThankYou, donationReceipt, givingSummary, donationCta, monthlyDonorInvitation, lapsedDonorReengagement, firstTimeDonorWelcome, staffSignature, footerCompliance, image, video, social, button, aiText, aiButton, divider, spacer, columns, customHtml.",
     "Create a complete draft that is ready for a human to edit, usually 7-12 blocks.",
     "Include footerCompliance and at least one clear CTA button.",
     "Ensure content is donor-safe, factual in tone, and action-oriented.",
+    "Follow the user's goal, audience, and tone exactly.",
+    "Do not output CRM field dumps, donor profile lists, or internal analysis text in blocks.",
+    "Produce polished user-facing copy, not planning notes.",
   ].join(" ");
 
   const userPrompt = {
@@ -902,6 +1132,8 @@ router.post("/email-builder/generate-block", async (req, res) => {
     "You generate one email-builder block as strict JSON.",
     "Return JSON only. Do not include markdown fences.",
     `Block kind: ${payload.blockKind}`,
+    "Follow the user's prompt closely and output user-facing copy only.",
+    "Do not include donor record dumps, internal notes, or tool-style analysis text.",
   ].join(" ");
 
   const schema = payload.blockKind === "aiText"

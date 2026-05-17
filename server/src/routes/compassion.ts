@@ -1979,7 +1979,7 @@ router.put("/clients/:id", async (req, res) => {
     const compassionStaffProvided = assignedCompassionStaffId !== undefined;
     const legacyStaffProvided = assignedStaffId !== undefined;
 
-    let normalizedAssignedCompassionStaffId = compassionStaffProvided
+    const normalizedAssignedCompassionStaffId = compassionStaffProvided
       ? normalizeOptionalId(assignedCompassionStaffId)
       : undefined;
     let normalizedAssignedStaffId = legacyStaffProvided
@@ -2349,7 +2349,7 @@ router.put("/cases/:id", async (req, res) => {
 
     const compassionStaffProvided = assignedCompassionStaffId !== undefined;
     const legacyStaffProvided = assignedStaffId !== undefined;
-    let normalizedAssignedCompassionStaffId = compassionStaffProvided
+    const normalizedAssignedCompassionStaffId = compassionStaffProvided
       ? normalizeOptionalId(assignedCompassionStaffId)
       : undefined;
     let normalizedAssignedStaffId = legacyStaffProvided
@@ -3010,7 +3010,7 @@ router.patch("/appointments/:id", async (req, res) => {
     const assignedCompassionStaffProvided = assignedCompassionStaffId !== undefined;
     const assignedStaffProvided = assignedStaffId !== undefined;
 
-    let nextAssignedCompassionStaffId = assignedCompassionStaffProvided
+    const nextAssignedCompassionStaffId = assignedCompassionStaffProvided
       ? normalizeOptionalId(assignedCompassionStaffId)
       : existing.assignedCompassionStaffId;
     let nextAssignedStaffId = assignedStaffProvided
@@ -3419,7 +3419,7 @@ router.patch("/follow-ups/:id", async (req, res) => {
 
     const compassionStaffProvided = assignedCompassionStaffId !== undefined;
     const legacyStaffProvided = assignedStaffId !== undefined;
-    let normalizedAssignedCompassionStaffId = compassionStaffProvided
+    const normalizedAssignedCompassionStaffId = compassionStaffProvided
       ? normalizeOptionalId(assignedCompassionStaffId)
       : undefined;
     let normalizedAssignedStaffId = legacyStaffProvided

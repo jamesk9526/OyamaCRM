@@ -7,8 +7,46 @@ import type {
   LiveComSurvey,
 } from "@/app/components/livecom/livecom-types";
 
+function legacyConversation(input: {
+  id: string;
+  donorName: string;
+  constituentId: string;
+  channel: LiveComConversation["channel"];
+  status: LiveComConversation["status"];
+  priority: LiveComConversation["priority"];
+  messagePreview: string;
+  receivedAt: string;
+  owner: string;
+}): LiveComConversation {
+  return {
+    ...input,
+    visitorName: input.donorName,
+    visitorEmail: null,
+    visitorPhone: null,
+    sourceWebsite: "Legacy LiveCom seed",
+    pageUrl: "",
+    unread: input.status === "NEW",
+    assignedTo: input.owner,
+    archivedAt: null,
+    archiveReason: null,
+    linkedDonorName: input.donorName,
+    lastMessagePreview: input.messagePreview,
+    startedAt: input.receivedAt,
+    updatedAt: input.receivedAt,
+    messages: [
+      {
+        id: `${input.id}-msg`,
+        role: "visitor",
+        body: input.messagePreview,
+        authorName: input.donorName,
+        createdAt: input.receivedAt,
+      },
+    ],
+  };
+}
+
 export const LIVECOM_CONVERSATIONS: LiveComConversation[] = [
-  {
+  legacyConversation({
     id: "conv-1001",
     donorName: "Alyssa Moreno",
     constituentId: "cm2ajx1000001f4ab0101xy12",
@@ -18,8 +56,8 @@ export const LIVECOM_CONVERSATIONS: LiveComConversation[] = [
     messagePreview: "Can I set my monthly gift to every other week instead?",
     receivedAt: "2026-05-11T13:11:00.000Z",
     owner: "Unassigned",
-  },
-  {
+  }),
+  legacyConversation({
     id: "conv-1002",
     donorName: "Marco Johnson",
     constituentId: "cm2ajx1000002f4ab0101xy13",
@@ -29,8 +67,8 @@ export const LIVECOM_CONVERSATIONS: LiveComConversation[] = [
     messagePreview: "I need a tax receipt copy for my March donation.",
     receivedAt: "2026-05-11T12:54:00.000Z",
     owner: "Sarah Miles",
-  },
-  {
+  }),
+  legacyConversation({
     id: "conv-1003",
     donorName: "Danielle Park",
     constituentId: "cm2ajx1000003f4ab0101xy14",
@@ -40,8 +78,8 @@ export const LIVECOM_CONVERSATIONS: LiveComConversation[] = [
     messagePreview: "Follow-up question sent after event satisfaction survey response.",
     receivedAt: "2026-05-11T10:42:00.000Z",
     owner: "Jordan Lee",
-  },
-  {
+  }),
+  legacyConversation({
     id: "conv-1004",
     donorName: "Priya Gordon",
     constituentId: "cm2ajx1000004f4ab0101xy15",
@@ -51,8 +89,8 @@ export const LIVECOM_CONVERSATIONS: LiveComConversation[] = [
     messagePreview: "Can someone explain where scholarship fund gifts are used?",
     receivedAt: "2026-05-11T09:13:00.000Z",
     owner: "Sarah Miles",
-  },
-  {
+  }),
+  legacyConversation({
     id: "conv-1005",
     donorName: "Noah Riley",
     constituentId: "cm2ajx1000005f4ab0101xy16",
@@ -62,7 +100,7 @@ export const LIVECOM_CONVERSATIONS: LiveComConversation[] = [
     messagePreview: "Updated preferred contact method to SMS.",
     receivedAt: "2026-05-10T21:28:00.000Z",
     owner: "Jordan Lee",
-  },
+  }),
 ];
 
 export const LIVECOM_SURVEYS: LiveComSurvey[] = [

@@ -1,7 +1,7 @@
 /** Rendered email panel for the campaign workspace. */
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import type { WorkspacePreview } from "@/app/components/communications/campaign-workspace-types";
 
@@ -35,6 +35,17 @@ function escapeHtml(value: string): string {
 export default function CampaignRenderedEmail({ preview, loading }: Props) {
   const [previewMode, setPreviewMode] = useState<PreviewMode>("DESKTOP");
 
+  const textContent = preview?.bodyText?.trim()
+    ? preview.bodyText
+    : preview?.bodyHtml?.trim()
+      ? preview.bodyHtml
+          .replace(/<style[\s\S]*?<\/style>/gi, "")
+          .replace(/<script[\s\S]*?<\/script>/gi, "")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+      : "No plain-text body content yet.";
+
   if (loading) {
     return <div className="h-96 rounded-xl border border-gray-200 bg-white animate-pulse" />;
   }
@@ -56,19 +67,6 @@ export default function CampaignRenderedEmail({ preview, loading }: Props) {
     previewMode === "DESKTOP" || previewMode === "TABLET" || previewMode === "MOBILE"
       ? PREVIEW_VIEWPORT_WIDTH[previewMode]
       : "100%";
-
-  const textContent = useMemo(() => {
-    if (preview.bodyText?.trim()) return preview.bodyText;
-    if (preview.bodyHtml?.trim()) {
-      return preview.bodyHtml
-        .replace(/<style[\s\S]*?<\/style>/gi, "")
-        .replace(/<script[\s\S]*?<\/script>/gi, "")
-        .replace(/<[^>]+>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-    }
-    return "No plain-text body content yet.";
-  }, [preview.bodyHtml, preview.bodyText]);
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white">

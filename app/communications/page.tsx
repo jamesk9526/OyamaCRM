@@ -13,6 +13,9 @@ import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonFrame from "@/app/components/workspace-ribbon/WorkspaceRibbonFrame";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
+import EmptyStateCard from "@/app/components/ui/EmptyStateCard";
+import ActionButton from "@/app/components/ui/ActionButton";
+import StewardContextButton from "@/app/components/ai/StewardContextButton";
 import { apiFetch } from "@/app/lib/auth-client";
 
 type CampaignPreparationStatus = "NOT_STARTED" | "DRAFT" | "READY";
@@ -408,15 +411,7 @@ export default function CommunicationsPage() {
       statusLabel="Partially Working"
       metadata={`${campaigns.length} campaigns · ${draftsNeedingReview} drafts needing review · ${scheduledCampaigns.length} scheduled`}
       primaryAction={(
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          New Campaign
-        </button>
+        <WorkspaceRibbonButton label="New Campaign" onClick={() => setShowModal(true)} variant="primary" />
       )}
       ribbon={(
         <WorkspaceRibbon>
@@ -467,7 +462,24 @@ export default function CommunicationsPage() {
                 </Link>
               ))}
               {communicationLog.length === 0 && (
-                <p className="text-sm text-gray-500">No communication activity yet.</p>
+                <EmptyStateCard
+                  className="px-4 py-8"
+                  title="No communication activity yet"
+                  description="Start an email campaign or a steward draft to generate a complete outreach timeline here."
+                  actions={(
+                    <>
+                      <ActionButton label="Create Campaign" variant="primary" onClick={() => setShowModal(true)} />
+                      <ActionButton label="Open Segments" variant="secondary" onClick={() => selectWorkspaceTab("segments")} />
+                      <StewardContextButton
+                        label="Ask Steward"
+                        prompt="We have no communication activity yet. Recommend the first donor outreach sequence we should launch this week."
+                        moduleKey="donor"
+                        mode="ask"
+                        variant="mini"
+                      />
+                    </>
+                  )}
+                />
               )}
             </div>
           </div>
@@ -543,7 +555,26 @@ export default function CommunicationsPage() {
                   </p>
                 </Link>
               ))}
-              {pathDrafts.length === 0 && <p className="text-sm text-gray-500">No steward path drafts found.</p>}
+              {pathDrafts.length === 0 && (
+                <EmptyStateCard
+                  className="px-4 py-8"
+                  title="No steward path drafts yet"
+                  description="Draft-first stewardship messages will appear here after Steward Paths generate follow-up drafts."
+                  actions={(
+                    <>
+                      <ActionButton label="Open Steward Paths" variant="primary" href="/automations" />
+                      <ActionButton label="Create Campaign" variant="secondary" onClick={() => setShowModal(true)} />
+                      <StewardContextButton
+                        label="Ask Steward"
+                        prompt="No steward path drafts are queued. Suggest what path we should launch first to create quality donor follow-up drafts."
+                        moduleKey="donor"
+                        mode="ask"
+                        variant="mini"
+                      />
+                    </>
+                  )}
+                />
+              )}
             </div>
           </section>
 
@@ -590,7 +621,26 @@ export default function CommunicationsPage() {
                 </div>
               </div>
             ))}
-            {scheduledCampaigns.length === 0 && <p className="text-sm text-gray-500">No queued sends right now.</p>}
+            {scheduledCampaigns.length === 0 && (
+              <EmptyStateCard
+                className="px-4 py-8"
+                title="No queued sends right now"
+                description="Schedule a campaign to build your send queue and keep outbound communication predictable."
+                actions={(
+                  <>
+                    <ActionButton label="Create Campaign" variant="primary" onClick={() => setShowModal(true)} />
+                    <ActionButton label="Open Drafts" variant="secondary" onClick={() => selectWorkspaceTab("email-drafts")} />
+                    <StewardContextButton
+                      label="Ask Steward"
+                      prompt="There are no queued sends. Recommend a weekly send cadence and what campaign should be scheduled next."
+                      moduleKey="donor"
+                      mode="ask"
+                      variant="mini"
+                    />
+                  </>
+                )}
+              />
+            )}
           </div>
         </section>
       )}
@@ -609,7 +659,26 @@ export default function CommunicationsPage() {
                 <p className="text-xs text-gray-500 mt-0.5">{item.channel} · {item.commonStatus} · {item.detail}</p>
               </Link>
             ))}
-            {communicationLog.length === 0 && <p className="text-sm text-gray-500">No communication entries yet.</p>}
+            {communicationLog.length === 0 && (
+              <EmptyStateCard
+                className="px-4 py-8"
+                title="No communication entries yet"
+                description="As campaigns send and stewardship drafts progress, a unified timeline of all outreach appears here."
+                actions={(
+                  <>
+                    <ActionButton label="Create Campaign" variant="primary" onClick={() => setShowModal(true)} />
+                    <ActionButton label="Open Queue" variant="secondary" onClick={() => selectWorkspaceTab("send-queue")} />
+                    <StewardContextButton
+                      label="Ask Steward"
+                      prompt="No communication log entries exist yet. Recommend the first three outreach actions we should take to build momentum."
+                      moduleKey="donor"
+                      mode="ask"
+                      variant="mini"
+                    />
+                  </>
+                )}
+              />
+            )}
           </div>
         </section>
       )}
@@ -898,23 +967,28 @@ function StatCard({ icon, label, value, sub, highlight }: { icon: string; label:
 
 function EmptyState({ onNew }: { onNew: () => void }) {
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-      <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
-        <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <EmptyStateCard
+      title="No campaigns yet"
+      description="Create a campaign to plan donor outreach, track engagement, and move messages from draft to sent with confidence."
+      icon={(
+        <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
         </svg>
-      </div>
-      <h3 className="text-base font-semibold text-gray-900">No campaigns yet</h3>
-      <p className="text-sm text-gray-400 mt-1 max-w-sm mx-auto">
-        Create your first email campaign to reach your donors, volunteers, and supporters.
-      </p>
-      <button
-        onClick={onNew}
-        className="mt-5 px-5 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
-      >
-        Create Your First Campaign
-      </button>
-    </div>
+      )}
+      actions={(
+        <>
+          <ActionButton label="Create Campaign" variant="primary" onClick={onNew} />
+          <ActionButton label="Open Segments" variant="secondary" href="/communications?view=segments" />
+          <StewardContextButton
+            label="Ask Steward"
+            prompt="We have no email campaigns yet. Suggest a practical first campaign plan with audience, message, and send sequence."
+            moduleKey="donor"
+            mode="ask"
+            variant="mini"
+          />
+        </>
+      )}
+    />
   );
 }
 

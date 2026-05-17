@@ -22,6 +22,7 @@ const SETTINGS_NAV: SettingsNavItem[] = [
   { label: "Events CRM", href: "/settings/events", icon: "contact-checklist" },
   { label: "AI Assistant", href: "/settings/ai", icon: "client-support-chat" },
   { label: "Integrations", href: "/settings/integrations", icon: "client-profile-sync" },
+  { label: "Payments", href: "/settings/payments", icon: "donor-gift" },
   { label: "Site Embeds", href: "/settings/site-embeds", icon: "messaging-chat" },
   { label: "Security & Audit", href: "/settings/security", icon: "goal-target" },
   { label: "System Updates", href: "/settings/system-updates", icon: "momentum-growth" },

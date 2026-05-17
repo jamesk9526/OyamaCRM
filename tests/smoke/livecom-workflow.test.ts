@@ -8,7 +8,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 let app: Awaited<typeof import("@/server/src/index")>["default"];
 let accessToken = "";
 let createdInteractionId = "";
-const targetConstituentId = "con_01";
+let targetConstituentId = "";
 const uniqueSeed = `livecom-smoke-${Date.now()}`;
 let createdDetail = `LiveCom smoke detail ${uniqueSeed}`;
 
@@ -24,6 +24,12 @@ beforeAll(async () => {
   expect(login.status).toBe(200);
   accessToken = login.body.data?.accessToken ?? "";
   expect(accessToken).toBeTruthy();
+
+  const constituents = await request(app).get("/api/constituents?limit=20").set(authHeader());
+  expect(constituents.status).toBe(200);
+  const rows = Array.isArray(constituents.body) ? constituents.body : constituents.body?.items;
+  targetConstituentId = String(rows?.[0]?.id ?? "");
+  expect(targetConstituentId).toBeTruthy();
 });
 
 /** Returns authorization headers for the seeded admin user. */

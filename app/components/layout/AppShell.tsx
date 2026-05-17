@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import TopBar from "./TopBar";
 import Sidebar from "./Sidebar";
+import MobileSidebarDrawer from "./MobileSidebarDrawer";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
 import { DEFAULT_WORKSPACE_SETTINGS, fetchWorkspaceSettings, type WorkspaceSettings } from "@/app/lib/workspace-settings";
@@ -93,37 +94,34 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Loading splash — prevent flash of unauthenticated content
   if (loading || !user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-gray-50 flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-white">
+    <div className="flex flex-col h-[100dvh] min-h-[100svh] bg-white">
       <TopBar />
-      <div className="relative flex min-w-0 flex-1 overflow-hidden">
+      <div className="relative flex min-w-0 flex-1 overflow-hidden pt-14">
         {!isOShareview && (
           <div className="hidden lg:block">
             <Sidebar />
           </div>
         )}
 
-        {!isOShareview && mobileNavOpen && (
-          <div className="fixed inset-0 z-40 lg:hidden">
-            <button
-              aria-label="Close navigation menu"
-              onClick={() => setMobileNavOpen(false)}
-              className="absolute inset-0 bg-black/35"
-            />
-            <div className="absolute inset-y-0 left-0 w-64 max-w-[86vw] shadow-2xl">
-              <Sidebar forceExpanded />
-            </div>
-          </div>
-        )}
+        {!isOShareview ? (
+          <MobileSidebarDrawer
+            open={mobileNavOpen}
+            title="DonorCRM navigation"
+            onClose={() => setMobileNavOpen(false)}
+          >
+            <Sidebar forceExpanded />
+          </MobileSidebarDrawer>
+        ) : null}
 
         {/* ErrorBoundary catches page-level render errors without crashing the whole shell */}
-        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-gray-50 p-3 sm:p-4 lg:p-4 min-[1440px]:p-5 2xl:p-6">
+        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-gray-50 p-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] lg:p-4 lg:pb-4 min-[1440px]:p-5 2xl:p-6">
 
           <ErrorBoundary>
             <div className="min-w-0 max-w-full">{children}</div>

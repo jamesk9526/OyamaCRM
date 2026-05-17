@@ -68,6 +68,7 @@ const STEWARD_SIGNAL_FIELD_KEYS = {
   recommendation: "stewardOpportunityRecommendation",
   indexedAt: "stewardIndexedAt",
 } as const;
+const stewardSignalsRebuildLocks = new Map<string, Promise<StewardRebuildResponse>>();
 
 /** Injects Steward Signals-specific analytical guidance without modifying global Steward agent defaults. */
 function withStewardSignalsAnalystPrompt(userPrompt: string): StewardAiChatMessage[] {
@@ -894,6 +895,29 @@ async function ensureStewardFieldIds(organizationId: string): Promise<Record<str
 
 /** Rebuilds indexed Steward Signals values and persists refreshed index state metadata. */
 async function rebuildStewardSignalsIndex(params: {
+  organizationId: string;
+  trigger: "auto" | "manual";
+  fingerprint?: string;
+}): Promise<StewardRebuildResponse> {
+  const activeRebuild = stewardSignalsRebuildLocks.get(params.organizationId);
+  if (activeRebuild) {
+    return activeRebuild;
+  }
+
+  const rebuildPromise = performStewardSignalsIndexRebuild(params);
+  stewardSignalsRebuildLocks.set(params.organizationId, rebuildPromise);
+
+  try {
+    return await rebuildPromise;
+  } finally {
+    if (stewardSignalsRebuildLocks.get(params.organizationId) === rebuildPromise) {
+      stewardSignalsRebuildLocks.delete(params.organizationId);
+    }
+  }
+}
+
+/** Performs the actual Steward Signals rebuild after caller-level concurrency has been serialized. */
+async function performStewardSignalsIndexRebuild(params: {
   organizationId: string;
   trigger: "auto" | "manual";
   fingerprint?: string;
@@ -2821,7 +2845,7 @@ router.post("/email-draft", async (req, res) => {
     warningSet.add("Mail outreach restriction is active for this donor.");
   }
 
-  let aiUsed = true;
+  const aiUsed = true;
   let aiError: string | null = null;
 
   if (payload.useAi === false) {
@@ -2839,6 +2863,9 @@ router.post("/email-draft", async (req, res) => {
       "You are drafting a nonprofit donor outreach email for staff review.",
       "Return JSON only with keys: subject, previewText, bodyMarkdown, bodyPlainText, bodyHtml, warnings.",
       "Respect communication preferences and do not claim actions already completed.",
+      "Follow the user message goal and idea exactly. Prioritize what the user asked over generic donor analysis.",
+      "Output a real email draft only. Do not include donor profile dumps, field lists, JSON examples, or CRM record summaries inside the email body.",
+      "If a requested detail is missing, use a short neutral placeholder sentence instead of inventing facts.",
       `Donor name: ${studioInput.donorName}`,
       `Goal: ${studioInput.messageGoal}`,
       `Tone: ${studioInput.tone}`,

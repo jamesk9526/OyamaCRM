@@ -4,6 +4,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   listStewardPathEmailCampaigns,
   listStewardPathLetterTemplates,
@@ -657,12 +658,12 @@ export default function NodeInspector({
             <div className="rounded-md border border-amber-300/80 bg-white p-2 text-[11px] text-amber-900 space-y-1">
               <p><span className="font-semibold">Linked campaign:</span> {readString(activeNode.config, "campaignName") || "Not linked"}</p>
               <p><span className="font-semibold">Campaign status:</span> {readString(activeNode.config, "campaignStatus") || "Unknown"}</p>
-              <a
+              <Link
                 href="/communications"
                 className="inline-flex rounded-md border border-amber-300 px-2 py-1 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
               >
                 Open Communications
-              </a>
+              </Link>
             </div>
             {campaignsLoading ? <p className="text-[11px] text-gray-700">Loading campaigns...</p> : null}
             {campaignError ? <p className="text-[11px] text-rose-700">{campaignError}</p> : null}
@@ -725,12 +726,12 @@ export default function NodeInspector({
             <div className="rounded-md border border-blue-300/80 bg-white p-2 text-[11px] text-blue-900 space-y-1">
               <p><span className="font-semibold">Linked campaign:</span> {readString(activeNode.config, "campaignName") || "Not linked"}</p>
               <p><span className="font-semibold">Campaign status:</span> {readString(activeNode.config, "campaignStatus") || "Unknown"}</p>
-              <a
+              <Link
                 href="/communications"
                 className="inline-flex rounded-md border border-blue-300 px-2 py-1 text-[11px] font-medium text-blue-900 hover:bg-blue-100"
               >
                 Open Communications
-              </a>
+              </Link>
             </div>
             {campaignsLoading ? <p className="text-[11px] text-gray-700">Loading campaigns...</p> : null}
             {campaignError ? <p className="text-[11px] text-rose-700">{campaignError}</p> : null}

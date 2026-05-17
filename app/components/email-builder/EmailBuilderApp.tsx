@@ -239,6 +239,7 @@ function hydrateGeneratedBlock(raw: Record<string, unknown>): EmailBlock {
     "spacer",
     "social",
     "columns",
+    "customHtml",
   ];
   const type = allowedTypes.includes(candidateType as BlockType) ? (candidateType as BlockType) : "text";
   const base = createDefaultBlock(type);
@@ -476,6 +477,15 @@ function hydrateGeneratedBlock(raw: Record<string, unknown>): EmailBlock {
             { platform: "linkedin", url: "https://linkedin.com" },
           ],
       align: raw.align === "left" || raw.align === "right" ? raw.align : "center",
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+    } as EmailBlock;
+  }
+
+  if (type === "customHtml") {
+    return {
+      ...base,
+      type,
+      html: String(raw.html ?? raw.content ?? "<div>Custom HTML</div>"),
       padding: toBoundedNumber(raw.padding, 16, 0, 100),
     } as EmailBlock;
   }

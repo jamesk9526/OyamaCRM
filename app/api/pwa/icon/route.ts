@@ -1,7 +1,7 @@
 /**
  * /api/pwa/icon — generates an Oyama-branded icon PNG for the PWA manifest.
  * Pure Node.js, no canvas or external image deps.
- * Supports ?size=192 and ?size=512.
+ * Supports ?size=180, ?size=192, and ?size=512.
  */
 import { NextRequest, NextResponse } from "next/server";
 import zlib from "node:zlib";
@@ -92,7 +92,7 @@ function generateIconPng(size: number): Buffer {
 
 export async function GET(req: NextRequest) {
   const sizeParam = req.nextUrl.searchParams.get("size");
-  const size = sizeParam === "512" ? 512 : 192;
+  const size = sizeParam === "512" ? 512 : sizeParam === "180" ? 180 : 192;
 
   const png = generateIconPng(size);
 

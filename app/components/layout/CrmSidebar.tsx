@@ -246,8 +246,10 @@ export default function CrmSidebar({
   const [hash, setHash] = useState("");
   const [collapsed, setCollapsed] = useState(false);
   const [compactDesktop, setCompactDesktop] = useState(false);
+  const [compactExpanded, setCompactExpanded] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
   const [groupOpenState, setGroupOpenState] = useState<Record<string, boolean>>(() => getInitialGroupOpenState(groups));
+  const groupStorageKey = `${storageKey}.groups`;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -256,14 +258,35 @@ export default function CrmSidebar({
     if (stored === "1" || stored === "true") {
       setCollapsed(true);
     }
+    const storedGroups = window.localStorage.getItem(groupStorageKey);
+    if (storedGroups) {
+      try {
+        const parsed = JSON.parse(storedGroups) as unknown;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          setGroupOpenState((current) => ({
+            ...current,
+            ...(parsed as Record<string, boolean>),
+          }));
+        }
+      } catch {
+        window.localStorage.removeItem(groupStorageKey);
+      }
+    }
+
     setIsHydrated(true);
-  }, [storageKey]);
+  }, [groupStorageKey, storageKey]);
 
   useEffect(() => {
     if (!isHydrated || forceExpanded || typeof window === "undefined") return;
 
     window.localStorage.setItem(storageKey, collapsed ? "true" : "false");
   }, [collapsed, forceExpanded, isHydrated, storageKey]);
+
+  useEffect(() => {
+    if (!isHydrated || typeof window === "undefined") return;
+
+    window.localStorage.setItem(groupStorageKey, JSON.stringify(groupOpenState));
+  }, [groupOpenState, groupStorageKey, isHydrated]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -281,7 +304,12 @@ export default function CrmSidebar({
     if (typeof window === "undefined") return;
 
     const mediaQuery = window.matchMedia("(min-width: 1024px) and (max-width: 1439px)");
-    const updateCompactDesktop = () => setCompactDesktop(mediaQuery.matches);
+    const updateCompactDesktop = () => {
+      setCompactDesktop(mediaQuery.matches);
+      if (!mediaQuery.matches) {
+        setCompactExpanded(false);
+      }
+    };
 
     updateCompactDesktop();
 
@@ -309,7 +337,7 @@ export default function CrmSidebar({
     });
   }, [groups]);
 
-  const isCollapsed = forceExpanded ? false : compactDesktop || collapsed;
+  const isCollapsed = forceExpanded ? false : compactDesktop ? !compactExpanded : collapsed;
 
   const visibleGroups = useMemo(() => {
     return groups
@@ -350,13 +378,20 @@ export default function CrmSidebar({
       data-sidebar-collapsed={isCollapsed ? "true" : "false"}
     >
       <div className={`flex-1 overflow-y-auto py-2.5 px-2 ${SIDEBAR_SCROLLBAR_CLASS} ${styles.navSurface}`}>
-        {!forceExpanded && !compactDesktop ? (
+        {!forceExpanded ? (
           <div className={`mb-2 flex ${isCollapsed ? "justify-center" : "justify-end"}`}>
             <button
               type="button"
               aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               aria-expanded={!isCollapsed}
-              onClick={() => setCollapsed((current) => !current)}
+              onClick={() => {
+                if (compactDesktop) {
+                  setCompactExpanded((current) => !current);
+                  return;
+                }
+
+                setCollapsed((current) => !current);
+              }}
               className={`inline-flex items-center justify-center rounded-lg border w-8 h-8 transition-colors ${styles.collapseButton}`}
             >
               {isCollapsed ? (
@@ -373,7 +408,7 @@ export default function CrmSidebar({
         ) : null}
 
         {visibleGroups.map((group, index) => {
-          const groupIsOpen = group.collapsible ? (groupOpenState[group.id] ?? true) : true;
+          const groupIsOpen = isCollapsed ? true : group.collapsible ? (groupOpenState[group.id] ?? true) : true;
           const groupActive = activeGroupIds.includes(group.id);
 
           return (
@@ -382,8 +417,11 @@ export default function CrmSidebar({
               className={`mb-1.5 rounded-lg border px-0.5 py-0.5 transition-colors ${groupActive && !isCollapsed ? "border-slate-100 bg-slate-50/70" : `${styles.sectionBorder} ${styles.sectionHover}`}`}
             >
               {isCollapsed ? (
-                <div className="px-2 py-1.5" aria-hidden="true">
-                  <div className={`h-px w-full ${styles.divider}`} />
+                <div className="group/section relative px-2 py-1.5" aria-hidden="true">
+                  <div className={`mx-auto h-px w-7 ${styles.divider}`} />
+                  <span className={`pointer-events-none absolute left-full top-1/2 z-50 ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] shadow-lg group-hover/section:block ${styles.tooltip}`}>
+                    {group.label}
+                  </span>
                 </div>
               ) : (
                 <div className="px-2 py-0.5">
@@ -428,18 +466,21 @@ export default function CrmSidebar({
                         href={item.href}
                         aria-current={active ? "page" : undefined}
                         aria-label={isCollapsed ? item.label : undefined}
-                        className={`group relative mx-0.5 flex items-center ${isCollapsed ? "justify-center" : "justify-start"} gap-2 rounded-md px-2 py-1.5 text-[12.5px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-green-500 ${active ? styles.itemActive : styles.itemInactive}`}
+                        className={`group relative mx-0.5 flex items-center ${isCollapsed ? "min-h-10 justify-center rounded-xl px-1.5 py-2" : "justify-start rounded-md px-2 py-1.5"} gap-2 text-[12.5px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-green-500 ${active ? styles.itemActive : styles.itemInactive} ${isCollapsed ? "hover:shadow-sm" : ""}`}
                         title={isCollapsed ? item.label : undefined}
                       >
                         {active ? (
-                          <span className={`absolute left-0 top-1 bottom-1 w-0.5 rounded-full ${styles.accent}`} aria-hidden="true" />
+                          <span className={`absolute left-0 top-2 bottom-2 w-0.5 rounded-full ${styles.accent}`} aria-hidden="true" />
                         ) : null}
                         <span
-                          className={`shrink-0 rounded-md p-1 transition-colors ${active ? styles.iconActive : styles.iconInactive}`}
+                          className={`shrink-0 rounded-lg p-1 transition-colors ${active ? styles.iconActive : styles.iconInactive} ${isCollapsed && active ? "bg-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]" : ""}`}
                           aria-hidden="true"
                         >
                           {item.icon}
                         </span>
+                        {isCollapsed && item.badge ? (
+                          <span className={`absolute right-2 top-2 h-1.5 w-1.5 rounded-full ${styles.accent}`} aria-hidden="true" />
+                        ) : null}
 
                         {!isCollapsed ? (
                           <>
@@ -455,9 +496,10 @@ export default function CrmSidebar({
                         {isCollapsed ? (
                           <span
                             role="tooltip"
-                            className={`pointer-events-none absolute left-full top-1/2 z-50 ml-2 hidden min-w-[200px] -translate-y-1/2 rounded-lg border px-3 py-2 text-left shadow-lg group-hover:block group-focus-visible:block ${styles.tooltip}`}
+                            className={`pointer-events-none absolute left-full top-1/2 z-50 ml-2 hidden min-w-[220px] -translate-y-1/2 rounded-xl border px-3 py-2 text-left shadow-2xl group-hover:block group-focus-visible:block ${styles.tooltip}`}
                           >
                             <span className="flex items-center gap-2 text-xs font-semibold">
+                              <span className={`inline-flex h-6 w-6 items-center justify-center rounded-lg ${active ? styles.itemActive : "bg-slate-50"}`}>{item.icon}</span>
                               <span>{item.label}</span>
                               {item.badge ? (
                                 <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${styles.badge}`}>

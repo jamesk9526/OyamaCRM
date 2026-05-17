@@ -106,14 +106,32 @@ const normalizeTagColor = (value: unknown, fallback = "#16a34a"): string => {
 
 /** GET /api/constituents — List constituents with optional search, type, and status filters. */
 router.get("/", async (req, res) => {
-  const { search, type, status, limit = "50" } = req.query as Record<string, string>;
+  const {
+    search,
+    type,
+    status,
+    limit = "50",
+    page,
+    pageSize,
+  } = req.query as Record<string, string | undefined>;
   const organizationId = await resolveOrganizationId({ req });
+  const hasPagination = Boolean(page || pageSize);
+
   if (!organizationId) {
-    res.json([]);
+    res.json(hasPagination
+      ? {
+          items: [],
+          page: 1,
+          pageSize: 50,
+          total: 0,
+          totalPages: 0,
+          summary: { total: 0, active: 0, lapsed: 0, prospects: 0 },
+        }
+      : []);
     return;
   }
 
-  const where = {
+  const where: Prisma.ConstituentWhereInput = {
     organizationId,
     ...(search && {
       OR: [
@@ -126,6 +144,60 @@ router.get("/", async (req, res) => {
     ...(type && { type: type as never }),
     ...(status && { donorStatus: status as never }),
   };
+
+  if (hasPagination) {
+    const normalizedPage = Math.max(Number.parseInt(page ?? "1", 10) || 1, 1);
+    const normalizedPageSize = Math.min(Math.max(Number.parseInt(pageSize ?? "50", 10) || 50, 1), 500);
+    const skip = (normalizedPage - 1) * normalizedPageSize;
+
+    const [items, total, active, lapsed, prospects] = await Promise.all([
+      prisma.constituent.findMany({
+        where,
+        skip,
+        take: normalizedPageSize,
+        orderBy: { lastName: "asc" },
+        select: CONSTITUENT_SELECT,
+      }),
+      prisma.constituent.count({ where }),
+      prisma.constituent.count({
+        where: {
+          ...where,
+          donorStatus: { in: ["ACTIVE", "MAJOR_DONOR"] },
+        },
+      }),
+      prisma.constituent.count({
+        where: {
+          ...where,
+          donorStatus: "LAPSED",
+        },
+      }),
+      prisma.constituent.count({
+        where: {
+          ...where,
+          type: "PROSPECT",
+        },
+      }),
+    ]);
+
+    const totalPages = total === 0 ? 0 : Math.ceil(total / normalizedPageSize);
+    const safePage = totalPages > 0 ? Math.min(normalizedPage, totalPages) : 1;
+
+    res.json({
+      items,
+      page: safePage,
+      pageSize: normalizedPageSize,
+      total,
+      totalPages,
+      summary: {
+        total,
+        active,
+        lapsed,
+        prospects,
+      },
+    });
+    return;
+  }
+
   const normalizedLimit = limit.toLowerCase() === "all" ? undefined : Math.min(Number.parseInt(limit, 10) || 50, 2000);
 
   const items = await prisma.constituent.findMany({

@@ -6,12 +6,15 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import CampaignCard from "@/app/components/campaigns/CampaignCard";
 import NewCampaignModal from "@/app/components/campaigns/NewCampaignModal";
 import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
+import EmptyStateCard from "@/app/components/ui/EmptyStateCard";
+import ActionButton from "@/app/components/ui/ActionButton";
+import StewardContextButton from "@/app/components/ai/StewardContextButton";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
@@ -32,13 +35,17 @@ export interface Campaign {
 
 /** Campaigns page — card grid with filtering, new campaign modal, edit and delete */
 export default function CampaignsPage() {
+  const searchParams = useSearchParams();
   const currentYear = new Date().getFullYear();
+  const requestedYear = Number.parseInt(searchParams.get("year") ?? `${currentYear}`, 10);
+  const initialYear = Number.isFinite(requestedYear) ? requestedYear : currentYear;
+  const initialAllYears = searchParams.get("scope")?.toUpperCase() === "ALL_YEARS";
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
-  const [year, setYear] = useState<number>(currentYear);
-  const [allYears, setAllYears] = useState(false);
+  const [year, setYear] = useState<number>(initialYear);
+  const [allYears, setAllYears] = useState(initialAllYears);
   const [showModal, setShowModal] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<Campaign | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -66,6 +73,12 @@ export default function CampaignsPage() {
   }, [allYears, year]);
 
   useEffect(() => { loadCampaigns(); }, [loadCampaigns]);
+
+  // Sync scope controls when route query changes via deep links/back navigation.
+  useEffect(() => {
+    setAllYears(initialAllYears);
+    setYear(initialYear);
+  }, [initialAllYears, initialYear]);
 
   function openDeleteModal(id: string) {
     const candidate = campaigns.find((campaign) => campaign.id === id);
@@ -102,6 +115,10 @@ export default function CampaignsPage() {
 
   const yearOptions = Array.from({ length: 6 }, (_, i) => currentYear - i);
   const scopeLabel = allYears ? "All years" : `${year}`;
+
+  function campaignDetailHref(id: string): string {
+    return allYears ? `/campaigns/${id}?scope=ALL_YEARS` : `/campaigns/${id}?year=${year}`;
+  }
 
   return (
     <EnterprisePageShell
@@ -223,17 +240,37 @@ export default function CampaignsPage() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-12 text-center shadow-sm">
-          <p className="text-gray-500 text-sm">No campaigns found. Create one to get started.</p>
-        </div>
+        <EmptyStateCard
+          title="No campaigns yet"
+          description="Create a campaign to organize fundraising goals, donor outreach, and performance tracking for your team."
+          icon={(
+            <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 18V6l11-2v12L5 18zM16 7h3v8h-3" />
+            </svg>
+          )}
+          actions={(
+            <>
+              <ActionButton label="Create Campaign" variant="primary" onClick={() => setShowModal(true)} />
+              <ActionButton label="Import Donors" variant="secondary" href="/data-tools/import" />
+              <StewardContextButton
+                label="Ask Steward"
+                prompt="We do not have campaigns yet. Recommend the best first fundraising campaign setup for our nonprofit, with timeline and success metrics."
+                moduleKey="donor"
+                mode="ask"
+                variant="mini"
+              />
+            </>
+          )}
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((campaign) => (
             <CampaignCard
               key={campaign.id}
               campaign={campaign}
-              onInfo={() => router.push(`/campaigns/${campaign.id}`)}
-              onEdit={() => router.push(`/campaigns/${campaign.id}`)}
+              scopeLabel={scopeLabel}
+              onInfo={() => router.push(campaignDetailHref(campaign.id))}
+              onEdit={() => router.push(campaignDetailHref(campaign.id))}
               onDelete={openDeleteModal}
             />
           ))}
@@ -290,7 +327,7 @@ export default function CampaignsPage() {
                 type="button"
                 onClick={() => void confirmDeleteCampaign()}
                 disabled={deleteBusy}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-60"
+                className="inline-flex h-9 items-center justify-center rounded-md border border-red-600 bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
               >
                 {deleteBusy ? "Deleting..." : "Delete Campaign"}
               </button>

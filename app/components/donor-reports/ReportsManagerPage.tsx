@@ -174,9 +174,9 @@ function SavedReportsTab({
 }: {
   reports: SavedReport[];
   searchQuery: string;
-  filterStatus: string;
+  filterStatus: "all" | "active" | "draft" | "archived";
   onSearchChange: (query: string) => void;
-  onFilterChange: (status: any) => void;
+  onFilterChange: (status: "all" | "active" | "draft" | "archived") => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onToggleSchedule: (id: string) => void;
@@ -194,7 +194,7 @@ function SavedReportsTab({
         />
         <select
           value={filterStatus}
-          onChange={(e) => onFilterChange(e.target.value)}
+          onChange={(e) => onFilterChange(e.target.value as "draft" | "archived" | "active" | "all")}
           className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100"
         >
           <option value="all">All statuses</option>

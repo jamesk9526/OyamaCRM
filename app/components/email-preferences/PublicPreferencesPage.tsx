@@ -1,7 +1,7 @@
 /** Public preference center component for tokenized donor email category and global subscription updates. */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -98,10 +98,9 @@ export default function PublicPreferencesPage({ token }: { token: string }) {
     }
   }
 
-  const isExpired = useMemo(() => {
-    if (!payload?.expiresAt) return false;
-    return new Date(payload.expiresAt).getTime() < Date.now();
-  }, [payload?.expiresAt]);
+  const isExpired = payload?.expiresAt
+    ? new Date(payload.expiresAt).getTime() < Date.now()
+    : false;
 
   if (loading) {
     return (

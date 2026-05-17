@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./globals-animations.css";
 
 :root {
   --background: #ffffff;
@@ -10,13 +11,39 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-geist-sans, "Segoe UI");
+}
+
+html,
+body {
+  height: 100%;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans, "Segoe UI"), Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: contain;
+}
+
+/* Improve touch ergonomics and avoid delayed gestures on mobile browsers. */
+button,
+a,
+input,
+textarea,
+select {
+  touch-action: manipulation;
+}
+
+/* Prevent horizontal bounce/scroll bleed on narrow mobile viewports. */
+#__next,
+main {
+  max-width: 100%;
 }
 
 /* Chat scroll surfaces use a subtle custom scrollbar for a smoother docked experience. */

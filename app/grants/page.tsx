@@ -16,6 +16,9 @@ import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbB
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
+import EmptyStateCard from "@/app/components/ui/EmptyStateCard";
+import ActionButton from "@/app/components/ui/ActionButton";
+import StewardContextButton from "@/app/components/ai/StewardContextButton";
 import type { Grant, GrantStatus, GrantWorkspaceCaseItem } from "@/app/components/grants/types";
 import { PIPELINE_STAGES, TERMINAL_STAGES, STATUS_META, fmt$ } from "@/app/components/grants/types";
 
@@ -219,12 +222,7 @@ export default function GrantsPage() {
         ]}
         metadata={`${visibleGrants.length} visible grants · ${atRiskCount} at risk · ${fmt$(requestedInView)} requested`}
         primaryAction={(
-          <button
-            onClick={() => setShowAdd(true)}
-            className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
-          >
-            Add Grant Opportunity
-          </button>
+          <ActionButton label="Add Grant Opportunity" variant="primary" onClick={() => setShowAdd(true)} />
         )}
       />
 
@@ -449,10 +447,32 @@ export default function GrantsPage() {
           </div>
 
           {!loading && activeGrants.length === 0 && (
-            <div className="rounded-xl border border-gray-200 bg-white px-6 py-10 text-center">
-              <p className="text-sm font-medium text-gray-700">No active grant opportunities match current filters.</p>
-              <p className="text-xs text-gray-500 mt-1">Adjust filters or create a new grant to continue.</p>
-            </div>
+            <EmptyStateCard
+              title="No active grant opportunities in this view"
+              description="Adjust workspace filters, or add a new opportunity to restart your grant pipeline."
+              actions={(
+                <>
+                  <ActionButton label="Add Grant Opportunity" variant="primary" onClick={() => setShowAdd(true)} />
+                  <ActionButton
+                    label="Reset Filters"
+                    variant="secondary"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setScopeFilter("ALL");
+                      setSortMode("DEADLINE_ASC");
+                      setRiskOnly(false);
+                    }}
+                  />
+                  <StewardContextButton
+                    label="Ask Steward"
+                    prompt="No active grants match current filters. Suggest which grant pipeline filters and priorities we should use for this week."
+                    moduleKey="donor"
+                    mode="ask"
+                    variant="mini"
+                  />
+                </>
+              )}
+            />
           )}
 
           {/* Terminal / archive section */}
@@ -483,14 +503,32 @@ export default function GrantsPage() {
           {loading ? (
             <div className="p-8 text-center text-sm text-gray-400">Loading…</div>
           ) : visibleGrants.length === 0 ? (
-            <div className="p-12 text-center space-y-3">
-              <p className="text-3xl">📄</p>
-              <p className="text-gray-600 font-medium">No grants match your current filters</p>
-              <p className="text-sm text-gray-400">Adjust workspace controls or create a new grant opportunity.</p>
-              <button onClick={() => setShowAdd(true)} className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
-                + New Grant
-              </button>
-            </div>
+            <EmptyStateCard
+              title="No grants match your current filters"
+              description="Reset filters to review the full grant library, or add a new opportunity to keep pipeline coverage strong."
+              actions={(
+                <>
+                  <ActionButton label="Add Grant Opportunity" variant="primary" onClick={() => setShowAdd(true)} />
+                  <ActionButton
+                    label="Reset Filters"
+                    variant="secondary"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setScopeFilter("ALL");
+                      setSortMode("DEADLINE_ASC");
+                      setRiskOnly(false);
+                    }}
+                  />
+                  <StewardContextButton
+                    label="Ask Steward"
+                    prompt="No grants are visible in the grant library. Recommend how to rebalance our grant research and opportunity discovery pipeline."
+                    moduleKey="donor"
+                    mode="ask"
+                    variant="mini"
+                  />
+                </>
+              )}
+            />
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
@@ -554,7 +592,17 @@ export default function GrantsPage() {
           {loading ? (
             <div className="p-8 text-center text-sm text-gray-400">Loading…</div>
           ) : deadlineItems.length === 0 ? (
-            <div className="p-10 text-center text-sm text-gray-500">No upcoming grant reminders or requirement due dates yet.</div>
+            <EmptyStateCard
+              className="border-0 shadow-none"
+              title="No upcoming grant deadlines"
+              description="Create reminders and requirements in each grant case file to keep writing, review, and submission work on track."
+              actions={(
+                <>
+                  <ActionButton label="Open Grant Library" variant="primary" onClick={() => setView("library")} />
+                  <ActionButton label="Add Grant Opportunity" variant="secondary" onClick={() => setShowAdd(true)} />
+                </>
+              )}
+            />
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
@@ -600,7 +648,17 @@ export default function GrantsPage() {
           {loading ? (
             <div className="p-8 text-center text-sm text-gray-400">Loading…</div>
           ) : taskItems.length === 0 ? (
-            <div className="p-10 text-center text-sm text-gray-500">No active grant tasks yet. Add tasks inside a grant case file.</div>
+            <EmptyStateCard
+              className="border-0 shadow-none"
+              title="No active grant tasks"
+              description="Add grant tasks inside a case file so your team can track research, drafting, review, and submission ownership."
+              actions={(
+                <>
+                  <ActionButton label="Open Grant Library" variant="primary" onClick={() => setView("library")} />
+                  <ActionButton label="Add Grant Opportunity" variant="secondary" onClick={() => setShowAdd(true)} />
+                </>
+              )}
+            />
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">

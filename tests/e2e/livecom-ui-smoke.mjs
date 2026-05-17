@@ -1,97 +1,53 @@
 /**
  * LiveCom UI e2e smoke script.
- * Validates create -> inbox update -> constituent timeline visibility in the browser.
+ * Validates local embed widget -> CRM inbox -> visitor widget two-way conversation flow.
  */
 import { chromium } from "playwright";
 
 const WEB_BASE = process.env.E2E_WEB_BASE_URL || "http://localhost:3000";
 const API_BASE = process.env.E2E_API_BASE_URL || "http://localhost:4000";
 
-/** Attempts to recover the current browser session by rotating refresh cookie once. */
-async function recoverSessionViaRefresh(page) {
-  try {
-    const response = await page.request.post(`${API_BASE}/api/auth/refresh`);
-    return response.ok();
-  } catch {
-    return false;
-  }
-}
-
-/** Logs in through the real UI and waits until we leave /login. */
 async function login(page) {
-  const maxAttempts = 3;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    await page.goto(`${WEB_BASE}/login`, { waitUntil: "domcontentloaded" });
-    await page.waitForSelector('input[type="email"], input[name="email"]', { timeout: 45000 });
-    await page.fill('input[type="email"], input[name="email"]', "admin@hopefoundation.org");
-    await page.fill('input[type="password"], input[name="password"]', "admin123!");
-    await page.click('button[type="submit"]');
-
-    // Setup checks and workspace landing-path resolution can delay navigation after submit.
-    const timeoutMs = 45000;
-    const startedAt = Date.now();
-
-    while (Date.now() - startedAt < timeoutMs) {
-      if (!page.url().includes("/login")) {
-        return;
-      }
-
-      const hasError = await page.getByText(/login failed|session expired|invalid/i).count();
-      if (hasError > 0) {
-        throw new Error("Login failed with visible error message on the form.");
-      }
-
-      const hasRateLimit = await page.getByText(/too many auth attempts|too many requests|rate limit/i).count();
-      if (hasRateLimit > 0) {
-        break;
-      }
-
-      await page.waitForTimeout(500);
-    }
-
-    if (attempt < maxAttempts) {
-      await page.waitForTimeout(1500);
-      continue;
-    }
-  }
-
-  throw new Error("Login did not leave /login within 45s.");
+  await page.goto(`${WEB_BASE}/login`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('input[type="email"], input[name="email"]', { timeout: 45000 });
+  await page.fill('input[type="email"], input[name="email"]', "admin@hopefoundation.org");
+  await page.fill('input[type="password"], input[name="password"]', "admin123!");
+  await page.click('button[type="submit"]');
+  await page.waitForURL((url) => !url.href.includes("/login"), { timeout: 45000 });
 }
 
-/** Fails fast if the current URL is unexpectedly the login route. */
-function assertAuthed(url) {
-  if (url.includes("/login")) {
-    throw new Error(`Expected authenticated page, but was redirected to login: ${url}`);
-  }
-}
+async function configureEmbedSite(request) {
+  const config = await request.get(`${API_BASE}/api/site-embeds/config`);
+  if (!config.ok()) throw new Error(`Failed to load site embeds config: ${config.status()}`);
+  const payload = await config.json();
+  const site = payload?.data?.sites?.[0];
+  if (!site?.id) throw new Error("No site embed connection exists for LiveCom e2e.");
 
-/** Waits for interaction row visibility or throws on visible save failures. */
-async function waitForInteractionRow(page, interactionRow, timeoutMs = 36500) {
-  const startedAt = Date.now();
-
-  while (Date.now() - startedAt < timeoutMs) {
-    if (page.url().includes("/login")) {
-      throw new Error("Session dropped to /login while waiting for LiveCom interaction to appear.");
-    }
-
-    if (await interactionRow.count()) {
-      await interactionRow.first().waitFor({ state: "visible", timeout: 5000 });
-      return;
-    }
-
-    const saveFailureVisible = await page
-      .getByText(/failed to save interaction|select a constituent|interaction detail is required/i)
-      .count();
-    if (saveFailureVisible > 0) {
-      const bodyText = await page.locator("body").innerText();
-      throw new Error(`LiveCom save interaction failed: ${bodyText.slice(0, 300)}`);
-    }
-
-    await page.waitForTimeout(500);
-  }
-
-  throw new Error("Timed out waiting for LiveCom interaction row to appear.");
+  const update = await request.put(`${API_BASE}/api/site-embeds/config`, {
+    data: {
+      siteId: site.id,
+      name: site.name || "Local LiveCom Test",
+      publicSiteId: site.publicSiteId || `local_pub_${Date.now()}`,
+      primaryDomain: "localhost",
+      allowedDomains: ["localhost", "127.0.0.1"],
+      active: true,
+      appearance: site.appearance,
+      widgets: {
+        ...site.widgets,
+        liveCom: {
+          ...(site.widgets?.liveCom ?? {}),
+          enabled: true,
+          buttonLabel: "Chat with us",
+          buttonPosition: "bottom-right",
+        },
+      },
+    },
+  });
+  if (!update.ok()) throw new Error(`Failed to configure local LiveCom site: ${update.status()}`);
+  const updated = await update.json();
+  const token = updated?.data?.site?.embedToken;
+  if (!token) throw new Error("Site embed token missing after config update.");
+  return token;
 }
 
 async function main() {
@@ -99,89 +55,42 @@ async function main() {
 
   try {
     const context = await browser.newContext({ viewport: { width: 1366, height: 900 } });
-    const page = await context.newPage();
+    const crmPage = await context.newPage();
+    await login(crmPage);
 
-    await login(page);
+    const token = await configureEmbedSite(crmPage.request);
+    const visitorMessage = `LiveCom visitor e2e ${Date.now()}`;
+    const staffReply = `LiveCom staff e2e ${Date.now()}`;
 
-    // Validate the session on an authenticated workspace route before continuing.
-    await page.goto(`${WEB_BASE}/watchdog`, { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("networkidle").catch(() => {});
-    if (page.url().includes("/login")) {
-      await login(page);
+    const visitorPage = await context.newPage();
+    await visitorPage.goto(`${WEB_BASE}/livecom/embed-test`, { waitUntil: "domcontentloaded" });
+    await visitorPage.getByLabel("API base URL").fill(API_BASE);
+    await visitorPage.getByLabel("Embed token").fill(token);
+    await visitorPage.getByRole("button", { name: "Mount Widget" }).click();
+    await visitorPage.locator("#oyama-livecom-launcher button").last().click();
+    await visitorPage.locator("#oyama-livecom-launcher textarea").fill(visitorMessage);
+    await visitorPage.keyboard.press("Enter");
+    await visitorPage.getByText(/sent to our team/i).waitFor({ timeout: 30000 });
+
+    await crmPage.goto(`${WEB_BASE}/livecom/inbox`, { waitUntil: "domcontentloaded" });
+    await crmPage.getByText(visitorMessage, { exact: false }).first().waitFor({ timeout: 45000 });
+    await crmPage.getByText(visitorMessage, { exact: false }).first().click();
+    await crmPage.locator('textarea[placeholder="Aa"]').fill(staffReply);
+    await crmPage.keyboard.press("Enter");
+    await crmPage.getByText(staffReply, { exact: false }).first().waitFor({ timeout: 30000 });
+
+    await visitorPage.getByText(staffReply, { exact: false }).first().waitFor({ timeout: 45000 });
+
+    await crmPage.getByRole("button", { name: "Archive" }).first().click();
+    await crmPage.getByRole("button", { name: "Reopen" }).first().waitFor({ timeout: 30000 });
+    const publicBody = await visitorPage.locator("#oyama-livecom-launcher").innerText();
+    if (/Conversation archived|Conversation updated|resolved/i.test(publicBody)) {
+      throw new Error("Public widget exposed CRM lifecycle system text.");
     }
+    await crmPage.getByRole("button", { name: "Reopen" }).first().click();
+    await crmPage.getByText(/open/i).first().waitFor({ timeout: 30000 });
 
-    await page.goto(`${WEB_BASE}/livecom`, { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("networkidle").catch(() => {});
-
-    if (page.url().includes("/login")) {
-      const refreshed = await recoverSessionViaRefresh(page);
-      if (refreshed) {
-        await page.goto(`${WEB_BASE}/livecom`, { waitUntil: "domcontentloaded" });
-        await page.waitForLoadState("networkidle").catch(() => {});
-      }
-    }
-
-    assertAuthed(page.url());
-
-    const heading = page.getByRole("heading", { name: "LiveCom" });
-    if (!await heading.isVisible()) {
-      throw new Error("LiveCom heading is not visible.");
-    }
-
-    const uniqueText = `LiveCom e2e ${Date.now()}`;
-    const constituentSelect = page.getByLabel("ConstituentSelect");
-    let optionCount = 0;
-    const optionsWaitStarted = Date.now();
-
-    while (Date.now() - optionsWaitStarted < 36500) {
-      optionCount = await constituentSelect.locator("option").count();
-      if (optionCount >= 2) {
-        break;
-      }
-      await page.waitForTimeout(400);
-    }
-
-    if (optionCount < 2) {
-      throw new Error("Constituent selector does not contain selectable options.");
-    }
-
-    // Select the first non-placeholder constituent option.
-    await constituentSelect.selectOption({ index: 1 });
-
-    await page.getByLabel("Interaction Detail").fill(`Donor follow-up requested. ${uniqueText}`);
-    await page.getByRole("button", { name: "Save Interaction" }).click();
-
-    const interactionRow = page.locator("table tbody tr", { hasText: uniqueText }).first();
-    await waitForInteractionRow(page, interactionRow, 36500);
-
-    const statusSelect = interactionRow.locator("select").first();
-    const ownerInput = interactionRow.locator('input[placeholder="Unassigned"]').first();
-
-    await statusSelect.selectOption("IN_PROGRESS");
-    await ownerInput.fill("E2E Steward Owner");
-
-    const saveButton = interactionRow.getByRole("button", { name: "Save" });
-    await saveButton.click();
-
-    await interactionRow.getByText("In Progress", { exact: false }).first().waitFor({ timeout: 36500 });
-
-    const donorLink = interactionRow.locator('a[href^="/constituents/"]').first();
-    await donorLink.click();
-    await page.waitForLoadState("domcontentloaded");
-    assertAuthed(page.url());
-
-    const timelineButton = page.getByRole("button", { name: /Timeline/i }).first();
-    const timelineLink = page.getByRole("link", { name: /Timeline/i }).first();
-    if (await timelineButton.count()) {
-      await timelineButton.click();
-    } else if (await timelineLink.count()) {
-      await timelineLink.click();
-      await page.waitForLoadState("domcontentloaded");
-    }
-
-    await page.getByText(uniqueText, { exact: false }).first().waitFor({ state: "attached", timeout: 15000 });
     console.log("LiveCom UI smoke passed.");
-
     await context.close();
   } finally {
     await browser.close();

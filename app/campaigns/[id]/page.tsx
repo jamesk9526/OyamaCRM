@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 import { apiFetch } from "@/app/lib/auth-client";
@@ -13,6 +13,11 @@ interface CampaignDetailDonation {
   date: string;
   status: string;
   paymentMethod?: string | null;
+}
+
+/** Formats money for dashboard cards with up to two decimals. */
+function formatMoney(value: number): string {
+  return value.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
 interface CampaignDetail {
@@ -27,6 +32,20 @@ interface CampaignDetail {
   active: boolean;
   donations: CampaignDetailDonation[];
   _count?: { donations: number; pledges: number };
+  performanceSnapshot?: {
+    completedRaised: number;
+    completedCount: number;
+    averageCompletedGift: number;
+    largestCompletedGift: number;
+    pendingCount: number;
+    failedCount: number;
+    refundedCount: number;
+    totalDonationRecords: number;
+  };
+  performanceScope?: {
+    allYears: boolean;
+    year: number | null;
+  };
 }
 
 const CATEGORIES = [
@@ -36,8 +55,15 @@ const CATEGORIES = [
 /** CampaignDetailPage loads one campaign and exposes full edit/remove controls. */
 export default function CampaignDetailPage() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const campaignId = params?.id;
+  const currentYear = new Date().getFullYear();
+  const requestedYear = Number.parseInt(searchParams.get("year") ?? `${currentYear}`, 10);
+  const initialYear = Number.isFinite(requestedYear) ? requestedYear : currentYear;
+  const [allYears, setAllYears] = useState(searchParams.get("scope")?.toUpperCase() === "ALL_YEARS");
+  const [snapshotYear, setSnapshotYear] = useState(initialYear);
+  const yearOptions = Array.from({ length: 6 }, (_, i) => currentYear - i);
 
   const [campaign, setCampaign] = useState<CampaignDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,7 +91,14 @@ export default function CampaignDetailPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiFetch<CampaignDetail>(`/api/campaigns/${campaignId}`);
+      const scopeParams = new URLSearchParams();
+      if (allYears) {
+        scopeParams.set("scope", "ALL_YEARS");
+      } else {
+        scopeParams.set("year", String(snapshotYear));
+      }
+
+      const data = await apiFetch<CampaignDetail>(`/api/campaigns/${campaignId}?${scopeParams.toString()}`);
       setCampaign(data);
       setForm({
         name: data.name,
@@ -81,7 +114,23 @@ export default function CampaignDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [campaignId]);
+  }, [allYears, campaignId, snapshotYear]);
+
+  const backHref = allYears ? "/campaigns?scope=ALL_YEARS" : `/campaigns?year=${snapshotYear}`;
+  const scopeLabel = allYears ? "All years" : `${snapshotYear}`;
+
+  function updateScope(nextAllYears: boolean, nextYear: number) {
+    setAllYears(nextAllYears);
+    setSnapshotYear(nextYear);
+    if (!campaignId || typeof campaignId !== "string") return;
+    const nextParams = new URLSearchParams();
+    if (nextAllYears) {
+      nextParams.set("scope", "ALL_YEARS");
+    } else {
+      nextParams.set("year", String(nextYear));
+    }
+    router.replace(`/campaigns/${campaignId}?${nextParams.toString()}`);
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -139,11 +188,30 @@ export default function CampaignDetailPage() {
     }
   }
 
-  const progress = useMemo(() => {
-    const raised = campaign?.totalRaised ?? 0;
-    const goal = Number(campaign?.goal ?? 0);
-    if (goal <= 0) return 0;
-    return Math.min(100, Math.round((raised / goal) * 100));
+  const performance = useMemo(() => {
+    const goalAmount = Number(campaign?.goal ?? 0);
+    const snapshot = campaign?.performanceSnapshot;
+    const raised = snapshot?.completedRaised ?? campaign?.totalRaised ?? 0;
+    const actualProgress = goalAmount > 0 ? Math.round((raised / goalAmount) * 100) : 0;
+    const progressBarPercent = Math.max(0, Math.min(100, actualProgress));
+    const remainingToGoal = goalAmount > 0 ? Math.max(0, goalAmount - raised) : 0;
+    const overGoal = goalAmount > 0 ? Math.max(0, raised - goalAmount) : 0;
+
+    return {
+      goalAmount,
+      raised,
+      actualProgress,
+      progressBarPercent,
+      remainingToGoal,
+      overGoal,
+      completedCount: snapshot?.completedCount ?? 0,
+      pendingCount: snapshot?.pendingCount ?? 0,
+      failedCount: snapshot?.failedCount ?? 0,
+      refundedCount: snapshot?.refundedCount ?? 0,
+      totalDonationRecords: snapshot?.totalDonationRecords ?? campaign?._count?.donations ?? 0,
+      averageCompletedGift: snapshot?.averageCompletedGift ?? 0,
+      largestCompletedGift: snapshot?.largestCompletedGift ?? 0,
+    };
   }, [campaign]);
 
   if (loading) {
@@ -172,7 +240,7 @@ export default function CampaignDetailPage() {
           <p className="text-sm text-gray-500 mt-0.5">Review campaign performance, edit campaign settings, or remove campaign.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/campaigns" className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50">Back to Campaigns</Link>
+          <Link href={backHref} className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50">Back to Campaigns</Link>
           <button
             onClick={() => setShowDeleteModal(true)}
             disabled={saving}
@@ -190,12 +258,59 @@ export default function CampaignDetailPage() {
         </div>
       </div>
 
+      <section className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Snapshot Scope</p>
+            <p className="text-sm text-gray-700 mt-1">Metrics and recent donations are scoped to <span className="font-semibold">{scopeLabel}</span>.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => updateScope(false, snapshotYear)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md border transition-colors ${!allYears ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"}`}
+            >
+              This Year
+            </button>
+            <button
+              type="button"
+              onClick={() => updateScope(true, snapshotYear)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md border transition-colors ${allYears ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"}`}
+            >
+              All Years
+            </button>
+            <select
+              value={snapshotYear}
+              onChange={(event) => updateScope(false, Number.parseInt(event.target.value, 10))}
+              disabled={allYears}
+              className="rounded-md border border-gray-200 px-2 py-1.5 text-xs text-gray-700 bg-white disabled:opacity-50"
+            >
+              {yearOptions.map((optionYear) => (
+                <option key={optionYear} value={optionYear}>{optionYear}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </section>
+
       <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Campaign Follow-Up Workflow</p>
         <p className="mt-1 text-sm text-emerald-900">
           Launch communication and stewardship work directly from this campaign so outbound touchpoints, tasks, and path activity stay connected.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
+          <Link
+            href={`/donations/new?source=campaign&campaignId=${campaign.id}&campaignName=${encodeURIComponent(campaign.name)}`}
+            className="px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-white border border-emerald-200 rounded-md hover:bg-emerald-50"
+          >
+            Record Donation
+          </Link>
+          <Link
+            href={`/donations?campaignId=${campaign.id}&campaignName=${encodeURIComponent(campaign.name)}`}
+            className="px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-white border border-emerald-200 rounded-md hover:bg-emerald-50"
+          >
+            View Campaign Donations
+          </Link>
           <Link
             href={`/communications?new=1&source=campaign&campaignId=${campaign.id}`}
             className="px-3 py-1.5 text-xs font-semibold text-blue-700 bg-white border border-blue-200 rounded-md hover:bg-blue-50"
@@ -215,10 +330,10 @@ export default function CampaignDetailPage() {
             Start Follow-Up Path
           </Link>
           <Link
-            href="/communications"
+            href={`/email-builder?campaign=${campaign.id}&returnTo=${encodeURIComponent(`/campaigns/${campaign.id}`)}`}
             className="px-3 py-1.5 text-xs font-semibold text-purple-700 bg-white border border-purple-200 rounded-md hover:bg-purple-50"
           >
-            View Segment Workspace
+            Open Campaign Email Builder
           </Link>
         </div>
       </section>
@@ -317,32 +432,53 @@ export default function CampaignDetailPage() {
 
         <section className="rounded-xl border border-gray-200 bg-white p-5 space-y-4">
           <h2 className="text-sm font-semibold text-gray-900">Performance Snapshot</h2>
+          <p className="text-xs text-gray-500">Snapshot uses donation records linked to this campaign in scope: {scopeLabel}.</p>
           <div className="space-y-1">
-            <p className="text-xs text-gray-500">Raised</p>
-            <p className="text-2xl font-semibold text-gray-900">${campaign.totalRaised.toLocaleString()}</p>
+            <p className="text-xs text-gray-500">Raised (Completed)</p>
+            <p className="text-2xl font-semibold text-gray-900">${formatMoney(performance.raised)}</p>
           </div>
           <div className="space-y-1">
             <p className="text-xs text-gray-500">Goal</p>
-            <p className="text-lg font-semibold text-gray-800">${Number(campaign.goal ?? 0).toLocaleString()}</p>
+            <p className="text-lg font-semibold text-gray-800">${formatMoney(performance.goalAmount)}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <p className="text-xs text-gray-500">Average Gift (Completed)</p>
+              <p className="text-sm font-semibold text-gray-800">${formatMoney(performance.averageCompletedGift)}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-gray-500">Largest Gift (Completed)</p>
+              <p className="text-sm font-semibold text-gray-800">${formatMoney(performance.largestCompletedGift)}</p>
+            </div>
           </div>
           <div>
             <div className="flex justify-between text-xs text-gray-500 mb-1">
               <span>Progress</span>
-              <span>{progress}%</span>
+              <span>{performance.actualProgress}%</span>
             </div>
             <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-              <div className="h-2 rounded-full bg-green-500" style={{ width: `${progress}%` }} />
+              <div className="h-2 rounded-full bg-green-500" style={{ width: `${performance.progressBarPercent}%` }} />
             </div>
           </div>
           <div className="text-xs text-gray-500">
-            <p>{campaign._count?.donations ?? 0} donations tracked</p>
+            {performance.goalAmount > 0 ? (
+              <p>
+                {performance.overGoal > 0
+                  ? `$${formatMoney(performance.overGoal)} above goal`
+                  : `$${formatMoney(performance.remainingToGoal)} remaining to goal`}
+              </p>
+            ) : (
+              <p>Add a goal to enable target tracking.</p>
+            )}
+            <p>{performance.totalDonationRecords} donation records tracked</p>
+            <p>{performance.completedCount} completed · {performance.pendingCount} pending · {performance.failedCount} failed · {performance.refundedCount} refunded</p>
             <p>{campaign._count?.pledges ?? 0} pledges tracked</p>
           </div>
         </section>
       </div>
 
       <section className="rounded-xl border border-gray-200 bg-white p-5">
-        <h2 className="text-sm font-semibold text-gray-900">Recent Donations</h2>
+        <h2 className="text-sm font-semibold text-gray-900">Recent Donations ({scopeLabel})</h2>
         <div className="mt-3 overflow-x-auto">
           {campaign.donations.length === 0 ? (
             <p className="text-sm text-gray-500">No donations linked to this campaign yet.</p>

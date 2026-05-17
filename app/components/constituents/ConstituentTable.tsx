@@ -11,6 +11,9 @@ import {
   typeLabel,
   engagementColor,
 } from "@/app/components/constituents/constituent-utils";
+import EmptyStateCard from "@/app/components/ui/EmptyStateCard";
+import ActionButton from "@/app/components/ui/ActionButton";
+import StewardContextButton from "@/app/components/ai/StewardContextButton";
 
 interface Props {
   constituents: ConstituentRow[];
@@ -73,9 +76,29 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
   if (sorted.length === 0) {
     return (
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="p-12 text-center">
-          <p className="text-gray-500 text-sm">No constituents found. Try adjusting your filters.</p>
-        </div>
+        <EmptyStateCard
+          className="border-0 shadow-none"
+          title="No constituents in this view"
+          description="Add a constituent record, import donors from a file, or ask Steward to suggest the right data setup for your next outreach cycle."
+          icon={(
+            <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM5 20a7 7 0 0 1 14 0" />
+            </svg>
+          )}
+          actions={(
+            <>
+              <ActionButton label="Add Constituent" variant="primary" href="/constituents/new" />
+              <ActionButton label="Import Donors" variant="secondary" href="/data-tools/import" />
+              <StewardContextButton
+                label="Ask Steward"
+                prompt="Our constituents list is empty for this view. Suggest what donor data we should import first and how to segment it for campaigns."
+                moduleKey="donor"
+                mode="ask"
+                variant="mini"
+              />
+            </>
+          )}
+        />
       </div>
     );
   }
@@ -159,13 +182,13 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
       </div>
 
       <div className="hidden md:block overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full min-w-[1100px] border-separate border-spacing-0 text-sm">
         <thead>
-          <tr className="border-b border-gray-200 bg-gray-50">
+          <tr className="border-b border-gray-300 bg-gray-100">
             {COLUMNS.map((col) => (
               <th
                 key={col.key}
-                className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap ${
+                className={`sticky top-0 z-10 border-b border-r border-gray-200 bg-gray-100 px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap ${
                   col.sortable ? "cursor-pointer hover:text-gray-900 select-none" : ""
                 }`}
                 onClick={() => col.sortable && handleSort(col.key)}
@@ -180,39 +203,39 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody>
           {sorted.map((c) => (
-            <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+            <tr key={c.id} className="border-b border-gray-100 odd:bg-white even:bg-gray-50/60 hover:bg-emerald-50/40 transition-colors">
               {/* Name */}
-              <td className="px-4 py-3">
+              <td className="sticky left-0 z-[1] border-r border-gray-100 bg-inherit px-3 py-2 align-top">
                 <Link href={`/constituents/${c.id}`} className="font-medium text-gray-900 hover:text-green-600 transition-colors">
                   {c.firstName} {c.lastName}
                 </Link>
                 {c.email && <p className="text-xs text-gray-400 mt-0.5">{c.email}</p>}
               </td>
               {/* Type */}
-              <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+              <td className="border-r border-gray-100 px-3 py-2 text-gray-600 whitespace-nowrap align-top">
                 {typeLabel(c.type)}
               </td>
               {/* Status */}
-              <td className="px-4 py-3">
+              <td className="border-r border-gray-100 px-3 py-2 align-top">
                 <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(c.donorStatus)}`}>
                   {statusLabel(c.donorStatus)}
                 </span>
               </td>
               {/* YTD */}
-              <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
+              <td className="border-r border-gray-100 px-3 py-2 text-right font-medium tabular-nums text-gray-900 whitespace-nowrap align-top">
                 {formatCurrency(c.totalYtdGiving)}
               </td>
               {/* Lifetime */}
-              <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+              <td className="border-r border-gray-100 px-3 py-2 text-right tabular-nums text-gray-600 whitespace-nowrap align-top">
                 {formatCurrency(c.totalLifetimeGiving)}
                 {c.giftCount > 0 && (
                   <span className="text-xs text-gray-400 ml-1">({c.giftCount} gifts)</span>
                 )}
               </td>
               {/* Last Gift */}
-              <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+              <td className="border-r border-gray-100 px-3 py-2 text-right tabular-nums text-gray-600 whitespace-nowrap align-top">
                 {c.lastGiftAmount ? (
                   <>
                     <span className="font-medium text-gray-800">{formatCurrency(c.lastGiftAmount)}</span>
@@ -223,9 +246,9 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
                 )}
               </td>
               {/* Engagement */}
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+              <td className="border-r border-gray-100 px-3 py-2 align-top">
+                <div className="flex items-center justify-end gap-2">
+                  <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-green-500 rounded-full"
                       style={{ width: `${c.engagementScore}%` }}
@@ -237,8 +260,8 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
                 </div>
               </td>
               {/* Tags */}
-              <td className="px-4 py-3">
-                <div className="flex flex-wrap gap-1">
+              <td className="border-r border-gray-100 px-3 py-2 align-top">
+                <div className="flex flex-wrap gap-1 justify-end">
                   {c.tags.slice(0, 3).map((t) => (
                     <span
                       key={t.tagId}
@@ -254,7 +277,7 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
                 </div>
               </td>
               {/* Actions */}
-              <td className="px-4 py-3">
+              <td className="px-3 py-2 align-top">
                 <div className="flex items-center gap-1 justify-end">
                   <Link
                     href={`/constituents/${c.id}/edit`}

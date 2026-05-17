@@ -57,6 +57,11 @@ const CARDS = [
     href: "/settings/integrations",
   },
   {
+    title: "Payments",
+    description: "Stripe and PayPal gateway settings, encryption-safe secrets, and donation checkout diagnostics.",
+    href: "/settings/payments",
+  },
+  {
     title: "Site Embeds",
     description: "Generate secure website snippets, configure domain allow-lists, and manage LiveCom public widget installs.",
     href: "/settings/site-embeds",
@@ -91,6 +96,7 @@ export default function SettingsOverviewPage() {
           <WorkspaceRibbonButton label="Modules" href="/settings/modules" />
           <WorkspaceRibbonButton label="AI" href="/settings/ai" />
           <WorkspaceRibbonButton label="Integrations" href="/settings/integrations" />
+          <WorkspaceRibbonButton label="Payments" href="/settings/payments" />
           <WorkspaceRibbonButton label="System Updates" href="/settings/system-updates" />
           <WorkspaceRibbonButton label="System Status" href="/settings/system-status" />
         </WorkspaceRibbonGroup>

@@ -44,6 +44,7 @@ import meetingRoutes from "./routes/meetings.js";
 import compassionRoutes from "./routes/compassion.js";
 import compassionPublicRoutes from "./routes/compassion-public.js";
 import quickbooksRoutes from "./routes/quickbooks.js";
+import paymentsRoutes from "./routes/payments.js";
 import searchRoutes from "./routes/search.js";
 import notificationsRoutes from "./routes/notifications.js";
 import stewardSignalsRoutes from "./routes/steward-signals.js";
@@ -152,6 +153,9 @@ app.use(
   }),
 );
 
+// Capture raw body for Stripe webhook signature verification before JSON parsing.
+app.use("/api/site-embeds/public/stripe-webhook", express.raw({ type: "application/json" }));
+
 // Import endpoint can receive 800+ records as JSON — raise the limit to 20 MB.
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
@@ -226,6 +230,7 @@ app.use("/api/meetings", meetingRoutes);
 app.use("/api/compassion-public", compassionPublicRoutes);
 app.use("/api/compassion", compassionRoutes);
 app.use("/api/quickbooks", quickbooksRoutes);
+app.use("/api/payments", paymentsRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/help-agent", helpAgentRoutes);
 app.use("/api/system-updates", systemUpdatesRoutes);

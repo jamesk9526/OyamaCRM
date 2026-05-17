@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import DonationTable from "@/app/components/donations/DonationTable";
 import { DonationRow, formatCurrency } from "@/app/components/donations/donation-utils";
 import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
@@ -50,6 +51,9 @@ function getCurrentYearDateInputs(): { from: string; to: string } {
 
 export default function DonationsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const campaignIdFilter = searchParams.get("campaignId") ?? "";
+  const campaignNameFilter = searchParams.get("campaignName") ?? "";
   const defaultRange = getCurrentYearDateInputs();
   const [donations, setDonations] = useState<DonationRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -69,10 +73,15 @@ export default function DonationsPage() {
   const [from,   setFrom]   = useState(defaultRange.from);
   const [to,     setTo]     = useState(defaultRange.to);
 
+  const recordGiftHref = campaignIdFilter
+    ? `/donations/new?source=campaign&campaignId=${campaignIdFilter}&campaignName=${encodeURIComponent(campaignNameFilter)}`
+    : "/donations/new";
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const filterParams = new URLSearchParams();
+      if (campaignIdFilter) filterParams.set("campaignId", campaignIdFilter);
       if (search) filterParams.set("search", search);
       if (status) filterParams.set("status", status);
       // "Include all years" explicitly disables date-range filtering.
@@ -112,7 +121,7 @@ export default function DonationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [allYears, defaultRange.from, defaultRange.to, from, page, reportingYearMode, search, status, to]);
+  }, [allYears, campaignIdFilter, defaultRange.from, defaultRange.to, from, page, reportingYearMode, search, status, to]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -130,7 +139,7 @@ export default function DonationsPage() {
   // Filters always jump back to page 1 to avoid empty pages after narrowing.
   useEffect(() => {
     setPage(1);
-  }, [search, status, from, to, allYears]);
+  }, [search, status, from, to, allYears, campaignIdFilter]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -253,13 +262,13 @@ export default function DonationsPage() {
               { label: "Donations" },
             ]}
             statusLabel={loading ? "Loading" : "Working"}
-            metadata={`${total.toLocaleString()} records · ${formatCurrency(stats.totalRaised)} raised`}
-            primaryAction={<WorkspaceRibbonButton label="Record Gift" href="/donations/new" variant="primary" />}
+            metadata={`${total.toLocaleString()} records · ${formatCurrency(stats.totalRaised)} raised${campaignNameFilter ? ` · ${campaignNameFilter}` : ""}`}
+            primaryAction={<WorkspaceRibbonButton label="Record Gift" href={recordGiftHref} variant="primary" />}
           />
 
           <WorkspaceRibbon>
             <WorkspaceRibbonGroup label="Create">
-              <WorkspaceRibbonButton label="Record Gift" href="/donations/new" variant="primary" />
+              <WorkspaceRibbonButton label="Record Gift" href={recordGiftHref} variant="primary" />
             </WorkspaceRibbonGroup>
 
             <WorkspaceRibbonGroup label="Status">
@@ -292,6 +301,17 @@ export default function DonationsPage() {
       )}
     >
     <div className="space-y-5">
+
+      {campaignIdFilter && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 flex items-center justify-between gap-3">
+          <p>
+            Campaign filter active: <span className="font-semibold">{campaignNameFilter || campaignIdFilter}</span>
+          </p>
+          <Link href="/donations" className="text-xs font-semibold text-emerald-700 hover:text-emerald-900">
+            Clear campaign filter
+          </Link>
+        </div>
+      )}
 
       {apiDown && (
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700 flex items-center gap-2">

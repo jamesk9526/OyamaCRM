@@ -177,10 +177,11 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
         {
           id: "livecom",
           label: "LiveCom",
-          href: "/livecom",
+          href: "/livecom/inbox",
+          activePath: "/livecom",
           icon: DONOR_ICONS.livecom,
           kind: "communication_tool",
-          description: "Manage website chat and live donor communication.",
+          description: "Open the LiveCom Inbox for website chat and live donor communication.",
         },
         {
           id: "meetings",

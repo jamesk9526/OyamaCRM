@@ -36,7 +36,7 @@ export default function AppProductShell({ appName, appSubtitle, navItems, childr
   }, [pathname]);
 
   return (
-    <div className="flex flex-col h-screen bg-white">
+    <div className="flex flex-col h-[100dvh] min-h-[100svh] bg-white">
       <header className="h-14 shrink-0 w-full flex items-center justify-between px-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700/70">
         <div className="flex items-center gap-3 min-w-0">
           <span className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-sm font-bold shrink-0">
@@ -119,7 +119,7 @@ export default function AppProductShell({ appName, appSubtitle, navItems, childr
           </div>
         )}
 
-        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-slate-50 p-3 sm:p-4 lg:p-4 min-[1440px]:p-5 2xl:p-6">
+        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-slate-50 p-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] lg:p-4 lg:pb-4 min-[1440px]:p-5 2xl:p-6">
           <div className="mb-3 lg:hidden">
             <button
               type="button"

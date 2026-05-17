@@ -40,6 +40,7 @@ import type {
   SpacerBlock,
   SocialBlock,
   ColumnsBlock,
+  CustomHtmlBlock,
 } from './email-builder-types';
 
 // ─── Block Factory ────────────────────────────────────────────────────────────
@@ -455,6 +456,14 @@ export function createDefaultBlock(type: BlockType): EmailBlock {
         ],
         padding: 16,
       } satisfies ColumnsBlock;
+
+    case 'customHtml':
+      return {
+        id,
+        type: 'customHtml',
+        html: '<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1f2937;">Custom HTML block</td></tr></table>',
+        padding: 16,
+      } satisfies CustomHtmlBlock;
   }
 }
 
@@ -907,6 +916,13 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
   </td>
 </tr>`;
     }
+
+    case 'customHtml':
+      return `<tr>
+  <td style="padding:${block.padding}px;">
+    ${block.html}
+  </td>
+</tr>`;
   }
 }
 
@@ -993,8 +1009,15 @@ export function generatePlainText(template: EmailTemplate): string {
         case 'social':  return block.links.map((l) => `${l.platform}: ${l.url}`).join('  ');
         case 'columns':
           return block.columns
-            .map((col) => col.map((b) => stripHtml((b as TextBlock).content ?? '')).join('\n'))
+            .map((col: EmailBlock[]) => col.map((b: EmailBlock) => {
+              if (b.type === 'text' || b.type === 'aiText') return stripHtml(b.content ?? '');
+              if (b.type === 'heading') return `${b.eyebrow ? `${b.eyebrow}\n` : ''}${b.title}${b.subtitle ? `\n${b.subtitle}` : ''}`;
+              if (b.type === 'button' || b.type === 'aiButton') return `[${b.label}] → ${b.href}`;
+              return '';
+            }).filter(Boolean).join('\n'))
             .join('\n\n');
+        case 'customHtml':
+          return stripHtml(block.html);
         default:        return '';
       }
     })

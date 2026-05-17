@@ -139,15 +139,30 @@ router.get("/", async (req, res) => {
 
 /** GET /api/campaigns/:id — Fetch one campaign and include recent donations and pledges. */
 router.get("/:id", async (req, res) => {
+  const { year, scope } = req.query as Record<string, string>;
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
     return res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
   }
 
+  const parsedYear = Number.parseInt(year ?? `${new Date().getFullYear()}`, 10);
+  const useAllYears = scope?.toUpperCase() === "ALL_YEARS";
+  const yearDateFilter =
+    !useAllYears && Number.isFinite(parsedYear)
+      ? {
+          gte: new Date(parsedYear, 0, 1),
+          lt: new Date(parsedYear + 1, 0, 1),
+        }
+      : undefined;
+
   const campaign = await prisma.campaign.findFirst({
     where: { id: req.params.id as string, organizationId },
     include: {
-      donations: { orderBy: { date: "desc" }, take: 20 },
+      donations: {
+        ...(yearDateFilter ? { where: { date: yearDateFilter } } : {}),
+        orderBy: { date: "desc" },
+        take: 20,
+      },
       pledges: { orderBy: { createdAt: "desc" }, take: 20 },
       _count: {
         select: {
@@ -162,14 +177,46 @@ router.get("/:id", async (req, res) => {
     return res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
   }
 
-  const aggregate = await prisma.donation.aggregate({
-    where: { campaignId: campaign.id, status: "COMPLETED", campaign: { organizationId } },
-    _sum: { amount: true },
+  const scopedDonationWhere: Prisma.DonationWhereInput = {
+    campaignId: campaign.id,
+    campaign: { organizationId },
+    ...(yearDateFilter ? { date: yearDateFilter } : {}),
+  };
+
+  const donationStatusBreakdown = await prisma.donation.groupBy({
+    by: ["status"],
+    where: scopedDonationWhere,
+    _count: { _all: true },
   });
+
+  const completedAggregate = await prisma.donation.aggregate({
+    where: { ...scopedDonationWhere, status: "COMPLETED" },
+    _sum: { amount: true },
+    _avg: { amount: true },
+    _max: { amount: true },
+    _count: { _all: true },
+  });
+
+  const statusCount = new Map(donationStatusBreakdown.map((row) => [row.status, Number(row._count._all ?? 0)]));
+  const completedRaised = Number(completedAggregate._sum.amount ?? 0);
 
   return res.json({
     ...campaign,
-    totalRaised: Number(aggregate._sum.amount ?? 0),
+    totalRaised: completedRaised,
+    performanceSnapshot: {
+      completedRaised,
+      completedCount: Number(completedAggregate._count._all ?? 0),
+      averageCompletedGift: Number(completedAggregate._avg.amount ?? 0),
+      largestCompletedGift: Number(completedAggregate._max.amount ?? 0),
+      pendingCount: statusCount.get("PENDING") ?? 0,
+      failedCount: statusCount.get("FAILED") ?? 0,
+      refundedCount: statusCount.get("REFUNDED") ?? 0,
+      totalDonationRecords: donationStatusBreakdown.reduce((sum, row) => sum + Number(row._count._all ?? 0), 0),
+    },
+    performanceScope: {
+      allYears: useAllYears,
+      year: useAllYears ? null : parsedYear,
+    },
   });
 });
 

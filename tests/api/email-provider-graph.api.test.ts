@@ -19,7 +19,7 @@ afterEach(() => {
 });
 
 describe("email provider microsoft graph api", () => {
-  it("completes oauth callback flow, runs graph provider test, and disconnects", async () => {
+  it("completes oauth callback flow, uses graph for provider and campaign test sends, and disconnects", async () => {
     const auth = { Authorization: `Bearer ${adminToken}` };
 
     const saveProvider = await request(app)
@@ -56,6 +56,7 @@ describe("email provider microsoft graph api", () => {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }))
+      .mockResolvedValueOnce(new Response("", { status: 202 }))
       .mockResolvedValueOnce(new Response("", { status: 202 }));
 
     const callback = await request(app)
@@ -77,6 +78,33 @@ describe("email provider microsoft graph api", () => {
     expect(providerTest.status).toBe(200);
     expect(providerTest.body?.mode).toBe("microsoft_graph");
     expect(String(providerTest.body?.message ?? "")).toContain("Provider test email sent");
+
+    const campaign = await request(app)
+      .post("/api/email-campaigns")
+      .set(auth)
+      .send({
+        name: "Graph Campaign Test",
+        subject: "Graph campaign send-test",
+        fromName: "Hope Foundation",
+        fromEmail: "admin@hopefoundation.org",
+        bodyText: "Graph campaign body",
+        templateJson: "{\"blocks\":[]}",
+      });
+    expect(campaign.status).toBe(201);
+
+    const campaignTest = await request(app)
+      .post(`/api/email-campaigns/${campaign.body.id}/send-test`)
+      .set(auth)
+      .send({ toEmail: "admin@hopefoundation.org" });
+    expect(campaignTest.status).toBe(200);
+    expect(campaignTest.body?.success).toBe(true);
+
+    const fetchCalls = (globalThis.fetch as unknown as { mock?: { calls?: unknown[][] } }).mock?.calls ?? [];
+    const graphSendMailCalls = fetchCalls.filter((call) => {
+      const url = typeof call?.[0] === "string" ? call[0] : "";
+      return url.includes("graph.microsoft.com") && url.includes("sendMail");
+    });
+    expect(graphSendMailCalls.length).toBeGreaterThanOrEqual(2);
 
     const disconnect = await request(app)
       .post("/api/settings/email/provider/microsoft/disconnect")

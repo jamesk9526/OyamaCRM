@@ -40,6 +40,7 @@ import WorkspaceRibbonGroup from "./components/workspace-ribbon/WorkspaceRibbonG
 import DashboardLayoutModal, { type RevenueGoalMode, type RevenueProgressSource } from "./components/dashboard/DashboardLayoutModal";
 import { apiFetch } from "@/app/lib/auth-client";
 import { getStoredReportingYearMode, type ReportingYearMode } from "@/app/lib/fiscal-year";
+import StewardContextButton from "@/app/components/ai/StewardContextButton";
 
 /** Shape returned by /api/reports/summary (extended) */
 interface Summary {
@@ -123,6 +124,7 @@ const DEFAULT_WIDGET_ORDER = [
 ] as const;
 
 type WidgetId = (typeof DEFAULT_WIDGET_ORDER)[number];
+type DashboardLayoutMode = "GRID" | "MASONRY";
 
 /** Human-readable label + description for each widget (used in the layout modal) */
 const WIDGET_META = [
@@ -229,6 +231,7 @@ const LS_ORDER_KEY = "dashboard-widget-order";
 const LS_LOCK_KEY = "dashboard-locked";
 const LS_HIDDEN_WIDGETS_KEY = "dashboard-hidden-widgets";
 const LS_WIDGET_SIZES_KEY = "dashboard-widget-sizes";
+const LS_LAYOUT_MODE_KEY = "dashboard-layout-mode";
 /** Persists the "Include Grants in revenue" preference */
 const LS_GRANTS_KEY = "dashboard-include-grants";
 /** Persists which data source Revenue Progress should display. */
@@ -316,6 +319,12 @@ function loadAiWidgetsEnabled(): boolean {
   return localStorage.getItem(LS_AI_WIDGETS_ENABLED_KEY) !== "false";
 }
 
+/** Load dashboard card-flow layout mode preference from localStorage. */
+function loadLayoutMode(): DashboardLayoutMode {
+  if (typeof window === "undefined") return "GRID";
+  return localStorage.getItem(LS_LAYOUT_MODE_KEY) === "MASONRY" ? "MASONRY" : "GRID";
+}
+
 const DEFAULT_WIDGET_SIZES: Record<WidgetId, DashboardWidgetSize> = {
   "start-here": "wide",
   "todays-focus": "wide",
@@ -366,6 +375,19 @@ function getWidgetLayoutClass(size: DashboardWidgetSize): string {
   return "xl:col-span-4";
 }
 
+/** Widget class used when masonry flow is enabled. */
+function getMasonryWidgetLayoutClass(): string {
+  return "mb-4 w-full break-inside-avoid";
+}
+
+/** Shared section container class for grid or masonry flow. */
+function getSectionLayoutClass(layoutMode: DashboardLayoutMode): string {
+  if (layoutMode === "MASONRY") {
+    return "columns-1 [column-gap:1rem] md:columns-2 xl:columns-3 2xl:columns-4";
+  }
+  return "grid grid-cols-1 gap-4 xl:grid-cols-12";
+}
+
 function formatUsd(value: number): string {
   return `$${value.toLocaleString()}`;
 }
@@ -385,6 +407,7 @@ export default function DashboardPage() {
   const [locked, setLocked] = useState(loadLocked);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
   const [aiWidgetsEnabled, setAiWidgetsEnabled] = useState(loadAiWidgetsEnabled);
+  const [layoutMode, setLayoutMode] = useState<DashboardLayoutMode>(loadLayoutMode);
   const [widgetSizes, setWidgetSizes] = useState<Record<WidgetId, DashboardWidgetSize>>(loadWidgetSizes);
   const [reportingYearMode, setReportingYearMode] = useState<ReportingYearMode>(getStoredReportingYearMode);
   const enableAiWidgets = () => setAiWidgetsEnabled(true);
@@ -402,6 +425,8 @@ export default function DashboardPage() {
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const visibleWidgetOrder = widgetOrder.filter((id) => !hiddenWidgets.includes(id));
+  const effectiveLayoutMode: DashboardLayoutMode = editMode ? "GRID" : layoutMode;
+  const sectionLayoutClassName = getSectionLayoutClass(effectiveLayoutMode);
 
   /** Time-of-day greeting */
   const hour = new Date().getHours();
@@ -482,6 +507,11 @@ export default function DashboardPage() {
   useEffect(() => {
     localStorage.setItem(LS_AI_WIDGETS_ENABLED_KEY, aiWidgetsEnabled ? "true" : "false");
   }, [aiWidgetsEnabled]);
+
+  // Persist dashboard flow layout preference to localStorage.
+  useEffect(() => {
+    localStorage.setItem(LS_LAYOUT_MODE_KEY, layoutMode);
+  }, [layoutMode]);
 
   // Persist modular widget sizing independently from widget order.
   useEffect(() => {
@@ -619,7 +649,9 @@ export default function DashboardPage() {
       canMoveDown: idx < visibleWidgetOrder.length - 1,
       size: widgetSizes[id],
       onResize: (size: DashboardWidgetSize) => resizeWidget(id, size),
-      layoutClassName: getWidgetLayoutClass(widgetSizes[id]),
+      layoutClassName: effectiveLayoutMode === "MASONRY"
+        ? getMasonryWidgetLayoutClass()
+        : getWidgetLayoutClass(widgetSizes[id]),
       ...(editMode ? dragProps(idx) : {}),
     };
 
@@ -836,6 +868,24 @@ export default function DashboardPage() {
               <WorkspaceRibbonButton label="Campaign" href="/campaigns" />
               <WorkspaceRibbonButton label="Letter" href="/letters-printables/generate" />
             </WorkspaceRibbonGroup>
+            <WorkspaceRibbonGroup label="Steward">
+              <StewardContextButton
+                label="Summarize dashboard"
+                prompt={`Summarize the current state of our fundraising dashboard. Key stats: YTD Revenue $${(summary?.ytdAmount ?? 0).toLocaleString()}, ${summary?.totalConstituents ?? 0} total constituents, ${summary?.pendingTasks ?? 0} open tasks, ${summary?.activeCampaigns ?? 0} active campaigns. What is the overall fundraising health and what should I focus on today?`}
+                moduleKey="donor"
+                mode="ask"
+                variant="mini"
+                className="py-1"
+              />
+              <StewardContextButton
+                label="Identify risks"
+                prompt={`Analyze our fundraising dashboard and identify key risks. YTD: $${(summary?.ytdAmount ?? 0).toLocaleString()}, Retention: ${retention?.rate ?? "?"}%, Overdue tasks: ${summary?.overdueTasks ?? 0}. What specific risks should we address this week?`}
+                moduleKey="donor"
+                mode="analyze"
+                variant="mini"
+                className="py-1"
+              />
+            </WorkspaceRibbonGroup>
             <WorkspaceRibbonGroup label="Dashboard">
               <WorkspaceRibbonButton label="Refresh" onClick={() => void load()} />
               {!editMode ? (
@@ -845,6 +895,13 @@ export default function DashboardPage() {
               )}
               <WorkspaceRibbonButton label={locked ? "Unlock" : "Lock"} onClick={() => setLocked((value) => !value)} />
               <WorkspaceRibbonButton label="Customize" onClick={() => setShowCustomizeModal(true)} />
+              <WorkspaceRibbonButton
+                label="Masonry"
+                onClick={() => setLayoutMode((current) => (current === "MASONRY" ? "GRID" : "MASONRY"))}
+                active={layoutMode === "MASONRY"}
+                disabled={editMode}
+                title={editMode ? "Exit edit mode to change layout flow" : "Toggle free-flow masonry layout"}
+              />
               <WorkspaceRibbonButton label="Reset Sizes" onClick={() => setWidgetSizes({ ...DEFAULT_WIDGET_SIZES })} disabled={locked} />
             </WorkspaceRibbonGroup>
           </WorkspaceRibbon>
@@ -884,6 +941,11 @@ export default function DashboardPage() {
           <span className="text-xs sm:text-sm text-green-700 font-medium">
             Editing layout — drag cards in real time or use ↑↓ arrows
           </span>
+          {layoutMode === "MASONRY" ? (
+            <span className="text-[11px] text-green-700/90">
+              Masonry view is paused while editing.
+            </span>
+          ) : null}
 
           {/* Right-side edit actions */}
           <div className="ml-auto flex items-center gap-2">
@@ -937,14 +999,14 @@ export default function DashboardPage() {
 
       <section id="dashboard-overview" className="scroll-mt-28 space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Overview</h2>
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        <div className={sectionLayoutClassName}>
           {visibleSectionWidgets(topKpiWidgets).map(renderWidgetById)}
         </div>
       </section>
 
       <section id="dashboard-stewardship" className="scroll-mt-28 space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Stewardship And Actions</h2>
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        <div className={sectionLayoutClassName}>
           {visibleSectionWidgets(stewardshipWidgets).map(renderWidgetById)}
         </div>
       </section>
@@ -952,7 +1014,7 @@ export default function DashboardPage() {
       {visibleSectionWidgets(intelligenceWidgets).length > 0 ? (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Steward Intelligence</h2>
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+          <div className={sectionLayoutClassName}>
             {visibleSectionWidgets(intelligenceWidgets).map(renderWidgetById)}
           </div>
         </section>
@@ -960,14 +1022,14 @@ export default function DashboardPage() {
 
       <section id="dashboard-analytics" className="scroll-mt-28 space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Giving Analytics</h2>
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        <div className={sectionLayoutClassName}>
           {visibleSectionWidgets(analyticsWidgets).map(renderWidgetById)}
         </div>
       </section>
 
       <section id="dashboard-activity" className="scroll-mt-28 space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Recent Activity</h2>
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        <div className={sectionLayoutClassName}>
           {visibleSectionWidgets(activityWidgets).map(renderWidgetById)}
         </div>
       </section>

@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import TopBar from "@/app/components/layout/TopBar";
 import HrmSidebar from "@/app/components/layout/HrmSidebar";
+import MobileSidebarDrawer from "@/app/components/layout/MobileSidebarDrawer";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
 
 /**
@@ -80,18 +81,14 @@ export default function HrmLayout({ children }: { children: React.ReactNode }) {
           <HrmSidebar />
         </div>
 
-        {mobileNavOpen && (
-          <div className="fixed inset-0 z-40 lg:hidden">
-            <button
-              aria-label="Close HRM navigation"
-              onClick={() => setMobileNavOpen(false)}
-              className="absolute inset-0 bg-black/35"
-            />
-            <div className="absolute inset-y-0 left-0 w-60 max-w-[86vw] shadow-2xl">
-              <HrmSidebar forceExpanded />
-            </div>
-          </div>
-        )}
+        <MobileSidebarDrawer
+          open={mobileNavOpen}
+          title="OyamaHRM navigation"
+          onClose={() => setMobileNavOpen(false)}
+          widthClassName="w-[min(19rem,92vw)]"
+        >
+          <HrmSidebar forceExpanded />
+        </MobileSidebarDrawer>
 
         <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-teal-50/30 p-3 sm:p-4 lg:p-4 min-[1440px]:p-5 2xl:p-6">
           <ErrorBoundary>

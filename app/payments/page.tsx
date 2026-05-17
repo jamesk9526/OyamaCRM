@@ -6,12 +6,21 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import { formatCurrency, formatDate, methodLabel, statusColor, type DonationRow } from "@/app/components/donations/donation-utils";
 
+interface PaymentHealthPayload {
+  stripeReady: boolean;
+  paypalReady: boolean;
+  activeProvider: "stripe" | "paypal" | null;
+  currency: string;
+  issues: string[];
+}
+
 /**
  * PaymentsPage renders a real payment ledger sourced from live donation records.
  * Mock processor configuration tabs are intentionally hidden until backend APIs exist.
  */
 export default function PaymentsPage() {
   const [rows, setRows] = useState<DonationRow[]>([]);
+  const [health, setHealth] = useState<PaymentHealthPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -23,9 +32,13 @@ export default function PaymentsPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await apiFetch<{ items?: DonationRow[] }>("/api/donations?limit=100&page=1");
+        const [data, healthData] = await Promise.all([
+          apiFetch<{ items?: DonationRow[] }>("/api/donations?limit=100&page=1"),
+          apiFetch<PaymentHealthPayload>("/api/payments/health"),
+        ]);
         if (!active) return;
         setRows(data.items ?? []);
+        setHealth(healthData);
       } catch (err) {
         if (!active) return;
         setError(err instanceof Error ? err.message : "Failed to load payment ledger.");
@@ -64,11 +77,27 @@ export default function PaymentsPage() {
       </div>
 
       <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">In development</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Gateway status</p>
         <p className="mt-1 text-sm text-amber-800">
-          Processor onboarding, payout settings, and webhook event viewers are hidden until server APIs are implemented.
+          Stripe and PayPal are now configurable in settings. Donation embed checkout uses whichever provider is enabled and ready.
         </p>
-        {/* TODO: backend API needed - implement /api/payments/processors, /api/payments/payout-settings, /api/payments/webhook-events before re-enabling processor UI. */}
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+          <span className={`rounded-full px-2 py-0.5 font-semibold ${health?.stripeReady ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+            Stripe: {health?.stripeReady ? "Ready" : "Not Ready"}
+          </span>
+          <span className={`rounded-full px-2 py-0.5 font-semibold ${health?.paypalReady ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+            PayPal: {health?.paypalReady ? "Ready" : "Not Ready"}
+          </span>
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-700">
+            Active: {health?.activeProvider ?? "None"}
+          </span>
+          <Link
+            href="/settings/payments"
+            className="inline-flex items-center rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 font-semibold text-amber-800 hover:bg-amber-100"
+          >
+            Open Payment Settings
+          </Link>
+        </div>
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-4">

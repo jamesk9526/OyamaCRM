@@ -9,13 +9,13 @@
 import { useState, useCallback } from "react";
 import StewardMessageRenderer from "@/app/components/ai/StewardMessageRenderer";
 import EmailDraftArtifactCard from "@/app/components/ai/artifacts/EmailDraftArtifactCard";
-import DonorListArtifactCard from "@/app/components/ai/artifacts/DonorListArtifactCard";
+import EnhancedDonorListArtifactCard from "@/app/components/ai/artifacts/EnhancedDonorListArtifactCard";
 import ReportSummaryArtifactCard from "@/app/components/ai/artifacts/ReportSummaryArtifactCard";
 import TaskListArtifactCard from "@/app/components/ai/artifacts/TaskListArtifactCard";
 import CallScriptArtifactCard from "@/app/components/ai/artifacts/CallScriptArtifactCard";
 import CsvRowsArtifactCard from "@/app/components/ai/artifacts/CsvRowsArtifactCard";
 import ReportCardArtifactCard from "@/app/components/ai/artifacts/ReportCardArtifactCard";
-import ChartArtifactCard from "@/app/components/ai/artifacts/ChartArtifactCard";
+import EnhancedChartArtifactCard from "@/app/components/ai/artifacts/EnhancedChartArtifactCard";
 import type {
   StewardArtifact,
   StewardStructuredResponse,
@@ -98,13 +98,13 @@ interface StewardResponseRendererProps {
 // ─── Artifact card dispatcher ─────────────────────────────────────────────────
 function renderArtifact(artifact: StewardArtifact): React.ReactElement | null {
   if (artifact.type === "email_draft") return <EmailDraftArtifactCard artifact={artifact} />;
-  if (artifact.type === "donor_list") return <DonorListArtifactCard artifact={artifact} />;
+  if (artifact.type === "donor_list") return <EnhancedDonorListArtifactCard artifact={artifact} />;
   if (artifact.type === "report_summary") return <ReportSummaryArtifactCard artifact={artifact} />;
   if (artifact.type === "task_list") return <TaskListArtifactCard artifact={artifact} />;
   if (artifact.type === "call_script") return <CallScriptArtifactCard artifact={artifact} />;
   if (artifact.type === "csv_rows") return <CsvRowsArtifactCard artifact={artifact} />;
   if (artifact.type === "report_card") return <ReportCardArtifactCard artifact={artifact} />;
-  if (artifact.type === "chart") return <ChartArtifactCard artifact={artifact} />;
+  if (artifact.type === "chart") return <EnhancedChartArtifactCard artifact={artifact} />;
   return null;
 }
 

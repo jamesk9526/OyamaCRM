@@ -30,6 +30,9 @@ import {
 export type StewardToolName =
   | "donor.getDailyBrief"
   | "donor.getThankYousNeeded"
+  | "donor.getAcknowledgmentQueue"
+  | "donor.getRecurringGivingHealth"
+  | "donor.getPledgeAtRisk"
   | "donor.getLapseRisks"
   | "donor.getTopOpportunities"
   | "donor.getProfileDecisionPacket"
@@ -52,7 +55,11 @@ export type StewardToolName =
   | "knowledge.searchDonorActivities"
   | "knowledge.getDonorsBySegment"
   | "knowledge.searchGrants"
+  | "grants.getDeadlineRadar"
+  | "communications.listDraftsForReview"
   | "tasks.createFollowUpTask"
+  | "tasks.createThankYouTask"
+  | "letters.createLetterDraft"
   | "communications.createEmailDraft";
 
 export type StewardToolKind = "read" | "write";
@@ -119,6 +126,30 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     kind: "read",
     description: "Returns donors needing thank-you follow-up, with communication preference guidance.",
     requiredPermissions: ["view:constituents", "view:donations", "view:tasks"],
+    requiresConfirmation: false,
+    allowedModules: ["donor", "oshareview"],
+  },
+  {
+    name: "donor.getAcknowledgmentQueue",
+    kind: "read",
+    description: "Returns unresolved gift acknowledgments with timing and receipt-compliance context.",
+    requiredPermissions: ["view:constituents", "view:donations"],
+    requiresConfirmation: false,
+    allowedModules: ["donor", "oshareview"],
+  },
+  {
+    name: "donor.getRecurringGivingHealth",
+    kind: "read",
+    description: "Returns recurring-giving health metrics, upcoming charges, and missed recurring dates.",
+    requiredPermissions: ["view:constituents", "view:donations", "view:reports"],
+    requiresConfirmation: false,
+    allowedModules: ["donor", "oshareview"],
+  },
+  {
+    name: "donor.getPledgeAtRisk",
+    kind: "read",
+    description: "Returns active pledges with unpaid balances and due-date risk scoring.",
+    requiredPermissions: ["view:constituents", "view:donations"],
     requiresConfirmation: false,
     allowedModules: ["donor", "oshareview"],
   },
@@ -314,6 +345,38 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     requiresConfirmation: false,
     allowedModules: ["donor", "oshareview"],
   },
+  {
+    name: "grants.getDeadlineRadar",
+    kind: "read",
+    description: "Returns upcoming LOI/proposal/reporting grant deadlines, grouped by urgency.",
+    requiredPermissions: ["grants.view"],
+    requiresConfirmation: false,
+    allowedModules: ["donor", "oshareview"],
+  },
+  {
+    name: "communications.listDraftsForReview",
+    kind: "read",
+    description: "Returns recent email campaign drafts that still need human review.",
+    requiredPermissions: ["view:communications"],
+    requiresConfirmation: false,
+    allowedModules: ["donor", "oshareview"],
+  },
+  {
+    name: "tasks.createThankYouTask",
+    kind: "write",
+    description: "Creates one thank-you task from a donor or donation context (confirm-first).",
+    requiredPermissions: ["edit:tasks", "view:donations", "view:constituents"],
+    requiresConfirmation: true,
+    allowedModules: ["donor", "oshareview"],
+  },
+  {
+    name: "letters.createLetterDraft",
+    kind: "write",
+    description: "Creates one donor letter template draft only (never send), with review-first defaults.",
+    requiredPermissions: ["letters.create", "letters.view"],
+    requiresConfirmation: true,
+    allowedModules: ["donor", "oshareview"],
+  },
 ];
 
 /** Fetches org fiscal year settings and computes current FY context. */
@@ -362,6 +425,54 @@ function asPriority(value: unknown): "LOW" | "MEDIUM" | "HIGH" {
   const normalized = String(value ?? "").toUpperCase();
   if (normalized === "LOW" || normalized === "MEDIUM" || normalized === "HIGH") return normalized;
   return "MEDIUM";
+}
+
+function asBoolean(value: unknown, fallback = false): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (value.toLowerCase() === "true") return true;
+    if (value.toLowerCase() === "false") return false;
+  }
+  return fallback;
+}
+
+function asLetterCategory(value: unknown):
+  | "THANK_YOU"
+  | "TAX_RECEIPT"
+  | "END_OF_YEAR"
+  | "NEWSLETTER"
+  | "CAMPAIGN"
+  | "SPONSOR"
+  | "EVENT"
+  | "MONTHLY_DONOR"
+  | "MAJOR_DONOR"
+  | "GENERAL" {
+  const normalized = String(value ?? "").toUpperCase();
+  const allowed = new Set([
+    "THANK_YOU",
+    "TAX_RECEIPT",
+    "END_OF_YEAR",
+    "NEWSLETTER",
+    "CAMPAIGN",
+    "SPONSOR",
+    "EVENT",
+    "MONTHLY_DONOR",
+    "MAJOR_DONOR",
+    "GENERAL",
+  ]);
+  return allowed.has(normalized)
+    ? (normalized as
+      | "THANK_YOU"
+      | "TAX_RECEIPT"
+      | "END_OF_YEAR"
+      | "NEWSLETTER"
+      | "CAMPAIGN"
+      | "SPONSOR"
+      | "EVENT"
+      | "MONTHLY_DONOR"
+      | "MAJOR_DONOR"
+      | "GENERAL")
+    : "GENERAL";
 }
 
 function resolveModule(moduleKey: StewardToolExecutionContext["moduleKey"]): "donor" | "oshareview" {
@@ -521,6 +632,253 @@ export async function executeStewardTool(
       break;
     }
 
+    case "donor.getAcknowledgmentQueue": {
+      const limit = asPositiveInt(input?.limit, 40, 1, 250);
+      const maxAgeDays = asPositiveInt(input?.maxAgeDays, 180, 14, 730);
+      const includeAcknowledged = asBoolean(input?.includeAcknowledged, false);
+      const since = new Date(Date.now() - maxAgeDays * 24 * 60 * 60 * 1000);
+
+      const donations = await prisma.donation.findMany({
+        where: {
+          status: "COMPLETED",
+          date: { gte: since },
+          constituent: { organizationId: context.organizationId },
+          ...(includeAcknowledged ? {} : { acknowledgmentSentAt: null }),
+        },
+        orderBy: { date: "desc" },
+        take: limit,
+        select: {
+          id: true,
+          constituentId: true,
+          amount: true,
+          date: true,
+          taxDeductible: true,
+          receiptNumber: true,
+          receiptSentAt: true,
+          acknowledgmentSentAt: true,
+          campaign: { select: { name: true } },
+          constituent: {
+            select: {
+              firstName: true,
+              lastName: true,
+              doNotEmail: true,
+              emailOptOut: true,
+              doNotCall: true,
+              doNotMail: true,
+              doNotContact: true,
+            },
+          },
+        },
+      });
+
+      const now = Date.now();
+      const queue = donations.map((d) => {
+        const amount = Number(d.amount);
+        const ageDays = Math.max(0, Math.floor((now - d.date.getTime()) / (1000 * 60 * 60 * 24)));
+        const preferences: DonorCommunicationPreferences = {
+          doNotEmail: d.constituent.doNotEmail,
+          emailOptOut: d.constituent.emailOptOut,
+          doNotCall: d.constituent.doNotCall,
+          doNotMail: d.constituent.doNotMail,
+          doNotContact: d.constituent.doNotContact,
+        };
+        const preferredChannel = communicationBlockReason(preferences)
+          ? (!preferences.doNotMail ? "MAIL" : !preferences.doNotCall ? "PHONE" : "MANAGER_REVIEW")
+          : "EMAIL";
+        const receiptRequired = amount >= 250;
+        const complianceRisk = receiptRequired && !d.receiptNumber ? "HIGH" : ageDays > 14 ? "MEDIUM" : "LOW";
+
+        return {
+          donationId: d.id,
+          constituentId: d.constituentId,
+          donorName: `${d.constituent.firstName} ${d.constituent.lastName}`.trim(),
+          amount,
+          donationDate: d.date.toISOString().slice(0, 10),
+          ageDays,
+          campaignName: d.campaign?.name ?? null,
+          acknowledged: Boolean(d.acknowledgmentSentAt),
+          receiptSent: Boolean(d.receiptSentAt),
+          receiptNumber: d.receiptNumber ?? null,
+          receiptRequired,
+          taxDeductible: d.taxDeductible,
+          preferredChannel,
+          complianceRisk,
+        };
+      });
+
+      result = {
+        generatedAt: new Date().toISOString(),
+        queue,
+        totals: {
+          total: queue.length,
+          pendingAcknowledgments: queue.filter((item) => !item.acknowledged).length,
+          pendingReceipts: queue.filter((item) => item.receiptRequired && !item.receiptSent).length,
+          highRisk: queue.filter((item) => item.complianceRisk === "HIGH").length,
+          overSevenDays: queue.filter((item) => item.ageDays > 7 && !item.acknowledged).length,
+        },
+      };
+      break;
+    }
+
+    case "donor.getRecurringGivingHealth": {
+      const limit = asPositiveInt(input?.limit, 30, 1, 120);
+      const windowDays = asPositiveInt(input?.windowDays, 30, 7, 120);
+      const now = new Date();
+      const rangeStart = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+      const rangeEnd = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000);
+
+      const recurringDonations = await prisma.donation.findMany({
+        where: {
+          constituent: { organizationId: context.organizationId },
+          isRecurring: true,
+          status: "COMPLETED",
+          OR: [
+            { date: { gte: rangeStart } },
+            { nextGiftDate: { gte: new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000) } },
+          ],
+        },
+        orderBy: [{ nextGiftDate: "asc" }, { date: "desc" }],
+        take: 600,
+        select: {
+          id: true,
+          constituentId: true,
+          amount: true,
+          date: true,
+          frequency: true,
+          nextGiftDate: true,
+          constituent: { select: { firstName: true, lastName: true } },
+        },
+      });
+
+      const byConstituent = new Map<string, typeof recurringDonations[number]>();
+      for (const gift of recurringDonations) {
+        const existing = byConstituent.get(gift.constituentId);
+        if (!existing || gift.date > existing.date) {
+          byConstituent.set(gift.constituentId, gift);
+        }
+      }
+
+      const currentTs = now.getTime();
+      const upcomingTs = rangeEnd.getTime();
+      const activeProfiles = Array.from(byConstituent.values());
+      const upcoming = activeProfiles
+        .filter((row) => row.nextGiftDate && row.nextGiftDate.getTime() >= currentTs && row.nextGiftDate.getTime() <= upcomingTs)
+        .sort((a, b) => (a.nextGiftDate?.getTime() ?? 0) - (b.nextGiftDate?.getTime() ?? 0))
+        .slice(0, limit)
+        .map((row) => ({
+          constituentId: row.constituentId,
+          donorName: `${row.constituent.firstName} ${row.constituent.lastName}`.trim(),
+          amount: Number(row.amount),
+          frequency: row.frequency ?? "UNKNOWN",
+          nextGiftDate: row.nextGiftDate?.toISOString().slice(0, 10) ?? null,
+          daysUntilNextGift: row.nextGiftDate ? Math.ceil((row.nextGiftDate.getTime() - currentTs) / (1000 * 60 * 60 * 24)) : null,
+        }));
+
+      const missed = activeProfiles
+        .filter((row) => row.nextGiftDate && row.nextGiftDate.getTime() < currentTs)
+        .sort((a, b) => (a.nextGiftDate?.getTime() ?? 0) - (b.nextGiftDate?.getTime() ?? 0))
+        .slice(0, limit)
+        .map((row) => ({
+          constituentId: row.constituentId,
+          donorName: `${row.constituent.firstName} ${row.constituent.lastName}`.trim(),
+          amount: Number(row.amount),
+          frequency: row.frequency ?? "UNKNOWN",
+          lastGiftDate: row.date.toISOString().slice(0, 10),
+          nextGiftDate: row.nextGiftDate?.toISOString().slice(0, 10) ?? null,
+          daysPastDue: row.nextGiftDate ? Math.max(0, Math.floor((currentTs - row.nextGiftDate.getTime()) / (1000 * 60 * 60 * 24))) : 0,
+        }));
+
+      const revenue30 = recurringDonations
+        .filter((row) => row.date.getTime() >= currentTs - 30 * 24 * 60 * 60 * 1000)
+        .reduce((sum, row) => sum + Number(row.amount), 0);
+
+      result = {
+        generatedAt: new Date().toISOString(),
+        activeRecurringDonors: activeProfiles.length,
+        recurringRevenueLast30Days: Math.round(revenue30 * 100) / 100,
+        upcomingCount: upcoming.length,
+        missedCount: missed.length,
+        upcoming,
+        missed,
+      };
+      break;
+    }
+
+    case "donor.getPledgeAtRisk": {
+      const limit = asPositiveInt(input?.limit, 30, 1, 120);
+      const maxDaysAhead = asPositiveInt(input?.maxDaysAhead, 120, 14, 365);
+      const now = new Date();
+      const horizon = new Date(now.getTime() + maxDaysAhead * 24 * 60 * 60 * 1000);
+
+      const pledges = await prisma.pledge.findMany({
+        where: {
+          active: true,
+          constituent: { organizationId: context.organizationId },
+          OR: [{ endDate: { lte: horizon } }, { endDate: null }],
+        },
+        orderBy: [{ endDate: "asc" }, { updatedAt: "desc" }],
+        take: 300,
+        select: {
+          id: true,
+          totalAmount: true,
+          paidAmount: true,
+          startDate: true,
+          endDate: true,
+          frequency: true,
+          campaign: { select: { name: true } },
+          designation: { select: { name: true } },
+          constituent: {
+            select: { id: true, firstName: true, lastName: true },
+          },
+        },
+      });
+
+      const rows = pledges
+        .map((p) => {
+          const totalAmount = Number(p.totalAmount);
+          const paidAmount = Number(p.paidAmount);
+          const remainingAmount = Math.max(0, Math.round((totalAmount - paidAmount) * 100) / 100);
+          const daysToEnd = p.endDate
+            ? Math.floor((p.endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+            : null;
+          const risk = daysToEnd == null
+            ? (remainingAmount > 0 ? "MEDIUM" : "LOW")
+            : (daysToEnd < 0 ? "HIGH" : daysToEnd <= 30 ? "HIGH" : daysToEnd <= 90 ? "MEDIUM" : "LOW");
+
+          return {
+            pledgeId: p.id,
+            constituentId: p.constituent.id,
+            donorName: `${p.constituent.firstName} ${p.constituent.lastName}`.trim(),
+            campaignName: p.campaign?.name ?? null,
+            designationName: p.designation?.name ?? null,
+            totalAmount,
+            paidAmount,
+            remainingAmount,
+            frequency: p.frequency ?? null,
+            startDate: p.startDate.toISOString().slice(0, 10),
+            endDate: p.endDate?.toISOString().slice(0, 10) ?? null,
+            daysToEnd,
+            risk,
+          };
+        })
+        .filter((row) => row.remainingAmount > 0)
+        .sort((a, b) => {
+          const riskRank = (value: string) => value === "HIGH" ? 3 : value === "MEDIUM" ? 2 : 1;
+          if (riskRank(a.risk) !== riskRank(b.risk)) return riskRank(b.risk) - riskRank(a.risk);
+          if ((a.daysToEnd ?? 99999) !== (b.daysToEnd ?? 99999)) return (a.daysToEnd ?? 99999) - (b.daysToEnd ?? 99999);
+          return b.remainingAmount - a.remainingAmount;
+        })
+        .slice(0, limit);
+
+      result = {
+        generatedAt: new Date().toISOString(),
+        totalAtRisk: rows.length,
+        highRiskCount: rows.filter((row) => row.risk === "HIGH").length,
+        rows,
+      };
+      break;
+    }
+
     case "donor.getLapseRisks": {
       const limit = asPositiveInt(input?.limit, 40, 1, 250);
       const minimumRiskRaw = String(input?.minimumRisk ?? "MEDIUM").toUpperCase();
@@ -615,6 +973,84 @@ export async function executeStewardTool(
 
       result = {
         created: true,
+        task,
+      };
+      break;
+    }
+
+    case "tasks.createThankYouTask": {
+      const donationId = asText(input?.donationId, "", 120);
+      const explicitConstituentId = asText(input?.constituentId, "", 120);
+      if (!donationId && !explicitConstituentId) {
+        throw new StewardToolError(400, "VALIDATION_ERROR", "donationId or constituentId is required.");
+      }
+
+      const donation = donationId
+        ? await prisma.donation.findFirst({
+            where: {
+              id: donationId,
+              constituent: { organizationId: context.organizationId },
+            },
+            select: {
+              id: true,
+              constituentId: true,
+              amount: true,
+              date: true,
+              campaign: { select: { name: true } },
+              constituent: { select: { firstName: true, lastName: true } },
+            },
+          })
+        : null;
+
+      const constituentId = donation?.constituentId || explicitConstituentId;
+      if (!constituentId) {
+        throw new StewardToolError(404, "NOT_FOUND", "Constituent could not be resolved for thank-you task.");
+      }
+
+      const constituent = await prisma.constituent.findFirst({
+        where: { id: constituentId, organizationId: context.organizationId },
+        select: { id: true, firstName: true, lastName: true },
+      });
+      if (!constituent) {
+        throw new StewardToolError(404, "NOT_FOUND", "Constituent not found.");
+      }
+
+      const dueDate = parseDate(input?.dueDateIso) ?? new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+      const amountSnippet = donation ? ` ($${Number(donation.amount).toLocaleString()} gift)` : "";
+      const campaignSnippet = donation?.campaign?.name ? ` for ${donation.campaign.name}` : "";
+      const titleDefault = `Thank ${constituent.firstName} ${constituent.lastName}${amountSnippet}${campaignSnippet}`.slice(0, 220);
+
+      const task = await prisma.task.create({
+        data: {
+          constituentId: constituent.id,
+          assigneeId: asText(input?.assigneeId, context.userId, 120) || context.userId,
+          createdById: context.userId,
+          title: asText(input?.title, titleDefault, 220),
+          description: asText(
+            input?.description,
+            donation
+              ? `Thank-you task created from donation ${donation.id} on ${donation.date.toISOString().slice(0, 10)}.`
+              : "Thank-you stewardship task created by Steward.",
+            4000
+          ),
+          type: "THANK_YOU",
+          status: "PENDING",
+          priority: asPriority(input?.priority),
+          dueDate,
+        },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          priority: true,
+          dueDate: true,
+          constituentId: true,
+        },
+      });
+
+      result = {
+        created: true,
+        sourceDonationId: donation?.id ?? null,
         task,
       };
       break;
@@ -904,7 +1340,7 @@ export async function executeStewardTool(
       });
 
       const byDesig: Record<string, { designationId: string; name: string; amount: number; count: number }> = {};
-      let undesignated = { amount: 0, count: 0 };
+      const undesignated = { amount: 0, count: 0 };
       for (const row of rows) {
         const amt = Number(row.amount);
         if (row.designation) {
@@ -1406,6 +1842,163 @@ export async function executeStewardTool(
       break;
     }
 
+    case "grants.getDeadlineRadar": {
+      const limit = asPositiveInt(input?.limit, 30, 1, 120);
+      const windowDays = asPositiveInt(input?.windowDays, 120, 14, 365);
+      const now = new Date();
+      const end = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000);
+
+      const grants = await prisma.grant.findMany({
+        where: {
+          organizationId: context.organizationId,
+          status: { notIn: ["REJECTED", "WITHDRAWN", "CLOSED"] },
+          OR: [
+            { loiDeadline: { gte: now, lte: end }, loiSubmittedAt: null },
+            { applicationDeadline: { gte: now, lte: end }, submittedAt: null },
+            { reportingDeadline: { gte: now, lte: end }, reportingSubmittedAt: null },
+          ],
+        },
+        orderBy: { updatedAt: "desc" },
+        take: limit,
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          loiDeadline: true,
+          loiSubmittedAt: true,
+          applicationDeadline: true,
+          submittedAt: true,
+          reportingDeadline: true,
+          reportingSubmittedAt: true,
+          funder: { select: { name: true } },
+          assignee: { select: { firstName: true, lastName: true } },
+        },
+      });
+
+      const rows = grants.flatMap((g) => {
+        const assignee = g.assignee ? `${g.assignee.firstName} ${g.assignee.lastName}`.trim() : null;
+        const createEntry = (deadline: Date | null, submitted: Date | null, type: "LOI" | "PROPOSAL" | "REPORTING") => {
+          if (!deadline || submitted) return null;
+          const daysUntilDue = Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          const urgency = daysUntilDue <= 14 ? "HIGH" : daysUntilDue <= 45 ? "MEDIUM" : "LOW";
+          return {
+            grantId: g.id,
+            title: g.title,
+            funderName: g.funder.name,
+            status: g.status,
+            deadlineType: type,
+            dueDate: deadline.toISOString().slice(0, 10),
+            daysUntilDue,
+            urgency,
+            assignee,
+          };
+        };
+
+        const entries = [
+          createEntry(g.loiDeadline, g.loiSubmittedAt, "LOI"),
+          createEntry(g.applicationDeadline, g.submittedAt, "PROPOSAL"),
+          createEntry(g.reportingDeadline, g.reportingSubmittedAt, "REPORTING"),
+        ];
+
+        return entries.filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+      }).sort((a, b) => a.daysUntilDue - b.daysUntilDue);
+
+      result = {
+        generatedAt: new Date().toISOString(),
+        windowDays,
+        totals: {
+          total: rows.length,
+          highUrgency: rows.filter((row) => row.urgency === "HIGH").length,
+          mediumUrgency: rows.filter((row) => row.urgency === "MEDIUM").length,
+          lowUrgency: rows.filter((row) => row.urgency === "LOW").length,
+        },
+        deadlines: rows,
+      };
+      break;
+    }
+
+    case "communications.listDraftsForReview": {
+      const limit = asPositiveInt(input?.limit, 25, 1, 100);
+      const drafts = await prisma.emailCampaign.findMany({
+        where: {
+          organizationId: context.organizationId,
+          status: "DRAFT",
+        },
+        orderBy: { updatedAt: "desc" },
+        take: limit,
+        select: {
+          id: true,
+          name: true,
+          subject: true,
+          previewText: true,
+          updatedAt: true,
+          createdAt: true,
+          fromName: true,
+          fromEmail: true,
+          audienceFilter: true,
+        },
+      });
+
+      result = {
+        generatedAt: new Date().toISOString(),
+        totalDrafts: drafts.length,
+        drafts: drafts.map((d) => ({
+          id: d.id,
+          name: d.name,
+          subject: d.subject,
+          previewText: d.previewText,
+          fromName: d.fromName,
+          fromEmail: d.fromEmail,
+          updatedAt: d.updatedAt.toISOString(),
+          ageDays: Math.max(0, Math.floor((Date.now() - d.updatedAt.getTime()) / (1000 * 60 * 60 * 24))),
+          audienceFilter: d.audienceFilter,
+          deepLink: `/communications/${d.id}`,
+          builderLink: `/email-builder?campaign=${encodeURIComponent(d.id)}&returnTo=${encodeURIComponent(`/communications/${d.id}`)}`,
+        })),
+      };
+      break;
+    }
+
+    case "letters.createLetterDraft": {
+      const name = asText(input?.name, "Steward Letter Draft", 180);
+      const printBody = asText(
+        input?.printBody,
+        "<p>Dear {{preferredName}},</p><p>Thank you for your support. This draft is prepared for review before sending.</p>",
+        60000
+      );
+
+      const template = await prisma.letterTemplate.create({
+        data: {
+          organizationId: context.organizationId,
+          name,
+          category: asLetterCategory(input?.category),
+          description: asText(input?.description, "Draft generated by Steward tool workflow.", 4000),
+          status: "DRAFT",
+          printSubject: asText(input?.printSubject, "Steward Letter Draft", 200) || null,
+          printBody,
+          emailSubject: asText(input?.emailSubject, "", 200) || null,
+          emailBody: asText(input?.emailBody, "", 60000) || null,
+          crmScope: "DONOR",
+          createdByUserId: context.userId,
+          updatedByUserId: context.userId,
+        },
+        select: {
+          id: true,
+          name: true,
+          category: true,
+          status: true,
+          updatedAt: true,
+        },
+      });
+
+      result = {
+        created: true,
+        draft: template,
+        deepLink: `/letters-printables/templates/${template.id}`,
+      };
+      break;
+    }
+
     case "donor.getFullProfile": {
       const constituentId = asText(input?.constituentId, "", 40);
       if (!constituentId) throw new StewardToolError(400, "VALIDATION_ERROR", "constituentId is required.");
@@ -1473,6 +2066,41 @@ type TopOpportunityRow = {
   bestChannel: string;
 };
 
+interface DonorRetrievalIntent {
+  draftCommunication: boolean;
+  helpWorkflow: boolean;
+  analysis: boolean;
+  reporting: boolean;
+  specificLookup: boolean;
+  tasks: boolean;
+  campaigns: boolean;
+  numericComputation: boolean;
+  acknowledgments: boolean;
+  recurring: boolean;
+  pledges: boolean;
+  grants: boolean;
+  draftQueue: boolean;
+}
+
+/** Detects the user's retrieval intent so context loading stays focused and less noisy. */
+function detectDonorRetrievalIntent(lowerQuery: string): DonorRetrievalIntent {
+  return {
+    draftCommunication: /(draft|write|compose|email|letter|message|subject line|thank you note)/i.test(lowerQuery),
+    helpWorkflow: /(how do i|how to|steps|where do i|walk me through)/i.test(lowerQuery),
+    analysis: /(analy[sz]e|trend|why|risk|retention|opportun|segment|insight|compare)/i.test(lowerQuery),
+    reporting: /(report|ytd|revenue|giving|fiscal|kpi|dashboard|month|year)/i.test(lowerQuery),
+    specificLookup: /(who is|tell me about|find|search|look up|show me|what do you know about)/i.test(lowerQuery),
+    tasks: /(task|follow.up|overdue|behind|pending|assign)/i.test(lowerQuery),
+    campaigns: /(campaign|fundrais|goal|progress|raised|appeal)/i.test(lowerQuery),
+    numericComputation: /(calculate|calculation|percent|percentage|ratio|difference|delta|average|total|sum|math|formula)/i.test(lowerQuery),
+    acknowledgments: /(acknowledg|receipt|substantiat|tax receipt|thank.you queue|quid pro quo|donor advised fund|daf)/i.test(lowerQuery),
+    recurring: /(recurring|monthly donor|sustain|sustainer|auto.?gift|subscription gift|churn)/i.test(lowerQuery),
+    pledges: /(pledge|installment|commitment|remaining balance|pledged)/i.test(lowerQuery),
+    grants: /(grant|loi|proposal deadline|reporting deadline|funder)/i.test(lowerQuery),
+    draftQueue: /(draft queue|drafts needing review|unsent drafts|communications drafts|email drafts)/i.test(lowerQuery),
+  };
+}
+
 /** Builds donor chat context by calling approved read tools instead of ad-hoc route SQL. */
 export async function buildDonorToolContextForChat(params: {
   organizationId: string;
@@ -1498,6 +2126,7 @@ export async function buildDonorToolContextForChat(params: {
   };
 
   const lower = params.query.toLowerCase();
+  const intent = detectDonorRetrievalIntent(lower);
 
   // Inject fiscal year context so the AI knows the current FY and YTD window
   try {
@@ -1527,14 +2156,16 @@ export async function buildDonorToolContextForChat(params: {
     `Top donors by lifetime giving: ${briefData.topDonors.length}`
   );
 
-  for (const donor of briefData.topDonors.slice(0, 5)) {
-    const lastGift = donor.lastGiftDate ? fmtDate(donor.lastGiftDate) : "no date on record";
-    const record = `${donor.name} — $${donor.lifetimeGiving.toLocaleString()} lifetime, last gift ${lastGift}`;
-    lines.push(`- Top donor: ${record}`);
-    recordsUsed.push(record);
+  if (!intent.draftCommunication && (intent.analysis || intent.reporting || /top donors?|major donors?/i.test(lower))) {
+    for (const donor of briefData.topDonors.slice(0, 5)) {
+      const lastGift = donor.lastGiftDate ? fmtDate(donor.lastGiftDate) : "no date on record";
+      const record = `${donor.name} — $${donor.lifetimeGiving.toLocaleString()} lifetime, last gift ${lastGift}`;
+      lines.push(`- Top donor: ${record}`);
+      recordsUsed.push(record);
+    }
   }
 
-  if (/thank|gratitude|acknowledg/i.test(lower)) {
+  if (/thank|gratitude|acknowledg/i.test(lower) || intent.draftCommunication) {
     const thanks = await executeStewardTool(context, "donor.getThankYousNeeded", { limit: 12 });
     toolsUsed.push(thanks.tool);
     const thankRows = thanks.result as Awaited<ReturnType<typeof getThankYousNeeded>>;
@@ -1546,7 +2177,29 @@ export async function buildDonorToolContextForChat(params: {
     }
   }
 
-  if (/lapse|at risk|retention|lybunt|sybunt|drift/i.test(lower)) {
+  if (intent.acknowledgments) {
+    try {
+      const ackResult = await executeStewardTool(context, "donor.getAcknowledgmentQueue", { limit: 12 });
+      toolsUsed.push(ackResult.tool);
+      const ack = ackResult.result as {
+        totals: { total: number; pendingAcknowledgments: number; pendingReceipts: number; highRisk: number; overSevenDays: number };
+        queue: Array<{ donorName: string; amount: number; donationDate: string; complianceRisk: string; preferredChannel: string; receiptRequired: boolean }>;
+      };
+
+      lines.push(
+        `Acknowledgment queue: ${ack.totals.pendingAcknowledgments} pending thank-yous, ${ack.totals.pendingReceipts} pending receipts, ${ack.totals.highRisk} high-risk compliance items.`
+      );
+      for (const row of ack.queue.slice(0, 5)) {
+        const record = `${row.donorName} — $${row.amount.toLocaleString()} on ${fmtDate(row.donationDate)} [risk ${row.complianceRisk}] via ${row.preferredChannel}${row.receiptRequired ? " (receipt-required)" : ""}`;
+        lines.push(`- Acknowledgment item: ${record}`);
+        recordsUsed.push(record);
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  if (/lapse|at risk|retention|lybunt|sybunt|drift/i.test(lower) || intent.analysis) {
     const lapse = await executeStewardTool(context, "donor.getLapseRisks", {
       limit: 12,
       minimumRisk: "MEDIUM",
@@ -1561,7 +2214,7 @@ export async function buildDonorToolContextForChat(params: {
     }
   }
 
-  if (/opportun|monthly|next step|best/i.test(lower)) {
+  if (/opportun|monthly|next step|best/i.test(lower) || intent.analysis) {
     const opportunities = await executeStewardTool(context, "donor.getTopOpportunities", { limit: 12 });
     toolsUsed.push(opportunities.tool);
     const opportunityRows = opportunities.result as TopOpportunityRow[];
@@ -1570,6 +2223,58 @@ export async function buildDonorToolContextForChat(params: {
       const record = summarizeRecordRow(row);
       lines.push(`- Opportunity: ${record}`);
       recordsUsed.push(record);
+    }
+  }
+
+  if (intent.recurring) {
+    try {
+      const recurringResult = await executeStewardTool(context, "donor.getRecurringGivingHealth", { limit: 10, windowDays: 45 });
+      toolsUsed.push(recurringResult.tool);
+      const recurring = recurringResult.result as {
+        activeRecurringDonors: number;
+        recurringRevenueLast30Days: number;
+        upcomingCount: number;
+        missedCount: number;
+        upcoming: Array<{ donorName: string; amount: number; nextGiftDate: string | null; frequency: string }>;
+        missed: Array<{ donorName: string; amount: number; daysPastDue: number; frequency: string }>;
+      };
+
+      lines.push(
+        `Recurring giving health: ${recurring.activeRecurringDonors} active recurring donors, $${recurring.recurringRevenueLast30Days.toLocaleString()} in last 30 days, ${recurring.upcomingCount} upcoming and ${recurring.missedCount} missed.`
+      );
+      for (const row of recurring.missed.slice(0, 4)) {
+        const record = `${row.donorName} — ${row.frequency} recurring $${row.amount.toLocaleString()} is ${row.daysPastDue} day(s) past due`;
+        lines.push(`- Recurring risk: ${record}`);
+        recordsUsed.push(record);
+      }
+      for (const row of recurring.upcoming.slice(0, 3)) {
+        const record = `${row.donorName} — next ${row.frequency} gift $${row.amount.toLocaleString()} on ${row.nextGiftDate ?? "unknown"}`;
+        lines.push(`- Recurring upcoming: ${record}`);
+        recordsUsed.push(record);
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  if (intent.pledges) {
+    try {
+      const pledgeResult = await executeStewardTool(context, "donor.getPledgeAtRisk", { limit: 10, maxDaysAhead: 120 });
+      toolsUsed.push(pledgeResult.tool);
+      const pledge = pledgeResult.result as {
+        totalAtRisk: number;
+        highRiskCount: number;
+        rows: Array<{ donorName: string; remainingAmount: number; daysToEnd: number | null; risk: string; campaignName: string | null }>;
+      };
+
+      lines.push(`Pledge risk: ${pledge.totalAtRisk} active pledges with unpaid balances (${pledge.highRiskCount} high-risk).`);
+      for (const row of pledge.rows.slice(0, 5)) {
+        const record = `${row.donorName} — $${row.remainingAmount.toLocaleString()} remaining${row.daysToEnd == null ? "" : `, ${row.daysToEnd} day(s) to end`} [${row.risk}]${row.campaignName ? ` (${row.campaignName})` : ""}`;
+        lines.push(`- Pledge at-risk: ${record}`);
+        recordsUsed.push(record);
+      }
+    } catch {
+      // Non-fatal
     }
   }
 
@@ -1586,7 +2291,7 @@ export async function buildDonorToolContextForChat(params: {
   }
 
   // Report-running tools: triggered by report/metric keywords
-  if (/report|ytd|revenue|giving|fiscal|this year|last year|goal|kpi|dashboard/i.test(lower)) {
+  if (/report|ytd|revenue|giving|fiscal|this year|last year|goal|kpi|dashboard/i.test(lower) || intent.reporting || intent.numericComputation) {
     try {
       const summaryResult = await executeStewardTool(context, "reports.runSummary", undefined);
       toolsUsed.push(summaryResult.tool);
@@ -1606,7 +2311,7 @@ export async function buildDonorToolContextForChat(params: {
     }
   }
 
-  if (/retention|kept|renew|retained|lapse rate|who gave again/i.test(lower)) {
+  if (/retention|kept|renew|retained|lapse rate|who gave again/i.test(lower) || intent.analysis || intent.numericComputation) {
     try {
       const retentionResult = await executeStewardTool(context, "reports.runDonorRetention", undefined);
       toolsUsed.push(retentionResult.tool);
@@ -1623,7 +2328,7 @@ export async function buildDonorToolContextForChat(params: {
     }
   }
 
-  if (/monthly|by month|trend|month.by.month|giving trend/i.test(lower)) {
+  if (/monthly|by month|trend|month.by.month|giving trend/i.test(lower) || intent.reporting) {
     try {
       const monthlyResult = await executeStewardTool(context, "reports.runGivingByMonth", undefined);
       toolsUsed.push(monthlyResult.tool);
@@ -1642,7 +2347,7 @@ export async function buildDonorToolContextForChat(params: {
     }
   }
 
-  if (/lybunt|gave last year|not yet|not this year|re.engag/i.test(lower)) {
+  if (/lybunt|gave last year|not yet|not this year|re.engag/i.test(lower) || intent.analysis) {
     try {
       const lybuntResult = await executeStewardTool(context, "reports.runLybunt", { limit: 10 });
       toolsUsed.push(lybuntResult.tool);
@@ -1661,7 +2366,7 @@ export async function buildDonorToolContextForChat(params: {
   }
 
   // RAG search: keyword-grounded CRM lookup for specific people, gifts, or campaigns
-  if (/who is|tell me about|find|search|look up|show me|what do you know about/i.test(lower) || /\b[A-Z][a-z]+ [A-Z][a-z]+\b/.test(params.query)) {
+  if (intent.specificLookup || /\b[A-Z][a-z]+ [A-Z][a-z]+\b/.test(params.query) || intent.draftCommunication) {
     try {
       const searchResult = await executeStewardTool(context, "knowledge.searchCrmRecords", {
         query: params.query.slice(0, 200),
@@ -1695,7 +2400,7 @@ export async function buildDonorToolContextForChat(params: {
   }
 
   // Active campaigns: triggered by campaign/fundraising keywords
-  if (/campaign|fundrais|goal|progress|raised|appeal/i.test(lower)) {
+  if (intent.campaigns || intent.reporting) {
     try {
       const campaignsResult = await executeStewardTool(context, "campaigns.listActive", undefined);
       toolsUsed.push(campaignsResult.tool);
@@ -1718,7 +2423,7 @@ export async function buildDonorToolContextForChat(params: {
   }
 
   // Overdue tasks: triggered by task/overdue/follow-up keywords
-  if (/overdue|task|follow.up|behind|pending|assign/i.test(lower)) {
+  if (intent.tasks || intent.helpWorkflow || intent.analysis) {
     try {
       const overdueResult = await executeStewardTool(context, "tasks.listOverdue", { limit: 15 });
       toolsUsed.push(overdueResult.tool);
@@ -1733,6 +2438,47 @@ export async function buildDonorToolContextForChat(params: {
         }
       } else {
         lines.push("No overdue tasks found.");
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  if (intent.grants || /grant deadline|loi|proposal due|reporting due/i.test(lower)) {
+    try {
+      const grantsResult = await executeStewardTool(context, "grants.getDeadlineRadar", { limit: 15, windowDays: 120 });
+      toolsUsed.push(grantsResult.tool);
+      const grants = grantsResult.result as {
+        totals: { total: number; highUrgency: number; mediumUrgency: number; lowUrgency: number };
+        deadlines: Array<{ title: string; funderName: string; deadlineType: string; dueDate: string; daysUntilDue: number; urgency: string; assignee: string | null }>;
+      };
+      lines.push(
+        `Grant deadline radar: ${grants.totals.total} upcoming deadlines (${grants.totals.highUrgency} high urgency).`
+      );
+      for (const row of grants.deadlines.slice(0, 6)) {
+        const record = `${row.title} (${row.funderName}) — ${row.deadlineType} due ${row.dueDate} in ${row.daysUntilDue} day(s) [${row.urgency}]${row.assignee ? ` owner ${row.assignee}` : ""}`;
+        lines.push(`- Grant deadline: ${record}`);
+        recordsUsed.push(record);
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  if (intent.draftQueue || intent.draftCommunication) {
+    try {
+      const draftsResult = await executeStewardTool(context, "communications.listDraftsForReview", { limit: 10 });
+      toolsUsed.push(draftsResult.tool);
+      const drafts = draftsResult.result as {
+        totalDrafts: number;
+        drafts: Array<{ name: string; subject: string; ageDays: number; deepLink: string }>;
+      };
+
+      lines.push(`Communication drafts pending review: ${drafts.totalDrafts}.`);
+      for (const row of drafts.drafts.slice(0, 5)) {
+        const record = `${row.name} — "${row.subject}" (${row.ageDays} day(s) old) [${row.deepLink}]`;
+        lines.push(`- Draft review: ${record}`);
+        recordsUsed.push(record);
       }
     } catch {
       // Non-fatal
@@ -1764,6 +2510,9 @@ export async function buildDonorToolContextForChat(params: {
           `  Lapse risk: ${profile.signals.lapseRisk}`,
           `  Opportunity score: ${profile.signals.opportunityScore}`,
           `  Open tasks: ${profile.openTasks.length}`
+        );
+        lines.push(
+          `  Communication preference flags: doNotEmail=${profile.communicationPreferences.doNotEmail ? "yes" : "no"}, emailOptOut=${profile.communicationPreferences.emailOptOut ? "yes" : "no"}, doNotCall=${profile.communicationPreferences.doNotCall ? "yes" : "no"}, doNotMail=${profile.communicationPreferences.doNotMail ? "yes" : "no"}, doNotContact=${profile.communicationPreferences.doNotContact ? "yes" : "no"}`
         );
         if (profile.recentDonations.length > 0) {
           lines.push(`  Recent gifts:`);
@@ -1805,6 +2554,9 @@ export async function buildDonorToolContextForChat(params: {
             `  Best next step: ${profile.signals.bestNextStep}`,
             `  Open tasks: ${profile.openTasks.length}`
           );
+          lines.push(
+            `  Communication preference flags: doNotEmail=${profile.communicationPreferences.doNotEmail ? "yes" : "no"}, emailOptOut=${profile.communicationPreferences.emailOptOut ? "yes" : "no"}, doNotCall=${profile.communicationPreferences.doNotCall ? "yes" : "no"}, doNotMail=${profile.communicationPreferences.doNotMail ? "yes" : "no"}, doNotContact=${profile.communicationPreferences.doNotContact ? "yes" : "no"}`
+          );
           if (profile.recentDonations.length > 0) {
             lines.push(`  Recent gift history:`);
             for (const d of profile.recentDonations.slice(0, 5)) {
@@ -1827,6 +2579,20 @@ export async function buildDonorToolContextForChat(params: {
         // Non-fatal: individual profile failure should not break the full context
       }
     }
+  }
+
+  if (intent.numericComputation) {
+    const revenue = briefData.summary.ytdRevenue;
+    const giftCount = Math.max(briefData.summary.ytdGiftCount, 1);
+    const avgGift = Math.round((revenue / giftCount) * 100) / 100;
+    const thankYouPct = Math.round((briefData.summary.thankYousNeeded / giftCount) * 10000) / 100;
+
+    lines.push(
+      "Verified calculations (deterministic):",
+      `- Avg gift = YTD revenue / YTD gift count = ${revenue} / ${giftCount} = ${avgGift}`,
+      `- Thank-you coverage gap % = thank-yous needed / YTD gift count = ${briefData.summary.thankYousNeeded} / ${giftCount} = ${thankYouPct}%`
+    );
+    recordsUsed.push(`Verified avg gift: ${avgGift}`);
   }
 
   return {

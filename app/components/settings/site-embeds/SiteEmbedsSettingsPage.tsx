@@ -8,8 +8,10 @@ import ConnectionStatusPanel from "@/app/components/settings/site-embeds/Connect
 import EmbedRegistryPanel from "@/app/components/settings/site-embeds/EmbedRegistryPanel";
 import EmbedSnippetCard from "@/app/components/settings/site-embeds/EmbedSnippetCard";
 import EmbedWidgetTogglesPanel from "@/app/components/settings/site-embeds/EmbedWidgetTogglesPanel";
+import InlineWidgetsSettingsPanel from "@/app/components/settings/site-embeds/InlineWidgetsSettingsPanel";
 import LiveComPreviewPanel from "@/app/components/settings/site-embeds/LiveComPreviewPanel";
 import LiveComWidgetPanel from "@/app/components/settings/site-embeds/LiveComWidgetPanel";
+import SiteAppearancePanel from "@/app/components/settings/site-embeds/SiteAppearancePanel";
 import SiteConnectionPanel from "@/app/components/settings/site-embeds/SiteConnectionPanel";
 import {
   domainsToTextareaValue,
@@ -105,6 +107,7 @@ export default function SiteEmbedsSettingsPage() {
           primaryDomain: draftSite.primaryDomain,
           allowedDomains: parseDomainsFromTextarea(allowedDomainsText),
           active: draftSite.active,
+          appearance: draftSite.appearance,
           widgets: draftSite.widgets,
         }),
       });
@@ -242,6 +245,13 @@ export default function SiteEmbedsSettingsPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
+        <SiteAppearancePanel
+          appearance={draftSite.appearance}
+          onChange={(nextAppearance) => {
+            setDraftSite((prev) => (prev ? { ...prev, appearance: nextAppearance } : prev));
+          }}
+        />
+
         <LiveComWidgetPanel
           settings={draftSite.widgets.liveCom}
           onChange={(nextLiveCom) => {
@@ -258,8 +268,6 @@ export default function SiteEmbedsSettingsPage() {
           }}
         />
 
-        <LiveComPreviewPanel settings={draftSite.widgets.liveCom} />
-
         <EmbedWidgetTogglesPanel
           widgets={draftSite.widgets}
           onToggle={(key, enabled) => {
@@ -269,13 +277,31 @@ export default function SiteEmbedsSettingsPage() {
                 ...prev,
                 widgets: {
                   ...prev.widgets,
-                  [key]: { enabled },
+                  [key]: {
+                    ...(prev.widgets[key] as object),
+                    enabled,
+                  },
                 },
               };
             });
           }}
         />
       </div>
+
+      <LiveComPreviewPanel settings={draftSite.widgets.liveCom} appearance={draftSite.appearance} />
+
+      <InlineWidgetsSettingsPanel
+        settings={draftSite.widgets}
+        onChange={(nextWidgets) => {
+          setDraftSite((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              widgets: nextWidgets,
+            };
+          });
+        }}
+      />
 
       <div className="space-y-4">
         <h2 className="text-sm font-semibold text-gray-900">Install Snippets</h2>

@@ -67,21 +67,21 @@ export default function DonorStewardSignalsWidget({ constituentId }: DonorStewar
           : "bg-green-50 text-green-700 border-green-200";
 
   return (
-    <section className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+    <section className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-gray-900">Steward Signals</h2>
-        <span className="text-[11px] px-2 py-0.5 rounded-full border border-blue-200 bg-blue-50 text-blue-700">Live AI</span>
+        <h2 className="text-sm font-semibold tracking-wide text-gray-900">Steward Signals</h2>
+        <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">Live AI</span>
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+      <div className="grid grid-cols-2 gap-3 text-sm">
         <Metric label="Generosity" value={loading ? "--" : `${data?.generosityScore ?? 0}/100`} />
         <Metric label="Opportunity" value={loading ? "--" : `${data?.opportunityScore ?? 0}/100`} />
         <Metric label="Confidence" value={loading ? "--" : `${data?.confidence ?? 0}%`} />
-        <div className="rounded-lg border p-2">
-          <p className="text-xs uppercase tracking-wide text-gray-500">Lapse Risk</p>
-          <p className={`inline-flex mt-1 px-2 py-0.5 rounded-full border text-xs font-semibold ${lapseRiskStyle}`}>
+        <div className="rounded-lg border border-gray-200 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Lapse Risk</p>
+          <p className={`mt-2 inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${lapseRiskStyle}`}>
             {loading ? "--" : data?.lapseRisk ?? "LOW"}
           </p>
         </div>
@@ -116,9 +116,9 @@ interface MetricProps {
 /** Metric presents compact labeled values in the donor widget grid. */
 function Metric({ label, value }: MetricProps) {
   return (
-    <div className="rounded-lg border border-gray-200 p-2">
-      <p className="text-xs uppercase tracking-wide text-gray-500">{label}</p>
-      <p className="text-sm font-semibold text-gray-900 mt-0.5">{value}</p>
+    <div className="rounded-lg border border-gray-200 p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="mt-2 text-base font-semibold leading-none text-gray-900">{value}</p>
     </div>
   );
 }

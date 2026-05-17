@@ -8,7 +8,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Meeting } from "@/app/meetings/page";
-import { STATUS_COLORS, STATUS_LABELS } from "@/app/meetings/page";
+import { STATUS_COLORS, STATUS_LABELS } from "@/app/components/meetings/meeting-status";
 
 /** Human-readable meeting type labels */
 const TYPE_LABELS: Record<string, string> = {
@@ -54,7 +54,6 @@ export default function MeetingCard({ meeting, onComplete, onCancel }: Props) {
 
   const start = new Date(meeting.startTime);
   const isToday = start.toDateString() === new Date().toDateString();
-  const isPast = start < new Date();
   const statusColor = STATUS_COLORS[meeting.status] ?? "bg-gray-100 text-gray-500";
 
   async function handleComplete() {

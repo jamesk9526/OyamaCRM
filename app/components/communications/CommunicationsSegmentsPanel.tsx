@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/app/lib/auth-client";
+import EmptyStateCard from "@/app/components/ui/EmptyStateCard";
+import ActionButton from "@/app/components/ui/ActionButton";
+import StewardContextButton from "@/app/components/ai/StewardContextButton";
 
 interface SavedRecipientList {
   id: string;
@@ -170,7 +173,33 @@ export default function CommunicationsSegmentsPanel() {
           {loading ? (
             <p className="text-sm text-gray-500">Loading segments...</p>
           ) : lists.length === 0 ? (
-            <p className="text-sm text-gray-500">No saved segments yet.</p>
+            <EmptyStateCard
+              className="border-0 bg-transparent px-0 py-4 shadow-none"
+              title="No donor segments yet"
+              description="Create a segment to group donors by giving history, event attendance, campaign response, or lapse risk."
+              actions={(
+                <>
+                  <ActionButton
+                    label="Create Segment"
+                    variant="primary"
+                    onClick={() => {
+                      setSelectedListId(null);
+                      setName("");
+                      setDescription("");
+                      setEmailsInput("");
+                    }}
+                  />
+                  <ActionButton label="Import Donors" variant="secondary" href="/data-tools/import" />
+                  <StewardContextButton
+                    label="Ask Steward"
+                    prompt="We have no donor segments yet. Recommend a starter segmentation strategy for giving history, event attendance, campaign response, and lapse risk."
+                    moduleKey="donor"
+                    mode="ask"
+                    variant="mini"
+                  />
+                </>
+              )}
+            />
           ) : (
             lists.map((list) => (
               <button
@@ -240,34 +269,28 @@ export default function CommunicationsSegmentsPanel() {
 
         <div className="mt-4 flex flex-wrap gap-2">
           {!selectedList && (
-            <button
-              type="button"
+            <ActionButton
+              label={saving ? "Saving..." : "Create Segment"}
+              variant="primary"
               onClick={() => void createList()}
               disabled={saving || !name.trim()}
-              className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-60"
-            >
-              {saving ? "Saving..." : "Create Segment"}
-            </button>
+            />
           )}
 
           {selectedList && (
             <>
-              <button
-                type="button"
+              <ActionButton
+                label={saving ? "Saving..." : "Save Changes"}
+                variant="primary"
                 onClick={() => void updateList()}
                 disabled={saving || !name.trim()}
-                className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-60"
-              >
-                {saving ? "Saving..." : "Save Changes"}
-              </button>
-              <button
-                type="button"
+              />
+              <ActionButton
+                label="Delete Segment"
+                variant="danger"
                 onClick={() => void deleteList()}
                 disabled={saving}
-                className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
-              >
-                Delete Segment
-              </button>
+              />
             </>
           )}
         </div>

@@ -5,6 +5,7 @@
  */
 
 import Link from "next/link";
+import StewardContextButton from "@/app/components/ai/StewardContextButton";
 import { Campaign } from "@/app/campaigns/page";
 
 /** Map CampaignCategory enum values to display labels */
@@ -32,16 +33,19 @@ function fmtDate(d?: string | null) {
 
 interface Props {
   campaign: Campaign;
+  scopeLabel?: string;
   onInfo?: () => void;
   onEdit?: (campaign: Campaign) => void;
   onDelete?: (id: string) => void;
 }
 
 /** CampaignCard: card view of a single fundraising campaign with actions */
-export default function CampaignCard({ campaign, onInfo, onEdit, onDelete }: Props) {
+export default function CampaignCard({ campaign, scopeLabel, onInfo, onEdit, onDelete }: Props) {
   const goal = Number(campaign.goal ?? 0);
   const raised = campaign.totalRaised ?? 0;
-  const pct = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
+  // pct is capped at 100 for the progress bar; actualPct is the true percentage for prompts/text
+  const actualPct = goal > 0 ? Math.round((raised / goal) * 100) : 0;
+  const pct = Math.min(100, actualPct);
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-5 flex flex-col gap-3 hover:shadow-sm transition-shadow">
@@ -63,7 +67,7 @@ export default function CampaignCard({ campaign, onInfo, onEdit, onDelete }: Pro
         <div>
           <div className="flex justify-between text-xs text-gray-500 mb-1">
             <span>${raised.toLocaleString()} raised</span>
-            <span>{pct}% of ${goal.toLocaleString()}</span>
+            <span className={actualPct > 100 ? "font-semibold text-emerald-700" : undefined}>{actualPct}% of ${goal.toLocaleString()}</span>
           </div>
           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
             <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
@@ -77,10 +81,12 @@ export default function CampaignCard({ campaign, onInfo, onEdit, onDelete }: Pro
         {campaign.endDate && <><span>·</span><span>Ends {fmtDate(campaign.endDate)}</span></>}
       </div>
 
+      {scopeLabel && <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Snapshot scope: {scopeLabel}</p>}
+
       {/* Donation count + actions row */}
       <div className="flex items-center justify-between pt-2 border-t border-gray-100">
         {campaign._count ? (
-          <p className="text-xs text-gray-400">{campaign._count.donations} donation{campaign._count.donations !== 1 ? "s" : ""}</p>
+          <p className="text-xs text-gray-400">{campaign._count.donations} completed donation{campaign._count.donations !== 1 ? "s" : ""}</p>
         ) : <span />}
         <div className="flex items-center gap-1.5">
           <Link
@@ -116,6 +122,13 @@ export default function CampaignCard({ campaign, onInfo, onEdit, onDelete }: Pro
               </svg>
             </button>
           )}
+          <StewardContextButton
+            label="Analyze"
+            prompt={`Analyze the "${campaign.name}" campaign using ${scopeLabel ?? "current workspace"} snapshot metrics. It has raised $${raised.toLocaleString()} of a $${goal.toLocaleString()} goal (${actualPct}% of goal${actualPct > 100 ? ` — ${(actualPct - 100).toLocaleString()}% over goal` : ""}). Category: ${categoryLabel(campaign.category)}. Status: ${campaign.active ? "Active" : "Inactive"}. Suggest donor segments to target, messaging improvements, and concrete next steps to reach the goal.`}
+            moduleKey="donor"
+            mode="analyze"
+            variant="mini"
+          />
         </div>
       </div>
     </div>

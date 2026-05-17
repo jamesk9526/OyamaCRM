@@ -35,7 +35,8 @@ export type BlockType =
   | 'divider'
   | 'spacer'
   | 'social'
-  | 'columns';
+  | 'columns'
+  | 'customHtml';
 
 // ─── Base ─────────────────────────────────────────────────────────────────────
 
@@ -416,6 +417,13 @@ export interface ColumnsBlock extends BaseBlock {
   padding: number;
 }
 
+export interface CustomHtmlBlock extends BaseBlock {
+  type: 'customHtml';
+  /** Raw HTML content inserted directly into email output. */
+  html: string;
+  padding: number;
+}
+
 // ─── Union ────────────────────────────────────────────────────────────────────
 
 export type EmailBlock =
@@ -446,7 +454,8 @@ export type EmailBlock =
   | DividerBlock
   | SpacerBlock
   | SocialBlock
-  | ColumnsBlock;
+  | ColumnsBlock
+  | CustomHtmlBlock;
 
 // ─── Template ─────────────────────────────────────────────────────────────────
 
@@ -515,6 +524,7 @@ export const PALETTE_ITEMS: PaletteItem[] = [
   // Existing media/layout/elements
   { blockType: 'video', label: 'Video', description: 'YouTube, Vimeo, OneDrive', icon: 'V', section: 'Media' },
   { blockType: 'columns', label: 'Columns', description: 'Two-column layout', icon: 'C', section: 'Layout' },
+  { blockType: 'customHtml', label: 'Custom HTML', description: 'Insert custom HTML markup block', icon: '</>', section: 'Layout' },
   { blockType: 'divider', label: 'Divider', description: 'Horizontal rule', icon: '-', section: 'Layout' },
   { blockType: 'spacer', label: 'Spacer', description: 'Vertical spacing', icon: '+', section: 'Layout' },
   { blockType: 'social', label: 'Social Follow', description: 'Social media links', icon: '@', section: 'Ministry / Mission' },

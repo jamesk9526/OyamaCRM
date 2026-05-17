@@ -1,18 +1,33 @@
-import type { Metadata } from "next";
-import { Geist } from "next/font/google";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "./components/auth/AuthProvider";
 import AppShell from "./components/layout/AppShell";
 import { PluginProvider } from "./components/plugins/PluginProvider";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+import PWARegister from "./components/pwa/PWARegister";
 
 export const metadata: Metadata = {
   title: "OyamaCRM",
   description: "Nonprofit Donor Management",
+  applicationName: "OyamaCRM",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "OyamaCRM",
+  },
+  formatDetection: {
+    telephone: false,
+    date: false,
+    address: false,
+    email: false,
+    url: false,
+  },
+  icons: {
+    apple: [
+      { url: "/api/pwa/icon?size=180", sizes: "180x180", type: "image/png" },
+      { url: "/api/pwa/icon?size=192", sizes: "192x192", type: "image/png" },
+    ],
+  },
   robots: {
     index: false,
     follow: false,
@@ -32,14 +47,22 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#16a34a",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
+    <html lang="en" className="h-full antialiased">
       <body className="h-full">
+        <PWARegister />
         <AuthProvider>
           <PluginProvider>
             <AppShell>{children}</AppShell>

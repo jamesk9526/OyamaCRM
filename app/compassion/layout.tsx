@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import TopBar from "@/app/components/layout/TopBar";
 import CompassionSidebar from "@/app/components/layout/CompassionSidebar";
+import MobileSidebarDrawer from "@/app/components/layout/MobileSidebarDrawer";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
 import { apiFetch } from "@/app/lib/auth-client";
 import { fetchWorkspaceSettings } from "@/app/lib/workspace-settings";
@@ -115,18 +116,13 @@ export default function CompassionLayout({ children }: { children: React.ReactNo
           <CompassionSidebar />
         </div>
 
-        {mobileNavOpen && (
-          <div className="fixed inset-0 z-40 lg:hidden">
-            <button
-              aria-label="Close Compassion navigation"
-              onClick={() => setMobileNavOpen(false)}
-              className="absolute inset-0 bg-black/35"
-            />
-            <div className="absolute inset-y-0 left-0 w-64 max-w-[86vw] shadow-2xl">
-              <CompassionSidebar forceExpanded />
-            </div>
-          </div>
-        )}
+        <MobileSidebarDrawer
+          open={mobileNavOpen}
+          title="Compassion CRM navigation"
+          onClose={() => setMobileNavOpen(false)}
+        >
+          <CompassionSidebar forceExpanded />
+        </MobileSidebarDrawer>
 
         {/* Blue-tinted content area distinguishes Compassion CRM visually */}
         <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-blue-50/30 p-3 sm:p-4 lg:p-4 min-[1440px]:p-5 2xl:p-6">

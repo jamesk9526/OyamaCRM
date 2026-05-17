@@ -7,7 +7,7 @@ interface WorkspaceRibbonButtonProps {
   href?: string;
   onClick?: () => void;
   icon?: ReactNode;
-  variant?: "primary" | "secondary" | "ghost";
+  variant?: "primary" | "secondary" | "ghost" | "danger";
   /** Marks this button as the currently active/selected state (e.g. active filter tab). */
   active?: boolean;
   disabled?: boolean;
@@ -200,6 +200,8 @@ export default function WorkspaceRibbonButton({
   const tone =
     variant === "primary"
       ? primaryTone
+      : variant === "danger"
+        ? "border-red-600 bg-red-600 text-white hover:bg-red-700 active:bg-red-800"
       : active
         ? activeTone
         : variant === "ghost"

@@ -1,4 +1,5 @@
 /** Site embeds routes for DonorCRM admin configuration, public loader delivery, and LiveCom website ingestion. */
+import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
@@ -6,6 +7,7 @@ import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
+import { createNotification } from "../services/notifications.js";
 import {
   SITE_EMBEDS_PLUGIN_KEY,
   SITE_EMBED_REGISTRY,
@@ -20,12 +22,24 @@ import {
   parseSiteEmbedsConfig,
   toPublicSiteEmbedConfig,
   type SiteEmbedsConfig,
+  type SiteEmbedsPublicConfig,
   type SiteEmbedSiteConfig,
   type SiteEmbedWidgetKey,
   type SiteEmbedWidgetSettings,
 } from "../services/site-embeds.js";
+import { readPaymentGatewayRuntimeConfig } from "../services/payment-gateway-settings.js";
 
 const router = Router();
+const BRANDING_PLUGIN_KEY = "organization-branding";
+
+interface SiteEmbedBrandingDefaults {
+  organizationDisplayName: string;
+  logoUrl: string;
+  logoSquareUrl: string;
+  primaryColor: string;
+  accentColor: string;
+  tagline: string;
+}
 
 /** Applies permissive CORS headers for public no-auth embed endpoints used on external websites. */
 function applyPublicEmbedCorsHeaders(res: import("express").Response): void {
@@ -35,7 +49,7 @@ function applyPublicEmbedCorsHeaders(res: import("express").Response): void {
 }
 
 /** Handles CORS preflight for embed routes installed on non-CRM public websites. */
-router.options(["/loader.js", "/public/ping", "/public/livecom", "/public/widget-data", "/public/widget-submit"], (_req, res) => {
+router.options(["/loader.js", "/public/ping", "/public/livecom", "/public/livecom-thread", "/public/widget-data", "/public/widget-submit", "/public/donation-checkout", "/public/donation-checkout-embedded", "/public/stripe-webhook"], (_req, res) => {
   applyPublicEmbedCorsHeaders(res);
   res.status(204).end();
 });
@@ -80,6 +94,251 @@ function resolveObservedDomain(req: import("express").Request): string {
   if (refererHost) return refererHost;
 
   return "";
+}
+
+/** Creates a safe default return URL for checkout redirects when embed pages do not provide custom links. */
+function buildDefaultReturnUrl(domain: string, path = "/"): string {
+  const host = normalizeDomainCandidate(domain) || "localhost";
+  return `https://${host}${path}`;
+}
+
+/** Validates one user-provided return URL and keeps redirects pinned to the requesting website domain. */
+function resolveReturnUrl(candidate: string, observedDomain: string, fallbackPath: string): string {
+  const fallback = buildDefaultReturnUrl(observedDomain, fallbackPath);
+  const value = candidate.trim();
+  if (!value) return fallback;
+
+  try {
+    const parsed = new URL(value);
+    if (normalizeDomainCandidate(parsed.hostname) !== normalizeDomainCandidate(observedDomain)) {
+      return fallback;
+    }
+    return parsed.toString();
+  } catch {
+    return fallback;
+  }
+}
+
+/** Reads branding defaults from PluginSetting config for automatic embed theming fallbacks. */
+function readBrandingDefaults(value: unknown): SiteEmbedBrandingDefaults {
+  const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const readText = (key: string) => String(input[key] ?? "").trim();
+  const readHex = (key: string) => {
+    const candidate = String(input[key] ?? "").trim();
+    return /^#[0-9a-fA-F]{6}$/.test(candidate) ? candidate : "";
+  };
+
+  return {
+    organizationDisplayName: readText("organizationDisplayName"),
+    logoUrl: readText("logoUrl"),
+    logoSquareUrl: readText("logoSquareUrl"),
+    primaryColor: readHex("primaryColor"),
+    accentColor: readHex("accentColor"),
+    tagline: readText("tagline"),
+  };
+}
+
+/** Overlays branding defaults into widget settings when widget values are blank or legacy defaults. */
+function applyBrandingDefaultsToPublicConfig(config: SiteEmbedsPublicConfig, branding: SiteEmbedBrandingDefaults): SiteEmbedsPublicConfig {
+  const orgName = branding.organizationDisplayName;
+  const logoUrl = branding.logoSquareUrl || branding.logoUrl;
+  const brandColor = branding.primaryColor || branding.accentColor;
+  const appearance = {
+    ...config.appearance,
+    accentColor: (config.appearance.accentColor === "#16a34a" || !/^#[0-9a-fA-F]{6}$/.test(String(config.appearance.accentColor || "").trim()))
+      ? (brandColor || config.appearance.accentColor)
+      : config.appearance.accentColor,
+  };
+
+  const widgets = {
+    ...config.widgets,
+    liveCom: {
+      ...config.widgets.liveCom,
+      orgName: config.widgets.liveCom.orgName || orgName,
+      orgSubtitle: config.widgets.liveCom.orgSubtitle || branding.tagline,
+      avatarUrl: config.widgets.liveCom.avatarUrl || logoUrl,
+      chatheadColor: (config.widgets.liveCom.chatheadColor === "#16a34a" || !/^#[0-9a-fA-F]{6}$/.test(String(config.widgets.liveCom.chatheadColor || "").trim()))
+        ? (appearance.accentColor || config.widgets.liveCom.chatheadColor)
+        : config.widgets.liveCom.chatheadColor,
+    },
+    donation_widget: {
+      ...config.widgets.donation_widget,
+      accentColor: config.widgets.donation_widget.accentColor || brandColor,
+    },
+    campaign_meter: {
+      ...config.widgets.campaign_meter,
+      accentColor: config.widgets.campaign_meter.accentColor || brandColor,
+    },
+    event_card: {
+      ...config.widgets.event_card,
+      accentColor: config.widgets.event_card.accentColor || brandColor,
+    },
+    volunteer_signup: {
+      ...config.widgets.volunteer_signup,
+      accentColor: config.widgets.volunteer_signup.accentColor || brandColor,
+    },
+    newsletter_signup: {
+      ...config.widgets.newsletter_signup,
+      accentColor: config.widgets.newsletter_signup.accentColor || brandColor,
+    },
+    impact_counter: {
+      ...config.widgets.impact_counter,
+      accentColor: config.widgets.impact_counter.accentColor || brandColor,
+    },
+    cta_block: {
+      ...config.widgets.cta_block,
+      accentColor: config.widgets.cta_block.accentColor || brandColor,
+    },
+  };
+
+  return {
+    ...config,
+    appearance,
+    widgets,
+  };
+}
+
+/** Converts dollars to integer cents with floor rounding for provider API compatibility. */
+function toMinorUnits(amount: number): number {
+  return Math.max(0, Math.round(amount * 100));
+}
+
+/** Creates one Stripe Checkout Session via direct API call and returns hosted checkout URL. */
+async function createStripeCheckoutSession(args: {
+  secretKey: string;
+  amount: number;
+  currency: string;
+  successUrl: string;
+  cancelUrl: string;
+  donorName: string;
+  donorEmail: string;
+  campaignId: string;
+  designation: string;
+  idempotencyKey: string;
+}) {
+  const params = new URLSearchParams();
+  params.set("mode", "payment");
+  params.set("success_url", args.successUrl);
+  params.set("cancel_url", args.cancelUrl);
+  params.set("line_items[0][quantity]", "1");
+  params.set("line_items[0][price_data][currency]", args.currency.toLowerCase());
+  params.set("line_items[0][price_data][unit_amount]", String(toMinorUnits(args.amount)));
+  params.set("line_items[0][price_data][product_data][name]", "Donation");
+  params.set("line_items[0][price_data][product_data][description]", args.designation || "General Fund");
+  if (args.donorEmail) {
+    params.set("customer_email", args.donorEmail);
+  }
+  params.set("metadata[platform]", "oyamacrm_site_embeds");
+  params.set("metadata[campaignId]", args.campaignId || "");
+  params.set("metadata[designation]", args.designation || "");
+  params.set("metadata[donorName]", args.donorName || "Website Visitor");
+
+  const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${args.secretKey}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Idempotency-Key": args.idempotencyKey,
+    },
+    body: params.toString(),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(String((payload as { error?: { message?: string } }).error?.message ?? "Stripe checkout failed"));
+  }
+
+  const parsed = payload as { id?: string; url?: string };
+  if (!parsed.id || !parsed.url) {
+    throw new Error("Stripe did not return a checkout URL.");
+  }
+
+  return {
+    provider: "stripe" as const,
+    checkoutId: parsed.id,
+    checkoutUrl: parsed.url,
+  };
+}
+
+/** Creates one PayPal order and returns the approval URL for redirect-based checkout. */
+async function createPayPalCheckoutOrder(args: {
+  mode: "sandbox" | "production";
+  clientId: string;
+  clientSecret: string;
+  amount: number;
+  currency: string;
+  successUrl: string;
+  cancelUrl: string;
+  donorName: string;
+  campaignId: string;
+  designation: string;
+}) {
+  const baseUrl = args.mode === "production"
+    ? "https://api-m.paypal.com"
+    : "https://api-m.sandbox.paypal.com";
+
+  const authToken = Buffer.from(`${args.clientId}:${args.clientSecret}`).toString("base64");
+  const tokenResponse = await fetch(`${baseUrl}/v1/oauth2/token`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${authToken}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: "grant_type=client_credentials",
+  });
+  const tokenPayload = await tokenResponse.json().catch(() => ({}));
+  if (!tokenResponse.ok || !String((tokenPayload as { access_token?: string }).access_token ?? "")) {
+    throw new Error("PayPal access token request failed.");
+  }
+
+  const accessToken = String((tokenPayload as { access_token?: string }).access_token);
+  const orderResponse = await fetch(`${baseUrl}/v2/checkout/orders`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify({
+      intent: "CAPTURE",
+      purchase_units: [
+        {
+          amount: {
+            currency_code: args.currency.toUpperCase(),
+            value: args.amount.toFixed(2),
+          },
+          description: args.designation || "Donation",
+          custom_id: args.campaignId || undefined,
+        },
+      ],
+      payer: {
+        name: args.donorName ? { given_name: args.donorName.slice(0, 80) } : undefined,
+      },
+      application_context: {
+        return_url: args.successUrl,
+        cancel_url: args.cancelUrl,
+        brand_name: "OyamaCRM Donation",
+        user_action: "PAY_NOW",
+      },
+    }),
+  });
+
+  const orderPayload = await orderResponse.json().catch(() => ({}));
+  if (!orderResponse.ok) {
+    throw new Error("PayPal order creation failed.");
+  }
+
+  const order = orderPayload as { id?: string; links?: Array<{ rel?: string; href?: string }> };
+  const approvalUrl = order.links?.find((link) => link.rel === "approve")?.href;
+  if (!order.id || !approvalUrl) {
+    throw new Error("PayPal did not return an approval URL.");
+  }
+
+  return {
+    provider: "paypal" as const,
+    checkoutId: order.id,
+    checkoutUrl: approvalUrl,
+  };
 }
 
 /** Finds one site record by public embed token across enabled site-embed plugin rows. */
@@ -169,36 +428,49 @@ function mergeWidgetSettings(current: SiteEmbedWidgetSettings, incoming: unknown
   if (!incoming || typeof incoming !== "object") return current;
 
   const partial = incoming as Record<string, unknown>;
-  const nextLiveCom = partial.liveCom && typeof partial.liveCom === "object"
-    ? {
-      ...current.liveCom,
-      ...partial.liveCom as Record<string, unknown>,
-    }
+
+  const liveComCandidate = partial.liveCom ?? partial.livecom;
+  const nextLiveCom = liveComCandidate && typeof liveComCandidate === "object"
+    ? ({ ...current.liveCom, ...(liveComCandidate as Record<string, unknown>) } as typeof current.liveCom)
     : current.liveCom;
 
-  const enabledFlag = (key: keyof Omit<SiteEmbedWidgetSettings, "liveCom">) => {
-    const candidate = partial[key];
-    if (!candidate || typeof candidate !== "object") return current[key];
-    const enabled = (candidate as Record<string, unknown>).enabled;
-    return {
-      enabled: typeof enabled === "boolean" ? enabled : current[key].enabled,
-    };
+  // Ensure liveCom fields are safe-typed
+  const mergedLiveCom: typeof current.liveCom = {
+    ...current.liveCom,
+    ...nextLiveCom,
+    enabled: typeof nextLiveCom.enabled === "boolean" ? nextLiveCom.enabled : current.liveCom.enabled,
+    buttonPosition: nextLiveCom.buttonPosition === "bottom-left" ? "bottom-left" : "bottom-right",
+    iconStyle: nextLiveCom.iconStyle === "spark" ? "spark"
+      : nextLiveCom.iconStyle === "heart" ? "heart"
+        : nextLiveCom.iconStyle === "hand" ? "hand"
+          : "chat",
+    chatheadColor: /^#[0-9a-fA-F]{6}$/.test(String(nextLiveCom.chatheadColor ?? "").trim())
+      ? String(nextLiveCom.chatheadColor)
+      : current.liveCom.chatheadColor,
+    panelWidth: (() => {
+      const w = Number(nextLiveCom.panelWidth ?? current.liveCom.panelWidth ?? 340);
+      return Number.isFinite(w) && w >= 280 && w <= 480 ? Math.round(w) : (current.liveCom.panelWidth ?? 340);
+    })(),
   };
 
   return {
-    liveCom: {
-      enabled: typeof nextLiveCom.enabled === "boolean" ? nextLiveCom.enabled : current.liveCom.enabled,
-      buttonLabel: String(nextLiveCom.buttonLabel ?? current.liveCom.buttonLabel).trim() || current.liveCom.buttonLabel,
-      buttonPosition: nextLiveCom.buttonPosition === "bottom-left" ? "bottom-left" : "bottom-right",
-      greetingMessage: String(nextLiveCom.greetingMessage ?? current.liveCom.greetingMessage).trim() || current.liveCom.greetingMessage,
-    },
-    campaign_meter: enabledFlag("campaign_meter"),
-    donation_widget: enabledFlag("donation_widget"),
-    event_card: enabledFlag("event_card"),
-    volunteer_signup: enabledFlag("volunteer_signup"),
-    newsletter_signup: enabledFlag("newsletter_signup"),
-    impact_counter: enabledFlag("impact_counter"),
-    cta_block: enabledFlag("cta_block"),
+    liveCom: mergedLiveCom,
+    donation_widget: ({ ...current.donation_widget, ...(typeof partial.donation_widget === "object" && partial.donation_widget ? partial.donation_widget : {}) } as unknown as typeof current.donation_widget),
+    campaign_meter: ({ ...current.campaign_meter, ...(typeof partial.campaign_meter === "object" && partial.campaign_meter ? partial.campaign_meter : {}) } as unknown as typeof current.campaign_meter),
+    event_card: ({ ...current.event_card, ...(typeof partial.event_card === "object" && partial.event_card ? partial.event_card : {}) } as unknown as typeof current.event_card),
+    volunteer_signup: ({ ...current.volunteer_signup, ...(typeof partial.volunteer_signup === "object" && partial.volunteer_signup ? partial.volunteer_signup : {}) } as unknown as typeof current.volunteer_signup),
+    newsletter_signup: ({ ...current.newsletter_signup, ...(typeof partial.newsletter_signup === "object" && partial.newsletter_signup ? partial.newsletter_signup : {}) } as unknown as typeof current.newsletter_signup),
+    impact_counter: ({ ...current.impact_counter, ...(typeof partial.impact_counter === "object" && partial.impact_counter ? partial.impact_counter : {}) } as unknown as typeof current.impact_counter),
+    cta_block: ({ ...current.cta_block, ...(typeof partial.cta_block === "object" && partial.cta_block ? partial.cta_block : {}) } as unknown as typeof current.cta_block),
+  };
+}
+
+/** Merges a partial site-wide appearance payload before service-level normalization runs on save/load. */
+function mergeAppearanceSettings(current: SiteEmbedSiteConfig["appearance"], incoming: unknown): SiteEmbedSiteConfig["appearance"] {
+  if (!incoming || typeof incoming !== "object") return current;
+  return {
+    ...current,
+    ...(incoming as Partial<SiteEmbedSiteConfig["appearance"]>),
   };
 }
 
@@ -206,7 +478,8 @@ function mergeWidgetSettings(current: SiteEmbedWidgetSettings, incoming: unknown
 function sendLoaderWarning(res: import("express").Response, status: number, message: string) {
   res.status(status);
   res.setHeader("Content-Type", "application/javascript; charset=utf-8");
-  res.setHeader("Cache-Control", "public, max-age=30");
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  res.setHeader("Pragma", "no-cache");
   res.send(`console.warn(${JSON.stringify(`[OyamaCRM Embed] ${message}`)});`);
 }
 
@@ -233,14 +506,28 @@ router.get("/loader.js", async (req, res) => {
     return;
   }
 
+  const brandingSetting = await prisma.pluginSetting.findUnique({
+    where: {
+      organizationId_pluginKey: {
+        organizationId: hit.organizationId,
+        pluginKey: BRANDING_PLUGIN_KEY,
+      },
+    },
+    select: { config: true },
+  });
+
+  const brandingDefaults = readBrandingDefaults(brandingSetting?.config);
+  const publicConfig = applyBrandingDefaultsToPublicConfig(toPublicSiteEmbedConfig(hit.site), brandingDefaults);
+
   const script = buildSiteEmbedLoaderScript({
     apiBaseUrl: resolveApiBaseUrl(req),
     token,
-    publicConfig: toPublicSiteEmbedConfig(hit.site),
+    publicConfig,
   });
 
   res.setHeader("Content-Type", "application/javascript; charset=utf-8");
-  res.setHeader("Cache-Control", "public, max-age=60");
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  res.setHeader("Pragma", "no-cache");
   res.send(script);
 });
 
@@ -322,7 +609,23 @@ function normalizePublicWidgetKey(value: string): PublicWidgetKey | null {
 
 /** Returns true when the selected site has one widget enabled for public rendering/submission. */
 function isPublicWidgetEnabled(site: SiteEmbedSiteConfig, widgetKey: PublicWidgetKey): boolean {
-  return Boolean(site.widgets[widgetKey]?.enabled);
+  const candidates = [
+    site.widgets?.[widgetKey],
+    (site.widgets as unknown as Record<string, unknown>)?.[widgetKey.replace(/_/g, "-")],
+    (site.widgets as unknown as Record<string, unknown>)?.[widgetKey.replace(/_([a-z])/g, (_m, g1: string) => g1.toUpperCase())],
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === "object") {
+      const enabled = (candidate as Record<string, unknown>).enabled;
+      if (typeof enabled === "boolean") return enabled;
+      if (typeof enabled === "string") return enabled.toLowerCase() === "true";
+    }
+    if (typeof candidate === "boolean") return candidate;
+    if (typeof candidate === "string") return candidate.toLowerCase() === "true";
+  }
+
+  return false;
 }
 
 /** Builds a campaign meter payload using one selected campaign or fallback active campaign. */
@@ -672,6 +975,182 @@ router.post("/public/widget-submit", async (req, res) => {
   });
 });
 
+/**
+ * POST /api/site-embeds/public/donation-checkout
+ * Creates a tokenized Stripe Checkout session or PayPal order for embedded donation widgets.
+ */
+router.post("/public/donation-checkout", async (req, res) => {
+  const token = readStringInput(req, "token");
+  const displayName = readStringInput(req, "name");
+  const email = readStringInput(req, "email").toLowerCase();
+  const message = readStringInput(req, "message");
+  const amountRaw = readStringInput(req, "amount");
+  const campaignId = readStringInput(req, "campaignId");
+  const designation = readStringInput(req, "designation") || "General Fund";
+  const providerPreference = readStringInput(req, "provider").toLowerCase();
+  const successUrlInput = readStringInput(req, "successUrl");
+  const cancelUrlInput = readStringInput(req, "cancelUrl");
+
+  if (!token) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "token is required" } });
+    return;
+  }
+
+  const amount = Number(amountRaw);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A valid donation amount is required" } });
+    return;
+  }
+
+  const hit = await findSiteByToken(token);
+  if (!hit || !hit.site.active) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Embed site connection not found" } });
+    return;
+  }
+
+  const observedDomain = resolveObservedDomain(req);
+  if (!isDomainAllowedForSite(hit.site, observedDomain)) {
+    res.status(403).json({ error: { code: "DOMAIN_NOT_ALLOWED", message: "Domain is not allowed for this embed token" } });
+    return;
+  }
+
+  if (!isPublicWidgetEnabled(hit.site, "donation_widget")) {
+    res.status(409).json({ error: { code: "WIDGET_INACTIVE", message: "Donation widget is disabled for this site" } });
+    return;
+  }
+
+  const runtime = await readPaymentGatewayRuntimeConfig(hit.organizationId);
+  const successUrl = resolveReturnUrl(successUrlInput, observedDomain, "/?donation=success");
+  const cancelUrl = resolveReturnUrl(cancelUrlInput, observedDomain, "/?donation=canceled");
+
+  const parsedName = splitDisplayName(displayName);
+  let constituent = email
+    ? await prisma.constituent.findFirst({
+      where: { organizationId: hit.organizationId, email },
+      select: { id: true },
+    })
+    : null;
+
+  if (!constituent) {
+    constituent = await prisma.constituent.create({
+      data: {
+        organizationId: hit.organizationId,
+        type: "DONOR",
+        firstName: parsedName.firstName,
+        lastName: parsedName.lastName,
+        email: email || null,
+        notes: [
+          "Created from site-embed donation checkout.",
+          observedDomain ? `Domain: ${observedDomain}` : "",
+        ].filter(Boolean).join("\n"),
+      },
+      select: { id: true },
+    });
+  }
+
+  const idempotencyKey = [
+    token,
+    constituent.id,
+    designation,
+    amount.toFixed(2),
+    new Date().toISOString().slice(0, 16),
+  ].join(":");
+
+  try {
+    const useStripe = providerPreference === "stripe"
+      || (providerPreference !== "paypal" && runtime.stripe.enabled && Boolean(runtime.stripe.secretKey));
+
+    const checkout = useStripe && runtime.stripe.enabled && runtime.stripe.secretKey
+      ? await createStripeCheckoutSession({
+        secretKey: runtime.stripe.secretKey,
+        amount,
+        currency: runtime.currency,
+        successUrl,
+        cancelUrl,
+        donorName: displayName,
+        donorEmail: email,
+        campaignId,
+        designation,
+        idempotencyKey,
+      })
+      : runtime.paypal.enabled && runtime.paypal.clientId && runtime.paypal.clientSecret
+        ? await createPayPalCheckoutOrder({
+          mode: runtime.paypal.mode,
+          clientId: runtime.paypal.clientId,
+          clientSecret: runtime.paypal.clientSecret,
+          amount,
+          currency: runtime.currency,
+          successUrl,
+          cancelUrl,
+          donorName: displayName,
+          campaignId,
+          designation,
+        })
+        : null;
+
+    if (!checkout) {
+      res.status(503).json({
+        error: {
+          code: "PAYMENT_PROVIDER_NOT_CONFIGURED",
+          message: "No enabled payment provider is configured for this donation widget.",
+        },
+      });
+      return;
+    }
+
+    const activity = await prisma.activity.create({
+      data: {
+        constituentId: constituent.id,
+        type: "DONATION",
+        description: `Checkout started via ${checkout.provider} donation widget`,
+        metadata: {
+          source: "site_embeds_widget",
+          widget: "donation_widget",
+          provider: checkout.provider,
+          checkoutId: checkout.checkoutId,
+          amount,
+          currency: runtime.currency,
+          campaignId: campaignId || null,
+          designation,
+          domain: observedDomain,
+          message: message || null,
+        },
+      },
+      select: { id: true },
+    });
+
+    await logAudit({
+      action: "SITE_EMBED_DONATION_CHECKOUT_CREATED",
+      entity: "Activity",
+      entityId: activity.id,
+      organizationId: hit.organizationId,
+      metadata: {
+        provider: checkout.provider,
+        checkoutId: checkout.checkoutId,
+        siteId: hit.site.id,
+        domain: observedDomain,
+        amount,
+      },
+    });
+
+    res.status(201).json({
+      data: {
+        provider: checkout.provider,
+        checkoutId: checkout.checkoutId,
+        checkoutUrl: checkout.checkoutUrl,
+      },
+    });
+  } catch (error) {
+    console.error("[SiteEmbeds] donation checkout error:", error);
+    res.status(502).json({
+      error: {
+        code: "PAYMENT_CHECKOUT_FAILED",
+        message: error instanceof Error ? error.message : "Failed to start donation checkout.",
+      },
+    });
+  }
+});
+
 /** Splits a display-name into first/last names while preserving nonprofit CRM defaults. */
 function splitDisplayName(input: string): { firstName: string; lastName: string } {
   const value = input.trim();
@@ -690,16 +1169,500 @@ function splitDisplayName(input: string): { firstName: string; lastName: string 
   };
 }
 
+/** Safely reads JSON metadata objects from activity rows. */
+function readActivityMetadata(value: Prisma.JsonValue | null): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+/** Creates durable staff notifications for new public LiveCom visitor messages. */
+async function notifyLiveComStaff(args: {
+  organizationId: string;
+  conversationId: string;
+  interactionId: string;
+  visitorName: string;
+  message: string;
+  siteName: string;
+}) {
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        organizationId: args.organizationId,
+        active: true,
+        role: { not: "readonly" },
+      },
+      select: { id: true },
+      take: 100,
+    });
+
+    await Promise.all(users.map((user) => createNotification({
+      organizationId: args.organizationId,
+      userId: user.id,
+      module: "donor",
+      sourceType: "livecom-message",
+      sourceId: args.interactionId,
+      title: `LiveCom message from ${args.visitorName || "Website Visitor"}`,
+      message: `${args.siteName || "Website"}: ${args.message.slice(0, 180)}`,
+      href: `/livecom/inbox?conversationId=${encodeURIComponent(args.conversationId)}`,
+      severity: "HIGH",
+      actionLabel: "Open LiveCom",
+      metadata: {
+        conversationId: args.conversationId,
+        visitorName: args.visitorName,
+        source: "site_embeds",
+      },
+    })));
+  } catch (notificationError) {
+    // Public chat delivery must not fail just because durable staff notifications are unavailable.
+    console.warn("[SiteEmbeds] LiveCom staff notification failed:", notificationError);
+  }
+}
+
+/** Reads a public LiveCom conversation thread that belongs to one site/session pair. */
+async function loadPublicLiveComThread(args: {
+  organizationId: string;
+  siteId: string;
+  conversationId: string;
+  visitorSessionId: string;
+}) {
+  if (!args.conversationId || !args.visitorSessionId) return null;
+
+  const rows = await prisma.activity.findMany({
+    where: {
+      constituent: { organizationId: args.organizationId },
+    },
+    orderBy: { createdAt: "asc" },
+    take: 200,
+    include: {
+      constituent: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+        },
+      },
+    },
+  });
+
+  const messages = rows
+    .filter((row) => {
+      const metadata = readActivityMetadata(row.metadata);
+      const publicEmbed = readActivityMetadata(metadata.publicEmbed as Prisma.JsonValue | null);
+      const role = String(metadata.messageRole || "visitor");
+      const publicRole = role === "visitor" || role === "staff";
+      return metadata.source === "livecom"
+        && metadata.conversationId === args.conversationId
+        && metadata.visitorSessionId === args.visitorSessionId
+        && publicRole
+        && (publicEmbed.siteId === args.siteId || role === "staff");
+    })
+    .map((row) => {
+      const metadata = readActivityMetadata(row.metadata);
+      const role = String(metadata.messageRole || "visitor");
+      return {
+        id: row.id,
+        role: role === "staff" ? role : "visitor",
+        body: row.description,
+        authorName: String(metadata.authorName || (role === "staff" ? "Team" : "You")),
+        createdAt: row.createdAt.toISOString(),
+      };
+    });
+
+  if (messages.length === 0) return null;
+
+  const latest = [...rows].reverse().find((row) => {
+    const metadata = readActivityMetadata(row.metadata);
+    return metadata.conversationId === args.conversationId;
+  });
+  const metadata = readActivityMetadata(latest?.metadata ?? null);
+  const constituent = latest?.constituent;
+  const visitorName = String(metadata.visitorName || `${constituent?.firstName ?? ""} ${constituent?.lastName ?? ""}`.trim() || "Website Visitor");
+
+  return {
+    id: args.conversationId,
+    visitorName,
+    visitorEmail: String(metadata.visitorEmail || constituent?.email || ""),
+    status: String(metadata.status || "OPEN"),
+    messages,
+  };
+}
+
+/**
+ * POST /api/site-embeds/public/donation-checkout-embedded
+ * Creates a Stripe Embedded Checkout session and returns the clientSecret + publishableKey.
+ * The frontend uses these to mount Stripe's embedded checkout UI inside the donation widget.
+ */
+router.post("/public/donation-checkout-embedded", async (req, res) => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const token = String(body.token ?? "").trim();
+  const amountRaw = Number(body.amount);
+  const giftType = String(body.giftType ?? "one-time").toLowerCase() as "one-time" | "monthly";
+  const designation = String(body.designation ?? "General Fund").trim();
+  const donorName = String(body.name ?? "").trim();
+  const donorEmail = String(body.email ?? "").trim().toLowerCase();
+  const donorPhone = String(body.phone ?? "").trim();
+
+  if (!token) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "token is required" } });
+    return;
+  }
+  if (!Number.isFinite(amountRaw) || amountRaw <= 0) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A valid amount is required" } });
+    return;
+  }
+
+  const hit = await findSiteByToken(token);
+  if (!hit || !hit.site.active) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Embed site connection not found" } });
+    return;
+  }
+
+  const observedDomain = resolveObservedDomain(req);
+  if (!isDomainAllowedForSite(hit.site, observedDomain)) {
+    res.status(403).json({ error: { code: "DOMAIN_NOT_ALLOWED", message: "Domain is not allowed for this embed token" } });
+    return;
+  }
+
+  if (!isPublicWidgetEnabled(hit.site, "donation_widget")) {
+    res.status(409).json({ error: { code: "WIDGET_INACTIVE", message: "Donation widget is disabled for this site" } });
+    return;
+  }
+
+  const runtime = await readPaymentGatewayRuntimeConfig(hit.organizationId);
+  if (!runtime.stripe.enabled || !runtime.stripe.secretKey || !runtime.stripe.publishableKey) {
+    res.status(503).json({ error: { code: "PAYMENT_NOT_CONFIGURED", message: "Stripe is not configured for this organization." } });
+    return;
+  }
+
+  try {
+    const amountCents = Math.round(amountRaw * 100);
+    const currency = runtime.currency.toLowerCase();
+    const returnUrl = `${resolveApiBaseUrl(req)}/api/site-embeds/public/donation-return?token=${encodeURIComponent(token)}`;
+
+    let sessionBody: URLSearchParams;
+    if (giftType === "monthly") {
+      // Subscription checkout
+      sessionBody = new URLSearchParams();
+      sessionBody.set("mode", "subscription");
+      sessionBody.set("ui_mode", "embedded");
+      sessionBody.set("return_url", returnUrl);
+      sessionBody.set("line_items[0][quantity]", "1");
+      sessionBody.set("line_items[0][price_data][currency]", currency);
+      sessionBody.set("line_items[0][price_data][recurring][interval]", "month");
+      sessionBody.set("line_items[0][price_data][unit_amount]", String(amountCents));
+      sessionBody.set("line_items[0][price_data][product_data][name]", `Monthly Gift – ${designation}`);
+      sessionBody.set("metadata[platform]", "oyamacrm");
+      sessionBody.set("metadata[giftType]", "monthly");
+      sessionBody.set("metadata[designation]", designation);
+      sessionBody.set("metadata[siteToken]", token);
+      sessionBody.set("metadata[donorName]", donorName);
+      if (donorEmail) sessionBody.set("customer_email", donorEmail);
+    } else {
+      // One-time payment checkout
+      sessionBody = new URLSearchParams();
+      sessionBody.set("mode", "payment");
+      sessionBody.set("ui_mode", "embedded");
+      sessionBody.set("return_url", returnUrl);
+      sessionBody.set("line_items[0][quantity]", "1");
+      sessionBody.set("line_items[0][price_data][currency]", currency);
+      sessionBody.set("line_items[0][price_data][unit_amount]", String(amountCents));
+      sessionBody.set("line_items[0][price_data][product_data][name]", `Gift – ${designation}`);
+      sessionBody.set("payment_intent_data[metadata][platform]", "oyamacrm");
+      sessionBody.set("payment_intent_data[metadata][designation]", designation);
+      sessionBody.set("payment_intent_data[metadata][siteToken]", token);
+      sessionBody.set("payment_intent_data[metadata][donorName]", donorName);
+      sessionBody.set("metadata[platform]", "oyamacrm");
+      sessionBody.set("metadata[giftType]", "one-time");
+      sessionBody.set("metadata[designation]", designation);
+      sessionBody.set("metadata[siteToken]", token);
+      sessionBody.set("metadata[donorName]", donorName);
+      if (donorEmail) sessionBody.set("customer_email", donorEmail);
+    }
+
+    const stripeRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${runtime.stripe.secretKey}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: sessionBody.toString(),
+    });
+
+    const stripePayload = await stripeRes.json().catch(() => ({})) as { id?: string; client_secret?: string; error?: { message?: string } };
+    if (!stripeRes.ok) {
+      throw new Error(stripePayload.error?.message ?? "Stripe session creation failed");
+    }
+    if (!stripePayload.client_secret) {
+      throw new Error("Stripe did not return a client_secret for embedded checkout.");
+    }
+
+    // Create pending donor record
+    const parsedName = splitDisplayName(donorName);
+    let constituent = donorEmail
+      ? await prisma.constituent.findFirst({ where: { organizationId: hit.organizationId, email: donorEmail }, select: { id: true } })
+      : null;
+    if (!constituent) {
+      constituent = await prisma.constituent.create({
+        data: {
+          organizationId: hit.organizationId,
+          type: "DONOR",
+          firstName: parsedName.firstName,
+          lastName: parsedName.lastName,
+          email: donorEmail || null,
+          phone: donorPhone || null,
+        },
+        select: { id: true },
+      });
+    }
+
+    await prisma.activity.create({
+      data: {
+        constituentId: constituent.id,
+        type: "DONATION",
+        description: `Embedded Stripe Checkout started – ${giftType} gift of $${amountRaw.toFixed(2)} to ${designation}`,
+        metadata: {
+          source: "site_embeds_widget",
+          widget: "donation_widget_embedded",
+          provider: "stripe",
+          checkoutSessionId: stripePayload.id ?? "",
+          amount: amountRaw,
+          currency,
+          giftType,
+          designation,
+          domain: observedDomain,
+          status: "pending",
+        },
+      },
+    });
+
+    res.status(200).json({
+      data: {
+        clientSecret: stripePayload.client_secret,
+        publishableKey: runtime.stripe.publishableKey,
+        sessionId: stripePayload.id ?? "",
+        giftType,
+        amount: amountRaw,
+        currency,
+        designation,
+      },
+    });
+  } catch (error) {
+    console.error("[SiteEmbeds] embedded checkout error:", error);
+    res.status(502).json({
+      error: {
+        code: "PAYMENT_CHECKOUT_FAILED",
+        message: error instanceof Error ? error.message : "Failed to start embedded checkout.",
+      },
+    });
+  }
+});
+
+/**
+ * GET /api/site-embeds/public/donation-return
+ * Return URL after Stripe Embedded Checkout completes. Widgets use this to show a thank-you state.
+ */
+router.get("/public/donation-return", (_req, res) => {
+  // Stripe appends ?payment_intent=... or ?payment_intent_client_secret=... to this URL.
+  // The embedded widget reads these from postMessage/window.location. This endpoint just confirms the session.
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
+<script>
+  // Notify parent frame that Stripe checkout completed.
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ oyama_stripe_return: true, search: window.location.search }, '*');
+  }
+</script></body></html>`);
+});
+
+/**
+ * POST /api/site-embeds/public/stripe-webhook
+ * Receives Stripe webhook events for donation processing.
+ * Validates signature and records completed payments in DonorCRM.
+ */
+router.post("/public/stripe-webhook", async (req, res) => {
+  const signature = String(req.headers["stripe-signature"] ?? "");
+
+  // We need raw body for signature verification — if rawBody is present use it.
+  const rawBody: Buffer | string = (req as unknown as { rawBody?: Buffer }).rawBody ?? req.body;
+  const rawBodyStr = Buffer.isBuffer(rawBody) ? rawBody.toString("utf8") : JSON.stringify(rawBody);
+
+  if (!signature) {
+    res.status(400).json({ error: "Missing stripe-signature header" });
+    return;
+  }
+
+  // Parse the event payload directly (signature verification requires stripe SDK or manual HMAC)
+  // We parse first to extract the organization from metadata, then verify with org-specific secret.
+  let event: { type?: string; data?: { object?: Record<string, unknown> }; id?: string };
+  try {
+    event = typeof rawBody === "string"
+      ? JSON.parse(rawBody)
+      : Buffer.isBuffer(rawBody)
+        ? JSON.parse(rawBody.toString("utf8"))
+        : (rawBody as typeof event);
+  } catch {
+    res.status(400).json({ error: "Invalid JSON payload" });
+    return;
+  }
+
+  const session = (event?.data?.object ?? {}) as Record<string, unknown> & {
+    metadata?: Record<string, unknown>;
+    customer_details?: Record<string, unknown>;
+  };
+  const sessionMeta = (session.metadata ?? {}) as Record<string, unknown>;
+  const siteToken = String(sessionMeta["siteToken"] ?? "");
+
+  const hit = siteToken ? await findSiteByToken(siteToken) : null;
+  if (!hit) {
+    // Unknown site token - acknowledge but take no action
+    res.status(200).json({ received: true, action: "skipped_unknown_token" });
+    return;
+  }
+
+  // Verify webhook signature if secret is configured
+  const runtime = await readPaymentGatewayRuntimeConfig(hit.organizationId);
+  if (runtime.stripe.webhookSecret) {
+    const { createHmac } = await import("crypto");
+    const parts = signature.split(",").reduce<Record<string, string>>((acc, p) => {
+      const [k, v] = p.split("=");
+      if (k && v) acc[k] = v;
+      return acc;
+    }, {});
+    const timestamp = parts["t"];
+    const sigV1 = parts["v1"];
+    if (!timestamp || !sigV1) {
+      res.status(400).json({ error: "Malformed stripe-signature header" });
+      return;
+    }
+    const expected = createHmac("sha256", runtime.stripe.webhookSecret)
+      .update(`${timestamp}.${rawBodyStr}`)
+      .digest("hex");
+    if (expected !== sigV1) {
+      res.status(400).json({ error: "Webhook signature verification failed" });
+      return;
+    }
+  }
+
+  // Process supported event types
+  try {
+    if (event.type === "checkout.session.completed") {
+      const amountTotal = Number(session.amount_total ?? 0) / 100;
+      const currency = String(session.currency ?? "usd").toUpperCase();
+      const meta = (session.metadata ?? {}) as Record<string, unknown>;
+      const custDetails = (session.customer_details ?? {}) as Record<string, unknown>;
+      const designation = String(meta["designation"] ?? "General Fund");
+      const giftType = String(meta["giftType"] ?? "one-time");
+      const donorEmail = String(session["customer_email"] ?? custDetails["email"] ?? "").toLowerCase();
+      const donorName = String(meta["donorName"] ?? "Website Donor").trim();
+      const sessionId = String(session.id ?? "");
+
+      const parsedName = splitDisplayName(donorName);
+      let constituent = donorEmail
+        ? await prisma.constituent.findFirst({ where: { organizationId: hit.organizationId, email: donorEmail }, select: { id: true } })
+        : null;
+      if (!constituent) {
+        constituent = await prisma.constituent.create({
+          data: {
+            organizationId: hit.organizationId,
+            type: "DONOR",
+            firstName: parsedName.firstName,
+            lastName: parsedName.lastName,
+            email: donorEmail || null,
+          },
+          select: { id: true },
+        });
+      }
+
+      await prisma.activity.create({
+        data: {
+          constituentId: constituent.id,
+          type: "DONATION",
+          description: `${giftType === "monthly" ? "Monthly gift" : "One-time gift"} of $${amountTotal.toFixed(2)} ${currency} – ${designation}`,
+          metadata: {
+            source: "stripe_webhook",
+            widget: "donation_widget",
+            provider: "stripe",
+            checkoutSessionId: sessionId,
+            paymentIntentId: String(session.payment_intent ?? ""),
+            subscriptionId: String(session.subscription ?? ""),
+            amount: amountTotal,
+            currency,
+            giftType,
+            designation,
+            status: "completed",
+            paidAt: new Date().toISOString(),
+          },
+        },
+      });
+
+      await logAudit({
+        action: "STRIPE_DONATION_COMPLETED",
+        entity: "Activity",
+        entityId: sessionId,
+        organizationId: hit.organizationId,
+        metadata: { amount: amountTotal, currency, designation, giftType },
+      });
+    }
+
+    res.status(200).json({ received: true });
+  } catch (error) {
+    console.error("[SiteEmbeds] webhook processing error:", error);
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
+
+/**
+ * GET /api/site-embeds/public/livecom-thread
+ * Returns a returning visitor's messenger thread for the same token/site/session.
+ */
+router.get("/public/livecom-thread", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  const token = readStringInput(req, "token");
+  const conversationId = readStringInput(req, "conversationId");
+  const visitorSessionId = readStringInput(req, "visitorSessionId");
+
+  if (!token) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "token is required" } });
+    return;
+  }
+
+  const hit = await findSiteByToken(token);
+  if (!hit || !hit.site.active) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Embed site connection not found" } });
+    return;
+  }
+
+  const observedDomain = resolveObservedDomain(req);
+  if (!isDomainAllowedForSite(hit.site, observedDomain)) {
+    res.status(403).json({ error: { code: "DOMAIN_NOT_ALLOWED", message: "Domain is not allowed for this embed token" } });
+    return;
+  }
+
+  const thread = await loadPublicLiveComThread({
+    organizationId: hit.organizationId,
+    siteId: hit.site.id,
+    conversationId,
+    visitorSessionId,
+  });
+
+  res.json({ data: { conversation: thread } });
+});
+
 /**
  * POST /api/site-embeds/public/livecom
- * Public LiveCom ingestion endpoint that creates a tracked interaction for DonorCRM inbox workflows.
+ * Public LiveCom messenger endpoint that appends visitor messages to a durable conversation thread.
  */
 router.post("/public/livecom", async (req, res) => {
   const token = readStringInput(req, "token");
   const message = readStringInput(req, "message");
   const displayName = readStringInput(req, "name");
   const email = readStringInput(req, "email").toLowerCase();
+  const phone = readStringInput(req, "phone");
   const pageUrl = readStringInput(req, "pageUrl");
+  const referrerUrl = readStringInput(req, "referrerUrl");
+  const requestedConversationId = readStringInput(req, "conversationId");
+  const visitorSessionId = readStringInput(req, "visitorSessionId") || randomUUID();
 
   if (!token) {
     res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "token is required" } });
@@ -717,7 +1680,22 @@ router.post("/public/livecom", async (req, res) => {
     return;
   }
 
-  if (!hit.site.widgets.liveCom.enabled) {
+  const liveComEnabled = (() => {
+    const widgets = hit.site.widgets as unknown as Record<string, unknown>;
+    const candidates = [
+      (widgets.liveCom as Record<string, unknown> | undefined)?.enabled,
+      (widgets.livecom as Record<string, unknown> | undefined)?.enabled,
+    ];
+
+    for (const enabled of candidates) {
+      if (typeof enabled === "boolean") return enabled;
+      if (typeof enabled === "string") return enabled.toLowerCase() === "true";
+    }
+
+    return false;
+  })();
+
+  if (!liveComEnabled) {
     res.status(409).json({ error: { code: "LIVECOM_INACTIVE", message: "LiveCom widget is disabled for this site" } });
     return;
   }
@@ -729,6 +1707,44 @@ router.post("/public/livecom", async (req, res) => {
   }
 
   const parsedName = splitDisplayName(displayName);
+  const conversationId = requestedConversationId || `lc_${randomUUID()}`;
+
+  const existingThread = requestedConversationId
+    ? await loadPublicLiveComThread({
+      organizationId: hit.organizationId,
+      siteId: hit.site.id,
+      conversationId: requestedConversationId,
+      visitorSessionId,
+    })
+    : null;
+
+  const existingConversationActivities = requestedConversationId
+    ? await prisma.activity.findMany({
+      where: {
+        constituent: { organizationId: hit.organizationId },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      include: {
+        constituent: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    })
+    : [];
+
+  const existingConversationActivity = existingConversationActivities.find((row) => {
+    const metadata = readActivityMetadata(row.metadata);
+    const publicEmbed = readActivityMetadata(metadata.publicEmbed as Prisma.JsonValue | null);
+    return metadata.conversationId === requestedConversationId
+      && metadata.visitorSessionId === visitorSessionId
+      && publicEmbed.siteId === hit.site.id;
+  });
+  const existingConstituentId = existingConversationActivity?.constituentId ?? null;
 
   let constituent = email
     ? await prisma.constituent.findFirst({
@@ -744,6 +1760,20 @@ router.post("/public/livecom", async (req, res) => {
     })
     : null;
 
+  if (!constituent && existingConstituentId) {
+    constituent = await prisma.constituent.findFirst({
+      where: {
+        id: existingConstituentId,
+        organizationId: hit.organizationId,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+      },
+    });
+  }
+
   if (!constituent) {
     constituent = await prisma.constituent.create({
       data: {
@@ -752,8 +1782,9 @@ router.post("/public/livecom", async (req, res) => {
         firstName: parsedName.firstName,
         lastName: parsedName.lastName,
         email: email || null,
+        phone: phone || null,
         notes: [
-          "Created from Site Embed LiveCom public message.",
+          "Created from Site Embed LiveCom messenger conversation.",
           observedDomain ? `Domain: ${observedDomain}` : "",
           pageUrl ? `Page URL: ${pageUrl}` : "",
         ].filter(Boolean).join("\n"),
@@ -767,6 +1798,7 @@ router.post("/public/livecom", async (req, res) => {
   }
 
   const donorName = `${constituent.firstName} ${constituent.lastName}`.trim();
+  const visitorName = displayName || donorName || "Website Visitor";
 
   const activity = await prisma.activity.create({
     data: {
@@ -776,17 +1808,27 @@ router.post("/public/livecom", async (req, res) => {
       metadata: {
         source: "livecom",
         channel: "WEB_CHAT",
-        status: "NEW",
+        conversationId,
+        visitorSessionId,
+        messageRole: "visitor",
+        status: existingThread ? "OPEN" : "NEW",
         priority: "MEDIUM",
-        owner: "Website Inbox",
-        eventLabel: "Website Chat Message",
+        owner: "Unassigned",
+        assignedTo: "Unassigned",
+        eventLabel: existingThread ? "Visitor Reply" : "Conversation Started",
         messagePreview: message.slice(0, 140),
+        authorName: visitorName,
         donorName,
+        visitorName,
+        visitorEmail: email || null,
+        visitorPhone: phone || null,
+        readByStaff: false,
         publicEmbed: {
           siteId: hit.site.id,
           publicSiteId: hit.site.publicSiteId,
           domain: observedDomain,
           pageUrl,
+          referrerUrl,
         },
       },
     },
@@ -816,14 +1858,32 @@ router.post("/public/livecom", async (req, res) => {
       siteId: hit.site.id,
       publicSiteId: hit.site.publicSiteId,
       domain: observedDomain,
+      conversationId,
     },
+  });
+
+  await notifyLiveComStaff({
+    organizationId: hit.organizationId,
+    conversationId,
+    interactionId: activity.id,
+    visitorName,
+    message,
+    siteName: hit.site.name || observedDomain || "Website",
   });
 
   res.status(201).json({
     data: {
       queued: true,
+      conversationId,
+      visitorSessionId,
       interactionId: activity.id,
       receivedAt: activity.createdAt.toISOString(),
+      conversation: await loadPublicLiveComThread({
+        organizationId: hit.organizationId,
+        siteId: hit.site.id,
+        conversationId,
+        visitorSessionId,
+      }),
     },
   });
 });
@@ -927,6 +1987,7 @@ router.put("/config", requireRole("admin"), async (req, res) => {
     primaryDomain: normalizeDomainCandidate(readStringInput(req, "primaryDomain") || selectedSite.primaryDomain),
     allowedDomains: normalizeAllowedDomains(body.allowedDomains ?? selectedSite.allowedDomains),
     active: typeof body.active === "boolean" ? body.active : selectedSite.active,
+    appearance: mergeAppearanceSettings(selectedSite.appearance, body.appearance),
     widgets: mergeWidgetSettings(selectedSite.widgets, body.widgets),
   };
 
