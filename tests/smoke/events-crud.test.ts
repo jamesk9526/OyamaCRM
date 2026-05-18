@@ -550,6 +550,43 @@ describe("events CRUD", () => {
     expect(res.body.guests[0].checkinCode).toMatch(/^[A-Z0-9]{6,}$/);
   });
 
+  it("accepts multi-attendee public registration and creates one check-in code per seat", async () => {
+    expect(savedEventPageSlug).toBeTruthy();
+    expect(ticketTypeId).toBeTruthy();
+    const unique = Date.now();
+
+    const res = await request(app)
+      .post(`/api/events/public/page/${encodeURIComponent(savedEventPageSlug)}/register`)
+      .send({
+        ticketTypeId,
+        quantity: 2,
+        consentAccepted: true,
+        attendees: [
+          {
+            firstName: "Multi",
+            lastName: "Primary",
+            email: `multi-primary-${unique}@example.org`,
+            phone: "555-0201",
+            dietaryRestrictions: "Gluten free",
+          },
+          {
+            firstName: "Multi",
+            lastName: "Guest",
+            email: `multi-guest-${unique}@example.org`,
+            phone: "555-0202",
+            specialNeeds: "Aisle seat",
+          },
+        ],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.order?.orderNumber).toMatch(/^PUB-/);
+    expect(res.body.order?.totalAmount).toBeGreaterThan(0);
+    expect(res.body.guests).toHaveLength(2);
+    expect(res.body.guests.map((guest: { firstName?: string }) => guest.firstName)).toEqual(["Multi", "Multi"]);
+    expect(res.body.guests.every((guest: { checkinCode?: string }) => /^[A-Z0-9]{6,}$/.test(guest.checkinCode ?? ""))).toBe(true);
+  });
+
   it("does not expose draft event pages publicly", async () => {
     expect(eventId).toBeTruthy();
 

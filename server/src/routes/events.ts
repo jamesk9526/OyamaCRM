@@ -935,7 +935,7 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
   const orderNumber = generatePublicOrderNumber();
   const partyName = `${buyer.firstName} ${buyer.lastName}`.trim();
 
-  const result = await prisma.$transaction(async (tx: typeof prisma) => {
+  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const existingConstituent = await tx.constituent.findFirst({
       where: {
         organizationId: event.organizationId,

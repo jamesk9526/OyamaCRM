@@ -2,17 +2,30 @@
 
 _Last updated: 2026-05-18_
 
+## 2026-05-18 Slice C — Public Page Completion & Builder Gap Pass
+
+This pass closes the biggest public-page workflow gap: the published page form now posts through a Next app-origin proxy, supports editing every attendee/seat before submit, and returns an order summary plus check-in codes after completion. Payment collection remains intentionally unfinished, so paid ticket orders are still reservations marked for staff follow-up.
+
+| Surface | Status | Evidence | Notes |
+|---|---|---|---|
+| Public event page registration section | Working | `app/components/events/public/PublicEventRegistrationForm.tsx`, `EventPageBuilderPreview.tsx` registration-form section | Captures ticket quantity, per-seat attendee names/contact/preferences, consent, estimated total, and displays order status + check-in codes. |
+| Public registration app proxy | Working | `app/api/events/public/page/[pageSlug]/register/route.ts` | Browser form submissions stay same-origin and are proxied to `POST /api/events/public/page/:pageSlug/register`. |
+| Public registration API | Working | `POST /api/events/public/page/:pageSlug/register` in `server/src/routes/events.ts` | Validates published slug, public active event, active ticket type, deadline, event capacity, ticket capacity, consent, and primary attendee email. |
+| Order + guest write-back | Working | Creates `EventOrder`, `EventOrderItem`, `EventGuest`, `Activity`; smoke coverage in `tests/smoke/events-crud.test.ts` | Multi-seat submissions create one check-in row per attendee/seat. |
+| Payment collection | Not Implemented | — | Paid tickets are saved as `PENDING` / `DUE`; UI says staff will follow up. Stripe/real payment remains explicitly out of scope. |
+| QR camera scanning | Not Implemented | — | Existing check-in code lookup remains text/code based. |
+
 ## 2026-05-18 Slice B Start — Public Registration → Check-In Code
 
 This pass starts the ticketing → public registration → check-in lifecycle without adding payment processing. Published event pages can now accept a public registration, create or link the primary registrant as a constituent, create an `EventOrder`, create `EventGuest` check-in rows, and return check-in codes for event-night lookup.
 
 | Surface | Status | Evidence | Notes |
 |---|---|---|---|
-| Public event page registration section | Partially Working | `app/components/events/public/PublicEventRegistrationForm.tsx`, `EventPageBuilderPreview.tsx` registration-form section | Captures ticket, quantity, primary attendee, contact info, consent, dietary/accessibility notes, and displays returned check-in codes. |
+| Public event page registration section | Working | `app/components/events/public/PublicEventRegistrationForm.tsx`, `EventPageBuilderPreview.tsx` registration-form section | Captures ticket quantity, per-seat attendee info, contact info, consent, dietary/accessibility notes, and displays returned check-in codes. |
 | Public registration API | Partially Working | `POST /api/events/public/page/:pageSlug/register` in `server/src/routes/events.ts` | Validates published slug, public active event, active ticket type, deadline, event capacity, ticket capacity, consent, and primary attendee email. |
 | Order + guest write-back | Partially Working | Creates `EventOrder`, `EventOrderItem`, `EventGuest`, `Activity`; added smoke coverage in `tests/smoke/events-crud.test.ts` | Uses existing `EventOrder` model, so a primary constituent is required/created. Additional table seats receive placeholder guest names until a full attendee-details step is built. |
 | Payment collection | Not Implemented | — | Paid tickets are saved as `PENDING` / `DUE`; UI says staff will follow up. Stripe/real payment remains explicitly out of scope. |
-| Public multi-attendee editor | Not Implemented | — | API supports multiple seats/check-in rows, but the first UI pass captures primary attendee only. |
+| Public multi-attendee editor | Working | `app/components/events/public/PublicEventRegistrationForm.tsx`, `tests/smoke/events-crud.test.ts` | Public form now renders one editable attendee panel per reserved seat. |
 | QR camera scanning | Not Implemented | — | Existing check-in code lookup remains text/code based. |
 
 ## 2026-05-18 Slice A — Lifecycle Hardening & Honest Status Sweep
@@ -35,7 +48,7 @@ Status labels are restricted to: **Working / Partially Working / Demo Only / Bro
 | `/events/[eventId]/tickets` | Working | `/api/events/[id]/ticket-types` | Full CRUD for ticket types including table tickets. |
 | `/events/[eventId]/orders` | Working | `/api/events/[id]/orders`, `POST /api/events/orders` | Staff manual orders + status update. Order → auto-create guests is **Not Implemented**. |
 | `/events/[eventId]/hosts` | Partially Working | `/api/events/[id]/tables` | Coverage view live; host portal links / invites / audit not implemented. |
-| `/events/[eventId]/event-page` | Partially Working | `/api/events/[id]/page-builder-config`, `/api/events/public/page/[slug]`, `POST /api/events/public/page/[slug]/register` | Section editor + draft save work; published public pages can now accept registration, but payment and full attendee editing remain incomplete. |
+| `/events/[eventId]/event-page` | Partially Working | `/api/events/[id]/page-builder-config`, `/api/events/public/page/[slug]`, `POST /api/events/public/page/[slug]/register` | Section editor + draft save work; published public pages can accept multi-attendee registration, but payment, deployment history, and QR camera scanning remain incomplete. |
 | `/events/[eventId]/communications` (alias `/emails`) | Partially Working | `/api/events/[id]/guests` + central email API | Audience preview + workspace routing live; send execution depends on central comms orchestration. |
 | `/events/[eventId]/fundraising` (alias `/donations`) | Partially Working | `/api/events/[id]/orders` | Revenue-vs-goal view exists; pledge tracking and donor-link round-trip not implemented. |
 | `/events/[eventId]/follow-up` | Partially Working | `/api/events/[id]/report` | Reads real attendance/revenue; thank-you status not surfaced. |
@@ -79,7 +92,7 @@ Each `FeatureStatusWarning` in the Events workspace must carry an explicit condi
 
 | Surface | Warning text | Removal condition |
 |---|---|---|
-| `EventPageBuilderShell` | "Event Page Builder public workflow is partially wired" | Payment or free-registration completion flow, attendee-editing coverage, and a public page E2E test all pass. |
+| `EventPageBuilderShell` | "Event Page Builder public workflow is partially wired" | Payment collection or an explicit no-payment event policy is implemented, deployment history is wired, and a public page E2E test covers publish-to-registration. |
 | `/events/[eventId]/settings` | "Event settings is partially wired" | A per-event settings model exists, save/load round-trip is wired to the API, and a smoke test covers update + reload. |
 | `/events/[eventId]/hosts` (existing) | "Table Host Manager is partially working" | Host invite links, resend controls, host portal, and audit events for host actions are implemented and covered by tests. |
 | `/events/[eventId]/follow-up` (existing) | "Post-event follow-up is partially wired" | Thank-you status, donor-link round-trip, and follow-up task creation are persisted and reflected in reports. |

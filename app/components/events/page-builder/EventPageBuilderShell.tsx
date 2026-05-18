@@ -342,7 +342,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         <FeatureStatusWarning
           status="Partially Implemented"
           title="Event Page Builder public workflow is partially wired"
-          description="Published pages now render at their public slug and can accept basic registrations with check-in codes. Payment collection, full multi-attendee editing, deployment history, and QR camera scanning are still incomplete. Removal: payment or free-registration completion flow, attendee-editing coverage, and a public page E2E test all pass."
+          description="Published pages render at their public slug, registrations proxy through the app origin, attendees can be edited per seat, and completion returns check-in codes. Payment collection, deployment history, and QR camera scanning are still incomplete. Removal: payment collection or an explicit no-payment event policy is implemented, deployment history is wired, and a public page E2E test covers publish-to-registration."
         />
       </div>
       <EventPageBuilderTopBar
