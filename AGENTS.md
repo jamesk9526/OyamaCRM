@@ -775,3 +775,24 @@ Steward must never access donor data through open-ended model-generated SQL. All
 - AI write actions remain confirm-first; runtime status visibility must never bypass explicit confirmation requirements for task creation, draft generation, dismiss, or send workflows.
 <!-- END:steward-ai-runtime-status-rules -->
 
+<!-- BEGIN:markdown-plan-execution-rules -->
+## Markdown Plan Execution Rules
+
+When a user asks to execute a plan from a markdown file (for example `docs/*.md` implementation plans), agents must run the plan in explicit phased handoffs.
+
+- Treat each phase (or clearly grouped part) as one deliverable pass.
+- At the start of each pass, confirm which phase is being executed and update a status artifact in `docs/status/`.
+- Complete one phase end-to-end (audit/implementation/tests/docs for that phase) before moving to the next phase.
+- After finishing a phase, stop and ask the user whether to continue to the next phase.
+- If the user says continue, resume from the next unfinished phase without repeating completed work.
+- Keep a persistent checklist with statuses for all phases and update it each pass.
+- If a phase is blocked, record blockers, evidence, and a minimal recovery plan, then ask whether to proceed with an alternate slice.
+
+Default status labels for phased markdown plans:
+
+- Not Started
+- In Progress
+- Blocked
+- Done
+<!-- END:markdown-plan-execution-rules -->
+

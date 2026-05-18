@@ -42,6 +42,7 @@ import DashboardLayoutModal, { type RevenueGoalMode, type RevenueProgressSource 
 import { apiFetch } from "@/app/lib/auth-client";
 import { getStoredReportingYearMode, type ReportingYearMode } from "@/app/lib/fiscal-year";
 import StewardContextButton from "@/app/components/ai/StewardContextButton";
+import MonthlyDonationsWidget from "./components/dashboard/MonthlyDonationsWidget";
 
 /** Shape returned by /api/reports/summary (extended) */
 interface Summary {
@@ -118,6 +119,7 @@ const DEFAULT_WIDGET_ORDER = [
   "stewardship-attention",
   "top-donors",
   "weekly-stats",
+  "monthly-donors",
   "giving-trend",
   "recent-donations",
   "tasks",
@@ -143,6 +145,7 @@ const WIDGET_META = [
   { id: "top-donors", label: "Top Donors", description: "By lifetime giving amount" },
   { id: "weekly-stats", label: "This Week", description: "Weekly donation activity summary" },
   { id: "giving-trend", label: "Giving Trend", description: "Monthly giving totals chart" },
+  { id: "monthly-donors", label: "This Month's Giving", description: "Running donation total for the current month with donor list" },
   { id: "recent-donations", label: "Recent Donations", description: "Last 8 gifts received" },
   { id: "tasks", label: "Tasks", description: "Open & upcoming staff tasks" },
   { id: "meetings", label: "Upcoming Meetings", description: "Scheduled donor meetings" },
@@ -340,6 +343,7 @@ const DEFAULT_WIDGET_SIZES: Record<WidgetId, DashboardWidgetSize> = {
   "stewardship-attention": "wide",
   "top-donors": "standard",
   "weekly-stats": "standard",
+  "monthly-donors": "standard",
   "giving-trend": "hero",
   "recent-donations": "standard",
   tasks: "wide",
@@ -627,7 +631,7 @@ export default function DashboardPage() {
   const topKpiWidgets: WidgetId[] = ["revenue", "goal-health", "retention", "engagement-pulse"];
   const stewardshipWidgets: WidgetId[] = ["start-here", "todays-focus", "actionable-insights", "stewardship-attention"];
   const intelligenceWidgets: WidgetId[] = ["ai-insights", "ai-opportunities", "ai-chat"];
-  const analyticsWidgets: WidgetId[] = ["giving-trend", "top-donors", "weekly-stats"];
+  const analyticsWidgets: WidgetId[] = ["monthly-donors", "giving-trend", "top-donors", "weekly-stats"];
   const activityWidgets: WidgetId[] = ["recent-donations", "tasks", "meetings"];
 
   function scrollToDashboardSection(id: string) {
@@ -733,6 +737,12 @@ export default function DashboardPage() {
             {...editProps}
           >
             <AiChatWidget dashboardEnabled={aiWidgetsEnabled} onEnableDashboardAi={enableAiWidgets} />
+          </DashboardWidget>
+        );
+      case "monthly-donors":
+        return (
+          <DashboardWidget key={id} id={id} title="This Month's Giving" subtitle="Running total · click to see donors" {...editProps}>
+            <MonthlyDonationsWidget />
           </DashboardWidget>
         );
       case "giving-trend":

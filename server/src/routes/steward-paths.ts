@@ -1372,4 +1372,212 @@ router.post("/process-due", requirePermission("steward_paths.process_due_steps")
   res.json(result);
 });
 
+/**
+ * POST /api/steward-paths/import-csv
+ *
+ * Accepts a CSV body (text/plain or application/json with a `csv` field) containing
+ * steward path workflow definitions. Groups rows by `workflow_name` and creates one
+ * StewardPath per unique name, with StewardPathStep records for each row.
+ *
+ * CSV columns (all lowercase with underscores):
+ *   workflow_name, workflow_description, trigger_type, target_type,
+ *   step_order, step_name, step_description, step_type, delay_days,
+ *   task_title, task_priority, email_subject, email_body_preview,
+ *   letter_template, internal_note
+ *
+ * Blank rows and rows missing workflow_name or step_type are skipped.
+ * Returns { created: [{ name, id, stepCount }], skipped: string[], errors: string[] }
+ */
+router.post("/import-csv", requirePermission("steward_paths.create"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user context are required." } });
+    return;
+  }
+
+  // Accept CSV as raw body text or JSON envelope { csv: "..." }
+  let rawCsv: string;
+  const contentType = String(req.headers["content-type"] ?? "");
+  if (contentType.includes("application/json")) {
+    const body = req.body as Record<string, unknown>;
+    if (typeof body?.csv !== "string" || !body.csv.trim()) {
+      res.status(400).json({ error: { code: "CSV_REQUIRED", message: "JSON body must include a non-empty `csv` string field." } });
+      return;
+    }
+    rawCsv = body.csv;
+  } else {
+    // text/plain or multipart — body is raw string (needs express.text() middleware)
+    rawCsv = typeof req.body === "string" ? req.body : "";
+  }
+
+  if (!rawCsv.trim()) {
+    res.status(400).json({ error: { code: "CSV_REQUIRED", message: "Request body must contain CSV data." } });
+    return;
+  }
+
+  // ── Parse CSV ──────────────────────────────────────────────────────────────
+  const lines = rawCsv.split(/\r?\n/);
+  const headerLine = lines[0];
+  if (!headerLine) {
+    res.status(400).json({ error: { code: "CSV_EMPTY", message: "CSV has no header row." } });
+    return;
+  }
+
+  /** Splits a single CSV line respecting quoted fields. */
+  function splitCsvLine(line: string): string[] {
+    const result: string[] = [];
+    let current = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (ch === "," && !inQuotes) {
+        result.push(current.trim());
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  const headers = splitCsvLine(headerLine).map((h) => h.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, ""));
+
+  // Group rows by workflow_name
+  type CsvRow = Record<string, string>;
+  const workflowMap = new Map<string, CsvRow[]>();
+
+  const parseErrors: string[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue; // skip blank rows
+
+    const values = splitCsvLine(lines[i]);
+    const row: CsvRow = {};
+    for (let j = 0; j < headers.length; j++) {
+      row[headers[j]] = (values[j] ?? "").trim();
+    }
+
+    const workflowName = row["workflow_name"];
+    if (!workflowName) {
+      parseErrors.push(`Row ${i + 1}: missing workflow_name — skipped`);
+      continue;
+    }
+    const stepType = row["step_type"]?.toUpperCase();
+    if (!stepType || !STEP_TYPE_VALUES.includes(stepType as StewardPathStepType)) {
+      parseErrors.push(`Row ${i + 1} (${workflowName}): invalid or missing step_type "${row["step_type"]}" — skipped`);
+      continue;
+    }
+
+    const existing = workflowMap.get(workflowName) ?? [];
+    existing.push(row);
+    workflowMap.set(workflowName, existing);
+  }
+
+  // ── Create paths and steps ─────────────────────────────────────────────────
+  const created: Array<{ name: string; id: string; stepCount: number }> = [];
+  const skipped: string[] = [];
+
+  for (const [workflowName, rows] of workflowMap.entries()) {
+    const firstRow = rows[0];
+    const targetTypeRaw = firstRow["target_type"]?.toUpperCase() ?? "CONSTITUENT";
+    const targetType = parseEnumValue(targetTypeRaw, TARGET_VALUES) ?? "CONSTITUENT";
+    const triggerType = (firstRow["trigger_type"]?.toUpperCase() || "MANUAL").slice(0, 100);
+    const description = firstRow["workflow_description"] ?? null;
+
+    try {
+      // Check for duplicate name within the organization (soft-skip rather than hard error)
+      const duplicate = await prisma.stewardPath.findFirst({
+        where: { organizationId, name: workflowName },
+        select: { id: true },
+      });
+      if (duplicate) {
+        skipped.push(`"${workflowName}" already exists — skipped (id: ${duplicate.id})`);
+        continue;
+      }
+
+      const path = await prisma.stewardPath.create({
+        data: {
+          organizationId,
+          name: workflowName,
+          description: description || null,
+          crmScope: "DONOR",
+          targetType,
+          triggerType,
+          status: "DRAFT",
+          createdByUserId: userId,
+          lastEditedByUserId: userId,
+        },
+      });
+
+      // Sort rows by step_order (numeric), then create steps
+      const sortedRows = [...rows].sort((a, b) => {
+        const ao = Number.parseInt(a["step_order"] ?? "0", 10);
+        const bo = Number.parseInt(b["step_order"] ?? "0", 10);
+        return ao - bo;
+      });
+
+      for (let si = 0; si < sortedRows.length; si++) {
+        const row = sortedRows[si];
+        const stepType = row["step_type"].toUpperCase() as StewardPathStepType;
+        const orderIndex = si + 1;
+        const stepName = row["step_name"] || `Step ${orderIndex}`;
+
+        // Build configJson from known step-type fields
+        const configJson: Record<string, unknown> = {};
+        const delayDays = Number.parseInt(row["delay_days"] ?? "0", 10);
+        if (Number.isFinite(delayDays) && delayDays > 0) configJson.delayDays = delayDays;
+        if (row["task_title"]) configJson.taskTitle = row["task_title"];
+        if (row["task_priority"]) configJson.taskPriority = row["task_priority"];
+        if (row["email_subject"]) configJson.emailSubject = row["email_subject"];
+        if (row["email_body_preview"]) configJson.emailBodyPreview = row["email_body_preview"];
+        if (row["letter_template"]) configJson.letterTemplate = row["letter_template"].trim();
+        if (row["internal_note"]) configJson.noteBody = row["internal_note"];
+
+        await prisma.stewardPathStep.create({
+          data: {
+            pathId: path.id,
+            orderIndex,
+            name: stepName,
+            description: row["step_description"] || null,
+            stepType,
+            configJson: Object.keys(configJson).length > 0 ? (configJson as Prisma.InputJsonValue) : undefined,
+            isRequired: true,
+            isActive: true,
+          },
+        });
+      }
+
+      await logAudit({
+        action: "STEWARD_PATH_TEMPLATE_CREATED",
+        entity: "StewardPath",
+        entityId: path.id,
+        userId,
+        organizationId,
+        metadata: { name: path.name, source: "csv-import", stepCount: sortedRows.length },
+      });
+
+      created.push({ name: workflowName, id: path.id, stepCount: sortedRows.length });
+    } catch (err) {
+      parseErrors.push(`"${workflowName}": unexpected error — ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  res.status(201).json({
+    created,
+    skipped,
+    errors: parseErrors,
+    summary: `${created.length} workflow${created.length !== 1 ? "s" : ""} created, ${skipped.length} skipped, ${parseErrors.length} row error${parseErrors.length !== 1 ? "s" : ""}.`,
+  });
+});
+
 export default router;

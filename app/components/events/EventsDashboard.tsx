@@ -1,10 +1,10 @@
-/** EventsDashboard delegates the module root to the canonical event-first command center. */
+/** EventsDashboard now renders the EventSTUDIO project-library command center. */
 
-import EventsWorkspaceSelectorPage from "@/app/components/events/EventsWorkspaceSelectorPage";
+import EventsRegistryPage from "@/app/components/events/EventsRegistryPage";
 
 /**
- * EventsDashboard keeps /events stable while removing the separate generic dashboard path.
+ * EventsDashboard keeps /events aligned with the Event Registry command center workspace.
  */
 export default function EventsDashboard() {
-  return <EventsWorkspaceSelectorPage />;
+  return <EventsRegistryPage />;
 }

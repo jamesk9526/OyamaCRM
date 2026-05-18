@@ -37,11 +37,51 @@ interface Table {
   capacity: number;
   notes?: string;
   tableNumber?: number;
+  tableUid?: string;
+  publicCode?: string;
+  status?: "DRAFT" | "OPEN" | "SUBMITTED" | "LOCKED" | "EVENT_DAY" | "ARCHIVED";
   isSponsored: boolean;
+  sponsorName?: string;
   hostName?: string;
+  hostEmail?: string;
+  hostPhone?: string;
   shape: string;
   guests: Guest[];
   _count: { guests: number };
+}
+
+interface EventTableSeat {
+  id: string;
+  seatNumber: number;
+  status: "EMPTY" | "RESERVED" | "INVITED" | "CONFIRMED" | "CHECKED_IN" | "CANCELLED";
+  notes?: string;
+  guest?: Guest;
+}
+
+interface EventGuestInvite {
+  id: string;
+  seatId?: string | null;
+  inviteEmail?: string | null;
+  invitePhone?: string | null;
+  status: "CREATED" | "QUEUED" | "SENT" | "OPENED" | "COMPLETED" | "EXPIRED" | "CANCELLED";
+  createdAt: string;
+  expiresAt?: string | null;
+}
+
+interface TableLinkDetail extends Table {
+  seats: EventTableSeat[];
+  guestInvites: EventGuestInvite[];
+}
+
+interface EventEmailLog {
+  id: string;
+  tableId?: string | null;
+  type: string;
+  recipientEmail: string;
+  status: "QUEUED" | "SENT" | "FAILED" | "OPENED";
+  subject?: string | null;
+  errorMessage?: string | null;
+  createdAt: string;
 }
 
 /**
@@ -69,6 +109,18 @@ export default function EventTablesPage() {
   const [showNewTableModal, setShowNewTableModal] = useState(false);
   const [editingTable, setEditingTable] = useState<Table | null>(null);
   const [seatingView, setSeatingView] = useState<"floor" | "list" | "placement">("floor");
+  const [detailTable, setDetailTable] = useState<Table | null>(null);
+  const [tableDetail, setTableDetail] = useState<TableLinkDetail | null>(null);
+  const [tableEmailLogs, setTableEmailLogs] = useState<EventEmailLog[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailBusyAction, setDetailBusyAction] = useState<string | null>(null);
+  const [hostAccessEmail, setHostAccessEmail] = useState("");
+  const [hostAccessToken, setHostAccessToken] = useState<{ token: string; expiresAt: string } | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [invitePhone, setInvitePhone] = useState("");
+  const [inviteSeatId, setInviteSeatId] = useState("");
+  const [seatAssignmentMap, setSeatAssignmentMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (workspaceEventId) {
@@ -225,6 +277,168 @@ export default function EventTablesPage() {
     }
   }
 
+  async function openTableDetail(table: Table) {
+    if (!selectedEventId || !table.tableUid) {
+      setDetailError("This table is missing a table UID. Save the table and try again.");
+      setDetailTable(table);
+      return;
+    }
+
+    setDetailTable(table);
+    setHostAccessEmail((table.hostEmail ?? "").trim());
+    setHostAccessToken(null);
+    setInviteEmail("");
+    setInvitePhone("");
+    setInviteSeatId("");
+    setSeatAssignmentMap({});
+    await refreshTableDetail(table.tableUid, table.id);
+  }
+
+  async function refreshTableDetail(tableUid: string, tableId: string) {
+    if (!selectedEventId) return;
+    setDetailLoading(true);
+    setDetailError(null);
+    try {
+      const [detail, logs] = await Promise.all([
+        apiFetch(`/api/events/${selectedEventId}/tablelink/${tableUid}`),
+        apiFetch(`/api/events/${selectedEventId}/emails/logs`),
+      ]);
+      setTableDetail(detail as TableLinkDetail);
+      const filteredLogs = Array.isArray(logs)
+        ? (logs as EventEmailLog[]).filter((log) => log.tableId === tableId)
+        : [];
+      setTableEmailLogs(filteredLogs);
+    } catch (error) {
+      console.error("Failed to load table detail:", error);
+      setDetailError("Unable to load table details. Try again.");
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  async function runDetailAction(action: string, callback: () => Promise<void>) {
+    setDetailBusyAction(action);
+    setDetailError(null);
+    try {
+      await callback();
+    } catch (error) {
+      console.error("Detail action failed:", error);
+      setDetailError(error instanceof Error ? error.message : "Action failed.");
+    } finally {
+      setDetailBusyAction(null);
+    }
+  }
+
+  async function toggleTableLock() {
+    if (!selectedEventId || !tableDetail?.tableUid) return;
+    const nextStatus = tableDetail.status === "LOCKED" ? "OPEN" : "LOCKED";
+    await runDetailAction("toggle-lock", async () => {
+      await apiFetch(`/api/events/${selectedEventId}/tablelink/${tableDetail.tableUid}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      await refreshTableDetail(tableDetail.tableUid as string, tableDetail.id);
+      await loadData();
+    });
+  }
+
+  async function requestHostAccessToken() {
+    if (!selectedEventId || !tableDetail?.tableUid) return;
+    const email = hostAccessEmail.trim().toLowerCase();
+    if (!email) {
+      setDetailError("Enter host email to issue an access token.");
+      return;
+    }
+
+    await runDetailAction("host-access", async () => {
+      const response = await apiFetch(`/api/events/${selectedEventId}/tablelink/request-access`, {
+        method: "POST",
+        body: JSON.stringify({
+          tableKey: tableDetail.publicCode ?? tableDetail.tableUid,
+          email,
+        }),
+      });
+      const tokenResponse = response as { token?: string; expiresAt?: string };
+      if (tokenResponse.token && tokenResponse.expiresAt) {
+        setHostAccessToken({ token: tokenResponse.token, expiresAt: tokenResponse.expiresAt });
+      }
+    });
+  }
+
+  async function revokeHostAccessTokens() {
+    if (!selectedEventId || !tableDetail?.tableUid) return;
+    await runDetailAction("revoke-access", async () => {
+      await apiFetch(`/api/events/${selectedEventId}/tablelink/${tableDetail.tableUid}/revoke-access`, {
+        method: "POST",
+      });
+    });
+  }
+
+  async function syncTableSeats() {
+    if (!selectedEventId || !tableDetail?.id || !tableDetail?.tableUid) return;
+    await runDetailAction("sync-seats", async () => {
+      await apiFetch(`/api/events/${selectedEventId}/tables/${tableDetail.id}/seats/sync`, {
+        method: "POST",
+      });
+      await refreshTableDetail(tableDetail.tableUid as string, tableDetail.id);
+      await loadData();
+    });
+  }
+
+  async function assignSeatGuest(seatId: string) {
+    if (!selectedEventId || !tableDetail?.tableUid) return;
+    const guestId = seatAssignmentMap[seatId];
+    if (!guestId) {
+      setDetailError("Select a guest to assign.");
+      return;
+    }
+
+    await runDetailAction(`assign-seat-${seatId}`, async () => {
+      await apiFetch(`/api/events/${selectedEventId}/seats/${seatId}/assign-guest`, {
+        method: "POST",
+        body: JSON.stringify({ guestId }),
+      });
+      setSeatAssignmentMap((previous) => ({ ...previous, [seatId]: "" }));
+      await refreshTableDetail(tableDetail.tableUid as string, tableDetail.id);
+      await loadData();
+    });
+  }
+
+  async function clearSeatGuest(seatId: string) {
+    if (!selectedEventId || !tableDetail?.tableUid) return;
+    await runDetailAction(`clear-seat-${seatId}`, async () => {
+      await apiFetch(`/api/events/${selectedEventId}/seats/${seatId}/clear`, {
+        method: "POST",
+      });
+      await refreshTableDetail(tableDetail.tableUid as string, tableDetail.id);
+      await loadData();
+    });
+  }
+
+  async function createGuestInvite() {
+    if (!selectedEventId || !tableDetail?.tableUid) return;
+    if (!inviteEmail.trim() && !invitePhone.trim()) {
+      setDetailError("Invite requires an email or phone value.");
+      return;
+    }
+
+    await runDetailAction("create-invite", async () => {
+      await apiFetch(`/api/events/${selectedEventId}/tablelink/${tableDetail.tableUid}/invite-guest`, {
+        method: "POST",
+        body: JSON.stringify({
+          seatId: inviteSeatId || undefined,
+          inviteEmail: inviteEmail.trim() || undefined,
+          invitePhone: invitePhone.trim() || undefined,
+          invitedByHostEmail: (tableDetail.hostEmail ?? hostAccessEmail).trim() || undefined,
+        }),
+      });
+      setInviteEmail("");
+      setInvitePhone("");
+      setInviteSeatId("");
+      await refreshTableDetail(tableDetail.tableUid as string, tableDetail.id);
+    });
+  }
+
   if (!eventScoped) {
     return <RequireEventSelectionNotice tool="the seating workspace" />;
   }
@@ -332,6 +546,7 @@ export default function EventTablesPage() {
                   key={table.id}
                   table={table}
                   onEdit={() => setEditingTable(table)}
+                  onOpenDetails={() => void openTableDetail(table)}
                   onDelete={() => deleteTable(table.id)}
                   onUnassignGuest={(guestId) => assignGuestToTable(guestId, null)}
                 />
@@ -378,6 +593,277 @@ export default function EventTablesPage() {
             </>
           )}
         </>
+      )}
+
+      {detailTable && (
+        <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/30 p-0 sm:items-stretch">
+          <div className="h-full w-full max-w-2xl overflow-y-auto border-l border-slate-300 bg-white p-4 sm:p-5">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">TableLink Studio</p>
+                <h2 className="text-xl font-bold text-slate-900">
+                  {detailTable.tableNumber != null ? `#${detailTable.tableNumber} ` : ""}
+                  {detailTable.name}
+                </h2>
+                <p className="text-xs text-slate-500">
+                  UID: {detailTable.tableUid ?? "Unavailable"} · Public Code: {detailTable.publicCode ?? "Unavailable"}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setDetailTable(null);
+                  setTableDetail(null);
+                  setTableEmailLogs([]);
+                  setDetailError(null);
+                }}
+                className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            {detailError ? (
+              <div className="mb-3 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{detailError}</div>
+            ) : null}
+
+            {detailLoading || !tableDetail ? (
+              <div className="rounded border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-600">Loading table details...</div>
+            ) : (
+              <div className="space-y-4">
+                <section className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Table status</p>
+                      <p className="text-sm font-semibold text-slate-900">{tableDetail.status ?? "DRAFT"}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => void toggleTableLock()}
+                        disabled={detailBusyAction !== null}
+                        className="rounded border border-violet-300 px-3 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-50"
+                      >
+                        {tableDetail.status === "LOCKED" ? "Unlock Table" : "Lock Table"}
+                      </button>
+                      <button
+                        onClick={() => void syncTableSeats()}
+                        disabled={detailBusyAction !== null}
+                        className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-white disabled:opacity-50"
+                      >
+                        Sync Seats
+                      </button>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="rounded-lg border border-slate-200 p-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Host Access</h3>
+                  <p className="mt-1 text-xs text-slate-500">Issue or revoke host access tokens for this table.</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                    <input
+                      type="email"
+                      value={hostAccessEmail}
+                      onChange={(event) => setHostAccessEmail(event.target.value)}
+                      placeholder="host@example.org"
+                      className="rounded border border-slate-300 px-3 py-2 text-sm"
+                    />
+                    <button
+                      onClick={() => void requestHostAccessToken()}
+                      disabled={detailBusyAction !== null}
+                      className="rounded bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+                    >
+                      Issue Token
+                    </button>
+                    <button
+                      onClick={() => void revokeHostAccessTokens()}
+                      disabled={detailBusyAction !== null}
+                      className="rounded border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Revoke Active
+                    </button>
+                  </div>
+                  {hostAccessToken ? (
+                    <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                      Token: {hostAccessToken.token}
+                      <br />
+                      Expires: {new Date(hostAccessToken.expiresAt).toLocaleString()}
+                    </div>
+                  ) : null}
+                </section>
+
+                <section className="rounded-lg border border-slate-200 p-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Guest Invites</h3>
+                  <p className="mt-1 text-xs text-slate-500">Create invite links and monitor invite lifecycle.</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <input
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(event) => setInviteEmail(event.target.value)}
+                      placeholder="guest@example.org"
+                      className="rounded border border-slate-300 px-3 py-2 text-sm"
+                    />
+                    <input
+                      type="text"
+                      value={invitePhone}
+                      onChange={(event) => setInvitePhone(event.target.value)}
+                      placeholder="Guest phone"
+                      className="rounded border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <select
+                      value={inviteSeatId}
+                      onChange={(event) => setInviteSeatId(event.target.value)}
+                      className="rounded border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">No seat preference</option>
+                      {tableDetail.seats.map((seat) => (
+                        <option key={seat.id} value={seat.id}>
+                          Seat {seat.seatNumber} ({seat.status})
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => void createGuestInvite()}
+                      disabled={detailBusyAction !== null}
+                      className="rounded bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+                    >
+                      Create Invite
+                    </button>
+                  </div>
+                  <div className="mt-3 max-h-36 overflow-auto rounded border border-slate-200">
+                    <table className="min-w-full divide-y divide-slate-200 text-xs">
+                      <thead className="bg-slate-50 text-slate-600">
+                        <tr>
+                          <th className="px-2 py-1 text-left">Created</th>
+                          <th className="px-2 py-1 text-left">Contact</th>
+                          <th className="px-2 py-1 text-left">Seat</th>
+                          <th className="px-2 py-1 text-left">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {tableDetail.guestInvites.length === 0 ? (
+                          <tr>
+                            <td className="px-2 py-2 text-slate-500" colSpan={4}>No invites yet.</td>
+                          </tr>
+                        ) : (
+                          tableDetail.guestInvites.map((invite) => (
+                            <tr key={invite.id}>
+                              <td className="px-2 py-1 text-slate-700">{new Date(invite.createdAt).toLocaleString()}</td>
+                              <td className="px-2 py-1 text-slate-700">{invite.inviteEmail ?? invite.invitePhone ?? "-"}</td>
+                              <td className="px-2 py-1 text-slate-700">{invite.seatId ? "Assigned" : "Any"}</td>
+                              <td className="px-2 py-1 font-semibold text-slate-800">{invite.status}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <section className="rounded-lg border border-slate-200 p-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Seat Roster Controls</h3>
+                  <p className="mt-1 text-xs text-slate-500">Assign and clear seats from a single table workflow.</p>
+                  <div className="mt-3 max-h-72 overflow-auto rounded border border-slate-200">
+                    <table className="min-w-full divide-y divide-slate-200 text-xs">
+                      <thead className="bg-slate-50 text-slate-600">
+                        <tr>
+                          <th className="px-2 py-1 text-left">Seat</th>
+                          <th className="px-2 py-1 text-left">Status</th>
+                          <th className="px-2 py-1 text-left">Guest</th>
+                          <th className="px-2 py-1 text-left">Assign</th>
+                          <th className="px-2 py-1 text-left">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {tableDetail.seats.map((seat) => {
+                          const selectedGuestId = seatAssignmentMap[seat.id] ?? "";
+                          const guestName = seat.guest
+                            ? `${seat.guest.firstName ?? seat.guest.constituent?.firstName ?? ""} ${seat.guest.lastName ?? seat.guest.constituent?.lastName ?? ""}`.trim() || "Assigned"
+                            : "Open";
+                          return (
+                            <tr key={seat.id}>
+                              <td className="px-2 py-1 text-slate-700">Seat {seat.seatNumber}</td>
+                              <td className="px-2 py-1 font-semibold text-slate-800">{seat.status}</td>
+                              <td className="px-2 py-1 text-slate-700">{guestName}</td>
+                              <td className="px-2 py-1">
+                                <select
+                                  value={selectedGuestId}
+                                  onChange={(event) => {
+                                    const value = event.target.value;
+                                    setSeatAssignmentMap((previous) => ({ ...previous, [seat.id]: value }));
+                                  }}
+                                  className="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                                >
+                                  <option value="">Select unassigned guest</option>
+                                  {unassignedGuests.map((guest) => (
+                                    <option key={guest.id} value={guest.id}>
+                                      {(guest.firstName ?? guest.constituent?.firstName ?? "").trim()} {(guest.lastName ?? guest.constituent?.lastName ?? "").trim()}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-2 py-1">
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => void assignSeatGuest(seat.id)}
+                                    disabled={!selectedGuestId || detailBusyAction !== null}
+                                    className="rounded bg-violet-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+                                  >
+                                    Assign
+                                  </button>
+                                  <button
+                                    onClick={() => void clearSeatGuest(seat.id)}
+                                    disabled={!seat.guest || detailBusyAction !== null}
+                                    className="rounded border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                  >
+                                    Clear
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <section className="rounded-lg border border-slate-200 p-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Email Status</h3>
+                  <p className="mt-1 text-xs text-slate-500">Delivery log entries related to this table.</p>
+                  <div className="mt-3 max-h-48 overflow-auto rounded border border-slate-200">
+                    <table className="min-w-full divide-y divide-slate-200 text-xs">
+                      <thead className="bg-slate-50 text-slate-600">
+                        <tr>
+                          <th className="px-2 py-1 text-left">Time</th>
+                          <th className="px-2 py-1 text-left">Type</th>
+                          <th className="px-2 py-1 text-left">Recipient</th>
+                          <th className="px-2 py-1 text-left">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {tableEmailLogs.length === 0 ? (
+                          <tr>
+                            <td className="px-2 py-2 text-slate-500" colSpan={4}>No email log entries yet.</td>
+                          </tr>
+                        ) : (
+                          tableEmailLogs.map((log) => (
+                            <tr key={log.id}>
+                              <td className="px-2 py-1 text-slate-700">{new Date(log.createdAt).toLocaleString()}</td>
+                              <td className="px-2 py-1 text-slate-700">{log.type}</td>
+                              <td className="px-2 py-1 text-slate-700">{log.recipientEmail}</td>
+                              <td className="px-2 py-1 font-semibold text-slate-800">{log.status}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* New Table Modal */}
@@ -446,11 +932,13 @@ function FloorPlanBoard({ tables }: { tables: Table[] }) {
 function TableCard({
   table,
   onEdit,
+  onOpenDetails,
   onDelete,
   onUnassignGuest,
 }: {
   table: Table;
   onEdit: () => void;
+  onOpenDetails: () => void;
   onDelete: () => void;
   onUnassignGuest: (guestId: string) => void;
 }) {
@@ -479,6 +967,12 @@ function TableCard({
           )}
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={onOpenDetails}
+            className="text-xs text-slate-600 hover:text-slate-800 font-medium"
+          >
+            TableLink
+          </button>
           <button
             onClick={onEdit}
             className="text-xs text-violet-600 hover:text-violet-700 font-medium"

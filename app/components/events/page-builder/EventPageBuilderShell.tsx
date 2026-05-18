@@ -6,7 +6,6 @@ import EventPageBuilderTopBar from "@/app/components/events/page-builder/EventPa
 import EventPageBuilderSectionRail from "@/app/components/events/page-builder/EventPageBuilderSectionRail";
 import EventPageBuilderPreview from "@/app/components/events/page-builder/EventPageBuilderPreview";
 import EventPageBuilderInspector from "@/app/components/events/page-builder/EventPageBuilderInspector";
-import FeatureStatusWarning from "@/app/components/ui/FeatureStatusWarning";
 import { createDefaultEventPageSectionState, EVENT_PAGE_SECTION_DEFINITIONS } from "@/app/components/events/page-builder/section-config";
 import type {
   EventPageBuilderConfig,
@@ -337,14 +336,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] min-h-0 flex-col bg-[#f7f8fc]">
-      <div className="px-5 pt-5">
-        <FeatureStatusWarning
-          status="Partially Implemented"
-          title="Event Page Builder public workflow is partially wired"
-          description="Published pages render at their public slug, registrations proxy through the app origin, attendees can be edited per seat, and completion returns check-in codes. Payment collection, deployment history, and QR camera scanning are still incomplete. Removal: payment collection or an explicit no-payment event policy is implemented, deployment history is wired, and a public page E2E test covers publish-to-registration."
-        />
-      </div>
+    <div className="flex h-full min-h-0 flex-col bg-[#f7f8fc]">
       <EventPageBuilderTopBar
         eventName={event.name}
         resolvedPageUrl={draftPreviewUrl}

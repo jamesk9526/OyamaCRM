@@ -29,7 +29,7 @@ export default function EventPageBuilderSectionRail({
   const selectedIndex = sections.findIndex((section) => section.id === selectedSectionId);
 
   return (
-    <aside className="min-h-0 border-r border-slate-200 bg-white">
+    <aside className="flex min-h-0 flex-col border-r border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-4 py-4">
         <div className="flex items-center justify-between">
           <div>
@@ -54,7 +54,7 @@ export default function EventPageBuilderSectionRail({
         </div>
       </div>
 
-      <div className="space-y-2 overflow-y-auto px-3 py-4">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-4">
         {sections.map((section, index) => {
           const definition = definitionMap.get(section.id) ?? getSectionDefinition(section.id);
           const selected = selectedSectionId === section.id;

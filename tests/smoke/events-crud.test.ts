@@ -280,6 +280,19 @@ describe("events CRUD", () => {
     expect(res.body.checkedIn).toBe(true);
   });
 
+  it("records DUPLICATE_ATTEMPT for canonical check-in when guest is already checked in", async () => {
+    expect(eventId).toBeTruthy();
+    expect(guestId).toBeTruthy();
+
+    const res = await request(app)
+      .post(`/api/events/${eventId}/checkin/guest/${guestId}`)
+      .set(auth())
+      .send({ method: "MANUAL" });
+
+    expect(res.status).toBe(200);
+    expect(res.body?.status).toBe("DUPLICATE_ATTEMPT");
+  });
+
   // ── Orders ───────────────────────────────────────────────────────────────────
 
   it("creates a manual event order", async () => {

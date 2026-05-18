@@ -1,9 +1,9 @@
 /**
- * EventCheckInPage - fast event-night check-in workflow for door volunteers.
+ * EventCheckInPage - EventSTUDIO Check-In Studio with scan/search/table/walk-in/replacement modes.
  */
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
@@ -12,6 +12,8 @@ import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbB
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
+
+type StudioTab = "search" | "scan" | "tables" | "walkin" | "replacement" | "exceptions";
 
 interface Event {
   id: string;
@@ -27,672 +29,686 @@ interface Guest {
   email?: string;
   phone?: string;
   checkedIn: boolean;
-  checkedInAt?: string;
-  dietaryRestrictions?: string;
-  specialNeeds?: string;
-  notes?: string;
-  event: { id: string; name: string; startDate: string };
-  constituent?: { id: string; firstName: string; lastName: string; email?: string };
-  ticketType?: { id: string; name: string };
-  order?: { id: string; orderNumber: string; status: string };
-  table?: { id: string; name: string };
-  paymentStatus?: string;
-  rsvpStatus?: string;
+  checkedInAt?: string | null;
   checkinCode?: string;
+  source?: string;
+  tableId?: string | null;
+  table?: { id: string; name: string } | null;
+  seat?: { id: string; seatNumber: number } | null;
 }
 
-/**
- * EventCheckInPage provides fast, volunteer-friendly event check-in for Events CRM.
- */
+interface EventTable {
+  id: string;
+  name: string;
+  tableNumber?: number | null;
+  capacity: number;
+  _count?: { guests: number };
+  guests?: Guest[];
+}
+
+interface CheckInLiveCounts {
+  expected: number;
+  checkedIn: number;
+  walkIns: number;
+  replacements: number;
+  openExceptions: number;
+  attendanceRate: number;
+}
+
+interface CheckInException {
+  id: string;
+  guestName?: string | null;
+  claimedTable?: string | null;
+  claimedEmail?: string | null;
+  claimedPhone?: string | null;
+  issueType: string;
+  status: "OPEN" | "RESOLVED" | "DISMISSED";
+  notes?: string | null;
+  createdAt: string;
+}
+
+interface CheckInRecordResponse {
+  id: string;
+  status: "CHECKED_IN" | "DUPLICATE_ATTEMPT" | "REVERSED" | "NEEDS_REVIEW";
+}
+
+const DEFAULT_COUNTS: CheckInLiveCounts = {
+  expected: 0,
+  checkedIn: 0,
+  walkIns: 0,
+  replacements: 0,
+  openExceptions: 0,
+  attendanceRate: 0,
+};
+
 export default function EventCheckInPage() {
   const params = useParams<{ eventId?: string }>();
   const searchParams = useSearchParams();
-  const workspaceEventId = params.eventId ?? searchParams.get("eventId") ?? "";
-  const eventScoped = workspaceEventId.length > 0;
   const router = useRouter();
 
-  // Legacy global route redirects to the event selector when no event is selected.
+  const workspaceEventId = params.eventId ?? searchParams.get("eventId") ?? "";
+  const eventScoped = workspaceEventId.length > 0;
+
   useEffect(() => {
     if (!eventScoped) {
       router.replace("/events/events");
     }
   }, [eventScoped, router]);
 
-  const [guests, setGuests] = useState<Guest[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedEventId, setSelectedEventId] = useState(workspaceEventId);
+  const [activeTab, setActiveTab] = useState<StudioTab>("search");
+
   const [searchQuery, setSearchQuery] = useState("");
-  const [checkedInFilter, setCheckedInFilter] = useState("false"); // Default to not checked in
-  const [autoRefresh, setAutoRefresh] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  /** Tab state for Search vs. QR/Code Scan vs. Table browse modes */
-  const [activeTab, setActiveTab] = useState<"search" | "scan" | "tables">("search");
+  const [searchGuests, setSearchGuests] = useState<Guest[]>([]);
+  const [tables, setTables] = useState<EventTable[]>([]);
+  const [liveCounts, setLiveCounts] = useState<CheckInLiveCounts>(DEFAULT_COUNTS);
+  const [exceptions, setExceptions] = useState<CheckInException[]>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
   const [scanCode, setScanCode] = useState("");
-  const [scanLoading, setScanLoading] = useState(false);
   const [scanGuest, setScanGuest] = useState<Guest | null>(null);
-  const [scanError, setScanError] = useState("");
-  const [scanSuccess, setScanSuccess] = useState("");
+  const [scanLoading, setScanLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+
+  const [walkInForm, setWalkInForm] = useState({ firstName: "", lastName: "", email: "", phone: "", tableId: "", notes: "" });
+  const [replacementForm, setReplacementForm] = useState({ firstName: "", lastName: "", email: "", phone: "", tableId: "", notes: "" });
+  const [exceptionForm, setExceptionForm] = useState({ guestName: "", issueType: "OTHER", claimedTable: "", claimedEmail: "", claimedPhone: "", notes: "" });
+
   const scanInputRef = useRef<HTMLInputElement>(null);
 
-  /** Load guests for selected event */
-  async function loadData() {
-    if (!selectedEventId) {
-      setGuests([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const data = await apiFetch(`/api/events/${selectedEventId}/guests`);
-      setGuests(data as Guest[]);
-    } catch (err) {
-      console.error("Failed to load guests:", err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    if (workspaceEventId) {
-      setSelectedEventId(workspaceEventId);
-    }
+    if (workspaceEventId) setSelectedEventId(workspaceEventId);
   }, [workspaceEventId]);
 
-  /** Load events on mount */
   useEffect(() => {
     async function loadEvents() {
       try {
-        const data = await apiFetch("/api/events");
-        const activeEvents = (data as Event[]).filter((e) => e.active);
-        setEvents(activeEvents);
-        if (!workspaceEventId && activeEvents.length > 0) {
-          setSelectedEventId(activeEvents[0].id);
+        const data = await apiFetch<Event[]>("/api/events");
+        const active = Array.isArray(data) ? data.filter((event) => event.active) : [];
+        setEvents(active);
+        if (!workspaceEventId && active.length > 0) {
+          setSelectedEventId(active[0].id);
         }
-      } catch (err) {
-        console.error("Failed to load events:", err);
+      } catch (error) {
+        console.error("Failed to load events:", error);
       }
     }
-    loadEvents();
+    void loadEvents();
   }, [workspaceEventId]);
 
-  useEffect(() => {
-    async function loadData() {
-      if (!selectedEventId) {
-        setGuests([]);
-        setLoading(false);
-        return;
-      }
+  async function loadSearchGuests(query = searchQuery) {
+    if (!selectedEventId) return;
+    const suffix = query.trim() ? `?q=${encodeURIComponent(query.trim())}` : "";
+    const data = await apiFetch<Guest[]>(`/api/events/${selectedEventId}/checkin/search${suffix}`);
+    setSearchGuests(Array.isArray(data) ? data : []);
+  }
 
-      setLoading(true);
-      try {
-        const data = await apiFetch(`/api/events/${selectedEventId}/guests`);
-        setGuests(data as Guest[]);
-      } catch (err) {
-        console.error("Failed to load guests:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, [selectedEventId]);
+  async function loadTables() {
+    if (!selectedEventId) return;
+    const data = await apiFetch<EventTable[]>(`/api/events/${selectedEventId}/tables`);
+    setTables(Array.isArray(data) ? data : []);
+  }
 
-  /** Auto-refresh when enabled */
-  useEffect(() => {
-    if (!autoRefresh || !selectedEventId) return;
-    const interval = setInterval(async () => {
-      try {
-        const data = await apiFetch(`/api/events/${selectedEventId}/guests`);
-        setGuests(data as Guest[]);
-      } catch (err) {
-        console.error("Failed to load guests:", err);
-      }
-    }, 10000); // Refresh every 10 seconds
-    return () => clearInterval(interval);
-  }, [autoRefresh, selectedEventId]);
+  async function loadLiveCounts() {
+    if (!selectedEventId) return;
+    const data = await apiFetch<CheckInLiveCounts>(`/api/events/${selectedEventId}/checkin/live-counts`);
+    setLiveCounts(data ?? DEFAULT_COUNTS);
+  }
 
-  /** Filter guests by search and check-in status */
-  const filteredGuests = guests.filter((guest) => {
-    if (checkedInFilter === "true" && !guest.checkedIn) return false;
-    if (checkedInFilter === "false" && guest.checkedIn) return false;
+  async function loadExceptions() {
+    if (!selectedEventId) return;
+    const data = await apiFetch<CheckInException[]>(`/api/events/${selectedEventId}/checkin/exceptions?status=OPEN`);
+    setExceptions(Array.isArray(data) ? data : []);
+  }
 
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const matchesName = `${guest.firstName || ""} ${guest.lastName || ""}`.toLowerCase().includes(query);
-      const matchesEmail = guest.email?.toLowerCase().includes(query);
-      const matchesPhone = guest.phone?.toLowerCase().includes(query);
-      const matchesTable = guest.table?.name?.toLowerCase().includes(query);
-      const matchesConstituentName = guest.constituent
-        ? `${guest.constituent.firstName} ${guest.constituent.lastName}`.toLowerCase().includes(query)
-        : false;
-      if (!matchesName && !matchesEmail && !matchesPhone && !matchesTable && !matchesConstituentName) {
-        return false;
-      }
-    }
-
-    return true;
-  });
-
-  /** Metrics calculation */
-  const totalGuests = guests.length;
-  const checkedInCount = guests.filter((g) => g.checkedIn).length;
-  const notCheckedInCount = totalGuests - checkedInCount;
-  const paymentIssues = guests.filter((g) => g.order?.status === "PENDING").length;
-
-  const guestsByTable = useMemo(() => {
-    const grouped = new Map<string, Guest[]>();
-    for (const guest of guests) {
-      const tableName = guest.table?.name ?? "Unassigned";
-      const bucket = grouped.get(tableName) ?? [];
-      bucket.push(guest);
-      grouped.set(tableName, bucket);
-    }
-    return Array.from(grouped.entries())
-      .map(([tableName, tableGuests]) => ({ tableName, guests: tableGuests }))
-      .sort((a, b) => a.tableName.localeCompare(b.tableName));
-  }, [guests]);
-
-  /** Check in or undo check-in for a guest */
-  async function toggleCheckIn(guestId: string, currentStatus: boolean) {
+  async function refreshStudio() {
+    if (!selectedEventId) return;
+    setRefreshing(true);
     try {
-      await apiFetch(`/api/events/guests/${guestId}/check-in`, {
-        method: "POST",
-        body: JSON.stringify({ checkedIn: !currentStatus }),
-      });
-      // Update local state immediately for responsiveness
-      setGuests((prev) =>
-        prev.map((g) =>
-          g.id === guestId
-            ? { ...g, checkedIn: !currentStatus, checkedInAt: !currentStatus ? new Date().toISOString() : undefined }
-            : g
-        )
-      );
-      // Clear search after successful check-in to prepare for next guest
-      if (!currentStatus) {
-        setSearchQuery("");
-        searchInputRef.current?.focus();
-      }
-    } catch (err) {
-      console.error("Failed to toggle check-in:", err);
-      // Reload data on error to stay in sync
-      loadData();
+      await Promise.all([loadSearchGuests(), loadTables(), loadLiveCounts(), loadExceptions()]);
+    } finally {
+      setRefreshing(false);
+      setLoading(false);
     }
   }
 
-  /** Look up a guest by their printed or scanned check-in code. */
-  async function lookupByCode(e: React.FormEvent) {
-    e.preventDefault();
-    const code = scanCode.trim();
-    if (!code) return;
+  useEffect(() => {
+    if (!selectedEventId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    void refreshStudio();
+  }, [selectedEventId]);
 
-    setScanLoading(true);
-    setScanError("");
-    setScanGuest(null);
-    setScanSuccess("");
+  useEffect(() => {
+    if (!autoRefresh || !selectedEventId) return;
+    const timer = setInterval(() => {
+      void Promise.all([loadLiveCounts(), loadExceptions()]);
+    }, 12000);
+    return () => clearInterval(timer);
+  }, [autoRefresh, selectedEventId]);
 
+  async function checkInGuest(guest: Guest, method: "NAME_SEARCH" | "TABLE_SEARCH" | "QR_SCAN" | "MANUAL") {
+    if (!selectedEventId) return;
+    setWarning(null);
     try {
-      const eventScopeQuery = selectedEventId ? `?eventId=${encodeURIComponent(selectedEventId)}` : "";
-      const guest = await apiFetch<Guest>(`/api/events/guests/by-code/${encodeURIComponent(code)}${eventScopeQuery}`);
+      const record = await apiFetch<CheckInRecordResponse>(`/api/events/${selectedEventId}/checkin/guest/${guest.id}`, {
+        method: "POST",
+        body: JSON.stringify({ method }),
+      });
+
+      if (record.status === "DUPLICATE_ATTEMPT") {
+        setWarning("Duplicate check-in attempt detected. This guest appears to already be checked in.");
+      } else {
+        setToast("Guest checked in.");
+      }
+
+      setSearchGuests((previous) =>
+        previous.map((item) => (item.id === guest.id ? { ...item, checkedIn: true, checkedInAt: new Date().toISOString() } : item)),
+      );
+      if (scanGuest?.id === guest.id) {
+        setScanGuest({ ...scanGuest, checkedIn: true, checkedInAt: new Date().toISOString() });
+      }
+      await Promise.all([loadLiveCounts(), loadTables()]);
+    } catch (error) {
+      console.error("Failed to check in guest:", error);
+      setWarning("Unable to check in guest.");
+    }
+  }
+
+  async function reverseGuestCheckIn(guest: Guest) {
+    if (!selectedEventId) return;
+    setWarning(null);
+    try {
+      await apiFetch(`/api/events/${selectedEventId}/checkin/guest/${guest.id}/reverse`, {
+        method: "POST",
+      });
+      setToast("Check-in reversed.");
+      setSearchGuests((previous) =>
+        previous.map((item) => (item.id === guest.id ? { ...item, checkedIn: false, checkedInAt: null } : item)),
+      );
+      if (scanGuest?.id === guest.id) {
+        setScanGuest({ ...scanGuest, checkedIn: false, checkedInAt: null });
+      }
+      await Promise.all([loadLiveCounts(), loadTables()]);
+    } catch (error) {
+      console.error("Failed to reverse check-in:", error);
+      setWarning("Unable to reverse check-in for this guest.");
+    }
+  }
+
+  async function verifyScanCode() {
+    if (!selectedEventId || !scanCode.trim()) return;
+    setScanLoading(true);
+    setWarning(null);
+    setToast(null);
+    try {
+      const guest = await apiFetch<Guest>(`/api/events/${selectedEventId}/checkin/verify-token`, {
+        method: "POST",
+        body: JSON.stringify({ code: scanCode.trim() }),
+      });
       setScanGuest(guest);
     } catch {
-      setScanError("No guest found for that code. Please check and try again.");
+      setScanGuest(null);
+      setWarning("No guest found for that check-in code.");
     } finally {
       setScanLoading(false);
     }
   }
 
-  /**
-   * Handle check-in toggle for a guest found via code scan.
-   * Updates scan guest state and the main guest list, then shows
-   * a 2-second success banner before resetting for the next guest.
-   */
-  async function toggleScanCheckIn(guest: Guest) {
-    const newCheckedIn = !guest.checkedIn;
+  async function bulkCheckInTable(table: EventTable) {
+    if (!selectedEventId) return;
+    setWarning(null);
+    const candidateGuestIds = (table.guests ?? []).filter((guest) => !guest.checkedIn).map((guest) => guest.id);
+    if (candidateGuestIds.length === 0) {
+      setToast("No unchecked guests at this table.");
+      return;
+    }
+
     try {
-      await apiFetch(`/api/events/guests/${guest.id}/check-in`, {
-        method: "POST",
-        body: JSON.stringify({ checkedIn: newCheckedIn }),
-      });
-      // Update scan guest card immediately
-      setScanGuest((prev) =>
-        prev ? { ...prev, checkedIn: newCheckedIn, checkedInAt: newCheckedIn ? new Date().toISOString() : undefined } : prev
+      const response = await apiFetch<{ results: Array<{ guestId: string; status: string }> }>(
+        `/api/events/${selectedEventId}/checkin/table/${table.id}/bulk`,
+        {
+          method: "POST",
+          body: JSON.stringify({ guestIds: candidateGuestIds }),
+        },
       );
-      // Also keep the main guest list in sync for accurate metrics
-      setGuests((prev) =>
-        prev.map((g) =>
-          g.id === guest.id
-            ? { ...g, checkedIn: newCheckedIn, checkedInAt: newCheckedIn ? new Date().toISOString() : undefined }
-            : g
-        )
-      );
-      if (newCheckedIn) {
-        // Show success banner for 2 seconds, then clear for next scan
-        const guestName = `${guest.firstName || ""} ${guest.lastName || ""}`.trim() || "Guest";
-        setScanSuccess(`✓ ${guestName} checked in!`);
-        setTimeout(() => {
-          setScanSuccess("");
-          setScanCode("");
-          setScanGuest(null);
-          setScanError("");
-          scanInputRef.current?.focus();
-        }, 2000);
+      const duplicateCount = response.results.filter((result) => result.status === "DUPLICATE_ATTEMPT").length;
+      const checkedInCount = response.results.filter((result) => result.status === "CHECKED_IN").length;
+      if (duplicateCount > 0) {
+        setWarning(`${checkedInCount} checked in. ${duplicateCount} duplicate attempts were ignored.`);
+      } else {
+        setToast(`${checkedInCount} guests checked in from table ${table.name}.`);
       }
-    } catch (err) {
-      console.error("Failed to toggle check-in via scan:", err);
-      loadData();
+      await refreshStudio();
+    } catch (error) {
+      console.error("Failed bulk table check-in:", error);
+      setWarning("Bulk check-in failed.");
     }
   }
 
+  async function submitWalkIn() {
+    if (!selectedEventId || !walkInForm.firstName.trim() || !walkInForm.lastName.trim()) {
+      setWarning("Walk-in requires first and last name.");
+      return;
+    }
+    try {
+      await apiFetch(`/api/events/${selectedEventId}/checkin/walk-in`, {
+        method: "POST",
+        body: JSON.stringify({
+          firstName: walkInForm.firstName.trim(),
+          lastName: walkInForm.lastName.trim(),
+          email: walkInForm.email.trim() || undefined,
+          phone: walkInForm.phone.trim() || undefined,
+          tableId: walkInForm.tableId || undefined,
+          notes: walkInForm.notes.trim() || undefined,
+        }),
+      });
+      setToast("Walk-in guest created and checked in.");
+      setWalkInForm({ firstName: "", lastName: "", email: "", phone: "", tableId: "", notes: "" });
+      await refreshStudio();
+    } catch (error) {
+      console.error("Failed to create walk-in:", error);
+      setWarning("Unable to complete walk-in check-in.");
+    }
+  }
+
+  async function submitReplacement() {
+    if (!selectedEventId || !replacementForm.firstName.trim() || !replacementForm.lastName.trim()) {
+      setWarning("Replacement guest requires first and last name.");
+      return;
+    }
+    try {
+      await apiFetch(`/api/events/${selectedEventId}/checkin/replacement`, {
+        method: "POST",
+        body: JSON.stringify({
+          firstName: replacementForm.firstName.trim(),
+          lastName: replacementForm.lastName.trim(),
+          email: replacementForm.email.trim() || undefined,
+          phone: replacementForm.phone.trim() || undefined,
+          tableId: replacementForm.tableId || undefined,
+          notes: replacementForm.notes.trim() || undefined,
+        }),
+      });
+      setToast("Replacement guest created and checked in.");
+      setReplacementForm({ firstName: "", lastName: "", email: "", phone: "", tableId: "", notes: "" });
+      await refreshStudio();
+    } catch (error) {
+      console.error("Failed to create replacement guest:", error);
+      setWarning("Unable to complete replacement guest check-in.");
+    }
+  }
+
+  async function createException() {
+    if (!selectedEventId || !exceptionForm.guestName.trim()) {
+      setWarning("Exception entry requires a guest name.");
+      return;
+    }
+    try {
+      await apiFetch(`/api/events/${selectedEventId}/checkin/exceptions`, {
+        method: "POST",
+        body: JSON.stringify({
+          guestName: exceptionForm.guestName.trim(),
+          issueType: exceptionForm.issueType,
+          claimedTable: exceptionForm.claimedTable.trim() || undefined,
+          claimedEmail: exceptionForm.claimedEmail.trim() || undefined,
+          claimedPhone: exceptionForm.claimedPhone.trim() || undefined,
+          notes: exceptionForm.notes.trim() || undefined,
+        }),
+      });
+      setToast("Exception queued for staff follow-up.");
+      setExceptionForm({ guestName: "", issueType: "OTHER", claimedTable: "", claimedEmail: "", claimedPhone: "", notes: "" });
+      await Promise.all([loadExceptions(), loadLiveCounts()]);
+    } catch (error) {
+      console.error("Failed to create exception:", error);
+      setWarning("Unable to create exception.");
+    }
+  }
+
+  async function resolveException(exceptionId: string) {
+    if (!selectedEventId) return;
+    await apiFetch(`/api/events/${selectedEventId}/checkin/exceptions/${exceptionId}/resolve`, { method: "POST" });
+    await Promise.all([loadExceptions(), loadLiveCounts()]);
+  }
+
+  async function dismissException(exceptionId: string) {
+    if (!selectedEventId) return;
+    await apiFetch(`/api/events/${selectedEventId}/checkin/exceptions/${exceptionId}/dismiss`, { method: "POST" });
+    await Promise.all([loadExceptions(), loadLiveCounts()]);
+  }
+
+  const sortedTables = useMemo(() => {
+    return [...tables].sort((left, right) => {
+      const leftNumber = left.tableNumber ?? Number.MAX_SAFE_INTEGER;
+      const rightNumber = right.tableNumber ?? Number.MAX_SAFE_INTEGER;
+      if (leftNumber !== rightNumber) return leftNumber - rightNumber;
+      return left.name.localeCompare(right.name);
+    });
+  }, [tables]);
+
   if (!eventScoped) {
-    return <RequireEventSelectionNotice tool="live check-in" />;
+    return <RequireEventSelectionNotice tool="Check-In Studio" />;
   }
 
   return (
-    <div className="space-y-6 p-6 text-slate-100">
+    <div className="space-y-5 p-5 text-slate-100 sm:p-6">
       <WorkspaceBreadcrumbBar
         items={[
           { label: "Events CRM", href: "/events/events" },
-          { label: "Check-In" },
+          { label: "Check-In Studio" },
         ]}
-        statusLabel={eventScoped ? "Event Scoped" : "Multi-Event"}
-        metadata={`${checkedInCount.toLocaleString()} checked in · ${notCheckedInCount.toLocaleString()} remaining · ${totalGuests.toLocaleString()} total`}
+        statusLabel="Event Scoped"
+        metadata={`${liveCounts.checkedIn}/${liveCounts.expected} checked in · ${liveCounts.openExceptions} open exceptions`}
         accentTone="purple"
       />
 
       <WorkspaceRibbon>
-        <WorkspaceRibbonGroup label="View">
-          <WorkspaceRibbonButton label="Not Checked" onClick={() => setCheckedInFilter("false")} variant={checkedInFilter === "false" ? "primary" : "secondary"} accentTone="purple" />
-          <WorkspaceRibbonButton label="Checked In" onClick={() => setCheckedInFilter("true")} variant={checkedInFilter === "true" ? "primary" : "secondary"} accentTone="purple" />
-          <WorkspaceRibbonButton label="All Guests" onClick={() => setCheckedInFilter("")} variant={!checkedInFilter ? "primary" : "secondary"} accentTone="purple" />
-        </WorkspaceRibbonGroup>
-
-        <WorkspaceRibbonGroup label="Mode">
+        <WorkspaceRibbonGroup label="Modes">
           <WorkspaceRibbonButton label="Search" onClick={() => setActiveTab("search")} variant={activeTab === "search" ? "primary" : "secondary"} accentTone="purple" />
-          <WorkspaceRibbonButton label="Scan" onClick={() => setActiveTab("scan")} variant={activeTab === "scan" ? "primary" : "secondary"} accentTone="purple" />
+          <WorkspaceRibbonButton label="Scan" onClick={() => { setActiveTab("scan"); setTimeout(() => scanInputRef.current?.focus(), 40); }} variant={activeTab === "scan" ? "primary" : "secondary"} accentTone="purple" />
           <WorkspaceRibbonButton label="Tables" onClick={() => setActiveTab("tables")} variant={activeTab === "tables" ? "primary" : "secondary"} accentTone="purple" />
+          <WorkspaceRibbonButton label="Walk-In" onClick={() => setActiveTab("walkin")} variant={activeTab === "walkin" ? "primary" : "secondary"} accentTone="purple" />
+          <WorkspaceRibbonButton label="Replacement" onClick={() => setActiveTab("replacement")} variant={activeTab === "replacement" ? "primary" : "secondary"} accentTone="purple" />
+          <WorkspaceRibbonButton label="Exceptions" onClick={() => setActiveTab("exceptions")} variant={activeTab === "exceptions" ? "primary" : "secondary"} accentTone="purple" />
         </WorkspaceRibbonGroup>
 
         <WorkspaceRibbonGroup label="Actions">
-          <WorkspaceRibbonButton label="Refresh" onClick={() => void loadData()} accentTone="purple" />
-          <WorkspaceRibbonButton label={autoRefresh ? "Auto On" : "Auto Off"} onClick={() => setAutoRefresh((value) => !value)} variant={autoRefresh ? "primary" : "secondary"} accentTone="purple" />
+          <WorkspaceRibbonButton label={refreshing ? "Refreshing..." : "Refresh"} onClick={() => void refreshStudio()} accentTone="purple" />
+          <WorkspaceRibbonButton label={autoRefresh ? "Auto On" : "Auto Off"} onClick={() => setAutoRefresh((previous) => !previous)} variant={autoRefresh ? "primary" : "secondary"} accentTone="purple" />
         </WorkspaceRibbonGroup>
       </WorkspaceRibbon>
 
-      {/* Event selector is only shown on global routes; event-scoped pages stay locked. */}
-      {!eventScoped ? (
-        <div className="flex flex-col md:flex-row gap-3">
-          <div className="flex-1">
-            <label className="block text-sm font-semibold text-slate-200 mb-2">Event</label>
-            <select
-              value={selectedEventId}
-              onChange={(e) => setSelectedEventId(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-600 rounded-lg bg-slate-900/80 text-sm text-slate-100"
-            >
-              <option value="">Select an event</option>
-              {events.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name} - {new Date(e.startDate).toLocaleDateString()}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-end">
-            <label className="flex items-center gap-2 px-4 py-2 bg-slate-900/80 border border-slate-600 rounded-lg cursor-pointer hover:bg-slate-900">
+      <div className="rounded-lg border border-violet-300/40 bg-violet-500/10 px-3 py-2 text-xs text-violet-100">
+        Event lock is active for this route. Switch events from <Link href="/events/events" className="font-semibold underline">Event Registry</Link>.
+      </div>
+
+      {toast ? <div className="rounded-lg border border-emerald-300/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{toast}</div> : null}
+      {warning ? <div className="rounded-lg border border-amber-300/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">{warning}</div> : null}
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
+        <MetricCard label="Expected" value={liveCounts.expected} color="text-slate-100" />
+        <MetricCard label="Checked In" value={liveCounts.checkedIn} color="text-emerald-300" />
+        <MetricCard label="Rate" value={`${liveCounts.attendanceRate}%`} color="text-violet-300" />
+        <MetricCard label="Walk-Ins" value={liveCounts.walkIns} color="text-cyan-300" />
+        <MetricCard label="Replacements" value={liveCounts.replacements} color="text-fuchsia-300" />
+        <MetricCard label="Exceptions" value={liveCounts.openExceptions} color="text-amber-300" />
+      </div>
+
+      {loading ? (
+        <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-8 text-center text-slate-300">Loading Check-In Studio...</div>
+      ) : activeTab === "search" ? (
+        <section className="space-y-3">
+          <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-4">
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-300">Fast search</label>
+            <div className="flex flex-col gap-2 sm:flex-row">
               <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-                className="w-4 h-4 text-violet-600"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Name, email, phone, table, check-in code"
+                className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100"
               />
-              <span className="text-sm font-medium text-slate-200">Auto-refresh (10s)</span>
-            </label>
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-lg border border-violet-300/50 bg-violet-500/10 px-4 py-2 text-xs text-violet-100">
-          Event lock is active for this workspace route. To switch events, return to <Link href="/events/events" className="font-semibold underline">All Events</Link>.
-        </div>
-      )}
-
-      {!selectedEventId ? (
-        <div className="bg-slate-900/70 rounded-lg border border-slate-700 p-8 text-center text-slate-400">
-          Select an event to start check-in
-        </div>
-      ) : (
-        <>
-          {/* Metrics — visible for both tabs to track event progress */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-slate-900/70 p-4 rounded-lg border border-slate-700">
-              <p className="text-xs text-slate-400 uppercase font-medium">Checked In</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">{checkedInCount}</p>
-            </div>
-            <div className="bg-slate-900/70 p-4 rounded-lg border border-slate-700">
-              <p className="text-xs text-slate-400 uppercase font-medium">Not Checked In</p>
-              <p className="text-2xl font-bold text-violet-400 mt-1">{notCheckedInCount}</p>
-            </div>
-            <div className="bg-slate-900/70 p-4 rounded-lg border border-slate-700">
-              <p className="text-xs text-slate-400 uppercase font-medium">Total Guests</p>
-              <p className="text-2xl font-bold text-slate-100 mt-1">{totalGuests}</p>
-            </div>
-            <div className="bg-slate-900/70 p-4 rounded-lg border border-slate-700">
-              <p className="text-xs text-slate-400 uppercase font-medium">Payment Issues</p>
-              <p className="text-2xl font-bold text-red-600 mt-1">{paymentIssues}</p>
+              <button
+                onClick={() => void loadSearchGuests(searchQuery)}
+                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"
+              >
+                Search
+              </button>
             </div>
           </div>
 
-          {/* Tab switcher — Search (name/email) vs. Scan (QR / printed code) */}
-          <div className="flex gap-0 border-b border-slate-700">
-            <button
-              onClick={() => setActiveTab("search")}
-              className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === "search"
-                  ? "border-violet-500 text-violet-300"
-                  : "border-transparent text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              🔍 Search
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab("scan");
-                // Focus the scan input after the tab switch renders
-                setTimeout(() => scanInputRef.current?.focus(), 50);
-              }}
-              className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === "scan"
-                  ? "border-violet-500 text-violet-300"
-                  : "border-transparent text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              📷 Scan Code
-            </button>
-            <button
-              onClick={() => setActiveTab("tables")}
-              className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === "tables"
-                  ? "border-violet-500 text-violet-300"
-                  : "border-transparent text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              🪑 Tables
-            </button>
-          </div>
-
-          {/* SEARCH TAB */}
-          {activeTab === "search" && (
-            <>
-              {/* Search & Filters */}
-              <div className="bg-slate-900/70 rounded-lg border border-slate-700 p-4 mb-4">
-                <div className="flex flex-col md:flex-row gap-3 items-end">
-                  <div className="flex-1">
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Quick Search
-                    </label>
-                    <input
-                      ref={searchInputRef}
-                      type="text"
-                      placeholder="Name, email, phone, or table..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full px-3 py-2 text-lg border-2 border-slate-600 rounded-lg bg-slate-950 text-slate-100 focus:border-violet-500 focus:outline-none"
-                      autoFocus
-                    />
-                  </div>
-                  <div className="w-full md:w-48">
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Status</label>
-                    <select
-                      value={checkedInFilter}
-                      onChange={(e) => setCheckedInFilter(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-slate-600 rounded-lg bg-slate-950 text-slate-100"
-                    >
-                      <option value="">All Guests</option>
-                      <option value="false">Not Checked In</option>
-                      <option value="true">Checked In</option>
-                    </select>
-                  </div>
-                  <button
-                    onClick={loadData}
-                    className="px-4 py-2 text-sm font-medium text-slate-200 bg-slate-900 border border-slate-600 rounded-lg hover:bg-slate-800"
-                  >
-                    🔄 Refresh
-                  </button>
-                </div>
-              </div>
-
-              {/* Guest List */}
-              {loading ? (
-                <div className="bg-slate-900/70 rounded-lg border border-slate-700 p-8 text-center text-slate-400">
-                  Loading guests...
-                </div>
-              ) : filteredGuests.length === 0 ? (
-                <div className="bg-slate-900/70 rounded-lg border border-slate-700 p-8 text-center text-slate-400">
-                  {searchQuery ? "No guests match your search." : "No guests found."}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {filteredGuests.map((guest) => (
-                    <GuestCheckInCard
-                      key={guest.id}
-                      guest={guest}
-                      onToggleCheckIn={() => toggleCheckIn(guest.id, guest.checkedIn)}
-                    />
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* SCAN TAB — look up a single guest by QR code or printed ticket code */}
-          {activeTab === "scan" && (
-            <div className="max-w-lg">
-              <h2 className="text-lg font-bold text-slate-100 mb-1">Scan Check-In Code</h2>
-              <p className="text-sm text-slate-300 mb-5">
-                Scan the QR code or type the code printed on the guest&apos;s ticket or badge.
-              </p>
-
-              {/* Code input form */}
-              <form onSubmit={lookupByCode} className="bg-slate-900/70 rounded-lg border border-slate-700 p-5 mb-4">
-                <label className="block text-xs font-semibold text-slate-300 mb-2">Code</label>
-                <div className="flex gap-2">
-                  <input
-                    ref={scanInputRef}
-                    type="text"
-                    value={scanCode}
-                    onChange={(e) => {
-                      setScanCode(e.target.value);
-                      setScanError("");
-                      setScanGuest(null);
-                      setScanSuccess("");
-                    }}
-                    placeholder="Scan or type code..."
-                    className="flex-1 px-4 py-3 text-xl border-2 border-slate-600 rounded-lg bg-slate-950 text-slate-100 focus:border-violet-500 focus:outline-none font-mono tracking-widest"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    spellCheck={false}
-                  />
-                  <button
-                    type="submit"
-                    disabled={scanLoading || !scanCode.trim()}
-                    className="px-5 py-3 text-sm font-bold text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50"
-                  >
-                    {scanLoading ? "..." : "Look Up"}
-                  </button>
-                </div>
-              </form>
-
-              {/* Success banner — auto-dismissed after 2 seconds */}
-              {scanSuccess && (
-                <div className="mb-4 px-4 py-3 bg-green-100 border border-green-300 rounded-lg text-green-800 font-semibold text-sm">
-                  {scanSuccess}
-                </div>
-              )}
-
-              {/* Error message */}
-              {scanError && (
-                <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                  {scanError}
-                </div>
-              )}
-
-              {/* Guest card shown after successful lookup */}
-              {scanGuest && !scanSuccess && (
-                <GuestCheckInCard
-                  guest={scanGuest}
-                  onToggleCheckIn={() => toggleScanCheckIn(scanGuest)}
+          <div className="space-y-2">
+            {searchGuests.length === 0 ? (
+              <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-6 text-center text-slate-300">No guests found for this event/query.</div>
+            ) : (
+              searchGuests.map((guest) => (
+                <GuestCard
+                  key={guest.id}
+                  guest={guest}
+                  onCheckIn={() => void checkInGuest(guest, "NAME_SEARCH")}
+                  onReverse={() => void reverseGuestCheckIn(guest)}
                 />
-              )}
+              ))
+            )}
+          </div>
+        </section>
+      ) : activeTab === "scan" ? (
+        <section className="max-w-2xl space-y-3">
+          <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-4">
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-300">QR / code scan</label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                ref={scanInputRef}
+                value={scanCode}
+                onChange={(event) => setScanCode(event.target.value)}
+                placeholder="Scan or enter check-in code"
+                className="w-full rounded-lg border-2 border-slate-600 bg-slate-950 px-3 py-2 font-mono text-lg tracking-wider text-slate-100"
+              />
+              <button
+                onClick={() => void verifyScanCode()}
+                disabled={scanLoading || !scanCode.trim()}
+                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-60"
+              >
+                {scanLoading ? "Looking up..." : "Verify"}
+              </button>
             </div>
-          )}
+          </div>
 
-          {/* TABLES TAB — GalaSoft-inspired table browse mode for fast floor operations */}
-          {activeTab === "tables" && (
-            <div className="space-y-4">
-              {guestsByTable.length === 0 ? (
-                <div className="bg-slate-900/70 rounded-lg border border-slate-700 p-8 text-center text-slate-400">
-                  No tables or guests found for this event.
-                </div>
-              ) : (
-                guestsByTable.map((group) => {
-                  const tableCheckedIn = group.guests.filter((g) => g.checkedIn).length;
-                  return (
-                    <div key={group.tableName} className="bg-slate-900/70 rounded-lg border border-slate-700 p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <h3 className="text-base font-semibold text-slate-100">{group.tableName}</h3>
-                          <p className="text-xs text-slate-400">{tableCheckedIn}/{group.guests.length} checked in</p>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        {group.guests.map((guest) => (
-                          <GuestCheckInCard
-                            key={guest.id}
-                            guest={guest}
-                            onToggleCheckIn={() => toggleCheckIn(guest.id, guest.checkedIn)}
-                          />
-                        ))}
-                      </div>
+          {scanGuest ? (
+            <GuestCard
+              guest={scanGuest}
+              onCheckIn={() => void checkInGuest(scanGuest, "QR_SCAN")}
+              onReverse={() => void reverseGuestCheckIn(scanGuest)}
+            />
+          ) : null}
+        </section>
+      ) : activeTab === "tables" ? (
+        <section className="space-y-3">
+          {sortedTables.length === 0 ? (
+            <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-6 text-center text-slate-300">No tables found for this event.</div>
+          ) : (
+            sortedTables.map((table) => {
+              const guestsAtTable = table.guests ?? [];
+              const checkedIn = guestsAtTable.filter((guest) => guest.checkedIn).length;
+              return (
+                <div key={table.id} className="rounded-lg border border-slate-700 bg-slate-900/70 p-4">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-100">{table.tableNumber != null ? `#${table.tableNumber} ` : ""}{table.name}</p>
+                      <p className="text-xs text-slate-400">{checkedIn}/{guestsAtTable.length || table._count?.guests || 0} checked in</p>
                     </div>
-                  );
-                })
+                    <button
+                      onClick={() => void bulkCheckInTable(table)}
+                      className="rounded-lg border border-violet-400/50 px-3 py-1 text-xs font-semibold text-violet-200 hover:bg-violet-500/10"
+                    >
+                      Bulk Check-In
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {guestsAtTable.length === 0 ? (
+                      <p className="text-xs text-slate-400">No guests assigned to this table yet.</p>
+                    ) : (
+                      guestsAtTable.map((guest) => (
+                        <GuestCard
+                          key={guest.id}
+                          guest={guest}
+                          compact
+                          onCheckIn={() => void checkInGuest(guest, "TABLE_SEARCH")}
+                          onReverse={() => void reverseGuestCheckIn(guest)}
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </section>
+      ) : activeTab === "walkin" ? (
+        <EntryForm
+          title="Walk-In"
+          description="Register and check in an unplanned attendee at the door."
+          form={walkInForm}
+          onChange={setWalkInForm}
+          tables={sortedTables}
+          actionLabel="Create Walk-In"
+          onSubmit={() => void submitWalkIn()}
+        />
+      ) : activeTab === "replacement" ? (
+        <EntryForm
+          title="Replacement Guest"
+          description="Replace an original attendee with a new guest and check them in immediately."
+          form={replacementForm}
+          onChange={setReplacementForm}
+          tables={sortedTables}
+          actionLabel="Create Replacement"
+          onSubmit={() => void submitReplacement()}
+        />
+      ) : (
+        <section className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-4">
+            <h2 className="text-sm font-semibold text-slate-100">Create Exception</h2>
+            <p className="mt-1 text-xs text-slate-400">Queue issues that need manager review during event-night operations.</p>
+            <div className="mt-3 grid gap-2">
+              <input value={exceptionForm.guestName} onChange={(event) => setExceptionForm((previous) => ({ ...previous, guestName: event.target.value }))} placeholder="Guest name" className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm" />
+              <select value={exceptionForm.issueType} onChange={(event) => setExceptionForm((previous) => ({ ...previous, issueType: event.target.value }))} className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm">
+                <option value="NOT_FOUND">Not Found</option>
+                <option value="DUPLICATE">Duplicate</option>
+                <option value="WRONG_TABLE">Wrong Table</option>
+                <option value="REPLACEMENT">Replacement</option>
+                <option value="UNCONFIRMED">Unconfirmed</option>
+                <option value="NO_TICKET">No Ticket</option>
+                <option value="OTHER">Other</option>
+              </select>
+              <input value={exceptionForm.claimedTable} onChange={(event) => setExceptionForm((previous) => ({ ...previous, claimedTable: event.target.value }))} placeholder="Claimed table" className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm" />
+              <input value={exceptionForm.claimedEmail} onChange={(event) => setExceptionForm((previous) => ({ ...previous, claimedEmail: event.target.value }))} placeholder="Claimed email" className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm" />
+              <input value={exceptionForm.claimedPhone} onChange={(event) => setExceptionForm((previous) => ({ ...previous, claimedPhone: event.target.value }))} placeholder="Claimed phone" className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm" />
+              <textarea value={exceptionForm.notes} onChange={(event) => setExceptionForm((previous) => ({ ...previous, notes: event.target.value }))} placeholder="Notes" rows={3} className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm" />
+              <button onClick={() => void createException()} className="rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700">Queue Exception</button>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-4">
+            <h2 className="text-sm font-semibold text-slate-100">Open Exceptions</h2>
+            <div className="mt-3 space-y-2">
+              {exceptions.length === 0 ? (
+                <p className="text-sm text-slate-400">No open exceptions.</p>
+              ) : (
+                exceptions.map((item) => (
+                  <div key={item.id} className="rounded-lg border border-slate-600 bg-slate-900/60 p-3">
+                    <p className="text-sm font-semibold text-slate-100">{item.guestName || "Unknown guest"}</p>
+                    <p className="text-xs text-slate-400">{item.issueType} · {new Date(item.createdAt).toLocaleTimeString()}</p>
+                    {item.notes ? <p className="mt-1 text-xs text-slate-300">{item.notes}</p> : null}
+                    <div className="mt-2 flex gap-2">
+                      <button onClick={() => void resolveException(item.id)} className="rounded border border-emerald-400/50 px-2 py-1 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/10">Resolve</button>
+                      <button onClick={() => void dismissException(item.id)} className="rounded border border-slate-500 px-2 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-700/50">Dismiss</button>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
-          )}
-        </>
+          </div>
+        </section>
       )}
+
+      {!eventScoped ? (
+        <div className="hidden">
+          <select value={selectedEventId} onChange={(event) => setSelectedEventId(event.target.value)}>
+            <option value="">Select event</option>
+            {events.map((event) => (
+              <option key={event.id} value={event.id}>{event.name}</option>
+            ))}
+          </select>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-/**
- * GuestCheckInCard - large, volunteer-friendly guest card for check-in.
- */
-function GuestCheckInCard({
+function MetricCard({ label, value, color }: { label: string; value: string | number; color: string }) {
+  return (
+    <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3">
+      <p className="text-[11px] uppercase tracking-wide text-slate-400">{label}</p>
+      <p className={`mt-1 text-xl font-semibold ${color}`}>{value}</p>
+    </div>
+  );
+}
+
+function GuestCard({
   guest,
-  onToggleCheckIn,
+  onCheckIn,
+  onReverse,
+  compact = false,
 }: {
   guest: Guest;
-  onToggleCheckIn: () => void;
+  onCheckIn: () => void;
+  onReverse: () => void;
+  compact?: boolean;
 }) {
-  const guestName = `${guest.firstName || guest.constituent?.firstName || "—"} ${
-    guest.lastName || guest.constituent?.lastName || ""
-  }`.trim();
-
-  const hasPaymentIssue = guest.order?.status === "PENDING";
-
+  const name = `${guest.firstName ?? ""} ${guest.lastName ?? ""}`.trim() || "Unnamed guest";
   return (
-    <div
-      className={`bg-slate-900/80 rounded-lg border-2 p-4 transition-all ${
-        guest.checkedIn ? "border-green-500/60 bg-green-950/20" : "border-slate-700"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-4">
-        {/* Guest Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start gap-3">
-            <div className="flex-1 min-w-0">
-              <h3 className="text-xl font-bold text-slate-100 truncate">{guestName}</h3>
-              {guest.email && <p className="text-sm text-slate-300 truncate">{guest.email}</p>}
-              {guest.phone && <p className="text-sm text-slate-300">{guest.phone}</p>}
-            </div>
-            {guest.checkedIn && (
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 whitespace-nowrap">
-                ✓ Checked In
-              </span>
-            )}
-          </div>
-
-          {/* Additional Info Row */}
-          <div className="flex flex-wrap gap-3 mt-3">
-            {guest.table && (
-              <div className="flex items-center gap-1 text-sm">
-                <span className="text-slate-400">Table:</span>
-                <span className="font-semibold text-slate-100">{guest.table.name}</span>
-              </div>
-            )}
-            {guest.ticketType && (
-              <div className="flex items-center gap-1 text-sm">
-                <span className="text-slate-400">Ticket:</span>
-                <span className="font-medium text-slate-200">{guest.ticketType.name}</span>
-              </div>
-            )}
-            {guest.order && (
-              <div className="flex items-center gap-1 text-sm">
-                <span className="text-slate-400">Order:</span>
-                <span className="font-medium text-slate-200">{guest.order.orderNumber}</span>
-                {hasPaymentIssue && (
-                  <span className="ml-1 text-xs font-semibold text-red-600">(Payment Pending)</span>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Notes & Special Needs */}
-          {(guest.dietaryRestrictions || guest.specialNeeds || guest.notes) && (
-            <div className="mt-3 space-y-1">
-              {guest.dietaryRestrictions && (
-                <div className="flex gap-2">
-                  <span className="text-xs font-semibold text-slate-400 uppercase">Dietary:</span>
-                  <span className="text-sm text-slate-200">{guest.dietaryRestrictions}</span>
-                </div>
-              )}
-              {guest.specialNeeds && (
-                <div className="flex gap-2">
-                  <span className="text-xs font-semibold text-slate-400 uppercase">Special Needs:</span>
-                  <span className="text-sm text-slate-200">{guest.specialNeeds}</span>
-                </div>
-              )}
-              {guest.notes && (
-                <div className="flex gap-2">
-                  <span className="text-xs font-semibold text-slate-400 uppercase">Notes:</span>
-                  <span className="text-sm text-slate-200">{guest.notes}</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {guest.checkedInAt && (
-            <p className="text-xs text-slate-400 mt-2">
-              Checked in at {new Date(guest.checkedInAt).toLocaleTimeString()}
-            </p>
-          )}
+    <div className={`rounded-lg border p-3 ${guest.checkedIn ? "border-emerald-500/50 bg-emerald-500/10" : "border-slate-700 bg-slate-900/70"}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className={`font-semibold text-slate-100 ${compact ? "text-sm" : "text-base"}`}>{name}</p>
+          <p className="text-xs text-slate-400">
+            {guest.email || guest.phone || "No contact"}
+            {guest.table ? ` · ${guest.table.name}` : ""}
+            {guest.seat ? ` · Seat ${guest.seat.seatNumber}` : ""}
+          </p>
+          {guest.checkinCode ? <p className="text-[11px] text-slate-500">Code: {guest.checkinCode}</p> : null}
         </div>
-
-        {/* Check-In Button */}
-        <div className="flex-shrink-0">
-          <button
-            onClick={onToggleCheckIn}
-            className={`px-6 py-4 text-lg font-bold rounded-lg transition-colors whitespace-nowrap ${
-              guest.checkedIn
-                ? "bg-slate-700 text-slate-100 hover:bg-slate-600"
-                : "bg-violet-600 text-white hover:bg-violet-700"
-            }`}
-          >
-            {guest.checkedIn ? "Undo Check-In" : "✓ Check In"}
-          </button>
+        <div className="flex gap-2">
+          {guest.checkedIn ? (
+            <button onClick={onReverse} className="rounded border border-slate-500 px-3 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-700">Reverse</button>
+          ) : (
+            <button onClick={onCheckIn} className="rounded bg-violet-600 px-3 py-1 text-xs font-semibold text-white hover:bg-violet-700">Check In</button>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
+function EntryForm({
+  title,
+  description,
+  form,
+  onChange,
+  tables,
+  actionLabel,
+  onSubmit,
+}: {
+  title: string;
+  description: string;
+  form: { firstName: string; lastName: string; email: string; phone: string; tableId: string; notes: string };
+  onChange: (next: { firstName: string; lastName: string; email: string; phone: string; tableId: string; notes: string }) => void;
+  tables: EventTable[];
+  actionLabel: string;
+  onSubmit: () => void;
+}) {
+  return (
+    <section className="max-w-3xl rounded-lg border border-slate-700 bg-slate-900/70 p-4">
+      <h2 className="text-sm font-semibold text-slate-100">{title}</h2>
+      <p className="mt-1 text-xs text-slate-400">{description}</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <input value={form.firstName} onChange={(event) => onChange({ ...form, firstName: event.target.value })} placeholder="First name" className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm" />
+        <input value={form.lastName} onChange={(event) => onChange({ ...form, lastName: event.target.value })} placeholder="Last name" className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm" />
+        <input value={form.email} onChange={(event) => onChange({ ...form, email: event.target.value })} placeholder="Email" className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm" />
+        <input value={form.phone} onChange={(event) => onChange({ ...form, phone: event.target.value })} placeholder="Phone" className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm" />
+        <select value={form.tableId} onChange={(event) => onChange({ ...form, tableId: event.target.value })} className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm sm:col-span-2">
+          <option value="">No table assignment</option>
+          {tables.map((table) => (
+            <option key={table.id} value={table.id}>{table.tableNumber != null ? `#${table.tableNumber} ` : ""}{table.name}</option>
+          ))}
+        </select>
+        <textarea value={form.notes} onChange={(event) => onChange({ ...form, notes: event.target.value })} placeholder="Notes" rows={3} className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm sm:col-span-2" />
+      </div>
+      <button onClick={onSubmit} className="mt-3 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">{actionLabel}</button>
+    </section>
+  );
+}

@@ -52,12 +52,12 @@ Status labels are restricted to: **Working / Partially Working / Demo Only / Bro
 | `/events/[eventId]/communications` (alias `/emails`) | Partially Working | `/api/events/[id]/guests` + central email API | Audience preview + workspace routing live; send execution depends on central comms orchestration. |
 | `/events/[eventId]/fundraising` (alias `/donations`) | Partially Working | `/api/events/[id]/orders` | Revenue-vs-goal view exists; pledge tracking and donor-link round-trip not implemented. |
 | `/events/[eventId]/follow-up` | Partially Working | `/api/events/[id]/report` | Reads real attendance/revenue; thank-you status not surfaced. |
-| `/events/[eventId]/reports` | Partially Working | `/api/events/[id]/report` | Wraps the global reports component; cross-event slice not isolated. |
+| `/events/[eventId]/reports` | Working | `/api/events/[id]/report`, `/api/events/[id]/reporting/snapshot`, `/api/events/[id]/reporting/export/:reportType` | Wraps the reports component with scoped event detail, Phase 9 TableLink/check-in reporting slices, and CSV exports. |
 | `/events/[eventId]/settings` | Partially Working | `/api/events/manager-integrations` | Donor-CRM integration import works; per-event settings save/load not implemented. |
 | `/events/[eventId]/tasks` | Demo Only | — | Scaffolded with zeroed metrics; no task persistence. |
 | `/events/[eventId]/volunteers` | Demo Only | — | Scaffolded with zeroed metrics; no volunteer persistence. |
 | `/events/[eventId]/files` | Demo Only | — | Scaffolded with zeroed metrics; no file upload backend. |
-| `/events/reports` | Working | `/api/events/[id]/report` | Intentional global cross-event reporting surface. |
+| `/events/reports` | Working | `/api/events/reports/summary`, `/api/events/[id]/report`, `/api/events/[id]/reporting/snapshot`, `/api/events/[id]/reporting/export/:reportType` | Intentional global cross-event reporting surface with per-event detail and Phase 9 CSV exports. |
 | `/events/page-builder` | Working | — | Compatibility entrypoint that redirects `?eventId=` query links to `/events/[eventId]/event-page`. |
 | `/events/templates` | Partially Working | `/api/events/templates` | Template draft cloning works; metadata bundle cloning not implemented. |
 
@@ -326,12 +326,12 @@ Critical overrides from the latest full testing and browser pass:
 | Feature | Status | Notes |
 |---|---|---|
 | Event reports page | 🟡 Working | `app/events/reports/page.tsx` and `EventReportsContent.tsx` use live APIs |
-| Guest list export | 🔴 Not Started | |
-| Seating report | 🔴 Not Started | |
-| Check-in report | 🔴 Not Started | |
+| Guest list export | 🔴 Not Started | Phase 9 adds event reporting exports, but not a full raw guest-list export. |
+| Seating report | 🟡 Working | Table completion reporting and CSV export are available from the event report detail view. |
+| Check-in report | 🟡 Working | Attendance, walk-in, replacement, no-show, and exception snapshots are available with CSV export. |
 | Payment/revenue report | 🟡 Working | Revenue totals and top events are available in summary and event-detail report views |
 | Global event reports | 🟡 Working | `/api/events/reports/summary` powers all-events overview |
-| Event-specific reports | 🟡 Working | `/api/events/:eventId/report` powers per-event deep dive |
+| Event-specific reports | 🟡 Working | `/api/events/:eventId/report`, `/api/events/:eventId/reporting/snapshot`, and `/api/events/:eventId/reporting/export/:reportType` power per-event deep dive, TableLink/check-in report slices, and CSV exports |
 
 ---
 
@@ -417,7 +417,7 @@ Critical overrides from the latest full testing and browser pass:
 | `PATCH/DELETE /api/events/tables/:tableId` | ✅ Working |
 | `GET/POST /api/events/:eventId/sponsors` | 🔶 Exists but UI not wired |
 | `GET /api/events/:eventId/dashboard-summary` | 🔴 Not in API yet |
-| Event-specific reports endpoints | 🔴 Not Started |
+| Event-specific reports endpoints | ✅ Working |
 
 ---
 

@@ -984,6 +984,77 @@ router.post("/actions/draft-thank-you-new-donors", requirePermission("edit:commu
 });
 
 /**
+ * GET /api/reports/donors-this-month
+ * Returns the running total and individual donor list for the current calendar month.
+ * Used by the Monthly Donations dashboard widget.
+ */
+router.get("/donors-this-month", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json({ total: 0, count: 0, donors: [] });
+    return;
+  }
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  // Fetch all completed donations this month with basic constituent info
+  const donations = await prisma.donation.findMany({
+    where: completedDonationWhere(organizationId, { gte: startOfMonth }),
+    select: {
+      id: true,
+      amount: true,
+      date: true,
+      constituent: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+    },
+    orderBy: { date: "desc" },
+  });
+
+  // Aggregate per-donor totals (a single donor may have multiple gifts this month)
+  const donorMap = new Map<string, { id: string; firstName: string; lastName: string; email: string | null; amount: number; lastDate: string; giftCount: number }>();
+  let total = 0;
+
+  for (const d of donations) {
+    const amount = Number(d.amount ?? 0);
+    total += amount;
+    if (!d.constituent) continue;
+    const existing = donorMap.get(d.constituent.id);
+    if (existing) {
+      existing.amount += amount;
+      existing.giftCount += 1;
+    } else {
+      donorMap.set(d.constituent.id, {
+        id: d.constituent.id,
+        firstName: d.constituent.firstName,
+        lastName: d.constituent.lastName,
+        email: d.constituent.email,
+        amount,
+        lastDate: d.date ? d.date.toISOString() : new Date().toISOString(),
+        giftCount: 1,
+      });
+    }
+  }
+
+  // Sort by amount descending
+  const donors = Array.from(donorMap.values()).sort((a, b) => b.amount - a.amount);
+
+  res.json({
+    total,
+    count: donors.length,
+    giftCount: donations.length,
+    monthLabel: now.toLocaleString("en-US", { month: "long", year: "numeric" }),
+    donors,
+  });
+});
+
+/**
  * GET /api/reports/exports/summary.csv
  * Exports summary KPIs to CSV. Permission-gated to users who can export org data.
  */

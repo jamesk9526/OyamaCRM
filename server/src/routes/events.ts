@@ -4,7 +4,7 @@
  *
  * @module routes/events
  */
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { Router, type Request } from "express";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
@@ -13,6 +13,16 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 import { readPaymentGatewayPublicSettings, type PaymentGatewayPublicSettings } from "../services/payment-gateway-settings.js";
+import { createEventTable } from "../services/event-table-service.js";
+import { createCheckInRecord, reverseCheckIn, getCheckInLiveCounts } from "../services/checkin-service.js";
+import { createCheckInException, dismissCheckInException, listCheckInExceptions, resolveCheckInException } from "../services/checkin-exception-service.js";
+import { createEventEmailLog, listEventEmailLogs } from "../services/event-email-service.js";
+import { assignGuestToSeat, clearSeat, moveGuestToSeat } from "../services/event-seat-service.js";
+import { syncEventTableSeats, updateEventTable } from "../services/event-table-service.js";
+import { issueTableLinkAccessToken, revokeTableLinkAccessTokens, verifyTableLinkAccessToken } from "../services/tablelink-access-service.js";
+import { completeGuestInvite, createGuestInvite, markGuestInviteOpened } from "../services/guest-invite-service.js";
+import { createWalkInGuest, listEventGuests } from "../services/event-guest-service.js";
+import { getEventReportingSnapshot } from "../services/event-reporting-service.js";
 import type { EventGuestPaymentStatus, EventGuestRsvpStatus, Prisma } from "@prisma/client";
 
 const router = Router();
@@ -1109,6 +1119,406 @@ async function buildEventsManagerIntegrationSourcePreview(
     },
   };
 }
+
+function getPublicTableLinkToken(req: Request): string {
+  const headerToken = String(req.headers["x-tablelink-token"] ?? "").trim();
+  const queryToken = String(req.query.token ?? "").trim();
+  const bodyToken = String((req.body as { token?: unknown } | undefined)?.token ?? "").trim();
+  return headerToken || queryToken || bodyToken;
+}
+
+async function resolvePublicTableLinkAccess(input: {
+  eventId: string;
+  tableUid: string;
+  token: string;
+}) {
+  const tokenHash = createHash("sha256").update(input.token).digest("hex");
+  const accessToken = await prisma.eventTableAccessToken.findFirst({
+    where: {
+      eventId: input.eventId,
+      tokenHash,
+      status: { in: ["ACTIVE", "USED"] },
+      table: { tableUid: input.tableUid },
+    },
+    include: { table: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!accessToken) return null;
+  if (accessToken.expiresAt.getTime() < Date.now()) {
+    await prisma.eventTableAccessToken.update({ where: { id: accessToken.id }, data: { status: "EXPIRED" } });
+    return null;
+  }
+
+  if (accessToken.status === "ACTIVE") {
+    await prisma.eventTableAccessToken.update({
+      where: { id: accessToken.id },
+      data: { status: "USED", lastUsedAt: new Date() },
+    });
+  }
+
+  return accessToken;
+}
+
+/**
+ * POST /api/events/public/tablelink/request-access
+ * Public TableLink access request with event ID, table key, and host email.
+ */
+router.post("/public/tablelink/request-access", async (req, res) => {
+  const eventId = String(req.body?.eventId ?? "").trim();
+  const tableKey = String(req.body?.tableKey ?? "").trim();
+  const email = String(req.body?.email ?? "").trim().toLowerCase();
+
+  if (!eventId || !tableKey || !email) {
+    res.status(400).json({ error: { code: "INVALID_INPUT", message: "eventId, tableKey, and email are required." } });
+    return;
+  }
+
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { id: true, name: true } });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found." } });
+    return;
+  }
+
+  const table = await prisma.eventTable.findFirst({
+    where: {
+      eventId: event.id,
+      OR: [{ publicCode: tableKey }, { tableUid: tableKey }],
+    },
+    select: { id: true, tableUid: true, publicCode: true, hostEmail: true },
+  });
+
+  if (!table) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Table not found." } });
+    return;
+  }
+
+  const hostEmail = String(table.hostEmail ?? "").trim().toLowerCase();
+  if (!hostEmail || hostEmail !== email) {
+    res.status(403).json({ error: { code: "ACCESS_DENIED", message: "Email does not match table host." } });
+    return;
+  }
+
+  const issued = await issueTableLinkAccessToken({ eventId: event.id, tableId: table.id, hostEmail });
+  res.json({
+    ok: true,
+    eventId: event.id,
+    eventName: event.name,
+    tableUid: table.tableUid,
+    tableKey: table.publicCode,
+    // TODO: backend email delivery needed; token returned for hosted portal bootstrap.
+    token: issued.token,
+    expiresAt: issued.expiresAt,
+  });
+});
+
+/** POST /api/events/public/tablelink/verify-token — verify public host token and resolve table scope. */
+router.post("/public/tablelink/verify-token", async (req, res) => {
+  const eventId = String(req.body?.eventId ?? "").trim();
+  const token = String(req.body?.token ?? "").trim();
+  if (!eventId || !token) {
+    res.status(400).json({ error: { code: "INVALID_INPUT", message: "eventId and token are required." } });
+    return;
+  }
+
+  const verified = await verifyTableLinkAccessToken({ eventId, token });
+  if (!verified) {
+    res.status(403).json({ error: { code: "ACCESS_DENIED", message: "Token is invalid or expired." } });
+    return;
+  }
+
+  res.json({ ok: true, eventId, tableUid: verified.table.tableUid, tableId: verified.table.id });
+});
+
+/**
+ * GET /api/events/public/tablelink/:eventId/:tableUid
+ * Public host-facing table detail for TableLink portal.
+ */
+router.get("/public/tablelink/:eventId/:tableUid", async (req, res, next) => {
+  if (req.params.eventId === "invites") {
+    next();
+    return;
+  }
+
+  const token = getPublicTableLinkToken(req);
+  if (!token) {
+    res.status(401).json({ error: { code: "TOKEN_REQUIRED", message: "A TableLink token is required." } });
+    return;
+  }
+
+  const access = await resolvePublicTableLinkAccess({
+    eventId: req.params.eventId,
+    tableUid: req.params.tableUid,
+    token,
+  });
+  if (!access) {
+    res.status(403).json({ error: { code: "ACCESS_DENIED", message: "Invalid, expired, or revoked access token." } });
+    return;
+  }
+
+  const detail = await prisma.eventTable.findFirst({
+    where: { id: access.tableId, eventId: req.params.eventId, tableUid: req.params.tableUid },
+    include: {
+      event: { select: { id: true, name: true, startDate: true } },
+      seats: { include: { guest: true }, orderBy: { seatNumber: "asc" } },
+      guestInvites: { orderBy: { createdAt: "desc" }, take: 50 },
+    },
+  });
+
+  if (!detail) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Table not found." } });
+    return;
+  }
+
+  res.json(detail);
+});
+
+/** PATCH /api/events/public/tablelink/:eventId/:tableUid — update host-managed public fields. */
+router.patch("/public/tablelink/:eventId/:tableUid", async (req, res, next) => {
+  if (req.params.eventId === "invites") {
+    next();
+    return;
+  }
+
+  const token = getPublicTableLinkToken(req);
+  if (!token) {
+    res.status(401).json({ error: { code: "TOKEN_REQUIRED", message: "A TableLink token is required." } });
+    return;
+  }
+
+  const access = await resolvePublicTableLinkAccess({
+    eventId: req.params.eventId,
+    tableUid: req.params.tableUid,
+    token,
+  });
+  if (!access) {
+    res.status(403).json({ error: { code: "ACCESS_DENIED", message: "Invalid, expired, or revoked access token." } });
+    return;
+  }
+
+  if (access.table.status === "LOCKED") {
+    res.status(423).json({ error: { code: "TABLE_LOCKED", message: "This table is locked for host edits." } });
+    return;
+  }
+
+  const updated = await updateEventTable(access.tableId, {
+    ...(req.body.hostName !== undefined && { hostName: req.body.hostName }),
+    ...(req.body.hostPhone !== undefined && { hostPhone: req.body.hostPhone }),
+    ...(req.body.notes !== undefined && { notes: req.body.notes }),
+    ...(req.body.status !== undefined && { status: req.body.status }),
+  });
+
+  res.json(updated);
+});
+
+/**
+ * POST /api/events/public/tablelink/:eventId/:tableUid/invite-guest
+ * Create invite token from the public TableLink host portal.
+ */
+router.post("/public/tablelink/:eventId/:tableUid/invite-guest", async (req, res, next) => {
+  if (req.params.eventId === "invites") {
+    next();
+    return;
+  }
+
+  const token = getPublicTableLinkToken(req);
+  if (!token) {
+    res.status(401).json({ error: { code: "TOKEN_REQUIRED", message: "A TableLink token is required." } });
+    return;
+  }
+
+  const access = await resolvePublicTableLinkAccess({
+    eventId: req.params.eventId,
+    tableUid: req.params.tableUid,
+    token,
+  });
+  if (!access) {
+    res.status(403).json({ error: { code: "ACCESS_DENIED", message: "Invalid, expired, or revoked access token." } });
+    return;
+  }
+
+  if (access.table.status === "LOCKED") {
+    res.status(423).json({ error: { code: "TABLE_LOCKED", message: "This table is locked for host edits." } });
+    return;
+  }
+
+  const created = await createGuestInvite({
+    eventId: access.eventId,
+    tableId: access.tableId,
+    seatId: req.body?.seatId,
+    invitedByHostEmail: access.hostEmail,
+    inviteEmail: req.body?.inviteEmail,
+    invitePhone: req.body?.invitePhone,
+  });
+
+  res.status(201).json(created);
+});
+
+/** POST /api/events/public/tablelink/invites/:token/opened — mark guest invite as opened from public link. */
+router.post("/public/tablelink/invites/:token/opened", async (req, res) => {
+  const token = String(req.params.token ?? "").trim();
+  if (!token) {
+    res.status(400).json({ error: { code: "INVALID_INPUT", message: "Invite token is required." } });
+    return;
+  }
+
+  const result = await markGuestInviteOpened(token);
+  res.json({ updated: result.count });
+});
+
+/**
+ * GET /api/events/public/tablelink/invites/:token
+ * Read one invite snapshot for guest self-entry pages and mark first-open state.
+ */
+router.get("/public/tablelink/invites/:token", async (req, res) => {
+  const token = String(req.params.token ?? "").trim();
+  if (!token) {
+    res.status(400).json({ error: { code: "INVALID_INPUT", message: "Invite token is required." } });
+    return;
+  }
+
+  await markGuestInviteOpened(token);
+
+  const digest = createHash("sha256").update(token).digest("hex");
+  const invite = await prisma.eventGuestInvite.findFirst({
+    where: { tokenHash: digest },
+    include: {
+      event: { select: { id: true, name: true, startDate: true } },
+      table: { select: { id: true, name: true, tableUid: true, publicCode: true } },
+      seat: { select: { id: true, seatNumber: true, status: true } },
+      guest: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
+    },
+  });
+
+  if (!invite) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Invite not found." } });
+    return;
+  }
+
+  const expired = Boolean(invite.expiresAt && invite.expiresAt.getTime() < Date.now());
+  const effectiveStatus = expired && invite.status !== "COMPLETED" && invite.status !== "CANCELLED"
+    ? "EXPIRED"
+    : invite.status;
+
+  if (expired && invite.status !== "EXPIRED" && invite.status !== "COMPLETED" && invite.status !== "CANCELLED") {
+    await prisma.eventGuestInvite.update({ where: { id: invite.id }, data: { status: "EXPIRED" } });
+  }
+
+  res.json({
+    invite: {
+      id: invite.id,
+      status: effectiveStatus,
+      inviteEmail: invite.inviteEmail,
+      invitePhone: invite.invitePhone,
+      openedAt: invite.openedAt,
+      completedAt: invite.completedAt,
+      expiresAt: invite.expiresAt,
+      event: invite.event,
+      table: invite.table,
+      seat: invite.seat,
+      guest: invite.guest,
+    },
+  });
+});
+
+/**
+ * POST /api/events/public/tablelink/invites/:token/complete
+ * Complete guest self-entry from invite link and queue a confirmation email log.
+ */
+router.post("/public/tablelink/invites/:token/complete", async (req, res) => {
+  const token = String(req.params.token ?? "").trim();
+  if (!token) {
+    res.status(400).json({ error: { code: "INVALID_INPUT", message: "Invite token is required." } });
+    return;
+  }
+
+  const firstName = String(req.body?.firstName ?? "").trim();
+  const lastName = String(req.body?.lastName ?? "").trim();
+  const email = String(req.body?.email ?? "").trim();
+  const phone = String(req.body?.phone ?? "").trim();
+  const dietaryRestrictions = String(req.body?.dietaryRestrictions ?? "").trim();
+  const specialNeeds = String(req.body?.specialNeeds ?? "").trim();
+  const notes = String(req.body?.notes ?? "").trim();
+
+  if (!firstName || !lastName) {
+    res.status(400).json({ error: { code: "INVALID_INPUT", message: "First and last name are required." } });
+    return;
+  }
+  if (!email && !phone) {
+    res.status(400).json({ error: { code: "INVALID_INPUT", message: "Email or phone is required." } });
+    return;
+  }
+
+  const digest = createHash("sha256").update(token).digest("hex");
+  const invite = await prisma.eventGuestInvite.findFirst({
+    where: { tokenHash: digest },
+    select: {
+      id: true,
+      eventId: true,
+      tableId: true,
+      status: true,
+      expiresAt: true,
+      inviteEmail: true,
+      guestId: true,
+    },
+  });
+
+  if (!invite) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Invite not found." } });
+    return;
+  }
+
+  if (invite.status === "CANCELLED") {
+    res.status(410).json({ error: { code: "INVITE_CANCELLED", message: "This invitation is no longer active." } });
+    return;
+  }
+  if (invite.status === "COMPLETED") {
+    res.status(409).json({ error: { code: "INVITE_COMPLETED", message: "This invitation has already been completed." } });
+    return;
+  }
+  if (invite.expiresAt && invite.expiresAt.getTime() < Date.now()) {
+    if (invite.status !== "EXPIRED") {
+      await prisma.eventGuestInvite.update({ where: { id: invite.id }, data: { status: "EXPIRED" } });
+    }
+    res.status(410).json({ error: { code: "INVITE_EXPIRED", message: "This invitation has expired." } });
+    return;
+  }
+
+  try {
+    const guest = await completeGuestInvite({
+      token,
+      firstName,
+      lastName,
+      email: email || undefined,
+      phone: phone || undefined,
+      dietaryRestrictions: dietaryRestrictions || undefined,
+      specialNeeds: specialNeeds || undefined,
+      notes: notes || undefined,
+    });
+
+    const confirmationRecipient = String(guest.email ?? invite.inviteEmail ?? "").trim().toLowerCase();
+    if (confirmationRecipient) {
+      await createEventEmailLog({
+        eventId: invite.eventId,
+        tableId: invite.tableId,
+        inviteId: invite.id,
+        guestId: guest.id,
+        type: "GUEST_CONFIRMATION",
+        recipientEmail: confirmationRecipient,
+        subject: "Event registration confirmed",
+      });
+    }
+
+    res.json({ ok: true, guest });
+  } catch (error) {
+    res.status(400).json({
+      error: {
+        code: "INVITE_COMPLETE_FAILED",
+        message: error instanceof Error ? error.message : "Unable to complete invitation.",
+      },
+    });
+  }
+});
 
 // All event routes require authentication.
 router.use(requireAuth);
@@ -2642,7 +3052,21 @@ router.post("/:eventId/tables", async (req, res) => {
     return;
   }
 
-  const { name, capacity, notes, tableNumber, isSponsored, hostName, xPosition, yPosition, shape } = req.body;
+  const {
+    name,
+    capacity,
+    notes,
+    tableNumber,
+    isSponsored,
+    sponsorName,
+    hostName,
+    hostEmail,
+    hostPhone,
+    xPosition,
+    yPosition,
+    shape,
+    status,
+  } = req.body;
 
   const parsedTableNumber =
     tableNumber === undefined
@@ -2662,19 +3086,33 @@ router.post("/:eventId/tables", async (req, res) => {
     return;
   }
 
-  const table = await prisma.eventTable.create({
-    data: {
-      eventId: req.params.eventId,
-      name,
-      capacity: capacity ?? 10,
-      notes: notes ?? undefined,
-      tableNumber: parsedTableNumber,
-      isSponsored: isSponsored ?? false,
-      hostName: hostName ?? undefined,
-      xPosition: xPosition ?? 0,
-      yPosition: yPosition ?? 0,
-      shape: shape ?? "round",
-    },
+  const created = await createEventTable({
+    eventId: req.params.eventId,
+    name,
+    capacity: capacity ?? 10,
+    notes: notes ?? undefined,
+    tableNumber: parsedTableNumber,
+    isSponsored: isSponsored ?? false,
+    sponsorName: sponsorName ?? undefined,
+    hostName: hostName ?? undefined,
+    hostEmail: hostEmail ?? undefined,
+    hostPhone: hostPhone ?? undefined,
+    shape: shape ?? "round",
+    xPosition: xPosition ?? 0,
+    yPosition: yPosition ?? 0,
+  });
+
+  if (status && created) {
+    await updateEventTable(created.id, { status });
+  }
+
+  if (!created) {
+    res.status(500).json({ error: { code: "CREATE_FAILED", message: "Failed to create table." } });
+    return;
+  }
+
+  const table = await prisma.eventTable.findUnique({
+    where: { id: created.id },
     include: {
       guests: {
         include: {
@@ -2708,7 +3146,21 @@ router.patch("/tables/:tableId", async (req, res) => {
     return;
   }
 
-  const { name, capacity, notes, tableNumber, isSponsored, hostName, xPosition, yPosition, shape } = req.body;
+  const {
+    name,
+    capacity,
+    notes,
+    tableNumber,
+    isSponsored,
+    sponsorName,
+    hostName,
+    hostEmail,
+    hostPhone,
+    xPosition,
+    yPosition,
+    shape,
+    status,
+  } = req.body;
 
   const parsedTableNumber =
     tableNumber === undefined
@@ -2728,20 +3180,30 @@ router.patch("/tables/:tableId", async (req, res) => {
     return;
   }
 
-  const updated = await prisma.eventTable.update({
+  await updateEventTable(req.params.tableId, {
+    ...(name !== undefined && { name }),
+    ...(capacity !== undefined && { capacity }),
+    ...(notes !== undefined && { notes }),
+    ...(parsedTableNumber !== undefined && { tableNumber: parsedTableNumber }),
+    ...(isSponsored !== undefined && { isSponsored }),
+    ...(sponsorName !== undefined && { sponsorName }),
+    ...(hostName !== undefined && { hostName }),
+    ...(hostEmail !== undefined && { hostEmail }),
+    ...(hostPhone !== undefined && { hostPhone }),
+    ...(xPosition !== undefined && { xPosition }),
+    ...(yPosition !== undefined && { yPosition }),
+    ...(shape !== undefined && { shape }),
+    ...(status !== undefined && { status }),
+  });
+
+  if (capacity !== undefined) {
+    await syncEventTableSeats(req.params.tableId);
+  }
+
+  const updated = await prisma.eventTable.findUnique({
     where: { id: req.params.tableId },
-    data: {
-      ...(name !== undefined && { name }),
-      ...(capacity !== undefined && { capacity }),
-      ...(notes !== undefined && { notes }),
-      ...(parsedTableNumber !== undefined && { tableNumber: parsedTableNumber }),
-      ...(isSponsored !== undefined && { isSponsored }),
-      ...(hostName !== undefined && { hostName }),
-      ...(xPosition !== undefined && { xPosition }),
-      ...(yPosition !== undefined && { yPosition }),
-      ...(shape !== undefined && { shape }),
-    },
     include: {
+      seats: { orderBy: { seatNumber: "asc" } },
       guests: {
         include: {
           constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -2749,7 +3211,7 @@ router.patch("/tables/:tableId", async (req, res) => {
           order: { select: { id: true, orderNumber: true, status: true } },
         },
       },
-      _count: { select: { guests: true } },
+      _count: { select: { guests: true, seats: true } },
     },
   });
 
@@ -2774,14 +3236,160 @@ router.delete("/tables/:tableId", async (req, res) => {
     return;
   }
 
-  // Unassign all guests from this table before deleting
-  await prisma.eventGuest.updateMany({
-    where: { tableId: req.params.tableId },
-    data: { tableId: null },
+  // Clear dependents introduced by TableLink schema before deleting table.
+  await prisma.$transaction(async (tx) => {
+    await tx.eventGuest.updateMany({
+      where: { tableId: req.params.tableId },
+      data: { tableId: null, seatId: null, seatNumber: null },
+    });
+    await tx.eventGuestInvite.deleteMany({ where: { tableId: req.params.tableId } });
+    await tx.eventTableAccessToken.deleteMany({ where: { tableId: req.params.tableId } });
+    await tx.eventTableSeat.deleteMany({ where: { tableId: req.params.tableId } });
+    await tx.eventTable.delete({ where: { id: req.params.tableId } });
   });
 
-  await prisma.eventTable.delete({ where: { id: req.params.tableId } });
   res.json({ message: "Table deleted" });
+});
+
+/** POST /api/events/:eventId/tables/:tableId/seats/sync — sync seat records to table capacity. */
+router.post("/:eventId/tables/:tableId/seats/sync", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const table = await prisma.eventTable.findFirst({
+    where: { id: req.params.tableId, eventId: req.params.eventId, event: { organizationId } },
+    select: { id: true },
+  });
+  if (!table) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Table not found" } });
+    return;
+  }
+
+  const synced = await syncEventTableSeats(table.id);
+  res.json(synced);
+});
+
+/** GET /api/events/:eventId/tables/:tableId/seats — list seats for one table. */
+router.get("/:eventId/tables/:tableId/seats", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const table = await prisma.eventTable.findFirst({
+    where: { id: req.params.tableId, eventId: req.params.eventId, event: { organizationId } },
+    select: { id: true },
+  });
+  if (!table) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Table not found" } });
+    return;
+  }
+
+  const seats = await prisma.eventTableSeat.findMany({
+    where: { tableId: table.id, eventId: req.params.eventId },
+    include: { guest: true },
+    orderBy: { seatNumber: "asc" },
+  });
+  res.json(seats);
+});
+
+/** POST /api/events/:eventId/seats/:seatId/assign-guest — assign guest to one seat. */
+router.post("/:eventId/seats/:seatId/assign-guest", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({ where: { id: req.params.eventId, organizationId }, select: { id: true } });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const guestId = String(req.body.guestId ?? "").trim();
+  if (!guestId) {
+    res.status(400).json({ error: { code: "INVALID_INPUT", message: "guestId is required" } });
+    return;
+  }
+
+  const result = await assignGuestToSeat({ eventId: event.id, seatId: req.params.seatId, guestId });
+  res.json(result);
+});
+
+/** POST /api/events/:eventId/seats/:seatId/clear — clear seat assignment. */
+router.post("/:eventId/seats/:seatId/clear", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({ where: { id: req.params.eventId, organizationId }, select: { id: true } });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const result = await clearSeat({ eventId: event.id, seatId: req.params.seatId });
+  res.json(result);
+});
+
+/** PATCH /api/events/:eventId/seats/:seatId — patch seat metadata/status. */
+router.patch("/:eventId/seats/:seatId", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const seat = await prisma.eventTableSeat.findFirst({
+    where: { id: req.params.seatId, eventId: req.params.eventId, event: { organizationId } },
+  });
+  if (!seat) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Seat not found" } });
+    return;
+  }
+
+  const updated = await prisma.eventTableSeat.update({
+    where: { id: seat.id },
+    data: {
+      ...(req.body.status !== undefined && { status: req.body.status }),
+      ...(req.body.notes !== undefined && { notes: req.body.notes }),
+    },
+    include: { guest: true },
+  });
+
+  res.json(updated);
+});
+
+/** POST /api/events/:eventId/seats/move-guest — move guest to a target seat. */
+router.post("/:eventId/seats/move-guest", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({ where: { id: req.params.eventId, organizationId }, select: { id: true } });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const guestId = String(req.body.guestId ?? "").trim();
+  const toSeatId = String(req.body.toSeatId ?? "").trim();
+  if (!guestId || !toSeatId) {
+    res.status(400).json({ error: { code: "INVALID_INPUT", message: "guestId and toSeatId are required" } });
+    return;
+  }
+
+  const result = await moveGuestToSeat({ eventId: event.id, guestId, toSeatId });
+  res.json(result);
 });
 
 /** PATCH /api/events/guests/:guestId/assign-table — Assign or unassign a guest to a table. */
@@ -2848,15 +3456,29 @@ router.post("/guests/:guestId/check-in", async (req, res) => {
     return;
   }
 
-  const { checkedIn } = req.body;
+  const { checkedIn, method, checkInDeviceId, notes } = req.body;
   const newStatus = checkedIn !== undefined ? checkedIn : !guest.checkedIn;
 
-  const updated = await prisma.eventGuest.update({
+  if (newStatus) {
+    await createCheckInRecord({
+      eventId: guest.eventId,
+      guestId: guest.id,
+      method: method ?? "MANUAL",
+      checkedInByUserId: req.user?.sub,
+      checkInDeviceId,
+      notes,
+    });
+  } else {
+    await reverseCheckIn({
+      eventId: guest.eventId,
+      guestId: guest.id,
+      reversedByUserId: req.user?.sub,
+      notes,
+    });
+  }
+
+  const updated = await prisma.eventGuest.findUnique({
     where: { id: req.params.guestId },
-    data: {
-      checkedIn: newStatus,
-      checkedInAt: newStatus ? new Date() : null,
-    },
     include: {
       event: { select: { id: true, name: true, startDate: true } },
       constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -2865,6 +3487,11 @@ router.post("/guests/:guestId/check-in", async (req, res) => {
       table: { select: { id: true, name: true } },
     },
   });
+
+  if (!updated) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Guest not found after check-in update" } });
+    return;
+  }
 
   // Log activity for linked constituents when they check in (donor sync)
   if (newStatus && updated.constituentId) {
@@ -2884,6 +3511,738 @@ router.post("/guests/:guestId/check-in", async (req, res) => {
   }
 
   res.json(updated);
+});
+
+/** GET /api/events/:eventId/checkin/live-counts — Event-day live check-in counters. */
+router.get("/:eventId/checkin/live-counts", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({ where: { id: req.params.eventId, organizationId }, select: { id: true } });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const counts = await getCheckInLiveCounts(event.id);
+  res.json(counts);
+});
+
+/** POST /api/events/:eventId/checkin/exceptions — Create event-day exception queue item. */
+router.post("/:eventId/checkin/exceptions", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({ where: { id: req.params.eventId, organizationId }, select: { id: true } });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const created = await createCheckInException({
+    eventId: event.id,
+    guestId: req.body.guestId,
+    tableId: req.body.tableId,
+    seatId: req.body.seatId,
+    guestName: req.body.guestName,
+    claimedTable: req.body.claimedTable,
+    claimedEmail: req.body.claimedEmail,
+    claimedPhone: req.body.claimedPhone,
+    issueType: req.body.issueType ?? "OTHER",
+    notes: req.body.notes,
+    createdByUserId: req.user?.sub,
+  });
+
+  res.status(201).json(created);
+});
+
+/** GET /api/events/:eventId/checkin/exceptions — List exception queue entries. */
+router.get("/:eventId/checkin/exceptions", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({ where: { id: req.params.eventId, organizationId }, select: { id: true } });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const exceptions = await listCheckInExceptions(event.id, req.query.status as any);
+  res.json(exceptions);
+});
+
+/** POST /api/events/:eventId/checkin/exceptions/:exceptionId/resolve — Resolve exception. */
+router.post("/:eventId/checkin/exceptions/:exceptionId/resolve", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const resolved = await resolveCheckInException({
+    exceptionId: req.params.exceptionId,
+    resolvedByUserId: req.user?.sub,
+    notes: req.body.notes,
+  });
+
+  if (!resolved) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Exception not found" } });
+    return;
+  }
+
+  res.json(resolved);
+});
+
+/** POST /api/events/:eventId/checkin/exceptions/:exceptionId/dismiss — Dismiss exception. */
+router.post("/:eventId/checkin/exceptions/:exceptionId/dismiss", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const dismissed = await dismissCheckInException({
+    exceptionId: req.params.exceptionId,
+    resolvedByUserId: req.user?.sub,
+    notes: req.body.notes,
+  });
+
+  if (!dismissed) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Exception not found" } });
+    return;
+  }
+
+  res.json(dismissed);
+});
+
+/** GET /api/events/:eventId/emails/logs — Event email delivery history. */
+router.get("/:eventId/emails/logs", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({ where: { id: req.params.eventId, organizationId }, select: { id: true } });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const logs = await listEventEmailLogs(event.id);
+  res.json(logs);
+});
+
+/** POST /api/events/:eventId/tablelink/request-access — issue host access token for a table by public code/email. */
+router.post("/:eventId/tablelink/request-access", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({ where: { id: req.params.eventId, organizationId }, select: { id: true, name: true } });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const tableKey = String(req.body.tableKey ?? "").trim();
+  const email = String(req.body.email ?? "").trim().toLowerCase();
+  if (!tableKey || !email) {
+    res.status(400).json({ error: { code: "INVALID_INPUT", message: "tableKey and email are required" } });
+    return;
+  }
+
+  const table = await prisma.eventTable.findFirst({
+    where: {
+      eventId: event.id,
+      OR: [{ publicCode: tableKey }, { tableUid: tableKey }],
+    },
+  });
+  if (!table) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Table not found" } });
+    return;
+  }
+
+  const hostEmail = String(table.hostEmail ?? "").trim().toLowerCase();
+  if (!hostEmail || hostEmail !== email) {
+    res.status(403).json({ error: { code: "ACCESS_DENIED", message: "Email does not match table host." } });
+    return;
+  }
+
+  const tokenResult = await issueTableLinkAccessToken({ eventId: event.id, tableId: table.id, hostEmail: email });
+  res.json({
+    ok: true,
+    // TODO: backend email delivery needed; returning token to unblock internal testing paths.
+    token: tokenResult.token,
+    expiresAt: tokenResult.expiresAt,
+    tableUid: table.tableUid,
+  });
+});
+
+/** POST /api/events/:eventId/tablelink/verify-token — validate and consume host access token. */
+router.post("/:eventId/tablelink/verify-token", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({ where: { id: req.params.eventId, organizationId }, select: { id: true } });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const token = String(req.body.token ?? "").trim();
+  if (!token) {
+    res.status(400).json({ error: { code: "INVALID_INPUT", message: "token is required" } });
+    return;
+  }
+
+  const verified = await verifyTableLinkAccessToken({ eventId: event.id, token });
+  if (!verified) {
+    res.status(403).json({ error: { code: "ACCESS_DENIED", message: "Token is invalid or expired." } });
+    return;
+  }
+
+  res.json({ ok: true, tableUid: verified.table.tableUid, tableId: verified.table.id });
+});
+
+/** GET /api/events/:eventId/tablelink/:tableUid — fetch host-scoped table details. */
+router.get("/:eventId/tablelink/:tableUid", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const table = await prisma.eventTable.findFirst({
+    where: {
+      eventId: req.params.eventId,
+      tableUid: req.params.tableUid,
+      event: { organizationId },
+    },
+    include: {
+      seats: { include: { guest: true }, orderBy: { seatNumber: "asc" } },
+      guestInvites: { orderBy: { createdAt: "desc" }, take: 50 },
+    },
+  });
+
+  if (!table) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Table not found" } });
+    return;
+  }
+
+  res.json(table);
+});
+
+/** PATCH /api/events/:eventId/tablelink/:tableUid — update host-managed table details. */
+router.patch("/:eventId/tablelink/:tableUid", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const table = await prisma.eventTable.findFirst({
+    where: {
+      eventId: req.params.eventId,
+      tableUid: req.params.tableUid,
+      event: { organizationId },
+    },
+  });
+  if (!table) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Table not found" } });
+    return;
+  }
+  const requestedStatus = typeof req.body.status === "string" ? req.body.status : undefined;
+  const allowStatusUnlockOnly = table.status === "LOCKED" && requestedStatus === "OPEN";
+  if (table.status === "LOCKED" && !allowStatusUnlockOnly) {
+    res.status(423).json({ error: { code: "TABLE_LOCKED", message: "Table is locked for editing." } });
+    return;
+  }
+
+  const updated = await updateEventTable(table.id, {
+    ...(req.body.notes !== undefined && { notes: req.body.notes }),
+    ...(req.body.hostName !== undefined && { hostName: req.body.hostName }),
+    ...(req.body.hostPhone !== undefined && { hostPhone: req.body.hostPhone }),
+    ...(req.body.status !== undefined && { status: req.body.status }),
+  });
+
+  res.json(updated);
+});
+
+/** POST /api/events/:eventId/tablelink/:tableUid/invite-guest — create invite token for a seat/guest. */
+router.post("/:eventId/tablelink/:tableUid/invite-guest", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const table = await prisma.eventTable.findFirst({
+    where: { eventId: req.params.eventId, tableUid: req.params.tableUid, event: { organizationId } },
+    select: { id: true, eventId: true },
+  });
+  if (!table) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Table not found" } });
+    return;
+  }
+
+  const created = await createGuestInvite({
+    eventId: table.eventId,
+    tableId: table.id,
+    seatId: req.body.seatId,
+    invitedByUserId: req.user?.sub,
+    invitedByHostEmail: req.body.invitedByHostEmail,
+    inviteEmail: req.body.inviteEmail,
+    invitePhone: req.body.invitePhone,
+  });
+
+  res.status(201).json(created);
+});
+
+/** POST /api/events/:eventId/tablelink/invites/:token/opened — mark invite as opened. */
+router.post("/:eventId/tablelink/invites/:token/opened", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({ where: { id: req.params.eventId, organizationId }, select: { id: true } });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const result = await markGuestInviteOpened(req.params.token);
+  res.json({ updated: result.count });
+});
+
+/** GET /api/events/:eventId/tablelink/invites/:token — read invite status for guest self-entry. */
+router.get("/:eventId/tablelink/invites/:token", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const token = req.params.token;
+  const opened = await markGuestInviteOpened(token);
+  if (opened.count === 0) {
+    // token may already be completed/expired; still return snapshot if present.
+  }
+
+  const digest = createHash("sha256").update(token).digest("hex");
+  const invite = await prisma.eventGuestInvite.findFirst({
+    where: { eventId: req.params.eventId, tokenHash: digest, event: { organizationId } },
+    include: { table: { select: { id: true, name: true, tableUid: true, publicCode: true } }, seat: true, guest: true },
+  });
+  if (!invite) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Invite not found" } });
+    return;
+  }
+
+  res.json(invite);
+});
+
+/** POST /api/events/:eventId/tablelink/invites/:token/complete — complete guest invite profile form. */
+router.post("/:eventId/tablelink/invites/:token/complete", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({ where: { id: req.params.eventId, organizationId }, select: { id: true } });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  try {
+    const guest = await completeGuestInvite({
+      token: req.params.token,
+      firstName: req.body.firstName,
+      lastName: req.body.lastName,
+      email: req.body.email,
+      phone: req.body.phone,
+      mealPreference: req.body.mealPreference,
+      dietaryRestrictions: req.body.dietaryRestrictions,
+      specialNeeds: req.body.specialNeeds,
+      notes: req.body.notes,
+    });
+    res.json(guest);
+  } catch (error) {
+    res.status(400).json({ error: { code: "INVITE_COMPLETE_FAILED", message: error instanceof Error ? error.message : "Unable to complete invite" } });
+  }
+});
+
+/** POST /api/events/:eventId/tablelink/invites/:inviteId/resend — issue a replacement invite token. */
+router.post("/:eventId/tablelink/invites/:inviteId/resend", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const invite = await prisma.eventGuestInvite.findFirst({
+    where: { id: req.params.inviteId, eventId: req.params.eventId, event: { organizationId } },
+  });
+  if (!invite) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Invite not found" } });
+    return;
+  }
+
+  const replacement = await createGuestInvite({
+    eventId: invite.eventId,
+    tableId: invite.tableId,
+    seatId: invite.seatId ?? undefined,
+    invitedByUserId: req.user?.sub,
+    invitedByHostEmail: invite.invitedByHostEmail ?? undefined,
+    inviteEmail: invite.inviteEmail ?? undefined,
+    invitePhone: invite.invitePhone ?? undefined,
+  });
+
+  await prisma.eventGuestInvite.update({ where: { id: invite.id }, data: { status: "CANCELLED" } });
+  res.json(replacement);
+});
+
+/** POST /api/events/:eventId/tablelink/invites/:inviteId/cancel — cancel invite token. */
+router.post("/:eventId/tablelink/invites/:inviteId/cancel", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const invite = await prisma.eventGuestInvite.findFirst({
+    where: { id: req.params.inviteId, eventId: req.params.eventId, event: { organizationId } },
+    select: { id: true },
+  });
+  if (!invite) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Invite not found" } });
+    return;
+  }
+
+  const cancelled = await prisma.eventGuestInvite.update({ where: { id: invite.id }, data: { status: "CANCELLED" } });
+  res.json(cancelled);
+});
+
+/** POST /api/events/:eventId/tablelink/:tableUid/revoke-access — revoke existing active tokens for this table. */
+router.post("/:eventId/tablelink/:tableUid/revoke-access", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const table = await prisma.eventTable.findFirst({
+    where: { eventId: req.params.eventId, tableUid: req.params.tableUid, event: { organizationId } },
+    select: { id: true },
+  });
+  if (!table) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Table not found" } });
+    return;
+  }
+
+  const result = await revokeTableLinkAccessTokens(table.id);
+  res.json({ revoked: result.count });
+});
+
+/** GET /api/events/:eventId/checkin/search — search guests for event-day check-in. */
+router.get("/:eventId/checkin/search", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({ where: { id: req.params.eventId, organizationId }, select: { id: true } });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const query = typeof req.query.q === "string" ? req.query.q : undefined;
+  const guests = await listEventGuests(event.id, query);
+  res.json(guests);
+});
+
+/** POST /api/events/:eventId/checkin/guest/:guestId — check in a specific guest (canonical endpoint). */
+router.post("/:eventId/checkin/guest/:guestId", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const guest = await prisma.eventGuest.findFirst({ where: { id: req.params.guestId, eventId: req.params.eventId, event: { organizationId } } });
+  if (!guest) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Guest not found" } });
+    return;
+  }
+
+  const record = await createCheckInRecord({
+    eventId: req.params.eventId,
+    guestId: guest.id,
+    method: req.body?.method ?? "MANUAL",
+    checkedInByUserId: req.user?.sub,
+    checkInDeviceId: req.body?.checkInDeviceId,
+    notes: req.body?.notes,
+  });
+
+  res.json(record);
+});
+
+/** POST /api/events/:eventId/checkin/guest/:guestId/reverse — reverse check-in for one guest. */
+router.post("/:eventId/checkin/guest/:guestId/reverse", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const guest = await prisma.eventGuest.findFirst({ where: { id: req.params.guestId, eventId: req.params.eventId, event: { organizationId } } });
+  if (!guest) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Guest not found" } });
+    return;
+  }
+
+  const reversed = await reverseCheckIn({ eventId: req.params.eventId, guestId: guest.id, reversedByUserId: req.user?.sub, notes: req.body?.notes });
+  if (!reversed) {
+    res.status(409).json({ error: { code: "NOT_CHECKED_IN", message: "Guest is not currently checked in." } });
+    return;
+  }
+  res.json(reversed);
+});
+
+/** POST /api/events/:eventId/checkin/walk-in — create and check in a walk-in guest. */
+router.post("/:eventId/checkin/walk-in", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({ where: { id: req.params.eventId, organizationId }, select: { id: true } });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const guest = await createWalkInGuest({
+    eventId: event.id,
+    firstName: req.body.firstName,
+    lastName: req.body.lastName,
+    email: req.body.email,
+    phone: req.body.phone,
+    tableId: req.body.tableId,
+    seatId: req.body.seatId,
+    notes: req.body.notes,
+  });
+
+  const checkInRecord = await createCheckInRecord({
+    eventId: event.id,
+    guestId: guest.id,
+    method: "WALK_IN",
+    checkedInByUserId: req.user?.sub,
+    checkInDeviceId: req.body.checkInDeviceId,
+    notes: req.body.notes,
+  });
+
+  res.status(201).json({ guest, checkInRecord });
+});
+
+/** POST /api/events/:eventId/checkin/replacement — create and check in replacement guest. */
+router.post("/:eventId/checkin/replacement", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({ where: { id: req.params.eventId, organizationId }, select: { id: true } });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const guest = await prisma.eventGuest.create({
+    data: {
+      eventId: event.id,
+      tableId: req.body.tableId,
+      seatId: req.body.seatId,
+      firstName: req.body.firstName,
+      lastName: req.body.lastName,
+      email: req.body.email,
+      phone: req.body.phone,
+      source: "REPLACEMENT",
+      rsvpStatus: "CONFIRMED",
+      checkinCode: Math.random().toString(36).slice(2, 8).toUpperCase(),
+    },
+  });
+
+  const checkInRecord = await createCheckInRecord({
+    eventId: event.id,
+    guestId: guest.id,
+    method: "REPLACEMENT",
+    checkedInByUserId: req.user?.sub,
+    checkInDeviceId: req.body.checkInDeviceId,
+    notes: req.body.notes,
+  });
+
+  res.status(201).json({ guest, checkInRecord });
+});
+
+/** POST /api/events/:eventId/checkin/table/:tableId/bulk — check in multiple guests for one table. */
+router.post("/:eventId/checkin/table/:tableId/bulk", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const table = await prisma.eventTable.findFirst({
+    where: { id: req.params.tableId, eventId: req.params.eventId, event: { organizationId } },
+    include: { guests: true },
+  });
+  if (!table) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Table not found" } });
+    return;
+  }
+
+  const requestedGuestIds = Array.isArray(req.body.guestIds) ? (req.body.guestIds as string[]) : table.guests.map((g) => g.id);
+  const checkIns = [] as Array<{ guestId: string; status: string }>;
+  for (const guestId of requestedGuestIds) {
+    try {
+      const record = await createCheckInRecord({
+        eventId: req.params.eventId,
+        guestId,
+        method: "BULK_TABLE",
+        checkedInByUserId: req.user?.sub,
+        checkInDeviceId: req.body.checkInDeviceId,
+      });
+      checkIns.push({ guestId, status: record.status });
+    } catch {
+      checkIns.push({ guestId, status: "FAILED" });
+    }
+  }
+
+  res.json({ tableId: table.id, results: checkIns });
+});
+
+/** POST /api/events/:eventId/checkin/verify-token — verify QR/check-in code and return guest snapshot. */
+router.post("/:eventId/checkin/verify-token", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const code = String(req.body.code ?? "").trim().toUpperCase();
+  if (!code) {
+    res.status(400).json({ error: { code: "INVALID_INPUT", message: "code is required" } });
+    return;
+  }
+
+  const guest = await prisma.eventGuest.findFirst({
+    where: { eventId: req.params.eventId, checkinCode: code, event: { organizationId } },
+    include: { table: true, seat: true },
+  });
+  if (!guest) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Guest not found for this code" } });
+    return;
+  }
+
+  res.json(guest);
+});
+
+/** POST /api/events/:eventId/emails/host-access — queue host access email log entry. */
+router.post("/:eventId/emails/host-access", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const log = await createEventEmailLog({
+    eventId: req.params.eventId,
+    tableId: req.body.tableId,
+    type: "HOST_ACCESS",
+    recipientEmail: req.body.recipientEmail,
+    subject: req.body.subject ?? "Manage Your Event Table",
+  });
+  res.status(201).json(log);
+});
+
+/** POST /api/events/:eventId/emails/guest-invite — queue guest invite email log entry. */
+router.post("/:eventId/emails/guest-invite", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const log = await createEventEmailLog({
+    eventId: req.params.eventId,
+    tableId: req.body.tableId,
+    guestId: req.body.guestId,
+    inviteId: req.body.inviteId,
+    type: "GUEST_INVITE",
+    recipientEmail: req.body.recipientEmail,
+    subject: req.body.subject ?? "You're Invited",
+  });
+  res.status(201).json(log);
+});
+
+/** POST /api/events/:eventId/emails/table-reminders — queue table reminder email log entry. */
+router.post("/:eventId/emails/table-reminders", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const log = await createEventEmailLog({
+    eventId: req.params.eventId,
+    tableId: req.body.tableId,
+    type: "TABLE_ROSTER_REMINDER",
+    recipientEmail: req.body.recipientEmail,
+    subject: req.body.subject ?? "Please Complete Your Table Roster",
+  });
+  res.status(201).json(log);
+});
+
+/** POST /api/events/:eventId/emails/checkin-qr — queue check-in QR email log entry. */
+router.post("/:eventId/emails/checkin-qr", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const log = await createEventEmailLog({
+    eventId: req.params.eventId,
+    tableId: req.body.tableId,
+    guestId: req.body.guestId,
+    type: "CHECKIN_QR",
+    recipientEmail: req.body.recipientEmail,
+    subject: req.body.subject ?? "Your Check-In Pass",
+  });
+  res.status(201).json(log);
 });
 
 // ─── Event Reports ───────────────────────────────────────────────────────────
@@ -3217,6 +4576,240 @@ router.get("/:eventId/report", async (req, res) => {
       activities: event._count.activities,
     },
   });
+});
+
+/**
+ * GET /api/events/:eventId/reporting/snapshot — EventSTUDIO Phase 9 reporting dashboard payload.
+ * Includes attendance, table completion, meal counts, exception queue, email delivery, and sponsor table attendance.
+ */
+router.get("/:eventId/reporting/snapshot", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({
+    where: { id: req.params.eventId, organizationId },
+    select: { id: true, name: true, startDate: true },
+  });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const [snapshot, exceptionRows, emailRows, tableRows, mealRows] = await Promise.all([
+    getEventReportingSnapshot(event.id),
+    prisma.eventCheckInException.findMany({
+      where: { eventId: event.id },
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      take: 200,
+    }),
+    prisma.eventEmailLog.findMany({
+      where: { eventId: event.id },
+      orderBy: { createdAt: "desc" },
+      take: 300,
+    }),
+    prisma.eventTable.findMany({
+      where: { eventId: event.id },
+      include: {
+        guests: { select: { id: true, checkedIn: true } },
+      },
+      orderBy: [{ tableNumber: "asc" }, { name: "asc" }],
+    }),
+    prisma.eventGuest.findMany({
+      where: { eventId: event.id },
+      select: { mealPreference: true, dietaryRestrictions: true },
+    }),
+  ]);
+
+  const mealCountsMap = new Map<string, number>();
+  let dietaryRestrictionCount = 0;
+  for (const row of mealRows) {
+    const meal = String(row.mealPreference ?? "").trim();
+    if (meal) {
+      mealCountsMap.set(meal, (mealCountsMap.get(meal) ?? 0) + 1);
+    }
+    if (String(row.dietaryRestrictions ?? "").trim()) {
+      dietaryRestrictionCount += 1;
+    }
+  }
+
+  const mealCounts = Array.from(mealCountsMap.entries())
+    .map(([mealPreference, count]) => ({ mealPreference, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const sponsorTableAttendance = tableRows.map((table) => {
+    const totalGuests = table.guests.length;
+    const checkedInGuests = table.guests.filter((guest) => guest.checkedIn).length;
+    return {
+      tableId: table.id,
+      tableName: table.name,
+      tableNumber: table.tableNumber,
+      tableUid: table.tableUid,
+      isSponsored: table.isSponsored,
+      sponsorName: table.sponsorName,
+      hostName: table.hostName,
+      totalGuests,
+      checkedInGuests,
+      attendanceRate: totalGuests > 0 ? Math.round((checkedInGuests / totalGuests) * 1000) / 10 : 0,
+    };
+  });
+
+  res.json({
+    event,
+    snapshot,
+    meal: {
+      dietaryRestrictionCount,
+      mealCounts,
+    },
+    exceptions: exceptionRows,
+    email: {
+      totals: snapshot.email,
+      logs: emailRows,
+    },
+    sponsorTableAttendance,
+  });
+});
+
+/**
+ * GET /api/events/:eventId/reporting/export/:reportType — CSV exports for reporting datasets.
+ * Supported reportType: attendance, table-completion, meals, exceptions, email-delivery, sponsor-table-attendance
+ */
+router.get("/:eventId/reporting/export/:reportType", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({
+    where: { id: req.params.eventId, organizationId },
+    select: { id: true, name: true },
+  });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const reportType = String(req.params.reportType ?? "").trim().toLowerCase();
+  const safeEventName = event.name.replace(/[^a-z0-9_-]+/gi, "-").toLowerCase();
+
+  let headers: string[] = [];
+  let lines: string[] = [];
+
+  if (reportType === "attendance") {
+    const guests = await prisma.eventGuest.findMany({
+      where: { eventId: event.id },
+      include: {
+        table: { select: { name: true } },
+        ticketType: { select: { name: true } },
+      },
+      orderBy: [{ checkedIn: "desc" }, { lastName: "asc" }, { firstName: "asc" }],
+    });
+    headers = ["Guest Name", "Email", "Phone", "Checked In", "Checked In At", "Source", "Table", "Ticket"];
+    lines = guests.map((guest) => [
+      `${guest.firstName ?? ""} ${guest.lastName ?? ""}`.trim(),
+      guest.email ?? "",
+      guest.phone ?? "",
+      guest.checkedIn ? "Yes" : "No",
+      guest.checkedInAt ? guest.checkedInAt.toISOString() : "",
+      guest.source,
+      guest.table?.name ?? "",
+      guest.ticketType?.name ?? "",
+    ].map((value) => escapeCsv(String(value ?? ""))).join(","));
+  } else if (reportType === "table-completion") {
+    const snapshot = await getEventReportingSnapshot(event.id);
+    headers = ["Table", "Table UID", "Public Code", "Capacity", "Confirmed", "Completion Rate"];
+    lines = snapshot.tableCompletion.map((row) => [
+      row.tableName,
+      row.tableUid,
+      row.publicCode,
+      row.capacity,
+      row.confirmed,
+      `${row.completionRate}%`,
+    ].map((value) => escapeCsv(String(value ?? ""))).join(","));
+  } else if (reportType === "meals") {
+    const guests = await prisma.eventGuest.findMany({
+      where: { eventId: event.id },
+      select: { firstName: true, lastName: true, mealPreference: true, dietaryRestrictions: true, checkedIn: true },
+      orderBy: [{ mealPreference: "asc" }, { lastName: "asc" }, { firstName: "asc" }],
+    });
+    headers = ["Guest Name", "Meal Preference", "Dietary Restrictions", "Checked In"];
+    lines = guests.map((guest) => [
+      `${guest.firstName ?? ""} ${guest.lastName ?? ""}`.trim(),
+      guest.mealPreference ?? "",
+      guest.dietaryRestrictions ?? "",
+      guest.checkedIn ? "Yes" : "No",
+    ].map((value) => escapeCsv(String(value ?? ""))).join(","));
+  } else if (reportType === "exceptions") {
+    const rows = await prisma.eventCheckInException.findMany({
+      where: { eventId: event.id },
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    });
+    headers = ["Created At", "Status", "Issue Type", "Guest Name", "Claimed Table", "Claimed Email", "Claimed Phone", "Notes"];
+    lines = rows.map((row) => [
+      row.createdAt.toISOString(),
+      row.status,
+      row.issueType,
+      row.guestName ?? "",
+      row.claimedTable ?? "",
+      row.claimedEmail ?? "",
+      row.claimedPhone ?? "",
+      row.notes ?? "",
+    ].map((value) => escapeCsv(String(value ?? ""))).join(","));
+  } else if (reportType === "email-delivery") {
+    const rows = await prisma.eventEmailLog.findMany({
+      where: { eventId: event.id },
+      orderBy: { createdAt: "desc" },
+    });
+    headers = ["Created At", "Type", "Recipient", "Status", "Subject", "Error"];
+    lines = rows.map((row) => [
+      row.createdAt.toISOString(),
+      row.type,
+      row.recipientEmail,
+      row.status,
+      row.subject ?? "",
+      row.errorMessage ?? "",
+    ].map((value) => escapeCsv(String(value ?? ""))).join(","));
+  } else if (reportType === "sponsor-table-attendance") {
+    const rows = await prisma.eventTable.findMany({
+      where: { eventId: event.id },
+      include: {
+        guests: { select: { checkedIn: true } },
+      },
+      orderBy: [{ tableNumber: "asc" }, { name: "asc" }],
+    });
+    headers = ["Table", "Table Number", "Sponsored", "Sponsor Name", "Host Name", "Guests", "Checked In", "Attendance Rate"];
+    lines = rows.map((row) => {
+      const totalGuests = row.guests.length;
+      const checkedInGuests = row.guests.filter((guest) => guest.checkedIn).length;
+      const attendanceRate = totalGuests > 0 ? Math.round((checkedInGuests / totalGuests) * 1000) / 10 : 0;
+      return [
+        row.name,
+        row.tableNumber ?? "",
+        row.isSponsored ? "Yes" : "No",
+        row.sponsorName ?? "",
+        row.hostName ?? "",
+        totalGuests,
+        checkedInGuests,
+        `${attendanceRate}%`,
+      ].map((value) => escapeCsv(String(value ?? ""))).join(",");
+    });
+  } else {
+    res.status(400).json({
+      error: {
+        code: "INVALID_REPORT_TYPE",
+        message: "Unsupported report type. Use attendance, table-completion, meals, exceptions, email-delivery, or sponsor-table-attendance.",
+      },
+    });
+    return;
+  }
+
+  const csv = `${headers.join(",")}\n${lines.join("\n")}`;
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename=${safeEventName}-${reportType}.csv`);
+  res.status(200).send(csv);
 });
 
 /**

@@ -106,7 +106,7 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
   }
 
   return (
-    <aside className="min-h-0 border-l border-slate-200 bg-white">
+    <aside className="flex min-h-0 flex-col border-l border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -123,7 +123,7 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
         </div>
       </div>
 
-      <div className="h-[calc(100vh-8rem)] overflow-y-auto px-4 py-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <div className="flex border-b border-slate-200 text-xs font-semibold">
           {["Content", "Design", "Advanced"].map((tabName) => (
             <button

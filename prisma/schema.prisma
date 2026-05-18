@@ -167,6 +167,99 @@ enum EventGuestRsvpStatus {
   WAITLIST
 }
 
+enum EventTableStatus {
+  DRAFT
+  OPEN
+  SUBMITTED
+  LOCKED
+  EVENT_DAY
+  ARCHIVED
+}
+
+enum EventTableSeatStatus {
+  EMPTY
+  RESERVED
+  INVITED
+  CONFIRMED
+  CHECKED_IN
+  CANCELLED
+}
+
+enum EventGuestSource {
+  ADMIN
+  TABLE_HOST
+  GUEST_SELF_ENTRY
+  IMPORT
+  WALK_IN
+  REPLACEMENT
+}
+
+enum EventGuestInviteStatus {
+  CREATED
+  QUEUED
+  SENT
+  OPENED
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
+
+enum EventTableAccessTokenStatus {
+  ACTIVE
+  USED
+  EXPIRED
+  REVOKED
+}
+
+enum EventCheckInMethod {
+  QR_SCAN
+  NAME_SEARCH
+  TABLE_SEARCH
+  MANUAL
+  BULK_TABLE
+  WALK_IN
+  REPLACEMENT
+}
+
+enum EventCheckInStatus {
+  CHECKED_IN
+  REVERSED
+  DUPLICATE_ATTEMPT
+  NEEDS_REVIEW
+}
+
+enum EventCheckInExceptionIssueType {
+  NOT_FOUND
+  DUPLICATE
+  WRONG_TABLE
+  REPLACEMENT
+  UNCONFIRMED
+  NO_TICKET
+  OTHER
+}
+
+enum EventCheckInExceptionStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+enum EventEmailLogType {
+  HOST_ACCESS
+  GUEST_INVITE
+  GUEST_REMINDER
+  GUEST_CONFIRMATION
+  CHECKIN_QR
+  TABLE_ROSTER_REMINDER
+}
+
+enum EventEmailLogStatus {
+  QUEUED
+  SENT
+  FAILED
+  OPENED
+}
+
 enum WebmasterSiteStatus {
   DRAFT
   ACTIVE
@@ -1002,6 +1095,12 @@ model Event {
   orders         EventOrder[]
   guests         EventGuest[]
   tables         EventTable[]
+  tableSeats     EventTableSeat[]
+  guestInvites   EventGuestInvite[]
+  tableAccessTokens EventTableAccessToken[]
+  checkInRecords EventCheckInRecord[]
+  checkInExceptions EventCheckInException[]
+  emailLogs      EventEmailLog[]
   sponsors       EventSponsor[]
   donations      Donation[]
   activities     Activity[]
@@ -1080,6 +1179,7 @@ model EventGuest {
   constituentId String?
   ticketTypeId  String?
   tableId       String?
+  seatId        String? @unique
 
   // Guest details (can be independent of constituent)
   firstName String?
@@ -1104,6 +1204,11 @@ model EventGuest {
   specialNeeds        String?
   notes               String? @db.Text
 
+  // Invite and source tracking
+  source           EventGuestSource @default(ADMIN)
+  qrTokenHash      String?
+  qrTokenExpiresAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1112,26 +1217,209 @@ model EventGuest {
   constituent Constituent? @relation(fields: [constituentId], references: [id])
   ticketType  TicketType?  @relation(fields: [ticketTypeId], references: [id])
   table       EventTable?  @relation(fields: [tableId], references: [id])
+  seat        EventTableSeat? @relation(fields: [seatId], references: [id])
+  invites     EventGuestInvite[]
+  checkInRecords EventCheckInRecord[]
+  checkInExceptions EventCheckInException[]
+  emailLogs   EventEmailLog[]
+
+  @@index([eventId, rsvpStatus])
+  @@index([eventId, source])
+  @@index([tableId])
+  @@index([seatId])
 }
 
 model EventTable {
   id          String   @id @default(cuid())
   eventId     String
+  tableUid    String   @default(cuid()) @unique
+  publicCode  String?
   name        String
   capacity    Int      @default(10)
+  status      EventTableStatus @default(DRAFT)
   notes       String?  @db.Text
   // Seating layout fields (from GalaSoft concepts)
   tableNumber Int?
   isSponsored Boolean  @default(false)
+  sponsorName String?
   hostName    String?
+  hostEmail   String?
+  hostPhone   String?
+  accessTokenHash      String?
+  accessTokenExpiresAt DateTime?
   xPosition   Int      @default(0)
   yPosition   Int      @default(0)
   shape       String   @default("round")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  event  Event        @relation(fields: [eventId], references: [id])
-  guests EventGuest[]
+  event         Event                   @relation(fields: [eventId], references: [id])
+  guests        EventGuest[]
+  seats         EventTableSeat[]
+  guestInvites  EventGuestInvite[]
+  accessTokens  EventTableAccessToken[]
+  checkInRecords EventCheckInRecord[]
+  checkInExceptions EventCheckInException[]
+  emailLogs     EventEmailLog[]
+
+  @@unique([eventId, publicCode])
+  @@index([eventId, status])
+}
+
+model EventTableSeat {
+  id         String             @id @default(cuid())
+  eventId    String
+  tableId    String
+  seatNumber Int
+  status     EventTableSeatStatus @default(EMPTY)
+  notes      String?            @db.Text
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  event       Event             @relation(fields: [eventId], references: [id])
+  table       EventTable        @relation(fields: [tableId], references: [id])
+  guest       EventGuest?
+  invites     EventGuestInvite[]
+  checkInRecords EventCheckInRecord[]
+  checkInExceptions EventCheckInException[]
+
+  @@unique([tableId, seatNumber])
+  @@index([eventId, tableId])
+  @@index([eventId, status])
+}
+
+model EventGuestInvite {
+  id                 String                @id @default(cuid())
+  eventId            String
+  tableId            String
+  seatId             String?
+  guestId            String?
+  invitedByUserId    String?
+  invitedByHostEmail String?
+  inviteEmail        String?
+  invitePhone        String?
+  tokenHash          String
+  status             EventGuestInviteStatus @default(CREATED)
+  openedAt           DateTime?
+  completedAt        DateTime?
+  expiresAt          DateTime?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  event         Event          @relation(fields: [eventId], references: [id])
+  table         EventTable     @relation(fields: [tableId], references: [id])
+  seat          EventTableSeat? @relation(fields: [seatId], references: [id])
+  guest         EventGuest?    @relation(fields: [guestId], references: [id])
+  emailLogs     EventEmailLog[]
+
+  @@index([eventId, status])
+  @@index([tableId, status])
+  @@index([seatId])
+  @@index([tokenHash])
+}
+
+model EventTableAccessToken {
+  id         String                     @id @default(cuid())
+  eventId    String
+  tableId    String
+  hostEmail  String
+  tokenHash  String
+  status     EventTableAccessTokenStatus @default(ACTIVE)
+  expiresAt  DateTime
+  lastUsedAt DateTime?
+  createdAt  DateTime                   @default(now())
+  updatedAt  DateTime                   @updatedAt
+
+  event Event      @relation(fields: [eventId], references: [id])
+  table EventTable @relation(fields: [tableId], references: [id])
+
+  @@index([eventId, tableId, status])
+  @@index([tokenHash])
+  @@index([hostEmail])
+}
+
+model EventCheckInRecord {
+  id                String            @id @default(cuid())
+  eventId           String
+  guestId           String?
+  tableId           String?
+  seatId            String?
+  method            EventCheckInMethod
+  status            EventCheckInStatus @default(CHECKED_IN)
+  checkedInByUserId String?
+  checkInDeviceId   String?
+  checkedInAt       DateTime          @default(now())
+  reversedAt        DateTime?
+  reversedByUserId  String?
+  notes             String?           @db.Text
+
+  event           Event          @relation(fields: [eventId], references: [id])
+  guest           EventGuest?    @relation(fields: [guestId], references: [id])
+  table           EventTable?    @relation(fields: [tableId], references: [id])
+  seat            EventTableSeat? @relation(fields: [seatId], references: [id])
+
+  @@index([eventId, checkedInAt])
+  @@index([eventId, status])
+  @@index([eventId, guestId])
+  @@index([eventId, tableId])
+}
+
+model EventCheckInException {
+  id              String                        @id @default(cuid())
+  eventId         String
+  guestId         String?
+  tableId         String?
+  seatId          String?
+  guestName       String?
+  claimedTable    String?
+  claimedEmail    String?
+  claimedPhone    String?
+  issueType       EventCheckInExceptionIssueType
+  status          EventCheckInExceptionStatus @default(OPEN)
+  notes           String?                      @db.Text
+  createdByUserId String?
+  resolvedByUserId String?
+  createdAt       DateTime                     @default(now())
+  resolvedAt      DateTime?
+
+  event          Event          @relation(fields: [eventId], references: [id])
+  guest          EventGuest?    @relation(fields: [guestId], references: [id])
+  table          EventTable?    @relation(fields: [tableId], references: [id])
+  seat           EventTableSeat? @relation(fields: [seatId], references: [id])
+
+  @@index([eventId, status])
+  @@index([eventId, issueType])
+  @@index([eventId, createdAt])
+}
+
+model EventEmailLog {
+  id                String            @id @default(cuid())
+  eventId           String
+  tableId           String?
+  guestId           String?
+  inviteId          String?
+  type              EventEmailLogType
+  recipientEmail    String
+  status            EventEmailLogStatus @default(QUEUED)
+  subject           String?
+  providerMessageId String?
+  errorMessage      String?           @db.Text
+  queuedAt          DateTime?
+  sentAt            DateTime?
+  openedAt          DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  event  Event            @relation(fields: [eventId], references: [id])
+  table  EventTable?      @relation(fields: [tableId], references: [id])
+  guest  EventGuest?      @relation(fields: [guestId], references: [id])
+  invite EventGuestInvite? @relation(fields: [inviteId], references: [id])
+
+  @@index([eventId, type, status])
+  @@index([tableId])
+  @@index([guestId])
+  @@index([inviteId])
+  @@index([recipientEmail])
 }
 
 model EventSponsor {
