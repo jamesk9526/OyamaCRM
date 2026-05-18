@@ -1,6 +1,19 @@
 # Events CRM — Feature Status
 
-_Last updated: 2026-05-10_
+_Last updated: 2026-05-18_
+
+## 2026-05-18 Fundraising Command Center Pass
+
+Events CRM is now being shaped around a FundEasy / Attendance-style nonprofit fundraising event workflow without copying FundEasy branding, UI, code, or proprietary design.
+
+| Surface | Release status | Notes |
+|---|---|---|
+| `/events` module root | Working | Now uses the same event-first journey hub as `/events/workspace`. |
+| TopBar overlap in Events shell | Working | Events sidebar and main content now include the fixed TopBar offset. |
+| Event-scoped active event switcher | Working | `/events/[eventId]/*` pages show a compact active-event selector that preserves the current tool on switch. |
+| Events sidebar selected-event tools | Working | Sidebar links now point to canonical `/events/[eventId]/...` routes instead of legacy global query routes. |
+| Table Host Manager | Not Implemented | Planned major feature; must not be marked ready until host portal links, permissions, guest-list persistence, staff resend controls, and audit coverage exist. |
+| Event Page Builder, Emails, Donations/Pledges, Follow-Up | Partially Working / Not Implemented | These are visible with status labels in the command center, but their incomplete state is documented in `docs/STATUS.md`. |
 
 ## 2026-05-10 Production Readiness Overrides
 
@@ -19,9 +32,9 @@ Critical overrides from the latest full testing and browser pass:
 
 | Surface | Release status | Why |
 |---|---|---|
-| Event-scoped guests route (`/events/[eventId]/guests`) | Broken | Runtime crash from unsafe `guest.event.id` access when payload rows are missing `event`. |
-| Events reports page (`/events/reports`) | Broken | Uses raw `fetch()` calls instead of authenticated request helper, causing protected API failures. |
-| Event workspace selector (`/events/workspace`) | Working | Event-first selector model is present and usable. |
+| Event-scoped guests route (`/events/[eventId]/guests`) | Working | Current code uses guarded event access and authenticated API helpers. |
+| Events reports page (`/events/reports`) | Working | Current reports content uses the authenticated request helper. |
+| Event workspace selector (`/events/workspace`) | Working | Event-first selector model is present and now matches `/events`. |
 | Event-scoped tool set overall | Partially Working | Core tools exist but several pages remain scaffold/demo-level or unstable under non-happy-path data. |
 
 ---

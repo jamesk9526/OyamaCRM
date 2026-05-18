@@ -78,7 +78,7 @@ function EventsLayoutContent({ children }: { children: React.ReactNode }) {
     <div className="flex flex-col h-screen bg-white">
       <TopBar />
       <div className="relative flex min-w-0 flex-1 overflow-hidden">
-        <div className="hidden lg:block">
+        <div className="hidden lg:block mt-16">
           <EventsSidebar />
         </div>
 
@@ -90,7 +90,7 @@ function EventsLayoutContent({ children }: { children: React.ReactNode }) {
           <EventsSidebar forceExpanded />
         </MobileSidebarDrawer>
 
-        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-amber-50/30 p-3 sm:p-4 lg:p-4 min-[1440px]:p-5 2xl:p-6">
+        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-amber-50/30 p-3 sm:p-4 lg:p-4 min-[1440px]:p-5 2xl:p-6 mt-16">
           <ErrorBoundary>
             <div className="min-w-0 max-w-full">{redirectTarget ? (
               <section className="rounded-xl border border-amber-300 bg-amber-100 px-4 py-3 text-sm text-amber-900">

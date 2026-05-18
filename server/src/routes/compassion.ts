@@ -770,9 +770,14 @@ router.get("/reports/summary", async (req, res) => {
       return;
     }
 
+    const rawRangeDays = String((req.query as Record<string, string>).rangeDays ?? "").trim();
+    const rangeDays = [30, 90, 365].includes(Number(rawRangeDays)) ? Number(rawRangeDays) : 30;
+
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const startOfRange = new Date(now.getTime() - (rangeDays * 24 * 60 * 60 * 1000));
+    const nextSevenDays = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
 
     const [
       totalClients,
@@ -781,6 +786,12 @@ router.get("/reports/summary", async (req, res) => {
       apptsThisMonth,
       apptsLastMonth,
       completedApptsThisMonth,
+      appointmentsInRange,
+      completedAppointmentsInRange,
+      noShowAppointmentsInRange,
+      upcomingAppointmentsNext7Days,
+      openFollowUps,
+      overdueFollowUps,
       casesByType,
       casesByStatus,
       appointmentsByType,
@@ -818,6 +829,51 @@ router.get("/reports/summary", async (req, res) => {
           status: "COMPLETED",
         },
       }),
+      prisma.compassionAppointment.count({
+        where: {
+          organizationId,
+          startTime: { gte: startOfRange, lte: now },
+        },
+      }),
+      prisma.compassionAppointment.count({
+        where: {
+          organizationId,
+          startTime: { gte: startOfRange, lte: now },
+          status: "COMPLETED",
+        },
+      }),
+      prisma.compassionAppointment.count({
+        where: {
+          organizationId,
+          startTime: { gte: startOfRange, lte: now },
+          status: "NO_SHOW",
+        },
+      }),
+      prisma.compassionAppointment.count({
+        where: {
+          organizationId,
+          startTime: { gte: now, lte: nextSevenDays },
+          status: { in: ["SCHEDULED", "RESCHEDULED"] },
+        },
+      }),
+      prisma.compassionFollowUp.count({
+        where: {
+          organizationId,
+          status: { in: ["PENDING", "IN_PROGRESS", "OVERDUE"] },
+        },
+      }),
+      prisma.compassionFollowUp.count({
+        where: {
+          organizationId,
+          OR: [
+            { status: "OVERDUE" },
+            {
+              status: { in: ["PENDING", "IN_PROGRESS"] },
+              dueDate: { lt: now },
+            },
+          ],
+        },
+      }),
       prisma.compassionCase.groupBy({
         by: ["caseType"],
         where: { organizationId },
@@ -832,7 +888,7 @@ router.get("/reports/summary", async (req, res) => {
         by: ["appointmentType"],
         where: {
           organizationId,
-          startTime: { gte: startOfLastMonth },
+          startTime: { gte: startOfRange, lte: now },
         },
         _count: { appointmentType: true },
       }),
@@ -859,8 +915,19 @@ router.get("/reports/summary", async (req, res) => {
       ? Math.round(((apptsThisMonth - apptsLastMonth) / apptsLastMonth) * 100)
       : (apptsThisMonth > 0 ? 100 : 0);
 
+    const completionRateInRange = appointmentsInRange > 0
+      ? Math.round((completedAppointmentsInRange / appointmentsInRange) * 100)
+      : 0;
+
+    const noShowRateInRange = appointmentsInRange > 0
+      ? Math.round((noShowAppointmentsInRange / appointmentsInRange) * 100)
+      : 0;
+
     res.json({
       generatedAt: now.toISOString(),
+      rangeDays,
+      windowStart: startOfRange.toISOString(),
+      windowEnd: now.toISOString(),
       kpis: {
         totalClients,
         activeCases,
@@ -870,6 +937,14 @@ router.get("/reports/summary", async (req, res) => {
         completedAppointmentsThisMonth: completedApptsThisMonth,
         completionRate,
         monthDeltaPercent,
+        appointmentsInRange,
+        completedAppointmentsInRange,
+        completionRateInRange,
+        noShowAppointmentsInRange,
+        noShowRateInRange,
+        upcomingAppointmentsNext7Days,
+        openFollowUps,
+        overdueFollowUps,
       },
       casesByType: casesByType.map((row) => ({
         label: row.caseType,
@@ -1317,7 +1392,8 @@ router.post("/staff/:id/create-account", requireRole("admin"), async (req, res) 
  *   assigned      — "true" → only assigned, "false" → only unassigned
  *   missingContact — "true" → only clients with no email AND no phone
  *   intakeWithinDays — number; only clients whose intakeDate is within the last N days
- *   limit         — defaults to 50
+ *   page/pageSize — metadata pagination; pageSize is capped at 250
+ *   limit         — legacy non-metadata limit
  *
  * Defense-in-depth: rows whose firstName or lastName contains a comma are filtered out
  * after the DB query so legacy garbage rows from older imports never surface in the UI.
@@ -1337,8 +1413,27 @@ router.get("/clients", async (req, res) => {
       assigned,
       missingContact,
       intakeWithinDays,
+      page = "1",
+      pageSize,
+      includeMeta,
       limit = "50",
     } = req.query as Record<string, string>;
+
+    const normalizedSearch = (search ?? "").trim().replace(/\s+/g, " ");
+    const searchTokens = normalizedSearch
+      .split(" ")
+      .map((token) => token.trim())
+      .filter(Boolean)
+      .slice(0, 6);
+
+    const shouldIncludeMeta = includeMeta === "1" || includeMeta === "true";
+
+    const parsedPage = Math.max(1, Number.parseInt(page, 10) || 1);
+    const maxPageSize = shouldIncludeMeta ? 250 : 5000;
+    const parsedPageSize = Math.min(
+      maxPageSize,
+      Math.max(1, Number.parseInt(pageSize ?? limit, 10) || 50),
+    );
 
     const intakeFloor =
       intakeWithinDays && /^\d+$/.test(intakeWithinDays)
@@ -1383,19 +1478,34 @@ router.get("/clients", async (req, res) => {
       });
     }
 
-    if (search) {
+    if (normalizedSearch) {
       andClauses.push({
         OR: [
-          { firstName: { contains: search } },
-          { lastName: { contains: search } },
-          { preferredName: { contains: search } },
-          { email: { contains: search } },
-          { phone: { contains: search } },
-          { referralSource: { contains: search } },
-          { assignedCompassionStaff: { is: { firstName: { contains: search } } } },
-          { assignedCompassionStaff: { is: { lastName: { contains: search } } } },
+          { firstName: { contains: normalizedSearch } },
+          { lastName: { contains: normalizedSearch } },
+          { preferredName: { contains: normalizedSearch } },
+          { email: { contains: normalizedSearch } },
+          { phone: { contains: normalizedSearch } },
+          { referralSource: { contains: normalizedSearch } },
+          { assignedCompassionStaff: { is: { firstName: { contains: normalizedSearch } } } },
+          { assignedCompassionStaff: { is: { lastName: { contains: normalizedSearch } } } },
         ],
       });
+
+      for (const token of searchTokens) {
+        andClauses.push({
+          OR: [
+            { firstName: { contains: token } },
+            { lastName: { contains: token } },
+            { preferredName: { contains: token } },
+            { email: { contains: token } },
+            { phone: { contains: token } },
+            { referralSource: { contains: token } },
+            { assignedCompassionStaff: { is: { firstName: { contains: token } } } },
+            { assignedCompassionStaff: { is: { lastName: { contains: token } } } },
+          ],
+        });
+      }
     }
 
     const where = {
@@ -1405,28 +1515,30 @@ router.get("/clients", async (req, res) => {
       ...(andClauses.length > 0 ? { AND: andClauses } : {}),
     };
 
-    const parsedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
-
-    const clients = await prisma.compassionClient.findMany({
-      where,
-      take: parsedLimit,
-      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        preferredName: true,
-        email: true,
-        phone: true,
-        clientStatus: true,
-        intakeDate: true,
-        assignedCompassionStaffId: true,
-        assignedStaffId: true,
-        assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
-        assignedStaff: { select: { firstName: true, lastName: true } },
-        _count: { select: { cases: true, appointments: true } },
-      },
-    });
+    const [clients, totalCount] = await Promise.all([
+      prisma.compassionClient.findMany({
+        where,
+        skip: shouldIncludeMeta ? ((parsedPage - 1) * parsedPageSize) : undefined,
+        take: shouldIncludeMeta ? parsedPageSize : parsedPageSize,
+        orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          preferredName: true,
+          email: true,
+          phone: true,
+          clientStatus: true,
+          intakeDate: true,
+          assignedCompassionStaffId: true,
+          assignedStaffId: true,
+          assignedCompassionStaff: { select: { id: true, firstName: true, lastName: true, displayName: true } },
+          assignedStaff: { select: { firstName: true, lastName: true } },
+          _count: { select: { cases: true, appointments: true } },
+        },
+      }),
+      shouldIncludeMeta ? prisma.compassionClient.count({ where }) : Promise.resolve(0),
+    ]);
 
     // Defensive filter: never return rows whose name field contains comma-separated metadata.
     // This protects users from legacy bad imports that pre-date the importer hardening.
@@ -1450,7 +1562,22 @@ router.get("/clients", async (req, res) => {
       };
     });
 
-    res.json(safe);
+    if (!shouldIncludeMeta) {
+      res.json(safe);
+      return;
+    }
+
+    const totalPages = Math.max(1, Math.ceil(totalCount / parsedPageSize));
+
+    res.json({
+      items: safe,
+      totalCount,
+      page: parsedPage,
+      pageSize: parsedPageSize,
+      totalPages,
+      hasNextPage: parsedPage < totalPages,
+      hasPreviousPage: parsedPage > 1,
+    });
   } catch (err) {
     console.error("[compassion] GET /clients error:", err);
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load clients" } });
@@ -2679,12 +2806,18 @@ router.get("/appointments", async (req, res) => {
       ...(caseId && { caseId }),
       ...(status && { status: status as CompassionAppointmentStatus }),
       ...(appointmentType && { appointmentType: appointmentType as CompassionAppointmentType }),
-      ...(location && { location: location.trim() }),
+      ...(location && { location: { contains: location.trim() } }),
       ...(dateFrom || dateTo
         ? {
             startTime: {
               ...(dateFrom && { gte: new Date(dateFrom) }),
-              ...(dateTo && { lte: new Date(dateTo) }),
+              ...(dateTo && {
+                lte: (() => {
+                  const endOfDay = new Date(dateTo);
+                  endOfDay.setHours(23, 59, 59, 999);
+                  return endOfDay;
+                })(),
+              }),
             },
           }
         : {}),
@@ -2694,6 +2827,12 @@ router.get("/appointments", async (req, res) => {
     const orderBy: Prisma.CompassionAppointmentOrderByWithRelationInput =
       sortBy === "status"
         ? { status: sortOrder === "desc" ? "desc" : "asc" }
+        : sortBy === "client"
+          ? { client: { lastName: sortOrder === "desc" ? "desc" : "asc" } }
+          : sortBy === "staff"
+            ? { assignedCompassionStaff: { lastName: sortOrder === "desc" ? "desc" : "asc" } }
+            : sortBy === "location"
+              ? { location: sortOrder === "desc" ? "desc" : "asc" }
         : sortBy === "createdAt"
           ? { createdAt: sortOrder === "desc" ? "desc" : "asc" }
           : sortBy === "appointmentType"

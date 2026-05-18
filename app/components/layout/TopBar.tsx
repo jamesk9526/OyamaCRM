@@ -178,9 +178,9 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
     ]
     : moduleKey === "events"
       ? [
-        { id: "quick-events-workspace", type: "tool", label: "Open Events Workspace", sublabel: "Select and manage event context", href: "/events/workspace", group: "tools" },
-        { id: "quick-events-registry", type: "tool", label: "Open Events Registry", sublabel: "All events", href: "/events/events", group: "tools" },
-        { id: "quick-events-checkin", type: "tool", label: "Open Event Check-In", sublabel: "Guest arrival workflows", href: "/events/check-in", group: "tools" },
+        { id: "quick-events-workspace", type: "tool", label: "Open Events Workspace", sublabel: "Select an event before managing tools", href: "/events", group: "tools" },
+        { id: "quick-events-registry", type: "tool", label: "Open All Events", sublabel: "Event registry and lifecycle", href: "/events/events", group: "tools" },
+        { id: "quick-events-checkin", type: "tool", label: "Open Event Check-In", sublabel: "Select an event, then open check-in", href: "/events/workspace?tool=check-in", group: "tools" },
         { id: "quick-help", type: "tool", label: "Open Help Center", sublabel: "Guides and walkthroughs", href: `/help?scope=events&scopePath=${encodeURIComponent(pathname || "/events")}`, group: "tools" },
       ]
       : moduleKey === "watchdog"

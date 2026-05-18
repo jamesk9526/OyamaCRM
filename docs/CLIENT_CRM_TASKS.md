@@ -28,12 +28,16 @@ A live checklist of remaining production work for the Compassion CRM. Update as 
 - [x] Upgrade Compassion Appointments into a production scheduling hub (calendar day/week/month/agenda + list view + filters/search/sort + quick actions).
 - [x] Add drag-and-drop and resize rescheduling with backend conflict validation for Compassion appointments.
 - [x] Add appointment workspace test coverage for conflict prevention, status transitions, utility filtering/sorting, and public-widget-to-admin sync.
+- [x] Improve `/api/compassion/clients` search with tokenized full-name matching for multi-term queries.
+- [x] Add production pagination for Compassion clients list (API metadata mode + page/pageSize controls in UI).
+- [x] Expand appointments workspace filtering usability (Today/Next 7/Next 30 quick ranges, clear filters, responsive table overflow).
+- [x] Harden appointments API filtering and sorting (`location` partial-match filter, inclusive `dateTo`, support for client/staff/location sort keys).
+- [x] Upgrade Compassion reports with range-based analytics (`30/90/365`), no-show metrics, follow-up workload metrics, and upcoming-appointments KPI.
 
 ## 🚧 In progress / next batch
 
 ### Stabilization from full production pass (2026-05-10)
 - [ ] Fix failing smoke assertion in `tests/smoke/routes-workflow.test.ts` where newly created client is not reliably returned in immediate list calls.
-- [ ] Improve `/api/compassion/clients` search to support tokenized full-name matching (for example first + last name query terms).
 - [ ] Investigate and fix intermittent 401/500 console errors observed on Compassion settings route in browser audit.
 
 ### Batch 2 — Import history + rollback

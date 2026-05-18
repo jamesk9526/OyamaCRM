@@ -309,6 +309,20 @@ Events CRM uses an **event-first workspace model** with explicit global tools.
 
 <!-- END:events-crm-boundary-rules -->
 
+<!-- BEGIN:events-fundraising-command-center-rules -->
+## Events CRM Fundraising Command Center Rules
+
+Events CRM should be a nonprofit fundraising event manager, not a generic calendar. Use FundEasy / Attendance-style workflows only as a functional reference for table-host events, registrations, guest lists, sponsors, crowdfunding, peer-to-peer campaigns, pledges, and live check-in. Do not copy FundEasy branding, UI, code, or proprietary design.
+
+- Staff should land on one event-first entry point before opening event tools.
+- After an event is selected, core tools must stay scoped to that event: overview, guests, tables, hosts, sponsors, registration, donations, check-in, event page, emails, reports, follow-up, and settings.
+- Keep global tools separate: all events, create event, templates, global reports, campaign pages, and archived events.
+- Table host management is a major target feature, but it must not be exposed as production-ready until host records, portal links, permissions, guest-list persistence, staff resend controls, and audit coverage are implemented.
+- Live check-in should be tablet-friendly and low-clutter. Dedicated volunteer mode must hide nonessential CRM navigation once it is fully implemented.
+- Event page builder, event emails, donations/pledges, and post-event follow-up must show clear incomplete status labels until their persistence, segmentation, scheduling, and donor-link workflows are complete.
+- Event data may link to Donor CRM records where appropriate, but event scope and auditability must remain clear.
+<!-- END:events-fundraising-command-center-rules -->
+
 <!-- BEGIN:reference-software-rules -->
 ## Reference Software Folder Rules
 

@@ -1,10 +1,10 @@
 # Compassion CRM Status
 
-_Last deep audit: 2026-05-11_
+_Last deep audit: 2026-05-18_
 
 ## Summary
 
-Compassion CRM is in a **mixed operational state**: core client/case workflows, public scheduling, office scheduling hub, and broad client-profile tab CRUD surfaces are now real; advanced tab workflows and scheduling triage workflows remain in development.
+Compassion CRM is in a **mixed operational state**: core client/case workflows, public scheduling, office scheduling hub, dashboard triage, and broad client-profile tab CRUD surfaces are now real; advanced tab workflows and public scheduling triage workflows remain in development.
 
 Status labels used in this document:
 - Working
@@ -17,11 +17,11 @@ Status labels used in this document:
 | Area | Feature | Status | Data Source | Notes | Next Step |
 |---|---|---|---|---|---|
 | Compassion CRM | Module shell + blue navigation | Working | Real API Data | `app/compassion/layout.tsx` + auth/module shell are live. | Add workspace permission checks beyond auth gate. |
-| Compassion CRM | Dashboard summary metrics | Working | Real API Data | Dashboard loads `/api/compassion/dashboard-summary`. | Expand outcome metrics and add richer alerting widgets. |
-| Compassion CRM | Clients list/search + importer hardening | Working | Real API Data | Import validator, defensive filters, delimiter handling, and list filters are implemented. | Add import history + rollback workflows. |
+| Compassion CRM | Dashboard summary metrics + work queue | Working | Real API Data | Dashboard loads `/api/compassion/dashboard-summary`, uses a breadcrumb/ribbon header, and combines appointments/follow-ups into a spreadsheet-style daily work queue. | Expand outcome metrics and add richer alerting widgets. |
+| Compassion CRM | Clients list/search + importer hardening | Working | Real API Data | Import validator, defensive filters, delimiter handling, staff/status/contact filters, 25/50/100/250-row pagination, visible-row CSV export, copy-email tool, and spreadsheet-style client list are implemented. | Add import history + rollback workflows. |
 | Compassion CRM | Client profile workspace tabs | Partially Working | Real API Data | Grouped tab UX plus full note/follow-up/service edit flows are live. Most tab-level warnings were removed; targeted warnings remain for Documents and Portal advanced workflows. | Add happy-path tests, document upload storage, and role-aware workflow hardening for sensitive tabs. |
-| Compassion CRM | Case and appointment CRUD | Working | Real API Data | Core case/appointment endpoints and pages are wired. | Add deeper workflow actions, assignment automation, and SLA tooling. |
-| Compassion CRM | Appointment scheduling hub (calendar + list workspace) | Working | Real API Data | `/compassion/appointments` now provides day/week/month/agenda calendar, list view, drag/resize rescheduling, conflict-safe updates, quick status actions, and full-screen scheduling mode backed by `/api/compassion/appointments`. | Add existing-client matcher/review queue for public submissions and add anti-abuse/rate-limiting for public endpoints. |
+| Compassion CRM | Case CRUD and workspace workflow | Working | Real API Data | Core case endpoints are wired; `/compassion/cases` now supports spreadsheet-style review, create, edit, summary/status/priority updates, assignment changes, and quick Start/Close actions backed by `/api/compassion/cases/:id`. | Add assignment automation and SLA tooling. |
+| Compassion CRM | Appointment scheduling hub (calendar + list workspace) | Working | Real API Data | `/compassion/appointments` now provides breadcrumb/ribbon controls, day/week/month/agenda calendar, list view, drag/resize rescheduling, conflict-safe updates, quick status actions, and full-screen scheduling mode backed by `/api/compassion/appointments`. | Add existing-client matcher/review queue for public submissions and add anti-abuse/rate-limiting for public endpoints. |
 | Compassion CRM | Public scheduling page + slot engine | Working | Real API Data | Public booking is token-based and slot-driven; submit-time slot validation is enforced. | Add rate limiting and abuse monitoring. |
 | Compassion CRM | Embeddable scheduling widget | Working | Real API Data | Iframe + script snippet support in settings; shared backend validation rules. | Add signed configuration/versioning and widget lifecycle events. |
 | Compassion CRM | Existing-client matcher + staff review queue | Not Implemented | Unknown / Needs Verification | Public submissions are not yet triaged through a dedicated review queue. | Build matcher scoring + queue UI + assignment flow. |
@@ -32,7 +32,10 @@ Status labels used in this document:
 
 - Real and operational:
 	- Dashboard summary API and UI
+	- Dashboard daily work queue from real appointment/follow-up data
 	- Client/case/appointment core CRUD
+	- Clients workspace pagination up to 250 rows per page plus visible-row export/copy tools
+	- Case status, summary, priority, and assignment updates from the cases workspace
 	- Import validation + list hardening
 	- Client profile tab CRUD activation (notes/follow-ups/documents/medical/service logs/communication/portal)
 	- Follow-up and service-entry inline edit workflows on client profile tabs

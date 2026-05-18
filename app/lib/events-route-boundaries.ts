@@ -6,9 +6,12 @@ export type EventWorkspaceTool =
   | "guests"
   | "tables"
   | "tickets"
+  | "registration"
   | "sponsors"
   | "fundraising"
+  | "donations"
   | "communications"
+  | "emails"
   | "reports"
   | "tasks"
   | "volunteers"
@@ -21,9 +24,12 @@ const LEGACY_GLOBAL_TOOL_ROUTE_TO_TOOL: Record<string, EventWorkspaceTool> = {
   "/events/guests": "guests",
   "/events/tables": "tables",
   "/events/tickets": "tickets",
+  "/events/registration": "registration",
   "/events/sponsors": "sponsors",
   "/events/fundraising": "fundraising",
+  "/events/donations": "donations",
   "/events/communications": "communications",
+  "/events/emails": "emails",
   "/events/tasks": "tasks",
   "/events/volunteers": "volunteers",
   "/events/files": "files",

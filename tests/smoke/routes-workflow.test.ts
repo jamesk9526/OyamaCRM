@@ -177,6 +177,20 @@ describe("compassion CRM smoke", () => {
     expect(found).toBe(true);
   });
 
+  it("supports Compassion clients metadata pagination up to 250 rows per page", async () => {
+    const auth = { Authorization: `Bearer ${compassionToken}` };
+    const res = await request(app)
+      .get("/api/compassion/clients?includeMeta=1&page=1&pageSize=250")
+      .set(auth);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.items)).toBe(true);
+    expect(res.body.pageSize).toBe(250);
+    expect(res.body.items.length).toBeLessThanOrEqual(250);
+    expect(typeof res.body.totalCount).toBe("number");
+    expect(typeof res.body.totalPages).toBe("number");
+  });
+
   it("opens a case with correct case number format", async () => {
     const auth = { Authorization: `Bearer ${compassionToken}` };
     const res = await request(app).post("/api/compassion/cases").set(auth).send({
@@ -198,6 +212,24 @@ describe("compassion CRM smoke", () => {
     expect(Array.isArray(res.body)).toBe(true);
     const found = (res.body as Array<{ id: string }>).some((c) => c.id === createdCaseId);
     expect(found).toBe(true);
+  });
+
+  it("updates a case status and summary for the cases workspace", async () => {
+    const auth = { Authorization: `Bearer ${compassionToken}` };
+    const res = await request(app).put(`/api/compassion/cases/${createdCaseId}`).set(auth).send({
+      caseStatus: "IN_PROGRESS",
+      priority: "HIGH",
+      summary: "Smoke test case is ready for staff follow-up.",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.updated).toBe(true);
+
+    const detail = await request(app).get(`/api/compassion/cases/${createdCaseId}`).set(auth);
+    expect(detail.status).toBe(200);
+    expect(detail.body.caseStatus).toBe("IN_PROGRESS");
+    expect(detail.body.priority).toBe("HIGH");
+    expect(detail.body.summary).toBe("Smoke test case is ready for staff follow-up.");
   });
 
   it("creates a follow-up for the client", async () => {

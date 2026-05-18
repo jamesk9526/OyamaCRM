@@ -342,6 +342,18 @@ export const EVENTS_RESERVED_SEGMENTS = new Set([
   "page-builder",
   "templates",
   "reports",
+  "check-in",
+  "communications",
+  "files",
+  "fundraising",
+  "guests",
+  "orders",
+  "settings",
+  "sponsors",
+  "tables",
+  "tasks",
+  "tickets",
+  "volunteers",
 ]);
 
 /** Resolves active event ID from pathname and search params for Events CRM sidebar context. */
@@ -360,8 +372,6 @@ export function resolveActiveEventId(pathname: string, searchParams: Pick<URLSea
 }
 
 function buildEventWorkspaceGroups(eventId: string): CrmSidebarGroup[] {
-  const scopeQuery = `?eventId=${encodeURIComponent(eventId)}`;
-
   return [
     {
       id: "event-workspace",
@@ -369,12 +379,17 @@ function buildEventWorkspaceGroups(eventId: string): CrmSidebarGroup[] {
       defaultOpen: true,
       items: [
         { id: "overview", label: "Overview", href: `/events/${eventId}/overview`, activePath: `/events/${eventId}`, icon: <OyamaGradientIcon name="growth-analytics" />, kind: "workspace", description: "Event-level dashboard and operating summary." },
-        { id: "tickets", label: "Tickets", href: `/events/tickets${scopeQuery}`, icon: <OyamaGradientIcon name="donor-gift" />, kind: "core_record", description: "Manage ticket types, pricing, and availability." },
-        { id: "orders", label: "Orders", href: `/events/orders${scopeQuery}`, icon: <OyamaGradientIcon name="contact-checklist" />, kind: "core_record", description: "Review order records and payment states." },
-        { id: "guests", label: "Guests", href: `/events/guests${scopeQuery}`, icon: <OyamaGradientIcon name="constituent-search" />, kind: "core_record", description: "Track guests, households, and attendance details." },
-        { id: "tables", label: "Tables", href: `/events/tables${scopeQuery}`, icon: <OyamaGradientIcon name="relationship-partnership" />, kind: "daily_tool", description: "Manage seating layouts and table assignments." },
-        { id: "check-in", label: "Check-In", href: `/events/check-in${scopeQuery}`, icon: <OyamaGradientIcon name="client-profile-sync" />, kind: "daily_tool", description: "Check in guests using search, table, and scan workflows." },
-        { id: "sponsors", label: "Sponsors", href: `/events/sponsors${scopeQuery}`, icon: <OyamaGradientIcon name="relationship-partnership" />, kind: "core_record", description: "Manage sponsor packages and fulfillment steps." },
+        { id: "guests", label: "Guests", href: `/events/${eventId}/guests`, icon: <OyamaGradientIcon name="constituent-search" />, kind: "core_record", description: "Track registrants, donor links, RSVP status, and attendance details." },
+        { id: "tables", label: "Tables", href: `/events/${eventId}/tables`, icon: <OyamaGradientIcon name="relationship-partnership" />, kind: "daily_tool", description: "Manage seating, table capacity, assignments, and open seats." },
+        { id: "registration", label: "Registration", href: `/events/${eventId}/tickets`, icon: <OyamaGradientIcon name="donor-gift" />, kind: "core_record", description: "Manage ticket types, free registration, table tickets, pricing, and availability." },
+        { id: "orders", label: "Orders", href: `/events/${eventId}/orders`, icon: <OyamaGradientIcon name="contact-checklist" />, kind: "core_record", description: "Review registration orders and payment states." },
+        { id: "sponsors", label: "Sponsors", href: `/events/${eventId}/sponsors`, icon: <OyamaGradientIcon name="relationship-partnership" />, kind: "core_record", description: "Manage sponsor packages and fulfillment steps." },
+        { id: "donations", label: "Donations", href: `/events/${eventId}/fundraising`, icon: DONOR_ICONS.donations, kind: "core_record", description: "Track event donations, pledges, and giving follow-up status." },
+        { id: "check-in", label: "Check-In", href: `/events/${eventId}/check-in`, icon: <OyamaGradientIcon name="client-profile-sync" />, kind: "daily_tool", description: "Check in guests using search, table, and scan workflows." },
+        { id: "event-page", label: "Event Page", href: `/events/page-builder?eventId=${encodeURIComponent(eventId)}`, icon: <OyamaGradientIcon name="growth-analytics" />, kind: "communication_tool", description: "Build or edit the public event page for this event." },
+        { id: "emails", label: "Emails", href: `/events/${eventId}/communications`, icon: DONOR_ICONS.communications, kind: "communication_tool", description: "Prepare event invitations, reminders, host emails, and follow-up messages." },
+        { id: "reports", label: "Reports", href: `/events/${eventId}/reports`, icon: <OyamaGradientIcon name="reporting-dashboard" />, kind: "insight", description: "Review event outcomes, attendance, revenue, and follow-up metrics." },
+        { id: "settings", label: "Settings", href: `/events/${eventId}/settings`, icon: DONOR_ICONS.settings, kind: "system", description: "Manage event-level settings and defaults." },
       ],
     },
   ];
@@ -388,9 +403,9 @@ export function buildEventsSidebarGroups(activeEventId: string | null): CrmSideb
       label: "Command Center",
       defaultOpen: true,
       items: [
-        { id: "dashboard", label: "Dashboard", href: "/events", icon: <OyamaGradientIcon name="growth-analytics" />, exact: true, kind: "workspace", description: "Events CRM command center and activity snapshot." },
-        { id: "events", label: "Events", href: "/events/events", icon: <OyamaGradientIcon name="task-checklist" />, kind: "core_record", description: "Manage event registry and lifecycle." },
-        { id: "workspace-selector", label: "Workspace Selector", href: "/events/workspace", icon: <OyamaGradientIcon name="constituent-search" />, kind: "workspace", description: "Choose the event context before opening scoped tools." },
+        { id: "dashboard", label: "Start Here", href: "/events", icon: <OyamaGradientIcon name="growth-analytics" />, exact: true, kind: "workspace", description: "Select an event before opening fundraising event tools." },
+        { id: "events", label: "All Events", href: "/events/events", icon: <OyamaGradientIcon name="task-checklist" />, kind: "core_record", description: "Create, select, duplicate, archive, and review event records." },
+        { id: "workspace-selector", label: "Select Event", href: "/events/workspace", icon: <OyamaGradientIcon name="constituent-search" />, kind: "workspace", description: "Choose the event context before opening scoped tools." },
         { id: "setup", label: "Setup", href: "/events/setup", icon: <OyamaGradientIcon name="client-profile-sync" />, kind: "system", description: "Configure global Events CRM defaults." },
       ],
     },

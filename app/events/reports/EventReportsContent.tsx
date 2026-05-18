@@ -5,6 +5,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import EventsMetricCard from "@/app/components/events/EventsMetricCard";
 import { apiFetch } from "@/app/lib/auth-client";
 
@@ -72,13 +73,23 @@ interface SummaryReport {
 }
 
 export default function EventReportsContent() {
+  const params = useParams<{ eventId?: string }>();
+  const searchParams = useSearchParams();
+  const scopedEventId = params.eventId ?? searchParams.get("eventId") ?? null;
+
   const [events, setEvents] = useState<Event[]>([]);
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(scopedEventId);
   const [eventReport, setEventReport] = useState<EventReport | null>(null);
   const [summaryReport, setSummaryReport] = useState<SummaryReport | null>(null);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<"summary" | "detail">("summary");
+  const [viewMode, setViewMode] = useState<"summary" | "detail">(scopedEventId ? "detail" : "summary");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!scopedEventId) return;
+    setSelectedEventId(scopedEventId);
+    setViewMode("detail");
+  }, [scopedEventId]);
 
   // Load events list
   useEffect(() => {

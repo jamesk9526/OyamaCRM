@@ -2,7 +2,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
@@ -34,10 +33,22 @@ import {
   sortAppointments,
 } from "./appointmentUtils";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
+import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
 type WorkspaceView = "calendar" | "list" | "split";
 type SortBy = "startTime" | "client" | "appointmentType" | "status" | "staff" | "location";
 type SortDirection = "asc" | "desc";
+
+/** Returns YYYY-MM-DD in local-friendly format for date filter inputs. */
+function toDateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 /** Returns badge classes for appointment statuses used in list/calendar cards. */
 function statusBadge(status: string): string {
@@ -85,14 +96,20 @@ export default function AppointmentsWorkspace() {
   const [view, setView] = useState<WorkspaceView>("split");
   const [fullscreenCalendar, setFullscreenCalendar] = useState(false);
 
-  const [filters, setFilters] = useState<AppointmentFilters>({
-    search: "",
-    status: "",
-    appointmentType: "",
-    assignedStaffId: "",
-    dateFrom: "",
-    dateTo: "",
-    location: "",
+  const [filters, setFilters] = useState<AppointmentFilters>(() => {
+    const today = new Date();
+    const nextThirtyDays = new Date(today);
+    nextThirtyDays.setDate(nextThirtyDays.getDate() + 30);
+
+    return {
+      search: "",
+      status: "",
+      appointmentType: "",
+      assignedStaffId: "",
+      dateFrom: toDateInputValue(today),
+      dateTo: toDateInputValue(nextThirtyDays),
+      location: "",
+    };
   });
 
   const [sortBy, setSortBy] = useState<SortBy>("startTime");
@@ -123,7 +140,7 @@ export default function AppointmentsWorkspace() {
   const loadSelectionSources = useCallback(async () => {
     try {
       const [clients, staff] = await Promise.all([
-        apiFetch<ClientOption[]>("/api/compassion/clients?limit=500"),
+        apiFetch<ClientOption[]>("/api/compassion/clients?limit=2500"),
         apiFetch<StaffOption[]>("/api/compassion/staff?active=true&limit=250"),
       ]);
       setClientOptions(Array.isArray(clients) ? clients : []);
@@ -140,7 +157,7 @@ export default function AppointmentsWorkspace() {
     setRefreshing(true);
     try {
       const params = new URLSearchParams({
-        limit: "600",
+        limit: "1200",
         sortBy,
         sortOrder: sortDirection,
       });
@@ -198,6 +215,46 @@ export default function AppointmentsWorkspace() {
       noShow: sortedAppointments.filter((appointment) => appointment.status === "NO_SHOW").length,
     };
   }, [sortedAppointments]);
+
+  const hasActiveFilters = Boolean(
+    filters.search
+    || filters.status
+    || filters.appointmentType
+    || filters.assignedStaffId
+    || filters.dateFrom
+    || filters.dateTo
+    || filters.location,
+  );
+
+  /** Applies common date ranges quickly so staff can triage calendar load in one click. */
+  function applyDateRangePreset(preset: "today" | "next7" | "next30") {
+    const now = new Date();
+    const today = toDateInputValue(now);
+
+    if (preset === "today") {
+      setFilters((current) => ({ ...current, dateFrom: today, dateTo: today }));
+      return;
+    }
+
+    const end = new Date(now);
+    end.setDate(end.getDate() + (preset === "next7" ? 7 : 30));
+    const endString = toDateInputValue(end);
+
+    setFilters((current) => ({ ...current, dateFrom: today, dateTo: endString }));
+  }
+
+  /** Resets all filters while keeping current sort and workspace view settings. */
+  function clearFilters() {
+    setFilters({
+      search: "",
+      status: "",
+      appointmentType: "",
+      assignedStaffId: "",
+      dateFrom: "",
+      dateTo: "",
+      location: "",
+    });
+  }
 
   /** Opens editor in create mode from toolbar or calendar slot selection. */
   function openCreateModal(initialStartTime?: string) {
@@ -382,42 +439,38 @@ export default function AppointmentsWorkspace() {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Appointments</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Production scheduling workspace for staff calendar and appointment operations.</p>
-          <Link
-            href="/help?scope=compassion&scopePath=/compassion/appointments"
-            className="mt-2 inline-flex rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-          >
-            Need help with appointments?
-          </Link>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={openCalendarPopoutTab}
-            className="px-3 py-2 text-sm font-medium border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50"
-          >
-            Open Calendar In New Tab
-          </button>
-          <button
-            type="button"
-            onClick={() => setFullscreenCalendar(true)}
-            className="px-3 py-2 text-sm font-medium border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50"
-          >
-            Full Screen Calendar
-          </button>
-          <button
-            type="button"
-            onClick={() => openCreateModal()}
-            className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-          >
-            + Schedule Appointment
-          </button>
-        </div>
-      </div>
+    <div className="space-y-4">
+      <WorkspaceBreadcrumbBar
+        items={[
+          { label: "Compassion CRM", href: "/compassion/dashboard" },
+          { label: "Appointments" },
+        ]}
+        statusLabel={loading ? "Loading" : "Working"}
+        metadata={`${selectedCounts.total.toLocaleString()} visible appointments`}
+        accentTone="blue"
+        primaryAction={<WorkspaceRibbonButton label="Schedule Appointment" onClick={() => openCreateModal()} variant="primary" accentTone="blue" />}
+      />
+
+      <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="View">
+          <WorkspaceRibbonButton label="Calendar" onClick={() => setView("calendar")} active={view === "calendar"} accentTone="blue" />
+          <WorkspaceRibbonButton label="List" onClick={() => setView("list")} active={view === "list"} accentTone="blue" />
+          <WorkspaceRibbonButton label="Split" onClick={() => setView("split")} active={view === "split"} accentTone="blue" />
+        </WorkspaceRibbonGroup>
+        <WorkspaceRibbonGroup label="Calendar">
+          <WorkspaceRibbonButton label="Full Screen" onClick={() => setFullscreenCalendar(true)} accentTone="blue" />
+          <WorkspaceRibbonButton label="Popout" onClick={openCalendarPopoutTab} accentTone="blue" />
+        </WorkspaceRibbonGroup>
+        <WorkspaceRibbonGroup label="Range">
+          <WorkspaceRibbonButton label="Today" onClick={() => applyDateRangePreset("today")} accentTone="blue" />
+          <WorkspaceRibbonButton label="Next 7" onClick={() => applyDateRangePreset("next7")} accentTone="blue" />
+          <WorkspaceRibbonButton label="Next 30" onClick={() => applyDateRangePreset("next30")} accentTone="blue" />
+        </WorkspaceRibbonGroup>
+        <WorkspaceRibbonGroup label="Actions">
+          <WorkspaceRibbonButton label="Refresh" onClick={() => void loadAppointments()} accentTone="blue" />
+          <WorkspaceRibbonButton label="Help" href="/help?scope=compassion&scopePath=/compassion/appointments" accentTone="blue" />
+        </WorkspaceRibbonGroup>
+      </WorkspaceRibbon>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-gray-200 p-3">
@@ -438,16 +491,13 @@ export default function AppointmentsWorkspace() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => setView("calendar")} className={`px-3 py-1.5 text-sm rounded ${view === "calendar" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}`}>Calendar</button>
-          <button type="button" onClick={() => setView("list")} className={`px-3 py-1.5 text-sm rounded ${view === "list" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}`}>List</button>
-          <button type="button" onClick={() => setView("split")} className={`px-3 py-1.5 text-sm rounded ${view === "split" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}`}>Split</button>
-
-          <div className="ml-auto flex items-center gap-2">
-            {refreshing && <span className="text-xs text-gray-500">Refreshing…</span>}
-            <button type="button" onClick={() => void loadAppointments()} className="px-2.5 py-1.5 text-xs border border-gray-200 rounded hover:bg-gray-50 text-gray-700">Refresh</button>
+      <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900">Scheduling Workspace</h1>
+            <p className="text-sm leading-6 text-gray-500">Calendar and spreadsheet list share the same live appointment filters.</p>
           </div>
+          {refreshing && <span className="text-xs font-medium text-gray-500">Refreshing...</span>}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
@@ -495,6 +545,17 @@ export default function AppointmentsWorkspace() {
             </button>
           </div>
         </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={clearFilters}
+            disabled={!hasActiveFilters}
+            className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            Clear Filters
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -514,51 +575,57 @@ export default function AppointmentsWorkspace() {
           {(view === "calendar" || view === "split") && renderCalendar(calendarEvents)}
 
           {(view === "list" || view === "split") && (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100">
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Date / Time</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Client</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Staff</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Location</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Notes</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Quick Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {sortedAppointments.map((appointment) => (
-                    <tr key={appointment.id} className="hover:bg-gray-50 align-top">
-                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{formatDateTime(appointment.startTime)}</td>
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-gray-900">{appointment.client.firstName} {appointment.client.lastName}</p>
-                        <AppointmentFlags appointment={appointment} />
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">{humanizeEnum(appointment.appointmentType)}</td>
-                      <td className="px-4 py-3 text-gray-600">{appointment.assignedStaff ? (appointment.assignedStaff.displayName ?? `${appointment.assignedStaff.firstName} ${appointment.assignedStaff.lastName}`.trim()) : "Unassigned"}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusBadge(appointment.status)}`}>
-                          {humanizeEnum(appointment.status)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">{appointment.location ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-600 max-w-[260px]">
-                        <div className="line-clamp-2">{appointment.notes ?? "—"}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1.5">
-                          <button type="button" onClick={() => openEditModal(appointment)} className="text-xs px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 text-gray-700">Edit</button>
-                          <button type="button" onClick={() => void quickStatusUpdate(appointment.id, "COMPLETED")} className="text-xs px-2 py-1 border border-emerald-200 rounded hover:bg-emerald-50 text-emerald-700">Complete</button>
-                          <button type="button" onClick={() => void quickStatusUpdate(appointment.id, "NO_SHOW")} className="text-xs px-2 py-1 border border-amber-200 rounded hover:bg-amber-50 text-amber-700">No-Show</button>
-                          <button type="button" onClick={() => void quickStatusUpdate(appointment.id, "CANCELLED")} className="text-xs px-2 py-1 border border-red-200 rounded hover:bg-red-50 text-red-700">Cancel</button>
-                        </div>
-                      </td>
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
+                <h2 className="text-base font-semibold text-gray-900">Appointment List</h2>
+                <p className="text-xs text-gray-500">Spreadsheet-style review and quick status updates</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1120px] border-separate border-spacing-0 text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Date / Time</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Client</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Staff</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Location</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Notes</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Quick Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {sortedAppointments.map((appointment) => (
+                      <tr key={appointment.id} className="hover:bg-blue-50/60 align-top">
+                        <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{formatDateTime(appointment.startTime)}</td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-gray-900">{appointment.client.firstName} {appointment.client.lastName}</p>
+                          <AppointmentFlags appointment={appointment} />
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">{humanizeEnum(appointment.appointmentType)}</td>
+                        <td className="px-4 py-3 text-gray-600">{appointment.assignedStaff ? (appointment.assignedStaff.displayName ?? `${appointment.assignedStaff.firstName} ${appointment.assignedStaff.lastName}`.trim()) : "Unassigned"}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusBadge(appointment.status)}`}>
+                            {humanizeEnum(appointment.status)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">{appointment.location ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-600 max-w-[260px]">
+                          <div className="line-clamp-2">{appointment.notes ?? "—"}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-1.5">
+                            <button type="button" onClick={() => openEditModal(appointment)} className="text-xs px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 text-gray-700">Edit</button>
+                            <button type="button" onClick={() => void quickStatusUpdate(appointment.id, "COMPLETED")} className="text-xs px-2 py-1 border border-emerald-200 rounded hover:bg-emerald-50 text-emerald-700">Complete</button>
+                            <button type="button" onClick={() => void quickStatusUpdate(appointment.id, "NO_SHOW")} className="text-xs px-2 py-1 border border-amber-200 rounded hover:bg-amber-50 text-amber-700">No-Show</button>
+                            <button type="button" onClick={() => void quickStatusUpdate(appointment.id, "CANCELLED")} className="text-xs px-2 py-1 border border-red-200 rounded hover:bg-red-50 text-red-700">Cancel</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </>
