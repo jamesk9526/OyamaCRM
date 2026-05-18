@@ -33,6 +33,13 @@ const PREVIEW_DEVICE_WIDTH: Record<PreviewDevice, string> = {
   Mobile: "max-w-[390px]",
 };
 
+function getDeviceButtonClasses(activeDevice: PreviewDevice, buttonDevice: PreviewDevice): string {
+  return [
+    "grid h-9 w-12 place-items-center rounded-lg border text-xs font-semibold",
+    activeDevice === buttonDevice ? "border-violet-300 bg-white text-violet-700 shadow-sm" : "border-transparent text-slate-500 hover:bg-white",
+  ].join(" ");
+}
+
 function formatDateTimeRange(startDate: string, endDate?: string | null): string {
   const start = new Date(startDate);
   if (Number.isNaN(start.getTime())) return "Date not set";
@@ -563,10 +570,7 @@ export default function EventPageBuilderPreview({ sections, selectedSectionId, d
                 key={label}
                 type="button"
                 onClick={() => setDevice(label)}
-                className={[
-                  "grid h-9 w-12 place-items-center rounded-lg border text-xs font-semibold",
-                  device === label ? "border-violet-300 bg-white text-violet-700 shadow-sm" : "border-transparent text-slate-500 hover:bg-white",
-                ].join(" ")}
+                className={getDeviceButtonClasses(device, label)}
                 title={label}
               >
                 {index === 0 ? "▭" : index === 1 ? "▯" : "▯"}

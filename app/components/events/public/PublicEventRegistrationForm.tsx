@@ -71,14 +71,14 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pre
   const requestedSeats = Math.min(50, requestedTicketUnits * seatsPerTicket);
   const totalAmount = Number(selectedTicket?.price ?? 0) * requestedTicketUnits;
   const primaryAttendee = attendees[0];
-  const allNamedAttendees = attendees.slice(0, requestedSeats).every((attendee) => attendee.firstName.trim() && attendee.lastName.trim());
+  const allAttendeesNamed = attendees.slice(0, requestedSeats).every((attendee) => attendee.firstName.trim() && attendee.lastName.trim());
   const canSubmit = Boolean(
     pageSlug
     && selectedTicket
     && primaryAttendee?.firstName.trim()
     && primaryAttendee.lastName.trim()
     && primaryAttendee.email.trim()
-    && allNamedAttendees
+    && allAttendeesNamed
     && consentAccepted
     && !previewOnly,
   );
@@ -266,7 +266,7 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pre
       >
         {submitting ? "Registering..." : selectedTicket && Number(selectedTicket.price) > 0 ? "Reserve registration" : "Register"}
       </button>
-      {!allNamedAttendees ? <p className="mt-2 text-xs text-slate-500">Enter first and last names for every seat before submitting.</p> : null}
+      {!allAttendeesNamed ? <p className="mt-2 text-xs text-slate-500">Enter first and last names for every seat before submitting.</p> : null}
     </section>
   );
 }

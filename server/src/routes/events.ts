@@ -490,7 +490,7 @@ function generatePublicOrderNumber(prefix = "PUB"): string {
   return `${prefix}-${timestamp}-${random}`;
 }
 
-async function generateUniqueCheckinCode(tx: Prisma.TransactionClient = prisma): Promise<string> {
+async function generateUniqueCheckinCode(tx: Prisma.TransactionClient): Promise<string> {
   for (let attempts = 0; attempts < MAX_CHECKIN_CODE_GENERATION_ATTEMPTS; attempts++) {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     const existing = await tx.eventGuest.findUnique({ where: { checkinCode: code } });

@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { getSectionDefinition, getSectionSourceFields } from "@/app/components/events/page-builder/section-config";
 import type { EventPageSectionId, EventPageSectionState } from "@/app/components/events/page-builder/types";
 
+const MAX_PREVIEW_FIELDS = 5;
+
 interface EventPageBuilderInspectorProps {
   section: EventPageSectionState;
   onUpdateSection: (sectionId: EventPageSectionId, updater: (current: EventPageSectionState) => EventPageSectionState) => void;
@@ -152,7 +154,7 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
             </div>
             {sourceFields.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {sourceFields.slice(0, 5).map((field) => (
+                {sourceFields.slice(0, MAX_PREVIEW_FIELDS).map((field) => (
                   <span key={field} className="rounded-full border border-violet-100 bg-white px-2 py-0.5 text-[10px] font-semibold text-violet-700">
                     {field}
                   </span>
