@@ -53,8 +53,8 @@ export const EVENT_WORKSPACE_TOOLS: EventWorkspaceToolMeta[] = [
     stage: "Plan",
     description: "Hosted event page and campaign-page builder entry point.",
     status: "Partially Working",
-    globalHref: (eventId) => `/events/page-builder?eventId=${encodeURIComponent(eventId)}`,
-    notes: "Global page builder exists; event-record sync and fundraising templates need more backend work.",
+    routeSegment: "event-page",
+    notes: "Event-scoped page builder workspace is available; persistence and publish history still need deeper backend coverage.",
   },
   {
     id: "guests",
@@ -79,8 +79,9 @@ export const EVENT_WORKSPACE_TOOLS: EventWorkspaceToolMeta[] = [
     label: "Hosts",
     stage: "Fill",
     description: "Table host portal links, host guest lists, and open-seat follow-up.",
-    status: "Not Implemented",
-    notes: "Do not expose as finished until host portal URLs, permissions, and guest manager persistence exist.",
+    status: "Partially Working",
+    routeSegment: "hosts",
+    notes: "Host workspace route is available; host portal links and resend controls still need deeper workflow coverage.",
   },
   {
     id: "sponsors",
@@ -97,8 +98,8 @@ export const EVENT_WORKSPACE_TOOLS: EventWorkspaceToolMeta[] = [
     stage: "Fundraise",
     description: "Event donations, pledges, recurring giving prospects, and giving follow-up.",
     status: "Partially Working",
-    routeSegment: "fundraising",
-    notes: "Scaffold route exists; donor CRM pledge and conversion workflows are not complete.",
+    routeSegment: "donations",
+    notes: "Event donations route is available with event-scoped summary and workflow cards; donor conversion handoffs remain partial.",
   },
   {
     id: "emails",
@@ -106,8 +107,8 @@ export const EVENT_WORKSPACE_TOOLS: EventWorkspaceToolMeta[] = [
     stage: "Fundraise",
     description: "Segmented event invitations, host reminders, sponsor thanks, and post-event follow-up.",
     status: "Partially Working",
-    routeSegment: "communications",
-    notes: "Scaffold route exists; scheduled event email sending is not complete.",
+    routeSegment: "emails",
+    notes: "Event email workspace route is available; schedule/send automation still needs production hardening.",
   },
   {
     id: "check-in",
@@ -132,8 +133,9 @@ export const EVENT_WORKSPACE_TOOLS: EventWorkspaceToolMeta[] = [
     label: "Follow-Up",
     stage: "Follow Up",
     description: "Thank-you tasks, pledge follow-up, monthly donor prospects, and Steward summaries.",
-    status: "Not Implemented",
-    notes: "Do not expose as finished until task creation, donor segmentation, and audit behavior are implemented.",
+    status: "Partially Working",
+    routeSegment: "follow-up",
+    notes: "Follow-up workspace route is available with next-step planning; automated task generation and donor segmentation are still partial.",
   },
   {
     id: "settings",
@@ -171,8 +173,8 @@ export const GLOBAL_EVENTS_TOOLS = [
     href: "/events/reports",
   },
   {
-    label: "Campaign Pages",
-    description: "Open the page builder for reusable event and campaign pages.",
+    label: "Event Page Builder",
+    description: "Compatibility selector that routes staff into the scoped /events/[eventId]/event-page builder.",
     href: "/events/page-builder",
   },
 ];

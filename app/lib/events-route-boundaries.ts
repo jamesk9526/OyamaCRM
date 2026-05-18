@@ -1,10 +1,12 @@
 /** Events route boundary helpers for retiring legacy global tool routes safely. */
 
 export type EventWorkspaceTool =
+  | "overview"
   | "check-in"
   | "orders"
   | "guests"
   | "tables"
+  | "hosts"
   | "tickets"
   | "registration"
   | "sponsors"
@@ -13,16 +15,19 @@ export type EventWorkspaceTool =
   | "communications"
   | "emails"
   | "reports"
+  | "follow-up"
   | "tasks"
   | "volunteers"
   | "files"
   | "settings";
 
 const LEGACY_GLOBAL_TOOL_ROUTE_TO_TOOL: Record<string, EventWorkspaceTool> = {
+  "/events/overview": "overview",
   "/events/check-in": "check-in",
   "/events/orders": "orders",
   "/events/guests": "guests",
   "/events/tables": "tables",
+  "/events/hosts": "hosts",
   "/events/tickets": "tickets",
   "/events/registration": "registration",
   "/events/sponsors": "sponsors",
@@ -30,6 +35,7 @@ const LEGACY_GLOBAL_TOOL_ROUTE_TO_TOOL: Record<string, EventWorkspaceTool> = {
   "/events/donations": "donations",
   "/events/communications": "communications",
   "/events/emails": "emails",
+  "/events/follow-up": "follow-up",
   "/events/tasks": "tasks",
   "/events/volunteers": "volunteers",
   "/events/files": "files",

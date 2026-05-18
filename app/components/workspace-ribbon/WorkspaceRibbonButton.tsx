@@ -11,7 +11,7 @@ interface WorkspaceRibbonButtonProps {
   /** Marks this button as the currently active/selected state (e.g. active filter tab). */
   active?: boolean;
   disabled?: boolean;
-  accentTone?: "green" | "blue" | "amber";
+  accentTone?: "green" | "blue" | "purple" | "amber";
   /** Accessible tooltip — defaults to label if omitted. */
   title?: string;
 }
@@ -280,6 +280,8 @@ export default function WorkspaceRibbonButton({
   const primaryTone =
     accentTone === "blue"
       ? "border-blue-600 bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800"
+      : accentTone === "purple"
+        ? "border-violet-600 bg-violet-600 text-white hover:bg-violet-700 active:bg-violet-800"
       : accentTone === "amber"
         ? "border-amber-600 bg-amber-600 text-white hover:bg-amber-700 active:bg-amber-800"
         : "border-green-600 bg-green-600 text-white hover:bg-green-700 active:bg-green-800";
@@ -288,6 +290,8 @@ export default function WorkspaceRibbonButton({
   const activeTone =
     accentTone === "blue"
       ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+      : accentTone === "purple"
+        ? "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100"
       : accentTone === "amber"
         ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
         : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100";

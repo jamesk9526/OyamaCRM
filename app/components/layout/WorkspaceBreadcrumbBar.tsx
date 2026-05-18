@@ -13,11 +13,11 @@ interface WorkspaceBreadcrumbBarProps {
   metadata?: string;
   primaryAction?: ReactNode;
   overflowActions?: ReactNode;
-  accentTone?: "green" | "blue" | "amber";
+  accentTone?: "green" | "blue" | "purple" | "amber";
 }
 
 /** Returns the badge tone for a given status label string. */
-function statusBadgeTone(statusLabel: string, accentTone: "green" | "blue" | "amber"): string {
+function statusBadgeTone(statusLabel: string, accentTone: "green" | "blue" | "purple" | "amber"): string {
   const lc = statusLabel.toLowerCase();
   if (lc === "working") return "border-green-200 bg-green-50 text-green-700";
   if (lc === "partially working") return "border-amber-200 bg-amber-50 text-amber-700";
@@ -26,6 +26,7 @@ function statusBadgeTone(statusLabel: string, accentTone: "green" | "blue" | "am
   if (lc === "not implemented") return "border-slate-200 bg-slate-50 text-slate-600";
   // fall back to accent tone
   if (accentTone === "blue") return "border-blue-200 bg-blue-50 text-blue-700";
+  if (accentTone === "purple") return "border-violet-200 bg-violet-50 text-violet-700";
   if (accentTone === "amber") return "border-amber-200 bg-amber-50 text-amber-700";
   return "border-green-200 bg-green-50 text-green-700";
 }
@@ -43,6 +44,14 @@ export default function WorkspaceBreadcrumbBar({
   overflowActions,
   accentTone = "green",
 }: WorkspaceBreadcrumbBarProps) {
+  const breadcrumbLinkTone = accentTone === "blue"
+    ? "hover:text-blue-700"
+    : accentTone === "purple"
+      ? "hover:text-violet-700"
+      : accentTone === "amber"
+        ? "hover:text-amber-700"
+        : "hover:text-green-700";
+
   return (
     <section className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 min-[1360px]:px-3 min-[1360px]:py-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -52,7 +61,7 @@ export default function WorkspaceBreadcrumbBar({
             return (
               <div key={`${item.label}-${index}`} className="flex min-w-0 items-center gap-1">
                 {item.href && !isLast ? (
-                  <Link href={item.href} className="truncate hover:text-green-700 hover:underline">
+                  <Link href={item.href} className={`truncate hover:underline ${breadcrumbLinkTone}`}>
                     {item.label}
                   </Link>
                 ) : (

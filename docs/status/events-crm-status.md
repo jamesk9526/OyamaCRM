@@ -8,12 +8,18 @@ Events CRM is now being shaped around a FundEasy / Attendance-style nonprofit fu
 
 | Surface | Release status | Notes |
 |---|---|---|
-| `/events` module root | Working | Now uses the same event-first journey hub as `/events/workspace`. |
+| `/events` module root | Working | Events module home is active; the sidebar uses `/events/events` as the single create/select event entrypoint. |
 | TopBar overlap in Events shell | Working | Events sidebar and main content now include the fixed TopBar offset. |
-| Event-scoped active event switcher | Working | `/events/[eventId]/*` pages show a compact active-event selector that preserves the current tool on switch. |
+| Event-scoped event lock | Working | `/events/[eventId]/*` pages lock to the selected event; switching events requires returning to `/events/events`. |
+| Sidebar grouping (V2) | Working | Sidebar now follows: Events -> Selected Event -> Event Command Center -> Event Settings. |
 | Events sidebar selected-event tools | Working | Sidebar links now point to canonical `/events/[eventId]/...` routes instead of legacy global query routes. |
-| Table Host Manager | Not Implemented | Planned major feature; must not be marked ready until host portal links, permissions, guest-list persistence, staff resend controls, and audit coverage exist. |
+| Event command center overview | Working | `/events/[eventId]/overview` now uses a polished purple command-center layout with selected-event header, at-a-glance cards, readiness lanes, and API-backed status sections. |
+| Seating workspace views | Working | Tables workspace now provides Floor Plan View, Table List View, and Guest Placement View in event-scoped context. |
+| Manager integrations import | Partially Working | Admin-only Events manager integration import endpoint snapshots donor payment/email settings for event operations. |
+| Donor-safe follow-up export | Partially Working | Event-scoped follow-up export endpoint supports JSON/CSV queue outputs for post-event workflows. |
+| Table Host Manager | Partially Working | Host coverage workspace is available, but host portal links, permissions, guest-list persistence, staff resend controls, and audit coverage are still incomplete. |
 | Event Page Builder, Emails, Donations/Pledges, Follow-Up | Partially Working / Not Implemented | These are visible with status labels in the command center, but their incomplete state is documented in `docs/STATUS.md`. |
+| In-development warning popups | Working | Partially implemented Events tools now show popup + banner warnings so unfinished behavior is visible to staff and reviewers. |
 
 ## 2026-05-10 Production Readiness Overrides
 
@@ -55,7 +61,7 @@ Critical overrides from the latest full testing and browser pass:
 
 | Feature | Status | Notes |
 |---|---|---|
-| Events CRM layout (amber theme) | ✅ Production Ready | `app/events/layout.tsx` |
+| Events CRM layout (violet + navy theme) | ✅ Production Ready | `app/events/layout.tsx` |
 | EventsSidebar with collapsible sections | ✅ Production Ready | `app/components/layout/EventsSidebar.tsx` |
 | Module switcher in TopBar | ✅ Production Ready | TopBar AppsDrawer shows Events CRM |
 | Events in AppsDrawer | ✅ Production Ready | `app/components/layout/AppsDrawer.tsx` |
@@ -66,10 +72,10 @@ Critical overrides from the latest full testing and browser pass:
 
 | Feature | Status | Notes |
 |---|---|---|
-| Event workspace selector (`/events/workspace`) | ✅ Production Ready | Event-first entry for scoped tools with selected event + selected tool routing |
+| Event workspace selector (`/events/workspace`) | 🟡 Working | Compatibility selector route remains available; primary operator entry in sidebar is now `/events/events`. |
 | Scoped workspace routes (`/events/[eventId]/[tool]`) | ✅ Production Ready | Event operations remain tied to selected event context |
-| Global tools section in Events sidebar | ✅ Production Ready | Reports, page builder, templates, and event registry are explicit outside selected-event scope |
-| Global page builder route (`/events/page-builder`) | 🟡 Working | Sends teams into shared website builder with event context links |
+| Global tools section in Events sidebar | ✅ Production Ready | Reports, templates, and event registry remain global while event-page editing moved into selected-event command center scope |
+| Global page builder route (`/events/page-builder`) | 🟡 Working | Compatibility selector that redirects `eventId` query links to `/events/[eventId]/event-page` |
 | Global template route (`/events/templates`) | 🔶 Partial | Template draft cloning works; metadata bundle cloning not yet implemented |
 
 ---
@@ -139,7 +145,7 @@ Critical overrides from the latest full testing and browser pass:
 | Feature | Status | Notes |
 |---|---|---|
 | Check-in page | 🟡 Working | `app/events/check-in/page.tsx` |
-| Event selector | ✅ Production Ready | Dropdown at top of check-in page |
+| Event selector / lock behavior | ✅ Production Ready | Global route keeps selector; event-scoped routes lock to selected event and link back to `/events/events` for switching |
 | Search by name/email/phone/table | ✅ Production Ready | Filters applied client-side |
 | Large volunteer-friendly guest cards | ✅ Production Ready | GuestCheckInCard component |
 | Check-in toggle | ✅ Production Ready | POST `/api/events/guests/:id/check-in` |
@@ -229,9 +235,9 @@ Critical overrides from the latest full testing and browser pass:
 
 | Feature | Status | Notes |
 |---|---|---|
-| Page builder entry point | 🟡 Working | `/events/page-builder` global tool route exists |
+| Page builder entry point | 🟡 Working | Canonical route is `/events/[eventId]/event-page`; `/events/page-builder` remains compatibility selector |
 | Template library | 🔶 Partial | `/events/templates` supports draft template creation from existing events |
-| Block-based editor | 🔴 Not Started | |
+| Block-based editor | 🔶 Partial | Event-scoped section rail + preview + inspector shell is implemented; persistence and deeper publishing pipeline are incomplete |
 | Public event registration page | 🔴 Not Started | |
 | Publish/unpublish | 🔴 Not Started | |
 

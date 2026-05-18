@@ -178,9 +178,9 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
     ]
     : moduleKey === "events"
       ? [
-        { id: "quick-events-workspace", type: "tool", label: "Open Events Workspace", sublabel: "Select an event before managing tools", href: "/events", group: "tools" },
-        { id: "quick-events-registry", type: "tool", label: "Open All Events", sublabel: "Event registry and lifecycle", href: "/events/events", group: "tools" },
-        { id: "quick-events-checkin", type: "tool", label: "Open Event Check-In", sublabel: "Select an event, then open check-in", href: "/events/workspace?tool=check-in", group: "tools" },
+        { id: "quick-events-workspace", type: "tool", label: "Open Events Dashboard", sublabel: "Fundraising event command center home", href: "/events", group: "tools" },
+        { id: "quick-events-registry", type: "tool", label: "Open All Events", sublabel: "Create or select an event workspace", href: "/events/events", group: "tools" },
+        { id: "quick-events-checkin", type: "tool", label: "Open Event Check-In", sublabel: "Use All Events to select event first", href: "/events/events", group: "tools" },
         { id: "quick-help", type: "tool", label: "Open Help Center", sublabel: "Guides and walkthroughs", href: `/help?scope=events&scopePath=${encodeURIComponent(pathname || "/events")}`, group: "tools" },
       ]
       : moduleKey === "watchdog"
@@ -520,7 +520,7 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
   const focusRing = moduleKey === "compassion"
     ? "focus:ring-blue-400/60"
     : moduleKey === "events"
-      ? "focus:ring-amber-400/60"
+      ? "focus:ring-violet-400/60"
       : moduleKey === "watchdog"
         ? "focus:ring-red-400/60"
         : moduleKey === "webmaster"
@@ -533,7 +533,7 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
   const activeResultBg = moduleKey === "compassion"
     ? "bg-blue-50"
     : moduleKey === "events"
-      ? "bg-amber-50"
+      ? "bg-violet-50"
       : moduleKey === "watchdog"
         ? "bg-red-50"
         : moduleKey === "webmaster"
@@ -546,7 +546,7 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
   const spinnerColor = moduleKey === "compassion"
     ? "border-blue-400"
     : moduleKey === "events"
-      ? "border-amber-400"
+      ? "border-violet-400"
       : moduleKey === "watchdog"
         ? "border-red-400"
         : moduleKey === "webmaster"
@@ -749,7 +749,7 @@ export default function TopBar() {
   const moduleAccentClass = moduleKey === "compassion"
     ? "bg-blue-600"
     : moduleKey === "events"
-      ? "bg-amber-500"
+      ? "bg-violet-500"
       : moduleKey === "watchdog"
         ? "bg-red-600"
         : moduleKey === "webmaster"
@@ -762,7 +762,7 @@ export default function TopBar() {
   const homeHref = moduleKey === "compassion"
     ? "/compassion/dashboard"
     : moduleKey === "events"
-      ? "/events/workspace"
+      ? "/events/events"
       : moduleKey === "watchdog"
         ? "/watchdog"
         : moduleKey === "webmaster"
@@ -1149,7 +1149,7 @@ export default function TopBar() {
                     moduleKey === "compassion"
                       ? "bg-blue-500"
                       : moduleKey === "events"
-                        ? "bg-amber-500"
+                        ? "bg-violet-500"
                         : moduleKey === "watchdog"
                           ? "bg-red-600"
                           : moduleKey === "webmaster"
@@ -1386,7 +1386,7 @@ export default function TopBar() {
                 moduleKey === "compassion"
                   ? "bg-blue-500"
                   : moduleKey === "events"
-                    ? "bg-amber-500"
+                    ? "bg-violet-500"
                     : moduleKey === "watchdog"
                       ? "bg-red-600"
                       : moduleKey === "webmaster"
@@ -1607,7 +1607,7 @@ function ModuleSwitcher({
   const switcherTone = current.key === "compassion"
     ? "from-blue-50 to-sky-50 border-blue-200/80"
     : current.key === "events"
-      ? "from-amber-50 to-orange-50 border-amber-200/80"
+      ? "from-violet-50 to-fuchsia-50 border-violet-200/80"
       : current.key === "watchdog"
         ? "from-red-50 to-rose-50 border-red-200/80"
         : current.key === "webmaster"
@@ -1698,7 +1698,7 @@ function UserMenu({ moduleKey }: { moduleKey: TopBarModuleKey }) {
   const avatarCls = moduleKey === "compassion"
     ? "bg-blue-700 border-blue-500"
     : moduleKey === "events"
-      ? "bg-amber-700 border-amber-500"
+      ? "bg-violet-700 border-violet-500"
       : moduleKey === "watchdog"
         ? "bg-red-700 border-red-500"
         : moduleKey === "webmaster"

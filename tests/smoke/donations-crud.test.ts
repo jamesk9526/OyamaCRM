@@ -214,6 +214,39 @@ describe("donation CRUD", () => {
     expect(res.status).toBe(400);
   });
 
+  it("donation import flags duplicate rows within one uploaded file", async () => {
+    const giftDate = new Date().toISOString();
+    const res = await request(app)
+      .post("/api/donations/import")
+      .set(auth())
+      .send({
+        records: [
+          {
+            amount: "42.50",
+            date: giftDate,
+            receiptNumber: "smoke-dup-receipt-001",
+            constituentEmail: "nobody+dup-test@oyama.invalid",
+          },
+          {
+            amount: "42.50",
+            date: giftDate,
+            receiptNumber: "smoke-dup-receipt-001",
+            constituentEmail: "nobody+dup-test@oyama.invalid",
+          },
+        ],
+        dryRun: true,
+        matchEmail: true,
+        matchExternalId: false,
+        matchName: false,
+        skipUnmatched: true,
+        dedupByReceipt: false,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.dryRun).toBe(true);
+    expect(res.body.duplicatesInFile).toBe(1);
+  });
+
   it("deletes the smoke donation", async () => {
     expect(donationId).toBeTruthy();
     const res = await request(app).delete(`/api/donations/${donationId}`).set(auth());

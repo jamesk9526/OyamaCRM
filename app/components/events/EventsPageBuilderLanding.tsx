@@ -1,4 +1,4 @@
-// EventsPageBuilderLanding surfaces global event-page creation workflows outside event-scoped tools.
+// EventsPageBuilderLanding helps staff choose an event before opening the scoped Event Page Builder.
 "use client";
 
 import { useEffect, useState } from "react";
@@ -7,8 +7,8 @@ import { apiFetch } from "@/app/lib/auth-client";
 import type { EventItem } from "@/app/components/events/types";
 
 /**
- * EventsPageBuilderLanding lists events and links staff into the shared website builder
- * so teams can create and edit public event pages without selecting a scoped event workspace first.
+ * EventsPageBuilderLanding keeps event-first selection as the only entrypoint for
+ * the Event Page Builder so public pages stay tied to one selected event.
  */
 export function EventsPageBuilderLanding() {
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -46,57 +46,72 @@ export function EventsPageBuilderLanding() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-        <h1 className="text-xl font-semibold text-gray-900">Event Page Builder</h1>
-        <p className="text-sm text-blue-900 mt-1">
-          This global tool sends staff into the shared website builder so event landing pages stay managed in one place.
+      <section className="rounded-xl border border-violet-200 bg-violet-50 p-4">
+        <h1 className="text-xl font-semibold text-slate-900">Event Page Builder</h1>
+        <p className="mt-1 text-sm text-violet-900">
+          The Event Page Builder is now an event-scoped Events CRM tool. Select an event, then build and publish its public page from the same event command center.
         </p>
+        <ul className="mt-2 space-y-1 text-xs text-violet-800">
+          <li>• Uses event record source-of-truth fields for date, location, tickets, sponsors, and fundraising progress.</li>
+          <li>• Keeps event staff inside Events CRM without routing into Oyama Webmaster.</li>
+          <li>• Preserves fast event-first flow: select event to open builder, preview, and publish.</li>
+        </ul>
         <div className="mt-3 flex flex-wrap gap-2">
           <Link
-            href="/webmaster?source=events"
-            className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            href="/events/events"
+            className="inline-flex items-center rounded-md bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700"
           >
-            Open Website Builder
+            Open All Events
           </Link>
           <Link
-            href="/events/workspace"
-            className="inline-flex items-center rounded-md border border-blue-300 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+            href="/events"
+            className="inline-flex items-center rounded-md border border-violet-300 bg-white px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-100"
           >
-            Back To Events Workspace Selector
+            Back To Events Dashboard
           </Link>
         </div>
-      </div>
+      </section>
 
-      {isLoading ? <p className="text-sm text-gray-600">Loading events...</p> : null}
+      {isLoading ? <p className="text-sm text-slate-600">Loading events...</p> : null}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       {!isLoading && !error ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <h2 className="text-sm font-semibold text-gray-900">Jump Into A Specific Event Page</h2>
-            <span className="text-xs text-gray-500">{events.length} event(s)</span>
+        <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-slate-900">Choose Event For Public Page</h2>
+            <span className="text-xs text-slate-500">{events.length} event(s)</span>
           </div>
+
           <div className="mt-3 space-y-2">
             {events.length === 0 ? (
-              <p className="text-sm text-gray-500">No events found yet. Create an event first, then attach a page in the website builder.</p>
+              <p className="text-sm text-slate-500">No events found. Create an event first, then open the event-scoped page builder.</p>
             ) : (
               events.map((event) => (
-                <div key={event.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3 flex items-center justify-between gap-3 flex-wrap">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{event.name}</p>
-                    <p className="text-xs text-gray-500">{new Date(event.startDate).toLocaleDateString()}</p>
+                <div key={event.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-900">{event.name}</p>
+                    <p className="text-xs text-slate-500">{new Date(event.startDate).toLocaleDateString()}</p>
                   </div>
-                  <Link
-                    href={`/webmaster?source=events&eventId=${encodeURIComponent(event.id)}`}
-                    className="inline-flex items-center rounded-md border border-blue-300 bg-white px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100"
-                  >
-                    Build / Edit Event Page
-                  </Link>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                      href={`/events/${encodeURIComponent(event.id)}/overview`}
+                      className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                      Overview
+                    </Link>
+                    <Link
+                      href={`/events/${encodeURIComponent(event.id)}/event-page`}
+                      className="inline-flex items-center rounded-md border border-violet-300 bg-white px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"
+                    >
+                      Build / Edit Page
+                    </Link>
+                  </div>
                 </div>
               ))
             )}
           </div>
-        </div>
+        </section>
       ) : null}
     </div>
   );

@@ -104,6 +104,7 @@ function SponsorModal({
   initialData,
   events,
   defaultEventId,
+  lockEventSelection,
   onClose,
   onSaved,
 }: {
@@ -111,6 +112,7 @@ function SponsorModal({
   initialData?: Sponsor;
   events: Event[];
   defaultEventId: string;
+  lockEventSelection: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -124,6 +126,8 @@ function SponsorModal({
     websiteUrl: initialData?.websiteUrl ?? "",
     notes: initialData?.notes ?? "",
   });
+  const eventLocked = mode === "create" && lockEventSelection;
+  const lockedEvent = defaultEventId ? events.find((ev) => ev.id === defaultEventId) : null;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -177,7 +181,11 @@ function SponsorModal({
     <WorkspaceSetupModal
       title={mode === "create" ? "Add Sponsor" : "Edit Sponsor"}
       subtitle="Manage event sponsorship commitments, levels, and benefits in one guided modal."
-      checklist={["1. Select event and constituent", "2. Set level and amount", "3. Save sponsor"]}
+      checklist={[
+        eventLocked ? "1. Event is locked to selected workspace event" : "1. Select event and constituent",
+        "2. Set level and amount",
+        "3. Save sponsor",
+      ]}
       onClose={onClose}
       maxWidthClassName="max-w-5xl"
     >
@@ -190,24 +198,30 @@ function SponsorModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Event selector — pre-selected in create mode */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Event</label>
-            <select
-              value={form.eventId}
-              onChange={(e) => setForm((f) => ({ ...f, eventId: e.target.value }))}
-              disabled={mode === "edit"}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white disabled:bg-gray-50"
-              required
-            >
-              <option value="">Select event</option>
-              {events.map((ev) => (
-                <option key={ev.id} value={ev.id}>
-                  {ev.name} — {new Date(ev.startDate).toLocaleDateString()}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Event selector — locked in event-scoped create mode */}
+          {eventLocked ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Event lock active: {lockedEvent ? `${lockedEvent.name} — ${new Date(lockedEvent.startDate).toLocaleDateString()}` : "Selected event"}
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Event</label>
+              <select
+                value={form.eventId}
+                onChange={(e) => setForm((f) => ({ ...f, eventId: e.target.value }))}
+                disabled={mode === "edit"}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white disabled:bg-gray-50"
+                required
+              >
+                <option value="">All Events</option>
+                {events.map((ev) => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.name} — {new Date(ev.startDate).toLocaleDateString()}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Constituent ID input (search/type) */}
           <div>
@@ -408,7 +422,7 @@ export default function EventsSponsorsPage() {
     <div className="p-6 space-y-6">
       <WorkspaceBreadcrumbBar
         items={[
-          { label: "Events CRM", href: "/events/workspace" },
+          { label: "Events CRM", href: "/events/events" },
           { label: "Sponsors" },
         ]}
         statusLabel={eventScoped ? "Event Scoped" : "All Events"}
@@ -428,22 +442,27 @@ export default function EventsSponsorsPage() {
       </WorkspaceRibbon>
 
       {/* Event Selector */}
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">Event</label>
-        <select
-          value={selectedEventId}
-          onChange={(e) => setSelectedEventId(e.target.value)}
-          disabled={eventScoped}
-          className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
-        >
-          <option value="">{eventScoped ? "Event Workspace" : "Select an event"}</option>
-          {events.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name} — {new Date(e.startDate).toLocaleDateString()}
-            </option>
-          ))}
-        </select>
-      </div>
+      {!eventScoped ? (
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Event</label>
+          <select
+            value={selectedEventId}
+            onChange={(e) => setSelectedEventId(e.target.value)}
+            className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
+          >
+            <option value="">Select an event</option>
+            {events.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name} — {new Date(e.startDate).toLocaleDateString()}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Event lock active
+        </div>
+      )}
 
       {!selectedEventId ? (
         <div className="bg-gray-50 rounded-lg border border-gray-200 p-8 text-center text-gray-500">
@@ -451,7 +470,6 @@ export default function EventsSponsorsPage() {
         </div>
       ) : (
         <>
-          {/* Metrics row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-white p-4 rounded-lg border border-gray-200">
               <p className="text-xs text-gray-500 uppercase font-medium">Total Sponsors</p>
@@ -593,6 +611,7 @@ export default function EventsSponsorsPage() {
           initialData={editingSponsor ?? undefined}
           events={events}
           defaultEventId={selectedEventId}
+          lockEventSelection={eventScoped}
           onClose={() => { setShowModal(false); setEditingSponsor(null); }}
           onSaved={() => { setShowModal(false); setEditingSponsor(null); loadSponsors(); }}
         />
@@ -633,3 +652,4 @@ export default function EventsSponsorsPage() {
     </div>
   );
 }
+

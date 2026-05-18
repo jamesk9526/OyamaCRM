@@ -7,11 +7,211 @@
 import { Router } from "express";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
+import { logAudit } from "../lib/audit.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { requireRole } from "../middleware/requireRole.js";
 import { requirePermission } from "../middleware/requirePermission.js";
+import { readPaymentGatewayPublicSettings, type PaymentGatewayPublicSettings } from "../services/payment-gateway-settings.js";
 import type { EventGuestPaymentStatus, EventGuestRsvpStatus, Prisma } from "@prisma/client";
 
 const router = Router();
+const EVENTS_MANAGER_INTEGRATIONS_PLUGIN_KEY = "events-manager-integrations";
+const EVENTS_PAGE_BUILDER_PLUGIN_KEY = "events-page-builder";
+const EMAIL_PROVIDER_PLUGIN_KEY = "email-provider";
+
+type EmailProviderType = "standard_smtp" | "microsoft_365_smtp" | "microsoft_graph";
+
+interface EventsManagerEmailProviderSnapshot {
+  provider: EmailProviderType;
+  graphConnected: boolean;
+  microsoftMailbox: string;
+  microsoftTenantConfigured: boolean;
+  microsoftClientConfigured: boolean;
+  smtpHostOverride: string;
+  smtpPortOverride: number;
+  smtpSecureOverride: boolean;
+}
+
+interface EventsManagerSmtpSnapshot {
+  host: string;
+  hostConfigured: boolean;
+  port: number;
+  secure: boolean;
+  userConfigured: boolean;
+  fromName: string;
+  fromEmail: string;
+}
+
+interface EventsManagerIntegrationSourcePreview {
+  paymentGateway: PaymentGatewayPublicSettings;
+  emailProvider: EventsManagerEmailProviderSnapshot;
+  smtp: EventsManagerSmtpSnapshot;
+}
+
+interface EventsManagerIntegrationSnapshot extends EventsManagerIntegrationSourcePreview {
+  source: "donor_crm";
+  importedAt: string;
+  importedByUserId: string | null;
+}
+
+type EventPageBuilderStatus = "Draft" | "Published";
+
+interface StoredEventPageBuilderEntry {
+  pageUrl: string;
+  status: EventPageBuilderStatus;
+  lastPublishedAt: string | null;
+  updatedAt: string;
+}
+
+interface StoredEventPageBuilderConfig {
+  events: Record<string, StoredEventPageBuilderEntry>;
+}
+
+function normalizeEmailProviderSnapshot(config: unknown): EventsManagerEmailProviderSnapshot {
+  const raw = config && typeof config === "object" && !Array.isArray(config)
+    ? (config as Record<string, unknown>)
+    : {};
+  const providerRaw = String(raw.provider ?? "standard_smtp").trim();
+  const provider: EmailProviderType = providerRaw === "microsoft_365_smtp"
+    ? "microsoft_365_smtp"
+    : providerRaw === "microsoft_graph"
+      ? "microsoft_graph"
+      : "standard_smtp";
+
+  const portCandidate = Number.parseInt(String(raw.smtpPortOverride ?? 587), 10);
+
+  return {
+    provider,
+    graphConnected: Boolean(raw.graphConnected),
+    microsoftMailbox: String(raw.microsoftMailbox ?? "").trim(),
+    microsoftTenantConfigured: String(raw.microsoftTenantId ?? "").trim().length > 0,
+    microsoftClientConfigured: String(raw.microsoftClientId ?? "").trim().length > 0,
+    smtpHostOverride: String(raw.smtpHostOverride ?? "").trim(),
+    smtpPortOverride: Number.isFinite(portCandidate) ? Math.min(Math.max(portCandidate, 1), 65535) : 587,
+    smtpSecureOverride: Boolean(raw.smtpSecureOverride),
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function slugifyEventPagePath(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function defaultEventPageUrl(eventName: string): string {
+  const appBase = (process.env.NEXT_PUBLIC_APP_URL ?? "https://oyamachurch.org").replace(/\/$/, "");
+  return `${appBase}/events/${slugifyEventPagePath(eventName)}`;
+}
+
+function normalizeEventPageStatus(value: unknown): EventPageBuilderStatus {
+  return value === "Published" ? "Published" : "Draft";
+}
+
+function toIsoOrNull(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
+function sanitizeEventPageUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 500) return null;
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function readStoredEventPageBuilderConfig(config: unknown): StoredEventPageBuilderConfig {
+  if (!isRecord(config)) {
+    return { events: {} };
+  }
+
+  const rawEvents = isRecord(config.events) ? config.events : {};
+  const events: Record<string, StoredEventPageBuilderEntry> = {};
+
+  for (const [eventId, rawValue] of Object.entries(rawEvents)) {
+    if (!isRecord(rawValue)) continue;
+
+    const pageUrl = sanitizeEventPageUrl(rawValue.pageUrl);
+    if (!pageUrl) continue;
+
+    events[eventId] = {
+      pageUrl,
+      status: normalizeEventPageStatus(rawValue.status),
+      lastPublishedAt: toIsoOrNull(rawValue.lastPublishedAt),
+      updatedAt: toIsoOrNull(rawValue.updatedAt) ?? new Date().toISOString(),
+    };
+  }
+
+  return { events };
+}
+
+function readStoredIntegrationSnapshot(config: unknown): EventsManagerIntegrationSnapshot | null {
+  if (!isRecord(config)) return null;
+  const source = String(config.source ?? "").trim();
+  if (source !== "donor_crm") return null;
+  return config as unknown as EventsManagerIntegrationSnapshot;
+}
+
+async function buildEventsManagerIntegrationSourcePreview(
+  organizationId: string,
+): Promise<EventsManagerIntegrationSourcePreview> {
+  const [paymentGateway, emailProviderSetting, organizationSettings] = await Promise.all([
+    readPaymentGatewayPublicSettings(organizationId),
+    prisma.pluginSetting.findUnique({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: EMAIL_PROVIDER_PLUGIN_KEY,
+        },
+      },
+      select: { config: true },
+    }),
+    prisma.organizationSettings.findUnique({
+      where: { organizationId },
+      select: {
+        smtpHost: true,
+        smtpPort: true,
+        smtpSecure: true,
+        smtpUser: true,
+        smtpFromName: true,
+        smtpFromEmail: true,
+      },
+    }),
+  ]);
+
+  const smtpHost = String(organizationSettings?.smtpHost ?? "").trim();
+  const smtpPort = organizationSettings?.smtpPort ?? 587;
+
+  return {
+    paymentGateway,
+    emailProvider: normalizeEmailProviderSnapshot(emailProviderSetting?.config),
+    smtp: {
+      host: smtpHost,
+      hostConfigured: smtpHost.length > 0,
+      port: smtpPort,
+      secure: Boolean(organizationSettings?.smtpSecure),
+      userConfigured: String(organizationSettings?.smtpUser ?? "").trim().length > 0,
+      fromName: String(organizationSettings?.smtpFromName ?? "").trim(),
+      fromEmail: String(organizationSettings?.smtpFromEmail ?? "").trim(),
+    },
+  };
+}
 
 // All event routes require authentication.
 router.use(requireAuth);
@@ -25,6 +225,283 @@ router.use((req, res, next) => {
     return requirePermission("edit:events")(req, res, next);
   }
   return next();
+});
+
+/**
+ * GET /api/events/manager-integrations
+ * Admin-only view of current DonorCRM payment/email source settings and latest imported snapshot.
+ */
+router.get("/manager-integrations", requireRole("admin"), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  try {
+    const [sourcePreview, snapshotSetting] = await Promise.all([
+      buildEventsManagerIntegrationSourcePreview(organizationId),
+      prisma.pluginSetting.findUnique({
+        where: {
+          organizationId_pluginKey: {
+            organizationId,
+            pluginKey: EVENTS_MANAGER_INTEGRATIONS_PLUGIN_KEY,
+          },
+        },
+        select: { config: true, updatedAt: true },
+      }),
+    ]);
+
+    const importedSnapshot = readStoredIntegrationSnapshot(snapshotSetting?.config);
+
+    res.json({
+      sourcePreview,
+      importedSnapshot,
+      lastImportedAt: importedSnapshot?.importedAt ?? null,
+      snapshotUpdatedAt: snapshotSetting?.updatedAt ?? null,
+    });
+  } catch (error) {
+    console.error("[Events] manager-integrations GET failed:", error);
+    res.status(500).json({
+      error: {
+        code: "EVENT_MANAGER_INTEGRATIONS_READ_FAILED",
+        message: "Failed to load Events manager integration settings.",
+      },
+    });
+  }
+});
+
+/**
+ * POST /api/events/manager-integrations/import
+ * Admin-only import snapshot from DonorCRM payment/email settings into Events manager context.
+ */
+router.post("/manager-integrations/import", requireRole("admin"), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  try {
+    const sourcePreview = await buildEventsManagerIntegrationSourcePreview(organizationId);
+    const snapshot: EventsManagerIntegrationSnapshot = {
+      source: "donor_crm",
+      importedAt: new Date().toISOString(),
+      importedByUserId: req.user?.sub ?? null,
+      ...sourcePreview,
+    };
+
+    await prisma.pluginSetting.upsert({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: EVENTS_MANAGER_INTEGRATIONS_PLUGIN_KEY,
+        },
+      },
+      create: {
+        organizationId,
+        pluginKey: EVENTS_MANAGER_INTEGRATIONS_PLUGIN_KEY,
+        enabled: true,
+        config: snapshot as unknown as Prisma.InputJsonValue,
+      },
+      update: {
+        enabled: true,
+        config: snapshot as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    await logAudit({
+      action: "EVENTS_MANAGER_INTEGRATIONS_IMPORTED",
+      entity: "PluginSetting",
+      entityId: organizationId,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: {
+        paymentCurrency: snapshot.paymentGateway.currency,
+        stripeEnabled: snapshot.paymentGateway.stripe.enabled,
+        paypalEnabled: snapshot.paymentGateway.paypal.enabled,
+        emailProvider: snapshot.emailProvider.provider,
+        graphConnected: snapshot.emailProvider.graphConnected,
+        smtpHostConfigured: snapshot.smtp.hostConfigured,
+        smtpUserConfigured: snapshot.smtp.userConfigured,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.json({ importedSnapshot: snapshot });
+  } catch (error) {
+    console.error("[Events] manager-integrations import failed:", error);
+    res.status(500).json({
+      error: {
+        code: "EVENT_MANAGER_INTEGRATIONS_IMPORT_FAILED",
+        message: "Failed to import DonorCRM integration settings into Events manager.",
+      },
+    });
+  }
+});
+
+/** GET /api/events/:eventId/page-builder-config — Event page URL and publish metadata for one scoped event. */
+router.get("/:eventId/page-builder-config", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({
+    where: { id: req.params.eventId, organizationId },
+    select: { id: true, name: true },
+  });
+
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const setting = await prisma.pluginSetting.findUnique({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: EVENTS_PAGE_BUILDER_PLUGIN_KEY,
+      },
+    },
+    select: { config: true },
+  });
+
+  const config = readStoredEventPageBuilderConfig(setting?.config);
+  const entry = config.events[event.id];
+
+  res.json({
+    eventId: event.id,
+    pageUrl: entry?.pageUrl ?? defaultEventPageUrl(event.name),
+    status: entry?.status ?? "Draft",
+    lastPublishedAt: entry?.lastPublishedAt ?? null,
+  });
+});
+
+/** PATCH /api/events/:eventId/page-builder-config — Persist event page URL and publish metadata for one scoped event. */
+router.patch("/:eventId/page-builder-config", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({
+    where: { id: req.params.eventId, organizationId },
+    select: { id: true, name: true },
+  });
+
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const setting = await prisma.pluginSetting.findUnique({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: EVENTS_PAGE_BUILDER_PLUGIN_KEY,
+      },
+    },
+    select: { config: true },
+  });
+
+  const config = readStoredEventPageBuilderConfig(setting?.config);
+  const previous = config.events[event.id];
+
+  let nextPageUrl: string;
+  if (req.body.pageUrl === undefined) {
+    nextPageUrl = previous?.pageUrl ?? defaultEventPageUrl(event.name);
+  } else {
+    const sanitized = sanitizeEventPageUrl(req.body.pageUrl);
+    if (!sanitized) {
+      res.status(400).json({
+        error: {
+          code: "INVALID_INPUT",
+          message: "pageUrl must be a valid absolute http(s) URL.",
+        },
+      });
+      return;
+    }
+    nextPageUrl = sanitized;
+  }
+
+  const nextStatus = req.body.status === undefined
+    ? (previous?.status ?? "Draft")
+    : normalizeEventPageStatus(req.body.status);
+
+  const nextLastPublishedAt = req.body.lastPublishedAt === undefined
+    ? (previous?.lastPublishedAt ?? null)
+    : req.body.lastPublishedAt === null
+      ? null
+      : toIsoOrNull(req.body.lastPublishedAt);
+
+  if (req.body.lastPublishedAt !== undefined && req.body.lastPublishedAt !== null && !nextLastPublishedAt) {
+    res.status(400).json({
+      error: {
+        code: "INVALID_INPUT",
+        message: "lastPublishedAt must be an ISO timestamp or null.",
+      },
+    });
+    return;
+  }
+
+  const entry: StoredEventPageBuilderEntry = {
+    pageUrl: nextPageUrl,
+    status: nextStatus,
+    lastPublishedAt: nextLastPublishedAt,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const nextConfig: StoredEventPageBuilderConfig = {
+    events: {
+      ...config.events,
+      [event.id]: entry,
+    },
+  };
+
+  await prisma.pluginSetting.upsert({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: EVENTS_PAGE_BUILDER_PLUGIN_KEY,
+      },
+    },
+    create: {
+      organizationId,
+      pluginKey: EVENTS_PAGE_BUILDER_PLUGIN_KEY,
+      enabled: true,
+      config: nextConfig as unknown as Prisma.InputJsonValue,
+    },
+    update: {
+      enabled: true,
+      config: nextConfig as unknown as Prisma.InputJsonValue,
+    },
+  });
+
+  await logAudit({
+    action: "EVENT_PAGE_BUILDER_CONFIG_UPDATED",
+    entity: "Event",
+    entityId: event.id,
+    userId: req.user?.sub,
+    organizationId,
+    metadata: {
+      pageUrl: entry.pageUrl,
+      status: entry.status,
+      lastPublishedAt: entry.lastPublishedAt,
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({
+    eventId: event.id,
+    pageUrl: entry.pageUrl,
+    status: entry.status,
+    lastPublishedAt: entry.lastPublishedAt,
+  });
 });
 
 /** GET /api/events/dashboard-summary — high-level command-center metrics for Events CRM. */
@@ -1204,13 +1681,31 @@ router.post("/:eventId/tables", async (req, res) => {
 
   const { name, capacity, notes, tableNumber, isSponsored, hostName, xPosition, yPosition, shape } = req.body;
 
+  const parsedTableNumber =
+    tableNumber === undefined
+      ? undefined
+      : tableNumber === null || tableNumber === ""
+        ? null
+        : Number(tableNumber);
+
+  if (
+    parsedTableNumber !== undefined &&
+    parsedTableNumber !== null &&
+    !Number.isInteger(parsedTableNumber)
+  ) {
+    res.status(400).json({
+      error: { code: "INVALID_INPUT", message: "tableNumber must be an integer when provided" },
+    });
+    return;
+  }
+
   const table = await prisma.eventTable.create({
     data: {
       eventId: req.params.eventId,
       name,
       capacity: capacity ?? 10,
       notes: notes ?? undefined,
-      tableNumber: tableNumber ?? undefined,
+      tableNumber: parsedTableNumber,
       isSponsored: isSponsored ?? false,
       hostName: hostName ?? undefined,
       xPosition: xPosition ?? 0,
@@ -1252,13 +1747,31 @@ router.patch("/tables/:tableId", async (req, res) => {
 
   const { name, capacity, notes, tableNumber, isSponsored, hostName, xPosition, yPosition, shape } = req.body;
 
+  const parsedTableNumber =
+    tableNumber === undefined
+      ? undefined
+      : tableNumber === null || tableNumber === ""
+        ? null
+        : Number(tableNumber);
+
+  if (
+    parsedTableNumber !== undefined &&
+    parsedTableNumber !== null &&
+    !Number.isInteger(parsedTableNumber)
+  ) {
+    res.status(400).json({
+      error: { code: "INVALID_INPUT", message: "tableNumber must be an integer when provided" },
+    });
+    return;
+  }
+
   const updated = await prisma.eventTable.update({
     where: { id: req.params.tableId },
     data: {
       ...(name !== undefined && { name }),
       ...(capacity !== undefined && { capacity }),
       ...(notes !== undefined && { notes }),
-      ...(tableNumber !== undefined && { tableNumber }),
+      ...(parsedTableNumber !== undefined && { tableNumber: parsedTableNumber }),
       ...(isSponsored !== undefined && { isSponsored }),
       ...(hostName !== undefined && { hostName }),
       ...(xPosition !== undefined && { xPosition }),
@@ -1412,6 +1925,175 @@ router.post("/guests/:guestId/check-in", async (req, res) => {
 
 // ─── Event Reports ───────────────────────────────────────────────────────────
 
+function computeFollowUpAction(input: {
+  checkedIn: boolean;
+  paymentStatus: EventGuestPaymentStatus;
+  rsvpStatus: EventGuestRsvpStatus;
+  hasLinkedConstituent: boolean;
+}): string {
+  if (!input.checkedIn && input.rsvpStatus === "CONFIRMED") {
+    return "No-show outreach";
+  }
+  if (input.paymentStatus === "DUE" || input.paymentStatus === "PENDING_CHECK") {
+    return "Payment follow-up";
+  }
+  if (input.checkedIn && !input.hasLinkedConstituent) {
+    return "Link guest to constituent";
+  }
+  if (input.checkedIn) {
+    return "Send post-event thank-you";
+  }
+  return "Review RSVP status";
+}
+
+function escapeCsv(value: string): string {
+  if (value.includes(",") || value.includes("\"") || value.includes("\n")) {
+    return `"${value.replace(/\"/g, '""')}"`;
+  }
+  return value;
+}
+
+/**
+ * GET /api/events/:eventId/donor-safe-export
+ * Exports post-event donor follow-up rows without exposing sensitive client-only fields.
+ */
+router.get("/:eventId/donor-safe-export", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({
+    where: { id: req.params.eventId, organizationId },
+    select: {
+      id: true,
+      name: true,
+      startDate: true,
+    },
+  });
+
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    return;
+  }
+
+  const guests = await prisma.eventGuest.findMany({
+    where: { eventId: event.id },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      checkedIn: true,
+      checkedInAt: true,
+      paymentStatus: true,
+      rsvpStatus: true,
+      table: { select: { name: true } },
+      ticketType: { select: { name: true } },
+      constituent: { select: { id: true, firstName: true, lastName: true } },
+    },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+  });
+
+  const rows = guests.map((guest) => {
+    const guestFirstName = String(guest.firstName ?? guest.constituent?.firstName ?? "").trim();
+    const guestLastName = String(guest.lastName ?? guest.constituent?.lastName ?? "").trim();
+    const linkedConstituentName = guest.constituent
+      ? `${guest.constituent.firstName} ${guest.constituent.lastName}`.trim()
+      : "";
+
+    const followUpAction = computeFollowUpAction({
+      checkedIn: guest.checkedIn,
+      paymentStatus: guest.paymentStatus,
+      rsvpStatus: guest.rsvpStatus,
+      hasLinkedConstituent: Boolean(guest.constituent?.id),
+    });
+
+    return {
+      guestId: guest.id,
+      firstName: guestFirstName,
+      lastName: guestLastName,
+      email: String(guest.email ?? "").trim(),
+      checkedIn: guest.checkedIn,
+      checkedInAt: guest.checkedInAt ? guest.checkedInAt.toISOString() : "",
+      rsvpStatus: guest.rsvpStatus,
+      paymentStatus: guest.paymentStatus,
+      table: String(guest.table?.name ?? "Unassigned").trim(),
+      ticketType: String(guest.ticketType?.name ?? "").trim(),
+      linkedConstituentId: guest.constituent?.id ?? "",
+      linkedConstituentName,
+      followUpAction,
+    };
+  });
+
+  const checkedInCount = rows.filter((row) => row.checkedIn).length;
+  const noShowCount = rows.filter((row) => !row.checkedIn && row.rsvpStatus === "CONFIRMED").length;
+  const paymentFollowUpCount = rows.filter((row) => row.followUpAction === "Payment follow-up").length;
+  const linkFollowUpCount = rows.filter((row) => row.followUpAction === "Link guest to constituent").length;
+
+  const format = String(req.query.format ?? "json").trim().toLowerCase();
+
+  if (format === "csv") {
+    const headers = [
+      "event_name",
+      "guest_id",
+      "first_name",
+      "last_name",
+      "email",
+      "checked_in",
+      "checked_in_at",
+      "rsvp_status",
+      "payment_status",
+      "table",
+      "ticket_type",
+      "linked_constituent_id",
+      "linked_constituent_name",
+      "follow_up_action",
+    ];
+
+    const lines = rows.map((row) => [
+      event.name,
+      row.guestId,
+      row.firstName,
+      row.lastName,
+      row.email,
+      row.checkedIn ? "YES" : "NO",
+      row.checkedInAt,
+      row.rsvpStatus,
+      row.paymentStatus,
+      row.table,
+      row.ticketType,
+      row.linkedConstituentId,
+      row.linkedConstituentName,
+      row.followUpAction,
+    ].map((value) => escapeCsv(String(value ?? ""))).join(","));
+
+    const csv = `${headers.join(",")}\n${lines.join("\n")}`;
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename=event-${event.id}-donor-safe-export.csv`);
+    res.status(200).send(csv);
+    return;
+  }
+
+  res.json({
+    event: {
+      id: event.id,
+      name: event.name,
+      startDate: event.startDate,
+    },
+    summary: {
+      totalGuests: rows.length,
+      checkedIn: checkedInCount,
+      noShows: noShowCount,
+      paymentFollowUp: paymentFollowUpCount,
+      linkFollowUp: linkFollowUpCount,
+    },
+    rows,
+  });
+});
+
 /**
  * GET /api/events/:eventId/report — Comprehensive event summary for reporting.
  * Returns metrics, revenue breakdown, attendance, and donor-sync insights.
@@ -1481,20 +2163,45 @@ router.get("/:eventId/report", async (req, res) => {
     _count: { id: true },
   });
 
-  // Get unique new donors from this event (first donation ever was for this event)
-  const newDonorsFromEvent = await prisma.$queryRaw<Array<{ count: bigint }>>`
-    SELECT COUNT(DISTINCT d.constituentId) as count
-    FROM "Donation" d
-    WHERE d."eventId" = ${req.params.eventId}
-      AND d.status = 'COMPLETED'
-      AND NOT EXISTS (
-        SELECT 1 FROM "Donation" d2
-        WHERE d2."constituentId" = d."constituentId"
-          AND d2.date < d.date
-      )
-  `;
+  // Compute "new donor" count in a database-agnostic way.
+  const eventCompletedDonations = await prisma.donation.findMany({
+    where: {
+      eventId: req.params.eventId,
+      status: "COMPLETED",
+    },
+    select: {
+      constituentId: true,
+      date: true,
+    },
+  });
 
-  const newDonorCount = Number(newDonorsFromEvent[0]?.count ?? 0);
+  const firstEventDonationDateByConstituent = new Map<string, Date>();
+  for (const donation of eventCompletedDonations) {
+    if (!donation.constituentId) continue;
+    const existingDate = firstEventDonationDateByConstituent.get(donation.constituentId);
+    if (!existingDate || donation.date < existingDate) {
+      firstEventDonationDateByConstituent.set(donation.constituentId, donation.date);
+    }
+  }
+
+  let newDonorCount = 0;
+  const eventConstituentIds = Array.from(firstEventDonationDateByConstituent.keys());
+  if (eventConstituentIds.length > 0) {
+    const earliestDonations = await prisma.donation.groupBy({
+      by: ["constituentId"],
+      where: {
+        constituentId: { in: eventConstituentIds },
+      },
+      _min: { date: true },
+    });
+
+    newDonorCount = earliestDonations.reduce((count, row) => {
+      if (!row.constituentId || !row._min.date) return count;
+      const firstEventDate = firstEventDonationDateByConstituent.get(row.constituentId);
+      if (!firstEventDate) return count;
+      return row._min.date.getTime() >= firstEventDate.getTime() ? count + 1 : count;
+    }, 0);
+  }
 
   // Total revenue = order revenue + donation revenue
   const totalRevenue = Number(orderRevenue._sum.totalAmount ?? 0) + Number(donationRevenue._sum.amount ?? 0);

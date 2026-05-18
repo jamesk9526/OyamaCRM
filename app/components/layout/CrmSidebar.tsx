@@ -15,12 +15,13 @@ export type SidebarItemKind =
   | "people"
   | "system";
 
-export type SidebarItemBadge = "App" | "Tool" | "New" | "Beta" | "Partial" | "Planned" | "AI";
+export type SidebarItemBadge = "App" | "Tool" | "New" | "Beta" | "Partial" | "Planned" | "AI" | "Live";
 
 /** One navigation item in a CRM sidebar group. */
 export interface CrmSidebarItem {
   id: string;
   label: string;
+  secondaryLabel?: string;
   href: string;
   icon: React.ReactNode;
   kind?: SidebarItemKind;
@@ -123,22 +124,22 @@ const VARIANT_STYLES: Record<CrmSidebarVariant, SidebarVariantStyles> = {
   events: {
     aside: "bg-white border-r border-gray-200",
     navSurface: "",
-    heading: "text-amber-400",
-    headingMuted: "hover:text-amber-600",
-    itemActive: "text-slate-900 bg-amber-50 font-semibold",
+    heading: "text-violet-500",
+    headingMuted: "hover:text-violet-700",
+    itemActive: "text-slate-900 bg-violet-50 font-semibold",
     itemInactive: "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
-    iconActive: "text-amber-600",
+    iconActive: "text-violet-600",
     iconInactive: "text-slate-400 group-hover:text-slate-600",
     badge: "bg-slate-100 text-slate-600",
     sectionBorder: "border-transparent",
     sectionHover: "",
     footer: "border-t border-gray-100 bg-white",
     footerText: "text-gray-400",
-    collapseButton: "border-amber-200 bg-white text-amber-700 hover:text-amber-900 hover:bg-amber-50",
-    tooltip: "border-amber-200 bg-white text-amber-900 shadow-xl",
-    tooltipSubtitle: "text-amber-700",
-    divider: "bg-amber-200",
-    accent: "bg-amber-500",
+    collapseButton: "border-violet-200 bg-white text-violet-700 hover:text-violet-900 hover:bg-violet-50",
+    tooltip: "border-violet-200 bg-white text-violet-900 shadow-xl",
+    tooltipSubtitle: "text-violet-700",
+    divider: "bg-violet-200",
+    accent: "bg-violet-500",
   },
   hrm: {
     aside: "bg-white border-r border-teal-100",
@@ -484,7 +485,14 @@ export default function CrmSidebar({
 
                         {!isCollapsed ? (
                           <>
-                            <span className="truncate">{item.label}</span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate">{item.label}</span>
+                              {item.secondaryLabel ? (
+                                <span className="block truncate text-[10px] font-medium text-slate-500">
+                                  {item.secondaryLabel}
+                                </span>
+                              ) : null}
+                            </span>
                             {item.badge ? (
                               <span className={`ml-auto rounded-md px-1.5 py-0.5 text-[9px] font-semibold ${styles.badge}`}>
                                 {item.badge}

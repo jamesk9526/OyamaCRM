@@ -226,7 +226,7 @@ export default function EventTicketsPage() {
     <div className="p-6 space-y-6">
       <WorkspaceBreadcrumbBar
         items={[
-          { label: "Events CRM", href: "/events/workspace" },
+          { label: "Events CRM", href: "/events/events" },
           { label: "Tickets" },
         ]}
         statusLabel={eventScoped ? "Event Scoped" : "All Events"}
@@ -247,24 +247,30 @@ export default function EventTicketsPage() {
 
       {/* Event selector */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
-        <div className="flex-1 max-w-md">
-          <label className="block text-sm font-semibold text-gray-700 mb-1">Event</label>
-          <select
-            value={selectedEventId}
-            onChange={(e) => setSelectedEventId(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
-            disabled={loadingEvents}
-          >
-            <option value="">
-              {loadingEvents ? "Loading events..." : eventScoped ? "Event Workspace" : "Select an event to manage ticket types"}
-            </option>
-            {events.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.name} — {new Date(e.startDate).toLocaleDateString()}
+        {!eventScoped ? (
+          <div className="flex-1 max-w-md">
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Event</label>
+            <select
+              value={selectedEventId}
+              onChange={(e) => setSelectedEventId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
+              disabled={loadingEvents}
+            >
+              <option value="">
+                {loadingEvents ? "Loading events..." : "Select an event to manage ticket types"}
               </option>
-            ))}
-          </select>
-        </div>
+              {events.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name} — {new Date(e.startDate).toLocaleDateString()}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            Event lock active
+          </div>
+        )}
         {selectedEventId && (
           <button
             onClick={openCreateModal}
@@ -662,4 +668,5 @@ function TicketTypeModal({
     </div>
   );
 }
+
 

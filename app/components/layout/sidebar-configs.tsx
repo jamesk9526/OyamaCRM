@@ -1,7 +1,7 @@
 // Central sidebar configuration maps for Donor, Compassion, Events, HRM, and Watchdog modules.
 
 import type React from "react";
-import type { CrmSidebarGroup } from "@/app/components/layout/CrmSidebar";
+import type { CrmSidebarGroup, SidebarItemBadge } from "@/app/components/layout/CrmSidebar";
 import OyamaGradientIcon from "@/app/components/ui/OyamaGradientIcon";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 
@@ -344,9 +344,16 @@ export const EVENTS_RESERVED_SEGMENTS = new Set([
   "reports",
   "check-in",
   "communications",
+  "emails",
+  "donations",
   "files",
   "fundraising",
   "guests",
+  "hosts",
+  "follow-up",
+  "overview",
+  "event-page",
+  "registration",
   "orders",
   "settings",
   "sponsors",
@@ -371,64 +378,137 @@ export function resolveActiveEventId(pathname: string, searchParams: Pick<URLSea
   return maybeEventId;
 }
 
-function buildEventWorkspaceGroups(eventId: string): CrmSidebarGroup[] {
+export interface EventsSidebarContext {
+  id: string;
+  name?: string | null;
+  status?: string | null;
+  startDate?: string | null;
+  location?: string | null;
+  active?: boolean | null;
+}
+
+function formatSidebarEventDate(value?: string | null): string {
+  if (!value) return "No date";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "No date";
+
+  const hasExplicitTime = parsed.getHours() !== 0 || parsed.getMinutes() !== 0;
+  if (hasExplicitTime) {
+    return parsed.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  }
+
+  return parsed.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatSidebarEventStatus(value?: string | null, active?: boolean | null): string {
+  if (value) {
+    return value.toLowerCase().replace(/_/g, " ");
+  }
+  return active ? "active" : "inactive";
+}
+
+function resolveSelectedEventBadge(activeEvent: EventsSidebarContext): SidebarItemBadge | undefined {
+  const status = (activeEvent.status ?? "").trim().toUpperCase();
+
+  if (status === "DRAFT") return "Planned";
+  if (status === "ACTIVE" || activeEvent.active) return "Live";
+  if (status === "CANCELLED" || status === "ARCHIVED") return "Partial";
+  if (activeEvent.active === false) return "Partial";
+
+  return undefined;
+}
+
+function buildEventWorkspaceGroups(activeEvent: EventsSidebarContext): CrmSidebarGroup[] {
+  const eventId = activeEvent.id;
+  const selectedEventLabel = activeEvent.name?.trim() || "Selected Event";
+  const selectedEventMeta = [
+    formatSidebarEventStatus(activeEvent.status, activeEvent.active),
+    formatSidebarEventDate(activeEvent.startDate),
+    activeEvent.location?.trim(),
+  ].filter(Boolean).join(" · ");
+
   return [
     {
-      id: "event-workspace",
-      label: "Event Workspace",
+      id: "selected-event",
+      label: "Selected Event",
       defaultOpen: true,
       items: [
+        {
+          id: "selected-event-overview",
+          label: selectedEventLabel,
+          secondaryLabel: selectedEventMeta || "Event context locked",
+          href: `/events/${eventId}/overview`,
+          activePath: `/events/${eventId}`,
+          icon: <OyamaGradientIcon name="growth-analytics" />,
+          kind: "workspace",
+          badge: resolveSelectedEventBadge(activeEvent),
+          description: "Current event context for all command-center tools in this workspace.",
+        },
+      ],
+    },
+    {
+      id: "event-command-center",
+      label: "Event Command Center",
+      defaultOpen: true,
+      collapsible: true,
+      items: [
         { id: "overview", label: "Overview", href: `/events/${eventId}/overview`, activePath: `/events/${eventId}`, icon: <OyamaGradientIcon name="growth-analytics" />, kind: "workspace", description: "Event-level dashboard and operating summary." },
-        { id: "guests", label: "Guests", href: `/events/${eventId}/guests`, icon: <OyamaGradientIcon name="constituent-search" />, kind: "core_record", description: "Track registrants, donor links, RSVP status, and attendance details." },
-        { id: "tables", label: "Tables", href: `/events/${eventId}/tables`, icon: <OyamaGradientIcon name="relationship-partnership" />, kind: "daily_tool", description: "Manage seating, table capacity, assignments, and open seats." },
-        { id: "registration", label: "Registration", href: `/events/${eventId}/tickets`, icon: <OyamaGradientIcon name="donor-gift" />, kind: "core_record", description: "Manage ticket types, free registration, table tickets, pricing, and availability." },
-        { id: "orders", label: "Orders", href: `/events/${eventId}/orders`, icon: <OyamaGradientIcon name="contact-checklist" />, kind: "core_record", description: "Review registration orders and payment states." },
+        { id: "guests", label: "Guests / Registrants", href: `/events/${eventId}/guests`, icon: <OyamaGradientIcon name="constituent-search" />, kind: "core_record", description: "Track registrants, donor links, RSVP status, and attendance details." },
+        { id: "tables", label: "Tables / Seating", href: `/events/${eventId}/tables`, icon: <OyamaGradientIcon name="relationship-partnership" />, kind: "daily_tool", description: "Manage floor plan, table capacity, and guest placement." },
+        { id: "hosts", label: "Table Hosts", href: `/events/${eventId}/hosts`, icon: <OyamaGradientIcon name="relationship-partnership" />, kind: "daily_tool", badge: "Partial", description: "Manage table hosts, host outreach, and open-seat follow-up queues." },
         { id: "sponsors", label: "Sponsors", href: `/events/${eventId}/sponsors`, icon: <OyamaGradientIcon name="relationship-partnership" />, kind: "core_record", description: "Manage sponsor packages and fulfillment steps." },
-        { id: "donations", label: "Donations", href: `/events/${eventId}/fundraising`, icon: DONOR_ICONS.donations, kind: "core_record", description: "Track event donations, pledges, and giving follow-up status." },
-        { id: "check-in", label: "Check-In", href: `/events/${eventId}/check-in`, icon: <OyamaGradientIcon name="client-profile-sync" />, kind: "daily_tool", description: "Check in guests using search, table, and scan workflows." },
-        { id: "event-page", label: "Event Page", href: `/events/page-builder?eventId=${encodeURIComponent(eventId)}`, icon: <OyamaGradientIcon name="growth-analytics" />, kind: "communication_tool", description: "Build or edit the public event page for this event." },
-        { id: "emails", label: "Emails", href: `/events/${eventId}/communications`, icon: DONOR_ICONS.communications, kind: "communication_tool", description: "Prepare event invitations, reminders, host emails, and follow-up messages." },
+        { id: "donations", label: "Donations / Pledges", href: `/events/${eventId}/donations`, icon: DONOR_ICONS.donations, kind: "core_record", description: "Track event donations, pledges, and giving follow-up status." },
+        { id: "check-in", label: "Check-In", href: `/events/${eventId}/check-in`, icon: <OyamaGradientIcon name="client-profile-sync" />, kind: "daily_tool", badge: "Live", description: "Run event-night check-in with dark focused door operations." },
+        { id: "event-page", label: "Event Page Builder", href: `/events/${eventId}/event-page`, icon: <OyamaGradientIcon name="growth-analytics" />, kind: "communication_tool", description: "Build or edit the public event page for this event." },
+        { id: "emails", label: "Emails", href: `/events/${eventId}/emails`, icon: DONOR_ICONS.communications, kind: "communication_tool", description: "Prepare event invitations, reminders, host emails, and follow-up messages." },
         { id: "reports", label: "Reports", href: `/events/${eventId}/reports`, icon: <OyamaGradientIcon name="reporting-dashboard" />, kind: "insight", description: "Review event outcomes, attendance, revenue, and follow-up metrics." },
-        { id: "settings", label: "Settings", href: `/events/${eventId}/settings`, icon: DONOR_ICONS.settings, kind: "system", description: "Manage event-level settings and defaults." },
+        { id: "follow-up", label: "Follow-Up", href: `/events/${eventId}/follow-up`, icon: <OyamaGradientIcon name="momentum-growth" />, kind: "daily_tool", badge: "Partial", description: "Queue post-event thank-yous, outreach tasks, and donor handoff lists." },
+      ],
+    },
+    {
+      id: "event-settings",
+      label: "Event Settings",
+      defaultOpen: true,
+      collapsible: true,
+      items: [
+        { id: "event-details", label: "Event Details", href: `/events/${eventId}/settings`, icon: DONOR_ICONS.settings, kind: "system", description: "Manage event details, defaults, and internal setup notes." },
+        { id: "forms-registration", label: "Forms / Registration", href: `/events/${eventId}/tickets`, icon: <OyamaGradientIcon name="donor-gift" />, kind: "system", description: "Configure ticketing, registration rules, and capacity controls." },
+        { id: "team-staff", label: "Team / Staff", href: `/events/${eventId}/volunteers`, icon: DONOR_ICONS.volunteers, kind: "system", description: "Coordinate volunteer teams, staffing assignments, and event roles." },
+        { id: "integrations", label: "Integrations", href: `/events/${eventId}/settings?tab=integrations`, icon: DONOR_ICONS.settings, kind: "system", description: "Review manager integration imports and payment/email readiness." },
       ],
     },
   ];
 }
 
-/** Returns Events CRM sidebar groups including global tools and optional selected-event workspace tools. */
-export function buildEventsSidebarGroups(activeEventId: string | null): CrmSidebarGroup[] {
+/** Returns Events CRM sidebar groups with one selection hub and event-scoped command center tools. */
+export function buildEventsSidebarGroups(activeEvent: EventsSidebarContext | null): CrmSidebarGroup[] {
   const baseGroups: CrmSidebarGroup[] = [
     {
-      id: "command-center",
-      label: "Command Center",
+      id: "events",
+      label: "Events",
       defaultOpen: true,
       items: [
-        { id: "dashboard", label: "Start Here", href: "/events", icon: <OyamaGradientIcon name="growth-analytics" />, exact: true, kind: "workspace", description: "Select an event before opening fundraising event tools." },
+        { id: "dashboard", label: "Dashboard", href: "/events", icon: <OyamaGradientIcon name="growth-analytics" />, exact: true, kind: "workspace", description: "Events dashboard and fundraising portfolio summary." },
         { id: "events", label: "All Events", href: "/events/events", icon: <OyamaGradientIcon name="task-checklist" />, kind: "core_record", description: "Create, select, duplicate, archive, and review event records." },
-        { id: "workspace-selector", label: "Select Event", href: "/events/workspace", icon: <OyamaGradientIcon name="constituent-search" />, kind: "workspace", description: "Choose the event context before opening scoped tools." },
-        { id: "setup", label: "Setup", href: "/events/setup", icon: <OyamaGradientIcon name="client-profile-sync" />, kind: "system", description: "Configure global Events CRM defaults." },
-      ],
-    },
-    {
-      id: "global-tools",
-      label: "Global Tools",
-      defaultOpen: false,
-      collapsible: true,
-      items: [
-        { id: "global-reports", label: "Global Reports", href: "/events/reports", icon: <OyamaGradientIcon name="reporting-dashboard" />, kind: "insight", description: "Cross-event reporting and trend analysis." },
-        { id: "page-builder", label: "Event Page Builder", href: "/events/page-builder", icon: <OyamaGradientIcon name="growth-analytics" />, kind: "communication_tool", description: "Build hosted event pages and registration flows." },
-        { id: "templates", label: "Event Templates", href: "/events/templates", icon: <OyamaGradientIcon name="contact-checklist" />, kind: "system", description: "Manage reusable event templates and defaults." },
-        { id: "management", label: "Overall Management", href: "/events/events", icon: <OyamaGradientIcon name="goal-target" />, kind: "system", description: "View and maintain full event inventory." },
-        { id: "help", label: "Help", href: "/help?scope=events&scopePath=/events/workspace", icon: DONOR_ICONS.help, kind: "system", description: "Open event-specific documentation and guides." },
       ],
     },
   ];
 
-  if (!activeEventId) {
+  if (!activeEvent) {
     return baseGroups;
   }
 
-  return [...baseGroups, ...buildEventWorkspaceGroups(activeEventId)];
+  return [...baseGroups, ...buildEventWorkspaceGroups(activeEvent)];
 }
 
 /** Returns OyamaHRM sidebar groups with shared item metadata and collapsible system tools. */

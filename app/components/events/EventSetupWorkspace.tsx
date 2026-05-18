@@ -162,7 +162,7 @@ export default function EventSetupWorkspace() {
           </div>
           <Link
             href="/events/events"
-            className="px-4 py-2 bg-amber-600 text-white text-sm font-semibold rounded-lg hover:bg-amber-700 transition-colors"
+            className="px-4 py-2 bg-violet-600 text-white text-sm font-semibold rounded-lg hover:bg-violet-700 transition-colors"
           >
             Create First Event
           </Link>
@@ -186,13 +186,13 @@ export default function EventSetupWorkspace() {
         <div className="flex gap-2">
           <Link
             href="/events/events"
-            className="px-3 py-2 text-sm font-medium border border-amber-200 text-amber-700 rounded-lg bg-white hover:bg-amber-50 transition-colors"
+            className="px-3 py-2 text-sm font-medium border border-violet-200 text-violet-700 rounded-lg bg-white hover:bg-violet-50 transition-colors"
           >
             View All Events
           </Link>
           <Link
             href="/events"
-            className="px-3 py-2 text-sm font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+            className="px-3 py-2 text-sm font-semibold rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-colors"
           >
             Back to Dashboard
           </Link>

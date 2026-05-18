@@ -1271,11 +1271,12 @@ router.patch("/:id/acknowledgment", async (req, res) => {
  *
  * Accepts an array of mapped row objects (from the DonationImportWizard) and:
  *   1. Resolves each donation to an existing constituent via email, externalId, or name
- *   2. Optionally deduplicates by receiptNumber
- *   3. Normalizes paymentMethod, amount, date, status, frequency
- *   4. Creates Donation records and creates Campaign/Designation on-the-fly by name
- *   5. Updates constituent giving statistics (totalLifetimeGiving, firstGiftDate, lastGiftDate, giftCount, lastGiftAmount)
- *   6. Writes an audit log entry
+ *   2. Detects duplicate rows within the uploaded file and skips repeats
+ *   3. Optionally deduplicates against existing CRM records by receiptNumber
+ *   4. Normalizes paymentMethod, amount, date, status, frequency
+ *   5. Creates Donation records and creates Campaign/Designation on-the-fly by name
+ *   6. Updates constituent giving statistics (totalLifetimeGiving, firstGiftDate, lastGiftDate, giftCount, lastGiftAmount)
+ *   7. Writes an audit log entry
  *
  * Request body:
  *   records           — array of mapped row objects (donation field keys → string values)
@@ -1286,7 +1287,7 @@ router.patch("/:id/acknowledgment", async (req, res) => {
  *   skipUnmatched     — skip rows where no constituent match is found (default false)
  *   dedupByReceipt    — skip rows whose receiptNumber already exists in the DB (default true)
  *
- * Response: { created, skipped, errors, unmatched, dryRun, errorMessages }
+ * Response: { created, skipped, errors, unmatched, duplicatesInFile, dryRun, errorMessages }
  *
  * Requires: role manager or higher.
  */
@@ -1347,6 +1348,32 @@ router.post("/import", async (req, res) => {
       if (!isNaN(d.getTime())) return d;
     }
     return null;
+  }
+
+  function normalizeImportValue(raw: string): string {
+    return raw.trim().toLowerCase().replace(/\s+/g, " ");
+  }
+
+  /**
+   * Build a deterministic dedup key for one import row.
+   * Priority: receipt number -> transaction ID -> normalized row fingerprint.
+   */
+  function buildInFileDedupKey(rec: Record<string, string>, amount: number, date: Date): string {
+    const receipt = normalizeImportValue(rec.receiptNumber ?? "");
+    if (receipt) return `receipt:${receipt}`;
+
+    const transactionId = normalizeImportValue(rec.transactionId ?? "");
+    if (transactionId) return `transaction:${transactionId}`;
+
+    const normalizedEntries = Object.entries(rec)
+      .filter(([key, value]) => key !== "amount" && key !== "date" && (value ?? "").trim().length > 0)
+      .map(([key, value]) => `${key}=${normalizeImportValue(value ?? "")}`)
+      .sort();
+
+    normalizedEntries.push(`_amount=${amount.toFixed(2)}`);
+    normalizedEntries.push(`_date=${date.toISOString().slice(0, 10)}`);
+
+    return `row:${normalizedEntries.join("|")}`;
   }
 
   /** Normalize a free-text payment method string to a Prisma PaymentMethod enum value. */
@@ -1479,7 +1506,9 @@ router.post("/import", async (req, res) => {
   let created = 0;
   let skipped = 0;
   let unmatched = 0;
+  let duplicatesInFile = 0;
   const errorMessages: string[] = [];
+  const seenInFileDedupKeys = new Set<string>();
 
   for (const rec of records) {
     try {
@@ -1489,6 +1518,15 @@ router.post("/import", async (req, res) => {
 
       const date = parseDate(rec.date ?? "");
       if (!date) { skipped++; continue; }
+
+      // ── In-file deduplication (same upload) ──────────────────────────────
+      const inFileDedupKey = buildInFileDedupKey(rec, amount, date);
+      if (seenInFileDedupKeys.has(inFileDedupKey)) {
+        duplicatesInFile++;
+        skipped++;
+        continue;
+      }
+      seenInFileDedupKeys.add(inFileDedupKey);
 
       // ── Deduplication by receipt number ────────────────────────────────────
       if (dedupByReceipt && rec.receiptNumber?.trim()) {
@@ -1583,13 +1621,13 @@ router.post("/import", async (req, res) => {
       entity: "Donation",
       userId: req.user?.sub,
       organizationId: resolvedOrgId,
-      metadata: { created, skipped, unmatched, errors: errorMessages.length },
+      metadata: { created, skipped, unmatched, duplicatesInFile, errors: errorMessages.length },
       ipAddress: req.ip,
       userAgent: req.headers["user-agent"],
     });
   }
 
-  res.json({ created, skipped, errors: errorMessages.length, unmatched, dryRun, errorMessages });
+  res.json({ created, skipped, errors: errorMessages.length, unmatched, duplicatesInFile, dryRun, errorMessages });
 });
 
 

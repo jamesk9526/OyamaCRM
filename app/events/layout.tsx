@@ -1,4 +1,4 @@
-// Events CRM nested layout — provides the amber-themed Events shell for all /events/* routes.
+// Events CRM nested layout — provides the purple-themed Events shell for all /events/* routes.
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
@@ -13,15 +13,15 @@ import { resolveLegacyGlobalEventsRedirect } from "@/app/lib/events-route-bounda
 // TODO: enforce Events workspace permission — currently only checks authentication, not module access
 
 /**
- * EventsLayout wraps all /events/* pages with the amber-themed Events CRM shell.
+ * EventsLayout wraps all /events/* pages with the purple-themed Events CRM shell.
  * This layout is rendered instead of AppShell because AppShell bypasses /events paths.
  */
 export default function EventsLayout({ children }: { children: React.ReactNode }) {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-amber-50 flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
+        <div className="min-h-screen bg-gradient-to-br from-violet-50 via-slate-50 to-indigo-50 flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
         </div>
       }
     >
@@ -68,8 +68,8 @@ function EventsLayoutContent({ children }: { children: React.ReactNode }) {
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen bg-amber-50 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-gradient-to-br from-violet-50 via-slate-50 to-indigo-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -90,10 +90,10 @@ function EventsLayoutContent({ children }: { children: React.ReactNode }) {
           <EventsSidebar forceExpanded />
         </MobileSidebarDrawer>
 
-        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-amber-50/30 p-3 sm:p-4 lg:p-4 min-[1440px]:p-5 2xl:p-6 mt-16">
+        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-gradient-to-b from-violet-50/55 to-slate-50 p-3 sm:p-4 lg:p-4 min-[1440px]:p-5 2xl:p-6 mt-16">
           <ErrorBoundary>
             <div className="min-w-0 max-w-full">{redirectTarget ? (
-              <section className="rounded-xl border border-amber-300 bg-amber-100 px-4 py-3 text-sm text-amber-900">
+              <section className="rounded-xl border border-violet-300 bg-violet-100 px-4 py-3 text-sm text-violet-900">
                 Redirecting to event-first workspace flow...
               </section>
             ) : (

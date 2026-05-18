@@ -4,6 +4,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
@@ -275,104 +276,106 @@ export default function EventCheckInPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-6 text-slate-100">
       <WorkspaceBreadcrumbBar
         items={[
-          { label: "Events CRM", href: "/events/workspace" },
+          { label: "Events CRM", href: "/events/events" },
           { label: "Check-In" },
         ]}
         statusLabel={eventScoped ? "Event Scoped" : "Multi-Event"}
         metadata={`${checkedInCount.toLocaleString()} checked in · ${notCheckedInCount.toLocaleString()} remaining · ${totalGuests.toLocaleString()} total`}
-        accentTone="amber"
+        accentTone="purple"
       />
 
       <WorkspaceRibbon>
         <WorkspaceRibbonGroup label="View">
-          <WorkspaceRibbonButton label="Not Checked" onClick={() => setCheckedInFilter("false")} variant={checkedInFilter === "false" ? "primary" : "secondary"} accentTone="amber" />
-          <WorkspaceRibbonButton label="Checked In" onClick={() => setCheckedInFilter("true")} variant={checkedInFilter === "true" ? "primary" : "secondary"} accentTone="amber" />
-          <WorkspaceRibbonButton label="All Guests" onClick={() => setCheckedInFilter("")} variant={!checkedInFilter ? "primary" : "secondary"} accentTone="amber" />
+          <WorkspaceRibbonButton label="Not Checked" onClick={() => setCheckedInFilter("false")} variant={checkedInFilter === "false" ? "primary" : "secondary"} accentTone="purple" />
+          <WorkspaceRibbonButton label="Checked In" onClick={() => setCheckedInFilter("true")} variant={checkedInFilter === "true" ? "primary" : "secondary"} accentTone="purple" />
+          <WorkspaceRibbonButton label="All Guests" onClick={() => setCheckedInFilter("")} variant={!checkedInFilter ? "primary" : "secondary"} accentTone="purple" />
         </WorkspaceRibbonGroup>
 
         <WorkspaceRibbonGroup label="Mode">
-          <WorkspaceRibbonButton label="Search" onClick={() => setActiveTab("search")} variant={activeTab === "search" ? "primary" : "secondary"} accentTone="amber" />
-          <WorkspaceRibbonButton label="Scan" onClick={() => setActiveTab("scan")} variant={activeTab === "scan" ? "primary" : "secondary"} accentTone="amber" />
-          <WorkspaceRibbonButton label="Tables" onClick={() => setActiveTab("tables")} variant={activeTab === "tables" ? "primary" : "secondary"} accentTone="amber" />
+          <WorkspaceRibbonButton label="Search" onClick={() => setActiveTab("search")} variant={activeTab === "search" ? "primary" : "secondary"} accentTone="purple" />
+          <WorkspaceRibbonButton label="Scan" onClick={() => setActiveTab("scan")} variant={activeTab === "scan" ? "primary" : "secondary"} accentTone="purple" />
+          <WorkspaceRibbonButton label="Tables" onClick={() => setActiveTab("tables")} variant={activeTab === "tables" ? "primary" : "secondary"} accentTone="purple" />
         </WorkspaceRibbonGroup>
 
         <WorkspaceRibbonGroup label="Actions">
-          <WorkspaceRibbonButton label="Refresh" onClick={() => void loadData()} accentTone="amber" />
-          <WorkspaceRibbonButton label={autoRefresh ? "Auto On" : "Auto Off"} onClick={() => setAutoRefresh((value) => !value)} variant={autoRefresh ? "primary" : "secondary"} accentTone="amber" />
+          <WorkspaceRibbonButton label="Refresh" onClick={() => void loadData()} accentTone="purple" />
+          <WorkspaceRibbonButton label={autoRefresh ? "Auto On" : "Auto Off"} onClick={() => setAutoRefresh((value) => !value)} variant={autoRefresh ? "primary" : "secondary"} accentTone="purple" />
         </WorkspaceRibbonGroup>
       </WorkspaceRibbon>
 
-      {/* Event Selector & Auto-Refresh */}
-      <div className="flex flex-col md:flex-row gap-3">
-        <div className="flex-1">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Event</label>
-          <select
-            value={selectedEventId}
-            onChange={(e) => setSelectedEventId(e.target.value)}
-            disabled={eventScoped}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
-          >
-            <option value="">Select an event</option>
-            {events.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.name} - {new Date(e.startDate).toLocaleDateString()}
-              </option>
-            ))}
-          </select>
-          {eventScoped && (
-            <p className="text-xs text-amber-700 mt-1">Event is locked by workspace context.</p>
-          )}
+      {/* Event selector is only shown on global routes; event-scoped pages stay locked. */}
+      {!eventScoped ? (
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="flex-1">
+            <label className="block text-sm font-semibold text-slate-200 mb-2">Event</label>
+            <select
+              value={selectedEventId}
+              onChange={(e) => setSelectedEventId(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-600 rounded-lg bg-slate-900/80 text-sm text-slate-100"
+            >
+              <option value="">Select an event</option>
+              {events.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name} - {new Date(e.startDate).toLocaleDateString()}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-end">
+            <label className="flex items-center gap-2 px-4 py-2 bg-slate-900/80 border border-slate-600 rounded-lg cursor-pointer hover:bg-slate-900">
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
+                className="w-4 h-4 text-violet-600"
+              />
+              <span className="text-sm font-medium text-slate-200">Auto-refresh (10s)</span>
+            </label>
+          </div>
         </div>
-        <div className="flex items-end">
-          <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-            <input
-              type="checkbox"
-              checked={autoRefresh}
-              onChange={(e) => setAutoRefresh(e.target.checked)}
-              className="w-4 h-4 text-amber-600"
-            />
-            <span className="text-sm font-medium text-gray-700">Auto-refresh (10s)</span>
-          </label>
+      ) : (
+        <div className="rounded-lg border border-violet-300/50 bg-violet-500/10 px-4 py-2 text-xs text-violet-100">
+          Event lock is active for this workspace route. To switch events, return to <Link href="/events/events" className="font-semibold underline">All Events</Link>.
         </div>
-      </div>
+      )}
 
       {!selectedEventId ? (
-        <div className="bg-gray-50 rounded-lg border border-gray-200 p-8 text-center text-gray-500">
+        <div className="bg-slate-900/70 rounded-lg border border-slate-700 p-8 text-center text-slate-400">
           Select an event to start check-in
         </div>
       ) : (
         <>
           {/* Metrics — visible for both tabs to track event progress */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <p className="text-xs text-gray-500 uppercase font-medium">Checked In</p>
+            <div className="bg-slate-900/70 p-4 rounded-lg border border-slate-700">
+              <p className="text-xs text-slate-400 uppercase font-medium">Checked In</p>
               <p className="text-2xl font-bold text-green-600 mt-1">{checkedInCount}</p>
             </div>
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <p className="text-xs text-gray-500 uppercase font-medium">Not Checked In</p>
-              <p className="text-2xl font-bold text-amber-600 mt-1">{notCheckedInCount}</p>
+            <div className="bg-slate-900/70 p-4 rounded-lg border border-slate-700">
+              <p className="text-xs text-slate-400 uppercase font-medium">Not Checked In</p>
+              <p className="text-2xl font-bold text-violet-400 mt-1">{notCheckedInCount}</p>
             </div>
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <p className="text-xs text-gray-500 uppercase font-medium">Total Guests</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{totalGuests}</p>
+            <div className="bg-slate-900/70 p-4 rounded-lg border border-slate-700">
+              <p className="text-xs text-slate-400 uppercase font-medium">Total Guests</p>
+              <p className="text-2xl font-bold text-slate-100 mt-1">{totalGuests}</p>
             </div>
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <p className="text-xs text-gray-500 uppercase font-medium">Payment Issues</p>
+            <div className="bg-slate-900/70 p-4 rounded-lg border border-slate-700">
+              <p className="text-xs text-slate-400 uppercase font-medium">Payment Issues</p>
               <p className="text-2xl font-bold text-red-600 mt-1">{paymentIssues}</p>
             </div>
           </div>
 
           {/* Tab switcher — Search (name/email) vs. Scan (QR / printed code) */}
-          <div className="flex gap-0 border-b border-gray-200">
+          <div className="flex gap-0 border-b border-slate-700">
             <button
               onClick={() => setActiveTab("search")}
               className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === "search"
-                  ? "border-amber-600 text-amber-700"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
+                  ? "border-violet-500 text-violet-300"
+                  : "border-transparent text-slate-400 hover:text-slate-200"
               }`}
             >
               🔍 Search
@@ -385,8 +388,8 @@ export default function EventCheckInPage() {
               }}
               className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === "scan"
-                  ? "border-amber-600 text-amber-700"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
+                  ? "border-violet-500 text-violet-300"
+                  : "border-transparent text-slate-400 hover:text-slate-200"
               }`}
             >
               📷 Scan Code
@@ -395,8 +398,8 @@ export default function EventCheckInPage() {
               onClick={() => setActiveTab("tables")}
               className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === "tables"
-                  ? "border-amber-600 text-amber-700"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
+                  ? "border-violet-500 text-violet-300"
+                  : "border-transparent text-slate-400 hover:text-slate-200"
               }`}
             >
               🪑 Tables
@@ -407,10 +410,10 @@ export default function EventCheckInPage() {
           {activeTab === "search" && (
             <>
               {/* Search & Filters */}
-              <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+              <div className="bg-slate-900/70 rounded-lg border border-slate-700 p-4 mb-4">
                 <div className="flex flex-col md:flex-row gap-3 items-end">
                   <div className="flex-1">
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
                       Quick Search
                     </label>
                     <input
@@ -419,16 +422,16 @@ export default function EventCheckInPage() {
                       placeholder="Name, email, phone, or table..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full px-3 py-2 text-lg border-2 border-gray-300 rounded-lg focus:border-amber-500 focus:outline-none"
+                      className="w-full px-3 py-2 text-lg border-2 border-slate-600 rounded-lg bg-slate-950 text-slate-100 focus:border-violet-500 focus:outline-none"
                       autoFocus
                     />
                   </div>
                   <div className="w-full md:w-48">
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Status</label>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Status</label>
                     <select
                       value={checkedInFilter}
                       onChange={(e) => setCheckedInFilter(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
+                      className="w-full px-3 py-2 text-sm border border-slate-600 rounded-lg bg-slate-950 text-slate-100"
                     >
                       <option value="">All Guests</option>
                       <option value="false">Not Checked In</option>
@@ -437,7 +440,7 @@ export default function EventCheckInPage() {
                   </div>
                   <button
                     onClick={loadData}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                    className="px-4 py-2 text-sm font-medium text-slate-200 bg-slate-900 border border-slate-600 rounded-lg hover:bg-slate-800"
                   >
                     🔄 Refresh
                   </button>
@@ -446,11 +449,11 @@ export default function EventCheckInPage() {
 
               {/* Guest List */}
               {loading ? (
-                <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
+                <div className="bg-slate-900/70 rounded-lg border border-slate-700 p-8 text-center text-slate-400">
                   Loading guests...
                 </div>
               ) : filteredGuests.length === 0 ? (
-                <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
+                <div className="bg-slate-900/70 rounded-lg border border-slate-700 p-8 text-center text-slate-400">
                   {searchQuery ? "No guests match your search." : "No guests found."}
                 </div>
               ) : (
@@ -470,14 +473,14 @@ export default function EventCheckInPage() {
           {/* SCAN TAB — look up a single guest by QR code or printed ticket code */}
           {activeTab === "scan" && (
             <div className="max-w-lg">
-              <h2 className="text-lg font-bold text-gray-900 mb-1">Scan Check-In Code</h2>
-              <p className="text-sm text-gray-500 mb-5">
+              <h2 className="text-lg font-bold text-slate-100 mb-1">Scan Check-In Code</h2>
+              <p className="text-sm text-slate-300 mb-5">
                 Scan the QR code or type the code printed on the guest&apos;s ticket or badge.
               </p>
 
               {/* Code input form */}
-              <form onSubmit={lookupByCode} className="bg-white rounded-lg border border-gray-200 p-5 mb-4">
-                <label className="block text-xs font-semibold text-gray-600 mb-2">Code</label>
+              <form onSubmit={lookupByCode} className="bg-slate-900/70 rounded-lg border border-slate-700 p-5 mb-4">
+                <label className="block text-xs font-semibold text-slate-300 mb-2">Code</label>
                 <div className="flex gap-2">
                   <input
                     ref={scanInputRef}
@@ -490,7 +493,7 @@ export default function EventCheckInPage() {
                       setScanSuccess("");
                     }}
                     placeholder="Scan or type code..."
-                    className="flex-1 px-4 py-3 text-xl border-2 border-gray-300 rounded-lg focus:border-amber-500 focus:outline-none font-mono tracking-widest"
+                    className="flex-1 px-4 py-3 text-xl border-2 border-slate-600 rounded-lg bg-slate-950 text-slate-100 focus:border-violet-500 focus:outline-none font-mono tracking-widest"
                     autoComplete="off"
                     autoCorrect="off"
                     spellCheck={false}
@@ -498,7 +501,7 @@ export default function EventCheckInPage() {
                   <button
                     type="submit"
                     disabled={scanLoading || !scanCode.trim()}
-                    className="px-5 py-3 text-sm font-bold text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50"
+                    className="px-5 py-3 text-sm font-bold text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50"
                   >
                     {scanLoading ? "..." : "Look Up"}
                   </button>
@@ -533,18 +536,18 @@ export default function EventCheckInPage() {
           {activeTab === "tables" && (
             <div className="space-y-4">
               {guestsByTable.length === 0 ? (
-                <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
+                <div className="bg-slate-900/70 rounded-lg border border-slate-700 p-8 text-center text-slate-400">
                   No tables or guests found for this event.
                 </div>
               ) : (
                 guestsByTable.map((group) => {
                   const tableCheckedIn = group.guests.filter((g) => g.checkedIn).length;
                   return (
-                    <div key={group.tableName} className="bg-white rounded-lg border border-gray-200 p-4">
+                    <div key={group.tableName} className="bg-slate-900/70 rounded-lg border border-slate-700 p-4">
                       <div className="flex items-center justify-between mb-3">
                         <div>
-                          <h3 className="text-base font-semibold text-gray-900">{group.tableName}</h3>
-                          <p className="text-xs text-gray-500">{tableCheckedIn}/{group.guests.length} checked in</p>
+                          <h3 className="text-base font-semibold text-slate-100">{group.tableName}</h3>
+                          <p className="text-xs text-slate-400">{tableCheckedIn}/{group.guests.length} checked in</p>
                         </div>
                       </div>
                       <div className="space-y-2">
@@ -586,8 +589,8 @@ function GuestCheckInCard({
 
   return (
     <div
-      className={`bg-white rounded-lg border-2 p-4 transition-all ${
-        guest.checkedIn ? "border-green-300 bg-green-50" : "border-gray-200"
+      className={`bg-slate-900/80 rounded-lg border-2 p-4 transition-all ${
+        guest.checkedIn ? "border-green-500/60 bg-green-950/20" : "border-slate-700"
       }`}
     >
       <div className="flex items-start justify-between gap-4">
@@ -595,9 +598,9 @@ function GuestCheckInCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-start gap-3">
             <div className="flex-1 min-w-0">
-              <h3 className="text-xl font-bold text-gray-900 truncate">{guestName}</h3>
-              {guest.email && <p className="text-sm text-gray-600 truncate">{guest.email}</p>}
-              {guest.phone && <p className="text-sm text-gray-600">{guest.phone}</p>}
+              <h3 className="text-xl font-bold text-slate-100 truncate">{guestName}</h3>
+              {guest.email && <p className="text-sm text-slate-300 truncate">{guest.email}</p>}
+              {guest.phone && <p className="text-sm text-slate-300">{guest.phone}</p>}
             </div>
             {guest.checkedIn && (
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 whitespace-nowrap">
@@ -610,20 +613,20 @@ function GuestCheckInCard({
           <div className="flex flex-wrap gap-3 mt-3">
             {guest.table && (
               <div className="flex items-center gap-1 text-sm">
-                <span className="text-gray-500">Table:</span>
-                <span className="font-semibold text-gray-900">{guest.table.name}</span>
+                <span className="text-slate-400">Table:</span>
+                <span className="font-semibold text-slate-100">{guest.table.name}</span>
               </div>
             )}
             {guest.ticketType && (
               <div className="flex items-center gap-1 text-sm">
-                <span className="text-gray-500">Ticket:</span>
-                <span className="font-medium text-gray-700">{guest.ticketType.name}</span>
+                <span className="text-slate-400">Ticket:</span>
+                <span className="font-medium text-slate-200">{guest.ticketType.name}</span>
               </div>
             )}
             {guest.order && (
               <div className="flex items-center gap-1 text-sm">
-                <span className="text-gray-500">Order:</span>
-                <span className="font-medium text-gray-700">{guest.order.orderNumber}</span>
+                <span className="text-slate-400">Order:</span>
+                <span className="font-medium text-slate-200">{guest.order.orderNumber}</span>
                 {hasPaymentIssue && (
                   <span className="ml-1 text-xs font-semibold text-red-600">(Payment Pending)</span>
                 )}
@@ -636,27 +639,27 @@ function GuestCheckInCard({
             <div className="mt-3 space-y-1">
               {guest.dietaryRestrictions && (
                 <div className="flex gap-2">
-                  <span className="text-xs font-semibold text-gray-500 uppercase">Dietary:</span>
-                  <span className="text-sm text-gray-700">{guest.dietaryRestrictions}</span>
+                  <span className="text-xs font-semibold text-slate-400 uppercase">Dietary:</span>
+                  <span className="text-sm text-slate-200">{guest.dietaryRestrictions}</span>
                 </div>
               )}
               {guest.specialNeeds && (
                 <div className="flex gap-2">
-                  <span className="text-xs font-semibold text-gray-500 uppercase">Special Needs:</span>
-                  <span className="text-sm text-gray-700">{guest.specialNeeds}</span>
+                  <span className="text-xs font-semibold text-slate-400 uppercase">Special Needs:</span>
+                  <span className="text-sm text-slate-200">{guest.specialNeeds}</span>
                 </div>
               )}
               {guest.notes && (
                 <div className="flex gap-2">
-                  <span className="text-xs font-semibold text-gray-500 uppercase">Notes:</span>
-                  <span className="text-sm text-gray-700">{guest.notes}</span>
+                  <span className="text-xs font-semibold text-slate-400 uppercase">Notes:</span>
+                  <span className="text-sm text-slate-200">{guest.notes}</span>
                 </div>
               )}
             </div>
           )}
 
           {guest.checkedInAt && (
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-xs text-slate-400 mt-2">
               Checked in at {new Date(guest.checkedInAt).toLocaleTimeString()}
             </p>
           )}
@@ -668,8 +671,8 @@ function GuestCheckInCard({
             onClick={onToggleCheckIn}
             className={`px-6 py-4 text-lg font-bold rounded-lg transition-colors whitespace-nowrap ${
               guest.checkedIn
-                ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                : "bg-amber-600 text-white hover:bg-amber-700"
+                ? "bg-slate-700 text-slate-100 hover:bg-slate-600"
+                : "bg-violet-600 text-white hover:bg-violet-700"
             }`}
           >
             {guest.checkedIn ? "Undo Check-In" : "✓ Check In"}
@@ -679,3 +682,4 @@ function GuestCheckInCard({
     </div>
   );
 }
+

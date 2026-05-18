@@ -39,6 +39,7 @@ interface ValidationSummary {
   invalidAmount: number;
   missingDate: number;
   invalidDate: number;
+  duplicatesInFile: number;
   hasConstituentMatch: number; // rows with at least one constituent identifier
   noConstituentMatch: number;
   warnings: string[];
@@ -51,6 +52,7 @@ interface ImportResult {
   errors: number;
   unmatched: number;
   dryRun: boolean;
+  duplicatesInFile?: number;
   errorMessages?: string[];
 }
 
@@ -89,6 +91,32 @@ function isMatchField(key: string) {
   return CONSTITUENT_MATCH_KEYS.has(key);
 }
 
+function normalizeImportValue(raw: string): string {
+  return raw.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * Build a deterministic in-file dedup key for donation rows.
+ * Priority: receipt number -> transaction ID -> normalized full-row fingerprint.
+ */
+function buildInFileDedupKey(row: MappedRow, amount: number, date: Date): string {
+  const receipt = normalizeImportValue(row.receiptNumber ?? "");
+  if (receipt) return `receipt:${receipt}`;
+
+  const transactionId = normalizeImportValue(row.transactionId ?? "");
+  if (transactionId) return `transaction:${transactionId}`;
+
+  const normalizedEntries = Object.entries(row)
+    .filter(([key, value]) => key !== "amount" && key !== "date" && (value ?? "").trim().length > 0)
+    .map(([key, value]) => `${key}=${normalizeImportValue(value ?? "")}`)
+    .sort();
+
+  normalizedEntries.push(`_amount=${amount.toFixed(2)}`);
+  normalizedEntries.push(`_date=${date.toISOString().slice(0, 10)}`);
+
+  return `row:${normalizedEntries.join("|")}`;
+}
+
 /** Compute validation summary for the mapped rows */
 function validate(rows: Array<Record<string, string>>, mapping: FieldMapping): ValidationSummary {
   // Invert mapping: crmKey → csvHeader
@@ -104,10 +132,12 @@ function validate(rows: Array<Record<string, string>>, mapping: FieldMapping): V
   let invalidAmount = 0;
   let missingDate = 0;
   let invalidDate = 0;
+  let duplicatesInFile = 0;
   let hasConstituentMatch = 0;
   let noConstituentMatch = 0;
   const validRows: MappedRow[] = [];
   const warnings: string[] = [];
+  const seenImportKeys = new Set<string>();
 
   const mappedMatchKeys = Object.values(mapping).filter((v) => isMatchField(v));
   if (mappedMatchKeys.length === 0) {
@@ -140,6 +170,16 @@ function validate(rows: Array<Record<string, string>>, mapping: FieldMapping): V
         else invalidDate++;
         continue;
       }
+
+      const amount = parseAmount(mapped.amount ?? "");
+      if (amount !== null) {
+        const dedupKey = buildInFileDedupKey(mapped, amount, dt);
+        if (seenImportKeys.has(dedupKey)) {
+          duplicatesInFile++;
+          continue;
+        }
+        seenImportKeys.add(dedupKey);
+      }
     }
 
     // Check constituent match
@@ -154,6 +194,9 @@ function validate(rows: Array<Record<string, string>>, mapping: FieldMapping): V
   if (!hasDateCol) warnings.push("Gift Date column is not mapped — no donations can be imported.");
   if (invalidAmount > 0) warnings.push(`${invalidAmount} rows have invalid (non-numeric) amount values and will be skipped.`);
   if (invalidDate > 0) warnings.push(`${invalidDate} rows have unparseable date values and will be skipped.`);
+  if (duplicatesInFile > 0) {
+    warnings.push(`${duplicatesInFile} duplicate donation row(s) were detected in this file and excluded from import.`);
+  }
   if (noConstituentMatch > 0 && mappedMatchKeys.length > 0) {
     warnings.push(`${noConstituentMatch} rows are missing all constituent matching fields and may be imported without a linked donor.`);
   }
@@ -165,6 +208,7 @@ function validate(rows: Array<Record<string, string>>, mapping: FieldMapping): V
     invalidAmount,
     missingDate,
     invalidDate,
+    duplicatesInFile,
     hasConstituentMatch,
     noConstituentMatch,
     warnings,
@@ -572,7 +616,7 @@ export default function DonationImportWizard() {
             </div>
 
             {/* Issue breakdown */}
-            {(validation.missingAmount > 0 || validation.invalidAmount > 0 || validation.missingDate > 0 || validation.invalidDate > 0) && (
+            {(validation.missingAmount > 0 || validation.invalidAmount > 0 || validation.missingDate > 0 || validation.invalidDate > 0 || validation.duplicatesInFile > 0 || validation.noConstituentMatch > 0) && (
               <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100">
                 <div className="px-4 py-3 bg-gray-50">
                   <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Validation Issues</h3>
@@ -589,6 +633,9 @@ export default function DonationImportWizard() {
                   )}
                   {validation.invalidDate > 0 && (
                     <div className="text-red-600">❌ {validation.invalidDate} rows with invalid date</div>
+                  )}
+                  {validation.duplicatesInFile > 0 && (
+                    <div className="text-amber-600">⚠️ {validation.duplicatesInFile} duplicate row(s) in file were excluded</div>
                   )}
                   {validation.noConstituentMatch > 0 && (
                     <div className="text-amber-600">⚠️ {validation.noConstituentMatch} rows have no donor identifier</div>
@@ -699,6 +746,7 @@ export default function DonationImportWizard() {
               <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-3">
                 <h3 className="text-sm font-semibold text-gray-900">Deduplication</h3>
                 <p className="text-xs text-gray-500">Prevent duplicate donations from being imported if this CSV is re-imported later.</p>
+                <p className="text-xs text-gray-500">Exact duplicate rows within this file are always excluded automatically.</p>
                 <label className="flex items-center gap-2.5 cursor-pointer">
                   <input type="checkbox" checked={dedupByReceipt} onChange={(e) => setDedupByReceipt(e.target.checked)} className="rounded accent-green-600" />
                   <span className="text-sm text-gray-700">Skip if receipt number already exists in CRM</span>
@@ -756,6 +804,12 @@ export default function DonationImportWizard() {
               <StatCard label="Unmatched Donors" value={result.unmatched} color={result.unmatched > 0 ? "amber" : "gray"} />
               <StatCard label="Errors" value={result.errors} color={result.errors > 0 ? "red" : "gray"} />
             </div>
+
+            {typeof result.duplicatesInFile === "number" && result.duplicatesInFile > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                {result.duplicatesInFile} duplicate row(s) were detected in this upload and skipped.
+              </div>
+            )}
 
             {/* Error messages */}
             {result.errorMessages && result.errorMessages.length > 0 && (

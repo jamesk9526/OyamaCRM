@@ -119,7 +119,7 @@ export default function EventOrdersPage() {
     <div className="p-6 space-y-6">
       <WorkspaceBreadcrumbBar
         items={[
-          { label: "Events CRM", href: "/events/workspace" },
+          { label: "Events CRM", href: "/events/events" },
           { label: "Orders" },
         ]}
         statusLabel={eventScoped ? "Event Scoped" : "All Events"}
@@ -203,20 +203,25 @@ export default function EventOrdersPage() {
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
             />
           </div>
-          <div className="w-full md:w-48">
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Event</label>
-            <select
-              value={selectedEventId}
-              onChange={(e) => setSelectedEventId(e.target.value)}
-              disabled={eventScoped}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
-            >
-              <option value="">{eventScoped ? "Event Workspace" : "All Events"}</option>
-              {events.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
-          </div>
+          {!eventScoped ? (
+            <div className="w-full md:w-48">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Event</label>
+              <select
+                value={selectedEventId}
+                onChange={(e) => setSelectedEventId(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
+              >
+                <option value="">All Events</option>
+                {events.map((e) => (
+                  <option key={e.id} value={e.id}>{e.name}</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="w-full md:w-48 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Event lock active
+            </div>
+          )}
           <div className="w-full md:w-40">
             <label className="block text-xs font-semibold text-gray-600 mb-1">Status</label>
             <select

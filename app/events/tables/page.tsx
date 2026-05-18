@@ -59,6 +59,7 @@ export default function EventTablesPage() {
   const [selectedEventId, setSelectedEventId] = useState(workspaceEventId);
   const [showNewTableModal, setShowNewTableModal] = useState(false);
   const [editingTable, setEditingTable] = useState<Table | null>(null);
+  const [seatingView, setSeatingView] = useState<"floor" | "list" | "placement">("floor");
 
   useEffect(() => {
     if (workspaceEventId) {
@@ -219,43 +220,54 @@ export default function EventTablesPage() {
     <div className="p-6 space-y-6">
       <WorkspaceBreadcrumbBar
         items={[
-          { label: "Events CRM", href: "/events/workspace" },
+          { label: "Events CRM", href: "/events/events" },
           { label: "Tables" },
         ]}
         statusLabel={eventScoped ? "Event Scoped" : "All Events"}
         metadata={`${tables.length.toLocaleString()} tables · ${openSeats.toLocaleString()} open seats · ${overCapacityTables.toLocaleString()} over capacity`}
-        accentTone="amber"
-        primaryAction={selectedEventId ? <WorkspaceRibbonButton label="Create Table" onClick={() => setShowNewTableModal(true)} variant="primary" accentTone="amber" /> : undefined}
+        accentTone="purple"
+        primaryAction={selectedEventId ? <WorkspaceRibbonButton label="Create Table" onClick={() => setShowNewTableModal(true)} variant="primary" accentTone="purple" /> : undefined}
       />
 
       <WorkspaceRibbon>
+        <WorkspaceRibbonGroup label="View">
+          <WorkspaceRibbonButton label="Floor Plan" onClick={() => setSeatingView("floor")} variant={seatingView === "floor" ? "primary" : "secondary"} accentTone="purple" />
+          <WorkspaceRibbonButton label="Table List" onClick={() => setSeatingView("list")} variant={seatingView === "list" ? "primary" : "secondary"} accentTone="purple" />
+          <WorkspaceRibbonButton label="Guest Placement" onClick={() => setSeatingView("placement")} variant={seatingView === "placement" ? "primary" : "secondary"} accentTone="purple" />
+        </WorkspaceRibbonGroup>
+
         <WorkspaceRibbonGroup label="Create">
-          <WorkspaceRibbonButton label="Create Table" onClick={() => setShowNewTableModal(true)} variant="primary" disabled={!selectedEventId} accentTone="amber" />
+          <WorkspaceRibbonButton label="Create Table" onClick={() => setShowNewTableModal(true)} variant="primary" disabled={!selectedEventId} accentTone="purple" />
         </WorkspaceRibbonGroup>
 
         <WorkspaceRibbonGroup label="Actions">
-          <WorkspaceRibbonButton label="Refresh" onClick={() => void loadData()} disabled={!selectedEventId} accentTone="amber" />
-          <WorkspaceRibbonButton label="Seating Help" href="/help?scope=events&scopePath=/events/tables" accentTone="amber" />
+          <WorkspaceRibbonButton label="Refresh" onClick={() => void loadData()} disabled={!selectedEventId} accentTone="purple" />
+          <WorkspaceRibbonButton label="Seating Help" href="/help?scope=events&scopePath=/events/tables" accentTone="purple" />
         </WorkspaceRibbonGroup>
       </WorkspaceRibbon>
 
       {/* Event Selector */}
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">Event</label>
-        <select
-          value={selectedEventId}
-          onChange={(e) => setSelectedEventId(e.target.value)}
-          disabled={eventScoped}
-          className="w-full md:w-96 px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
-        >
-          <option value="">{eventScoped ? "Event Workspace" : "Select an event"}</option>
-          {events.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name} - {new Date(e.startDate).toLocaleDateString()}
-            </option>
-          ))}
-        </select>
-      </div>
+      {!eventScoped ? (
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Event</label>
+          <select
+            value={selectedEventId}
+            onChange={(e) => setSelectedEventId(e.target.value)}
+            className="w-full md:w-96 px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
+          >
+            <option value="">Select an event</option>
+            {events.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name} - {new Date(e.startDate).toLocaleDateString()}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900">
+          Event lock is active. Use All Events to change events.
+        </div>
+      )}
 
       {!selectedEventId ? (
         <div className="bg-gray-50 rounded-lg border border-gray-200 p-8 text-center text-gray-500">
@@ -271,7 +283,7 @@ export default function EventTablesPage() {
             </div>
             <div className="bg-white p-4 rounded-lg border border-gray-200">
               <p className="text-xs text-gray-500 uppercase font-medium">Total Capacity</p>
-              <p className="text-2xl font-bold text-amber-600 mt-1">{totalCapacity}</p>
+              <p className="text-2xl font-bold text-violet-600 mt-1">{totalCapacity}</p>
             </div>
             <div className="bg-white p-4 rounded-lg border border-gray-200">
               <p className="text-xs text-gray-500 uppercase font-medium">Open Seats</p>
@@ -287,23 +299,49 @@ export default function EventTablesPage() {
             <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
               Loading tables...
             </div>
+          ) : tables.length === 0 ? (
+            <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
+              No tables configured yet.
+            </div>
+          ) : seatingView === "floor" ? (
+            <div className="space-y-4">
+              <FloorPlanBoard tables={tables} />
+              {unassignedGuests.length > 0 ? (
+                <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900">
+                  {unassignedGuests.length} guests are still unassigned. Switch to Guest Placement view to place them quickly.
+                </div>
+              ) : null}
+            </div>
+          ) : seatingView === "list" ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
+              {tables.map((table) => (
+                <TableCard
+                  key={table.id}
+                  table={table}
+                  onEdit={() => setEditingTable(table)}
+                  onDelete={() => deleteTable(table.id)}
+                  onUnassignGuest={(guestId) => assignGuestToTable(guestId, null)}
+                />
+              ))}
+            </div>
           ) : (
             <>
-              {/* Tables Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
-                {tables.map((table) => (
-                  <TableCard
-                    key={table.id}
-                    table={table}
-                    onEdit={() => setEditingTable(table)}
-                    onDelete={() => deleteTable(table.id)}
-                    onUnassignGuest={(guestId) => assignGuestToTable(guestId, null)}
-                  />
-                ))}
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <h2 className="text-lg font-bold text-gray-900 mb-1">Guest Placement View</h2>
+                <p className="text-xs text-gray-500">Assign unseated guests to available tables with live capacity context.</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {tables.map((table) => (
+                    <div key={table.id} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                      <p className="font-semibold text-slate-900">{table.name}</p>
+                      <p className="text-slate-600">{table._count.guests}/{table.capacity} seated</p>
+                      {table.hostName ? <p className="text-slate-500">Host: {table.hostName}</p> : null}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Unassigned Guests */}
-              {unassignedGuests.length > 0 && (
+              {unassignedGuests.length > 0 ? (
                 <div className="bg-white rounded-lg border border-gray-200 p-4">
                   <h2 className="text-lg font-bold text-gray-900 mb-3">
                     Unassigned Guests ({unassignedGuests.length})
@@ -318,6 +356,10 @@ export default function EventTablesPage() {
                       />
                     ))}
                   </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                  All guests are currently assigned to tables.
                 </div>
               )}
             </>
@@ -345,6 +387,48 @@ export default function EventTablesPage() {
   );
 }
 
+/** FloorPlanBoard renders a compact seat-fill floor plan summary for table operations. */
+function FloorPlanBoard({ tables }: { tables: Table[] }) {
+  const sortedTables = [...tables].sort((left, right) => {
+    const leftNumber = left.tableNumber ?? Number.MAX_SAFE_INTEGER;
+    const rightNumber = right.tableNumber ?? Number.MAX_SAFE_INTEGER;
+    if (leftNumber !== rightNumber) return leftNumber - rightNumber;
+    return left.name.localeCompare(right.name);
+  });
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-4">
+      <h2 className="text-lg font-bold text-gray-900">Floor Plan View</h2>
+      <p className="mt-1 text-xs text-gray-500">Quick visual capacity map for tables and host coverage.</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {sortedTables.map((table) => {
+          const usedSeats = table._count.guests;
+          const fillRate = table.capacity > 0 ? Math.round((usedSeats / table.capacity) * 100) : 0;
+          const safeFillRate = Math.max(0, Math.min(100, fillRate));
+          const overCapacity = fillRate > 100;
+          return (
+            <article key={table.id} className={`rounded-lg border px-3 py-2 ${table.isSponsored ? "border-violet-300 bg-violet-50" : "border-slate-200 bg-slate-50"}`}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-slate-900">{table.tableNumber != null ? `#${table.tableNumber} ` : ""}{table.name}</p>
+                {table.hostName ? (
+                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">Host</span>
+                ) : (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">No host</span>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-slate-600">{usedSeats}/{table.capacity} seats</p>
+              <div className="mt-2 h-2 rounded-full bg-slate-200">
+                <div className={`h-2 rounded-full ${overCapacity ? "bg-red-500" : "bg-violet-500"}`} style={{ width: `${safeFillRate}%` }} />
+              </div>
+              <p className="mt-1 text-[11px] text-slate-500">{fillRate}% filled</p>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 /** TableCard component - displays a single table with guest list */
 function TableCard({
   table,
@@ -361,16 +445,16 @@ function TableCard({
   const hasOpenSeats = table._count.guests < table.capacity;
 
   return (
-    <div className={`bg-white rounded-lg border p-4 ${table.isSponsored ? "border-amber-300 ring-1 ring-amber-200" : "border-gray-200"}`}>
+    <div className={`bg-white rounded-lg border p-4 ${table.isSponsored ? "border-violet-300 ring-1 ring-violet-200" : "border-gray-200"}`}>
       <div className="flex items-start justify-between mb-3">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             {table.tableNumber != null && (
-              <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded">#{table.tableNumber}</span>
+              <span className="text-xs font-bold text-violet-600 bg-violet-50 px-2 py-0.5 rounded">#{table.tableNumber}</span>
             )}
             <h3 className="text-base font-bold text-gray-900">{table.name}</h3>
             {table.isSponsored && (
-              <span className="text-xs font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">Sponsored</span>
+              <span className="text-xs font-semibold bg-violet-100 text-violet-800 px-2 py-0.5 rounded-full">Sponsored</span>
             )}
           </div>
           <p className="text-sm text-gray-500 mt-0.5">
@@ -384,7 +468,7 @@ function TableCard({
         <div className="flex gap-2">
           <button
             onClick={onEdit}
-            className="text-xs text-amber-600 hover:text-amber-700 font-medium"
+            className="text-xs text-violet-600 hover:text-violet-700 font-medium"
           >
             Edit
           </button>
@@ -492,7 +576,7 @@ function UnassignedGuestRow({
           }
         }}
         disabled={!selectedTableId}
-        className="px-3 py-1 text-sm font-medium text-white bg-amber-600 rounded hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="px-3 py-1 text-sm font-medium text-white bg-violet-600 rounded hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Assign
       </button>
@@ -604,7 +688,7 @@ function NewTableModal({
               type="checkbox"
               checked={isSponsored}
               onChange={(e) => setIsSponsored(e.target.checked)}
-              className="w-4 h-4 text-amber-600 border-gray-300 rounded"
+              className="w-4 h-4 text-violet-600 border-gray-300 rounded"
             />
             <label htmlFor="isSponsored" className="text-sm font-semibold text-gray-700 cursor-pointer">
               Sponsored Table
@@ -633,7 +717,7 @@ function NewTableModal({
               }
             }}
             disabled={!name.trim()}
-            className="flex-1 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50"
+            className="flex-1 px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50"
           >
             Create Table
           </button>
@@ -745,7 +829,7 @@ function EditTableModal({
               type="checkbox"
               checked={isSponsored}
               onChange={(e) => setIsSponsored(e.target.checked)}
-              className="w-4 h-4 text-amber-600 border-gray-300 rounded"
+              className="w-4 h-4 text-violet-600 border-gray-300 rounded"
             />
             <label htmlFor="editIsSponsored" className="text-sm font-semibold text-gray-700 cursor-pointer">
               Sponsored Table
@@ -775,7 +859,7 @@ function EditTableModal({
               }
             }}
             disabled={!name.trim()}
-            className="flex-1 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50"
+            className="flex-1 px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50"
           >
             Update Table
           </button>
@@ -784,3 +868,4 @@ function EditTableModal({
     </div>
   );
 }
+
