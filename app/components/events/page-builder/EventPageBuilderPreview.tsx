@@ -572,6 +572,7 @@ export default function EventPageBuilderPreview({ sections, selectedSectionId, d
                 onClick={() => setDevice(label)}
                 className={getDeviceButtonClasses(device, label)}
                 title={label}
+                aria-label={`${label} preview`}
               >
                 {index === 0 ? "▭" : index === 1 ? "▯" : "▯"}
               </button>

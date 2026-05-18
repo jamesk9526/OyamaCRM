@@ -79,9 +79,7 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pre
   const canSubmit = Boolean(
     pageSlug
     && selectedTicket
-    && primaryAttendee?.firstName.trim()
-    && primaryAttendee.lastName.trim()
-    && primaryAttendee.email.trim()
+    && primaryAttendee?.email.trim()
     && allAttendeesNamed
     && consentAccepted
     && !previewOnly,
@@ -131,7 +129,9 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pre
       }
       setResult(payload as RegistrationResult);
     } catch (registrationError) {
-      setError(registrationError instanceof Error ? registrationError.message : "Registration could not be completed.");
+      setError(registrationError instanceof TypeError
+        ? "Unable to connect to the event registration server. Please check your connection and try again."
+        : registrationError instanceof Error ? registrationError.message : "Registration could not be completed.");
     } finally {
       setSubmitting(false);
     }

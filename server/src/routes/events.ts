@@ -4,6 +4,7 @@
  *
  * @module routes/events
  */
+import { randomBytes } from "crypto";
 import { Router, type Request } from "express";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
@@ -486,13 +487,13 @@ function isValidPublicRegistrationEmail(value: string): boolean {
 
 function generatePublicOrderNumber(prefix = "PUB"): string {
   const timestamp = Date.now().toString(36).toUpperCase();
-  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const random = randomBytes(3).toString("hex").toUpperCase();
   return `${prefix}-${timestamp}-${random}`;
 }
 
 async function generateUniqueCheckinCode(tx: Prisma.TransactionClient): Promise<string> {
   for (let attempts = 0; attempts < MAX_CHECKIN_CODE_GENERATION_ATTEMPTS; attempts++) {
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const code = randomBytes(3).toString("hex").toUpperCase();
     const existing = await tx.eventGuest.findUnique({ where: { checkinCode: code } });
     if (!existing) return code;
   }
@@ -833,7 +834,7 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
 
   const body = isRecord(req.body) ? req.body : {};
   const ticketTypeId = normalizeTextInput(body.ticketTypeId, 120);
-  const requestedTicketUnits = Math.max(1, Number(body.quantity ?? 1) || 1);
+  const requestedTicketUnits = Math.max(1, Number(body.quantity ?? 1));
   const consentAccepted = body.consentAccepted === true;
 
   if (!ticketTypeId) {
@@ -896,8 +897,9 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
     return;
   }
 
-  const maxPerOrder = ticketType.maxPerOrder ?? 10;
-  const ticketUnits = Math.max(ticketType.minPerOrder, Math.min(maxPerOrder, requestedTicketUnits));
+  const maxPerOrder = Math.max(1, ticketType.maxPerOrder ?? 10);
+  const minPerOrder = Math.max(1, Math.min(ticketType.minPerOrder, maxPerOrder));
+  const ticketUnits = Math.min(maxPerOrder, Math.max(minPerOrder, requestedTicketUnits));
   const seatsPerTicket = ticketType.isTable ? Math.max(1, ticketType.seatsIncluded ?? 1) : 1;
   const requestedSeats = Math.min(MAX_SEATS_PER_PUBLIC_REGISTRATION, ticketUnits * seatsPerTicket);
   const attendees = normalizePublicRegistrationAttendees(body, requestedSeats);

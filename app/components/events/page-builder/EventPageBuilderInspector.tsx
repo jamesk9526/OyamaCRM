@@ -159,6 +159,11 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
                     {field}
                   </span>
                 ))}
+                {sourceFields.length > MAX_PREVIEW_FIELDS ? (
+                  <span className="rounded-full border border-violet-100 bg-white px-2 py-0.5 text-[10px] font-semibold text-violet-700">
+                    +{sourceFields.length - MAX_PREVIEW_FIELDS} more
+                  </span>
+                ) : null}
               </div>
             ) : null}
           </div>
