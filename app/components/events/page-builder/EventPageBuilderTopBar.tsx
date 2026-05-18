@@ -35,7 +35,7 @@ function formatTimestamp(value: string | null): string {
   });
 }
 
-function autosaveTone(autoSaveState: EventPageBuilderTopBarProps["autoSaveState"]): string {
+function getAutosaveIndicatorColor(autoSaveState: EventPageBuilderTopBarProps["autoSaveState"]): string {
   if (autoSaveState === "saving") return "bg-amber-400";
   if (autoSaveState === "error") return "bg-red-500";
   return "bg-emerald-500";
@@ -73,7 +73,7 @@ export default function EventPageBuilderTopBar({
           <h1 className="mt-1 truncate text-lg font-semibold text-slate-950">{eventName}</h1>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 font-semibold text-slate-700">
-              <span className={`h-2 w-2 rounded-full ${autosaveTone(autoSaveState)}`} />
+              <span className={`h-2 w-2 rounded-full ${getAutosaveIndicatorColor(autoSaveState)}`} />
               {autoSaveState === "saving" ? "Saving..." : autoSaveState === "error" ? "Save issue" : "Saved"}
             </span>
             <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 font-semibold text-violet-700">{status}</span>

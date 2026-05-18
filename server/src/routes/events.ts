@@ -18,6 +18,7 @@ const router = Router();
 const EVENTS_MANAGER_INTEGRATIONS_PLUGIN_KEY = "events-manager-integrations";
 const EVENTS_PAGE_BUILDER_PLUGIN_KEY = "events-page-builder";
 const MAX_SEATS_PER_PUBLIC_REGISTRATION = 50;
+const MAX_CHECKIN_CODE_GENERATION_ATTEMPTS = 10;
 const RESERVED_EVENT_PUBLIC_SLUGS = new Set([
   "api",
   "apps",
@@ -474,7 +475,7 @@ interface NormalizedPublicRegistrationAttendee {
   specialNeeds: string;
 }
 
-function sanitizePublicRegistrationText(value: unknown, maxLength = 120): string {
+function normalizeTextInput(value: unknown, maxLength = 120): string {
   if (typeof value !== "string") return "";
   return value.trim().slice(0, maxLength);
 }
@@ -490,7 +491,7 @@ function generatePublicOrderNumber(prefix = "PUB"): string {
 }
 
 async function generateUniqueCheckinCode(tx: Prisma.TransactionClient = prisma): Promise<string> {
-  for (let attempts = 0; attempts < 10; attempts++) {
+  for (let attempts = 0; attempts < MAX_CHECKIN_CODE_GENERATION_ATTEMPTS; attempts++) {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     const existing = await tx.eventGuest.findUnique({ where: { checkinCode: code } });
     if (!existing) return code;
@@ -519,12 +520,12 @@ function normalizePublicRegistrationAttendees(
     ? rawAttendees.filter(isRecord).map(parsePublicRegistrationAttendeeInput)
     : [parsePublicRegistrationAttendeeInput(body)];
   const sanitized = sourceAttendees.slice(0, requestedSeats).map((attendee) => ({
-    firstName: sanitizePublicRegistrationText(attendee.firstName, 80),
-    lastName: sanitizePublicRegistrationText(attendee.lastName, 80),
-    email: sanitizePublicRegistrationText(attendee.email, 160).toLowerCase(),
-    phone: sanitizePublicRegistrationText(attendee.phone, 40),
-    dietaryRestrictions: sanitizePublicRegistrationText(attendee.dietaryRestrictions, 500),
-    specialNeeds: sanitizePublicRegistrationText(attendee.specialNeeds, 500),
+    firstName: normalizeTextInput(attendee.firstName, 80),
+    lastName: normalizeTextInput(attendee.lastName, 80),
+    email: normalizeTextInput(attendee.email, 160).toLowerCase(),
+    phone: normalizeTextInput(attendee.phone, 40),
+    dietaryRestrictions: normalizeTextInput(attendee.dietaryRestrictions, 500),
+    specialNeeds: normalizeTextInput(attendee.specialNeeds, 500),
   }));
 
   return sanitized;
@@ -541,6 +542,7 @@ function hasRequiredPublicRegistrationBuyerFields(
   );
 }
 
+/** Builds placeholder names for extra seats when public table registrations omit each attendee's details. */
 function createGuestNameFallback(index: number, partyName: string) {
   return {
     firstName: `Guest ${index + 1}`,
@@ -830,7 +832,7 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
   }
 
   const body = isRecord(req.body) ? req.body : {};
-  const ticketTypeId = sanitizePublicRegistrationText(body.ticketTypeId, 120);
+  const ticketTypeId = normalizeTextInput(body.ticketTypeId, 120);
   const requestedTicketUnits = Math.max(1, Math.min(10, Number(body.quantity ?? 1) || 1));
   const consentAccepted = body.consentAccepted === true;
 
