@@ -191,7 +191,7 @@ export default function EventsWorkspaceSelectorPage() {
       <WorkspaceBreadcrumbBar
         accentTone="purple"
         items={[
-          { label: "Events CRM", href: "/events" },
+          { label: "EventSTUDIO", href: "/events" },
           { label: "Fundraising Event Command Center" },
         ]}
         statusLabel="Partially Working"
@@ -226,7 +226,7 @@ export default function EventsWorkspaceSelectorPage() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">Select event first</p>
-              <h1 className="mt-1 text-xl font-semibold text-slate-950">Events CRM</h1>
+              <h1 className="mt-1 text-xl font-semibold text-slate-950">EventSTUDIO</h1>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
                 Manage fundraising banquets, table-host events, registrations, sponsors, guest lists, check-in, and post-event reporting from one event-scoped workspace.
               </p>

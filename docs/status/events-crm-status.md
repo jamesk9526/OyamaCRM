@@ -231,15 +231,24 @@ Critical overrides from the latest full testing and browser pass:
 
 ---
 
+## 2026-05-18 EventSTUDIO Page Builder Production Polish
+
+| Feature | Status | Notes |
+|---|---|---|
+| EventSTUDIO sidebar scoping | ✅ Production Ready | Home/global pages no longer render event-scoped Reports, Event Page, or Settings groups from `?eventId=` query state; scoped tools appear only under `/events/[eventId]/*`. |
+| Publish readiness workflow | ✅ Production Ready | Builder header now exposes slug, hero, visitor action, and autosave readiness before staff can publish. |
+| New public page blocks | ✅ Production Ready | Auction Preview, Live Appeal, and Volunteer Callout blocks render in preview/published pages and persist through the server section sanitizer. |
+| EventSTUDIO naming | ✅ Production Ready | Primary switcher/sidebar/entry surfaces now use EventSTUDIO product naming. |
+
 ## Event Page Builder
 
 | Feature | Status | Notes |
 |---|---|---|
 | Page builder entry point | 🟡 Working | Canonical route is `/events/[eventId]/event-page`; `/events/page-builder` remains compatibility selector |
 | Template library | 🔶 Partial | `/events/templates` supports draft template creation from existing events |
-| Block-based editor | 🔶 Partial | Event-scoped section rail + preview + inspector shell is implemented; persistence and deeper publishing pipeline are incomplete |
+| Block-based editor | 🟡 Working | Event-scoped section rail, preview, inspector shell, autosave persistence, and public-page rendering are implemented for the current block catalog |
 | Public event registration page | 🔴 Not Started | |
-| Publish/unpublish | 🔴 Not Started | |
+| Publish/unpublish | 🟡 Working | Publish/unpublish persists status and timestamp with readiness gating; deeper deployment history/versioning remains future work |
 
 ---
 

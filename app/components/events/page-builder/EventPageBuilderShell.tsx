@@ -1,13 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
-import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
-import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
-import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
-import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
-import FeatureStatusWarning from "@/app/components/ui/FeatureStatusWarning";
 import EventPageBuilderTopBar from "@/app/components/events/page-builder/EventPageBuilderTopBar";
 import EventPageBuilderSectionRail from "@/app/components/events/page-builder/EventPageBuilderSectionRail";
 import EventPageBuilderPreview from "@/app/components/events/page-builder/EventPageBuilderPreview";
@@ -23,7 +17,6 @@ import type {
   EventPageSectionState,
   EventPageStatus,
 } from "@/app/components/events/page-builder/types";
-import type { EventItem } from "@/app/components/events/types";
 
 interface EventPageBuilderShellProps {
   eventId: string;
@@ -37,17 +30,6 @@ function slugify(value: string): string {
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
-}
-
-function formatEventDate(value?: string | null): string {
-  if (!value) return "No date";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "No date";
-  return parsed.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
 }
 
 function fallbackEventPageSlug(eventName?: string | null): string {
@@ -91,13 +73,54 @@ function moveSectionOrder(
   return next;
 }
 
+function reorderSectionsByDrop(
+  sections: EventPageSectionState[],
+  draggedSectionId: EventPageSectionId,
+  targetSectionId: EventPageSectionId,
+): EventPageSectionState[] {
+  const draggedIndex = sections.findIndex((section) => section.id === draggedSectionId);
+  const targetIndex = sections.findIndex((section) => section.id === targetSectionId);
+  if (draggedIndex < 0 || targetIndex < 0 || draggedIndex === targetIndex) return sections;
+
+  const next = [...sections];
+  const [dragged] = next.splice(draggedIndex, 1);
+  next.splice(targetIndex, 0, dragged);
+  return next;
+}
+
+function mergeSectionsWithDefaults(savedSections: EventPageSectionState[] | null | undefined): EventPageSectionState[] {
+  const defaults = createDefaultEventPageSectionState();
+  if (!Array.isArray(savedSections) || savedSections.length === 0) return defaults;
+
+  const defaultById = new Map(defaults.map((section) => [section.id, section]));
+  const savedIds = new Set(savedSections.map((section) => section.id));
+  return [
+    ...savedSections.map((section) => ({
+      ...(defaultById.get(section.id) ?? section),
+      ...section,
+      content: {
+        ...(defaultById.get(section.id)?.content ?? {}),
+        ...(section.content ?? {}),
+      },
+      design: {
+        ...(defaultById.get(section.id)?.design ?? {}),
+        ...(section.design ?? {}),
+      },
+      advanced: {
+        ...(defaultById.get(section.id)?.advanced ?? {}),
+        ...(section.advanced ?? {}),
+      },
+    })),
+    ...defaults.filter((section) => !savedIds.has(section.id)),
+  ];
+}
+
 /** Event-scoped page builder shell for creating and publishing public event pages from Events CRM data. */
 export default function EventPageBuilderShell({ eventId }: EventPageBuilderShellProps) {
   const [event, setEvent] = useState<EventBuilderEventDetail | null>(null);
   const [ticketTypes, setTicketTypes] = useState<EventBuilderTicketType[]>([]);
   const [sponsors, setSponsors] = useState<EventBuilderSponsor[]>([]);
   const [report, setReport] = useState<EventBuilderReport | null>(null);
-  const [events, setEvents] = useState<EventItem[]>([]);
   const [sections, setSections] = useState<EventPageSectionState[]>(createDefaultEventPageSectionState());
   const [selectedSectionId, setSelectedSectionId] = useState<EventPageSectionId>(EVENT_PAGE_SECTION_DEFINITIONS[0].id);
   const [pageStatus, setPageStatus] = useState<EventPageStatus>("Draft");
@@ -107,15 +130,16 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
   const [pageSlugDraft, setPageSlugDraft] = useState<string>("event-page");
   const [saveUrlPending, setSaveUrlPending] = useState(false);
   const [urlFeedback, setUrlFeedback] = useState<string | null>(null);
+  const [autoSaveState, setAutoSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedSectionsRef = useRef(false);
 
   const resolvedDraftSlug = useMemo(() => {
     const normalized = slugify(pageSlugDraft);
     return normalized || pageSlug;
   }, [pageSlug, pageSlugDraft]);
 
-  const publicUrl = useMemo(() => buildEventPageUrl(baseOrigin, pageSlug), [baseOrigin, pageSlug]);
   const draftPreviewUrl = useMemo(() => buildEventPageUrl(baseOrigin, resolvedDraftSlug), [baseOrigin, resolvedDraftSlug]);
 
   useEffect(() => {
@@ -127,12 +151,11 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
       const runtimeOrigin = resolveRuntimeOrigin();
 
       try {
-        const [eventData, ticketData, sponsorData, reportData, eventsData, pageConfig] = await Promise.all([
+        const [eventData, ticketData, sponsorData, reportData, pageConfig] = await Promise.all([
           apiFetch<EventBuilderEventDetail>(`/api/events/${eventId}`),
           apiFetch<EventBuilderTicketType[]>(`/api/events/${eventId}/ticket-types`),
           apiFetch<EventBuilderSponsor[]>(`/api/events/${eventId}/sponsors`),
           apiFetch<EventBuilderReport>(`/api/events/${eventId}/report`).catch(() => null),
-          apiFetch<EventItem[]>("/api/events"),
           apiFetch<EventPageBuilderConfig>(`/api/events/${eventId}/page-builder-config`).catch(() => null),
         ]);
 
@@ -142,15 +165,18 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         setTicketTypes(Array.isArray(ticketData) ? ticketData : []);
         setSponsors(Array.isArray(sponsorData) ? sponsorData : []);
         setReport(reportData);
-        setEvents(Array.isArray(eventsData) ? eventsData : []);
+        const nextSections = mergeSectionsWithDefaults(pageConfig?.sections);
+        setSections(nextSections);
+        setSelectedSectionId(nextSections.find((section) => section.enabled)?.id ?? nextSections[0].id);
 
-        const resolvedOrigin = String(pageConfig?.baseOrigin ?? runtimeOrigin).trim().replace(/\/$/, "") || runtimeOrigin;
+        const resolvedOrigin = runtimeOrigin;
         const resolvedSlug = slugify(pageConfig?.pageSlug ?? "") || fallbackEventPageSlug(eventData.name);
         setBaseOrigin(resolvedOrigin);
         setPageSlug(resolvedSlug);
         setPageSlugDraft(resolvedSlug);
         setPageStatus(pageConfig?.status ?? "Draft");
         setLastPublishedAt(pageConfig?.lastPublishedAt ?? null);
+        hasLoadedSectionsRef.current = true;
       } catch (requestError) {
         if (!active) return;
         setError(requestError instanceof Error ? requestError.message : "Failed to load event page builder workspace.");
@@ -173,13 +199,46 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
     [sections, selectedSectionId],
   );
 
-  const selectedEvent = useMemo(
-    () => events.find((entry) => entry.id === eventId) ?? null,
-    [events, eventId],
-  );
+  const publishReadiness = useMemo(() => {
+    const visibleSections = sections.filter((section) => section.enabled);
+    return [
+      { label: "Valid public slug", passed: Boolean(slugify(pageSlugDraft)) },
+      { label: "Hero section enabled", passed: visibleSections.some((section) => section.id === "hero") },
+      {
+        label: "Visitor action block",
+        passed: visibleSections.some((section) => section.id === "registration-form" || section.id === "donation-form" || section.id === "cta-banner" || section.id === "live-appeal"),
+      },
+      { label: "Autosave complete", passed: autoSaveState !== "saving" },
+    ];
+  }, [autoSaveState, pageSlugDraft, sections]);
+
+  useEffect(() => {
+    if (!hasLoadedSectionsRef.current || loading || !event) return;
+    const timeout = window.setTimeout(() => {
+      setAutoSaveState("saving");
+      apiFetch<EventPageBuilderConfig>(`/api/events/${eventId}/page-builder-config`, {
+        method: "PATCH",
+        body: JSON.stringify({ sections }),
+      })
+        .then((updated) => {
+          setPageStatus(updated.status);
+          setLastPublishedAt(updated.lastPublishedAt);
+          setAutoSaveState("saved");
+        })
+        .catch(() => {
+          setAutoSaveState("error");
+        });
+    }, 650);
+
+    return () => window.clearTimeout(timeout);
+  }, [event, eventId, loading, sections]);
 
   function handlePreview() {
     if (typeof window === "undefined") return;
+    if (pageStatus !== "Published") {
+      setUrlFeedback("Publish this page before opening the public URL. Use the canvas below for draft preview.");
+      return;
+    }
     window.open(draftPreviewUrl, "_blank", "noopener,noreferrer");
   }
 
@@ -197,7 +256,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         method: "PATCH",
         body: JSON.stringify({ pageSlug: nextSlug }),
       });
-      const updatedOrigin = String(updated.baseOrigin ?? baseOrigin).trim().replace(/\/$/, "") || baseOrigin;
+      const updatedOrigin = resolveRuntimeOrigin();
       setBaseOrigin(updatedOrigin);
       setPageSlug(updated.pageSlug);
       setPageSlugDraft(updated.pageSlug);
@@ -211,24 +270,58 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
     }
   }
 
-  function handlePublishToggle() {
-    if (pageStatus === "Published") {
-      setPageStatus("Draft");
-      return;
+  async function handlePublishToggle() {
+    const nextStatus: EventPageStatus = pageStatus === "Published" ? "Draft" : "Published";
+    const nextPublishedAt = nextStatus === "Published" ? new Date().toISOString() : null;
+
+    if (nextStatus === "Published") {
+      const visibleSections = sections.filter((section) => section.enabled);
+      if (!slugify(pageSlugDraft)) {
+        setUrlFeedback("Add a valid page slug before publishing.");
+        return;
+      }
+      if (!visibleSections.some((section) => section.id === "hero")) {
+        setUrlFeedback("Publish blocked: enable the Hero section so the page has a clear public introduction.");
+        return;
+      }
+      if (!visibleSections.some((section) => section.id === "registration-form" || section.id === "donation-form" || section.id === "cta-banner" || section.id === "live-appeal")) {
+        setUrlFeedback("Publish blocked: add a registration, donation, or CTA section so visitors have a clear next step.");
+        return;
+      }
+      if (autoSaveState === "saving") {
+        setUrlFeedback("Publish blocked: wait for autosave to finish, then publish again.");
+        return;
+      }
     }
 
-    setPageStatus("Published");
-    setLastPublishedAt(new Date().toISOString());
+    setPageStatus(nextStatus);
+    setLastPublishedAt(nextPublishedAt);
+    setAutoSaveState("saving");
+    try {
+      const updated = await apiFetch<EventPageBuilderConfig>(`/api/events/${eventId}/page-builder-config`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: nextStatus,
+          lastPublishedAt: nextPublishedAt,
+          sections,
+        }),
+      });
+      setPageStatus(updated.status);
+      setLastPublishedAt(updated.lastPublishedAt);
+      setAutoSaveState("saved");
+    } catch {
+      setAutoSaveState("error");
+    }
   }
 
   if (loading) {
     return (
-      <div className="space-y-3 p-6">
-        <div className="h-16 animate-pulse rounded-xl bg-slate-100" />
-        <div className="grid gap-3 lg:grid-cols-[250px_minmax(0,1fr)_320px]">
-          <div className="h-[520px] animate-pulse rounded-xl bg-slate-100" />
-          <div className="h-[520px] animate-pulse rounded-xl bg-slate-100" />
-          <div className="h-[520px] animate-pulse rounded-xl bg-slate-100" />
+      <div className="h-full bg-[#f7f8fc] p-5">
+        <div className="h-14 animate-pulse rounded-xl bg-slate-200" />
+        <div className="mt-4 grid gap-0 overflow-hidden rounded-xl border border-slate-200 bg-white lg:grid-cols-[250px_minmax(0,1fr)_320px]">
+          <div className="h-[640px] animate-pulse bg-slate-100" />
+          <div className="h-[640px] animate-pulse bg-slate-50" />
+          <div className="h-[640px] animate-pulse bg-slate-100" />
         </div>
       </div>
     );
@@ -236,44 +329,14 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
 
   if (error || !event) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      <div className="m-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
         {error ?? "Event not found."}
       </div>
     );
   }
 
   return (
-    <div className="space-y-3 p-3 sm:p-4 lg:p-5">
-      <FeatureStatusWarning
-        status="Partially Implemented"
-        title="Event Page Builder persistence is still in development"
-        description="Event-scoped editing and source-of-truth data loading are active, but section-level save history and full publish pipeline persistence are not complete yet."
-      />
-
-      <WorkspaceBreadcrumbBar
-        items={[
-          { label: "Events CRM", href: "/events/events" },
-          { label: event.name, href: `/events/${eventId}/overview` },
-          { label: "Event Page Builder" },
-        ]}
-        statusLabel="Partially Working"
-        metadata="Event-scoped public page builder connected to Events CRM source data"
-        accentTone="purple"
-      />
-
-      <WorkspaceRibbon>
-        <WorkspaceRibbonGroup label="Event Workspace">
-          <WorkspaceRibbonButton label="Overview" href={`/events/${eventId}/overview`} accentTone="purple" />
-          <WorkspaceRibbonButton label="Guests" href={`/events/${eventId}/guests`} accentTone="purple" />
-          <WorkspaceRibbonButton label="Donations" href={`/events/${eventId}/donations`} accentTone="purple" />
-          <WorkspaceRibbonButton label="Reports" href={`/events/${eventId}/reports`} accentTone="purple" />
-        </WorkspaceRibbonGroup>
-        <WorkspaceRibbonGroup label="Actions">
-          <WorkspaceRibbonButton label="Preview Page" onClick={handlePreview} accentTone="purple" />
-          <WorkspaceRibbonButton label={pageStatus === "Published" ? "Unpublish" : "Publish"} onClick={handlePublishToggle} variant="primary" accentTone="purple" />
-        </WorkspaceRibbonGroup>
-      </WorkspaceRibbon>
-
+    <div className="flex h-[calc(100vh-4rem)] min-h-0 flex-col bg-[#f7f8fc]">
       <EventPageBuilderTopBar
         eventName={event.name}
         resolvedPageUrl={draftPreviewUrl}
@@ -283,19 +346,28 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         urlFeedback={urlFeedback}
         status={pageStatus}
         lastPublishedAt={lastPublishedAt}
+        autoSaveState={autoSaveState}
+        publishReadiness={publishReadiness}
         onPageSlugDraftChange={setPageSlugDraft}
         onSavePageSlug={handleSavePageSlug}
         onPreview={handlePreview}
         onPublishToggle={handlePublishToggle}
       />
 
-      <div className="grid gap-3 lg:grid-cols-[250px_minmax(0,1fr)_320px]">
+      <div className="grid min-h-0 flex-1 overflow-hidden border-t border-slate-200 lg:grid-cols-[250px_minmax(0,1fr)_320px]">
         <EventPageBuilderSectionRail
           sections={sections}
           selectedSectionId={selectedSection.id}
           onSelectSection={setSelectedSectionId}
           onMoveSection={(sectionId, direction) => {
             setSections((current) => moveSectionOrder(current, sectionId, direction));
+          }}
+          onReorderSections={(draggedSectionId, targetSectionId) => {
+            setSections((current) => reorderSectionsByDrop(current, draggedSectionId, targetSectionId));
+          }}
+          onToggleSection={(sectionId) => {
+            setSections((current) => current.map((section) => (section.id === sectionId ? { ...section, enabled: !section.enabled } : section)));
+            setSelectedSectionId(sectionId);
           }}
         />
 
@@ -309,6 +381,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
             report,
             publicUrl: draftPreviewUrl,
           }}
+          onSelectSection={setSelectedSectionId}
         />
 
         <EventPageBuilderInspector
@@ -316,28 +389,13 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
           onUpdateSection={(sectionId, updater) => {
             setSections((current) => current.map((section) => (section.id === sectionId ? updater(section) : section)));
           }}
+          onDeleteSection={(sectionId) => {
+            setSections((current) => current.map((section) => (section.id === sectionId ? { ...section, enabled: false } : section)));
+            const nextVisible = sections.find((section) => section.id !== sectionId && section.enabled);
+            if (nextVisible) setSelectedSectionId(nextVisible.id);
+          }}
         />
       </div>
-
-      <section className="rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs text-violet-900">
-        <p className="font-semibold">Source Of Truth Behavior</p>
-        <p className="mt-1">
-          This builder reads event name, timing, location, registration settings, ticket/table options, sponsor records, and fundraising metrics from Events CRM APIs.
-          Changes in event setup propagate here automatically when data is refreshed.
-        </p>
-        {selectedEvent ? (
-          <p className="mt-1 text-violet-800">
-            Current scoped event: {selectedEvent.name} ({formatEventDate(selectedEvent.startDate)})
-          </p>
-        ) : null}
-        <p className="mt-2">
-          Need full persistence for section-level design overrides and publish history.
-          <Link href={`/events/${eventId}/settings?tab=integrations`} className="ml-1 font-semibold underline">
-            Integration settings
-          </Link>
-          remain available for event manager connectivity.
-        </p>
-      </section>
     </div>
   );
 }

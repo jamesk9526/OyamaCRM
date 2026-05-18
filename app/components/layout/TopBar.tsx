@@ -178,7 +178,7 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
     ]
     : moduleKey === "events"
       ? [
-        { id: "quick-events-workspace", type: "tool", label: "Open Events Dashboard", sublabel: "Fundraising event command center home", href: "/events", group: "tools" },
+        { id: "quick-events-workspace", type: "tool", label: "Open EventSTUDIO Home", sublabel: "Fundraising event command center home", href: "/events", group: "tools" },
         { id: "quick-events-registry", type: "tool", label: "Open All Events", sublabel: "Create or select an event workspace", href: "/events/events", group: "tools" },
         { id: "quick-events-checkin", type: "tool", label: "Open Event Check-In", sublabel: "Use All Events to select event first", href: "/events/events", group: "tools" },
         { id: "quick-help", type: "tool", label: "Open Help Center", sublabel: "Guides and walkthroughs", href: `/help?scope=events&scopePath=${encodeURIComponent(pathname || "/events")}`, group: "tools" },
@@ -1570,7 +1570,7 @@ function ModuleSwitcher({
     },
     {
       key: "events",
-      label: "Events CRM",
+      label: "EventSTUDIO",
       helper: "Operations",
       href: "/events",
       icon: <WorkspaceSwitcherIcon moduleKey="events" />,

@@ -363,11 +363,8 @@ export const EVENTS_RESERVED_SEGMENTS = new Set([
   "volunteers",
 ]);
 
-/** Resolves active event ID from pathname and search params for Events CRM sidebar context. */
-export function resolveActiveEventId(pathname: string, searchParams: Pick<URLSearchParams, "get">): string | null {
-  const explicit = searchParams.get("eventId");
-  if (explicit) return explicit;
-
+/** Resolves active event ID from event-scoped route paths for EventSTUDIO sidebar context. */
+export function resolveActiveEventId(pathname: string, _searchParams: Pick<URLSearchParams, "get">): string | null {
   const parts = pathname.split("/").filter(Boolean);
   const maybeEventId = parts[1];
 
@@ -490,15 +487,15 @@ function buildEventWorkspaceGroups(activeEvent: EventsSidebarContext): CrmSideba
   ];
 }
 
-/** Returns Events CRM sidebar groups with one selection hub and event-scoped command center tools. */
+/** Returns EventSTUDIO sidebar groups with one selection hub and event-scoped command center tools. */
 export function buildEventsSidebarGroups(activeEvent: EventsSidebarContext | null): CrmSidebarGroup[] {
   const baseGroups: CrmSidebarGroup[] = [
     {
       id: "events",
-      label: "Events",
+      label: "EventSTUDIO",
       defaultOpen: true,
       items: [
-        { id: "dashboard", label: "Dashboard", href: "/events", icon: <OyamaGradientIcon name="growth-analytics" />, exact: true, kind: "workspace", description: "Events dashboard and fundraising portfolio summary." },
+        { id: "dashboard", label: "Studio Home", href: "/events", icon: <OyamaGradientIcon name="growth-analytics" />, exact: true, kind: "workspace", description: "EventSTUDIO dashboard and fundraising portfolio summary." },
         { id: "events", label: "All Events", href: "/events/events", icon: <OyamaGradientIcon name="task-checklist" />, kind: "core_record", description: "Create, select, duplicate, archive, and review event records." },
       ],
     },

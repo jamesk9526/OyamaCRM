@@ -18,14 +18,27 @@ The Events CRM is now oriented around a FundEasy / Attendance-style nonprofit fu
 | Registration | Working | Current ticket type manager is used as the registration setup surface. |
 | Live check-in | Working | Core check-in route is event-scoped with a simplified dark operations UI; dedicated volunteer/tablet mode is not complete. |
 | Table hosts | Partially Working | Host workspace route exists, but host portal links, resend controls, permissions, and audit coverage are still required. |
-| Event page builder | Partially Working | Canonical route is `/events/[eventId]/event-page`; compatibility selector remains at `/events/page-builder`; source-sync and publishing persistence are incomplete. |
+| Event page builder | Partially Working | Canonical route is `/events/[eventId]/event-page`; compatibility selector remains at `/events/page-builder`; editor layout, drag/drop section ordering, hero settings, publish status, and section config persistence are working. Full public renderer parity is still pending. |
 | Event emails | Partially Working | Scaffold route exists; segmented drafts, scheduling, and sending are incomplete. |
 | Donations / pledges | Partially Working | Scaffold route exists; pledge workflows, recurring giving prospects, and donor follow-up conversion are incomplete. |
 | Post-event follow-up | Partially Working | Follow-up queue UI and donor-safe export endpoint are available; orchestration and automation still need implementation. |
 | Manager integrations | Partially Working | Admin-only import endpoint can snapshot donor payment/email settings into Events manager integrations. |
 | Partial-feature warning popups | Working | Events partial tools now show explicit in-development popup + banner warnings to prevent false production expectations. |
 
-Canonical next build order: table host data model and staff UI, guest/table reassignment improvements, dedicated live check-in mode, event page templates, event email segments, event donations/pledges, and post-event follow-up dashboard.
+### Events CRM Studio Redesign
+
+| Area | Status | Notes |
+|---|---|---|
+| Dedicated Events shell | Working | `/events/*` now uses a dark studio-style Events shell instead of the shared CRM TopBar/Sidebar chrome. This is scoped to Events CRM only. |
+| Event-scoped chrome | Working | `/events/[eventId]/*` inherits the studio header/sidebar and no longer adds the extra standard selected-event context bar. |
+| Event Page Builder UI | Working | The scoped builder now has a left section rail, central public-page canvas, and right settings inspector modeled after a page-building workspace. |
+| Drag/drop sections | Working | Section ordering supports HTML5 drag/drop plus fallback move buttons. Visibility can be toggled from the rail or inspector. |
+| Builder persistence | Working | Page slug, publish status, section order, visibility, hero content, and hero design settings are saved through `/api/events/:eventId/page-builder-config`. |
+| Public page config API | Working | Public event page payloads include saved section config, and draft pages return `NOT_PUBLISHED` instead of being publicly exposed. |
+| Full public renderer parity | Working | The CRM builder preview and public page route now use the same saved section config/document renderer path for section order, visibility, and hero design. |
+| Workspace switcher | Working | The Events studio top bar includes a workspace selector with links back to Donor CRM, Compassion CRM, Steward AI, HRM, Webmaster, and Watchdog. |
+
+Canonical next build order: table host data model and staff UI, guest/table reassignment improvements, dedicated live check-in mode, full public page renderer parity with builder sections, event page templates, event email segments, event donations/pledges, and post-event follow-up dashboard.
 
 ## Steward AI Memory And Context
 

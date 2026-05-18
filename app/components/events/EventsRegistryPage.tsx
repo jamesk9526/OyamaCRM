@@ -68,53 +68,56 @@ export default function EventsRegistryPage() {
   const upcoming = events.filter((event) => new Date(event.startDate) >= new Date()).length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+    <div className="space-y-5 p-4 sm:p-5 lg:p-6">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Events</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-600">EventSTUDIO</p>
+          <h1 className="mt-1 text-2xl font-semibold text-slate-950">Event Command Center</h1>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
             Create and manage fundraisers, galas, banquets, conferences, and ministry events.
           </p>
         </div>
         <div className="flex gap-2">
-          <button className="px-3 py-2 text-sm font-medium border border-amber-200 text-amber-700 rounded-lg bg-white hover:bg-amber-50 transition-colors">
+          <button className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm font-semibold text-violet-700 transition-colors hover:bg-violet-50">
             Import Event List
           </button>
           <button
             onClick={() => setShowModal(true)}
-            className="px-4 py-2 bg-amber-600 text-white text-sm font-semibold rounded-lg hover:bg-amber-700 transition-colors"
+            className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-violet-950/10 transition-colors hover:bg-violet-700"
           >
             + New Event
           </button>
         </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <EventsMetricCard label="Total Events" value={events.length} helper="All events on record" />
         <EventsMetricCard label="Active Events" value={activeCount} helper="Currently open or in progress" />
         <EventsMetricCard label="Upcoming" value={upcoming} helper="Future events on the calendar" />
         <EventsMetricCard label="Registrations" value={registrations} helper={`${volunteerHours} volunteer hours linked`} />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
             <div>
-              <h2 className="text-sm font-semibold text-gray-900">Event Registry</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Operational list of all fundraising and ministry events</p>
+              <h2 className="text-sm font-semibold text-slate-950">Event Registry</h2>
+              <p className="mt-0.5 text-xs text-slate-500">Operational list of all fundraising and ministry events</p>
             </div>
-            <span className="text-xs text-gray-400">{events.length} total</span>
+            <span className="text-xs text-slate-400">{events.length} total</span>
           </div>
 
           {loading ? (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2 p-5">
               {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="h-44 bg-gray-100 rounded-lg animate-pulse" />
+                <div key={index} className="h-44 animate-pulse rounded-lg bg-slate-100" />
               ))}
             </div>
           ) : events.length === 0 ? (
             <div className="px-5 py-16 text-center">
-              <p className="text-sm text-gray-500">No events yet. Create your first event to launch the Events CRM workflow.</p>
+              <p className="text-sm text-slate-500">No events yet. Create your first event to launch the Events CRM workflow.</p>
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 p-5">

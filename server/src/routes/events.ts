@@ -114,11 +114,74 @@ interface EventsManagerIntegrationSnapshot extends EventsManagerIntegrationSourc
 
 type EventPageBuilderStatus = "Draft" | "Published";
 
+type StoredEventPageSectionId =
+  | "hero"
+  | "countdown"
+  | "event-details"
+  | "registration-form"
+  | "table-host-signup"
+  | "sponsorship-levels"
+  | "donation-goal"
+  | "donation-form"
+  | "progress-meter"
+  | "speaker-program"
+  | "auction-preview"
+  | "live-appeal"
+  | "volunteer-callout"
+  | "video"
+  | "image-gallery"
+  | "impact-story"
+  | "cta-banner"
+  | "documents"
+  | "schedule"
+  | "faq"
+  | "map-location"
+  | "sponsor-logos"
+  | "share-buttons"
+  | "footer";
+
+interface StoredEventPageBuilderSection {
+  id: StoredEventPageSectionId;
+  enabled: boolean;
+  lockToEventData: boolean;
+  content?: {
+    kicker?: string;
+    title?: string;
+    subtitle?: string;
+    primaryButtonText?: string;
+    primaryButtonLink?: string;
+    secondaryButtonText?: string;
+    secondaryButtonLink?: string;
+    heading?: string;
+    body?: string;
+    buttonText?: string;
+    buttonLink?: string;
+    mediaUrl?: string;
+    documentLabel?: string;
+    documentUrl?: string;
+  };
+  design?: {
+    backgroundType?: "image" | "color" | "video";
+    backgroundImageUrl?: string;
+    backgroundColor?: string;
+    overlayOpacity?: number;
+    showScrollIndicator?: boolean;
+    accentColor?: string;
+    textAlign?: "left" | "center";
+    compact?: boolean;
+  };
+  advanced?: {
+    anchorId?: string;
+    customCssClass?: string;
+  };
+}
+
 interface StoredEventPageBuilderEntry {
   pageSlug: string;
   status: EventPageBuilderStatus;
   lastPublishedAt: string | null;
   updatedAt: string;
+  sections?: StoredEventPageBuilderSection[];
 }
 
 interface StoredEventPageBuilderConfig {
@@ -183,6 +246,98 @@ function normalizeEventPageStatus(value: unknown): EventPageBuilderStatus {
   return value === "Published" ? "Published" : "Draft";
 }
 
+const ALLOWED_EVENT_PAGE_SECTION_IDS = new Set<StoredEventPageSectionId>([
+  "hero",
+  "countdown",
+  "event-details",
+  "registration-form",
+  "table-host-signup",
+  "sponsorship-levels",
+  "donation-goal",
+  "donation-form",
+  "progress-meter",
+  "speaker-program",
+  "auction-preview",
+  "live-appeal",
+  "volunteer-callout",
+  "video",
+  "image-gallery",
+  "impact-story",
+  "cta-banner",
+  "documents",
+  "schedule",
+  "faq",
+  "map-location",
+  "sponsor-logos",
+  "share-buttons",
+  "footer",
+]);
+
+function safePageBuilderText(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim().slice(0, maxLength);
+  return trimmed || undefined;
+}
+
+function sanitizeEventPageBuilderSections(value: unknown): StoredEventPageBuilderSection[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+
+  const seen = new Set<StoredEventPageSectionId>();
+  const sections: StoredEventPageBuilderSection[] = [];
+
+  for (const rawSection of value) {
+    if (!isRecord(rawSection)) continue;
+    const id = String(rawSection.id ?? "").trim() as StoredEventPageSectionId;
+    if (!ALLOWED_EVENT_PAGE_SECTION_IDS.has(id) || seen.has(id)) continue;
+    seen.add(id);
+
+    const rawContent = isRecord(rawSection.content) ? rawSection.content : {};
+    const rawDesign = isRecord(rawSection.design) ? rawSection.design : {};
+    const rawAdvanced = isRecord(rawSection.advanced) ? rawSection.advanced : {};
+    const backgroundTypeRaw = String(rawDesign.backgroundType ?? "image");
+    const overlayCandidate = Number(rawDesign.overlayOpacity ?? 62);
+    const textAlignRaw = String(rawDesign.textAlign ?? "left");
+
+    sections.push({
+      id,
+      enabled: rawSection.enabled !== false,
+      lockToEventData: rawSection.lockToEventData !== false,
+      content: {
+        kicker: safePageBuilderText(rawContent.kicker, 120),
+        title: safePageBuilderText(rawContent.title, 160),
+        subtitle: safePageBuilderText(rawContent.subtitle, 160),
+        primaryButtonText: safePageBuilderText(rawContent.primaryButtonText, 80),
+        primaryButtonLink: safePageBuilderText(rawContent.primaryButtonLink, 240),
+        secondaryButtonText: safePageBuilderText(rawContent.secondaryButtonText, 80),
+        secondaryButtonLink: safePageBuilderText(rawContent.secondaryButtonLink, 240),
+        heading: safePageBuilderText(rawContent.heading, 180),
+        body: safePageBuilderText(rawContent.body, 2000),
+        buttonText: safePageBuilderText(rawContent.buttonText, 80),
+        buttonLink: safePageBuilderText(rawContent.buttonLink, 240),
+        mediaUrl: safePageBuilderText(rawContent.mediaUrl, 800),
+        documentLabel: safePageBuilderText(rawContent.documentLabel, 120),
+        documentUrl: safePageBuilderText(rawContent.documentUrl, 800),
+      },
+      design: {
+        backgroundType: backgroundTypeRaw === "color" || backgroundTypeRaw === "video" ? backgroundTypeRaw : "image",
+        backgroundImageUrl: safePageBuilderText(rawDesign.backgroundImageUrl, 800),
+        backgroundColor: safePageBuilderText(rawDesign.backgroundColor, 32),
+        overlayOpacity: Number.isFinite(overlayCandidate) ? Math.min(90, Math.max(0, Math.round(overlayCandidate))) : 62,
+        showScrollIndicator: rawDesign.showScrollIndicator !== false,
+        accentColor: safePageBuilderText(rawDesign.accentColor, 32),
+        textAlign: textAlignRaw === "center" ? "center" : "left",
+        compact: Boolean(rawDesign.compact),
+      },
+      advanced: {
+        anchorId: safePageBuilderText(rawAdvanced.anchorId, 80),
+        customCssClass: safePageBuilderText(rawAdvanced.customCssClass, 160),
+      },
+    });
+  }
+
+  return sections.length > 0 ? sections : undefined;
+}
+
 function toIsoOrNull(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const parsed = new Date(value);
@@ -232,6 +387,10 @@ function normalizeAbsoluteOrigin(value: string): string | null {
 }
 
 function resolveEventPageOrigin(req: Request): string {
+  const configuredOrigin = normalizeAbsoluteOrigin(process.env.NEXT_PUBLIC_APP_URL ?? "")
+    ?? normalizeAbsoluteOrigin(process.env.FRONTEND_ORIGIN ?? "");
+  if (configuredOrigin) return configuredOrigin;
+
   const forwardedProto = String(req.headers["x-forwarded-proto"] ?? "").split(",")[0]?.trim().toLowerCase();
   const forwardedHost = String(req.headers["x-forwarded-host"] ?? "").split(",")[0]?.trim();
   const host = forwardedHost || String(req.headers.host ?? "").trim();
@@ -243,9 +402,7 @@ function resolveEventPageOrigin(req: Request): string {
     return `${protocol}://${host}`;
   }
 
-  return normalizeAbsoluteOrigin(process.env.NEXT_PUBLIC_APP_URL ?? "")
-    ?? normalizeAbsoluteOrigin(process.env.FRONTEND_ORIGIN ?? "")
-    ?? "http://localhost:3000";
+  return "http://localhost:3000";
 }
 
 function buildEventPageUrl(origin: string, pageSlug: string): string {
@@ -272,6 +429,7 @@ function readStoredEventPageBuilderConfig(config: unknown): StoredEventPageBuild
       status: normalizeEventPageStatus(rawValue.status),
       lastPublishedAt: toIsoOrNull(rawValue.lastPublishedAt),
       updatedAt: toIsoOrNull(rawValue.updatedAt) ?? new Date().toISOString(),
+      sections: sanitizeEventPageBuilderSections(rawValue.sections),
     };
   }
 
@@ -321,7 +479,7 @@ router.get("/public/page/:pageSlug", async (req, res) => {
     },
   });
 
-  const matches: Array<{ organizationId: string; eventId: string; status: EventPageBuilderStatus }> = [];
+  const matches: Array<{ organizationId: string; eventId: string; status: EventPageBuilderStatus; sections?: StoredEventPageBuilderSection[] }> = [];
   for (const row of settingRows) {
     const config = readStoredEventPageBuilderConfig(row.config);
     const found = findEventPageEntryBySlug(config, pageSlug);
@@ -330,6 +488,7 @@ router.get("/public/page/:pageSlug", async (req, res) => {
       organizationId: row.organizationId,
       eventId: found.eventId,
       status: found.entry.status,
+      sections: found.entry.sections,
     });
   }
 
@@ -375,12 +534,18 @@ router.get("/public/page/:pageSlug", async (req, res) => {
         organizationId: fallbackMatches[0].organizationId,
         eventId: fallbackMatches[0].id,
         status: "Draft",
+        sections: undefined,
       };
     }
   }
 
   if (!match) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Public event page not found." } });
+    return;
+  }
+
+  if (match.status !== "Published") {
+    res.status(404).json({ error: { code: "NOT_PUBLISHED", message: "This event page is not published." } });
     return;
   }
 
@@ -510,6 +675,7 @@ router.get("/public/page/:pageSlug", async (req, res) => {
     pageSlug,
     pageUrl: buildEventPageUrl(origin, pageSlug),
     status: match.status,
+    sections: match.sections ?? null,
   });
 });
 
@@ -726,6 +892,7 @@ router.get("/:eventId/page-builder-config", async (req, res) => {
     baseOrigin,
     status: entry?.status ?? "Draft",
     lastPublishedAt: entry?.lastPublishedAt ?? null,
+    sections: entry?.sections ?? null,
   });
 });
 
@@ -838,6 +1005,10 @@ router.patch("/:eventId/page-builder-config", async (req, res) => {
       ? null
       : toIsoOrNull(req.body.lastPublishedAt);
 
+  const nextSections = req.body.sections === undefined
+    ? previous?.sections
+    : sanitizeEventPageBuilderSections(req.body.sections);
+
   if (req.body.lastPublishedAt !== undefined && req.body.lastPublishedAt !== null && !nextLastPublishedAt) {
     res.status(400).json({
       error: {
@@ -853,6 +1024,7 @@ router.patch("/:eventId/page-builder-config", async (req, res) => {
     status: nextStatus,
     lastPublishedAt: nextLastPublishedAt,
     updatedAt: new Date().toISOString(),
+    sections: nextSections,
   };
 
   const nextConfig: StoredEventPageBuilderConfig = {
@@ -892,6 +1064,7 @@ router.patch("/:eventId/page-builder-config", async (req, res) => {
       pageUrl: buildEventPageUrl(baseOrigin, entry.pageSlug),
       status: entry.status,
       lastPublishedAt: entry.lastPublishedAt,
+      sectionCount: entry.sections?.length ?? 0,
     },
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
@@ -904,6 +1077,7 @@ router.patch("/:eventId/page-builder-config", async (req, res) => {
     baseOrigin,
     status: entry.status,
     lastPublishedAt: entry.lastPublishedAt,
+    sections: entry.sections ?? null,
   });
 });
 

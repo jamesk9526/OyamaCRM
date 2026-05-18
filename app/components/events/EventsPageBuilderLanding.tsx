@@ -49,11 +49,11 @@ export function EventsPageBuilderLanding() {
       <section className="rounded-xl border border-violet-200 bg-violet-50 p-4">
         <h1 className="text-xl font-semibold text-slate-900">Event Page Builder</h1>
         <p className="mt-1 text-sm text-violet-900">
-          The Event Page Builder is now an event-scoped Events CRM tool. Select an event, then build and publish its public page from the same event command center.
+          The Event Page Builder is now an event-scoped EventSTUDIO tool. Select an event, then build and publish its public page from the same event command center.
         </p>
         <ul className="mt-2 space-y-1 text-xs text-violet-800">
           <li>• Uses event record source-of-truth fields for date, location, tickets, sponsors, and fundraising progress.</li>
-          <li>• Keeps event staff inside Events CRM without routing into Oyama Webmaster.</li>
+          <li>• Keeps event staff inside EventSTUDIO without routing into Oyama Webmaster.</li>
           <li>• Preserves fast event-first flow: select event to open builder, preview, and publish.</li>
         </ul>
         <div className="mt-3 flex flex-wrap gap-2">

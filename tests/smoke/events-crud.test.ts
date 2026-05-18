@@ -418,13 +418,66 @@ describe("events CRUD", () => {
       .set(auth())
       .send({
         pageSlug: nextSlug,
+        status: "Published",
+        lastPublishedAt: new Date().toISOString(),
       });
 
     expect(res.status).toBe(200);
     expect(res.body.eventId).toBe(eventId);
     expect(res.body.pageSlug).toBe(nextSlug);
     expect(res.body.pageUrl).toContain(`/${nextSlug}`);
+    expect(res.body.status).toBe("Published");
     savedEventPageSlug = nextSlug;
+  });
+
+  it("persists event page builder section order and hero settings", async () => {
+    expect(eventId).toBeTruthy();
+
+    const res = await request(app)
+      .patch(`/api/events/${eventId}/page-builder-config`)
+      .set(auth())
+      .send({
+        sections: [
+          {
+            id: "hero",
+            enabled: true,
+            lockToEventData: true,
+            content: {
+              kicker: "Join us for a night of hope",
+              subtitle: "Gala 2027",
+              primaryButtonText: "Get Tickets",
+            },
+            design: {
+              backgroundType: "image",
+              overlayOpacity: 58,
+              showScrollIndicator: true,
+            },
+          },
+          {
+            id: "event-details",
+            enabled: true,
+            lockToEventData: true,
+          },
+          {
+            id: "registration-form",
+            enabled: false,
+            lockToEventData: true,
+          },
+        ],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.sections).toHaveLength(3);
+    expect(res.body.sections[0].id).toBe("hero");
+    expect(res.body.sections[0].design.overlayOpacity).toBe(58);
+
+    const persisted = await request(app)
+      .get(`/api/events/${eventId}/page-builder-config`)
+      .set(auth());
+
+    expect(persisted.status).toBe(200);
+    expect(persisted.body.sections).toHaveLength(3);
+    expect(persisted.body.sections[2].enabled).toBe(false);
   });
 
   it("rejects reserved events workspace slugs", async () => {
@@ -459,11 +512,33 @@ describe("events CRUD", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.pageSlug).toBe(savedEventPageSlug);
+    expect(res.body.status).toBe("Published");
     expect(res.body.event?.id).toBe(eventId);
     expect(typeof res.body.pageUrl).toBe("string");
     expect(Array.isArray(res.body.ticketTypes)).toBe(true);
     expect(Array.isArray(res.body.sponsors)).toBe(true);
+    expect(Array.isArray(res.body.sections)).toBe(true);
     expect(typeof res.body.report?.revenue?.total).toBe("number");
+  });
+
+  it("does not expose draft event pages publicly", async () => {
+    expect(eventId).toBeTruthy();
+
+    const draftSlug = `smoke-draft-${Date.now()}`;
+    const draft = await request(app)
+      .patch(`/api/events/${eventId}/page-builder-config`)
+      .set(auth())
+      .send({
+        pageSlug: draftSlug,
+        status: "Draft",
+        lastPublishedAt: null,
+      });
+
+    expect(draft.status).toBe(200);
+
+    const publicDraft = await request(app).get(`/api/events/public/page/${encodeURIComponent(draftSlug)}`);
+    expect(publicDraft.status).toBe(404);
+    expect(publicDraft.body?.error?.code).toBe("NOT_PUBLISHED");
   });
 
   it("returns 404 for unknown public event page slug", async () => {

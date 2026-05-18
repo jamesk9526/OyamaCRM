@@ -1,4 +1,4 @@
-// Events CRM sidebar wrapper using shared CRM sidebar architecture.
+// EventSTUDIO sidebar wrapper using shared CRM sidebar architecture.
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -21,7 +21,7 @@ interface EventSidebarApiResponse {
   active?: boolean;
 }
 
-/** Renders Events CRM sidebar with event-scoped groups when an active event is selected. */
+/** Renders EventSTUDIO sidebar with event-scoped groups when an active event is selected. */
 export default function EventsSidebar({ forceExpanded = false }: EventsSidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -89,7 +89,7 @@ export default function EventsSidebar({ forceExpanded = false }: EventsSidebarPr
       forceExpanded={forceExpanded}
       expandedWidthClass="w-64"
       collapsedWidthClass="w-20"
-      organizationLabel="Events Command Center"
+      organizationLabel="EventSTUDIO"
     />
   );
 }

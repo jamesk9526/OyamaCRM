@@ -9,17 +9,28 @@ export interface EventPageBuilderConfig {
   baseOrigin: string;
   status: EventPageStatus;
   lastPublishedAt: string | null;
+  sections?: EventPageSectionState[];
 }
 
 export type EventPageSectionId =
   | "hero"
+  | "countdown"
   | "event-details"
   | "registration-form"
   | "table-host-signup"
   | "sponsorship-levels"
   | "donation-goal"
+  | "donation-form"
   | "progress-meter"
   | "speaker-program"
+  | "auction-preview"
+  | "live-appeal"
+  | "volunteer-callout"
+  | "video"
+  | "image-gallery"
+  | "impact-story"
+  | "cta-banner"
+  | "documents"
   | "schedule"
   | "faq"
   | "map-location"
@@ -37,6 +48,36 @@ export interface EventPageSectionState {
   id: EventPageSectionId;
   enabled: boolean;
   lockToEventData: boolean;
+  content?: {
+    kicker?: string;
+    title?: string;
+    subtitle?: string;
+    primaryButtonText?: string;
+    primaryButtonLink?: string;
+    secondaryButtonText?: string;
+    secondaryButtonLink?: string;
+    heading?: string;
+    body?: string;
+    buttonText?: string;
+    buttonLink?: string;
+    mediaUrl?: string;
+    documentLabel?: string;
+    documentUrl?: string;
+  };
+  design?: {
+    backgroundType?: "image" | "color" | "video";
+    backgroundImageUrl?: string;
+    backgroundColor?: string;
+    overlayOpacity?: number;
+    showScrollIndicator?: boolean;
+    accentColor?: string;
+    textAlign?: "left" | "center";
+    compact?: boolean;
+  };
+  advanced?: {
+    anchorId?: string;
+    customCssClass?: string;
+  };
 }
 
 export interface EventBuilderEventDetail {

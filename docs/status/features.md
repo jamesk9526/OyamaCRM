@@ -2,6 +2,15 @@
 
 _Last deep audit: 2026-05-18 (v1.1.0)_
 
+## 2026-05-18 EventSTUDIO Production Polish Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| EventSTUDIO naming and global switcher labels | Working | `app/components/layout/TopBar.tsx`, `app/components/layout/EventsSidebar.tsx`, `app/components/events/EventsStudioShell.tsx` | Visible Events workspace naming now presents as EventSTUDIO in primary navigation and entry surfaces. |
+| Event-scoped sidebar tools | Working | `app/components/layout/sidebar-configs.tsx` | Reports, Event Page, and Settings tools now appear only when the route is scoped to `/events/[eventId]/*`; global/home pages remain selection hubs. |
+| Event page builder block expansion | Working | `app/components/events/page-builder/section-config.ts`, `app/components/events/page-builder/EventPageBuilderPreview.tsx`, `server/src/routes/events.ts` | Added persisted Auction Preview, Live Appeal, and Volunteer Callout blocks with preview/published-page rendering. |
+| Event page publish readiness workflow | Working | `app/components/events/page-builder/EventPageBuilderTopBar.tsx`, `app/components/events/page-builder/EventPageBuilderShell.tsx` | Builder now shows readiness checks and gates publishing until slug, hero, visitor action, and autosave requirements are satisfied. |
+
 ## 2026-05-18 Help App v1.1.0 Expansion Pass
 
 | Area | Status | Evidence | Notes |

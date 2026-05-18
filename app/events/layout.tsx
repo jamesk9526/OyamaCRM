@@ -1,107 +1,22 @@
-// Events CRM nested layout — provides the purple-themed Events shell for all /events/* routes.
+// Events CRM nested layout — renders the dedicated dark Events studio shell for all /events/* routes.
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useAuth } from "@/app/components/auth/AuthProvider";
-import TopBar from "@/app/components/layout/TopBar";
-import EventsSidebar from "@/app/components/layout/EventsSidebar";
-import MobileSidebarDrawer from "@/app/components/layout/MobileSidebarDrawer";
-import ErrorBoundary from "@/app/components/ErrorBoundary";
-import { resolveLegacyGlobalEventsRedirect } from "@/app/lib/events-route-boundaries";
+import { Suspense } from "react";
+import EventsStudioShell from "@/app/components/events/EventsStudioShell";
 
 // TODO: enforce Events workspace permission — currently only checks authentication, not module access
 
-/**
- * EventsLayout wraps all /events/* pages with the purple-themed Events CRM shell.
- * This layout is rendered instead of AppShell because AppShell bypasses /events paths.
- */
+/** EventsLayout isolates Events CRM from the standard Donor/Compassion workspace chrome. */
 export default function EventsLayout({ children }: { children: React.ReactNode }) {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-gradient-to-br from-violet-50 via-slate-50 to-indigo-50 flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
+        <div className="grid min-h-screen place-items-center bg-[#080a22] text-white">
+          <div className="h-9 w-9 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
         </div>
       }
     >
-      <EventsLayoutContent>{children}</EventsLayoutContent>
+      <EventsStudioShell>{children}</EventsStudioShell>
     </Suspense>
-  );
-}
-
-function EventsLayoutContent({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
-
-  useEffect(() => {
-    if (!loading && !user) {
-      router.replace("/login");
-    }
-  }, [loading, user, router]);
-
-  useEffect(() => {
-    if (loading || !user) return;
-
-    const redirectTarget = resolveLegacyGlobalEventsRedirect(pathname, searchParams);
-    if (redirectTarget) {
-      router.replace(redirectTarget);
-    }
-  }, [loading, user, pathname, searchParams, router]);
-
-  // Close mobile drawer when route context changes.
-  useEffect(() => {
-    setMobileNavOpen(false);
-  }, [pathname]);
-
-  // Open mobile navigation from the TopBar hamburger button.
-  useEffect(() => {
-    function handleOpenNav() { setMobileNavOpen(true); }
-    window.addEventListener("crm:open-mobile-nav", handleOpenNav);
-    return () => window.removeEventListener("crm:open-mobile-nav", handleOpenNav);
-  }, []);
-
-  const redirectTarget = resolveLegacyGlobalEventsRedirect(pathname, searchParams);
-
-  if (loading || !user) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-violet-50 via-slate-50 to-indigo-50 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col h-screen bg-white">
-      <TopBar />
-      <div className="relative flex min-w-0 flex-1 overflow-hidden">
-        <div className="hidden lg:block mt-16">
-          <EventsSidebar />
-        </div>
-
-        <MobileSidebarDrawer
-          open={mobileNavOpen}
-          title="Events CRM navigation"
-          onClose={() => setMobileNavOpen(false)}
-        >
-          <EventsSidebar forceExpanded />
-        </MobileSidebarDrawer>
-
-        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-gradient-to-b from-violet-50/55 to-slate-50 p-3 sm:p-4 lg:p-4 min-[1440px]:p-5 2xl:p-6 mt-16">
-          <ErrorBoundary>
-            <div className="min-w-0 max-w-full">{redirectTarget ? (
-              <section className="rounded-xl border border-violet-300 bg-violet-100 px-4 py-3 text-sm text-violet-900">
-                Redirecting to event-first workspace flow...
-              </section>
-            ) : (
-              children
-            )}</div>
-          </ErrorBoundary>
-        </main>
-      </div>
-    </div>
   );
 }
