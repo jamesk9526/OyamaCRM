@@ -1,10 +1,11 @@
 // Event-scoped emails route wrapper for /events/[eventId]/emails.
 
-import EventEmailsPage from "@/app/events/emails/page";
+import EventCommunicationsPage from "@/app/events/communications/page";
 
 /**
- * EventWorkspaceEmailsPage renders the email workspace within event-scoped routing.
+ * EventWorkspaceEmailsPage renders the communications workspace within event-scoped routing.
+ * The legacy global /events/emails route now redirects to /events/events.
  */
 export default function EventWorkspaceEmailsPage() {
-  return <EventEmailsPage />;
+  return <EventCommunicationsPage />;
 }

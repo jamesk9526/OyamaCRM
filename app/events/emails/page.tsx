@@ -1,10 +1,10 @@
-// Compatibility route wrapper for /events/emails.
+// Legacy global /events/emails route — redirects to the event selector.
+// Per the event-first workspace model, emails are scoped to a selected event.
+// Canonical route: /events/[eventId]/emails
 
-import EventCommunicationsPage from "@/app/events/communications/page";
+import { redirect } from "next/navigation";
 
-/**
- * EventEmailsPage keeps legacy email links pointed to the communications workspace.
- */
-export default function EventEmailsPage() {
-  return <EventCommunicationsPage />;
+/** Legacy compatibility redirect for /events/emails. */
+export default function LegacyEmailsEventsRedirect() {
+  redirect("/events/events");
 }

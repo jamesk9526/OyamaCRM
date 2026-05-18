@@ -5,7 +5,8 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
@@ -48,6 +49,14 @@ export default function EventCheckInPage() {
   const searchParams = useSearchParams();
   const workspaceEventId = params.eventId ?? searchParams.get("eventId") ?? "";
   const eventScoped = workspaceEventId.length > 0;
+  const router = useRouter();
+
+  // Legacy global route redirects to the event selector when no event is selected.
+  useEffect(() => {
+    if (!eventScoped) {
+      router.replace("/events/events");
+    }
+  }, [eventScoped, router]);
 
   const [guests, setGuests] = useState<Guest[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
@@ -273,6 +282,10 @@ export default function EventCheckInPage() {
       console.error("Failed to toggle check-in via scan:", err);
       loadData();
     }
+  }
+
+  if (!eventScoped) {
+    return <RequireEventSelectionNotice tool="live check-in" />;
   }
 
   return (

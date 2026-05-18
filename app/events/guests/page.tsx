@@ -4,13 +4,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 import NewGuestModal from "@/app/components/events/NewGuestModal";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
+import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
 
 interface Event {
   id: string;
@@ -44,8 +45,17 @@ interface Guest {
 export default function EventGuestsPage() {
   const params = useParams<{ eventId?: string }>();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const workspaceEventId = params.eventId ?? searchParams.get("eventId") ?? "";
   const eventScoped = workspaceEventId.length > 0;
+
+  // Legacy global /events/guests route redirects to the event selector
+  // when no event is selected, per the event-first workspace model.
+  useEffect(() => {
+    if (!eventScoped) {
+      router.replace("/events/events");
+    }
+  }, [eventScoped, router]);
 
   const [guests, setGuests] = useState<Guest[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
@@ -158,6 +168,10 @@ export default function EventGuestsPage() {
     } catch (err) {
       console.error("Failed to update check-in:", err);
     }
+  }
+
+  if (!eventScoped) {
+    return <RequireEventSelectionNotice tool="the guest roster" />;
   }
 
   return (

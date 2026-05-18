@@ -3,7 +3,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
@@ -56,6 +57,14 @@ export default function EventFollowUpPage() {
   const searchParams = useSearchParams();
   const workspaceEventId = params.eventId ?? searchParams.get("eventId") ?? "";
   const eventScoped = workspaceEventId.length > 0;
+  const router = useRouter();
+
+  // Legacy global route redirects to the event selector when no event is selected.
+  useEffect(() => {
+    if (!eventScoped) {
+      router.replace("/events/events");
+    }
+  }, [eventScoped, router]);
 
   const [events, setEvents] = useState<EventItem[]>([]);
   const [selectedEventId, setSelectedEventId] = useState(workspaceEventId);
@@ -112,6 +121,10 @@ export default function EventFollowUpPage() {
   );
 
   const topActions = (exportData?.rows ?? []).slice(0, 10);
+
+  if (!eventScoped) {
+    return <RequireEventSelectionNotice tool="post-event follow-up" />;
+  }
 
   return (
     <div className="space-y-6 p-6">

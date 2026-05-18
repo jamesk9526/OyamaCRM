@@ -3,7 +3,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
@@ -41,6 +42,14 @@ export default function EventHostsPage() {
   const searchParams = useSearchParams();
   const workspaceEventId = params.eventId ?? searchParams.get("eventId") ?? "";
   const eventScoped = workspaceEventId.length > 0;
+  const router = useRouter();
+
+  // Legacy global route redirects to the event selector when no event is selected.
+  useEffect(() => {
+    if (!eventScoped) {
+      router.replace("/events/events");
+    }
+  }, [eventScoped, router]);
 
   const [events, setEvents] = useState<EventItem[]>([]);
   const [selectedEventId, setSelectedEventId] = useState(workspaceEventId);
@@ -100,6 +109,10 @@ export default function EventHostsPage() {
   const hostedTables = tables.filter((table) => Boolean((table.hostName ?? "").trim()));
   const missingHostCoverage = sponsoredTables.filter((table) => !(table.hostName ?? "").trim());
   const openHostSeats = hostedTables.reduce((sum, table) => sum + Math.max(0, table.capacity - table._count.guests), 0);
+
+  if (!eventScoped) {
+    return <RequireEventSelectionNotice tool="table host coverage" />;
+  }
 
   return (
     <div className="space-y-6 p-6">

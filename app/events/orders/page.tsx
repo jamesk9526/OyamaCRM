@@ -4,7 +4,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
 import { apiFetch } from "@/app/lib/auth-client";
 import NewOrderModal from "@/app/components/events/NewOrderModal";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
@@ -39,6 +40,14 @@ export default function EventOrdersPage() {
   const searchParams = useSearchParams();
   const workspaceEventId = params.eventId ?? searchParams.get("eventId") ?? "";
   const eventScoped = workspaceEventId.length > 0;
+  const router = useRouter();
+
+  // Legacy global route redirects to the event selector when no event is selected.
+  useEffect(() => {
+    if (!eventScoped) {
+      router.replace("/events/events");
+    }
+  }, [eventScoped, router]);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
@@ -113,6 +122,10 @@ export default function EventOrdersPage() {
       case "REFUNDED": return "bg-red-100 text-red-800";
       default: return "bg-gray-100 text-gray-800";
     }
+  }
+
+  if (!eventScoped) {
+    return <RequireEventSelectionNotice tool="the orders workspace" />;
   }
 
   return (

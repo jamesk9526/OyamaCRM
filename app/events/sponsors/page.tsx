@@ -2,7 +2,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
@@ -349,6 +350,14 @@ export default function EventsSponsorsPage() {
   const searchParams = useSearchParams();
   const workspaceEventId = params.eventId ?? searchParams.get("eventId") ?? "";
   const eventScoped = workspaceEventId.length > 0;
+  const router = useRouter();
+
+  // Legacy global route redirects to the event selector when no event is selected.
+  useEffect(() => {
+    if (!eventScoped) {
+      router.replace("/events/events");
+    }
+  }, [eventScoped, router]);
 
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEventId, setSelectedEventId] = useState(workspaceEventId);
@@ -417,6 +426,10 @@ export default function EventsSponsorsPage() {
   const totalRevenue = sponsors.reduce((sum, s) => sum + Number(s.amount), 0);
   const withLogos = sponsors.filter((s) => s.logoUrl).length;
   const missingLogos = sponsors.length - withLogos;
+
+  if (!eventScoped) {
+    return <RequireEventSelectionNotice tool="sponsor management" />;
+  }
 
   return (
     <div className="p-6 space-y-6">

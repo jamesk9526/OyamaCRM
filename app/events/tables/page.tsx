@@ -4,7 +4,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
@@ -49,8 +50,16 @@ interface Table {
 export default function EventTablesPage() {
   const params = useParams<{ eventId?: string }>();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const workspaceEventId = params.eventId ?? searchParams.get("eventId") ?? "";
   const eventScoped = workspaceEventId.length > 0;
+
+  // Legacy global /events/tables route redirects to the event selector when no event is selected.
+  useEffect(() => {
+    if (!eventScoped) {
+      router.replace("/events/events");
+    }
+  }, [eventScoped, router]);
 
   const [tables, setTables] = useState<Table[]>([]);
   const [unassignedGuests, setUnassignedGuests] = useState<Guest[]>([]);
@@ -214,6 +223,10 @@ export default function EventTablesPage() {
     } catch (err) {
       console.error("Failed to delete table:", err);
     }
+  }
+
+  if (!eventScoped) {
+    return <RequireEventSelectionNotice tool="the seating workspace" />;
   }
 
   return (

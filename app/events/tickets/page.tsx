@@ -6,7 +6,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
@@ -75,6 +76,14 @@ export default function EventTicketsPage() {
   const searchParams = useSearchParams();
   const workspaceEventId = params.eventId ?? searchParams.get("eventId") ?? "";
   const eventScoped = workspaceEventId.length > 0;
+  const router = useRouter();
+
+  // Legacy global route redirects to the event selector when no event is selected.
+  useEffect(() => {
+    if (!eventScoped) {
+      router.replace("/events/events");
+    }
+  }, [eventScoped, router]);
 
   const [events, setEvents] = useState<EventItem[]>([]);
   const [selectedEventId, setSelectedEventId] = useState(workspaceEventId);
@@ -221,6 +230,10 @@ export default function EventTicketsPage() {
   const totalCapacity = ticketTypes.reduce((sum, t) => sum + (t.capacity ?? 0), 0);
   const totalSold = ticketTypes.reduce((sum, t) => sum + t._count.guests + t._count.orderItems, 0);
   const tableTypes = ticketTypes.filter((t) => t.isTable).length;
+
+  if (!eventScoped) {
+    return <RequireEventSelectionNotice tool="ticket type management" />;
+  }
 
   return (
     <div className="p-6 space-y-6">

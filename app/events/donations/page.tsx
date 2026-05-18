@@ -1,10 +1,10 @@
-// Compatibility route wrapper for /events/donations.
+// Legacy global /events/donations route — redirects to the event selector.
+// Per the event-first workspace model, donations are scoped to a selected event.
+// Canonical route: /events/[eventId]/donations
 
-import EventFundraisingPage from "@/app/events/fundraising/page";
+import { redirect } from "next/navigation";
 
-/**
- * EventDonationsPage keeps legacy donations links pointed to the fundraising workspace.
- */
-export default function EventDonationsPage() {
-  return <EventFundraisingPage />;
+/** Legacy compatibility redirect for /events/donations. */
+export default function LegacyDonationsEventsRedirect() {
+  redirect("/events/events");
 }

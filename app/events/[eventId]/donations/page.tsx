@@ -1,10 +1,11 @@
 // Event-scoped donations route wrapper for /events/[eventId]/donations.
 
-import EventDonationsPage from "@/app/events/donations/page";
+import EventFundraisingPage from "@/app/events/fundraising/page";
 
 /**
- * EventWorkspaceDonationsPage renders the donations workspace within event-scoped routing.
+ * EventWorkspaceDonationsPage renders the fundraising workspace within event-scoped routing.
+ * The legacy global /events/donations route now redirects to /events/events.
  */
 export default function EventWorkspaceDonationsPage() {
-  return <EventDonationsPage />;
+  return <EventFundraisingPage />;
 }
