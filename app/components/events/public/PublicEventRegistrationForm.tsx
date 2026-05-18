@@ -82,6 +82,10 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pre
     }
   }
 
+  function handleRegistrationClick() {
+    void submitRegistration();
+  }
+
   if (activeTickets.length === 0) {
     return <p className="text-sm text-slate-500">No ticket options configured yet.</p>;
   }
@@ -174,9 +178,7 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pre
 
       <button
         type="button"
-        onClick={async () => {
-          await submitRegistration();
-        }}
+        onClick={handleRegistrationClick}
         disabled={!canSubmit || submitting}
         className="mt-4 rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-300"
       >

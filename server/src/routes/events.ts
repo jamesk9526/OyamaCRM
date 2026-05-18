@@ -529,6 +529,17 @@ function normalizePublicRegistrationAttendees(
   return sanitized;
 }
 
+function hasRequiredPublicRegistrationBuyerFields(
+  buyer: NormalizedPublicRegistrationAttendee | undefined,
+): buyer is NormalizedPublicRegistrationAttendee {
+  return Boolean(
+    buyer?.firstName
+    && buyer.lastName
+    && buyer.email
+    && isValidPublicRegistrationEmail(buyer.email),
+  );
+}
+
 /** GET /api/events/public/page/:pageSlug — Public event page payload resolved by configured slug. */
 router.get("/public/page/:pageSlug", async (req, res) => {
   const pageSlug = sanitizeEventPageSlug(req.params.pageSlug);
@@ -882,7 +893,7 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
   const attendees = normalizePublicRegistrationAttendees(body, requestedSeats);
   const buyer = attendees[0];
 
-  if (!buyer || !buyer.firstName || !buyer.lastName || !buyer.email || !isValidPublicRegistrationEmail(buyer.email)) {
+  if (!hasRequiredPublicRegistrationBuyerFields(buyer)) {
     res.status(400).json({
       error: {
         code: "INVALID_ATTENDEE",
