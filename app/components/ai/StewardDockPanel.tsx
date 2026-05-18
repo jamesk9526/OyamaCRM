@@ -17,6 +17,8 @@ interface StewardDockPanelProps {
 }
 
 const STORAGE_KEY = "steward-dock-open";
+const DOCK_STATE_EVENT = "steward-dock-state";
+const DOCK_WIDTH_PX = 420;
 
 /** StewardDockPanel renders the floating chat-head and the slide-in agent dock. */
 export default function StewardDockPanel({ moduleKey }: StewardDockPanelProps) {
@@ -27,12 +29,22 @@ export default function StewardDockPanel({ moduleKey }: StewardDockPanelProps) {
   // Contextual prompt fired from StewardContextButton elsewhere in the UI.
   const [externalPrompt, setExternalPrompt] = useState<StewardOpenPromptDetail | null>(null);
 
+  const emitDockState = useCallback((nextOpen: boolean) => {
+    const pushLayout = nextOpen && window.innerWidth >= 1024;
+    window.dispatchEvent(new CustomEvent(DOCK_STATE_EVENT, {
+      detail: { open: nextOpen, pushLayout, panelWidth: pushLayout ? DOCK_WIDTH_PX : 0 },
+    }));
+  }, []);
+
   // Restore open state from localStorage on mount.
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
-    setOpen(saved === "true");
+    const restored = saved === "true";
+    setOpen(restored);
+    emitDockState(restored);
     setHydrated(true);
-  }, []);
+    return () => emitDockState(false);
+  }, [emitDockState]);
 
   // Track visual viewport so the panel stays above the iOS soft keyboard.
   useEffect(() => {
@@ -46,14 +58,16 @@ export default function StewardDockPanel({ moduleKey }: StewardDockPanelProps) {
   const open_ = useCallback(() => {
     setOpen(true);
     localStorage.setItem(STORAGE_KEY, "true");
-  }, []);
+    emitDockState(true);
+  }, [emitDockState]);
 
   const close = useCallback(() => {
     setOpen(false);
     localStorage.setItem(STORAGE_KEY, "false");
+    emitDockState(false);
     // Clear external prompt on close so it doesn't replay
     setExternalPrompt(null);
-  }, []);
+  }, [emitDockState]);
 
   // Listen for steward:open-with-prompt events fired by StewardContextButton.
   useEffect(() => {
@@ -63,10 +77,11 @@ export default function StewardDockPanel({ moduleKey }: StewardDockPanelProps) {
       setExternalPrompt(detail);
       setOpen(true);
       localStorage.setItem(STORAGE_KEY, "true");
+      emitDockState(true);
     }
     window.addEventListener(STEWARD_OPEN_EVENT, handleOpenWithPrompt);
     return () => window.removeEventListener(STEWARD_OPEN_EVENT, handleOpenWithPrompt);
-  }, []);
+  }, [emitDockState]);
 
   // Don't render anything until client hydration to avoid SSR mismatch.
   if (!hydrated) return null;

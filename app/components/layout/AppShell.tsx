@@ -26,6 +26,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isOShareview = pathname.startsWith("/reports") && !pathname.startsWith("/reports/donor-crm");
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [dockInsetPx, setDockInsetPx] = useState(0);
 
   useEffect(() => {
     if (loading || !user) return;
@@ -88,6 +89,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("crm:open-mobile-nav", handleOpenNav);
   }, []);
 
+  useEffect(() => {
+    function handleDockState(event: Event) {
+      const detail = (event as CustomEvent<{ pushLayout?: boolean; panelWidth?: number }>).detail;
+      if (!detail?.pushLayout) {
+        setDockInsetPx(0);
+        return;
+      }
+      setDockInsetPx(typeof detail.panelWidth === "number" ? detail.panelWidth : 420);
+    }
+
+    window.addEventListener("steward-dock-state", handleDockState);
+    return () => window.removeEventListener("steward-dock-state", handleDockState);
+  }, []);
+
   // Public pages — no shell
   if (isPublic) return <>{children}</>;
 
@@ -101,7 +116,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex flex-col h-[100dvh] min-h-[100svh] bg-white">
+    <div
+      className="flex h-[100dvh] min-h-[100svh] flex-col bg-white transition-[padding] duration-300"
+      style={dockInsetPx > 0 ? { paddingRight: `${dockInsetPx}px` } : undefined}
+    >
       <TopBar />
       <div className="relative flex min-w-0 flex-1 overflow-hidden pt-14">
         {!isOShareview && (

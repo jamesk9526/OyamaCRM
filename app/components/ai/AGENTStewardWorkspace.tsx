@@ -32,6 +32,7 @@ type ModuleKey =
   | "all";
 
 type ChatMode = "ask" | "analyze" | "draft" | "action" | "help";
+type RenderMode = "markdown" | "html";
 
 interface UiMessage {
   id: string;
@@ -230,6 +231,7 @@ const QUICK_WORKFLOWS: Array<{ label: string; mode: ChatMode; prompt: string }> 
 const THREAD_LIMIT = 30;
 const MSG_LIMIT    = 80;
 const STORAGE_KEY  = "agent-steward-threads:v1";
+const RENDER_MODE_STORAGE_KEY = "agent-steward-render-mode:v1";
 
 function readThreads(): ChatThread[] {
   if (typeof window === "undefined") return [];
@@ -345,6 +347,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
   const [messages, setMessages]         = useState<UiMessage[]>([]);
   const [draft, setDraft]               = useState("");
   const [mode, setMode]                 = useState<ChatMode>("ask");
+  const [renderMode, setRenderMode]     = useState<RenderMode>("markdown");
   const [scope, setScope]               = useState<ModuleKey>(initialModule);
   const [scopeOpen, setScopeOpen]       = useState(false);       // composer Scope button
   const [headerScopeOpen, setHeaderScopeOpen] = useState(false); // header scope pill
@@ -467,6 +470,22 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     apiFetch<AiConfigPayload>("/api/steward-ai/config")
       .then((cfg) => setAiConfig(cfg))
       .catch(() => {});
+  }, []);
+
+  // --- Load fiscal year settings for FY mode toggle ---
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(RENDER_MODE_STORAGE_KEY);
+    if (stored === "html" || stored === "markdown") {
+      setRenderMode(stored);
+    }
+  }, []);
+
+  const changeRenderMode = useCallback((next: RenderMode) => {
+    setRenderMode(next);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(RENDER_MODE_STORAGE_KEY, next);
+    }
   }, []);
 
   // --- Load fiscal year settings for FY mode toggle ---
@@ -1163,6 +1182,21 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
               ))}
             </div>
 
+            <div className="ml-1 flex items-center rounded-lg border border-slate-100 bg-slate-50 p-0.5">
+              {(["markdown", "html"] as RenderMode[]).map((current) => (
+                <button
+                  key={current}
+                  type="button"
+                  onClick={() => changeRenderMode(current)}
+                  className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase transition-colors ${
+                    renderMode === current ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  {current}
+                </button>
+              ))}
+            </div>
+
             {/* Expand to full workspace */}
             <a href="/steward-ai-workspace" target="_blank" rel="noopener noreferrer"
               className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
@@ -1242,6 +1276,20 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                 }`}
               >
                 {m}
+              </button>
+            ))}
+          </div>
+          <div className="hidden sm:flex items-center gap-0.5 rounded-xl border border-slate-100 bg-slate-50 p-0.5">
+            {(["markdown", "html"] as RenderMode[]).map((current) => (
+              <button
+                key={current}
+                type="button"
+                onClick={() => changeRenderMode(current)}
+                className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold uppercase transition-colors ${
+                  renderMode === current ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {current}
               </button>
             ))}
           </div>
@@ -1331,6 +1379,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                   <MessageRow
                     key={msg.id}
                     msg={msg}
+                    renderMode={renderMode}
                     isStreaming={msg.id === activeAssistantId}
                     onRegenerate={() => regenerate(msg.id)}
                     onCopy={() => void copyMessage(msg.content)}
@@ -1712,6 +1761,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
 
 interface MessageRowProps {
   msg: UiMessage;
+  renderMode: RenderMode;
   isStreaming: boolean;
   isLast: boolean;
   onRegenerate: () => void;
@@ -1719,7 +1769,7 @@ interface MessageRowProps {
   onRunAction: (idx: number) => void;
 }
 
-function MessageRow({ msg, isStreaming, isLast, onRegenerate, onCopy, onRunAction }: MessageRowProps) {
+function MessageRow({ msg, renderMode, isStreaming, isLast, onRegenerate, onCopy, onRunAction }: MessageRowProps) {
   if (msg.role === "user") {
     return (
       <div className="flex justify-end animate-slide-up-fade-in">
@@ -1774,6 +1824,7 @@ function MessageRow({ msg, isStreaming, isLast, onRegenerate, onCopy, onRunActio
             content={msg.content}
             structured={msg.structured}
             tone="light"
+            renderMode={renderMode}
             toolsUsed={msg.toolsUsed}
             recordsUsed={msg.recordsUsed}
             provider={msg.provider}
@@ -1793,5 +1844,4 @@ function MessageRow({ msg, isStreaming, isLast, onRegenerate, onCopy, onRunActio
     </div>
   );
 }
-
 

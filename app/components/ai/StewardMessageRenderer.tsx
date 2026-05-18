@@ -8,6 +8,7 @@ import remarkGfm from "remark-gfm";
 interface StewardMessageRendererProps {
   content: string;
   tone?: "dark" | "light";
+  renderMode?: "markdown" | "html";
 }
 
 /** Resolves assistant links to in-app routes when they point to the current CRM origin. */
@@ -27,7 +28,7 @@ function resolveInternalHref(href?: string): string | null {
 }
 
 /** StewardMessageRenderer renders formatted assistant output for better readability. */
-export default function StewardMessageRenderer({ content, tone = "dark" }: StewardMessageRendererProps) {
+export default function StewardMessageRenderer({ content, tone = "dark", renderMode = "markdown" }: StewardMessageRendererProps) {
   const isLight = tone === "light";
   const textClass = isLight ? "text-slate-700" : "text-[#c9d1d9]";
   const headingClass = isLight ? "text-slate-900" : "text-[#f0f6fc]";
@@ -36,6 +37,29 @@ export default function StewardMessageRenderer({ content, tone = "dark" }: Stewa
   const surfaceClass = isLight ? "bg-slate-100" : "bg-[#161b22]";
   const surfaceDeepClass = isLight ? "bg-slate-50" : "bg-[#0d1117]";
   const linkClass = isLight ? "text-emerald-700 hover:text-emerald-800" : "text-[#58a6ff] hover:text-[#79c0ff]";
+
+  if (renderMode === "html") {
+    const html = content.trim();
+    const srcDoc = `<!doctype html><html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><style>body{margin:0;padding:12px;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:14px;line-height:1.55;color:#0f172a;background:#fff;}a{color:#047857;}pre{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;overflow:auto;}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;}img{max-width:100%;height:auto;}</style></head><body>${html}</body></html>`;
+    return (
+      <div className="space-y-2">
+        <div className={`overflow-hidden rounded-lg border ${borderClass}`}>
+          <iframe
+            title="Steward HTML preview"
+            srcDoc={srcDoc}
+            sandbox=""
+            className="h-64 w-full bg-white"
+          />
+        </div>
+        <details className={`rounded-lg border ${borderClass} bg-white p-2`}>
+          <summary className={`cursor-pointer text-xs font-semibold ${headingClass}`}>Raw HTML</summary>
+          <pre className={`mt-2 overflow-x-auto rounded-md ${surfaceClass} p-2 text-xs ${textClass}`}>
+            <code>{content}</code>
+          </pre>
+        </details>
+      </div>
+    );
+  }
 
   return (
     <div className={`max-w-none text-sm leading-relaxed ${textClass}`}>

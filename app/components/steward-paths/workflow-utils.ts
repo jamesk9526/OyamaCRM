@@ -76,12 +76,73 @@ export function createBranchLane(
  * Branch nodes get starter lanes so users can immediately see split paths.
  */
 export function createNodeFromPalette(item: NodePaletteItem, idFactory: WorkflowIdFactory): WorkflowNode {
-  if (item.kind === "logic.if_else") {
+  if (item.kind === "logic.if_else" || item.kind === "logic.segment_condition" || item.kind === "logic.donation_amount_condition" || item.kind === "logic.communication_preference_condition" || item.kind === "logic.email_engagement_condition") {
+    if (item.kind === "logic.segment_condition") {
+      return {
+        id: idFactory(),
+        nodeType: "branch",
+        kind: item.kind,
+        title: "Donor Segment Branch",
+        config: {
+          field: "segmentMembership",
+          segmentKey: "Major Donor",
+        },
+        statusLabel: "Draft",
+        lanes: [
+          {
+            ...createBranchLane(idFactory, "In segment", { includeDefaultCondition: false }),
+            conditionGroups: [{ id: idFactory(), operator: "eq", value: "true" }],
+          },
+          createBranchLane(idFactory, "Not in segment", { isFallback: true, includeDefaultCondition: false }),
+        ],
+      };
+    }
+
+    if (item.kind === "logic.communication_preference_condition") {
+      return {
+        id: idFactory(),
+        nodeType: "branch",
+        kind: item.kind,
+        title: "Communication Preference Branch",
+        config: {
+          field: "doNotEmail",
+        },
+        statusLabel: "Draft",
+        lanes: [
+          {
+            ...createBranchLane(idFactory, "Can email", { includeDefaultCondition: false }),
+            conditionGroups: [{ id: idFactory(), operator: "eq", value: "false" }],
+          },
+          createBranchLane(idFactory, "Do not email", { isFallback: true, includeDefaultCondition: false }),
+        ],
+      };
+    }
+
+    if (item.kind === "logic.email_engagement_condition") {
+      return {
+        id: idFactory(),
+        nodeType: "branch",
+        kind: item.kind,
+        title: "Email Engagement Branch",
+        config: {
+          field: "engagementScore",
+        },
+        statusLabel: "Draft",
+        lanes: [
+          {
+            ...createBranchLane(idFactory, "High engagement", { includeDefaultCondition: false }),
+            conditionGroups: [{ id: idFactory(), operator: "gte", value: "70" }],
+          },
+          createBranchLane(idFactory, "Low engagement", { isFallback: true, includeDefaultCondition: false }),
+        ],
+      };
+    }
+
     return {
       id: idFactory(),
       nodeType: "branch",
       kind: item.kind,
-      title: "Donation Amount Branch",
+      title: item.kind === "logic.donation_amount_condition" ? "Donation Amount Branch" : "If/else Branch",
       config: {
         field: "lastGiftAmount",
       },

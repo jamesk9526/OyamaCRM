@@ -81,6 +81,7 @@ interface StewardResponseRendererProps {
   content: string;
   structured?: StewardStructuredResponse;
   tone?: "dark" | "light";
+  renderMode?: "markdown" | "html";
   /** Compact layout for docked panel */
   compact?: boolean;
   /** Metadata for About this answer panel */
@@ -300,6 +301,7 @@ export default function StewardResponseRenderer({
   content,
   structured,
   tone = "light",
+  renderMode = "markdown",
   compact = false,
   toolsUsed,
   recordsUsed,
@@ -333,7 +335,7 @@ export default function StewardResponseRenderer({
       )}
 
       {/* Main answer text */}
-      <StewardMessageRenderer content={markdown} tone={tone} />
+      <StewardMessageRenderer content={markdown} tone={tone} renderMode={renderMode} />
 
       {/* Parse warning (rare) */}
       {structured?.parseWarning && (
@@ -374,4 +376,3 @@ export default function StewardResponseRenderer({
     </div>
   );
 }
-

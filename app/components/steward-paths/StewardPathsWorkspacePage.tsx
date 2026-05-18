@@ -255,10 +255,6 @@ export default function StewardPathsWorkspacePage() {
         </WorkspaceRibbonGroup>
       </WorkspaceRibbon>
 
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-        Legacy /automations builder is deprecated. Use this workspace for all new and edited Steward Paths.
-      </div>
-
       <section className="grid gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(300px,0.7fr)]">
         <div className="rounded-xl border border-gray-200 bg-white p-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">

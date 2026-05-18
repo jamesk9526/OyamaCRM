@@ -55,6 +55,7 @@ const BRANCH_FIELD_OPTIONS: BranchFieldOption[] = [
   { value: "doNotEmail", label: "Do not email", hint: "Boolean preference flag", inputKind: "boolean" },
   { value: "emailOptOut", label: "Email opt-out", hint: "Boolean preference flag", inputKind: "boolean" },
   { value: "doNotMail", label: "Do not mail", hint: "Boolean preference flag", inputKind: "boolean" },
+  { value: "segmentMembership", label: "Segment membership", hint: "True when donor belongs to selected segment/tag", inputKind: "boolean" },
   { value: "city", label: "City", hint: "Constituent city field", inputKind: "text" },
   { value: "state", label: "State/region", hint: "Constituent state field", inputKind: "text" },
 ];
@@ -227,7 +228,7 @@ export default function NodeInspector({
   }
 
   const configuredBranchField = isBranchNode(activeNode)
-    ? (readString(activeNode.config, "field") || "lastGiftAmount")
+    ? (readString(activeNode.config, "field") || (activeNode.kind === "logic.segment_condition" ? "segmentMembership" : "lastGiftAmount"))
     : "lastGiftAmount";
   const selectedBranchField = isBranchNode(activeNode) ? getBranchFieldOption(configuredBranchField) : null;
   const usingCustomBranchField = isBranchNode(activeNode) && selectedBranchField === null;
@@ -305,8 +306,24 @@ export default function NodeInspector({
             )}
 
             <p className="rounded-md border border-emerald-200 bg-white px-2 py-1 text-[11px] text-emerald-800">
-              {selectedBranchField?.hint ?? "Custom fields use text-based comparison by default in this editor."}
-            </p>
+            {selectedBranchField?.hint ?? "Custom fields use text-based comparison by default in this editor."}
+          </p>
+
+            {activeNode.kind === "logic.segment_condition" && (
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700">Segment or tag name</span>
+                <input
+                  type="text"
+                  value={readString(activeNode.config, "segmentKey")}
+                  onChange={(event) => updateConfigEntries({
+                    segmentKey: event.target.value,
+                    field: "segmentMembership",
+                  })}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  placeholder="Example: Major Donor"
+                />
+              </label>
+            )}
 
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-gray-700">Branch lanes</p>
@@ -459,6 +476,25 @@ export default function NodeInspector({
                 </select>
               </label>
             </div>
+          </div>
+        )}
+
+        {activeNode.kind === "trigger.added_to_segment" && (
+          <div className="space-y-2 rounded-md border border-emerald-200 bg-emerald-50 p-3">
+            <p className="text-xs font-semibold text-emerald-800">Segment trigger</p>
+            <label className="block">
+              <span className="text-xs font-medium text-gray-700">Segment or tag name</span>
+              <input
+                type="text"
+                value={readString(activeNode.config, "segmentKey")}
+                onChange={(event) => updateConfig("segmentKey", event.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                placeholder="Example: Major Donor"
+              />
+            </label>
+            <p className="text-[11px] text-emerald-800">
+              Enrollment triggers when this donor is added to the selected segment/tag.
+            </p>
           </div>
         )}
 

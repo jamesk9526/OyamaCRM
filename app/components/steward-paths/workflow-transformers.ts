@@ -703,6 +703,17 @@ function labelFromKind(kind: string): string {
   return PALETTE_ITEMS.find((item) => item.kind === kind)?.label ?? kind;
 }
 
+/** Maps one branch field back to the closest logic block kind. */
+function branchKindFromField(field: string): string {
+  if (field === "segmentMembership") return "logic.segment_condition";
+  if (field === "lastGiftAmount" || field === "totalLifetimeGiving") return "logic.donation_amount_condition";
+  if (field === "doNotEmail" || field === "emailOptOut" || field === "doNotMail" || field === "doNotCall" || field === "doNotContact") {
+    return "logic.communication_preference_condition";
+  }
+  if (field === "engagementScore") return "logic.email_engagement_condition";
+  return "logic.if_else";
+}
+
 /** Builds a branch node shape from one backend BRANCH_PLACEHOLDER step. */
 function branchNodeFromStep(
   step: BackendStewardPathTemplateResponse["steps"][number],
@@ -710,11 +721,12 @@ function branchNodeFromStep(
 ): WorkflowBranchNode {
   const config = step.configJson ?? {};
   const field = typeof config.field === "string" ? config.field : "lastGiftAmount";
+  const branchKind = branchKindFromField(field);
   return {
     id: step.id,
     nodeType: "branch",
-    kind: "logic.if_else",
-    title: step.name || "If/else branch",
+    kind: branchKind,
+    title: step.name || labelFromKind(branchKind),
     note: step.description ?? undefined,
     statusLabel: "Draft",
     config: {

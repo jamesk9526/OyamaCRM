@@ -5,6 +5,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 import NodeInspector from "./NodeInspector";
 import NodePalette from "./NodePalette";
@@ -167,6 +168,7 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
   const searchParams = useSearchParams();
   const templateIdFromQuery = templateIdFromRoute || searchParams.get("templateId") || searchParams.get("pathId");
   const quickStartFromQuery = searchParams.get("quickStart");
+  const isFullscreenCanvas = searchParams.get("canvas") === "fullscreen";
 
   const [doc, setDoc] = useState<WorkflowDocument>(() => createWorkflowDocument(makeBuilderId));
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -611,10 +613,19 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
                 "Branch visualization and persistence are active.",
                 "Save and activation include branch-aware workflow export.",
                 "Use drag-and-drop to move nodes between root and branch lanes.",
-                "Node workspace routes: /steward-paths and /steward-paths/builder. /automations is deprecated and redirects to /steward-paths.",
+                "Node workspace routes: /steward-paths and /steward-paths/builder.",
               ]}
               buttonLabel="Legend"
             />
+
+            <Link
+              href={`${doc.persistence.templateId ? `/steward-paths/builder/${encodeURIComponent(doc.persistence.templateId)}` : "/steward-paths/builder"}?canvas=fullscreen`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-md border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              Full Screen Canvas
+            </Link>
 
             <select
               value={doc.status}
@@ -670,19 +681,19 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
             Last saved: {formatSavedAt(doc.persistence.lastSavedAt)}
           </p>
           <div className="flex items-center gap-2">
-            <a href="/steward-paths" className="rounded-md border border-gray-300 bg-white px-2 py-0.5 text-[11px] font-medium text-gray-700 hover:bg-gray-50">
-              Saved paths
-            </a>
-            {doc.persistence.templateId && (
-              <a
-                href={`/steward-paths/${encodeURIComponent(doc.persistence.templateId)}/history`}
-                className="rounded-md border border-gray-300 bg-white px-2 py-0.5 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
-              >
-                View history
-              </a>
-            )}
-          </div>
-        </div>
+             <Link href="/steward-paths" className="rounded-md border border-gray-300 bg-white px-2 py-0.5 text-[11px] font-medium text-gray-700 hover:bg-gray-50">
+               Saved paths
+             </Link>
+             {doc.persistence.templateId && (
+               <Link
+                 href={`/steward-paths/${encodeURIComponent(doc.persistence.templateId)}/history`}
+                 className="rounded-md border border-gray-300 bg-white px-2 py-0.5 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+               >
+                 View history
+               </Link>
+             )}
+           </div>
+         </div>
 
         {feedbackMessage && (
           <div className="mt-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs text-sky-900">
@@ -692,7 +703,9 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <NodePalette onAdd={addNode} insertionTargetLabel={insertTargetLabel} />
+        {!isFullscreenCanvas && (
+          <NodePalette onAdd={addNode} insertionTargetLabel={insertTargetLabel} />
+        )}
 
         {doc.activeTab === "actions" ? (
           <WorkflowCanvas
@@ -723,17 +736,19 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
           </div>
         )}
 
-        <NodeInspector
-          node={selectedNode}
-          onChange={patchNode}
-          onAddBranchLane={appendBranchLane}
-          onRenameBranchLane={renameLane}
-          onRemoveBranchLane={deleteBranchLane}
-          onSetFallbackLane={setFallbackLane}
-          onAddConditionGroup={appendConditionGroup}
-          onRemoveConditionGroup={deleteConditionGroup}
-          onUpdateConditionGroup={patchConditionGroup}
-        />
+        {!isFullscreenCanvas && (
+          <NodeInspector
+            node={selectedNode}
+            onChange={patchNode}
+            onAddBranchLane={appendBranchLane}
+            onRenameBranchLane={renameLane}
+            onRemoveBranchLane={deleteBranchLane}
+            onSetFallbackLane={setFallbackLane}
+            onAddConditionGroup={appendConditionGroup}
+            onRemoveConditionGroup={deleteConditionGroup}
+            onUpdateConditionGroup={patchConditionGroup}
+          />
+        )}
       </div>
     </div>
   );

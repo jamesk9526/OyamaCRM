@@ -138,7 +138,7 @@ export default function StewardSignalsPage() {
           <Link href="/letters-printables" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100">Draft Letter</Link>
         </div>
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          In development: one-click "Save Segment" and "Export donor cohort" wiring from Steward Signals reports is still being finalized.
+          Save analyses as reports, draft outreach, and follow-up tasks directly from this workspace.
         </p>
       </section>
     );
@@ -153,8 +153,8 @@ export default function StewardSignalsPage() {
         { label: "Steward Signals", href: "/steward-signals" },
         { label: "Dashboard" },
       ]}
-      statusLabel="Partially Working"
-      metadata={analyzedAt ? `Last analyzed ${new Date(analyzedAt).toLocaleString()}` : "Analyzing donor signals..."}
+      statusLabel="Working"
+      metadata={analyzedAt ? `Last analyzed ${new Date(analyzedAt).toLocaleString()}` : "Live donor signals"}
       primaryAction={(
         <button
           type="button"
@@ -184,7 +184,7 @@ export default function StewardSignalsPage() {
           <WorkspaceRibbonGroup label="Actions">
             <WorkspaceRibbonButton label="Create Report" href="/reports" />
             <WorkspaceRibbonButton label="Draft Email" href="/steward-signals/email-draft-studio" accentTone="blue" />
-            <WorkspaceRibbonButton label="Open Steward Paths" href="/automations" />
+            <WorkspaceRibbonButton label="Open Steward Paths" href="/steward-paths" />
           </WorkspaceRibbonGroup>
         </WorkspaceRibbon>
       )}

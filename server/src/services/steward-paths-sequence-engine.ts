@@ -150,6 +150,7 @@ interface EnrollmentContext {
       doNotMail: boolean;
       doNotCall: boolean;
       doNotContact: boolean;
+      tags?: Array<{ tag: { name: string } }>;
     } | null;
   };
   run: StewardPathStepRun;
@@ -186,6 +187,15 @@ export async function processDueStewardPathEnrollments(options: ProcessDueOption
           doNotMail: true,
           doNotCall: true,
           doNotContact: true,
+          tags: {
+            select: {
+              tag: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -261,6 +271,15 @@ export async function completeCurrentManualStep(enrollmentId: string, userId?: s
           doNotMail: true,
           doNotCall: true,
           doNotContact: true,
+          tags: {
+            select: {
+              tag: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -1282,7 +1301,7 @@ export function buildStatusChangeUpdate(targetField: string, value: unknown): Pr
  * - `condition`: { field, operator, value }
  *   - `field`: "lastGiftAmount" | "totalLifetimeGiving" | "engagementScore"
  *     | "donorStatus" | "doNotEmail" | "emailOptOut" | "doNotMail"
- *     | "doNotCall" | "doNotContact"
+ *     | "doNotCall" | "doNotContact" | "segmentMembership" (uses `config.segmentKey`)
  *   - `operator`: see BranchOperator (eq, neq, gt, gte, lt, lte, in, not_in)
  *   - `value`: comparable scalar or array
  * - `whenTrueAdvanceToOrderIndex`: number | undefined
@@ -1305,7 +1324,8 @@ async function processBranchStep(ctx: EnrollmentContext, now: Date, userId?: str
   const compareValue = condition.value as number | string | Array<number | string>;
   const compareValueTo = condition.valueTo as number | string | undefined;
 
-  const observed = readBranchableField(enrollment, field);
+  const segmentKey = typeof cfg.segmentKey === "string" ? cfg.segmentKey.trim() : "";
+  const observed = readBranchableField(enrollment, field, segmentKey);
   const matched = evaluateBranchRule(observed as number | string | null | undefined, {
     operator,
     value: compareValue,
@@ -1362,6 +1382,7 @@ async function processBranchStep(ctx: EnrollmentContext, now: Date, userId?: str
 function readBranchableField(
   enrollment: EnrollmentContext["enrollment"],
   field: string,
+  segmentKey?: string,
 ): number | string | null {
   const c = enrollment.constituent;
   if (!c) return null;
@@ -1388,6 +1409,14 @@ function readBranchableField(
       return c.doNotCall ? "true" : "false";
     case "doNotContact":
       return c.doNotContact ? "true" : "false";
+    case "segmentMembership": {
+      const key = (segmentKey ?? "").trim().toLowerCase();
+      if (!key) return null;
+      const names = Array.isArray(c.tags)
+        ? c.tags.map((entry) => entry?.tag?.name?.trim().toLowerCase()).filter((name): name is string => Boolean(name))
+        : [];
+      return names.includes(key) ? "true" : "false";
+    }
     default:
       return null;
   }
