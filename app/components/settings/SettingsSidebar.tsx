@@ -27,6 +27,7 @@ const SETTINGS_NAV: SettingsNavItem[] = [
   { label: "Security & Audit", href: "/settings/security", icon: "goal-target" },
   { label: "System Updates", href: "/settings/system-updates", icon: "momentum-growth" },
   { label: "System Status", href: "/settings/system-status", icon: "reporting-dashboard" },
+  { label: "About", href: "/settings/about", icon: "growth-analytics" },
 ];
 
 /** SettingsSidebar highlights the current settings route and groups config pages. */
