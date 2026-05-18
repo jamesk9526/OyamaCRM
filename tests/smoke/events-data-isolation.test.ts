@@ -9,6 +9,7 @@
  * Covers the explicit P0 requirement from the Events CRM roadmap:
  *   "No guest/table/check-in/donation data should mix between events."
  */
+import { randomUUID } from "node:crypto";
 import request from "supertest";
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -89,7 +90,7 @@ describe("events data isolation", () => {
   });
 
   it("creates a guest in Event A and a separate guest in Event B", async () => {
-    const uniqueEmailSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const uniqueEmailSuffix = randomUUID();
     const [a, b] = await Promise.all([
       request(app)
         .post(`/api/events/${eventAId}/guests`)

@@ -17,6 +17,7 @@ import type { EventGuestPaymentStatus, EventGuestRsvpStatus, Prisma } from "@pri
 const router = Router();
 const EVENTS_MANAGER_INTEGRATIONS_PLUGIN_KEY = "events-manager-integrations";
 const EVENTS_PAGE_BUILDER_PLUGIN_KEY = "events-page-builder";
+const MAX_SEATS_PER_PUBLIC_REGISTRATION = 50;
 const RESERVED_EVENT_PUBLIC_SLUGS = new Set([
   "api",
   "apps",
@@ -495,7 +496,7 @@ async function generateUniqueEventCheckinCode(tx: Prisma.TransactionClient = pri
     if (!existing) return code;
   }
 
-  return Date.now().toString(36).toUpperCase().slice(-6);
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`.toUpperCase().slice(-10);
 }
 
 function toPublicRegistrationAttendeeInput(value: Record<string, unknown>): PublicRegistrationAttendeeInput {
@@ -538,6 +539,13 @@ function hasRequiredPublicRegistrationBuyerFields(
     && buyer.email
     && isValidPublicRegistrationEmail(buyer.email),
   );
+}
+
+function fallbackPublicRegistrationGuestName(index: number, partyName: string) {
+  return {
+    firstName: `Guest ${index + 1}`,
+    lastName: partyName,
+  };
 }
 
 /** GET /api/events/public/page/:pageSlug — Public event page payload resolved by configured slug. */
@@ -889,7 +897,7 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
   const maxPerOrder = ticketType.maxPerOrder ?? 10;
   const ticketUnits = Math.max(ticketType.minPerOrder, Math.min(maxPerOrder, requestedTicketUnits));
   const seatsPerTicket = ticketType.isTable ? Math.max(1, ticketType.seatsIncluded ?? 1) : 1;
-  const requestedSeats = Math.min(50, ticketUnits * seatsPerTicket);
+  const requestedSeats = Math.min(MAX_SEATS_PER_PUBLIC_REGISTRATION, ticketUnits * seatsPerTicket);
   const attendees = normalizePublicRegistrationAttendees(body, requestedSeats);
   const buyer = attendees[0];
 
@@ -982,6 +990,7 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
     const guests = [];
     for (let index = 0; index < requestedSeats; index++) {
       const attendee = attendees[index] ?? {};
+      const fallbackName = fallbackPublicRegistrationGuestName(index, partyName);
       const checkinCode = await generateUniqueEventCheckinCode(tx);
       guests.push(await tx.eventGuest.create({
         data: {
@@ -989,8 +998,8 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
           orderId: order.id,
           constituentId: index === 0 ? constituent.id : undefined,
           ticketTypeId: ticketType.id,
-          firstName: attendee.firstName || (index === 0 ? buyer.firstName : `Guest ${index + 1}`),
-          lastName: attendee.lastName || (index === 0 ? buyer.lastName : partyName),
+          firstName: attendee.firstName || (index === 0 ? buyer.firstName : fallbackName.firstName),
+          lastName: attendee.lastName || (index === 0 ? buyer.lastName : fallbackName.lastName),
           email: attendee.email || (index === 0 ? buyer.email : undefined),
           phone: attendee.phone || undefined,
           checkinCode,
