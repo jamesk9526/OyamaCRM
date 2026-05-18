@@ -483,13 +483,13 @@ function isValidPublicRegistrationEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-function createEventOrderNumber(prefix = "PUB"): string {
+function generatePublicOrderNumber(prefix = "PUB"): string {
   const timestamp = Date.now().toString(36).toUpperCase();
   const random = Math.random().toString(36).substring(2, 6).toUpperCase();
   return `${prefix}-${timestamp}-${random}`;
 }
 
-async function generateUniqueEventCheckinCode(tx: Prisma.TransactionClient = prisma): Promise<string> {
+async function generateUniqueCheckinCode(tx: Prisma.TransactionClient = prisma): Promise<string> {
   for (let attempts = 0; attempts < 10; attempts++) {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     const existing = await tx.eventGuest.findUnique({ where: { checkinCode: code } });
@@ -541,7 +541,7 @@ function hasRequiredPublicRegistrationBuyerFields(
   );
 }
 
-function fallbackPublicRegistrationGuestName(index: number, partyName: string) {
+function createGuestNameFallback(index: number, partyName: string) {
   return {
     firstName: `Guest ${index + 1}`,
     lastName: partyName,
@@ -930,7 +930,7 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
   const totalAmount = unitPrice * ticketUnits;
   const paymentStatus: EventGuestPaymentStatus = totalAmount > 0 ? "DUE" : "COMP";
   const orderStatus = totalAmount > 0 ? "PENDING" : "CONFIRMED";
-  const orderNumber = createEventOrderNumber();
+  const orderNumber = generatePublicOrderNumber();
   const partyName = `${buyer.firstName} ${buyer.lastName}`.trim();
 
   const result = await prisma.$transaction(async (tx: typeof prisma) => {
@@ -990,8 +990,8 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
     const guests = [];
     for (let index = 0; index < requestedSeats; index++) {
       const attendee = attendees[index] ?? {};
-      const fallbackName = fallbackPublicRegistrationGuestName(index, partyName);
-      const checkinCode = await generateUniqueEventCheckinCode(tx);
+      const fallbackName = createGuestNameFallback(index, partyName);
+      const checkinCode = await generateUniqueCheckinCode(tx);
       guests.push(await tx.eventGuest.create({
         data: {
           eventId: event.id,
