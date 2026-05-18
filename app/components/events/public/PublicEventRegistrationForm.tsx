@@ -48,6 +48,10 @@ function createBlankAttendee(): AttendeeDraft {
   };
 }
 
+function hasRequiredAttendeeNames(attendee: AttendeeDraft): boolean {
+  return Boolean(attendee.firstName.trim() && attendee.lastName.trim());
+}
+
 function formatMoney(value: number | string | null | undefined): string {
   const parsed = Number(value ?? 0);
   if (!Number.isFinite(parsed)) return "$0";
@@ -71,7 +75,7 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pre
   const requestedSeats = Math.min(50, requestedTicketUnits * seatsPerTicket);
   const totalAmount = Number(selectedTicket?.price ?? 0) * requestedTicketUnits;
   const primaryAttendee = attendees[0];
-  const allAttendeesNamed = attendees.slice(0, requestedSeats).every((attendee) => attendee.firstName.trim() && attendee.lastName.trim());
+  const allAttendeesNamed = attendees.slice(0, requestedSeats).every(hasRequiredAttendeeNames);
   const canSubmit = Boolean(
     pageSlug
     && selectedTicket

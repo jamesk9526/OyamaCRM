@@ -497,7 +497,7 @@ async function generateUniqueCheckinCode(tx: Prisma.TransactionClient): Promise<
     if (!existing) return code;
   }
 
-  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`.toUpperCase().slice(-10);
+  throw new Error("Unable to generate a unique event check-in code.");
 }
 
 function parsePublicRegistrationAttendeeInput(value: Record<string, unknown>): PublicRegistrationAttendeeInput {
@@ -833,7 +833,7 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
 
   const body = isRecord(req.body) ? req.body : {};
   const ticketTypeId = normalizeTextInput(body.ticketTypeId, 120);
-  const requestedTicketUnits = Math.max(1, Math.min(10, Number(body.quantity ?? 1) || 1));
+  const requestedTicketUnits = Math.max(1, Number(body.quantity ?? 1) || 1);
   const consentAccepted = body.consentAccepted === true;
 
   if (!ticketTypeId) {
