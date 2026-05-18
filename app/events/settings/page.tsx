@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
+import FeatureStatusWarning from "@/app/components/ui/FeatureStatusWarning";
 import { apiFetch } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
@@ -184,6 +185,11 @@ export default function EventSettingsPage() {
 
   return (
     <div className="space-y-6 p-6">
+      <FeatureStatusWarning
+        status="Partially Implemented"
+        title="Event settings is partially wired"
+        description="Donor-CRM integration import (admin only) snapshots payment and email provider settings for event operations, but per-event branding, public-page defaults, and full settings persistence are not yet implemented. Removal: per-event settings model exists, save/load round-trip is wired, and a smoke test covers update + reload."
+      />
       <WorkspaceBreadcrumbBar
         items={[
           { label: "Events CRM", href: "/events/events" },

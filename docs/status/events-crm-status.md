@@ -2,6 +2,84 @@
 
 _Last updated: 2026-05-18_
 
+## 2026-05-18 Slice A — Lifecycle Hardening & Honest Status Sweep
+
+This pass focuses on the **event-first workspace model**: making sure every legacy global tool route redirects to the event selector when no event is chosen, every event-scoped tool advertises its real state, and every "Partially Working" feature carries a popup + banner warning with an explicit removal condition.
+
+### Route status
+
+Status labels are restricted to: **Working / Partially Working / Demo Only / Broken / Not Implemented**.
+
+| Route | Status | Backing API | Notes |
+|---|---|---|---|
+| `/events` (dashboard) | Working | `/api/events/dashboard-summary`, `/api/events` | Real KPIs, upcoming events, recent activity. |
+| `/events/events` (registry / selector) | Working | `/api/events`, `POST /api/events` | Lists real events; create modal hits real API. |
+| `/events/[eventId]/overview` | Working | `/api/events/[id]`, `/guests`, `/orders`, `/tables`, `/sponsors`, `/report` | All command-center cards backed by real per-event data via `Promise.all`. |
+| `/events/[eventId]/guests` | Working | `/api/events/[id]/guests` | Scoped by `useParams().eventId`; CRUD + check-in toggle wired. |
+| `/events/[eventId]/tables` | Working | `/api/events/[id]/tables` | Table-list, floor-plan, and guest-placement views; create/edit/delete wired. |
+| `/events/[eventId]/check-in` | Working | `/api/events/[id]/guests`, `POST /api/events/guests/[id]/check-in`, `/api/events/guests/by-code/[code]` | Search + code lookup + check-in toggle live. |
+| `/events/[eventId]/sponsors` | Working | `/api/events/[id]/sponsors` | List + add/edit modal wired; sponsor↔table linking not yet implemented. |
+| `/events/[eventId]/tickets` | Working | `/api/events/[id]/ticket-types` | Full CRUD for ticket types including table tickets. |
+| `/events/[eventId]/orders` | Working | `/api/events/[id]/orders`, `POST /api/events/orders` | Staff manual orders + status update. Order → auto-create guests is **Not Implemented**. |
+| `/events/[eventId]/hosts` | Partially Working | `/api/events/[id]/tables` | Coverage view live; host portal links / invites / audit not implemented. |
+| `/events/[eventId]/event-page` | Partially Working | `/api/events/[id]/page-builder-config` | Section editor + draft save work; **public publish does not route to a live URL yet**. |
+| `/events/[eventId]/communications` (alias `/emails`) | Partially Working | `/api/events/[id]/guests` + central email API | Audience preview + workspace routing live; send execution depends on central comms orchestration. |
+| `/events/[eventId]/fundraising` (alias `/donations`) | Partially Working | `/api/events/[id]/orders` | Revenue-vs-goal view exists; pledge tracking and donor-link round-trip not implemented. |
+| `/events/[eventId]/follow-up` | Partially Working | `/api/events/[id]/report` | Reads real attendance/revenue; thank-you status not surfaced. |
+| `/events/[eventId]/reports` | Partially Working | `/api/events/[id]/report` | Wraps the global reports component; cross-event slice not isolated. |
+| `/events/[eventId]/settings` | Partially Working | `/api/events/manager-integrations` | Donor-CRM integration import works; per-event settings save/load not implemented. |
+| `/events/[eventId]/tasks` | Demo Only | — | Scaffolded with zeroed metrics; no task persistence. |
+| `/events/[eventId]/volunteers` | Demo Only | — | Scaffolded with zeroed metrics; no volunteer persistence. |
+| `/events/[eventId]/files` | Demo Only | — | Scaffolded with zeroed metrics; no file upload backend. |
+| `/events/reports` | Working | `/api/events/[id]/report` | Intentional global cross-event reporting surface. |
+| `/events/page-builder` | Working | — | Compatibility entrypoint that redirects `?eventId=` query links to `/events/[eventId]/event-page`. |
+| `/events/templates` | Partially Working | `/api/events/templates` | Template draft cloning works; metadata bundle cloning not implemented. |
+
+### Legacy global tool routes — redirect to selector
+
+Per the event-first workspace model (`AGENTS.md` `events-crm-boundary-rules`), the following legacy routes now redirect to `/events/events` when no event is selected. The event-scoped wrappers under `/events/[eventId]/*` continue to work because `useParams().eventId` is populated by the URL.
+
+| Legacy global route | Behavior | Implementation |
+|---|---|---|
+| `/events/guests` | Redirects to `/events/events` | client `useRouter().replace` + `<RequireEventSelectionNotice />` |
+| `/events/tables` | Redirects to `/events/events` | client redirect |
+| `/events/check-in` | Redirects to `/events/events` | client redirect |
+| `/events/sponsors` | Redirects to `/events/events` | client redirect |
+| `/events/fundraising` | Redirects to `/events/events` | client redirect |
+| `/events/communications` | Redirects to `/events/events` | client redirect |
+| `/events/settings` | Redirects to `/events/events` | client redirect |
+| `/events/hosts` | Redirects to `/events/events` | client redirect |
+| `/events/follow-up` | Redirects to `/events/events` | client redirect |
+| `/events/tickets` | Redirects to `/events/events` | client redirect |
+| `/events/orders` | Redirects to `/events/events` | client redirect |
+| `/events/tasks` | Server `redirect()` to `/events/events` | server component |
+| `/events/volunteers` | Server `redirect()` to `/events/events` | server component |
+| `/events/files` | Server `redirect()` to `/events/events` | server component |
+| `/events/donations` | Server `redirect()` to `/events/events` | server component (was shim to fundraising) |
+| `/events/emails` | Server `redirect()` to `/events/events` | server component (was shim to communications) |
+
+Intentional globals (per `events-crm-boundary-rules`) are **not** redirected: `/events`, `/events/events`, `/events/reports`, `/events/page-builder`, `/events/templates`, `/events/workspace`.
+
+### Warning popups — removal conditions
+
+Each `FeatureStatusWarning` in the Events workspace must carry an explicit condition for when it can be removed:
+
+| Surface | Warning text | Removal condition |
+|---|---|---|
+| `EventPageBuilderShell` | "Event Page Builder publishing is not fully wired" | A hosted public event-page route exists, `publishToggle` writes a routable URL on the event record, and an E2E test verifies the published page loads with selected-event data. |
+| `/events/[eventId]/settings` | "Event settings is partially wired" | A per-event settings model exists, save/load round-trip is wired to the API, and a smoke test covers update + reload. |
+| `/events/[eventId]/hosts` (existing) | "Table Host Manager is partially working" | Host invite links, resend controls, host portal, and audit events for host actions are implemented and covered by tests. |
+| `/events/[eventId]/follow-up` (existing) | "Post-event follow-up is partially wired" | Thank-you status, donor-link round-trip, and follow-up task creation are persisted and reflected in reports. |
+| `/events/[eventId]/communications` (existing) | "Event email sending is partially wired" | Scheduling + execution route through central comms with audit + suppression honored; one happy-path send test exists. |
+| `/events/[eventId]/fundraising` (existing) | "Event fundraising workflows are partial" | Pledge model + donor-link round-trip + revenue reconciliation tests exist. |
+| `/events/[eventId]/tasks` / `volunteers` / `files` (via `EventsWorkspacePage`) | "This Events tool is still being wired" | A real persistence model exists for the tool, and at least one CRUD smoke test is present. |
+
+### Data isolation guarantee
+
+`tests/smoke/events-data-isolation.test.ts` exercises the API contract that the Events CRM relies on: guests, tables, and check-in totals returned for Event A must not appear in Event B. This is the safety net that lets multiple events be live in the same org without cross-event data bleed.
+
+---
+
 ## 2026-05-18 Fundraising Command Center Pass
 
 Events CRM is now being shaped around a FundEasy / Attendance-style nonprofit fundraising event workflow without copying FundEasy branding, UI, code, or proprietary design.

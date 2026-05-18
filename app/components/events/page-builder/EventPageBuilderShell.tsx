@@ -6,6 +6,7 @@ import EventPageBuilderTopBar from "@/app/components/events/page-builder/EventPa
 import EventPageBuilderSectionRail from "@/app/components/events/page-builder/EventPageBuilderSectionRail";
 import EventPageBuilderPreview from "@/app/components/events/page-builder/EventPageBuilderPreview";
 import EventPageBuilderInspector from "@/app/components/events/page-builder/EventPageBuilderInspector";
+import FeatureStatusWarning from "@/app/components/ui/FeatureStatusWarning";
 import { createDefaultEventPageSectionState, EVENT_PAGE_SECTION_DEFINITIONS } from "@/app/components/events/page-builder/section-config";
 import type {
   EventPageBuilderConfig,
@@ -337,6 +338,13 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
 
   return (
     <div className="flex h-[calc(100vh-4rem)] min-h-0 flex-col bg-[#f7f8fc]">
+      <div className="px-5 pt-5">
+        <FeatureStatusWarning
+          status="Partially Implemented"
+          title="Event Page Builder publishing is not fully wired"
+          description="Section editing and draft save are connected to /api/events/[eventId]/page-builder-config, but publishing does not yet route the public event page to a live URL. Use the builder for layout review and content prep until public publish is connected. Removal: hosted public page route is live, publish flow updates pageStatus and writes a routable URL, and an E2E test verifies the published page loads."
+        />
+      </div>
       <EventPageBuilderTopBar
         eventName={event.name}
         resolvedPageUrl={draftPreviewUrl}

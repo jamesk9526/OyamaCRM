@@ -305,7 +305,9 @@ Events CRM uses an **event-first workspace model** with explicit global tools.
   - `/events/templates` (template management)
   - `/events/events` (overall event registry management)
 - Never treat known static route segments (for example `workspace`, `reports`, `page-builder`, `templates`, `events`) as `eventId` values.
+- Legacy global tool routes (`/events/guests`, `/events/tables`, `/events/check-in`, `/events/sponsors`, `/events/fundraising`, `/events/communications`, `/events/settings`, `/events/hosts`, `/events/follow-up`, `/events/tickets`, `/events/orders`, `/events/tasks`, `/events/volunteers`, `/events/files`, `/events/donations`, `/events/emails`) **must redirect to `/events/events`** when no event is selected. Client routes use `useRouter().replace` plus `<RequireEventSelectionNotice />`; pure scaffold routes use server `redirect()`.
 - Any Events tool that is not fully wired must show a clear in-development warning and must not pretend data is real.
+- The current per-route status (Working / Partially Working / Demo Only / Broken / Not Implemented) and removal conditions for every `FeatureStatusWarning` popup live in `docs/status/events-crm-status.md` (Slice A audit section). Update that doc when Events surfaces change.
 
 <!-- END:events-crm-boundary-rules -->
 
