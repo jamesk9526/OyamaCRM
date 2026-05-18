@@ -131,6 +131,8 @@ export default function PublicEventPage({ pageSlug }: PublicEventPageProps) {
             sponsors,
             report,
             publicUrl: payload.pageUrl,
+            pageSlug: payload.pageSlug,
+            isPublicRegistration: true,
           }}
         />
       </section>

@@ -1,8 +1,8 @@
 // Event page builder preview canvas styled as a public fundraising event page.
+import PublicEventRegistrationForm from "@/app/components/events/public/PublicEventRegistrationForm";
 import { getSectionDefinition } from "@/app/components/events/page-builder/section-config";
 import type {
   EventBuilderSponsor,
-  EventBuilderTicketType,
   EventPageBuilderWorkspaceData,
   EventPageSectionId,
   EventPageSectionState,
@@ -70,29 +70,6 @@ function sectionPadding(section: EventPageSectionState): string {
 
 function textAlignClass(section: EventPageSectionState): string {
   return section.design?.textAlign === "center" ? "text-center" : "text-left";
-}
-
-function renderTicketRows(ticketTypes: EventBuilderTicketType[]) {
-  if (ticketTypes.length === 0) {
-    return <p className="text-sm text-slate-500">No ticket options configured yet.</p>;
-  }
-
-  return (
-    <div className="grid gap-3 md:grid-cols-2">
-      {ticketTypes.slice(0, 4).map((ticketType) => (
-        <article key={ticketType.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-slate-950">{ticketType.name}</p>
-              <p className="mt-1 text-xs text-slate-500">{ticketType.isTable ? `${ticketType.seatsIncluded ?? 1} seats included` : "Individual registration"}</p>
-            </div>
-            <p className="text-sm font-bold text-violet-700">{formatMoney(ticketType.price)}</p>
-          </div>
-          {ticketType.description ? <p className="mt-3 text-xs leading-5 text-slate-600">{ticketType.description}</p> : null}
-        </article>
-      ))}
-    </div>
-  );
 }
 
 function renderHero(section: EventPageSectionState, data: EventPageBuilderWorkspaceData) {
@@ -225,7 +202,13 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
       <section id="registration" className={`bg-slate-50 ${sectionPadding(section)} ${textAlignClass(section)}`}>
         <h2 className="text-2xl font-semibold text-slate-950">{content.heading || "Tickets & Tables"}</h2>
         <p className="mt-2 text-sm text-slate-600">{body}</p>
-        <div className="mt-5">{renderTicketRows(data.ticketTypes)}</div>
+        <div className="mt-5">
+          <PublicEventRegistrationForm
+            pageSlug={data.pageSlug}
+            ticketTypes={data.ticketTypes}
+            previewOnly={!data.isPublicRegistration}
+          />
+        </div>
       </section>
     );
   }

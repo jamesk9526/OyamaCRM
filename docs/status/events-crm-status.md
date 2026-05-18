@@ -2,6 +2,19 @@
 
 _Last updated: 2026-05-18_
 
+## 2026-05-18 Slice B Start — Public Registration → Check-In Code
+
+This pass starts the ticketing → public registration → check-in lifecycle without adding payment processing. Published event pages can now accept a public registration, create or link the primary registrant as a constituent, create an `EventOrder`, create `EventGuest` check-in rows, and return check-in codes for event-night lookup.
+
+| Surface | Status | Evidence | Notes |
+|---|---|---|---|
+| Public event page registration section | Partially Working | `app/components/events/public/PublicEventRegistrationForm.tsx`, `EventPageBuilderPreview.tsx` registration-form section | Captures ticket, quantity, primary attendee, contact info, consent, dietary/accessibility notes, and displays returned check-in codes. |
+| Public registration API | Partially Working | `POST /api/events/public/page/:pageSlug/register` in `server/src/routes/events.ts` | Validates published slug, public active event, active ticket type, deadline, event capacity, ticket capacity, consent, and primary attendee email. |
+| Order + guest write-back | Partially Working | Creates `EventOrder`, `EventOrderItem`, `EventGuest`, `Activity`; added smoke coverage in `tests/smoke/events-crud.test.ts` | Uses existing `EventOrder` model, so a primary constituent is required/created. Additional table seats receive placeholder guest names until a full attendee-details step is built. |
+| Payment collection | Not Implemented | — | Paid tickets are saved as `PENDING` / `DUE`; UI says staff will follow up. Stripe/real payment remains explicitly out of scope. |
+| Public multi-attendee editor | Not Implemented | — | API supports multiple seats/check-in rows, but the first UI pass captures primary attendee only. |
+| QR camera scanning | Not Implemented | — | Existing check-in code lookup remains text/code based. |
+
 ## 2026-05-18 Slice A — Lifecycle Hardening & Honest Status Sweep
 
 This pass focuses on the **event-first workspace model**: making sure every legacy global tool route redirects to the event selector when no event is chosen, every event-scoped tool advertises its real state, and every "Partially Working" feature carries a popup + banner warning with an explicit removal condition.
@@ -22,7 +35,7 @@ Status labels are restricted to: **Working / Partially Working / Demo Only / Bro
 | `/events/[eventId]/tickets` | Working | `/api/events/[id]/ticket-types` | Full CRUD for ticket types including table tickets. |
 | `/events/[eventId]/orders` | Working | `/api/events/[id]/orders`, `POST /api/events/orders` | Staff manual orders + status update. Order → auto-create guests is **Not Implemented**. |
 | `/events/[eventId]/hosts` | Partially Working | `/api/events/[id]/tables` | Coverage view live; host portal links / invites / audit not implemented. |
-| `/events/[eventId]/event-page` | Partially Working | `/api/events/[id]/page-builder-config` | Section editor + draft save work; **public publish does not route to a live URL yet**. |
+| `/events/[eventId]/event-page` | Partially Working | `/api/events/[id]/page-builder-config`, `/api/events/public/page/[slug]`, `POST /api/events/public/page/[slug]/register` | Section editor + draft save work; published public pages can now accept registration, but payment and full attendee editing remain incomplete. |
 | `/events/[eventId]/communications` (alias `/emails`) | Partially Working | `/api/events/[id]/guests` + central email API | Audience preview + workspace routing live; send execution depends on central comms orchestration. |
 | `/events/[eventId]/fundraising` (alias `/donations`) | Partially Working | `/api/events/[id]/orders` | Revenue-vs-goal view exists; pledge tracking and donor-link round-trip not implemented. |
 | `/events/[eventId]/follow-up` | Partially Working | `/api/events/[id]/report` | Reads real attendance/revenue; thank-you status not surfaced. |
@@ -325,7 +338,7 @@ Critical overrides from the latest full testing and browser pass:
 | Page builder entry point | 🟡 Working | Canonical route is `/events/[eventId]/event-page`; `/events/page-builder` remains compatibility selector |
 | Template library | 🔶 Partial | `/events/templates` supports draft template creation from existing events |
 | Block-based editor | 🟡 Working | Event-scoped section rail, preview, inspector shell, autosave persistence, and public-page rendering are implemented for the current block catalog |
-| Public event registration page | 🔴 Not Started | |
+| Public event registration page | 🔶 Partial | Published event pages can now submit a registration and receive check-in codes; payment collection and full multi-attendee editing remain future work |
 | Publish/unpublish | 🟡 Working | Publish/unpublish persists status and timestamp with readiness gating; deeper deployment history/versioning remains future work |
 
 ---

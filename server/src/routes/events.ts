@@ -455,6 +455,57 @@ function readStoredIntegrationSnapshot(config: unknown): EventsManagerIntegratio
   return config as unknown as EventsManagerIntegrationSnapshot;
 }
 
+interface PublicRegistrationAttendeeInput {
+  firstName?: unknown;
+  lastName?: unknown;
+  email?: unknown;
+  phone?: unknown;
+  dietaryRestrictions?: unknown;
+  specialNeeds?: unknown;
+}
+
+function sanitizePublicRegistrationText(value: unknown, maxLength = 120): string {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, maxLength);
+}
+
+function isValidPublicRegistrationEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function createEventOrderNumber(prefix = "PUB"): string {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${prefix}-${timestamp}-${random}`;
+}
+
+async function generateUniqueEventCheckinCode(tx: Prisma.TransactionClient = prisma): Promise<string> {
+  for (let attempts = 0; attempts < 10; attempts++) {
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const existing = await tx.eventGuest.findUnique({ where: { checkinCode: code } });
+    if (!existing) return code;
+  }
+
+  return Date.now().toString(36).toUpperCase().slice(-6);
+}
+
+function normalizePublicRegistrationAttendees(body: Record<string, unknown>, requestedSeats: number) {
+  const rawAttendees = Array.isArray(body.attendees) ? body.attendees : [];
+  const sourceAttendees: PublicRegistrationAttendeeInput[] = rawAttendees.length > 0
+    ? rawAttendees.filter(isRecord)
+    : [body];
+  const sanitized = sourceAttendees.slice(0, requestedSeats).map((attendee) => ({
+    firstName: sanitizePublicRegistrationText(attendee.firstName, 80),
+    lastName: sanitizePublicRegistrationText(attendee.lastName, 80),
+    email: sanitizePublicRegistrationText(attendee.email, 160).toLowerCase(),
+    phone: sanitizePublicRegistrationText(attendee.phone, 40),
+    dietaryRestrictions: sanitizePublicRegistrationText(attendee.dietaryRestrictions, 500),
+    specialNeeds: sanitizePublicRegistrationText(attendee.specialNeeds, 500),
+  }));
+
+  return sanitized;
+}
+
 /** GET /api/events/public/page/:pageSlug — Public event page payload resolved by configured slug. */
 router.get("/public/page/:pageSlug", async (req, res) => {
   const pageSlug = sanitizeEventPageSlug(req.params.pageSlug);
@@ -676,6 +727,294 @@ router.get("/public/page/:pageSlug", async (req, res) => {
     pageUrl: buildEventPageUrl(origin, pageSlug),
     status: match.status,
     sections: match.sections ?? null,
+  });
+});
+
+/** POST /api/events/public/page/:pageSlug/register — Public self-registration for a published event page. */
+router.post("/public/page/:pageSlug/register", async (req, res) => {
+  const pageSlug = sanitizeEventPageSlug(req.params.pageSlug);
+  if (!pageSlug) {
+    res.status(400).json({
+      error: {
+        code: "INVALID_SLUG",
+        message: "Event page slug must contain letters, numbers, or hyphens and cannot use reserved application routes.",
+      },
+    });
+    return;
+  }
+
+  const settingRows = await prisma.pluginSetting.findMany({
+    where: {
+      pluginKey: EVENTS_PAGE_BUILDER_PLUGIN_KEY,
+      enabled: true,
+    },
+    select: {
+      organizationId: true,
+      config: true,
+    },
+  });
+
+  const matches: Array<{ organizationId: string; eventId: string; status: EventPageBuilderStatus }> = [];
+  for (const row of settingRows) {
+    const config = readStoredEventPageBuilderConfig(row.config);
+    const found = findEventPageEntryBySlug(config, pageSlug);
+    if (!found) continue;
+    matches.push({
+      organizationId: row.organizationId,
+      eventId: found.eventId,
+      status: found.entry.status,
+    });
+  }
+
+  if (matches.length > 1) {
+    res.status(409).json({
+      error: {
+        code: "SLUG_CONFLICT",
+        message: "This slug is currently mapped to multiple event pages. Please use a unique slug.",
+      },
+    });
+    return;
+  }
+
+  const match = matches[0] ?? null;
+  if (!match) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Public event page not found." } });
+    return;
+  }
+
+  if (match.status !== "Published") {
+    res.status(404).json({ error: { code: "NOT_PUBLISHED", message: "This event page is not published." } });
+    return;
+  }
+
+  const body = isRecord(req.body) ? req.body : {};
+  const ticketTypeId = sanitizePublicRegistrationText(body.ticketTypeId, 120);
+  const requestedTicketUnits = Math.max(1, Math.min(10, Number(body.quantity ?? 1) || 1));
+  const consentAccepted = body.consentAccepted === true;
+
+  if (!ticketTypeId) {
+    res.status(400).json({ error: { code: "INVALID_INPUT", message: "A ticket type is required." } });
+    return;
+  }
+
+  if (!consentAccepted) {
+    res.status(400).json({ error: { code: "CONSENT_REQUIRED", message: "Registration consent is required." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({
+    where: {
+      id: match.eventId,
+      organizationId: match.organizationId,
+      active: true,
+      visibility: "PUBLIC",
+    },
+    select: {
+      id: true,
+      organizationId: true,
+      name: true,
+      startDate: true,
+      registrationDeadline: true,
+      capacity: true,
+    },
+  });
+
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found." } });
+    return;
+  }
+
+  if (event.registrationDeadline && event.registrationDeadline.getTime() < Date.now()) {
+    res.status(409).json({ error: { code: "REGISTRATION_CLOSED", message: "Registration is closed for this event." } });
+    return;
+  }
+
+  const ticketType = await prisma.ticketType.findFirst({
+    where: {
+      id: ticketTypeId,
+      eventId: event.id,
+      active: true,
+    },
+    select: {
+      id: true,
+      name: true,
+      price: true,
+      capacity: true,
+      isTable: true,
+      seatsIncluded: true,
+      minPerOrder: true,
+      maxPerOrder: true,
+    },
+  });
+
+  if (!ticketType) {
+    res.status(404).json({ error: { code: "TICKET_NOT_FOUND", message: "Ticket type not found." } });
+    return;
+  }
+
+  const maxPerOrder = ticketType.maxPerOrder ?? 10;
+  const ticketUnits = Math.max(ticketType.minPerOrder, Math.min(maxPerOrder, requestedTicketUnits));
+  const seatsPerTicket = ticketType.isTable ? Math.max(1, ticketType.seatsIncluded ?? 1) : 1;
+  const requestedSeats = Math.min(50, ticketUnits * seatsPerTicket);
+  const attendees = normalizePublicRegistrationAttendees(body, requestedSeats);
+  const buyer = attendees[0];
+
+  if (!buyer?.firstName || !buyer.lastName || !buyer.email || !isValidPublicRegistrationEmail(buyer.email)) {
+    res.status(400).json({
+      error: {
+        code: "INVALID_ATTENDEE",
+        message: "First name, last name, and a valid email are required for the primary registrant.",
+      },
+    });
+    return;
+  }
+
+  const [eventGuestCount, ticketGuestCount] = await Promise.all([
+    prisma.eventGuest.count({ where: { eventId: event.id } }),
+    prisma.eventGuest.count({ where: { eventId: event.id, ticketTypeId: ticketType.id } }),
+  ]);
+
+  if (event.capacity != null && event.capacity > 0 && eventGuestCount + requestedSeats > event.capacity) {
+    res.status(409).json({ error: { code: "EVENT_CAPACITY_REACHED", message: "Not enough event capacity remains for this registration." } });
+    return;
+  }
+
+  if (ticketType.capacity != null && ticketType.capacity > 0 && ticketGuestCount + requestedSeats > ticketType.capacity) {
+    res.status(409).json({ error: { code: "TICKET_CAPACITY_REACHED", message: "Not enough ticket capacity remains for this registration." } });
+    return;
+  }
+
+  const unitPrice = Number(ticketType.price ?? 0);
+  const totalAmount = unitPrice * ticketUnits;
+  const paymentStatus: EventGuestPaymentStatus = totalAmount > 0 ? "DUE" : "COMP";
+  const orderStatus = totalAmount > 0 ? "PENDING" : "CONFIRMED";
+  const orderNumber = createEventOrderNumber();
+  const partyName = `${buyer.firstName} ${buyer.lastName}`.trim();
+
+  const result = await prisma.$transaction(async (tx: typeof prisma) => {
+    const existingConstituent = await tx.constituent.findFirst({
+      where: {
+        organizationId: event.organizationId,
+        email: buyer.email,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const constituent = existingConstituent
+      ? await tx.constituent.update({
+        where: { id: existingConstituent.id },
+        data: {
+          firstName: buyer.firstName,
+          lastName: buyer.lastName,
+          phone: buyer.phone || existingConstituent.phone || undefined,
+        },
+      })
+      : await tx.constituent.create({
+        data: {
+          organizationId: event.organizationId,
+          firstName: buyer.firstName,
+          lastName: buyer.lastName,
+          email: buyer.email,
+          phone: buyer.phone || undefined,
+          notes: `Created from public event registration for ${event.name}.`,
+        },
+      });
+
+    const order = await tx.eventOrder.create({
+      data: {
+        eventId: event.id,
+        constituentId: constituent.id,
+        orderNumber,
+        status: orderStatus,
+        totalAmount,
+        feeAmount: 0,
+        paymentMethod: "ONLINE",
+        paidAt: totalAmount === 0 ? new Date() : undefined,
+        notes: "Public event page registration.",
+        items: {
+          create: [{
+            ticketTypeId: ticketType.id,
+            quantity: ticketUnits,
+            unitPrice,
+            totalPrice: totalAmount,
+          }],
+        },
+      },
+      include: {
+        items: { include: { ticketType: true } },
+      },
+    });
+
+    const guests = [];
+    for (let index = 0; index < requestedSeats; index++) {
+      const attendee = attendees[index] ?? {};
+      const checkinCode = await generateUniqueEventCheckinCode(tx);
+      guests.push(await tx.eventGuest.create({
+        data: {
+          eventId: event.id,
+          orderId: order.id,
+          constituentId: index === 0 ? constituent.id : undefined,
+          ticketTypeId: ticketType.id,
+          firstName: attendee.firstName || (index === 0 ? buyer.firstName : `Guest ${index + 1}`),
+          lastName: attendee.lastName || (index === 0 ? buyer.lastName : partyName),
+          email: attendee.email || (index === 0 ? buyer.email : undefined),
+          phone: attendee.phone || undefined,
+          checkinCode,
+          paymentStatus,
+          rsvpStatus: "CONFIRMED",
+          partyName,
+          dietaryRestrictions: attendee.dietaryRestrictions || undefined,
+          specialNeeds: attendee.specialNeeds || undefined,
+          notes: "Registered from public event page.",
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          checkinCode: true,
+          paymentStatus: true,
+          rsvpStatus: true,
+        },
+      }));
+    }
+
+    await tx.activity.create({
+      data: {
+        constituentId: constituent.id,
+        eventId: event.id,
+        type: "EVENT_REGISTRATION",
+        description: `Registered for event: ${event.name} via public event page (${ticketUnits} ticket${ticketUnits === 1 ? "" : "s"}, ${requestedSeats} seat${requestedSeats === 1 ? "" : "s"}).`,
+        metadata: {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          source: "api/events:public-page-register",
+          pageSlug,
+          ticketTypeId: ticketType.id,
+          ticketUnits,
+          requestedSeats,
+        },
+      },
+    });
+
+    return { order, guests };
+  });
+
+  res.status(201).json({
+    order: {
+      id: result.order.id,
+      orderNumber: result.order.orderNumber,
+      status: result.order.status,
+      totalAmount: Number(result.order.totalAmount),
+      ticketType: {
+        id: ticketType.id,
+        name: ticketType.name,
+      },
+    },
+    guests: result.guests,
+    message: totalAmount > 0
+      ? "Registration saved. Payment collection is not connected yet, so staff will follow up."
+      : "Registration confirmed.",
   });
 });
 

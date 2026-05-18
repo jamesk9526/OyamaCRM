@@ -150,4 +150,8 @@ export interface EventPageBuilderWorkspaceData {
   sponsors: EventBuilderSponsor[];
   report: EventBuilderReport | null;
   publicUrl: string;
+  /** Published page slug used by the public registration endpoint. */
+  pageSlug?: string;
+  /** True only on the external public page, not inside the builder preview. */
+  isPublicRegistration?: boolean;
 }

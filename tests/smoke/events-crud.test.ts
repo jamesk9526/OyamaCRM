@@ -521,6 +521,35 @@ describe("events CRUD", () => {
     expect(typeof res.body.report?.revenue?.total).toBe("number");
   });
 
+  it("accepts public event registration and returns guest check-in codes", async () => {
+    expect(savedEventPageSlug).toBeTruthy();
+    expect(ticketTypeId).toBeTruthy();
+
+    const res = await request(app)
+      .post(`/api/events/public/page/${encodeURIComponent(savedEventPageSlug)}/register`)
+      .send({
+        ticketTypeId,
+        quantity: 1,
+        consentAccepted: true,
+        attendees: [
+          {
+            firstName: "Public",
+            lastName: "Registrant",
+            email: `public-registrant-${Date.now()}@example.org`,
+            phone: "555-0101",
+            dietaryRestrictions: "Vegetarian",
+          },
+        ],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.order?.orderNumber).toMatch(/^PUB-/);
+    expect(res.body.order?.ticketType?.id ?? ticketTypeId).toBe(ticketTypeId);
+    expect(Array.isArray(res.body.guests)).toBe(true);
+    expect(res.body.guests).toHaveLength(1);
+    expect(res.body.guests[0].checkinCode).toMatch(/^[A-Z0-9]{6,}$/);
+  });
+
   it("does not expose draft event pages publicly", async () => {
     expect(eventId).toBeTruthy();
 
