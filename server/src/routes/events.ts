@@ -499,7 +499,7 @@ async function generateUniqueEventCheckinCode(tx: Prisma.TransactionClient = pri
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`.toUpperCase().slice(-10);
 }
 
-function toPublicRegistrationAttendeeInput(value: Record<string, unknown>): PublicRegistrationAttendeeInput {
+function parseAttendeeInput(value: Record<string, unknown>): PublicRegistrationAttendeeInput {
   return {
     firstName: typeof value.firstName === "string" ? value.firstName : undefined,
     lastName: typeof value.lastName === "string" ? value.lastName : undefined,
@@ -516,8 +516,8 @@ function normalizePublicRegistrationAttendees(
 ): NormalizedPublicRegistrationAttendee[] {
   const rawAttendees = Array.isArray(body.attendees) ? body.attendees : [];
   const sourceAttendees: PublicRegistrationAttendeeInput[] = rawAttendees.length > 0
-    ? rawAttendees.filter(isRecord).map(toPublicRegistrationAttendeeInput)
-    : [toPublicRegistrationAttendeeInput(body)];
+    ? rawAttendees.filter(isRecord).map(parseAttendeeInput)
+    : [parseAttendeeInput(body)];
   const sanitized = sourceAttendees.slice(0, requestedSeats).map((attendee) => ({
     firstName: sanitizePublicRegistrationText(attendee.firstName, 80),
     lastName: sanitizePublicRegistrationText(attendee.lastName, 80),
