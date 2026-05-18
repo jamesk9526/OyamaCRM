@@ -123,17 +123,17 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
 
       <div className="h-[calc(100vh-8rem)] overflow-y-auto px-4 py-4">
         <div className="flex border-b border-slate-200 text-xs font-semibold">
-          {["Content", "Design", "Advanced"].map((tabLabel) => (
+          {["Content", "Design", "Advanced"].map((tabName) => (
             <button
-              key={tabLabel}
+              key={tabName}
               type="button"
-              onClick={() => setActiveTab(tabLabel as "Content" | "Design" | "Advanced")}
+              onClick={() => setActiveTab(tabName as "Content" | "Design" | "Advanced")}
               className={[
                 "h-9 flex-1 border-b-2",
-                activeTab === tabLabel ? "border-violet-600 text-violet-700" : "border-transparent text-slate-500",
+                activeTab === tabName ? "border-violet-600 text-violet-700" : "border-transparent text-slate-500",
               ].join(" ")}
             >
-              {tabLabel}
+              {tabName}
             </button>
           ))}
         </div>
