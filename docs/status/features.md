@@ -1,8 +1,50 @@
 # OyamaCRM Feature Status Audit
 
-_Last deep audit: 2026-05-15_
+_Last deep audit: 2026-05-18 (v1.1.0)_
 
-## 2026-05-15 ReportViewer Workspace Ribbon + 7 Chart Types Pass
+## 2026-05-18 Help App v1.1.0 Expansion Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Help search synonym expansion (60+ nonprofit-domain terms) | Working | `app/help-content/search.ts` `expandQueryTokens` | Expands common queries like email→campaign, donor→constituent, grant→grants, steward→paths etc. for natural-language discovery. |
+| Feature readiness boost in search ranking | Working | `app/help-content/search.ts` `featureReadinessBoost` | Working articles receive +2 score boost, Partially Working +1 over same-scored results. |
+| Route-context map expanded to 35+ route prefixes | Working | `app/help-content/route-help-map.ts` | Covers all major Donor, Events, Compassion, and Global routes. |
+| Quick search shortcuts expanded to 10 | Working | `app/components/help/HelpWorkspace.tsx` | Added record donation, steward paths, grants workspace, recurring gifts, run report. |
+| Help Agent starter prompts expanded to 5 | Working | `app/components/help/HelpWorkspace.tsx` | Added steward paths engagement sequence and Microsoft 365 email prompts. |
+| New article: Create And Manage Fundraising Campaigns | Working | `app/help-content/articles.ts` id `help-donor-campaigns` | — |
+| New article: Navigate A Constituent Profile And Timeline | Working | `app/help-content/articles.ts` id `help-donor-view-constituent-profile` | — |
+| New article: Set Up A Steward Paths Engagement Sequence | Working | `app/help-content/articles.ts` id `help-donor-steward-paths-setup` | — |
+| New article: Build Audience Lists With Contacts Manager | Working | `app/help-content/articles.ts` id `help-donor-contacts-manager` | — |
+| New article: Record And Track Pledge Commitments | Working | `app/help-content/articles.ts` id `help-donor-pledges` | — |
+| New article: Analyze Donor Retention Metrics | Working | `app/help-content/articles.ts` id `help-donor-retention-analysis` | — |
+| New article: Track Volunteers In Donor CRM | Working | `app/help-content/articles.ts` id `help-donor-volunteers` | — |
+| New article: Understand The Donor CRM Dashboard | Working | `app/help-content/articles.ts` id `help-donor-dashboard-metrics` | — |
+| New article: Use The Email Campaign Builder | Working | `app/help-content/articles.ts` id `help-donor-email-builder` | — |
+| New article: Import Historical Donation Data | Working | `app/help-content/articles.ts` id `help-donor-import-donations` | — |
+| New article: Manage Event Sponsors And Sponsorship Packages | Working | `app/help-content/articles.ts` id `help-events-sponsors` | — |
+| New article: Configure Event Ticket Types | Working | `app/help-content/articles.ts` id `help-events-tickets` | — |
+| New article: Read The Event Overview Dashboard | Working | `app/help-content/articles.ts` id `help-events-overview-dashboard` | — |
+| New article: Complete Client Assessments | Working | `app/help-content/articles.ts` id `help-compassion-assessments` | — |
+| New article: Record Client Referrals | Working | `app/help-content/articles.ts` id `help-compassion-referrals` | — |
+| New article: Run Compassion CRM Service Reports | Working | `app/help-content/articles.ts` id `help-compassion-reports` | — |
+| New article: Record Material Assistance In Client Profiles | Working | `app/help-content/articles.ts` id `help-compassion-material-assistance` | — |
+| New article: Navigate The Settings Workspace | Working | `app/help-content/articles.ts` id `help-global-system-settings` | — |
+| New article: Configure Organization Settings | Working | `app/help-content/articles.ts` id `help-global-org-settings` | — |
+| New article: Review The System Audit Log | Working | `app/help-content/articles.ts` id `help-global-audit-log` | — |
+| New article: Manage Users And Role Assignments | Working | `app/help-content/articles.ts` id `help-global-user-management` | — |
+| New article: Export Data From OyamaCRM | Working | `app/help-content/articles.ts` id `help-global-data-export` | — |
+| New article: Review Security And Privacy Settings | Working | `app/help-content/articles.ts` id `help-global-security-privacy` | — |
+| New article: Configure Notifications And Reminders | Working | `app/help-content/articles.ts` id `help-global-notifications` | — |
+| New article: Complete The First-Run Setup Wizard | Working | `app/help-content/articles.ts` id `help-global-setup-wizard` | — |
+| New article: Use OyamaWebMaster For Website Management | Working | `app/help-content/articles.ts` id `help-global-webmaster` | — |
+| New article: Troubleshoot Email Provider And API Connectivity | Working | `app/help-content/articles.ts` id `help-global-troubleshoot-connectivity` | — |
+| New article: Switch Between CRM Modules | Working | `app/help-content/articles.ts` id `help-global-module-switching` | — |
+| Total published help articles | Working | `app/help-content/articles.ts` | 60 articles total (28 in v1.0 + 32 new in v1.1.0). |
+| FEATURES.md root-level inventory | Working | `FEATURES.md` | Complete platform feature inventory with status labels for all modules. |
+| docs/HELP_APP.md comprehensive rewrite | Working | `docs/HELP_APP.md` | Full updated reference including all articles, route map, search design, synonyms, and developer notes. |
+| Version bumped to 1.1.0 | Working | `package.json` | `version` field updated from prior to 1.1.0. |
+
+
 
 | Area | Status | Evidence | Notes |
 |---|---|---|---|

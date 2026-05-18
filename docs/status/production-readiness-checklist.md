@@ -1,6 +1,6 @@
 # Production Readiness Checklist
 
-Last updated: 2026-05-14 (production pass phase 1/2 cleanup plus user-friendliness wave 1 and dashboard AI widget expansion)
+Last updated: 2026-05-18 (v1.1.0 — help search engine improvements, 35+ new help articles, full feature inventory, route-context expansions)
 
 This file is the release-gate source of truth for production readiness.
 
@@ -376,3 +376,44 @@ Notes:
 5. Finish workspace-level permission enforcement across donor, compassion, events, and apps scopes.
 6. Add idempotent payment/webhook integration coverage.
 7. Add and validate backup/restore runbook documentation.
+
+## v1.1.0 Help & Documentation Expansion Snapshot (2026-05-18)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Help search query synonym expansion (60+ rules) | Working | `app/help-content/search.ts` `expandQueryTokens` |
+| Feature readiness boost in search ranking | Working | `app/help-content/search.ts` `featureReadinessBoost` |
+| Route-context mappings expanded (35+ routes) | Working | `app/help-content/route-help-map.ts` |
+| New help articles: Campaigns | Working | `app/help-content/articles.ts` `help-donor-campaigns` |
+| New help articles: Constituent profile & timeline | Working | `app/help-content/articles.ts` `help-donor-view-constituent-profile` |
+| New help articles: Steward Paths setup | Working | `app/help-content/articles.ts` `help-donor-steward-paths-setup` |
+| New help articles: Contacts Manager audience lists | Working | `app/help-content/articles.ts` `help-donor-contacts-manager` |
+| New help articles: Pledge management | Working | `app/help-content/articles.ts` `help-donor-pledges` |
+| New help articles: Donor retention analysis | Working | `app/help-content/articles.ts` `help-donor-retention-analysis` |
+| New help articles: Volunteers | Working | `app/help-content/articles.ts` `help-donor-volunteers` |
+| New help articles: Dashboard metrics | Working | `app/help-content/articles.ts` `help-donor-dashboard-metrics` |
+| New help articles: Email builder | Working | `app/help-content/articles.ts` `help-donor-email-builder` |
+| New help articles: Donation import | Working | `app/help-content/articles.ts` `help-donor-import-donations` |
+| New help articles: Events sponsors | Working | `app/help-content/articles.ts` `help-events-sponsors` |
+| New help articles: Event ticket types | Working | `app/help-content/articles.ts` `help-events-tickets` |
+| New help articles: Event overview dashboard | Working | `app/help-content/articles.ts` `help-events-overview-dashboard` |
+| New help articles: Compassion assessments | Working | `app/help-content/articles.ts` `help-compassion-assessments` |
+| New help articles: Compassion referrals | Working | `app/help-content/articles.ts` `help-compassion-referrals` |
+| New help articles: Compassion reports | Working | `app/help-content/articles.ts` `help-compassion-reports` |
+| New help articles: Material assistance | Working | `app/help-content/articles.ts` `help-compassion-material-assistance` |
+| New help articles: System settings overview | Working | `app/help-content/articles.ts` `help-global-system-settings` |
+| New help articles: Organization settings | Working | `app/help-content/articles.ts` `help-global-org-settings` |
+| New help articles: Audit log review | Working | `app/help-content/articles.ts` `help-global-audit-log` |
+| New help articles: User management | Working | `app/help-content/articles.ts` `help-global-user-management` |
+| New help articles: Data export | Working | `app/help-content/articles.ts` `help-global-data-export` |
+| New help articles: Security & privacy | Working | `app/help-content/articles.ts` `help-global-security-privacy` |
+| New help articles: Notifications & reminders | Working | `app/help-content/articles.ts` `help-global-notifications` |
+| New help articles: Setup wizard | Working | `app/help-content/articles.ts` `help-global-setup-wizard` |
+| New help articles: Webmaster basics | Working | `app/help-content/articles.ts` `help-global-webmaster` |
+| New help articles: Connectivity troubleshooting | Working | `app/help-content/articles.ts` `help-global-troubleshoot-connectivity` |
+| New help articles: Module switching | Working | `app/help-content/articles.ts` `help-global-module-switching` |
+| Total published help articles | Working | 60 articles covering all major CRM modules and workflows |
+| FEATURES.md root-level feature inventory | Working | `FEATURES.md` — complete feature list with status labels |
+| Version bumped to 1.1.0 | Working | `package.json` |
+| HelpWorkspace quick search expanded | Working | `app/components/help/HelpWorkspace.tsx` — 10 quick searches |
+| Help Agent example prompts expanded | Working | `app/components/help/HelpWorkspace.tsx` — 5 starter prompts |

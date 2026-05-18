@@ -58,9 +58,14 @@ export default function HelpWorkspace({ scope, scopePath, initialQuery = "" }: H
   const quickSearches = [
     "add constituent",
     "import csv",
-    "livecom setup",
+    "record donation",
     "schedule appointment",
     "check in guest",
+    "send email campaign",
+    "steward paths",
+    "grants workspace",
+    "recurring gifts",
+    "run report",
   ];
 
   const results = useMemo(() => {
@@ -202,6 +207,8 @@ export default function HelpWorkspace({ scope, scopePath, initialQuery = "" }: H
               "import a donor csv and resolve duplicates",
               "open event check-in tools",
               "where do i add a new client",
+              "set up steward paths engagement sequence",
+              "configure microsoft 365 email",
             ].map((prompt) => (
               <button
                 key={prompt}

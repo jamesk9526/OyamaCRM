@@ -45,17 +45,112 @@ function tokenize(value: string): string[] {
 /** Expands common nonprofit CRM query terms into related search tokens. */
 function expandQueryTokens(tokens: string[]): string[] {
   const expansions: Record<string, string[]> = {
-    donor: ["constituent", "fundraising", "gift"],
-    constituent: ["donor", "profile"],
-    gift: ["donation", "donor"],
-    donation: ["gift", "giving"],
-    livecom: ["website", "chat", "inbox"],
-    volunteer: ["events", "tasks"],
-    appointment: ["schedule", "calendar"],
-    checkin: ["check", "guest", "arrival"],
-    check: ["checkin"],
-    import: ["csv", "mapping", "duplicates"],
-    embeds: ["website", "snippet", "header", "footer"],
+    // Donor / constituent terms
+    donor: ["constituent", "fundraising", "gift", "giving"],
+    constituent: ["donor", "profile", "contact"],
+    contact: ["constituent", "donor", "profile"],
+    profile: ["constituent", "donor"],
+    gift: ["donation", "donor", "pledge"],
+    donation: ["gift", "giving", "pledge"],
+    giving: ["donation", "gift"],
+    pledge: ["donation", "commitment", "recurring"],
+    recurring: ["pledge", "monthly", "annual", "subscription"],
+
+    // Communication terms
+    email: ["campaign", "communications", "outreach", "smtp"],
+    campaign: ["email", "communications", "outreach"],
+    communication: ["email", "campaign", "outreach", "letter"],
+    letter: ["printable", "mail", "template", "print"],
+    printable: ["letter", "mail", "print"],
+    print: ["letter", "printable", "mail"],
+    smtp: ["email", "provider", "microsoft", "graph"],
+    graph: ["microsoft", "smtp", "email", "oauth"],
+    microsoft: ["graph", "smtp", "office365", "365"],
+
+    // Stewardship terms
+    steward: ["stewardship", "paths", "sequence", "engagement"],
+    stewardship: ["steward", "follow-up", "tasks", "paths"],
+    sequence: ["steward", "paths", "workflow", "engagement"],
+    engagement: ["sequence", "steward", "paths", "communications"],
+    segment: ["audience", "list", "contacts", "filter"],
+    audience: ["segment", "list", "contacts"],
+
+    // Events terms
+    livecom: ["website", "chat", "inbox", "messenger"],
+    volunteer: ["events", "tasks", "checkin"],
+    appointment: ["schedule", "calendar", "rescheduling"],
+    checkin: ["check", "guest", "arrival", "events"],
+    check: ["checkin", "guest"],
+    event: ["events", "workspace", "checkin", "guests"],
+    guest: ["events", "checkin", "registration", "ticket"],
+    ticket: ["events", "guest", "registration"],
+    seating: ["table", "seat", "events"],
+    table: ["seating", "events", "assign"],
+    sponsor: ["events", "sponsorship", "tables"],
+    registration: ["events", "guest", "ticket", "rsvp"],
+    rsvp: ["registration", "events", "guest"],
+
+    // Import / data terms
+    import: ["csv", "mapping", "duplicates", "upload"],
+    csv: ["import", "export", "data"],
+    export: ["csv", "data", "report", "download"],
+    duplicate: ["merge", "deduplicate", "import"],
+    merge: ["duplicate", "constituent", "deduplicate"],
+    deduplicate: ["duplicate", "merge"],
+
+    // Website embed terms
+    embeds: ["website", "snippet", "header", "footer", "livecom"],
+    snippet: ["embeds", "header", "footer", "code"],
+    header: ["embeds", "snippet", "footer"],
+    footer: ["embeds", "snippet", "header"],
+    website: ["embeds", "livecom", "webmaster"],
+    webmaster: ["website", "embeds", "pages"],
+
+    // Compassion CRM terms
+    client: ["compassion", "intake", "case", "appointment"],
+    case: ["compassion", "client", "casework"],
+    intake: ["compassion", "client", "assessment"],
+    assessment: ["compassion", "intake", "client"],
+    referral: ["compassion", "case", "client"],
+    carplan: ["care", "compassion", "case"],
+    schedule: ["appointment", "calendar", "compassion"],
+    widget: ["scheduling", "appointment", "embed", "public"],
+
+    // Finance / grants
+    grant: ["grants", "funding", "research", "deadline"],
+    grants: ["grant", "funding", "research", "writing"],
+    quickbooks: ["finance", "sync", "accounting"],
+    finance: ["quickbooks", "accounting", "donations"],
+    accounting: ["quickbooks", "finance"],
+
+    // Reports / analytics
+    report: ["reports", "analytics", "export", "retention"],
+    reports: ["report", "analytics", "dashboard"],
+    analytics: ["reports", "retention", "metrics"],
+    retention: ["donor", "analytics", "report"],
+    dashboard: ["reports", "analytics", "metrics"],
+    metric: ["dashboard", "analytics", "retention"],
+
+    // Settings / admin
+    settings: ["organization", "permissions", "admin"],
+    organization: ["settings", "admin"],
+    permission: ["roles", "access", "admin", "security"],
+    role: ["permission", "access", "admin"],
+    security: ["permission", "audit", "access"],
+    audit: ["security", "log", "activity"],
+    setup: ["settings", "getting-started", "configuration"],
+    configure: ["settings", "setup", "admin"],
+
+    // Tasks / workflow
+    task: ["tasks", "follow-up", "stewardship"],
+    tasks: ["task", "follow-up", "stewardship"],
+    followup: ["tasks", "stewardship", "follow-up"],
+    workflow: ["tasks", "stewardship", "sequence"],
+
+    // AI / Steward
+    stewardai: ["ai", "steward", "assistant"],
+    ai: ["steward", "assistant", "help"],
+    assistant: ["steward", "ai", "help"],
   };
 
   const expanded = new Set(tokens);
@@ -262,6 +357,17 @@ function applyFilters(articles: HelpArticle[], filters?: HelpSearchFilters): Hel
   });
 }
 
+/**
+ * Returns a numeric quality boost for articles with higher feature readiness.
+ * Working articles receive a small boost over partially/demo articles in results.
+ */
+function featureReadinessBoost(article: HelpArticle): number {
+  if (!article.featureReadiness) return 0;
+  if (article.featureReadiness === "Working") return 2;
+  if (article.featureReadiness === "Partially Working") return 1;
+  return 0;
+}
+
 /** Returns scoped help search results with module-first ordering and scoring. */
 export function searchHelpArticles(args: {
   query: string;
@@ -276,10 +382,16 @@ export function searchHelpArticles(args: {
   const query = args.query.trim();
   if (!query) {
     return filtered
-      .map((article) => ({ article, score: article.crmScope === args.scope ? 2 : 1, matchedBy: [] }))
+      .map((article) => ({
+        article,
+        score: (article.crmScope === args.scope ? 2 : 1) + featureReadinessBoost(article),
+        matchedBy: [],
+      }))
       .sort((left, right) => {
         const scopeDiff = Number(right.article.crmScope === args.scope) - Number(left.article.crmScope === args.scope);
         if (scopeDiff !== 0) return scopeDiff;
+        const readinessDiff = featureReadinessBoost(right.article) - featureReadinessBoost(left.article);
+        if (readinessDiff !== 0) return readinessDiff;
         return right.article.lastUpdated.localeCompare(left.article.lastUpdated);
       })
       .slice(0, args.limit ?? 50);
@@ -289,9 +401,10 @@ export function searchHelpArticles(args: {
     .map((article) => {
       const computed = computeScore(article, query);
       const scopeBoost = article.crmScope === args.scope ? 6 : 2;
+      const readinessBoost = featureReadinessBoost(article);
       return {
         article,
-        score: computed.score + scopeBoost,
+        score: computed.score + scopeBoost + readinessBoost,
         matchedBy: computed.matchedBy,
       };
     })
