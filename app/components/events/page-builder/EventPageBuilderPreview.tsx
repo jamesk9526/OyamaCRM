@@ -1,4 +1,7 @@
+"use client";
+
 // Event page builder preview canvas styled as a public fundraising event page.
+import { useState } from "react";
 import PublicEventRegistrationForm from "@/app/components/events/public/PublicEventRegistrationForm";
 import { getSectionDefinition } from "@/app/components/events/page-builder/section-config";
 import type {
@@ -21,6 +24,14 @@ interface EventPageDocumentProps {
   data: EventPageBuilderWorkspaceData;
   onSelectSection?: (sectionId: EventPageSectionId) => void;
 }
+
+type PreviewDevice = "Desktop" | "Tablet" | "Mobile";
+
+const PREVIEW_DEVICE_WIDTH: Record<PreviewDevice, string> = {
+  Desktop: "max-w-6xl",
+  Tablet: "max-w-3xl",
+  Mobile: "max-w-[390px]",
+};
 
 function formatDateTimeRange(startDate: string, endDate?: string | null): string {
   const start = new Date(startDate);
@@ -540,18 +551,21 @@ export function EventPageDocument({ sections, selectedSectionId, data, onSelectS
 
 /** Center live preview canvas for event-scoped public page composition. */
 export default function EventPageBuilderPreview({ sections, selectedSectionId, data, onSelectSection }: EventPageBuilderPreviewProps) {
+  const [device, setDevice] = useState<PreviewDevice>("Desktop");
+
   return (
     <section className="h-full min-h-0 min-w-0 overflow-y-auto bg-[#f7f8fc]">
       <div className="sticky top-0 z-10 border-b border-slate-200 bg-[#f7f8fc]/95 px-5 py-3 backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            {["Desktop", "Tablet", "Mobile"].map((label, index) => (
+            {(["Desktop", "Tablet", "Mobile"] as const).map((label, index) => (
               <button
                 key={label}
                 type="button"
+                onClick={() => setDevice(label)}
                 className={[
                   "grid h-9 w-12 place-items-center rounded-lg border text-xs font-semibold",
-                  index === 0 ? "border-violet-300 bg-white text-violet-700 shadow-sm" : "border-transparent text-slate-500 hover:bg-white",
+                  device === label ? "border-violet-300 bg-white text-violet-700 shadow-sm" : "border-transparent text-slate-500 hover:bg-white",
                 ].join(" ")}
                 title={label}
               >
@@ -565,17 +579,29 @@ export default function EventPageBuilderPreview({ sections, selectedSectionId, d
               <span className="truncate">{data.publicUrl}</span>
             </div>
           </div>
+          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+            {device} preview
+          </span>
         </div>
       </div>
 
       <div className="p-5">
-        <EventPageDocument
-          sections={sections}
-          selectedSectionId={selectedSectionId}
-          data={data}
-          onSelectSection={onSelectSection}
-        />
-
+        <div className={`mx-auto transition-all duration-200 ${PREVIEW_DEVICE_WIDTH[device]}`}>
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.12)]">
+            <div className="flex h-8 items-center gap-1.5 border-b border-slate-200 bg-slate-50 px-3">
+              <span className="h-2.5 w-2.5 rounded-full bg-red-300" />
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
+              <span className="ml-3 truncate text-[11px] font-semibold text-slate-500">{data.publicUrl}</span>
+            </div>
+            <EventPageDocument
+              sections={sections}
+              selectedSectionId={selectedSectionId}
+              data={data}
+              onSelectSection={onSelectSection}
+            />
+          </div>
+        </div>
       </div>
     </section>
   );

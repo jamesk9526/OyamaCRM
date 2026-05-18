@@ -123,7 +123,7 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
 
       <div className="h-[calc(100vh-8rem)] overflow-y-auto px-4 py-4">
         <div className="flex border-b border-slate-200 text-xs font-semibold">
-          {["Content", "Design", "Advanced"].map((tab, index) => (
+          {["Content", "Design", "Advanced"].map((tab) => (
             <button
               key={tab}
               type="button"
@@ -139,6 +139,28 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
         </div>
 
         <section className="mt-5 space-y-4">
+          <div className="rounded-xl border border-violet-100 bg-violet-50/70 px-3 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-violet-700">Selected Block</p>
+                <h3 className="mt-1 text-sm font-semibold text-slate-950">{definition.label}</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-600">{definition.description}</p>
+              </div>
+              <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${section.enabled ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
+                {section.enabled ? "Visible" : "Hidden"}
+              </span>
+            </div>
+            {sourceFields.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {sourceFields.slice(0, 5).map((field) => (
+                  <span key={field} className="rounded-full border border-violet-100 bg-white px-2 py-0.5 text-[10px] font-semibold text-violet-700">
+                    {field}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
           {activeTab === "Advanced" ? null : (
           <div>
             <h3 className="text-sm font-semibold text-slate-950">Visibility</h3>

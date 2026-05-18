@@ -79,7 +79,7 @@ Each `FeatureStatusWarning` in the Events workspace must carry an explicit condi
 
 | Surface | Warning text | Removal condition |
 |---|---|---|
-| `EventPageBuilderShell` | "Event Page Builder publishing is not fully wired" | A hosted public event-page route exists, `publishToggle` writes a routable URL on the event record, and an E2E test verifies the published page loads with selected-event data. |
+| `EventPageBuilderShell` | "Event Page Builder public workflow is partially wired" | Payment or free-registration completion flow, attendee-editing coverage, and a public page E2E test all pass. |
 | `/events/[eventId]/settings` | "Event settings is partially wired" | A per-event settings model exists, save/load round-trip is wired to the API, and a smoke test covers update + reload. |
 | `/events/[eventId]/hosts` (existing) | "Table Host Manager is partially working" | Host invite links, resend controls, host portal, and audit events for host actions are implemented and covered by tests. |
 | `/events/[eventId]/follow-up` (existing) | "Post-event follow-up is partially wired" | Thank-you status, donor-link round-trip, and follow-up task creation are persisted and reflected in reports. |

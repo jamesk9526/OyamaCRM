@@ -341,8 +341,8 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
       <div className="px-5 pt-5">
         <FeatureStatusWarning
           status="Partially Implemented"
-          title="Event Page Builder publishing is not fully wired"
-          description="Section editing and draft save are connected to /api/events/[eventId]/page-builder-config, but publishing does not yet route the public event page to a live URL. Use the builder for layout review and content prep until public publish is connected. Removal: hosted public page route is live, publish flow updates pageStatus and writes a routable URL, and an E2E test verifies the published page loads."
+          title="Event Page Builder public workflow is partially wired"
+          description="Published pages now render at their public slug and can accept basic registrations with check-in codes. Payment collection, full multi-attendee editing, deployment history, and QR camera scanning are still incomplete. Removal: payment or free-registration completion flow, attendee-editing coverage, and a public page E2E test all pass."
         />
       </div>
       <EventPageBuilderTopBar
@@ -362,7 +362,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         onPublishToggle={handlePublishToggle}
       />
 
-      <div className="grid min-h-0 flex-1 overflow-hidden border-t border-slate-200 lg:grid-cols-[250px_minmax(0,1fr)_320px]">
+      <div className="grid min-h-0 flex-1 overflow-hidden border-t border-slate-200 lg:grid-cols-[280px_minmax(0,1fr)_340px]">
         <EventPageBuilderSectionRail
           sections={sections}
           selectedSectionId={selectedSection.id}
@@ -388,6 +388,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
             sponsors,
             report,
             publicUrl: draftPreviewUrl,
+            pageSlug,
           }}
           onSelectSection={setSelectedSectionId}
         />
