@@ -5,6 +5,6 @@
 import { redirect } from "next/navigation";
 
 /** Legacy compatibility redirect for /events/donations. */
-export default function LegacyDonationsEventsRedirect() {
+export default function LegacyDonationsRedirect() {
   redirect("/events/events");
 }

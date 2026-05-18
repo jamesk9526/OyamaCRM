@@ -456,12 +456,21 @@ function readStoredIntegrationSnapshot(config: unknown): EventsManagerIntegratio
 }
 
 interface PublicRegistrationAttendeeInput {
-  firstName?: unknown;
-  lastName?: unknown;
-  email?: unknown;
-  phone?: unknown;
-  dietaryRestrictions?: unknown;
-  specialNeeds?: unknown;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  dietaryRestrictions?: string;
+  specialNeeds?: string;
+}
+
+interface NormalizedPublicRegistrationAttendee {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  dietaryRestrictions: string;
+  specialNeeds: string;
 }
 
 function sanitizePublicRegistrationText(value: unknown, maxLength = 120): string {
@@ -489,11 +498,25 @@ async function generateUniqueEventCheckinCode(tx: Prisma.TransactionClient = pri
   return Date.now().toString(36).toUpperCase().slice(-6);
 }
 
-function normalizePublicRegistrationAttendees(body: Record<string, unknown>, requestedSeats: number) {
+function toPublicRegistrationAttendeeInput(value: Record<string, unknown>): PublicRegistrationAttendeeInput {
+  return {
+    firstName: typeof value.firstName === "string" ? value.firstName : undefined,
+    lastName: typeof value.lastName === "string" ? value.lastName : undefined,
+    email: typeof value.email === "string" ? value.email : undefined,
+    phone: typeof value.phone === "string" ? value.phone : undefined,
+    dietaryRestrictions: typeof value.dietaryRestrictions === "string" ? value.dietaryRestrictions : undefined,
+    specialNeeds: typeof value.specialNeeds === "string" ? value.specialNeeds : undefined,
+  };
+}
+
+function normalizePublicRegistrationAttendees(
+  body: Record<string, unknown>,
+  requestedSeats: number,
+): NormalizedPublicRegistrationAttendee[] {
   const rawAttendees = Array.isArray(body.attendees) ? body.attendees : [];
   const sourceAttendees: PublicRegistrationAttendeeInput[] = rawAttendees.length > 0
-    ? rawAttendees.filter(isRecord)
-    : [body];
+    ? rawAttendees.filter(isRecord).map(toPublicRegistrationAttendeeInput)
+    : [toPublicRegistrationAttendeeInput(body)];
   const sanitized = sourceAttendees.slice(0, requestedSeats).map((attendee) => ({
     firstName: sanitizePublicRegistrationText(attendee.firstName, 80),
     lastName: sanitizePublicRegistrationText(attendee.lastName, 80),
@@ -859,7 +882,7 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
   const attendees = normalizePublicRegistrationAttendees(body, requestedSeats);
   const buyer = attendees[0];
 
-  if (!buyer?.firstName || !buyer.lastName || !buyer.email || !isValidPublicRegistrationEmail(buyer.email)) {
+  if (!buyer || !buyer.firstName || !buyer.lastName || !buyer.email || !isValidPublicRegistrationEmail(buyer.email)) {
     res.status(400).json({
       error: {
         code: "INVALID_ATTENDEE",

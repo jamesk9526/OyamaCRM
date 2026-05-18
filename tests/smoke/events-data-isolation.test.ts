@@ -89,6 +89,7 @@ describe("events data isolation", () => {
   });
 
   it("creates a guest in Event A and a separate guest in Event B", async () => {
+    const uniqueEmailSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const [a, b] = await Promise.all([
       request(app)
         .post(`/api/events/${eventAId}/guests`)
@@ -96,7 +97,7 @@ describe("events data isolation", () => {
         .send({
           firstName: "Alpha",
           lastName: "OnlyEventA",
-          email: `alpha+${Date.now()}@isolation.test`,
+          email: `alpha+${uniqueEmailSuffix}@isolation.test`,
         }),
       request(app)
         .post(`/api/events/${eventBId}/guests`)
@@ -104,7 +105,7 @@ describe("events data isolation", () => {
         .send({
           firstName: "Beta",
           lastName: "OnlyEventB",
-          email: `beta+${Date.now()}@isolation.test`,
+          email: `beta+${uniqueEmailSuffix}@isolation.test`,
         }),
     ]);
     expect(a.status).toBe(201);

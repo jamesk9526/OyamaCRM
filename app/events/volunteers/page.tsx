@@ -5,6 +5,6 @@
 import { redirect } from "next/navigation";
 
 /** Legacy compatibility redirect for /events/volunteers. */
-export default function LegacyVolunteersEventsRedirect() {
+export default function LegacyVolunteersRedirect() {
   redirect("/events/events");
 }

@@ -5,6 +5,6 @@
 import { redirect } from "next/navigation";
 
 /** Legacy compatibility redirect for /events/emails. */
-export default function LegacyEmailsEventsRedirect() {
+export default function LegacyEmailsRedirect() {
   redirect("/events/events");
 }

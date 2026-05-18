@@ -5,6 +5,6 @@
 import { redirect } from "next/navigation";
 
 /** Legacy compatibility redirect for /events/tasks. */
-export default function LegacyTasksEventsRedirect() {
+export default function LegacyTasksRedirect() {
   redirect("/events/events");
 }

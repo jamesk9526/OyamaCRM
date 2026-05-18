@@ -5,6 +5,6 @@
 import { redirect } from "next/navigation";
 
 /** Legacy compatibility redirect for /events/files. */
-export default function LegacyFilesEventsRedirect() {
+export default function LegacyFilesRedirect() {
   redirect("/events/events");
 }
