@@ -11,7 +11,72 @@ import { DEFAULT_WORKSPACE_SETTINGS, fetchWorkspaceSettings, type WorkspaceSetti
 
 // Module routes render their own shells — bypass AppShell wrapper.
 // /steward-ai-workspace uses its own standalone PWA layout.
-const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/unsubscribe", "/preferences", "/compassion", "/events", "/watchdog", "/webmaster", "/hrm", "/apps", "/steward-ai-workspace"];
+const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/unsubscribe", "/preferences", "/compassion", "/watchdog", "/webmaster", "/hrm", "/apps", "/steward-ai-workspace"];
+const SHELL_BYPASS_PATHS = ["/events"];
+const RESERVED_ROOT_PUBLIC_EVENT_SEGMENTS = new Set([
+  "api",
+  "apps",
+  "automations",
+  "board",
+  "campaigns",
+  "communications",
+  "compassion",
+  "constituents",
+  "contacts-manager",
+  "custom-fields",
+  "data-tools",
+  "donations",
+  "email-builder",
+  "events",
+  "features",
+  "grants",
+  "help",
+  "help-content",
+  "hrm",
+  "icons",
+  "letters-printables",
+  "livecom",
+  "login",
+  "meetings",
+  "modules",
+  "offline",
+  "ogentic",
+  "password",
+  "payments",
+  "preferences",
+  "quickbooks-sync",
+  "reports",
+  "settings",
+  "setup",
+  "steward-ai-workspace",
+  "steward-paths",
+  "steward-signals",
+  "tasks",
+  "unsubscribe",
+  "volunteers",
+  "watchdog",
+  "webmaster",
+  "workspace",
+  "page-builder",
+  "templates",
+  "tickets",
+  "guests",
+  "tables",
+  "hosts",
+  "sponsors",
+  "orders",
+  "emails",
+  "follow-up",
+  "fundraising",
+  "files",
+  "check-in",
+]);
+
+function isRootPublicEventSlugPath(pathname: string): boolean {
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length !== 1) return false;
+  return !RESERVED_ROOT_PUBLIC_EVENT_SEGMENTS.has(segments[0].toLowerCase());
+}
 
 // Routes that board-report roles may access (board dashboard + its own sub-routes)
 const BOARD_PATHS = ["/board"];
@@ -21,7 +86,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || isRootPublicEventSlugPath(pathname);
+  const isShellBypass = SHELL_BYPASS_PATHS.some((p) => pathname.startsWith(p));
   const isBoard = BOARD_PATHS.some((p) => pathname.startsWith(p));
   const isOShareview = pathname.startsWith("/reports") && !pathname.startsWith("/reports/donor-crm");
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
@@ -114,6 +180,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
+
+  // Module routes that render their own shell (Events CRM, etc.)
+  if (isShellBypass) return <>{children}</>;
 
   return (
     <div

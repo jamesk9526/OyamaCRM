@@ -10,12 +10,16 @@
  *   GET    /api/constituents/:id     — full constituent profile with donations, tasks, tags, household
  *   POST   /api/constituents         — create a new constituent
  *   POST   /api/constituents/import  — batch-import from mapped CSV (dry-run supported)
+ *   GET    /api/constituents/import/history — recent import runs with rollback status
+ *   POST   /api/constituents/import/:runId/rollback/preview — rollback safety preview
+ *   POST   /api/constituents/import/:runId/rollback — execute guarded rollback
  *   PUT    /api/constituents/:id     — update an existing constituent
  *   DELETE /api/constituents/:id     — delete a constituent
  *
  * @module routes/constituents
  */
 import { Router } from "express";
+import { randomUUID } from "node:crypto";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
 import { executeStewardPathsForTrigger } from "../services/stewardPathsEngine.js";
@@ -103,6 +107,383 @@ const normalizeTagColor = (value: unknown, fallback = "#16a34a"): string => {
   const color = typeof value === "string" ? value.trim() : "";
   return /^#[0-9a-fA-F]{6}$/.test(color) ? color : fallback;
 };
+
+const CONSTITUENT_IMPORT_ROLLBACK_WINDOW_HOURS = 72;
+const CONSTITUENT_IMPORT_MAX_UPDATED_SNAPSHOTS = 1000;
+const CONSTITUENT_IMPORT_ROLLBACK_CONFIRM_PREFIX = "ROLLBACK-CONSTITUENT-IMPORT";
+const CONSTITUENT_IMPORT_ROLLBACK_CHANGE_TOLERANCE_MS = 2_000;
+
+const CONSTITUENT_IMPORT_ROLLBACK_SELECT = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  prefix: true,
+  email: true,
+  email2: true,
+  phone: true,
+  mobile: true,
+  phone2: true,
+  addressLine1: true,
+  addressLine2: true,
+  city: true,
+  state: true,
+  zip: true,
+  country: true,
+  birthDate: true,
+  employer: true,
+  occupation: true,
+  doNotEmail: true,
+  doNotCall: true,
+  doNotMail: true,
+  doNotContact: true,
+  emailOptOut: true,
+  notes: true,
+  donorStatus: true,
+  externalId: true,
+  type: true,
+  tags: { select: { tagId: true } },
+} as const;
+
+type ConstituentImportRollbackRecord = Prisma.ConstituentGetPayload<{
+  select: typeof CONSTITUENT_IMPORT_ROLLBACK_SELECT;
+}>;
+
+const CONSTITUENT_IMPORT_DELETE_GUARD_SELECT = {
+  id: true,
+  updatedAt: true,
+  headOf: { select: { id: true } },
+  _count: {
+    select: {
+      donations: true,
+      tasks: true,
+      meetings: true,
+      activities: true,
+      eventAttendances: true,
+      eventOrders: true,
+      eventGuests: true,
+      eventSponsors: true,
+      volunteerHours: true,
+      pledges: true,
+      compassionClients: true,
+      stewardPathEnrollments: true,
+      stewardPathEmailDrafts: true,
+      generatedLetters: true,
+      emailSubscriptions: true,
+      emailConsentEvents: true,
+      emailSuppressions: true,
+      emailSendRecipients: true,
+    },
+  },
+} as const;
+
+type ConstituentImportDeleteGuardRecord = Prisma.ConstituentGetPayload<{
+  select: typeof CONSTITUENT_IMPORT_DELETE_GUARD_SELECT;
+}>;
+
+type ConstituentImportMode = "create_only" | "upsert" | "update_only";
+
+interface ConstituentRollbackScalarSnapshot {
+  firstName: string;
+  lastName: string;
+  prefix: string | null;
+  email: string | null;
+  email2: string | null;
+  phone: string | null;
+  mobile: string | null;
+  phone2: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  country: string;
+  birthDate: string | null;
+  employer: string | null;
+  occupation: string | null;
+  doNotEmail: boolean;
+  doNotCall: boolean;
+  doNotMail: boolean;
+  doNotContact: boolean;
+  emailOptOut: boolean;
+  notes: string | null;
+  donorStatus: DonorStatus;
+  externalId: string | null;
+  type: ConstituentType;
+}
+
+interface ConstituentImportUpdatedSnapshot {
+  id: string;
+  before: ConstituentRollbackScalarSnapshot;
+  tagIds: string[];
+}
+
+interface ConstituentImportRollbackSummary {
+  deletedCreated: number;
+  restoredUpdated: number;
+  blockedCreated: number;
+  blockedUpdated: number;
+}
+
+interface ConstituentImportRunMetadata {
+  importRunId: string;
+  source: "constituents_csv";
+  mode: ConstituentImportMode;
+  recordCount: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  errorCount: number;
+  duplicatesInFile: number;
+  createdIds: string[];
+  updatedSnapshots: ConstituentImportUpdatedSnapshot[];
+  rollbackSupported: boolean;
+  rollbackTrackingTruncated: boolean;
+  completedAt: string;
+  rollbackEligibleUntil: string;
+  rolledBackAt?: string;
+  rolledBackBy?: string;
+  rollbackSummary?: ConstituentImportRollbackSummary;
+}
+
+interface ConstituentImportRollbackPlan {
+  canRollback: boolean;
+  blockedReasons: string[];
+  safeDeleteCreatedIds: string[];
+  safeRestoreUpdatedSnapshots: ConstituentImportUpdatedSnapshot[];
+  blockedCreated: Array<{ id: string; reason: string }>;
+  blockedUpdated: Array<{ id: string; reason: string }>;
+}
+
+function normalizeImportValue(raw: string): string {
+  return raw.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function normalizeImportPhoneDigits(raw?: string): string {
+  return (raw ?? "").replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
+}
+
+function buildConstituentInFileDedupKey(rec: Record<string, string>): string {
+  const extId = normalizeImportValue(rec.externalId ?? "");
+  if (extId) return `ext:${extId}`;
+
+  const email = normalizeImportValue(rec.email ?? "");
+  if (email) return `email:${email}`;
+
+  const phone = normalizeImportPhoneDigits(rec.phone ?? rec.mobilePhone ?? rec.workPhone);
+  if (phone.length >= 7) return `phone:${phone}`;
+
+  const normalizedEntries = Object.entries(rec)
+    .filter(([key, value]) => key !== "_isOrg" && (value ?? "").trim().length > 0)
+    .map(([key, value]) => `${key}=${normalizeImportValue(value ?? "")}`)
+    .sort();
+
+  return `row:${normalizedEntries.join("|")}`;
+}
+
+function toConstituentRollbackSnapshot(record: ConstituentImportRollbackRecord): ConstituentRollbackScalarSnapshot {
+  return {
+    firstName: record.firstName,
+    lastName: record.lastName,
+    prefix: record.prefix,
+    email: record.email,
+    email2: record.email2,
+    phone: record.phone,
+    mobile: record.mobile,
+    phone2: record.phone2,
+    addressLine1: record.addressLine1,
+    addressLine2: record.addressLine2,
+    city: record.city,
+    state: record.state,
+    zip: record.zip,
+    country: record.country,
+    birthDate: record.birthDate ? record.birthDate.toISOString() : null,
+    employer: record.employer,
+    occupation: record.occupation,
+    doNotEmail: record.doNotEmail,
+    doNotCall: record.doNotCall,
+    doNotMail: record.doNotMail,
+    doNotContact: record.doNotContact,
+    emailOptOut: record.emailOptOut,
+    notes: record.notes,
+    donorStatus: record.donorStatus,
+    externalId: record.externalId,
+    type: record.type,
+  };
+}
+
+function snapshotToConstituentUpdateData(snapshot: ConstituentRollbackScalarSnapshot): Prisma.ConstituentUpdateInput {
+  return {
+    firstName: snapshot.firstName,
+    lastName: snapshot.lastName,
+    prefix: snapshot.prefix,
+    email: snapshot.email,
+    email2: snapshot.email2,
+    phone: snapshot.phone,
+    mobile: snapshot.mobile,
+    phone2: snapshot.phone2,
+    addressLine1: snapshot.addressLine1,
+    addressLine2: snapshot.addressLine2,
+    city: snapshot.city,
+    state: snapshot.state,
+    zip: snapshot.zip,
+    country: snapshot.country,
+    birthDate: snapshot.birthDate ? new Date(snapshot.birthDate) : null,
+    employer: snapshot.employer,
+    occupation: snapshot.occupation,
+    doNotEmail: snapshot.doNotEmail,
+    doNotCall: snapshot.doNotCall,
+    doNotMail: snapshot.doNotMail,
+    doNotContact: snapshot.doNotContact,
+    emailOptOut: snapshot.emailOptOut,
+    notes: snapshot.notes,
+    donorStatus: snapshot.donorStatus,
+    externalId: snapshot.externalId,
+    type: snapshot.type,
+  };
+}
+
+function readConstituentImportRunMetadata(raw: Prisma.JsonValue | null): ConstituentImportRunMetadata | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const candidate = raw as Partial<ConstituentImportRunMetadata>;
+  if (typeof candidate.importRunId !== "string") return null;
+  if (!Array.isArray(candidate.createdIds) || !Array.isArray(candidate.updatedSnapshots)) return null;
+  return {
+    importRunId: candidate.importRunId,
+    source: "constituents_csv",
+    mode: (candidate.mode ?? "create_only") as ConstituentImportMode,
+    recordCount: Number(candidate.recordCount ?? 0),
+    created: Number(candidate.created ?? 0),
+    updated: Number(candidate.updated ?? 0),
+    skipped: Number(candidate.skipped ?? 0),
+    errorCount: Number(candidate.errorCount ?? 0),
+    duplicatesInFile: Number(candidate.duplicatesInFile ?? 0),
+    createdIds: candidate.createdIds.filter((id): id is string => typeof id === "string"),
+    updatedSnapshots: candidate.updatedSnapshots as ConstituentImportUpdatedSnapshot[],
+    rollbackSupported: Boolean(candidate.rollbackSupported),
+    rollbackTrackingTruncated: Boolean(candidate.rollbackTrackingTruncated),
+    completedAt: String(candidate.completedAt ?? ""),
+    rollbackEligibleUntil: String(candidate.rollbackEligibleUntil ?? ""),
+    rolledBackAt: typeof candidate.rolledBackAt === "string" ? candidate.rolledBackAt : undefined,
+    rolledBackBy: typeof candidate.rolledBackBy === "string" ? candidate.rolledBackBy : undefined,
+    rollbackSummary: candidate.rollbackSummary,
+  };
+}
+
+function countConstituentDeleteGuards(row: ConstituentImportDeleteGuardRecord): number {
+  const relationCount = row._count.donations
+    + row._count.tasks
+    + row._count.meetings
+    + row._count.activities
+    + row._count.eventAttendances
+    + row._count.eventOrders
+    + row._count.eventGuests
+    + row._count.eventSponsors
+    + row._count.volunteerHours
+    + row._count.pledges
+    + row._count.compassionClients
+    + row._count.stewardPathEnrollments
+    + row._count.stewardPathEmailDrafts
+    + row._count.generatedLetters
+    + row._count.emailSubscriptions
+    + row._count.emailConsentEvents
+    + row._count.emailSuppressions
+    + row._count.emailSendRecipients;
+  return relationCount + (row.headOf ? 1 : 0);
+}
+
+async function buildConstituentImportRollbackPlan(params: {
+  organizationId: string;
+  metadata: ConstituentImportRunMetadata;
+}): Promise<ConstituentImportRollbackPlan> {
+  const { organizationId, metadata } = params;
+  const blockedReasons: string[] = [];
+  const safeDeleteCreatedIds: string[] = [];
+  const safeRestoreUpdatedSnapshots: ConstituentImportUpdatedSnapshot[] = [];
+  const blockedCreated: Array<{ id: string; reason: string }> = [];
+  const blockedUpdated: Array<{ id: string; reason: string }> = [];
+
+  if (!metadata.rollbackSupported) {
+    blockedReasons.push("Rollback is unavailable for this run because safety snapshots were truncated.");
+    return { canRollback: false, blockedReasons, safeDeleteCreatedIds, safeRestoreUpdatedSnapshots, blockedCreated, blockedUpdated };
+  }
+
+  if (metadata.rolledBackAt) {
+    blockedReasons.push("This import run has already been rolled back.");
+    return { canRollback: false, blockedReasons, safeDeleteCreatedIds, safeRestoreUpdatedSnapshots, blockedCreated, blockedUpdated };
+  }
+
+  const completedAt = new Date(metadata.completedAt);
+  const rollbackEligibleUntil = new Date(metadata.rollbackEligibleUntil);
+  if (Number.isNaN(completedAt.getTime())) {
+    blockedReasons.push("Import metadata is missing a valid completion timestamp.");
+    return { canRollback: false, blockedReasons, safeDeleteCreatedIds, safeRestoreUpdatedSnapshots, blockedCreated, blockedUpdated };
+  }
+  if (!Number.isNaN(rollbackEligibleUntil.getTime()) && Date.now() > rollbackEligibleUntil.getTime()) {
+    blockedReasons.push("Rollback window expired for this import run.");
+    return { canRollback: false, blockedReasons, safeDeleteCreatedIds, safeRestoreUpdatedSnapshots, blockedCreated, blockedUpdated };
+  }
+
+  const [createdRows, updatedRows] = await Promise.all([
+    metadata.createdIds.length > 0
+      ? prisma.constituent.findMany({
+          where: { organizationId, id: { in: metadata.createdIds } },
+          select: CONSTITUENT_IMPORT_DELETE_GUARD_SELECT,
+        })
+      : Promise.resolve([]),
+    metadata.updatedSnapshots.length > 0
+      ? prisma.constituent.findMany({
+          where: { organizationId, id: { in: metadata.updatedSnapshots.map((snapshot) => snapshot.id) } },
+          select: { id: true, updatedAt: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const createdMap = new Map(createdRows.map((row) => [row.id, row]));
+  for (const createdId of metadata.createdIds) {
+    const row = createdMap.get(createdId);
+    if (!row) {
+      blockedCreated.push({ id: createdId, reason: "Record no longer exists in the organization." });
+      continue;
+    }
+    if (row.updatedAt.getTime() > completedAt.getTime() + CONSTITUENT_IMPORT_ROLLBACK_CHANGE_TOLERANCE_MS) {
+      blockedCreated.push({ id: createdId, reason: "Record changed after import and cannot be auto-deleted safely." });
+      continue;
+    }
+    const guardCount = countConstituentDeleteGuards(row);
+    if (guardCount > 0) {
+      blockedCreated.push({ id: createdId, reason: "Record has linked CRM data and cannot be auto-deleted safely." });
+      continue;
+    }
+    safeDeleteCreatedIds.push(createdId);
+  }
+
+  const updatedMap = new Map(updatedRows.map((row) => [row.id, row]));
+  for (const snapshot of metadata.updatedSnapshots) {
+    const row = updatedMap.get(snapshot.id);
+    if (!row) {
+      blockedUpdated.push({ id: snapshot.id, reason: "Record no longer exists in the organization." });
+      continue;
+    }
+    if (row.updatedAt.getTime() > completedAt.getTime() + CONSTITUENT_IMPORT_ROLLBACK_CHANGE_TOLERANCE_MS) {
+      blockedUpdated.push({ id: snapshot.id, reason: "Record changed after import and cannot be restored automatically." });
+      continue;
+    }
+    safeRestoreUpdatedSnapshots.push(snapshot);
+  }
+
+  if (safeDeleteCreatedIds.length === 0 && safeRestoreUpdatedSnapshots.length === 0) {
+    blockedReasons.push("No rollback-safe records remain for this import run.");
+  }
+
+  return {
+    canRollback: blockedReasons.length === 0,
+    blockedReasons,
+    safeDeleteCreatedIds,
+    safeRestoreUpdatedSnapshots,
+    blockedCreated,
+    blockedUpdated,
+  };
+}
 
 /** GET /api/constituents — List constituents with optional search, type, and status filters. */
 router.get("/", async (req, res) => {
@@ -692,7 +1073,17 @@ router.put("/:id", async (req, res) => {
  *   2. email when matchEmail = true
  *   3. phone when matchPhone = true
  *
- * Response: { created, updated, skipped, errors, dryRun }
+ * Response: {
+ *   created,
+ *   updated,
+ *   skipped,
+ *   errors,
+ *   duplicatesInFile,
+ *   dryRun,
+ *   importRunId?,
+ *   rollbackSupported?,
+ *   rollbackEligibleUntil?
+ * }
  */
 router.post("/import", async (req, res) => {
   const {
@@ -706,7 +1097,7 @@ router.post("/import", async (req, res) => {
     allowOrgImport = true,
   } = req.body as {
     records: Array<Record<string, string>>;
-    mode: "create_only" | "upsert" | "update_only";
+    mode: ConstituentImportMode;
     dryRun: boolean;
     matchExtId: boolean;
     matchEmail: boolean;
@@ -730,7 +1121,14 @@ router.post("/import", async (req, res) => {
   let created = 0;
   let updated = 0;
   let skipped = 0;
+  let duplicatesInFile = 0;
   const errors: string[] = [];
+  const seenInFileDedupKeys = new Set<string>();
+
+  const importRunId = dryRun ? undefined : `constituent-import-${randomUUID()}`;
+  const createdConstituentIds: string[] = [];
+  const updatedSnapshots: ConstituentImportUpdatedSnapshot[] = [];
+  let rollbackTrackingTruncated = false;
 
   /** Parse common CSV booleans like True/False, Yes/No, 1/0. */
   const parseBool = (raw?: string): boolean | undefined => {
@@ -747,6 +1145,17 @@ router.post("/import", async (req, res) => {
     if (!raw?.trim()) return undefined;
     const d = new Date(raw.trim());
     return Number.isNaN(d.getTime()) ? undefined : d;
+  };
+
+  const normalizeCountry = (raw?: string): string => {
+    const value = (raw ?? "").trim();
+    if (!value) return "US";
+    const normalized = value.toLowerCase();
+    if (["us", "usa", "u.s.", "u.s.a.", "united states", "united states of america"].includes(normalized)) {
+      return "US";
+    }
+    if (value.length === 2) return value.toUpperCase();
+    return value;
   };
 
   /** Map source status strings into DonorStatus enum values. */
@@ -836,6 +1245,14 @@ router.post("/import", async (req, res) => {
 
   for (const rec of records) {
     try {
+      const inFileDedupKey = buildConstituentInFileDedupKey(rec);
+      if (seenInFileDedupKeys.has(inFileDedupKey)) {
+        duplicatesInFile++;
+        skipped++;
+        continue;
+      }
+      seenInFileDedupKeys.add(inFileDedupKey);
+
       // Map imported CRM field keys → Prisma Constituent fields
       // _isOrg is set by the wizard when a record had no firstName/lastName but had an org name
       const isOrg = allowOrgImport && rec["_isOrg"] === "true";
@@ -850,10 +1267,17 @@ router.post("/import", async (req, res) => {
       const allowsPhone = communicationTokens.some((t) => t.includes("phone") || t.includes("call") || t.includes("voice"));
       const allowsMail = communicationTokens.some((t) => t.includes("mail") || t.includes("postal"));
 
-      const sourceDoNotMail = parseBool(rec.holdMail);
+      const sourceDoNotMail = parseBool(rec.doNotMail) ?? parseBool(rec.holdMail);
+      const sourceDoNotEmail = parseBool(rec.doNotEmail);
+      const sourceDoNotCall = parseBool(rec.doNotCall);
+      const sourceDoNotContact = parseBool(rec.doNotContact);
+      const sourceEmailOptOut = parseBool(rec.emailOptOut);
+
       const doNotMail = sourceDoNotMail ?? (hasExplicitPrefs ? !allowsMail : false);
-      const doNotEmail = hasExplicitPrefs ? !allowsEmail : false;
-      const doNotCall = hasExplicitPrefs ? !allowsPhone : false;
+      const doNotEmail = sourceDoNotEmail ?? sourceEmailOptOut ?? (hasExplicitPrefs ? !allowsEmail : false);
+      const doNotCall = sourceDoNotCall ?? (hasExplicitPrefs ? !allowsPhone : false);
+      const doNotContact = sourceDoNotContact ?? (doNotMail && doNotEmail && doNotCall);
+      const emailOptOut = sourceEmailOptOut ?? doNotEmail;
 
       const birthDate = parseDateOrUndefined(rec.birthDate);
       const importNotes = buildImportNotes(rec);
@@ -873,15 +1297,15 @@ router.post("/import", async (req, res) => {
         city:         rec.city         || undefined,
         state:        rec.state        || undefined,
         zip:          rec.zip          || undefined,
-        country:      "US",
+        country:      normalizeCountry(rec.country),
         birthDate,
         employer:     rec.organizationName || undefined,
         occupation:   rec.occupation   || undefined,
         doNotMail,
         doNotEmail,
         doNotCall,
-        doNotContact: doNotMail && doNotEmail && doNotCall,
-        emailOptOut:  doNotEmail,
+        doNotContact,
+        emailOptOut,
         notes:        [deceasedFlag ? "DECEASED" : undefined, importNotes].filter(Boolean).join("\n") || undefined,
         donorStatus:  normalizeDonorStatus(rec.constituentStatus),
         externalId:   rec.externalId   || undefined,
@@ -953,15 +1377,41 @@ router.post("/import", async (req, res) => {
 
       if (existing) {
         if (mode === "create_only" || duplicateResolution === "skip") { skipped++; continue; }
+
+        let rollbackSnapshot: ConstituentImportUpdatedSnapshot | null = null;
+        if (importRunId && !rollbackTrackingTruncated) {
+          const before = await prisma.constituent.findFirst({
+            where: { id: existing.id, organizationId: resolvedOrgId },
+            select: CONSTITUENT_IMPORT_ROLLBACK_SELECT,
+          });
+          if (before) {
+            rollbackSnapshot = {
+              id: before.id,
+              before: toConstituentRollbackSnapshot(before),
+              tagIds: before.tags.map((tag) => tag.tagId),
+            };
+          }
+        }
+
         // upsert / update_only — update the existing record (do not change organizationId)
         await prisma.constituent.update({ where: { id: existing.id }, data: scalars });
         await applyImportedTags(existing.id, rec.tags, data.type, rec);
+
+        if (rollbackSnapshot) {
+          if (updatedSnapshots.length >= CONSTITUENT_IMPORT_MAX_UPDATED_SNAPSHOTS) {
+            rollbackTrackingTruncated = true;
+          } else {
+            updatedSnapshots.push(rollbackSnapshot);
+          }
+        }
+
         updated++;
       } else {
         if (mode === "update_only") { skipped++; continue; }
         // Create new constituent — include organizationId relation key
         const createdConstituent = await prisma.constituent.create({ data: { ...scalars, organizationId: resolvedOrgId } });
         await applyImportedTags(createdConstituent.id, rec.tags, data.type, rec);
+        createdConstituentIds.push(createdConstituent.id);
         created++;
       }
     } catch (err) {
@@ -970,18 +1420,305 @@ router.post("/import", async (req, res) => {
   }
 
   if (!dryRun) {
+    const completedAt = new Date();
+    const rollbackEligibleUntil = new Date(completedAt.getTime() + CONSTITUENT_IMPORT_ROLLBACK_WINDOW_HOURS * 60 * 60 * 1000);
+    const rollbackSupported = !rollbackTrackingTruncated;
+
+    if (importRunId) {
+      const runMetadata: ConstituentImportRunMetadata = {
+        importRunId,
+        source: "constituents_csv",
+        mode,
+        recordCount: records.length,
+        created,
+        updated,
+        skipped,
+        errorCount: errors.length,
+        duplicatesInFile,
+        createdIds: createdConstituentIds,
+        updatedSnapshots,
+        rollbackSupported,
+        rollbackTrackingTruncated,
+        completedAt: completedAt.toISOString(),
+        rollbackEligibleUntil: rollbackEligibleUntil.toISOString(),
+      };
+
+      await prisma.auditLog.create({
+        data: {
+          action: "CONSTITUENT_IMPORT_RUN",
+          entity: "ConstituentImportRun",
+          entityId: importRunId,
+          userId: req.user?.sub ?? null,
+          organizationId: resolvedOrgId,
+          metadata: runMetadata as unknown as Prisma.InputJsonValue,
+          ipAddress: req.ip,
+          userAgent: req.headers["user-agent"] ?? null,
+        },
+      });
+    }
+
     logAudit({
       action: "CONSTITUENT_IMPORTED",
       entity: "Constituent",
       userId: req.user?.sub,
       organizationId: resolvedOrgId,
-      metadata: { created, updated, skipped, errorCount: errors.length, mode },
+      metadata: {
+        created,
+        updated,
+        skipped,
+        duplicatesInFile,
+        errorCount: errors.length,
+        mode,
+        importRunId,
+        rollbackSupported,
+      },
       ipAddress: req.ip,
       userAgent: req.headers["user-agent"],
     });
+
+    res.json({
+      created,
+      updated,
+      skipped,
+      errors: errors.length,
+      duplicatesInFile,
+      dryRun,
+      importRunId,
+      rollbackSupported,
+      rollbackEligibleUntil: rollbackEligibleUntil.toISOString(),
+    });
+    return;
   }
 
-  res.json({ created, updated, skipped, errors: errors.length, dryRun });
+  res.json({ created, updated, skipped, errors: errors.length, duplicatesInFile, dryRun });
+});
+
+/** GET /api/constituents/import/history — recent live import runs with rollback status metadata. */
+router.get("/import/history", requirePermission("import:data"), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit ?? "10"), 10) || 10, 1), 50);
+  const rows = await prisma.auditLog.findMany({
+    where: {
+      organizationId,
+      action: "CONSTITUENT_IMPORT_RUN",
+      entity: "ConstituentImportRun",
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    include: {
+      user: { select: { id: true, firstName: true, lastName: true, email: true } },
+    },
+  });
+
+  const items = rows.flatMap((row) => {
+    const metadata = readConstituentImportRunMetadata(row.metadata);
+    if (!metadata) return [];
+    return [{
+      runId: metadata.importRunId,
+      mode: metadata.mode,
+      recordCount: metadata.recordCount,
+      created: metadata.created,
+      updated: metadata.updated,
+      skipped: metadata.skipped,
+      errors: metadata.errorCount,
+      duplicatesInFile: metadata.duplicatesInFile,
+      rollbackSupported: metadata.rollbackSupported,
+      rollbackTrackingTruncated: metadata.rollbackTrackingTruncated,
+      rollbackEligibleUntil: metadata.rollbackEligibleUntil,
+      rolledBackAt: metadata.rolledBackAt ?? null,
+      createdAt: row.createdAt.toISOString(),
+      startedBy: row.user ? {
+        id: row.user.id,
+        name: `${row.user.firstName} ${row.user.lastName}`.trim(),
+        email: row.user.email,
+      } : null,
+    }];
+  });
+
+  res.json({ items });
+});
+
+/** POST /api/constituents/import/:runId/rollback/preview — evaluate which rows can be rolled back safely. */
+router.post("/import/:runId/rollback/preview", requirePermission("import:data"), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const runId = String(req.params.runId ?? "").trim();
+  if (!runId) {
+    res.status(400).json({ error: { code: "RUN_ID_REQUIRED", message: "Import run ID is required." } });
+    return;
+  }
+
+  const runLog = await prisma.auditLog.findFirst({
+    where: {
+      organizationId,
+      action: "CONSTITUENT_IMPORT_RUN",
+      entity: "ConstituentImportRun",
+      entityId: runId,
+    },
+  });
+  if (!runLog) {
+    res.status(404).json({ error: { code: "IMPORT_RUN_NOT_FOUND", message: "Import run not found." } });
+    return;
+  }
+
+  const metadata = readConstituentImportRunMetadata(runLog.metadata);
+  if (!metadata) {
+    res.status(422).json({ error: { code: "IMPORT_RUN_METADATA_INVALID", message: "Import run metadata is invalid." } });
+    return;
+  }
+
+  const plan = await buildConstituentImportRollbackPlan({ organizationId, metadata });
+  const confirmationText = `${CONSTITUENT_IMPORT_ROLLBACK_CONFIRM_PREFIX}:${runId}`;
+
+  res.json({
+    runId,
+    rollbackSupported: metadata.rollbackSupported,
+    alreadyRolledBack: Boolean(metadata.rolledBackAt),
+    rollbackEligibleUntil: metadata.rollbackEligibleUntil,
+    confirmationText,
+    summary: {
+      trackedCreated: metadata.createdIds.length,
+      trackedUpdated: metadata.updatedSnapshots.length,
+      canDeleteCreated: plan.safeDeleteCreatedIds.length,
+      canRestoreUpdated: plan.safeRestoreUpdatedSnapshots.length,
+      blockedCreated: plan.blockedCreated.length,
+      blockedUpdated: plan.blockedUpdated.length,
+    },
+    blockedReasons: plan.blockedReasons,
+    blockedCreated: plan.blockedCreated.slice(0, 25),
+    blockedUpdated: plan.blockedUpdated.slice(0, 25),
+    canRollback: plan.canRollback,
+  });
+});
+
+/** POST /api/constituents/import/:runId/rollback — execute a guarded rollback for one import run. */
+router.post("/import/:runId/rollback", requirePermission("import:data"), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const runId = String(req.params.runId ?? "").trim();
+  if (!runId) {
+    res.status(400).json({ error: { code: "RUN_ID_REQUIRED", message: "Import run ID is required." } });
+    return;
+  }
+
+  const body = (req.body ?? {}) as { confirm?: boolean; confirmationText?: string };
+  const expectedConfirmation = `${CONSTITUENT_IMPORT_ROLLBACK_CONFIRM_PREFIX}:${runId}`;
+  if (body.confirm !== true || body.confirmationText !== expectedConfirmation) {
+    res.status(400).json({
+      error: {
+        code: "ROLLBACK_CONFIRMATION_REQUIRED",
+        message: `Set confirm=true and confirmationText="${expectedConfirmation}" to execute rollback.`,
+      },
+    });
+    return;
+  }
+
+  const runLog = await prisma.auditLog.findFirst({
+    where: {
+      organizationId,
+      action: "CONSTITUENT_IMPORT_RUN",
+      entity: "ConstituentImportRun",
+      entityId: runId,
+    },
+  });
+  if (!runLog) {
+    res.status(404).json({ error: { code: "IMPORT_RUN_NOT_FOUND", message: "Import run not found." } });
+    return;
+  }
+
+  const metadata = readConstituentImportRunMetadata(runLog.metadata);
+  if (!metadata) {
+    res.status(422).json({ error: { code: "IMPORT_RUN_METADATA_INVALID", message: "Import run metadata is invalid." } });
+    return;
+  }
+
+  const plan = await buildConstituentImportRollbackPlan({ organizationId, metadata });
+  if (!plan.canRollback) {
+    res.status(409).json({
+      error: { code: "ROLLBACK_NOT_SAFE", message: "Rollback cannot run safely for this import run." },
+      blockedReasons: plan.blockedReasons,
+      blockedCreated: plan.blockedCreated,
+      blockedUpdated: plan.blockedUpdated,
+    });
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const snapshot of plan.safeRestoreUpdatedSnapshots) {
+      await tx.constituent.update({
+        where: { id: snapshot.id },
+        data: snapshotToConstituentUpdateData(snapshot.before),
+      });
+
+      await tx.constituentTag.deleteMany({ where: { constituentId: snapshot.id } });
+      if (snapshot.tagIds.length > 0) {
+        await tx.constituentTag.createMany({
+          data: snapshot.tagIds.map((tagId) => ({ constituentId: snapshot.id, tagId })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
+    if (plan.safeDeleteCreatedIds.length > 0) {
+      await tx.constituent.deleteMany({
+        where: {
+          organizationId,
+          id: { in: plan.safeDeleteCreatedIds },
+        },
+      });
+    }
+  });
+
+  const rolledBackAt = new Date().toISOString();
+  const rollbackSummary: ConstituentImportRollbackSummary = {
+    deletedCreated: plan.safeDeleteCreatedIds.length,
+    restoredUpdated: plan.safeRestoreUpdatedSnapshots.length,
+    blockedCreated: plan.blockedCreated.length,
+    blockedUpdated: plan.blockedUpdated.length,
+  };
+
+  const updatedRunMetadata: ConstituentImportRunMetadata = {
+    ...metadata,
+    rolledBackAt,
+    rolledBackBy: req.user?.sub,
+    rollbackSummary,
+  };
+
+  await prisma.auditLog.update({
+    where: { id: runLog.id },
+    data: { metadata: updatedRunMetadata as unknown as Prisma.InputJsonValue },
+  });
+
+  await logAudit({
+    action: "CONSTITUENT_IMPORT_RUN_ROLLBACK",
+    entity: "ConstituentImportRun",
+    entityId: runId,
+    userId: req.user?.sub,
+    organizationId,
+    metadata: {
+      deletedCreated: rollbackSummary.deletedCreated,
+      restoredUpdated: rollbackSummary.restoredUpdated,
+      blockedCreated: rollbackSummary.blockedCreated,
+      blockedUpdated: rollbackSummary.blockedUpdated,
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({ runId, rolledBackAt, ...rollbackSummary });
 });
 
 /** POST /api/constituents/merge — Review-approved merge of one duplicate constituent into a kept record. */

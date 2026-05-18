@@ -50,9 +50,28 @@ function formatEventDate(value?: string | null): string {
   });
 }
 
-function fallbackEventPageUrl(eventName?: string | null): string {
-  if (!eventName) return "https://oyamachurch.org/events";
-  return `https://oyamachurch.org/events/${slugify(eventName)}`;
+function fallbackEventPageSlug(eventName?: string | null): string {
+  if (!eventName) return "event-page";
+  return slugify(eventName) || "event-page";
+}
+
+function resolveRuntimeOrigin(): string {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin.replace(/\/$/, "");
+  }
+
+  const configured = String(process.env.NEXT_PUBLIC_APP_URL ?? "").trim();
+  if (configured) {
+    return configured.replace(/\/$/, "");
+  }
+
+  return "http://localhost:3000";
+}
+
+function buildEventPageUrl(origin: string, pageSlug: string): string {
+  const normalizedOrigin = origin.replace(/\/$/, "");
+  const normalizedSlug = slugify(pageSlug) || "event-page";
+  return `${normalizedOrigin}/${normalizedSlug}`;
 }
 
 function moveSectionOrder(
@@ -83,12 +102,21 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
   const [selectedSectionId, setSelectedSectionId] = useState<EventPageSectionId>(EVENT_PAGE_SECTION_DEFINITIONS[0].id);
   const [pageStatus, setPageStatus] = useState<EventPageStatus>("Draft");
   const [lastPublishedAt, setLastPublishedAt] = useState<string | null>(null);
-  const [publicUrl, setPublicUrl] = useState<string>("https://oyamachurch.org/events");
-  const [pageUrlDraft, setPageUrlDraft] = useState<string>("https://oyamachurch.org/events");
+  const [baseOrigin, setBaseOrigin] = useState<string>(resolveRuntimeOrigin());
+  const [pageSlug, setPageSlug] = useState<string>("event-page");
+  const [pageSlugDraft, setPageSlugDraft] = useState<string>("event-page");
   const [saveUrlPending, setSaveUrlPending] = useState(false);
   const [urlFeedback, setUrlFeedback] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const resolvedDraftSlug = useMemo(() => {
+    const normalized = slugify(pageSlugDraft);
+    return normalized || pageSlug;
+  }, [pageSlug, pageSlugDraft]);
+
+  const publicUrl = useMemo(() => buildEventPageUrl(baseOrigin, pageSlug), [baseOrigin, pageSlug]);
+  const draftPreviewUrl = useMemo(() => buildEventPageUrl(baseOrigin, resolvedDraftSlug), [baseOrigin, resolvedDraftSlug]);
 
   useEffect(() => {
     let active = true;
@@ -96,6 +124,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
     async function loadWorkspaceData() {
       setLoading(true);
       setError(null);
+      const runtimeOrigin = resolveRuntimeOrigin();
 
       try {
         const [eventData, ticketData, sponsorData, reportData, eventsData, pageConfig] = await Promise.all([
@@ -115,9 +144,11 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         setReport(reportData);
         setEvents(Array.isArray(eventsData) ? eventsData : []);
 
-        const resolvedUrl = pageConfig?.pageUrl?.trim() || fallbackEventPageUrl(eventData.name);
-        setPublicUrl(resolvedUrl);
-        setPageUrlDraft(resolvedUrl);
+        const resolvedOrigin = String(pageConfig?.baseOrigin ?? runtimeOrigin).trim().replace(/\/$/, "") || runtimeOrigin;
+        const resolvedSlug = slugify(pageConfig?.pageSlug ?? "") || fallbackEventPageSlug(eventData.name);
+        setBaseOrigin(resolvedOrigin);
+        setPageSlug(resolvedSlug);
+        setPageSlugDraft(resolvedSlug);
         setPageStatus(pageConfig?.status ?? "Draft");
         setLastPublishedAt(pageConfig?.lastPublishedAt ?? null);
       } catch (requestError) {
@@ -149,13 +180,13 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
 
   function handlePreview() {
     if (typeof window === "undefined") return;
-    window.open(publicUrl, "_blank", "noopener,noreferrer");
+    window.open(draftPreviewUrl, "_blank", "noopener,noreferrer");
   }
 
-  async function handleSavePageUrl() {
-    const nextUrl = pageUrlDraft.trim();
-    if (!nextUrl) {
-      setUrlFeedback("Enter a full URL before saving.");
+  async function handleSavePageSlug() {
+    const nextSlug = slugify(pageSlugDraft);
+    if (!nextSlug) {
+      setUrlFeedback("Enter a slug with letters or numbers before saving.");
       return;
     }
 
@@ -164,15 +195,17 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
     try {
       const updated = await apiFetch<EventPageBuilderConfig>(`/api/events/${eventId}/page-builder-config`, {
         method: "PATCH",
-        body: JSON.stringify({ pageUrl: nextUrl }),
+        body: JSON.stringify({ pageSlug: nextSlug }),
       });
-      setPublicUrl(updated.pageUrl);
-      setPageUrlDraft(updated.pageUrl);
+      const updatedOrigin = String(updated.baseOrigin ?? baseOrigin).trim().replace(/\/$/, "") || baseOrigin;
+      setBaseOrigin(updatedOrigin);
+      setPageSlug(updated.pageSlug);
+      setPageSlugDraft(updated.pageSlug);
       setPageStatus(updated.status);
       setLastPublishedAt(updated.lastPublishedAt);
-      setUrlFeedback("Event page URL saved.");
+      setUrlFeedback("Event page slug saved.");
     } catch (saveError) {
-      setUrlFeedback(saveError instanceof Error ? saveError.message : "Failed to save event page URL.");
+      setUrlFeedback(saveError instanceof Error ? saveError.message : "Failed to save event page slug.");
     } finally {
       setSaveUrlPending(false);
     }
@@ -243,14 +276,15 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
 
       <EventPageBuilderTopBar
         eventName={event.name}
-        publicUrl={publicUrl}
-        pageUrlDraft={pageUrlDraft}
+        resolvedPageUrl={draftPreviewUrl}
+        pageSlug={pageSlug}
+        pageSlugDraft={pageSlugDraft}
         saveUrlPending={saveUrlPending}
         urlFeedback={urlFeedback}
         status={pageStatus}
         lastPublishedAt={lastPublishedAt}
-        onPageUrlDraftChange={setPageUrlDraft}
-        onSavePageUrl={handleSavePageUrl}
+        onPageSlugDraftChange={setPageSlugDraft}
+        onSavePageSlug={handleSavePageSlug}
         onPreview={handlePreview}
         onPublishToggle={handlePublishToggle}
       />
@@ -273,7 +307,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
             ticketTypes,
             sponsors,
             report,
-            publicUrl,
+            publicUrl: draftPreviewUrl,
           }}
         />
 

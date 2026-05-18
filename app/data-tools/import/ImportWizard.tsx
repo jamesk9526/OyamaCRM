@@ -3,8 +3,8 @@
 // Handles file upload, smart header detection, field mapping, validation, and import.
 // Sub-components: CircularProgress, StatCard, StepperSidebar, FieldDetailsPanel.
 
-import { useState, useRef, useCallback, useMemo, Fragment } from "react";
-import { CRM_CONSTITUENT_FIELDS, AUTO_MAP_ALIASES, FIELD_GROUPS, detectChurchValues } from "./fieldMap";
+import { useState, useRef, useCallback, useMemo, useEffect, Fragment } from "react";
+import { CRM_CONSTITUENT_FIELDS, FIELD_GROUPS, detectChurchValues, getConstituentAutoMapField } from "./fieldMap";
 import type { CrmField } from "./fieldMap";
 import { parseCSV, computeColumnStats } from "./csvParser";
 import type { CsvParseResult, ColumnStats, RawRow } from "./csvParser";
@@ -37,6 +37,56 @@ interface ValidationResult {
   valid: MappedRow[];
   errors: Array<{ row: number; field: string; message: string }>;
   warnings: string[];
+}
+
+interface ImportResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: number;
+  dryRun: boolean;
+  duplicatesInFile?: number;
+  importRunId?: string;
+  rollbackSupported?: boolean;
+  rollbackEligibleUntil?: string;
+  audienceRecipients?: number;
+  audienceSegments?: number;
+}
+
+interface ImportRollbackPreview {
+  runId: string;
+  rollbackSupported: boolean;
+  alreadyRolledBack: boolean;
+  rollbackEligibleUntil: string;
+  confirmationText: string;
+  canRollback: boolean;
+  summary: {
+    trackedCreated: number;
+    trackedUpdated: number;
+    canDeleteCreated: number;
+    canRestoreUpdated: number;
+    blockedCreated: number;
+    blockedUpdated: number;
+  };
+  blockedReasons: string[];
+  blockedCreated: Array<{ id: string; reason: string }>;
+  blockedUpdated: Array<{ id: string; reason: string }>;
+}
+
+interface ImportHistoryItem {
+  runId: string;
+  mode: ImportMode;
+  recordCount: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: number;
+  duplicatesInFile: number;
+  rollbackSupported: boolean;
+  rollbackTrackingTruncated: boolean;
+  rollbackEligibleUntil: string;
+  rolledBackAt: string | null;
+  createdAt: string;
 }
 
 /** Minimal constituent shape for client-side duplicate detection */
@@ -89,14 +139,14 @@ const STATUS_DISPLAY: Record<MappingStatus, { label: string; badge: string; row:
 function autoMap(headers: string[]): FieldMapping {
   const m: FieldMapping = {};
   for (const h of headers) {
-    m[h] = AUTO_MAP_ALIASES[h.toLowerCase().trim()] ?? "skip";
+    m[h] = getConstituentAutoMapField(h) ?? "skip";
   }
   return m;
 }
 
 /**
  * getMappingStatus: computes the visual status for a single CSV column's current mapping.
- * Uses AUTO_MAP_ALIASES to infer what the column "should" be, then evaluates the actual assignment.
+ * Uses normalized alias detection to infer what the column "should" be, then evaluates the current assignment.
  *
  * Rules:
  * - Mapped to a sensitive CRM field          -> "sensitive"
@@ -106,7 +156,7 @@ function autoMap(headers: string[]): FieldMapping {
  * - Skipped with no notable alias            -> "unmapped"
  */
 function getMappingStatus(csvHeader: string, crmKey: string): MappingStatus {
-  const aliasKey = AUTO_MAP_ALIASES[csvHeader.toLowerCase().trim()];
+  const aliasKey = getConstituentAutoMapField(csvHeader);
   const targetField = CRM_CONSTITUENT_FIELDS.find((f) => f.key === crmKey);
   const aliasField = aliasKey ? CRM_CONSTITUENT_FIELDS.find((f) => f.key === aliasKey) : undefined;
 
@@ -140,6 +190,13 @@ function normalizeCommunicationPreferenceValue(csvColumn: string, raw: string): 
     return /^(true|yes|1|y)$/i.test(raw.trim()) ? "Do Not Email" : "";
   }
   return raw.split(/[,;]+/).map((value) => value.trim()).filter(Boolean).join(";");
+}
+
+function normalizeBooleanLikeValue(raw: string): "true" | "false" | "" {
+  const normalized = raw.trim().toLowerCase();
+  if (["true", "yes", "y", "1"].includes(normalized)) return "true";
+  if (["false", "no", "n", "0"].includes(normalized)) return "false";
+  return "";
 }
 
 function appendUniqueTokens(current: string | undefined, next: string): string {
@@ -191,10 +248,19 @@ function validateAndTransform(
         value = formatPhone(value);
       } else if (crmKey === "state") {
         value = value.toUpperCase().slice(0, 2);
-      } else if (crmKey === "holdMail") {
-        value = value.toLowerCase() === "true" ? "true" : "false";
-      } else if (crmKey === "deceased" || crmKey === "spouseDeceased") {
-        value = value.toLowerCase() === "yes" || value.toLowerCase() === "true" ? "true" : "false";
+      } else if (
+        crmKey === "holdMail"
+        || crmKey === "doNotMail"
+        || crmKey === "doNotEmail"
+        || crmKey === "doNotCall"
+        || crmKey === "doNotContact"
+        || crmKey === "emailOptOut"
+        || crmKey === "deceased"
+        || crmKey === "spouseDeceased"
+      ) {
+        const normalizedBool = normalizeBooleanLikeValue(value);
+        if (!normalizedBool) continue;
+        value = normalizedBool;
       } else if (crmKey === "communicationPreferences") {
         value = normalizeCommunicationPreferenceValue(csvCol, value);
         if (value !== "") {
@@ -463,10 +529,14 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
 
   // ── Step 5: Import result ────────────────────────────────────────────────
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{
-    created: number; updated: number; skipped: number; errors: number; audienceRecipients?: number; audienceSegments?: number;
-  } | null>(null);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [rollbackPreview, setRollbackPreview] = useState<ImportRollbackPreview | null>(null);
+  const [rollbackBusy, setRollbackBusy] = useState(false);
+  const [rollbackError, setRollbackError] = useState<string | null>(null);
+  const [rollbackSuccess, setRollbackSuccess] = useState<string | null>(null);
+  const [importHistory, setImportHistory] = useState<ImportHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   // ── Derived / memoized values ─────────────────────────────────────────────
 
@@ -543,6 +613,84 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
     return w;
   }, [parseResult, columnStats]);
 
+  const loadImportHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const response = await apiFetch<{ items?: ImportHistoryItem[] }>("/api/constituents/import/history?limit=6");
+      setImportHistory(Array.isArray(response.items) ? response.items : []);
+    } catch {
+      setImportHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadImportHistory();
+  }, [loadImportHistory]);
+
+  async function previewRollback() {
+    const runId = importResult?.importRunId;
+    if (!runId) return;
+    setRollbackBusy(true);
+    setRollbackError(null);
+    setRollbackSuccess(null);
+    try {
+      const preview = await apiFetch<ImportRollbackPreview>(`/api/constituents/import/${runId}/rollback/preview`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      setRollbackPreview(preview);
+    } catch (err) {
+      setRollbackError(err instanceof Error ? err.message : "Failed to load rollback preview.");
+    } finally {
+      setRollbackBusy(false);
+    }
+  }
+
+  async function executeRollback() {
+    const runId = importResult?.importRunId;
+    if (!runId) return;
+
+    const confirmationText = `ROLLBACK-CONSTITUENT-IMPORT:${runId}`;
+    const typed = window.prompt(`Type ${confirmationText} to confirm rollback:`);
+    if (typed === null) return;
+
+    setRollbackBusy(true);
+    setRollbackError(null);
+    setRollbackSuccess(null);
+    try {
+      const result = await apiFetch<{
+        runId: string;
+        rolledBackAt: string;
+        deletedCreated: number;
+        restoredUpdated: number;
+        blockedCreated: number;
+        blockedUpdated: number;
+      }>(`/api/constituents/import/${runId}/rollback`, {
+        method: "POST",
+        body: JSON.stringify({ confirm: true, confirmationText: typed.trim() }),
+      });
+
+      setRollbackSuccess(
+        `Rollback completed. Deleted ${result.deletedCreated} created record(s) and restored ${result.restoredUpdated} updated record(s).`,
+      );
+      setRollbackPreview((prev) => prev
+        ? {
+            ...prev,
+            alreadyRolledBack: true,
+            canRollback: false,
+          }
+        : prev);
+      setImportResult((prev) => (prev ? { ...prev, rollbackSupported: false } : prev));
+      await loadImportHistory();
+    } catch (err) {
+      setRollbackError(err instanceof Error ? err.message : "Rollback failed.");
+    } finally {
+      setRollbackBusy(false);
+    }
+  }
+
   // ── File handling ─────────────────────────────────────────────────────────
 
   /**
@@ -610,9 +758,11 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
     if (!validationResult) return;
     setImporting(true);
     setImportError(null);
+    setRollbackPreview(null);
+    setRollbackError(null);
+    setRollbackSuccess(null);
     try {
-      // TODO: add import history + rollback endpoint integration before production.
-      const res = await apiFetch<{ created: number; updated: number; skipped: number; errors: number }>(
+      const res = await apiFetch<ImportResult>(
         "/api/constituents/import",
         {
           method: "POST",
@@ -650,7 +800,14 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
           }),
         })));
       }
-      setImportResult({ ...res, audienceRecipients: !dryRun && addToAudienceList ? recipientEmails.length : undefined, audienceSegments: !dryRun && addToAudienceList ? segmentLists.length : undefined });
+      setImportResult({
+        ...res,
+        audienceRecipients: !dryRun && addToAudienceList ? recipientEmails.length : undefined,
+        audienceSegments: !dryRun && addToAudienceList ? segmentLists.length : undefined,
+      });
+      if (!dryRun) {
+        await loadImportHistory();
+      }
     } catch (err) {
       setImportError(err instanceof Error ? err.message : "Import failed. Please try again.");
     } finally {
@@ -1340,33 +1497,125 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
 
     // Show results after a completed import
     if (importResult) {
+      const isDryRunResult = importResult.dryRun ?? dryRun;
       return (
-        <div className="flex flex-col items-center gap-6 py-8">
-          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center text-3xl">
-            {dryRun ? "🔬" : "✅"}
+        <div className="flex flex-col gap-6 py-8">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center text-3xl">
+              {isDryRunResult ? "🔬" : "✅"}
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">
+                {isDryRunResult ? "Dry Run Complete" : "Import Complete!"}
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {isDryRunResult
+                  ? "No data was saved. Review results below, then turn off Dry Run to import for real."
+                  : "Records have been saved to the CRM."}
+              </p>
+            </div>
           </div>
-          <div className="text-center">
-            <h2 className="text-xl font-bold text-gray-800">
-              {dryRun ? "Dry Run Complete" : "Import Complete!"}
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">
-              {dryRun
-                ? "No data was saved. Review results below, then turn off Dry Run to import for real."
-                : "Records have been saved to the CRM."}
-            </p>
-          </div>
-          <div className="grid grid-cols-4 gap-4 w-full max-w-lg">
+
+          <div className="grid grid-cols-5 gap-4 w-full">
             <StatCard label="Created" value={importResult.created} accent="text-green-600" />
             <StatCard label="Updated" value={importResult.updated} accent="text-blue-600" />
             <StatCard label="Skipped" value={importResult.skipped} />
             <StatCard label="Errors" value={importResult.errors} accent={importResult.errors > 0 ? "text-red-600" : "text-gray-400"} />
+            <StatCard label="In-File Dups" value={importResult.duplicatesInFile ?? 0} accent={(importResult.duplicatesInFile ?? 0) > 0 ? "text-amber-600" : "text-gray-400"} />
           </div>
+
           {typeof importResult.audienceRecipients === "number" && (
             <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
               Contacts Manager audience list created with {importResult.audienceRecipients.toLocaleString()} imported email recipient{importResult.audienceRecipients === 1 ? "" : "s"}.
               {typeof importResult.audienceSegments === "number" && importResult.audienceSegments > 0 ? ` ${importResult.audienceSegments} auto-segment list${importResult.audienceSegments === 1 ? "" : "s"} also created.` : ""}
             </div>
           )}
+
+          {!isDryRunResult && importResult.importRunId && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+              <p className="font-semibold">Import Run Safety Controls</p>
+              <p className="mt-1 text-xs text-blue-700">Run ID: <span className="font-mono">{importResult.importRunId}</span></p>
+              {importResult.rollbackEligibleUntil && (
+                <p className="text-xs text-blue-700">Rollback eligible until: {new Date(importResult.rollbackEligibleUntil).toLocaleString()}</p>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void previewRollback()}
+                  disabled={rollbackBusy}
+                  className="rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100 disabled:opacity-50"
+                >
+                  {rollbackBusy ? "Working..." : "Preview Rollback"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void executeRollback()}
+                  disabled={rollbackBusy || !rollbackPreview || !rollbackPreview.canRollback}
+                  className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                >
+                  Execute Rollback
+                </button>
+              </div>
+            </div>
+          )}
+
+          {rollbackError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              ❌ {rollbackError}
+            </div>
+          )}
+
+          {rollbackSuccess && (
+            <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+              ✅ {rollbackSuccess}
+            </div>
+          )}
+
+          {rollbackPreview && (
+            <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800">
+              <p className="font-semibold">Rollback Preview</p>
+              <p className="mt-1 text-xs text-gray-600">
+                Can delete {rollbackPreview.summary.canDeleteCreated} created record(s) and restore {rollbackPreview.summary.canRestoreUpdated} updated record(s).
+              </p>
+              {(rollbackPreview.summary.blockedCreated > 0 || rollbackPreview.summary.blockedUpdated > 0) && (
+                <p className="mt-1 text-xs text-amber-700">
+                  {rollbackPreview.summary.blockedCreated} created and {rollbackPreview.summary.blockedUpdated} updated record(s) are blocked by safety checks.
+                </p>
+              )}
+              {rollbackPreview.blockedReasons.length > 0 && (
+                <ul className="mt-2 list-disc pl-5 text-xs text-gray-600">
+                  {rollbackPreview.blockedReasons.map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-gray-900">Recent Import Runs</p>
+              {historyLoading && <span className="text-xs text-gray-500">Loading...</span>}
+            </div>
+            {importHistory.length === 0 ? (
+              <p className="mt-2 text-xs text-gray-500">No live import history found yet.</p>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {importHistory.map((item) => (
+                  <div key={item.runId} className="rounded border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                    <p className="font-mono text-[11px] text-gray-600">{item.runId}</p>
+                    <p className="mt-1">
+                      {item.mode.replace("_", " ")} · {item.created} created · {item.updated} updated · {item.skipped} skipped · {item.errors} errors
+                    </p>
+                    <p className="text-gray-500">
+                      {item.rolledBackAt ? `Rolled back ${new Date(item.rolledBackAt).toLocaleString()}` : `Created ${new Date(item.createdAt).toLocaleString()}`}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <button
             onClick={() => {
               setStep(1);
@@ -1375,8 +1624,11 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
               setValidationResult(null);
               setImportResult(null);
               setImportError(null);
+              setRollbackPreview(null);
+              setRollbackError(null);
+              setRollbackSuccess(null);
             }}
-            className="px-5 py-2 border border-gray-200 text-sm text-gray-700 rounded-lg hover:bg-gray-50"
+            className="self-center px-5 py-2 border border-gray-200 text-sm text-gray-700 rounded-lg hover:bg-gray-50"
           >
             Start New Import
           </button>

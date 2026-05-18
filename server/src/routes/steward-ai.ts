@@ -33,6 +33,19 @@ import {
 } from "../services/steward-tool-registry.js";
 import { searchStewardHelpGuides } from "../services/steward-help-knowledge.js";
 import { fmtDate } from "../services/steward-donor-context.js";
+import {
+  buildFileContext,
+  buildUserMemoryContext,
+  createContentHash,
+  getOrCreateAiMemoryPreference,
+  jsonTags,
+  normalizeMemoryCategory,
+  normalizeTags,
+  normalizeWorkspaceScope,
+  replaceContextChunks,
+  safeText as safeMemoryText,
+  saveExplicitMemoryFromText,
+} from "../services/steward-memory-context.js";
 import type { Prisma } from "@prisma/client";
 import type { Router as ExpressRouter } from "express";
 
@@ -157,6 +170,28 @@ interface StewardToolExecutePayload {
   confirm?: boolean;
   moduleKey?: "donor" | "oshareview";
   scopePath?: string;
+}
+
+interface AiMemoryPayload {
+  title?: string;
+  content?: string;
+  category?: string;
+  source?: string;
+  confidence?: number;
+  active?: boolean;
+  workspaceScope?: string | null;
+}
+
+interface AiContextFilePayload {
+  fileName?: string;
+  displayName?: string;
+  mimeType?: string;
+  fileType?: string;
+  sizeBytes?: number;
+  workspaceScope?: string | null;
+  description?: string | null;
+  tags?: string[] | string;
+  extractedText?: string | null;
 }
 
 type StewardChatMode = NonNullable<StewardAiChatPayload["mode"]>;
@@ -577,6 +612,66 @@ function parseScopeIdentifiers(scopePath: string): { clientId?: string; eventId?
     return { constituentId: parts[1] };
   }
   return {};
+}
+
+function scopeFromModuleKey(moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>): string {
+  if (moduleKey === "oshareview") return "donor";
+  return moduleKey;
+}
+
+function publicMemory(row: {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  source: string;
+  confidence: number;
+  active: boolean;
+  workspaceScope: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    ...row,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function publicContextFile(row: {
+  id: string;
+  fileName: string;
+  displayName: string;
+  mimeType: string;
+  fileType: string;
+  sizeBytes: number;
+  workspaceScope: string | null;
+  description: string | null;
+  tags: Prisma.JsonValue;
+  indexingStatus: string;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  indexedAt: Date | null;
+  _count?: { chunks: number };
+}) {
+  return {
+    id: row.id,
+    fileName: row.fileName,
+    displayName: row.displayName,
+    mimeType: row.mimeType,
+    fileType: row.fileType,
+    sizeBytes: row.sizeBytes,
+    workspaceScope: row.workspaceScope,
+    description: row.description,
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    indexingStatus: row.indexingStatus,
+    active: row.active,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+    indexedAt: row.indexedAt?.toISOString() ?? null,
+    chunkCount: row._count?.chunks ?? 0,
+  };
 }
 
 /** Returns true when a donor question clearly asks for top/major donor ranking. */
@@ -1389,6 +1484,10 @@ function buildRuntimeSystemPrompt(options: {
     "10. Never dump raw CRM record lines into the final answer unless the user explicitly asked for a record list.",
     "11. For numeric questions, do not estimate. Use deterministic values from context and show exact formulas when relevant.",
     "12. When a full email or letter build is requested, include one suggested action using actionType 'communications.build_full_email_workspace' or 'letters.build_full_letter_draft' with payload fields (goal/audience/tone/campaignName or name/subject/category).",
+    "13. Treat context as four layers: current session messages, saved user memories, uploaded file context, and live CRM tool data.",
+    "14. Do not guess from memory when the user asks about a donor, event, client, report, or uploaded document; use retrieved CRM/file context as the source of truth and name missing context clearly.",
+    "15. Only durable facts should become saved memories: stable preferences, organization facts, writing style, recurring workflows, project names, CRM settings, and long-term event details. Never save every chat message or short-term tasks.",
+    "16. Sensitive personal data should not be saved as memory unless the user explicitly asks and it clearly improves future work.",
     "Required response contract:",
     options.responseContract,
     structuredProtocol,
@@ -1674,6 +1773,35 @@ async function buildRetrievalContext(params: {
       mentionedConstituentIds: params.mentionedConstituentIds,
     });
   }
+
+  const workspaceScope = scopeFromModuleKey(params.moduleKey);
+  const [memoryContext, fileContext] = await Promise.all([
+    buildUserMemoryContext({
+      organizationId: params.organizationId,
+      userId: params.userId,
+      userQuery: params.userQuery,
+      workspaceScope,
+      limit: 8,
+    }),
+    buildFileContext({
+      organizationId: params.organizationId,
+      userId: params.userId,
+      userQuery: params.userQuery,
+      workspaceScope,
+      limit: 6,
+    }),
+  ]);
+
+  base = {
+    contextText: [
+      base.contextText,
+      "Context layer policy: session context is temporary; saved memories are user-specific; uploaded file context is user-managed; CRM data remains live tool context.",
+      memoryContext.contextText,
+      fileContext.contextText,
+    ].join("\n"),
+    toolsUsed: [...base.toolsUsed, ...memoryContext.toolsUsed, ...fileContext.toolsUsed],
+    recordsUsed: [...base.recordsUsed, ...memoryContext.recordsUsed, ...fileContext.recordsUsed],
+  };
 
   if (params.mode !== "help") {
     return base;
@@ -2018,6 +2146,516 @@ router.put("/config", requireRole("admin"), async (req, res) => {
   res.json({
     data: toPublicConfig(enabled, nextConfig),
   });
+});
+
+/** GET /api/steward-ai/memory/preferences — Returns per-user memory controls. */
+router.get("/memory/preferences", async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Authentication is required." } });
+    return;
+  }
+
+  const preference = await getOrCreateAiMemoryPreference(organizationId, userId);
+  res.json({
+    data: {
+      memoryEnabled: preference.memoryEnabled,
+      fileContextEnabled: preference.fileContextEnabled,
+      updatedAt: preference.updatedAt.toISOString(),
+    },
+  });
+});
+
+/** PUT /api/steward-ai/memory/preferences — Updates per-user memory controls. */
+router.put("/memory/preferences", async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Authentication is required." } });
+    return;
+  }
+
+  const body = req.body as { memoryEnabled?: boolean; fileContextEnabled?: boolean };
+  const preference = await getOrCreateAiMemoryPreference(organizationId, userId);
+  const updated = await prisma.aiMemoryPreference.update({
+    where: { id: preference.id },
+    data: {
+      memoryEnabled: typeof body.memoryEnabled === "boolean" ? body.memoryEnabled : preference.memoryEnabled,
+      fileContextEnabled: typeof body.fileContextEnabled === "boolean" ? body.fileContextEnabled : preference.fileContextEnabled,
+    },
+  });
+
+  await logAudit({
+    action: "STEWARD_MEMORY_PREFERENCES_UPDATED",
+    entity: "AiMemoryPreference",
+    entityId: updated.id,
+    userId,
+    organizationId,
+    metadata: {
+      memoryEnabled: updated.memoryEnabled,
+      fileContextEnabled: updated.fileContextEnabled,
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({
+    data: {
+      memoryEnabled: updated.memoryEnabled,
+      fileContextEnabled: updated.fileContextEnabled,
+      updatedAt: updated.updatedAt.toISOString(),
+    },
+  });
+});
+
+/** GET /api/steward-ai/memories — Lists current user's saved memories. */
+router.get("/memories", async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Authentication is required." } });
+    return;
+  }
+
+  const q = asSafeText(req.query.q, "", 160);
+  const category = normalizeMemoryCategory(req.query.category);
+  const hasCategory = typeof req.query.category === "string" && req.query.category.trim().length > 0;
+  const workspaceScope = normalizeWorkspaceScope(req.query.workspaceScope);
+  const activeRaw = String(req.query.active ?? "all").toLowerCase();
+
+  const memories = await prisma.aiUserMemory.findMany({
+    where: {
+      organizationId,
+      userId,
+      ...(activeRaw === "true" ? { active: true } : activeRaw === "false" ? { active: false } : {}),
+      ...(hasCategory ? { category } : {}),
+      ...(workspaceScope ? { workspaceScope } : {}),
+      ...(q ? {
+        OR: [
+          { title: { contains: q } },
+          { content: { contains: q } },
+        ],
+      } : {}),
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 200,
+  });
+
+  res.json({ data: memories.map(publicMemory) });
+});
+
+/** POST /api/steward-ai/memories — Manually creates a user memory. */
+router.post("/memories", async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Authentication is required." } });
+    return;
+  }
+
+  const payload = req.body as AiMemoryPayload;
+  const content = asSafeText(payload.content, "", 2400);
+  if (content.length < 3) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Memory content is required." } });
+    return;
+  }
+
+  const memory = await prisma.aiUserMemory.create({
+    data: {
+      organizationId,
+      userId,
+      title: asSafeText(payload.title, content.split(/[.!?\n]/)[0] || "Saved memory", 160),
+      content,
+      category: normalizeMemoryCategory(payload.category),
+      source: asSafeText(payload.source, "manual", 60),
+      confidence: typeof payload.confidence === "number" ? Math.min(Math.max(payload.confidence, 0), 1) : 1,
+      active: payload.active !== false,
+      workspaceScope: normalizeWorkspaceScope(payload.workspaceScope),
+    },
+  });
+
+  await logAudit({
+    action: "STEWARD_MEMORY_CREATED",
+    entity: "AiUserMemory",
+    entityId: memory.id,
+    userId,
+    organizationId,
+    metadata: { category: memory.category, source: memory.source, workspaceScope: memory.workspaceScope },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.status(201).json({ data: publicMemory(memory) });
+});
+
+/** POST /api/steward-ai/memory-tool/save — Dedicated LLM/tool endpoint for saving durable memories. */
+router.post("/memory-tool/save", async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Authentication is required." } });
+    return;
+  }
+
+  const preference = await getOrCreateAiMemoryPreference(organizationId, userId);
+  if (!preference.memoryEnabled) {
+    res.status(409).json({ error: { code: "MEMORY_DISABLED", message: "Memory is disabled for this user." } });
+    return;
+  }
+
+  const payload = req.body as AiMemoryPayload;
+  const content = asSafeText(payload.content, "", 2400);
+  if (content.length < 12) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Memory tool requires durable, reusable content." } });
+    return;
+  }
+
+  const memory = await prisma.aiUserMemory.create({
+    data: {
+      organizationId,
+      userId,
+      title: asSafeText(payload.title, content.split(/[.!?\n]/)[0] || "Steward saved memory", 160),
+      content,
+      category: normalizeMemoryCategory(payload.category),
+      source: asSafeText(payload.source, "llm_memory_tool", 60),
+      confidence: typeof payload.confidence === "number" ? Math.min(Math.max(payload.confidence, 0), 1) : 0.75,
+      active: payload.active !== false,
+      workspaceScope: normalizeWorkspaceScope(payload.workspaceScope),
+    },
+  });
+
+  await logAudit({
+    action: "STEWARD_MEMORY_TOOL_SAVED",
+    entity: "AiUserMemory",
+    entityId: memory.id,
+    userId,
+    organizationId,
+    metadata: { category: memory.category, source: memory.source, confidence: memory.confidence },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.status(201).json({ data: publicMemory(memory) });
+});
+
+/** PUT /api/steward-ai/memories/:id — Edits or disables one memory. */
+router.put("/memories/:id", async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Authentication is required." } });
+    return;
+  }
+
+  const existing = await prisma.aiUserMemory.findFirst({
+    where: { id: req.params.id, organizationId, userId },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Memory not found." } });
+    return;
+  }
+
+  const payload = req.body as AiMemoryPayload;
+  const updated = await prisma.aiUserMemory.update({
+    where: { id: existing.id },
+    data: {
+      title: payload.title !== undefined ? asSafeText(payload.title, existing.title, 160) : existing.title,
+      content: payload.content !== undefined ? asSafeText(payload.content, existing.content, 2400) : existing.content,
+      category: payload.category !== undefined ? normalizeMemoryCategory(payload.category) : existing.category,
+      active: typeof payload.active === "boolean" ? payload.active : existing.active,
+      workspaceScope: payload.workspaceScope !== undefined ? normalizeWorkspaceScope(payload.workspaceScope) : existing.workspaceScope,
+    },
+  });
+
+  await logAudit({
+    action: "STEWARD_MEMORY_UPDATED",
+    entity: "AiUserMemory",
+    entityId: updated.id,
+    userId,
+    organizationId,
+    metadata: { active: updated.active, category: updated.category, workspaceScope: updated.workspaceScope },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({ data: publicMemory(updated) });
+});
+
+/** DELETE /api/steward-ai/memories/:id — Deletes one memory. */
+router.delete("/memories/:id", async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Authentication is required." } });
+    return;
+  }
+
+  const existing = await prisma.aiUserMemory.findFirst({
+    where: { id: req.params.id, organizationId, userId },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Memory not found." } });
+    return;
+  }
+
+  await prisma.aiUserMemory.delete({ where: { id: existing.id } });
+  await logAudit({
+    action: "STEWARD_MEMORY_DELETED",
+    entity: "AiUserMemory",
+    entityId: existing.id,
+    userId,
+    organizationId,
+    metadata: { title: existing.title },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({ data: { deleted: true } });
+});
+
+/** POST /api/steward-ai/memories/clear — Deletes all current-user memories. */
+router.post("/memories/clear", async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Authentication is required." } });
+    return;
+  }
+
+  const result = await prisma.aiUserMemory.deleteMany({ where: { organizationId, userId } });
+  await logAudit({
+    action: "STEWARD_MEMORY_CLEARED",
+    entity: "AiUserMemory",
+    userId,
+    organizationId,
+    metadata: { deletedCount: result.count },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({ data: { deletedCount: result.count } });
+});
+
+/** GET /api/steward-ai/context-files — Lists current user's AI Context Library. */
+router.get("/context-files", async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Authentication is required." } });
+    return;
+  }
+
+  const q = asSafeText(req.query.q, "", 160);
+  const workspaceScope = normalizeWorkspaceScope(req.query.workspaceScope);
+  const files = await prisma.aiContextFile.findMany({
+    where: {
+      organizationId,
+      userId,
+      ...(workspaceScope ? { workspaceScope } : {}),
+      ...(q ? {
+        OR: [
+          { displayName: { contains: q } },
+          { fileName: { contains: q } },
+          { description: { contains: q } },
+        ],
+      } : {}),
+    },
+    include: { _count: { select: { chunks: true } } },
+    orderBy: { updatedAt: "desc" },
+    take: 200,
+  });
+
+  res.json({ data: files.map(publicContextFile) });
+});
+
+/** POST /api/steward-ai/context-files — Uploads/indexes a text-extracted context file. */
+router.post("/context-files", async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Authentication is required." } });
+    return;
+  }
+
+  const payload = req.body as AiContextFilePayload;
+  const fileName = asSafeText(payload.fileName, "", 255);
+  if (!fileName) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "fileName is required." } });
+    return;
+  }
+
+  const extractedText = safeMemoryText(payload.extractedText, "", 250000);
+  const description = safeMemoryText(payload.description, "", 4000);
+  const tags = normalizeTags(payload.tags);
+  const file = await prisma.aiContextFile.create({
+    data: {
+      organizationId,
+      userId,
+      fileName,
+      displayName: asSafeText(payload.displayName, fileName, 255),
+      mimeType: asSafeText(payload.mimeType, "application/octet-stream", 120),
+      fileType: asSafeText(payload.fileType, "unknown", 40),
+      sizeBytes: typeof payload.sizeBytes === "number" && Number.isFinite(payload.sizeBytes)
+        ? Math.max(0, Math.floor(payload.sizeBytes))
+        : 0,
+      workspaceScope: normalizeWorkspaceScope(payload.workspaceScope),
+      description: description || null,
+      tags: jsonTags(tags),
+      indexingStatus: extractedText ? "pending" : "needs_text",
+      active: true,
+      extractedText: extractedText || null,
+      contentHash: extractedText ? createContentHash(extractedText) : null,
+    },
+    include: { _count: { select: { chunks: true } } },
+  });
+
+  if (extractedText) {
+    await replaceContextChunks({ organizationId, userId, fileId: file.id, extractedText });
+  }
+
+  const saved = await prisma.aiContextFile.findUniqueOrThrow({
+    where: { id: file.id },
+    include: { _count: { select: { chunks: true } } },
+  });
+
+  await logAudit({
+    action: "STEWARD_CONTEXT_FILE_UPLOADED",
+    entity: "AiContextFile",
+    entityId: saved.id,
+    userId,
+    organizationId,
+    metadata: { fileName: saved.fileName, indexingStatus: saved.indexingStatus, workspaceScope: saved.workspaceScope },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.status(201).json({ data: publicContextFile(saved) });
+});
+
+/** PUT /api/steward-ai/context-files/:id — Updates one context source. */
+router.put("/context-files/:id", async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Authentication is required." } });
+    return;
+  }
+
+  const existing = await prisma.aiContextFile.findFirst({
+    where: { id: req.params.id, organizationId, userId },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Context file not found." } });
+    return;
+  }
+
+  const payload = req.body as AiContextFilePayload & { active?: boolean };
+  const extractedText = payload.extractedText !== undefined ? safeMemoryText(payload.extractedText, "", 250000) : undefined;
+
+  const updated = await prisma.aiContextFile.update({
+    where: { id: existing.id },
+    data: {
+      displayName: payload.displayName !== undefined ? asSafeText(payload.displayName, existing.displayName, 255) : existing.displayName,
+      workspaceScope: payload.workspaceScope !== undefined ? normalizeWorkspaceScope(payload.workspaceScope) : existing.workspaceScope,
+      description: payload.description !== undefined ? safeMemoryText(payload.description, "", 4000) || null : existing.description,
+      tags: payload.tags !== undefined ? jsonTags(normalizeTags(payload.tags)) : (existing.tags as Prisma.InputJsonValue),
+      active: typeof payload.active === "boolean" ? payload.active : existing.active,
+      extractedText: extractedText !== undefined ? extractedText || null : existing.extractedText,
+      contentHash: extractedText !== undefined && extractedText ? createContentHash(extractedText) : existing.contentHash,
+      indexingStatus: extractedText !== undefined ? (extractedText ? "pending" : "needs_text") : existing.indexingStatus,
+    },
+    include: { _count: { select: { chunks: true } } },
+  });
+
+  if (extractedText !== undefined) {
+    await replaceContextChunks({ organizationId, userId, fileId: updated.id, extractedText });
+  }
+
+  const saved = await prisma.aiContextFile.findUniqueOrThrow({
+    where: { id: updated.id },
+    include: { _count: { select: { chunks: true } } },
+  });
+
+  await logAudit({
+    action: "STEWARD_CONTEXT_FILE_UPDATED",
+    entity: "AiContextFile",
+    entityId: saved.id,
+    userId,
+    organizationId,
+    metadata: { active: saved.active, indexingStatus: saved.indexingStatus, workspaceScope: saved.workspaceScope },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({ data: publicContextFile(saved) });
+});
+
+/** POST /api/steward-ai/context-files/:id/reindex — Rebuilds chunks from stored extracted text. */
+router.post("/context-files/:id/reindex", async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Authentication is required." } });
+    return;
+  }
+
+  const file = await prisma.aiContextFile.findFirst({ where: { id: req.params.id, organizationId, userId } });
+  if (!file) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Context file not found." } });
+    return;
+  }
+
+  await replaceContextChunks({ organizationId, userId, fileId: file.id, extractedText: file.extractedText ?? "" });
+  const saved = await prisma.aiContextFile.findUniqueOrThrow({
+    where: { id: file.id },
+    include: { _count: { select: { chunks: true } } },
+  });
+
+  await logAudit({
+    action: "STEWARD_CONTEXT_FILE_REINDEXED",
+    entity: "AiContextFile",
+    entityId: saved.id,
+    userId,
+    organizationId,
+    metadata: { indexingStatus: saved.indexingStatus, chunkCount: saved._count.chunks },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({ data: publicContextFile(saved) });
+});
+
+/** DELETE /api/steward-ai/context-files/:id — Deletes one context source and its chunks. */
+router.delete("/context-files/:id", async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Authentication is required." } });
+    return;
+  }
+
+  const existing = await prisma.aiContextFile.findFirst({
+    where: { id: req.params.id, organizationId, userId },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Context file not found." } });
+    return;
+  }
+
+  await prisma.aiContextFile.delete({ where: { id: existing.id } });
+  await logAudit({
+    action: "STEWARD_CONTEXT_FILE_DELETED",
+    entity: "AiContextFile",
+    entityId: existing.id,
+    userId,
+    organizationId,
+    metadata: { fileName: existing.fileName },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({ data: { deleted: true } });
 });
 
 /** POST /api/steward-ai/test — Verifies Ollama reachability for current config. Admin-only. */
@@ -2408,6 +3046,24 @@ router.post("/chat/stream", async (req, res) => {
         .filter(Boolean)
         .slice(0, 5)
     : [];
+  const explicitSavedMemory = await saveExplicitMemoryFromText({
+    organizationId,
+    userId: req.user?.sub ?? "",
+    text: latestUserMessage,
+    workspaceScope: scopeFromModuleKey(moduleKey),
+  }).catch(() => null);
+  if (explicitSavedMemory) {
+    await logAudit({
+      action: "STEWARD_MEMORY_EXPLICIT_CHAT_SAVED",
+      entity: "AiUserMemory",
+      entityId: explicitSavedMemory.id,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: { category: explicitSavedMemory.category, workspaceScope: explicitSavedMemory.workspaceScope },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+  }
 
   res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -2435,11 +3091,12 @@ router.post("/chat/stream", async (req, res) => {
         scopePath,
         requestRoute: req.path,
       });
+      const earlyToolsUsed = explicitSavedMemory ? [...topDonorResult.toolsUsed, "memory.saveExplicit"] : topDonorResult.toolsUsed;
       const templatedReply = formatReplyByMode({
         mode,
         userIntent,
         reply: topDonorResult.reply,
-        toolsUsed: topDonorResult.toolsUsed,
+        toolsUsed: earlyToolsUsed,
         recordsUsed: topDonorResult.recordsUsed,
       });
       const structured = buildTopDonorStructuredResponse(topDonorResult, templatedReply);
@@ -2452,7 +3109,7 @@ router.post("/chat/stream", async (req, res) => {
         mode,
         runtimeMode: config.mode,
         provider: "crm-data",
-        toolsUsed: topDonorResult.toolsUsed,
+        toolsUsed: earlyToolsUsed,
         recordsUsed: topDonorResult.recordsUsed,
         moduleKey,
         scopePath,
@@ -2472,6 +3129,7 @@ router.post("/chat/stream", async (req, res) => {
         requestRoute: req.path,
       });
       res.write(`${JSON.stringify({ type: "chunk", delta: reportResult.reply })}\n`);
+      const earlyToolsUsed = explicitSavedMemory ? [...reportResult.toolsUsed, "memory.saveExplicit"] : reportResult.toolsUsed;
       res.write(`${JSON.stringify({
         type: "done",
         reply: reportResult.reply,
@@ -2480,7 +3138,7 @@ router.post("/chat/stream", async (req, res) => {
         mode,
         runtimeMode: config.mode,
         provider: "crm-data",
-        toolsUsed: reportResult.toolsUsed,
+        toolsUsed: earlyToolsUsed,
         recordsUsed: [],
         moduleKey,
         scopePath,
@@ -2557,7 +3215,11 @@ router.post("/chat/stream", async (req, res) => {
       calendarYear: resolvedCalendarYear,
     });
 
-    const toolsUsed = [...retrieval.toolsUsed, ...agenticPreparation.toolsUsed];
+    const toolsUsed = [
+      ...retrieval.toolsUsed,
+      ...agenticPreparation.toolsUsed,
+      ...(explicitSavedMemory ? ["memory.saveExplicit"] : []),
+    ];
     let provider = agenticPreparation.stageSummaries.length > 0 ? "ollama-agentic" : "ollama";
     let completion: { content: string; model: string };
 
@@ -2729,6 +3391,24 @@ router.post("/chat", async (req, res) => {
         .filter(Boolean)
         .slice(0, 5)
     : [];
+  const explicitSavedMemory = await saveExplicitMemoryFromText({
+    organizationId,
+    userId: req.user?.sub ?? "",
+    text: latestUserMessage,
+    workspaceScope: scopeFromModuleKey(moduleKey),
+  }).catch(() => null);
+  if (explicitSavedMemory) {
+    await logAudit({
+      action: "STEWARD_MEMORY_EXPLICIT_CHAT_SAVED",
+      entity: "AiUserMemory",
+      entityId: explicitSavedMemory.id,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: { category: explicitSavedMemory.category, workspaceScope: explicitSavedMemory.workspaceScope },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+  }
 
   try {
     if (moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
@@ -2740,11 +3420,12 @@ router.post("/chat", async (req, res) => {
         scopePath,
         requestRoute: req.path,
       });
+      const earlyToolsUsed = explicitSavedMemory ? [...topDonorResult.toolsUsed, "memory.saveExplicit"] : topDonorResult.toolsUsed;
       const templatedReply = formatReplyByMode({
         mode,
         userIntent,
         reply: topDonorResult.reply,
-        toolsUsed: topDonorResult.toolsUsed,
+        toolsUsed: earlyToolsUsed,
         recordsUsed: topDonorResult.recordsUsed,
       });
       const structured = buildTopDonorStructuredResponse(topDonorResult, templatedReply);
@@ -2756,7 +3437,7 @@ router.post("/chat", async (req, res) => {
           mode,
           runtimeMode: config.mode,
           provider: "crm-data",
-          toolsUsed: topDonorResult.toolsUsed,
+          toolsUsed: earlyToolsUsed,
           recordsUsed: topDonorResult.recordsUsed,
           moduleKey,
           scopePath,
@@ -2774,6 +3455,7 @@ router.post("/chat", async (req, res) => {
         scopePath,
         requestRoute: req.path,
       });
+      const earlyToolsUsed = explicitSavedMemory ? [...reportResult.toolsUsed, "memory.saveExplicit"] : reportResult.toolsUsed;
       res.json({
         data: {
           reply: reportResult.reply,
@@ -2782,7 +3464,7 @@ router.post("/chat", async (req, res) => {
           mode,
           runtimeMode: config.mode,
           provider: "crm-data",
-          toolsUsed: reportResult.toolsUsed,
+          toolsUsed: earlyToolsUsed,
           recordsUsed: [],
           moduleKey,
           scopePath,
@@ -2835,7 +3517,11 @@ router.post("/chat", async (req, res) => {
       calendarYear: resolvedCalendarYearSync,
     });
 
-    const toolsUsed = [...retrieval.toolsUsed, ...agenticPreparation.toolsUsed];
+    const toolsUsed = [
+      ...retrieval.toolsUsed,
+      ...agenticPreparation.toolsUsed,
+      ...(explicitSavedMemory ? ["memory.saveExplicit"] : []),
+    ];
     let provider = agenticPreparation.stageSummaries.length > 0 ? "ollama-agentic" : "ollama";
     let completion: { content: string; model: string };
 

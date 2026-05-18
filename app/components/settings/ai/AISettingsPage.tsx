@@ -4,6 +4,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import BridgePairingPanel from "./BridgePairingPanel";
+import AIMemorySettingsPanel from "./AIMemorySettingsPanel";
+import AIContextLibraryPanel from "./AIContextLibraryPanel";
 
 type StewardAiMode = "local" | "remote";
 type StewardAiReasoningMode = "standard" | "thinking";
@@ -487,6 +489,10 @@ export default function AISettingsPage() {
           </div>
         )}
       </section>
+
+      <AIMemorySettingsPanel />
+
+      <AIContextLibraryPanel />
 
       <BridgePairingPanel />
     </div>

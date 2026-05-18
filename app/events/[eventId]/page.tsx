@@ -1,26 +1,26 @@
+import { redirect } from "next/navigation";
+
+interface EventPublicRouteProps {
+  params: Promise<{ eventId: string }>;
+}
+
+function looksLikeEventId(value: string): boolean {
+  if (/^demo_evt_/i.test(value)) return true;
+  if (value.includes("_")) return true;
+  return /^c[a-z0-9]{20,}$/i.test(value);
+}
+
 /**
- * /events/[eventId] — redirects to the event overview sub-page.
- * This is a client component because useParams requires the client runtime in Next.js 15+.
+ * /events/[eventId] is a compatibility shim.
+ * Real event IDs still go to overview; non-ID values redirect to root slug URLs.
  */
-"use client";
+export default async function EventPublicRoute({ params }: EventPublicRouteProps) {
+  const resolved = await params;
+  const slugOrId = resolved.eventId;
 
-import { useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+  if (looksLikeEventId(slugOrId)) {
+    redirect(`/events/${slugOrId}/overview`);
+  }
 
-/**
- * EventWorkspaceIndexPage — immediately redirects to /events/[eventId]/overview.
- * The layout (layout.tsx) provides the amber banner; this page is just a router shim.
- */
-export default function EventWorkspaceIndexPage() {
-  const { eventId } = useParams<{ eventId: string }>();
-  const router = useRouter();
-
-  // Redirect as soon as eventId is available — use replace so back button skips this page
-  useEffect(() => {
-    if (eventId) {
-      router.replace(`/events/${eventId}/overview`);
-    }
-  }, [eventId, router]);
-
-  return null;
+  redirect(`/${slugOrId}`);
 }

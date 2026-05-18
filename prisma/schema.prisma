@@ -404,6 +404,10 @@ model Organization {
   generatedLetters     GeneratedLetter[]
   notifications        Notification[]
   taskTemplatePresets  TaskTemplatePreset[]
+  aiMemoryPreferences  AiMemoryPreference[]
+  aiUserMemories       AiUserMemory[]
+  aiContextFiles       AiContextFile[]
+  aiContextChunks      AiContextChunk[]
 }
 
 model OrganizationSettings {
@@ -488,6 +492,95 @@ model User {
   letterTemplatesCreated LetterTemplate[] @relation("LetterTemplateCreatedBy")
   letterTemplatesUpdated LetterTemplate[] @relation("LetterTemplateUpdatedBy")
   generatedLetters       GeneratedLetter[] @relation("GeneratedLetterCreatedBy")
+  aiMemoryPreference     AiMemoryPreference?
+  aiUserMemories         AiUserMemory[]
+  aiContextFiles         AiContextFile[]
+}
+
+// ─── Steward AI Memory & Context ─────────────────────────────────────────────
+
+model AiMemoryPreference {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  userId             String   @unique
+  memoryEnabled      Boolean  @default(true)
+  fileContextEnabled Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+model AiUserMemory {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  title          String   @db.VarChar(160)
+  content        String   @db.Text
+  category       String   @default("preference") @db.VarChar(60)
+  source         String   @default("manual") @db.VarChar(60)
+  confidence     Float    @default(0.75)
+  active         Boolean  @default(true)
+  workspaceScope String?  @db.VarChar(40)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId, active])
+  @@index([organizationId, userId, category])
+  @@index([organizationId, userId, workspaceScope])
+}
+
+model AiContextFile {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  fileName       String   @db.VarChar(255)
+  displayName    String   @db.VarChar(255)
+  mimeType       String   @db.VarChar(120)
+  fileType       String   @db.VarChar(40)
+  sizeBytes      Int      @default(0)
+  workspaceScope String?  @db.VarChar(40)
+  description    String?  @db.Text
+  tags           Json?
+  indexingStatus String   @default("pending") @db.VarChar(40)
+  active         Boolean  @default(true)
+  extractedText  String?  @db.LongText
+  contentHash    String?  @db.VarChar(128)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  indexedAt      DateTime?
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chunks       AiContextChunk[]
+
+  @@index([organizationId, userId, active])
+  @@index([organizationId, userId, workspaceScope])
+  @@index([organizationId, userId, indexingStatus])
+}
+
+model AiContextChunk {
+  id             String   @id @default(cuid())
+  organizationId String
+  fileId         String
+  userId         String
+  chunkIndex     Int
+  chunkText      String   @db.Text
+  tokenEstimate  Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  file         AiContextFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([fileId, chunkIndex])
+  @@index([organizationId, userId])
+  @@index([organizationId, fileId])
 }
 
 // ─── Constituent (Donor/Volunteer/Member) ─────────────────────────────────────

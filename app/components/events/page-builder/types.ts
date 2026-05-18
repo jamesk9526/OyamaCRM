@@ -4,7 +4,9 @@ export type EventPageStatus = "Draft" | "Published";
 
 export interface EventPageBuilderConfig {
   eventId: string;
+  pageSlug: string;
   pageUrl: string;
+  baseOrigin: string;
   status: EventPageStatus;
   lastPublishedAt: string | null;
 }

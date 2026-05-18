@@ -37,7 +37,7 @@ export const CRM_CONSTITUENT_FIELDS: readonly CrmField[] = [
   { key: "ssn",                      label: "SSN (Sensitive)",               required: false, group: "Identity",     sensitive: true  },
   // -- Contact --
   { key: "email",                    label: "Primary Email",                 required: false, group: "Contact",      sensitive: false },
-  { key: "spouseEmail",              label: "Spouse Email",                  required: false, group: "Contact",      sensitive: false },
+  { key: "spouseEmail",              label: "Secondary / Spouse Email",      required: false, group: "Contact",      sensitive: false },
   { key: "phone",                    label: "Primary Phone",                 required: false, group: "Contact",      sensitive: false },
   { key: "mobilePhone",              label: "Mobile Phone",                  required: false, group: "Contact",      sensitive: false },
   { key: "workPhone",                label: "Work Phone",                    required: false, group: "Contact",      sensitive: false },
@@ -49,6 +49,7 @@ export const CRM_CONSTITUENT_FIELDS: readonly CrmField[] = [
   { key: "city",                     label: "Mailing City",                  required: false, group: "Address",      sensitive: false },
   { key: "state",                    label: "Mailing State",                 required: false, group: "Address",      sensitive: false },
   { key: "zip",                      label: "Mailing ZIP",                   required: false, group: "Address",      sensitive: false },
+  { key: "country",                  label: "Mailing Country",               required: false, group: "Address",      sensitive: false },
   // -- Organization / Household --
   { key: "organizationName",         label: "Organization Name",             required: false, group: "Organization", sensitive: false },
   { key: "churchAffiliation",        label: "Church Affiliation",            required: false, group: "Organization", sensitive: false },
@@ -58,6 +59,11 @@ export const CRM_CONSTITUENT_FIELDS: readonly CrmField[] = [
   // -- Preferences & Status --
   { key: "communicationPreferences", label: "Communication Prefs (raw)",     required: false, group: "Preferences",  sensitive: false },
   { key: "holdMail",                 label: "Do Not Mail / Hold Mail",       required: false, group: "Preferences",  sensitive: false },
+  { key: "doNotMail",                label: "Do Not Mail",                   required: false, group: "Preferences",  sensitive: false },
+  { key: "doNotEmail",               label: "Do Not Email",                  required: false, group: "Preferences",  sensitive: false },
+  { key: "doNotCall",                label: "Do Not Call",                   required: false, group: "Preferences",  sensitive: false },
+  { key: "doNotContact",             label: "Do Not Contact",                required: false, group: "Preferences",  sensitive: false },
+  { key: "emailOptOut",              label: "Email Opt-Out",                 required: false, group: "Preferences",  sensitive: false },
   { key: "type",                     label: "Contact Type (Donor / Non-Donor)", required: false, group: "Status",       sensitive: false },
   { key: "constituentStatus",        label: "Constituent Status",            required: false, group: "Status",       sensitive: false },
   { key: "deceased",                 label: "Deceased Flag",                 required: false, group: "Status",       sensitive: false },
@@ -115,6 +121,11 @@ export const AUTO_MAP_ALIASES: Record<string, string> = {
   "state_province":            "state",
   "zip":                       "zip",
   "postal_code":               "zip",
+  "country":                   "country",
+  "country code":              "country",
+  "country/region":            "country",
+  "country region":            "country",
+  "mailing country":           "country",
   "spousename":                "spouseName",
   "organization":              "organizationName",
   "occupation":                "occupation",
@@ -148,6 +159,19 @@ export const AUTO_MAP_ALIASES: Record<string, string> = {
   "isoktocontact":             "communicationPreferences",
   "location":                  "location",
   "holdmail":                  "holdMail",
+  "do not mail":               "doNotMail",
+  "do_not_mail":               "doNotMail",
+  "mail opt out":              "doNotMail",
+  "do not email":              "doNotEmail",
+  "do_not_email":              "doNotEmail",
+  "email opt out":             "emailOptOut",
+  "email_opt_out":             "emailOptOut",
+  "unsubscribed":              "doNotEmail",
+  "unsubscribe":               "doNotEmail",
+  "do not call":               "doNotCall",
+  "do_not_call":               "doNotCall",
+  "do not contact":            "doNotContact",
+  "do_not_contact":            "doNotContact",
   "status":                    "constituentStatus",
   "deceaseddesc":              "deceased",
   "spousedeceaseddesc":        "spouseDeceased",
@@ -213,6 +237,7 @@ export const AUTO_MAP_ALIASES: Record<string, string> = {
   "zip code":                  "zip",
   "postcode":                  "zip",
   "province":                  "state",
+  "nation":                    "country",
   "org":                       "organizationName",
   "company":                   "organizationName",
   "employer":                  "organizationName",
@@ -224,6 +249,10 @@ export const AUTO_MAP_ALIASES: Record<string, string> = {
   "date of birth":             "birthDate",
   "source id":                 "externalId",
   "external id":               "externalId",
+  "secondary email":           "spouseEmail",
+  "alternate email":           "spouseEmail",
+  "email 2":                   "spouseEmail",
+  "email2":                    "spouseEmail",
   "constituent status":        "constituentStatus",
   "donor status":              "constituentStatus",
   "contact type":              "type",
@@ -256,6 +285,39 @@ export const AUTO_MAP_ALIASES: Record<string, string> = {
   "religious affiliation":     "churchAffiliation",
   "religious organization":    "churchAffiliation",
 };
+
+function normalizeAliasKey(raw: string): string {
+  return raw
+    .replace(/^\uFEFF/, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[._/\\-]+/g, " ")
+    .replace(/[()\[\]{}:]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildAliasLookupCandidates(header: string): string[] {
+  const lowered = header.toLowerCase().trim();
+  const normalized = normalizeAliasKey(header);
+  const compact = normalized.replace(/\s+/g, "");
+  const underscored = normalized.replace(/\s+/g, "_");
+  const dashed = normalized.replace(/\s+/g, "-");
+  return Array.from(new Set([lowered, normalized, compact, underscored, dashed])).filter(Boolean);
+}
+
+/**
+ * getConstituentAutoMapField: returns the best auto-map field key for one CSV header.
+ * It first checks direct aliases, then normalized/compact variations of the header.
+ */
+export function getConstituentAutoMapField(header: string): string | undefined {
+  const candidates = buildAliasLookupCandidates(header);
+  for (const candidate of candidates) {
+    const mapped = AUTO_MAP_ALIASES[candidate];
+    if (mapped) return mapped;
+  }
+  return undefined;
+}
 
 /**
  * SENSITIVE_FIELD_KEYS: source column names (lowercased) that contain sensitive PII.

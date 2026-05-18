@@ -13,8 +13,8 @@
 import { useState, useRef, useCallback, useMemo } from "react";
 import {
   CRM_DONATION_FIELDS,
-  DONATION_AUTO_MAP_ALIASES,
   DONATION_FIELD_GROUPS,
+  getDonationAutoMapField,
   parseAmount,
   parseDonationDate,
 } from "./donationFieldMap";
@@ -81,7 +81,7 @@ const CONSTITUENT_MATCH_KEYS = new Set([
 function autoMap(headers: string[]): FieldMapping {
   const m: FieldMapping = {};
   for (const h of headers) {
-    m[h] = DONATION_AUTO_MAP_ALIASES[h.toLowerCase().trim()] ?? "skip";
+    m[h] = getDonationAutoMapField(h) ?? "skip";
   }
   return m;
 }

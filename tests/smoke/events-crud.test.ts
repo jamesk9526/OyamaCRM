@@ -16,7 +16,7 @@ let orderId = "";
 let sponsorId = "";
 let supportConstituentId = "";
 let checkinCode = "";
-let savedEventPageUrl = "";
+let savedEventPageSlug = "";
 
 beforeAll(async () => {
   const mod = await import("@/server/src/index");
@@ -402,38 +402,80 @@ describe("events CRUD", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.eventId).toBe(eventId);
+    expect(typeof res.body.pageSlug).toBe("string");
+    expect(res.body.pageSlug.length).toBeGreaterThan(0);
     expect(typeof res.body.pageUrl).toBe("string");
-    expect(res.body.pageUrl).toContain("/events/");
+    expect(res.body.pageUrl).toContain(`/${res.body.pageSlug}`);
     expect(["Draft", "Published"]).toContain(res.body.status);
   });
 
   it("updates event page builder url config", async () => {
     expect(eventId).toBeTruthy();
 
-    const nextUrl = `https://oyamachurch.org/events/smoke-url-${Date.now()}`;
+    const nextSlug = `smoke-url-${Date.now()}`;
     const res = await request(app)
       .patch(`/api/events/${eventId}/page-builder-config`)
       .set(auth())
       .send({
-        pageUrl: nextUrl,
+        pageSlug: nextSlug,
       });
 
     expect(res.status).toBe(200);
     expect(res.body.eventId).toBe(eventId);
-    expect(res.body.pageUrl).toBe(nextUrl);
-    savedEventPageUrl = nextUrl;
+    expect(res.body.pageSlug).toBe(nextSlug);
+    expect(res.body.pageUrl).toContain(`/${nextSlug}`);
+    savedEventPageSlug = nextSlug;
+  });
+
+  it("rejects reserved events workspace slugs", async () => {
+    expect(eventId).toBeTruthy();
+
+    const res = await request(app)
+      .patch(`/api/events/${eventId}/page-builder-config`)
+      .set(auth())
+      .send({ pageSlug: "workspace" });
+
+    expect(res.status).toBe(400);
+    expect(res.body?.error?.code).toBe("INVALID_INPUT");
   });
 
   it("returns persisted event page builder url config", async () => {
     expect(eventId).toBeTruthy();
-    expect(savedEventPageUrl).toBeTruthy();
+    expect(savedEventPageSlug).toBeTruthy();
 
     const res = await request(app)
       .get(`/api/events/${eventId}/page-builder-config`)
       .set(auth());
 
     expect(res.status).toBe(200);
-    expect(res.body.pageUrl).toBe(savedEventPageUrl);
+    expect(res.body.pageSlug).toBe(savedEventPageSlug);
+    expect(res.body.pageUrl).toContain(`/${savedEventPageSlug}`);
+  });
+
+  it("returns public event page payload by slug without auth", async () => {
+    expect(savedEventPageSlug).toBeTruthy();
+
+    const res = await request(app).get(`/api/events/public/page/${encodeURIComponent(savedEventPageSlug)}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.pageSlug).toBe(savedEventPageSlug);
+    expect(res.body.event?.id).toBe(eventId);
+    expect(typeof res.body.pageUrl).toBe("string");
+    expect(Array.isArray(res.body.ticketTypes)).toBe(true);
+    expect(Array.isArray(res.body.sponsors)).toBe(true);
+    expect(typeof res.body.report?.revenue?.total).toBe("number");
+  });
+
+  it("returns 404 for unknown public event page slug", async () => {
+    const res = await request(app).get(`/api/events/public/page/no-such-smoke-${Date.now()}`);
+    expect(res.status).toBe(404);
+    expect(res.body?.error?.code).toBe("NOT_FOUND");
+  });
+
+  it("returns 400 for reserved public event page slug", async () => {
+    const res = await request(app).get("/api/events/public/page/workspace");
+    expect(res.status).toBe(400);
+    expect(res.body?.error?.code).toBe("INVALID_SLUG");
   });
 
   it("returns event-level reporting data with expected shape", async () => {

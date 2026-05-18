@@ -26,3 +26,20 @@ The Events CRM is now oriented around a FundEasy / Attendance-style nonprofit fu
 | Partial-feature warning popups | Working | Events partial tools now show explicit in-development popup + banner warnings to prevent false production expectations. |
 
 Canonical next build order: table host data model and staff UI, guest/table reassignment improvements, dedicated live check-in mode, event page templates, event email segments, event donations/pledges, and post-event follow-up dashboard.
+
+## Steward AI Memory And Context
+
+Steward AI now has a user-controlled memory and context-library foundation. Memories and uploaded context files are scoped to the authenticated user and organization; no global/shared AI memory is used.
+
+| Area | Status | Notes |
+|---|---|---|
+| Session context | Working | Current chat messages remain temporary runtime context. |
+| User memories | Working | Per-user memories can be created by explicit chat requests, the dedicated memory tool endpoint, or manual entry in AI Settings. |
+| Memory controls | Working | AI Settings includes memory search/filtering, active/inactive toggles, manual add, delete, and clear controls plus a master memory toggle. |
+| Memory rules | Working | Runtime prompt now separates session context, saved memories, uploaded files, and CRM tool data; only durable/reusable facts should become memories. |
+| File context library | Working | AI Settings supports file registration, text extraction from browser-readable text files, tagging, workspace scope, activation, re-indexing, and deletion. |
+| File retrieval | Working | Steward retrieval can search active indexed chunks for the current user and scoped workspace before answering. |
+| CRM tool context | Working | Existing approved Steward CRM tools remain the source of truth for live CRM data. The AI is instructed not to guess from memory when live data or files should be retrieved. |
+| Binary/PDF/image extraction | Partially Working | Files can be tracked and managed, but production PDF parsing, spreadsheet parsing, OCR, antivirus scanning, object storage, and vector embeddings are not yet implemented. Current indexing relies on supplied/extracted text. |
+
+Canonical next build order: add server-side PDF/spreadsheet/image text extraction, file object storage, malware scanning, vector embeddings, relevance scoring improvements, and permission-aware CRM/file retrieval policies per module.

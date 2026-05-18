@@ -4,7 +4,7 @@
  *
  * @module routes/events
  */
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 import { logAudit } from "../lib/audit.js";
@@ -17,6 +17,64 @@ import type { EventGuestPaymentStatus, EventGuestRsvpStatus, Prisma } from "@pri
 const router = Router();
 const EVENTS_MANAGER_INTEGRATIONS_PLUGIN_KEY = "events-manager-integrations";
 const EVENTS_PAGE_BUILDER_PLUGIN_KEY = "events-page-builder";
+const RESERVED_EVENT_PUBLIC_SLUGS = new Set([
+  "api",
+  "apps",
+  "automations",
+  "board",
+  "campaigns",
+  "communications",
+  "compassion",
+  "constituents",
+  "contacts-manager",
+  "custom-fields",
+  "data-tools",
+  "donations",
+  "email-builder",
+  "events",
+  "features",
+  "grants",
+  "help",
+  "help-content",
+  "hrm",
+  "icons",
+  "letters-printables",
+  "livecom",
+  "login",
+  "meetings",
+  "modules",
+  "offline",
+  "ogentic",
+  "password",
+  "payments",
+  "preferences",
+  "quickbooks-sync",
+  "reports",
+  "settings",
+  "setup",
+  "steward-ai-workspace",
+  "steward-paths",
+  "steward-signals",
+  "tasks",
+  "unsubscribe",
+  "volunteers",
+  "watchdog",
+  "webmaster",
+  "workspace",
+  "page-builder",
+  "templates",
+  "tickets",
+  "guests",
+  "tables",
+  "hosts",
+  "sponsors",
+  "orders",
+  "emails",
+  "follow-up",
+  "fundraising",
+  "files",
+  "check-in",
+]);
 const EMAIL_PROVIDER_PLUGIN_KEY = "email-provider";
 
 type EmailProviderType = "standard_smtp" | "microsoft_365_smtp" | "microsoft_graph";
@@ -57,7 +115,7 @@ interface EventsManagerIntegrationSnapshot extends EventsManagerIntegrationSourc
 type EventPageBuilderStatus = "Draft" | "Published";
 
 interface StoredEventPageBuilderEntry {
-  pageUrl: string;
+  pageSlug: string;
   status: EventPageBuilderStatus;
   lastPublishedAt: string | null;
   updatedAt: string;
@@ -106,9 +164,19 @@ function slugifyEventPagePath(value: string): string {
     .replace(/^-|-$/g, "");
 }
 
-function defaultEventPageUrl(eventName: string): string {
-  const appBase = (process.env.NEXT_PUBLIC_APP_URL ?? "https://oyamachurch.org").replace(/\/$/, "");
-  return `${appBase}/events/${slugifyEventPagePath(eventName)}`;
+function defaultEventPageSlug(eventName: string): string {
+  const slug = slugifyEventPagePath(eventName);
+  if (!slug) return "event-page";
+  if (RESERVED_EVENT_PUBLIC_SLUGS.has(slug)) return `${slug}-event`;
+  return slug;
+}
+
+function sanitizeEventPageSlug(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const slug = slugifyEventPagePath(value);
+  if (!slug || slug.length > 120) return null;
+  if (RESERVED_EVENT_PUBLIC_SLUGS.has(slug)) return null;
+  return slug;
 }
 
 function normalizeEventPageStatus(value: unknown): EventPageBuilderStatus {
@@ -136,6 +204,55 @@ function sanitizeEventPageUrl(value: unknown): string | null {
   }
 }
 
+function extractEventPageSlugFromUrl(value: unknown): string | null {
+  const sanitizedUrl = sanitizeEventPageUrl(value);
+  if (!sanitizedUrl) return null;
+
+  const parsed = new URL(sanitizedUrl);
+  const segments = parsed.pathname.split("/").filter(Boolean);
+  if (segments.length === 0) return null;
+
+  if (segments[0] === "events" && segments[1]) {
+    return sanitizeEventPageSlug(segments[1]);
+  }
+
+  return sanitizeEventPageSlug(segments[segments.length - 1]);
+}
+
+function normalizeAbsoluteOrigin(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    return null;
+  }
+}
+
+function resolveEventPageOrigin(req: Request): string {
+  const forwardedProto = String(req.headers["x-forwarded-proto"] ?? "").split(",")[0]?.trim().toLowerCase();
+  const forwardedHost = String(req.headers["x-forwarded-host"] ?? "").split(",")[0]?.trim();
+  const host = forwardedHost || String(req.headers.host ?? "").trim();
+  const protocol = forwardedProto === "https" || forwardedProto === "http"
+    ? forwardedProto
+    : (req.secure ? "https" : "http");
+
+  if (host) {
+    return `${protocol}://${host}`;
+  }
+
+  return normalizeAbsoluteOrigin(process.env.NEXT_PUBLIC_APP_URL ?? "")
+    ?? normalizeAbsoluteOrigin(process.env.FRONTEND_ORIGIN ?? "")
+    ?? "http://localhost:3000";
+}
+
+function buildEventPageUrl(origin: string, pageSlug: string): string {
+  const normalizedOrigin = origin.replace(/\/$/, "");
+  return `${normalizedOrigin}/${pageSlug}`;
+}
+
 function readStoredEventPageBuilderConfig(config: unknown): StoredEventPageBuilderConfig {
   if (!isRecord(config)) {
     return { events: {} };
@@ -147,11 +264,11 @@ function readStoredEventPageBuilderConfig(config: unknown): StoredEventPageBuild
   for (const [eventId, rawValue] of Object.entries(rawEvents)) {
     if (!isRecord(rawValue)) continue;
 
-    const pageUrl = sanitizeEventPageUrl(rawValue.pageUrl);
-    if (!pageUrl) continue;
+    const pageSlug = sanitizeEventPageSlug(rawValue.pageSlug) ?? extractEventPageSlugFromUrl(rawValue.pageUrl);
+    if (!pageSlug) continue;
 
     events[eventId] = {
-      pageUrl,
+      pageSlug,
       status: normalizeEventPageStatus(rawValue.status),
       lastPublishedAt: toIsoOrNull(rawValue.lastPublishedAt),
       updatedAt: toIsoOrNull(rawValue.updatedAt) ?? new Date().toISOString(),
@@ -161,12 +278,240 @@ function readStoredEventPageBuilderConfig(config: unknown): StoredEventPageBuild
   return { events };
 }
 
+function findEventPageEntryBySlug(
+  config: StoredEventPageBuilderConfig,
+  pageSlug: string,
+): { eventId: string; entry: StoredEventPageBuilderEntry } | null {
+  for (const [eventId, entry] of Object.entries(config.events)) {
+    if (entry.pageSlug === pageSlug) {
+      return { eventId, entry };
+    }
+  }
+  return null;
+}
+
 function readStoredIntegrationSnapshot(config: unknown): EventsManagerIntegrationSnapshot | null {
   if (!isRecord(config)) return null;
   const source = String(config.source ?? "").trim();
   if (source !== "donor_crm") return null;
   return config as unknown as EventsManagerIntegrationSnapshot;
 }
+
+/** GET /api/events/public/page/:pageSlug — Public event page payload resolved by configured slug. */
+router.get("/public/page/:pageSlug", async (req, res) => {
+  const pageSlug = sanitizeEventPageSlug(req.params.pageSlug);
+  if (!pageSlug) {
+    res.status(400).json({
+      error: {
+        code: "INVALID_SLUG",
+        message: "Event page slug must contain letters, numbers, or hyphens and cannot use reserved application routes.",
+      },
+    });
+    return;
+  }
+
+  const settingRows = await prisma.pluginSetting.findMany({
+    where: {
+      pluginKey: EVENTS_PAGE_BUILDER_PLUGIN_KEY,
+      enabled: true,
+    },
+    select: {
+      organizationId: true,
+      config: true,
+    },
+  });
+
+  const matches: Array<{ organizationId: string; eventId: string; status: EventPageBuilderStatus }> = [];
+  for (const row of settingRows) {
+    const config = readStoredEventPageBuilderConfig(row.config);
+    const found = findEventPageEntryBySlug(config, pageSlug);
+    if (!found) continue;
+    matches.push({
+      organizationId: row.organizationId,
+      eventId: found.eventId,
+      status: found.entry.status,
+    });
+  }
+
+  if (matches.length > 1) {
+    res.status(409).json({
+      error: {
+        code: "SLUG_CONFLICT",
+        message: "This slug is currently mapped to multiple event pages. Please use a unique slug.",
+      },
+    });
+    return;
+  }
+
+  let match = matches[0] ?? null;
+
+  if (!match) {
+    const fallbackEvents = await prisma.event.findMany({
+      where: {
+        active: true,
+        visibility: "PUBLIC",
+      },
+      select: {
+        id: true,
+        organizationId: true,
+        name: true,
+      },
+    });
+
+    const fallbackMatches = fallbackEvents.filter((event) => defaultEventPageSlug(event.name) === pageSlug);
+
+    if (fallbackMatches.length > 1) {
+      res.status(409).json({
+        error: {
+          code: "SLUG_CONFLICT",
+          message: "This slug maps to multiple default event pages. Save a custom unique slug in Event Page Builder.",
+        },
+      });
+      return;
+    }
+
+    if (fallbackMatches.length === 1) {
+      match = {
+        organizationId: fallbackMatches[0].organizationId,
+        eventId: fallbackMatches[0].id,
+        status: "Draft",
+      };
+    }
+  }
+
+  if (!match) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Public event page not found." } });
+    return;
+  }
+
+  const event = await prisma.event.findFirst({
+    where: {
+      id: match.eventId,
+      organizationId: match.organizationId,
+    },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      status: true,
+      location: true,
+      address: true,
+      city: true,
+      state: true,
+      zip: true,
+      virtualUrl: true,
+      startDate: true,
+      endDate: true,
+      registrationDeadline: true,
+      registrationGoal: true,
+      revenueGoal: true,
+      capacity: true,
+      active: true,
+    },
+  });
+
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found." } });
+    return;
+  }
+
+  const [ticketTypes, sponsors, attendanceTotal, checkedInTotal, orderAggregate, donationAggregate] = await Promise.all([
+    prisma.ticketType.findMany({
+      where: { eventId: event.id, active: true },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        price: true,
+        capacity: true,
+        available: true,
+        isTable: true,
+        seatsIncluded: true,
+      },
+      orderBy: [{ isTable: "desc" }, { price: "asc" }],
+    }),
+    prisma.eventSponsor.findMany({
+      where: { eventId: event.id },
+      select: {
+        id: true,
+        level: true,
+        amount: true,
+        logoUrl: true,
+        websiteUrl: true,
+        constituent: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+      orderBy: { amount: "desc" },
+      take: 24,
+    }),
+    prisma.eventGuest.count({ where: { eventId: event.id } }),
+    prisma.eventGuest.count({ where: { eventId: event.id, checkedIn: true } }),
+    prisma.eventOrder.aggregate({
+      where: {
+        eventId: event.id,
+        status: "CONFIRMED",
+      },
+      _sum: { totalAmount: true },
+      _count: { id: true },
+    }),
+    prisma.donation.aggregate({
+      where: {
+        eventId: event.id,
+        status: "COMPLETED",
+      },
+      _sum: { amount: true },
+      _count: { id: true },
+    }),
+  ]);
+
+  const revenueFromOrders = Number(orderAggregate._sum.totalAmount ?? 0);
+  const revenueFromDonations = Number(donationAggregate._sum.amount ?? 0);
+  const totalRevenue = revenueFromOrders + revenueFromDonations;
+  const revenueGoal = event.revenueGoal == null ? null : Number(event.revenueGoal);
+  const attendanceRate = attendanceTotal > 0 ? Math.round((checkedInTotal / attendanceTotal) * 100) : 0;
+  const revenueProgress = revenueGoal && revenueGoal > 0
+    ? Math.min(100, Math.round((totalRevenue / revenueGoal) * 100))
+    : null;
+
+  const origin = resolveEventPageOrigin(req);
+
+  res.json({
+    event: {
+      ...event,
+      revenueGoal,
+    },
+    ticketTypes,
+    sponsors,
+    report: {
+      attendance: {
+        total: attendanceTotal,
+        checkedIn: checkedInTotal,
+        noShows: Math.max(attendanceTotal - checkedInTotal, 0),
+        attendanceRate,
+        goal: event.registrationGoal ?? null,
+        progress: event.registrationGoal && event.registrationGoal > 0
+          ? Math.min(100, Math.round((attendanceTotal / event.registrationGoal) * 100))
+          : null,
+      },
+      revenue: {
+        total: totalRevenue,
+        fromOrders: revenueFromOrders,
+        fromDonations: revenueFromDonations,
+        orderCount: Number(orderAggregate._count.id ?? 0),
+        donationCount: Number(donationAggregate._count.id ?? 0),
+        goal: revenueGoal,
+        progress: revenueProgress,
+      },
+    },
+    pageSlug,
+    pageUrl: buildEventPageUrl(origin, pageSlug),
+    status: match.status,
+  });
+});
 
 async function buildEventsManagerIntegrationSourcePreview(
   organizationId: string,
@@ -371,10 +716,14 @@ router.get("/:eventId/page-builder-config", async (req, res) => {
 
   const config = readStoredEventPageBuilderConfig(setting?.config);
   const entry = config.events[event.id];
+  const baseOrigin = resolveEventPageOrigin(req);
+  const pageSlug = entry?.pageSlug ?? defaultEventPageSlug(event.name);
 
   res.json({
     eventId: event.id,
-    pageUrl: entry?.pageUrl ?? defaultEventPageUrl(event.name),
+    pageSlug,
+    pageUrl: buildEventPageUrl(baseOrigin, pageSlug),
+    baseOrigin,
     status: entry?.status ?? "Draft",
     lastPublishedAt: entry?.lastPublishedAt ?? null,
   });
@@ -410,22 +759,73 @@ router.patch("/:eventId/page-builder-config", async (req, res) => {
 
   const config = readStoredEventPageBuilderConfig(setting?.config);
   const previous = config.events[event.id];
+  const baseOrigin = resolveEventPageOrigin(req);
 
-  let nextPageUrl: string;
-  if (req.body.pageUrl === undefined) {
-    nextPageUrl = previous?.pageUrl ?? defaultEventPageUrl(event.name);
-  } else {
-    const sanitized = sanitizeEventPageUrl(req.body.pageUrl);
-    if (!sanitized) {
+  let nextPageSlug: string;
+  if (req.body.pageSlug === undefined && req.body.pageUrl === undefined) {
+    nextPageSlug = previous?.pageSlug ?? defaultEventPageSlug(event.name);
+  } else if (req.body.pageSlug !== undefined) {
+    const sanitizedSlug = sanitizeEventPageSlug(req.body.pageSlug);
+    if (!sanitizedSlug) {
       res.status(400).json({
         error: {
           code: "INVALID_INPUT",
-          message: "pageUrl must be a valid absolute http(s) URL.",
+          message: "pageSlug must contain letters, numbers, or hyphens and cannot use reserved application routes.",
         },
       });
       return;
     }
-    nextPageUrl = sanitized;
+    nextPageSlug = sanitizedSlug;
+  } else {
+    const extractedLegacySlug = extractEventPageSlugFromUrl(req.body.pageUrl);
+    if (!extractedLegacySlug) {
+      res.status(400).json({
+        error: {
+          code: "INVALID_INPUT",
+          message: "pageUrl must be a valid absolute http(s) URL containing a slug path.",
+        },
+      });
+      return;
+    }
+    nextPageSlug = extractedLegacySlug;
+  }
+
+  const allPageBuilderSettings = await prisma.pluginSetting.findMany({
+    where: {
+      pluginKey: EVENTS_PAGE_BUILDER_PLUGIN_KEY,
+      enabled: true,
+    },
+    select: {
+      organizationId: true,
+      config: true,
+    },
+  });
+
+  let slugConflict: { organizationId: string; eventId: string } | null = null;
+  for (const row of allPageBuilderSettings) {
+    const rowConfig = readStoredEventPageBuilderConfig(row.config);
+    for (const [otherEventId, otherEntry] of Object.entries(rowConfig.events)) {
+      if (otherEntry.pageSlug !== nextPageSlug) continue;
+      const isSameEvent = row.organizationId === organizationId && otherEventId === event.id;
+      if (isSameEvent) continue;
+
+      slugConflict = {
+        organizationId: row.organizationId,
+        eventId: otherEventId,
+      };
+      break;
+    }
+    if (slugConflict) break;
+  }
+
+  if (slugConflict) {
+    res.status(409).json({
+      error: {
+        code: "SLUG_CONFLICT",
+        message: "pageSlug is already used by another event page. Choose a different slug.",
+      },
+    });
+    return;
   }
 
   const nextStatus = req.body.status === undefined
@@ -449,7 +849,7 @@ router.patch("/:eventId/page-builder-config", async (req, res) => {
   }
 
   const entry: StoredEventPageBuilderEntry = {
-    pageUrl: nextPageUrl,
+    pageSlug: nextPageSlug,
     status: nextStatus,
     lastPublishedAt: nextLastPublishedAt,
     updatedAt: new Date().toISOString(),
@@ -488,7 +888,8 @@ router.patch("/:eventId/page-builder-config", async (req, res) => {
     userId: req.user?.sub,
     organizationId,
     metadata: {
-      pageUrl: entry.pageUrl,
+      pageSlug: entry.pageSlug,
+      pageUrl: buildEventPageUrl(baseOrigin, entry.pageSlug),
       status: entry.status,
       lastPublishedAt: entry.lastPublishedAt,
     },
@@ -498,7 +899,9 @@ router.patch("/:eventId/page-builder-config", async (req, res) => {
 
   res.json({
     eventId: event.id,
-    pageUrl: entry.pageUrl,
+    pageSlug: entry.pageSlug,
+    pageUrl: buildEventPageUrl(baseOrigin, entry.pageSlug),
+    baseOrigin,
     status: entry.status,
     lastPublishedAt: entry.lastPublishedAt,
   });

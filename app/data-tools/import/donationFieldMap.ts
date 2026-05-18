@@ -224,6 +224,39 @@ export const DONATION_AUTO_MAP_ALIASES: Record<string, string> = {
   "giverid":                "constituentExternalId",
 };
 
+function normalizeDonationAliasKey(raw: string): string {
+  return raw
+    .replace(/^\uFEFF/, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[._/\\-]+/g, " ")
+    .replace(/[()\[\]{}:]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildDonationAliasLookupCandidates(header: string): string[] {
+  const lowered = header.toLowerCase().trim();
+  const normalized = normalizeDonationAliasKey(header);
+  const compact = normalized.replace(/\s+/g, "");
+  const underscored = normalized.replace(/\s+/g, "_");
+  const dashed = normalized.replace(/\s+/g, "-");
+  return Array.from(new Set([lowered, normalized, compact, underscored, dashed])).filter(Boolean);
+}
+
+/**
+ * getDonationAutoMapField: returns the best auto-map field key for one donation CSV header.
+ * It checks direct aliases and normalized/compact variations of the same header.
+ */
+export function getDonationAutoMapField(header: string): string | undefined {
+  const candidates = buildDonationAliasLookupCandidates(header);
+  for (const candidate of candidates) {
+    const mapped = DONATION_AUTO_MAP_ALIASES[candidate];
+    if (mapped) return mapped;
+  }
+  return undefined;
+}
+
 /**
  * PAYMENT_METHOD_MAP: normalizes free-text payment method values from CSVs to Prisma enum values.
  * Case-insensitive pattern matching applied at import time.
