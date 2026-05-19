@@ -761,7 +761,11 @@ export default function StewardChatPanel({
       const prompt = typeof payload?.prompt === "string" && payload.prompt.trim().length > 0
         ? payload.prompt.trim()
         : action.label;
-      await sendMessage(prompt);
+      const sent = await sendMessage(prompt);
+      if (!sent) {
+        setActionStatus({ tone: "error", message: "GuidePath continuation is waiting for the current response to finish. Try again in a second." });
+        return;
+      }
       setActionStatus({ tone: "success", message: "GuidePath selection applied. Continuing with your request." });
       return;
     }
@@ -771,7 +775,11 @@ export default function StewardChatPanel({
       const prompt = typeof payload?.prompt === "string" && payload.prompt.trim().length > 0
         ? payload.prompt.trim()
         : action.label;
-      await sendMessage(prompt);
+      const sent = await sendMessage(prompt);
+      if (!sent) {
+        setActionStatus({ tone: "error", message: "ThoughtStack continuation is waiting for the current response to finish. Try again in a second." });
+        return;
+      }
 
       const thoughtStackMessage = action.actionType === "thoughtstack.review_first"
         ? "ThoughtStack set this request to review-first. Generating a dry-run style preview."
@@ -846,9 +854,9 @@ export default function StewardChatPanel({
   }
 
   /** Sends a chat request to backend API and appends assistant response. */
-  async function sendMessage(content?: string, options: SendMessageOptions = {}) {
+  async function sendMessage(content?: string, options: SendMessageOptions = {}): Promise<boolean> {
     const text = (content ?? draft).trim();
-    if (!text || sending) return;
+    if (!text || sending) return false;
 
     const appendUserMessage = options.appendUserMessage ?? true;
     const baseHistory = options.historyOverride ?? messages;
@@ -1048,6 +1056,7 @@ export default function StewardChatPanel({
         toolsUsed: doneEvent.toolsUsed,
         recordsUsed: doneEvent.recordsUsed ?? [],
       });
+      return true;
     } catch (requestError) {
       setMessages((current) => current.filter((message) => {
         if (message.id !== assistantMessageId) return true;
@@ -1060,6 +1069,7 @@ export default function StewardChatPanel({
       if (!isAbortError) {
         setError(requestError instanceof Error ? requestError.message : "Steward request failed.");
       }
+      return false;
     } finally {
       streamAbortRef.current = null;
       setSending(false);
@@ -1351,6 +1361,10 @@ export default function StewardChatPanel({
                                 }
                               }}
                               onRegenerate={aiConfig?.enabled ? () => { void regenerateAssistantMessage(message.id); } : undefined}
+                              onAskReportQuestion={(prompt) => {
+                                const contextTitle = (message.structured?.artifacts?.find((artifact) => artifact.type === "report_card") as { title?: string } | undefined)?.title || "report artifact";
+                                void sendMessage(`Report artifact follow-up (${contextTitle}): ${prompt}`);
+                              }}
                             />
                           )}
                           </>

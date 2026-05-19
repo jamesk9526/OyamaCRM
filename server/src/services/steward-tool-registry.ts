@@ -53,8 +53,10 @@ export type StewardToolName =
   | "reports.runDonorTiers"
   | "reports.runNewDonors"
   | "reports.runYearOverYear"
+  | "reports.runStewardCommandCenter"
   | "knowledge.searchCrmRecords"
   | "knowledge.searchDonorActivities"
+  | "knowledge.searchUnifiedTimeline"
   | "knowledge.getDonorsBySegment"
   | "knowledge.searchGrants"
   | "grants.getDeadlineRadar"
@@ -361,10 +363,26 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     allowedModules: ["donor", "oshareview"],
   },
   {
+    name: "reports.runStewardCommandCenter",
+    kind: "read",
+    description: "Returns a consolidated stewardship command-center context packet: totals snapshot, YoY change, donor tiers, and top campaign/designation signals.",
+    requiredPermissions: ["view:reports", "view:donations", "view:constituents", "view:campaigns"],
+    requiresConfirmation: false,
+    allowedModules: ["donor", "oshareview"],
+  },
+  {
     name: "knowledge.searchCrmRecords",
     kind: "read",
     description: "Searches CRM records (constituents, donations, campaigns) by keyword. Use for grounded context when the user asks about specific people, gifts, or programs.",
     requiredPermissions: ["view:constituents", "view:donations"],
+    requiresConfirmation: false,
+    allowedModules: ["donor", "oshareview"],
+  },
+  {
+    name: "knowledge.searchUnifiedTimeline",
+    kind: "read",
+    description: "Returns a unified CRM timeline across activities, donations, and tasks with keyword filtering and optional donor scope.",
+    requiredPermissions: ["view:constituents", "view:donations", "view:tasks"],
     requiresConfirmation: false,
     allowedModules: ["donor", "oshareview"],
   },
@@ -470,6 +488,39 @@ async function getOrgFiscalYear(organizationId: string): Promise<{
 function asText(value: unknown, fallback = "", maxLength = 1200): string {
   if (typeof value !== "string") return fallback;
   return value.trim().slice(0, maxLength);
+}
+
+const MAX_STEWARD_CONTEXT_CHARS = 28000;
+
+function tokenizeSearchQuery(query: string, maxTokens = 5): string[] {
+  const normalized = query
+    .toLowerCase()
+    .replace(/[^a-z0-9@._'\-\s]/g, " ")
+    .split(/\s+/)
+    .map((token) => token.replace(/^[-'_.]+|[-'_.]+$/g, ""))
+    .filter((token) => token.length >= 2);
+
+  if (normalized.length > 0) return normalized.slice(0, maxTokens);
+
+  const fallback = query.toLowerCase().trim();
+  return fallback.length >= 2 ? [fallback.slice(0, 40)] : [];
+}
+
+function buildBoundedContextText(lines: string[], maxChars = MAX_STEWARD_CONTEXT_CHARS): { text: string; truncated: boolean } {
+  const bounded: string[] = [];
+  let used = 0;
+
+  for (const line of lines) {
+    const next = line.length + 1;
+    if (used + next > maxChars) {
+      bounded.push("... context truncated to stay within Steward retrieval budget.");
+      return { text: bounded.join("\n"), truncated: true };
+    }
+    bounded.push(line);
+    used += next;
+  }
+
+  return { text: bounded.join("\n"), truncated: false };
 }
 
 function asPositiveInt(value: unknown, fallback: number, min: number, max: number): number {
@@ -1976,11 +2027,65 @@ export async function executeStewardTool(
       break;
     }
 
+    case "reports.runStewardCommandCenter": {
+      const [totalsResult, yoyResult, tiersResult, campaignResult, designationResult] = await Promise.all([
+        executeStewardTool(context, "reports.runTotalsSnapshot", undefined),
+        executeStewardTool(context, "reports.runYearOverYear", undefined),
+        executeStewardTool(context, "reports.runDonorTiers", undefined),
+        executeStewardTool(context, "reports.runGivingByCampaign", undefined),
+        executeStewardTool(context, "reports.runGivingByDesignation", undefined),
+      ]);
+
+      const totals = totalsResult.result as {
+        generatedAt: string;
+        fiscalYearLabel: string;
+        windows: {
+          weekly: { amount: number; giftCount: number; donorTotal: number };
+          monthly: { amount: number; giftCount: number; donorTotal: number };
+          fiscalYtd: { amount: number; giftCount: number; donorTotal: number };
+          fiscalFullYear: { amount: number; giftCount: number; donorTotal: number };
+        };
+      };
+      const yoy = yoyResult.result as {
+        years: Array<{ fiscalYear: number; totalRevenue: number; uniqueDonors: number; revenueChange: number | null; donorChange: number | null; isYtd: boolean }>;
+      };
+      const tiers = tiersResult.result as {
+        tiers: Array<{ tier: string; donorCount: number; totalRevenue: number; percentOfRevenue: number }>;
+      };
+      const campaigns = campaignResult.result as {
+        campaigns: Array<{ name: string; raised: number; percentComplete: number | null; giftCount: number; active: boolean }>;
+      };
+      const designations = designationResult.result as {
+        designations: Array<{ name: string; amount: number; count: number }>;
+      };
+
+      const yoyCurrent = yoy.years.at(-1) ?? null;
+      const topCampaigns = campaigns.campaigns.sort((a, b) => b.raised - a.raised).slice(0, 5);
+      const topDesignations = designations.designations.sort((a, b) => b.amount - a.amount).slice(0, 5);
+
+      result = {
+        generatedAt: totals.generatedAt,
+        fiscalYearLabel: totals.fiscalYearLabel,
+        headline: {
+          weeklyAmount: totals.windows.weekly.amount,
+          monthlyAmount: totals.windows.monthly.amount,
+          fiscalYtdAmount: totals.windows.fiscalYtd.amount,
+          fiscalTotalAmount: totals.windows.fiscalFullYear.amount,
+          uniqueDonorsYtd: totals.windows.fiscalYtd.donorTotal,
+        },
+        yoyCurrent,
+        donorTiers: tiers.tiers,
+        topCampaigns,
+        topDesignations,
+      };
+      break;
+    }
+
     case "knowledge.searchCrmRecords": {
       const query = asText(input?.query, "", 200);
       if (!query) throw new StewardToolError(400, "VALIDATION_ERROR", "query is required.");
       const limit = asPositiveInt(input?.limit, 10, 1, 30);
-      const tokens = query.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((t) => t.length >= 2).slice(0, 4);
+      const tokens = tokenizeSearchQuery(query, 4);
       const entityType = asText(input?.entityType, "all", 40);
 
       const constituents = entityType === "donation" || entityType === "campaign"
@@ -2077,7 +2182,7 @@ export async function executeStewardTool(
       const validTypes = ["NOTE", "CALL", "EMAIL_SENT", "EMAIL_RECEIVED", "MEETING", "MEETING_SCHEDULED", "MEETING_COMPLETED", "TASK_COMPLETED", "DONATION"];
       const activityTypeFilter = validTypes.includes(activityTypeRaw) ? activityTypeRaw : undefined;
 
-      const tokens = query.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((t) => t.length >= 2).slice(0, 5);
+      const tokens = tokenizeSearchQuery(query, 5);
 
       const activities = await prisma.activity.findMany({
         where: {
@@ -2086,7 +2191,7 @@ export async function executeStewardTool(
             organizationId: context.organizationId,
             ...(constituentId ? { id: constituentId } : {}),
           },
-          OR: tokens.map((t) => ({ description: { contains: t } })),
+          ...(tokens.length > 0 ? { OR: tokens.map((t) => ({ description: { contains: t } })) } : {}),
         },
         orderBy: { createdAt: "desc" },
         take: limit,
@@ -2110,6 +2215,144 @@ export async function executeStewardTool(
           constituentId: a.constituent?.id ?? null,
         })),
         totalMatches: activities.length,
+      };
+      break;
+    }
+
+    case "knowledge.searchUnifiedTimeline": {
+      const query = asText(input?.query, "", 200);
+      const limit = asPositiveInt(input?.limit, 20, 5, 80);
+      const constituentId = asText(input?.constituentId, "", 120) || null;
+      const daysBack = asPositiveInt(input?.daysBack, 90, 7, 730);
+      const since = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000);
+      const tokens = tokenizeSearchQuery(query, 5);
+
+      const activityRows = await prisma.activity.findMany({
+        where: {
+          createdAt: { gte: since },
+          AND: [
+            constituentId
+              ? { constituent: { id: constituentId, organizationId: context.organizationId } }
+              : {
+                  OR: [
+                    { constituent: { organizationId: context.organizationId } },
+                    { donation: { constituent: { organizationId: context.organizationId } } },
+                    { task: { organizationId: context.organizationId } },
+                  ],
+                },
+            ...(tokens.length > 0
+              ? [{ OR: tokens.map((token) => ({ description: { contains: token } })) }]
+              : []),
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        select: {
+          id: true,
+          type: true,
+          description: true,
+          createdAt: true,
+          constituentId: true,
+          donationId: true,
+          taskId: true,
+        },
+      });
+
+      const donationRows = await prisma.donation.findMany({
+        where: {
+          status: "COMPLETED",
+          date: { gte: since },
+          constituent: {
+            organizationId: context.organizationId,
+            ...(constituentId ? { id: constituentId } : {}),
+          },
+          ...(tokens.length > 0
+            ? {
+                OR: [
+                  ...tokens.map((token) => ({ constituent: { firstName: { contains: token } } })),
+                  ...tokens.map((token) => ({ constituent: { lastName: { contains: token } } })),
+                  ...tokens.map((token) => ({ campaign: { name: { contains: token } } })),
+                ],
+              }
+            : {}),
+        },
+        orderBy: { date: "desc" },
+        take: Math.ceil(limit / 2),
+        select: {
+          id: true,
+          constituentId: true,
+          amount: true,
+          date: true,
+          campaign: { select: { name: true } },
+          constituent: { select: { firstName: true, lastName: true } },
+        },
+      });
+
+      const taskRows = await prisma.task.findMany({
+        where: {
+          organizationId: context.organizationId,
+          createdAt: { gte: since },
+          ...(constituentId ? { constituentId } : {}),
+          ...(tokens.length > 0
+            ? {
+                OR: [
+                  ...tokens.map((token) => ({ title: { contains: token } })),
+                  ...tokens.map((token) => ({ description: { contains: token } })),
+                ],
+              }
+            : {}),
+        },
+        orderBy: { createdAt: "desc" },
+        take: Math.ceil(limit / 2),
+        select: {
+          id: true,
+          constituentId: true,
+          title: true,
+          status: true,
+          priority: true,
+          createdAt: true,
+          dueDate: true,
+        },
+      });
+
+      const rows = [
+        ...activityRows.map((row) => ({
+          timestamp: row.createdAt.toISOString(),
+          source: "activity",
+          type: String(row.type),
+          label: row.description,
+          constituentId: row.constituentId,
+          donationId: row.donationId,
+          taskId: row.taskId,
+        })),
+        ...donationRows.map((row) => ({
+          timestamp: row.date.toISOString(),
+          source: "donation",
+          type: "DONATION",
+          label: `${row.constituent ? `${row.constituent.firstName} ${row.constituent.lastName}`.trim() : "Donor"} donated $${Number(row.amount).toLocaleString()}${row.campaign?.name ? ` (${row.campaign.name})` : ""}`,
+          constituentId: row.constituentId,
+          donationId: row.id,
+          taskId: null,
+        })),
+        ...taskRows.map((row) => ({
+          timestamp: row.createdAt.toISOString(),
+          source: "task",
+          type: "TASK",
+          label: `${row.title} [${row.status}]${row.dueDate ? ` due ${row.dueDate.toISOString().slice(0, 10)}` : ""}`,
+          constituentId: row.constituentId,
+          donationId: null,
+          taskId: row.id,
+        })),
+      ]
+        .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+        .slice(0, limit);
+
+      result = {
+        query,
+        generatedAt: new Date().toISOString(),
+        since: since.toISOString().slice(0, 10),
+        totalMatches: rows.length,
+        rows,
       };
       break;
     }
@@ -2178,7 +2421,7 @@ export async function executeStewardTool(
       const statusRaw = asText(input?.status, "", 30);
 
       const tokens = query.length >= 2
-        ? query.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((t) => t.length >= 2).slice(0, 4)
+        ? tokenizeSearchQuery(query, 4)
         : [];
 
       const grants = await prisma.grant.findMany({
@@ -2500,6 +2743,8 @@ interface DonorRetrievalIntent {
   helpWorkflow: boolean;
   analysis: boolean;
   reporting: boolean;
+  timeline: boolean;
+  segmentation: boolean;
   specificLookup: boolean;
   tasks: boolean;
   campaigns: boolean;
@@ -2518,6 +2763,8 @@ function detectDonorRetrievalIntent(lowerQuery: string): DonorRetrievalIntent {
     helpWorkflow: /(how do i|how to|steps|where do i|walk me through)/i.test(lowerQuery),
     analysis: /(analy[sz]e|trend|why|risk|retention|opportun|segment|insight|compare)/i.test(lowerQuery),
     reporting: /(report|ytd|revenue|giving|fiscal|kpi|dashboard|month|year)/i.test(lowerQuery),
+    timeline: /(timeline|history|recent activity|recent interactions|interaction log|what happened)/i.test(lowerQuery),
+    segmentation: /(segment|cohort|tier|group by|audience|list of donors|which donors)/i.test(lowerQuery),
     specificLookup: /(who is|tell me about|find|search|look up|show me|what do you know about)/i.test(lowerQuery),
     tasks: /(task|follow.up|overdue|behind|pending|assign)/i.test(lowerQuery),
     campaigns: /(campaign|fundrais|goal|progress|raised|appeal)/i.test(lowerQuery),
@@ -2556,6 +2803,7 @@ export async function buildDonorToolContextForChat(params: {
 
   const lower = params.query.toLowerCase();
   const intent = detectDonorRetrievalIntent(lower);
+  const mentionLockedIds = Array.from(new Set((params.mentionedConstituentIds ?? []).filter(Boolean))).slice(0, 3);
 
   // Inject fiscal year context so the AI knows the current FY and YTD window
   try {
@@ -2571,6 +2819,86 @@ export async function buildDonorToolContextForChat(params: {
     // Non-fatal: fiscal year context is enhancement only
   }
 
+  // Tagged donor lock: when the composer includes @mentioned donors, restrict retrieval
+  // to those donor profiles only and avoid global org-level context blending.
+  if (mentionLockedIds.length > 0) {
+    lines.push(`Tagged donor focus mode: enabled for ${mentionLockedIds.length} donor(s). Retrieval is restricted to tagged donor profiles.`);
+
+    for (const cid of mentionLockedIds) {
+      try {
+        const profileResult = await executeStewardTool(context, "donor.getFullProfile", {
+          constituentId: cid,
+        });
+        toolsUsed.push(profileResult.tool);
+        const profile = profileResult.result as Awaited<ReturnType<typeof getDonorFullProfile>>;
+        if (!profile) continue;
+
+        lines.push(
+          `Tagged donor profile: ${profile.name} [${profile.donorStatus}]`,
+          `  Lifetime giving: $${profile.totalLifetimeGiving.toLocaleString()} across ${profile.giftCount} gifts`,
+          `  Last gift: ${profile.lastGiftDate ?? "none"} ($${profile.lastGiftAmount.toLocaleString()})`,
+          `  First gift: ${profile.firstGiftDate ?? "none"}`,
+          `  Preferred channel: ${profile.signals.bestChannel}`,
+          `  Lapse risk: ${profile.signals.lapseRisk}, Opportunity score: ${profile.signals.opportunityScore}`,
+          `  Best next step: ${profile.signals.bestNextStep}`,
+          `  Open tasks: ${profile.openTasks.length}`
+        );
+        lines.push(
+          `  Communication preference flags: doNotEmail=${profile.communicationPreferences.doNotEmail ? "yes" : "no"}, emailOptOut=${profile.communicationPreferences.emailOptOut ? "yes" : "no"}, doNotCall=${profile.communicationPreferences.doNotCall ? "yes" : "no"}, doNotMail=${profile.communicationPreferences.doNotMail ? "yes" : "no"}, doNotContact=${profile.communicationPreferences.doNotContact ? "yes" : "no"}`
+        );
+
+        if (profile.recentDonations.length > 0) {
+          lines.push("  Recent gift history:");
+          for (const d of profile.recentDonations.slice(0, 8)) {
+            lines.push(`    - $${d.amount.toLocaleString()} on ${d.date}${d.campaign ? ` via ${d.campaign}` : ""}${d.acknowledged ? " [acknowledged]" : " [needs acknowledgment]"}`);
+          }
+        }
+
+        if (profile.openTasks.length > 0) {
+          lines.push("  Open stewardship tasks:");
+          for (const task of profile.openTasks) {
+            lines.push(`    - ${task.title} [${task.priority}]${task.dueDate ? ` due ${task.dueDate}` : ""}`);
+          }
+        }
+
+        const describedTags = profile.tagContexts.filter((tag) => tag.description);
+        if (describedTags.length > 0) {
+          lines.push(`  Tag context: ${describedTags.map((tag) => `${tag.name} means ${tag.description}`).join("; ")}`);
+        }
+
+        lines.push(`Structured profile packet: ${JSON.stringify({
+          kind: "tagged_donor_profile",
+          constituentId: profile.id,
+          name: profile.name,
+          donorStatus: profile.donorStatus,
+          totalLifetimeGiving: profile.totalLifetimeGiving,
+          giftCount: profile.giftCount,
+          lastGiftDate: profile.lastGiftDate,
+          lastGiftAmount: profile.lastGiftAmount,
+          communicationPreferences: profile.communicationPreferences,
+          signals: profile.signals,
+        })}`);
+
+        recordsUsed.push(`${profile.name} — tagged donor profile, $${profile.totalLifetimeGiving.toLocaleString()} lifetime`);
+      } catch {
+        // Non-fatal: if one tagged donor fails, preserve others.
+      }
+    }
+
+    const bounded = buildBoundedContextText(lines);
+    const uniqueTools = Array.from(new Set(toolsUsed));
+    const uniqueRecords = Array.from(new Set(recordsUsed));
+    if (bounded.truncated) {
+      uniqueTools.push("context.truncated");
+    }
+
+    return {
+      contextText: bounded.text,
+      toolsUsed: uniqueTools,
+      recordsUsed: uniqueRecords.slice(0, 220),
+    };
+  }
+
   const brief = await executeStewardTool(context, "donor.getDailyBrief", undefined);
   toolsUsed.push(brief.tool);
   const briefData = brief.result as Awaited<ReturnType<typeof getDailyBrief>>;
@@ -2584,6 +2912,57 @@ export async function buildDonorToolContextForChat(params: {
     `High opportunity donors: ${briefData.summary.topOpportunityCount}`,
     `Top donors by lifetime giving: ${briefData.topDonors.length}`
   );
+
+  if (intent.reporting || intent.analysis || intent.segmentation || intent.numericComputation) {
+    try {
+      const commandCenterResult = await executeStewardTool(context, "reports.runStewardCommandCenter", undefined);
+      toolsUsed.push(commandCenterResult.tool);
+      const commandCenter = commandCenterResult.result as {
+        generatedAt: string;
+        fiscalYearLabel: string;
+        headline: {
+          weeklyAmount: number;
+          monthlyAmount: number;
+          fiscalYtdAmount: number;
+          fiscalTotalAmount: number;
+          uniqueDonorsYtd: number;
+        };
+        yoyCurrent: { fiscalYear: number; revenueChange: number | null; donorChange: number | null; isYtd: boolean } | null;
+        donorTiers: Array<{ tier: string; donorCount: number; totalRevenue: number; percentOfRevenue: number }>;
+        topCampaigns: Array<{ name: string; raised: number; percentComplete: number | null; giftCount: number; active: boolean }>;
+        topDesignations: Array<{ name: string; amount: number; count: number }>;
+      };
+
+      lines.push(
+        `Command center snapshot (${commandCenter.fiscalYearLabel}): weekly $${commandCenter.headline.weeklyAmount.toLocaleString()}, monthly $${commandCenter.headline.monthlyAmount.toLocaleString()}, YTD $${commandCenter.headline.fiscalYtdAmount.toLocaleString()} from ${commandCenter.headline.uniqueDonorsYtd} unique donors.`
+      );
+      if (commandCenter.yoyCurrent) {
+        lines.push(
+          `YoY signal (${commandCenter.yoyCurrent.fiscalYear}${commandCenter.yoyCurrent.isYtd ? " YTD" : ""}): revenue ${commandCenter.yoyCurrent.revenueChange == null ? "n/a" : `${commandCenter.yoyCurrent.revenueChange}%`}, donors ${commandCenter.yoyCurrent.donorChange == null ? "n/a" : `${commandCenter.yoyCurrent.donorChange}%`}.`
+        );
+      }
+      if (commandCenter.donorTiers.length > 0) {
+        lines.push(`Donor tier mix: ${commandCenter.donorTiers.map((tier) => `${tier.tier} ${tier.donorCount} donors (${tier.percentOfRevenue}% rev)`).join("; ")}`);
+      }
+      if (commandCenter.topCampaigns.length > 0) {
+        lines.push(`Top campaign signals: ${commandCenter.topCampaigns.slice(0, 3).map((campaign) => `${campaign.name} $${campaign.raised.toLocaleString()}${campaign.percentComplete == null ? "" : ` (${campaign.percentComplete}%)`}`).join(", ")}`);
+      }
+      if (commandCenter.topDesignations.length > 0) {
+        lines.push(`Top designations: ${commandCenter.topDesignations.slice(0, 3).map((designation) => `${designation.name} $${designation.amount.toLocaleString()}`).join(", ")}`);
+      }
+
+      lines.push(`Structured context packet: ${JSON.stringify({
+        kind: "steward_command_center",
+        fiscalYearLabel: commandCenter.fiscalYearLabel,
+        generatedAt: commandCenter.generatedAt,
+        headline: commandCenter.headline,
+        yoyCurrent: commandCenter.yoyCurrent,
+      })}`);
+      recordsUsed.push(`Command center YTD: $${commandCenter.headline.fiscalYtdAmount.toLocaleString()}`);
+    } catch {
+      // Non-fatal
+    }
+  }
 
   if (!intent.draftCommunication && (intent.analysis || intent.reporting || /top donors?|major donors?/i.test(lower))) {
     for (const donor of briefData.topDonors.slice(0, 5)) {
@@ -2873,6 +3252,75 @@ export async function buildDonorToolContextForChat(params: {
     }
   }
 
+  if (intent.timeline || intent.specificLookup || intent.analysis) {
+    try {
+      const timelineScopeConstituentId = (() => {
+        const parts = params.scopePath.split("/").filter(Boolean);
+        if (parts[0] === "constituents" && parts[1]) return parts[1];
+        return params.mentionedConstituentIds?.[0] ?? null;
+      })();
+
+      const timelineResult = await executeStewardTool(context, "knowledge.searchUnifiedTimeline", {
+        query: params.query.slice(0, 200),
+        constituentId: timelineScopeConstituentId ?? undefined,
+        limit: 12,
+        daysBack: 120,
+      });
+      toolsUsed.push(timelineResult.tool);
+      const timeline = timelineResult.result as {
+        generatedAt: string;
+        since: string;
+        totalMatches: number;
+        rows: Array<{ timestamp: string; source: string; type: string; label: string; constituentId: string | null }>;
+      };
+      lines.push(`Unified CRM timeline: ${timeline.totalMatches} records since ${timeline.since}.`);
+      for (const row of timeline.rows.slice(0, 6)) {
+        const record = `${fmtDate(row.timestamp)} [${row.source}/${row.type}] ${row.label}`;
+        lines.push(`- Timeline event: ${record}`);
+        recordsUsed.push(record);
+      }
+      lines.push(`Structured timeline packet: ${JSON.stringify({
+        kind: "unified_timeline",
+        generatedAt: timeline.generatedAt,
+        since: timeline.since,
+        totalMatches: timeline.totalMatches,
+        sample: timeline.rows.slice(0, 3),
+      })}`);
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  if (intent.segmentation || /active donors|lapsed donors|major donors|new donors|segment/i.test(lower)) {
+    try {
+      const [activeSegmentResult, lapsedSegmentResult, majorSegmentResult] = await Promise.all([
+        executeStewardTool(context, "knowledge.getDonorsBySegment", { donorStatus: "ACTIVE", limit: 8 }),
+        executeStewardTool(context, "knowledge.getDonorsBySegment", { donorStatus: "LAPSED", limit: 8 }),
+        executeStewardTool(context, "knowledge.getDonorsBySegment", { donorStatus: "MAJOR_DONOR", limit: 8 }),
+      ]);
+      toolsUsed.push(activeSegmentResult.tool, lapsedSegmentResult.tool, majorSegmentResult.tool);
+      const activeSegment = activeSegmentResult.result as { total: number; donors: Array<{ name: string; lifetimeGiving: number }> };
+      const lapsedSegment = lapsedSegmentResult.result as { total: number; donors: Array<{ name: string; lifetimeGiving: number }> };
+      const majorSegment = majorSegmentResult.result as { total: number; donors: Array<{ name: string; lifetimeGiving: number }> };
+
+      lines.push(
+        `Segment snapshot: ${activeSegment.total} active donors, ${lapsedSegment.total} lapsed donors, ${majorSegment.total} major donors.`
+      );
+      if (majorSegment.donors.length > 0) {
+        lines.push(`Major donor samples: ${majorSegment.donors.slice(0, 4).map((donor) => `${donor.name} ($${donor.lifetimeGiving.toLocaleString()})`).join(", ")}`);
+      }
+      lines.push(`Structured segment packet: ${JSON.stringify({
+        kind: "segment_snapshot",
+        active: activeSegment.total,
+        lapsed: lapsedSegment.total,
+        major: majorSegment.total,
+      })}`);
+      recordsUsed.push(`Segments active/lapsed/major: ${activeSegment.total}/${lapsedSegment.total}/${majorSegment.total}`);
+    } catch {
+      // Non-fatal
+    }
+  }
+
   if (intent.grants || /grant deadline|loi|proposal due|reporting due/i.test(lower)) {
     try {
       const grantsResult = await executeStewardTool(context, "grants.getDeadlineRadar", { limit: 15, windowDays: 120 });
@@ -3024,9 +3472,17 @@ export async function buildDonorToolContextForChat(params: {
     recordsUsed.push(`Verified avg gift: ${avgGift}`);
   }
 
+  const bounded = buildBoundedContextText(lines);
+  const uniqueTools = Array.from(new Set(toolsUsed));
+  const uniqueRecords = Array.from(new Set(recordsUsed));
+
+  if (bounded.truncated) {
+    uniqueTools.push("context.truncated");
+  }
+
   return {
-    contextText: lines.join("\n"),
-    toolsUsed,
-    recordsUsed,
+    contextText: bounded.text,
+    toolsUsed: uniqueTools,
+    recordsUsed: uniqueRecords.slice(0, 220),
   };
 }

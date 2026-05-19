@@ -25,6 +25,7 @@ import type { StewardChartArtifact } from "@/app/components/ai/steward-artifact-
 
 interface Props {
   artifact: StewardChartArtifact;
+  onAskReportQuestion?: (prompt: string) => void;
 }
 
 type TooltipEntry = {
@@ -250,14 +251,30 @@ function PieChartRenderer({
   );
 }
 
-export default function EnhancedChartArtifactCard({ artifact }: Props) {
+export default function EnhancedChartArtifactCard({ artifact, onAskReportQuestion }: Props) {
   const [showDetails, setShowDetails] = useState(false);
+  const [askDraft, setAskDraft] = useState("");
 
   // Compute summary stats
   const totalValue = artifact.series.reduce((sum, s) => sum + s.data.reduce((a, b) => a + b, 0), 0);
 
   const isDonut = artifact.chartType === "donut";
   const isPie = artifact.chartType === "pie";
+
+  const quickPrompts = [
+    `Explain the top 3 insights from ${artifact.title || "this chart"}.`,
+    `Identify anomalies and possible causes in ${artifact.title || "this chart"}.`,
+    `Compare early vs late periods and summarize trend shifts in ${artifact.title || "this chart"}.`,
+    `Recommend 5 concrete CRM actions based on ${artifact.title || "this chart"}.`,
+    `Forecast the next period from ${artifact.title || "this chart"} and explain confidence.`,
+  ];
+
+  function askPrompt(prompt: string) {
+    const value = prompt.trim();
+    if (!value || !onAskReportQuestion) return;
+    onAskReportQuestion(value);
+    setAskDraft("");
+  }
 
   const chartComponent = (() => {
     switch (artifact.chartType) {
@@ -362,6 +379,45 @@ export default function EnhancedChartArtifactCard({ artifact }: Props) {
                   <span className="text-xs text-slate-300">{s.name}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(onAskReportQuestion || showDetails) && (
+        <div className="space-y-2 rounded-xl border border-white/10 bg-black/25 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-cyan-200">Chart tools</p>
+          <div className="flex flex-wrap gap-1.5">
+            {quickPrompts.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => askPrompt(prompt)}
+                className="rounded-lg border border-white/15 bg-[#0f172a] px-2 py-1 text-[11px] text-slate-200 hover:bg-[#1e293b]"
+                disabled={!onAskReportQuestion}
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium text-slate-300">Ask about this chart</label>
+            <div className="flex items-center gap-2">
+              <input
+                value={askDraft}
+                onChange={(event) => setAskDraft(event.target.value)}
+                placeholder="Ask for trends, risks, recommendations, forecasts..."
+                className="w-full rounded-lg border border-white/15 bg-[#020817] px-2.5 py-1.5 text-xs text-slate-100 placeholder:text-slate-500 outline-none focus:border-cyan-400/70"
+              />
+              <button
+                type="button"
+                onClick={() => askPrompt(askDraft)}
+                disabled={!askDraft.trim() || !onAskReportQuestion}
+                className="rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Ask
+              </button>
             </div>
           </div>
         </div>

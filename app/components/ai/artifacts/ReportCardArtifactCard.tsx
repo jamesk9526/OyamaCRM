@@ -6,11 +6,13 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import type { StewardReportCardArtifact } from "@/app/components/ai/steward-artifact-types";
 
 interface Props {
   artifact: StewardReportCardArtifact;
   onOpenReport?: (path: string, label?: string) => void;
+  onAskReportQuestion?: (prompt: string) => void;
 }
 
 // ─── Inline SVG Sparkline ──────────────────────────────────────────────────────
@@ -90,8 +92,24 @@ function TrendIcon({ trend }: { trend?: "up" | "down" | "flat" }) {
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function ReportCardArtifactCard({ artifact, onOpenReport }: Props) {
+export default function ReportCardArtifactCard({ artifact, onOpenReport, onAskReportQuestion }: Props) {
   const { title, fiscalYearLabel, metrics, deepLink, deepLinkLabel, chartData } = artifact;
+  const [askDraft, setAskDraft] = useState("");
+
+  const quickPrompts = [
+    `Summarize the top KPI drivers in ${title || "this report"}.`,
+    `Find the biggest risk in ${title || "this report"} and propose mitigation.`,
+    `Recommend 5 donor stewardship actions from ${title || "this report"}.`,
+    `Explain weekly, monthly, and fiscal comparisons for ${title || "this report"}.`,
+    `Draft a board-ready narrative from ${title || "this report"}.`,
+  ];
+
+  function askPrompt(prompt: string) {
+    const value = prompt.trim();
+    if (!value || !onAskReportQuestion) return;
+    onAskReportQuestion(value);
+    setAskDraft("");
+  }
 
   return (
     <article className="overflow-hidden rounded-2xl border border-white/10 bg-[#0d1117] text-slate-200 shadow-[0_18px_50px_rgba(0,0,0,0.28)]">
@@ -165,6 +183,40 @@ export default function ReportCardArtifactCard({ artifact, onOpenReport }: Props
               </svg>
             </Link>
           )}
+        </div>
+      )}
+
+      {onAskReportQuestion && (
+        <div className="border-t border-white/10 px-4 py-3">
+          <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-cyan-200">Report tools</p>
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {quickPrompts.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => askPrompt(prompt)}
+                className="rounded-lg border border-white/12 bg-white/[0.04] px-2 py-1 text-[11px] text-slate-200 hover:bg-white/10"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              value={askDraft}
+              onChange={(event) => setAskDraft(event.target.value)}
+              placeholder="Ask a custom question about this report..."
+              className="w-full rounded-lg border border-white/12 bg-black/30 px-2.5 py-1.5 text-xs text-slate-100 placeholder:text-slate-500 outline-none focus:border-cyan-300/65"
+            />
+            <button
+              type="button"
+              onClick={() => askPrompt(askDraft)}
+              disabled={!askDraft.trim()}
+              className="rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Ask
+            </button>
+          </div>
         </div>
       )}
     </article>

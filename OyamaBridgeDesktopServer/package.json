@@ -28,6 +28,8 @@
     "files": [
       "main.js",
       "bridge-server.js",
+      "gpu-telemetry.js",
+      "ollama-runtime.js",
       "preload.js",
       "index.html",
       "renderer.js",

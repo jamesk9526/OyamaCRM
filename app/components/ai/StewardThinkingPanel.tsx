@@ -6,7 +6,7 @@
  * Separate from the final answer; never mixes thinking output into the main message.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 interface StewardThinkingPanelProps {
   /** Human-readable progress steps sent during pipeline stages. */
@@ -29,7 +29,28 @@ export function StewardThinkingPanel({
   tone = "light",
 }: StewardThinkingPanelProps) {
   const [reasoningOpen, setReasoningOpen] = useState(false);
+  const [tickerIndex, setTickerIndex] = useState(0);
   const reasoningRef = useRef<HTMLDivElement>(null);
+
+  const paragraphHeadlines = useMemo(() => {
+    if (!thinkingContent.trim()) return [] as string[];
+
+    const previews = thinkingContent
+      .split(/\n\s*\n+/)
+      .map((paragraph) => paragraph.trim())
+      .filter((paragraph) => paragraph.length > 0)
+      .map((paragraph) => {
+        const firstLine = paragraph
+          .split("\n")
+          .map((line) => line.trim())
+          .find((line) => line.length > 0) ?? "";
+        const compactLine = firstLine.replace(/\s+/g, " ").trim();
+        return compactLine.length > 84 ? `${compactLine.slice(0, 84)}...` : compactLine;
+      })
+      .filter((line) => line.length > 0);
+
+    return previews;
+  }, [thinkingContent]);
 
   // Auto-scroll the reasoning panel as new tokens arrive.
   useEffect(() => {
@@ -37,6 +58,19 @@ export function StewardThinkingPanel({
       reasoningRef.current.scrollTop = reasoningRef.current.scrollHeight;
     }
   }, [thinkingContent, reasoningOpen]);
+
+  useEffect(() => {
+    if (!isActive || paragraphHeadlines.length <= 1) {
+      setTickerIndex(0);
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setTickerIndex((current) => (current + 1) % paragraphHeadlines.length);
+    }, 1700);
+
+    return () => window.clearInterval(timer);
+  }, [isActive, paragraphHeadlines.length]);
 
   const hasContent = progressSteps.length > 0 || thinkingContent.length > 0;
   if (!hasContent && !isActive) return null;
@@ -49,6 +83,8 @@ export function StewardThinkingPanel({
   const dividerClass = isDark ? "border-white/10" : "border-slate-100";
   const mutedTextClass = isDark ? "text-slate-400" : "text-slate-500";
   const activeTextClass = isDark ? "text-cyan-100" : "text-slate-600";
+  const tickerTextClass = isDark ? "text-cyan-200/90" : "text-cyan-700";
+  const currentHeadline = paragraphHeadlines[tickerIndex] ?? paragraphHeadlines[0] ?? "";
 
   return (
     <div className={`steward-thinking-panel mb-2 overflow-hidden rounded-xl border ${shellClass} ${compact ? "text-xs" : "text-sm"}`}>
@@ -116,6 +152,23 @@ export function StewardThinkingPanel({
           </button>
         )}
       </div>
+
+      {/* Rolling thinking line: shows the first line of each new reasoning paragraph. */}
+      {isActive && currentHeadline && (
+        <div className={`border-t px-3 py-1.5 ${dividerClass}`}>
+          <div className={`flex items-center gap-2 text-[11px] ${tickerTextClass}`}>
+            <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-cyan-400/15 text-cyan-300">
+              <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </span>
+            <span className="shrink-0 font-medium">Thinking now:</span>
+            <span key={`${tickerIndex}-${currentHeadline.slice(0, 16)}`} className="min-w-0 flex-1 truncate animate-pulse">
+              {currentHeadline}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Collapsible progress step history (non-compact only) */}
       {!compact && progressSteps.length > 1 && (

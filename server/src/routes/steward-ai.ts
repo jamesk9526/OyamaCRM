@@ -292,6 +292,15 @@ function buildGuidePathChoice(label: string, prompt: string): StewardSuggestedAc
   };
 }
 
+function buildGuidePathOpenReportChoice(label: string, path: string): StewardSuggestedActionPayload {
+  return {
+    label,
+    actionType: "open_report",
+    requiresConfirmation: false,
+    payload: { path },
+  };
+}
+
 function buildThoughtStackChoice(actionType: "thoughtstack.continue" | "thoughtstack.review_first" | "thoughtstack.provide_details" | "thoughtstack.cancel", label: string, prompt: string): StewardSuggestedActionPayload {
   return {
     label,
@@ -299,6 +308,45 @@ function buildThoughtStackChoice(actionType: "thoughtstack.continue" | "thoughts
     requiresConfirmation: actionType === "thoughtstack.continue",
     payload: { prompt },
   };
+}
+
+interface GuidePathSignals {
+  asksReport: boolean;
+  hasTimeRange: boolean;
+  hasReportFocus: boolean;
+  asksCrossModule: boolean;
+  hasAudience: boolean;
+  hasTone: boolean;
+  hasCrmContext: boolean;
+}
+
+function extractGuidePathSignals(text: string): GuidePathSignals {
+  const normalized = text.toLowerCase();
+  return {
+    asksReport: /(report|dashboard|summary|kpi|metrics|board report|analysis)/.test(normalized),
+    hasTimeRange: /(today|this\s+week|last\s+week|this\s+month|last\s+month|this\s+quarter|last\s+quarter|year(?:\s|-)?to(?:\s|-)?date|ytd|fiscal|fiscle|calendar|between|from\s+.+\s+to|q[1-4]|fy\s?\d{2,4}|custom\s+(date\s+)?range)/.test(normalized),
+    hasReportFocus: /(financial|revenue|donor|engagement|campaign|attendance|clients?|events?|board)/.test(normalized),
+    asksCrossModule: /(all\s+of\s+the\s+above|cross\s*-?\s*module|org(?:anization)?\s*-?\s*wide|across\s+all\s+modules)/.test(normalized),
+    hasAudience: /(all active|monthly|lapsed|attendees?|guests?|segment|group|campaign|recipients?|these donors|this list)/.test(normalized),
+    hasTone: /(warm|formal|direct|celebratory|board-ready|ministry|tone)/.test(normalized),
+    hasCrmContext: /(donor|constituent|campaign|gift|donation|client|case|event|attendance|task|steward|segment)/.test(normalized),
+  };
+}
+
+function inferModuleReportFocus(moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>): string {
+  if (moduleKey === "events") return "attendance and operations";
+  if (moduleKey === "compassion") return "client engagement and outcomes";
+  if (moduleKey === "watchdog") return "security and operations";
+  if (moduleKey === "webmaster") return "campaign and web performance";
+  return "donor engagement and fundraising";
+}
+
+function reportWorkspacePathForModule(moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>): string {
+  if (moduleKey === "events") return "/reports?tab=events&module=events";
+  if (moduleKey === "compassion") return "/reports?tab=compassion&module=compassion";
+  if (moduleKey === "watchdog") return "/reports?tab=operations&module=watchdog";
+  if (moduleKey === "webmaster") return "/reports?tab=webmaster&module=webmaster";
+  return "/reports?tab=donor-crm&module=donor";
 }
 
 /**
@@ -309,14 +357,22 @@ function buildGuidePathClarification(options: {
   mode: StewardChatMode;
   moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>;
   userQuery: string;
+  recentUserQuery?: string;
 }): { state: Exclude<GuidePathState, "Ready to Act">; structured: StewardStructuredResponsePayload } | null {
   const q = options.userQuery.trim();
   if (!q) return null;
   const normalized = q.toLowerCase();
+  const recentUserQuery = options.recentUserQuery?.trim() || q;
+  const latestSignals = extractGuidePathSignals(q);
+  const recentSignals = extractGuidePathSignals(recentUserQuery);
+  const isGuidedContinuation = /(continue|apply|selection|choose|use\s+.+\s+as\s+the\s+report\s+timeframe|focus\s+this\s+report)/.test(normalized);
+  const moduleFocusHint = inferModuleReportFocus(options.moduleKey);
+  const implicitModuleFocus = options.moduleKey !== "oshareview" && !recentSignals.asksCrossModule;
+  const quickReportPath = reportWorkspacePathForModule(options.moduleKey);
 
-  const asksReport = /(report|dashboard|summary|kpi|metrics|board report|analysis)/.test(normalized);
-  const hasTimeRange = /(today|this week|last week|this month|last month|this quarter|last quarter|year to date|ytd|fiscal|calendar|between|from\s+.+\s+to|q[1-4]|fy\s?\d{4})/.test(normalized);
-  const hasReportFocus = /(financial|revenue|donor|engagement|campaign|attendance|clients?|events?|board)/.test(normalized);
+  const asksReport = latestSignals.asksReport || (isGuidedContinuation && recentSignals.asksReport);
+  const hasTimeRange = latestSignals.hasTimeRange || recentSignals.hasTimeRange;
+  const hasReportFocus = latestSignals.hasReportFocus || recentSignals.hasReportFocus || implicitModuleFocus;
 
   if (asksReport && (!hasTimeRange || !hasReportFocus)) {
     const missing = !hasTimeRange ? "time period" : "report focus";
@@ -330,6 +386,7 @@ function buildGuidePathClarification(options: {
           buildGuidePathChoice("This quarter", "Use this quarter as the report timeframe and continue."),
           buildGuidePathChoice("Year to date", "Use year-to-date as the report timeframe and continue."),
           buildGuidePathChoice("Custom range", "I want a custom date range for this report."),
+          buildGuidePathOpenReportChoice("Open report workspace", quickReportPath),
         ]
       : [
           buildGuidePathChoice("Financial totals", "Focus this report on financial totals and continue."),
@@ -337,6 +394,8 @@ function buildGuidePathClarification(options: {
           buildGuidePathChoice("Campaign performance", "Focus this report on campaign performance and continue."),
           buildGuidePathChoice("Attendance/operations", "Focus this report on attendance and operations and continue."),
           buildGuidePathChoice("All of the above", "Include financial totals, engagement, and campaign performance in one board report."),
+          buildGuidePathChoice("Use current CRM context", `Use the current ${moduleFocusHint} focus and continue.`),
+          buildGuidePathOpenReportChoice("Open report workspace", quickReportPath),
         ];
 
     return {
@@ -352,14 +411,17 @@ function buildGuidePathClarification(options: {
         ].join("\n"),
         artifacts: [],
         suggestedActions: choices,
-        evidence: [{ label: "GuidePath classified request as Needs Guided Setup" }],
+        evidence: [
+          { label: "GuidePath classified request as Needs Guided Setup" },
+          { label: `CRM context: ${options.moduleKey} workspace` },
+        ],
       },
     };
   }
 
   const asksComms = /(send|email|message|notify|thank.?you|appeal|reminder)/.test(normalized);
-  const hasAudience = /(all active|monthly|lapsed|attendees?|guests?|segment|group|campaign|recipients?|these donors|this list)/.test(normalized);
-  const hasTone = /(warm|formal|direct|celebratory|board-ready|ministry|tone)/.test(normalized);
+  const hasAudience = latestSignals.hasAudience || recentSignals.hasAudience;
+  const hasTone = latestSignals.hasTone || recentSignals.hasTone;
 
   if (asksComms && (!hasAudience || !hasTone)) {
     const question = !hasAudience
@@ -425,7 +487,9 @@ function buildGuidePathClarification(options: {
     };
   }
 
-  const tooVague = /(do it|run it|make it|fix this|send this|use that)/.test(normalized) && normalized.length < 40;
+  const tooVague = /(do it|run it|make it|fix this|send this|use that)/.test(normalized)
+    && normalized.length < 40
+    && !recentSignals.hasCrmContext;
   if (tooVague) {
     return {
       state: "Cannot Safely Answer Yet",
@@ -2357,7 +2421,6 @@ async function buildAgenticToolPass(options: {
   }
 
   const toolCatalog = availableTools
-    .slice(0, 18)
     .map((tool) => `- ${tool.name}: ${tool.description}`)
     .join("\n");
 
@@ -2396,7 +2459,7 @@ async function buildAgenticToolPass(options: {
     )
   );
 
-  const plannedRequests = parseAgenticToolRequestPlan(plannerResult.content).slice(0, 3);
+  const plannedRequests = parseAgenticToolRequestPlan(plannerResult.content).slice(0, 4);
   if (plannedRequests.length === 0) {
     return {
       notes: ["Agentic planner decided not to use any tools."],
@@ -2721,6 +2784,9 @@ async function buildRetrievalContext(params: {
   mentionedConstituentIds?: string[];
 }): Promise<StewardContextResult> {
   const tokens = tokenizeQuery(params.userQuery);
+  const taggedDonorFocus =
+    (params.moduleKey === "donor" || params.moduleKey === "oshareview")
+    && (params.mentionedConstituentIds?.length ?? 0) > 0;
 
   let base: StewardContextResult;
 
@@ -2795,34 +2861,45 @@ async function buildRetrievalContext(params: {
     });
   }
 
-  const workspaceScope = scopeFromModuleKey(params.moduleKey);
-  const [memoryContext, fileContext] = await Promise.all([
-    buildUserMemoryContext({
-      organizationId: params.organizationId,
-      userId: params.userId,
-      userQuery: params.userQuery,
-      workspaceScope,
-      limit: 8,
-    }),
-    buildFileContext({
-      organizationId: params.organizationId,
-      userId: params.userId,
-      userQuery: params.userQuery,
-      workspaceScope,
-      limit: 6,
-    }),
-  ]);
+  if (!taggedDonorFocus) {
+    const workspaceScope = scopeFromModuleKey(params.moduleKey);
+    const [memoryContext, fileContext] = await Promise.all([
+      buildUserMemoryContext({
+        organizationId: params.organizationId,
+        userId: params.userId,
+        userQuery: params.userQuery,
+        workspaceScope,
+        limit: 8,
+      }),
+      buildFileContext({
+        organizationId: params.organizationId,
+        userId: params.userId,
+        userQuery: params.userQuery,
+        workspaceScope,
+        limit: 6,
+      }),
+    ]);
 
-  base = {
-    contextText: [
-      base.contextText,
-      "Context layer policy: session context is temporary; saved memories are user-specific; uploaded file context is user-managed; CRM data remains live tool context.",
-      memoryContext.contextText,
-      fileContext.contextText,
-    ].join("\n"),
-    toolsUsed: [...base.toolsUsed, ...memoryContext.toolsUsed, ...fileContext.toolsUsed],
-    recordsUsed: [...base.recordsUsed, ...memoryContext.recordsUsed, ...fileContext.recordsUsed],
-  };
+    base = {
+      contextText: [
+        base.contextText,
+        "Context layer policy: session context is temporary; saved memories are user-specific; uploaded file context is user-managed; CRM data remains live tool context.",
+        memoryContext.contextText,
+        fileContext.contextText,
+      ].join("\n"),
+      toolsUsed: [...base.toolsUsed, ...memoryContext.toolsUsed, ...fileContext.toolsUsed],
+      recordsUsed: [...base.recordsUsed, ...memoryContext.recordsUsed, ...fileContext.recordsUsed],
+    };
+  } else {
+    base = {
+      ...base,
+      contextText: [
+        base.contextText,
+        "Tagged donor focus policy: memory and file layers are skipped so answers stay grounded only in tagged donor profile data.",
+      ].join("\n"),
+      toolsUsed: [...base.toolsUsed, "context.taggedDonorFocus"],
+    };
+  }
 
   if (params.mode !== "help") {
     return base;
@@ -4067,6 +4144,7 @@ router.post("/chat/stream", async (req, res) => {
         .filter(Boolean)
         .slice(0, 5)
     : [];
+  const taggedDonorFocus = moduleKey === "donor" && mentionedConstituentIds.length > 0;
   const explicitSavedMemory = await saveExplicitMemoryFromText({
     organizationId,
     userId: req.user?.sub ?? "",
@@ -4105,6 +4183,11 @@ router.post("/chat/stream", async (req, res) => {
     mode,
     moduleKey,
     userQuery: latestUserMessage,
+    recentUserQuery: normalizedMessages
+      .filter((message) => message.role === "user")
+      .slice(-4)
+      .map((message) => message.content)
+      .join("\n"),
   });
 
   if (guidePath) {
@@ -4155,7 +4238,7 @@ router.post("/chat/stream", async (req, res) => {
   }
 
   try {
-    if (mode !== "llm" && moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
+    if (!taggedDonorFocus && mode !== "llm" && moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
       writeProgress("Looking up top donor records…");
       const topDonorResult = await buildTopDonorResult({
         organizationId,
@@ -4192,7 +4275,7 @@ router.post("/chat/stream", async (req, res) => {
       return;
     }
 
-    if (mode !== "llm" && moduleKey === "donor" && isReportQuestion(latestUserMessage)) {
+    if (!taggedDonorFocus && mode !== "llm" && moduleKey === "donor" && isReportQuestion(latestUserMessage)) {
       writeProgress("Running YTD giving report…");
       const reportResult = await buildReportCardResult({
         organizationId,
@@ -4274,17 +4357,22 @@ router.post("/chat/stream", async (req, res) => {
     });
 
     const agenticToolPass = mode === "agentic"
-      ? await buildAgenticToolPass({
-          organizationId,
-          enabled: Boolean(setting?.enabled),
-          config,
-          moduleKey,
-          scopePath,
-          userQuery: latestUserMessage,
-          contextText: modelContextText,
-          userId: req.user?.sub ?? "",
-          role: req.user?.role ?? "readonly",
-        })
+      ? (taggedDonorFocus
+          ? {
+              notes: ["Agentic read-tool planning skipped because tagged donor focus mode is active."],
+              toolsUsed: ["agentic.tools.skipped.taggedDonorFocus"],
+            }
+          : await buildAgenticToolPass({
+              organizationId,
+              enabled: Boolean(setting?.enabled),
+              config,
+              moduleKey,
+              scopePath,
+              userQuery: latestUserMessage,
+              contextText: modelContextText,
+              userId: req.user?.sub ?? "",
+              role: req.user?.role ?? "readonly",
+            }))
       : { notes: [] as string[], toolsUsed: [] as string[] };
 
     const agenticNotes = [...thoughtStack.summaryLines, ...agenticPreparation.stageSummaries, ...agenticToolPass.notes];
@@ -4547,6 +4635,7 @@ router.post("/chat", async (req, res) => {
         .filter(Boolean)
         .slice(0, 5)
     : [];
+  const taggedDonorFocus = moduleKey === "donor" && mentionedConstituentIds.length > 0;
   const explicitSavedMemory = await saveExplicitMemoryFromText({
     organizationId,
     userId: req.user?.sub ?? "",
@@ -4570,6 +4659,11 @@ router.post("/chat", async (req, res) => {
     mode,
     moduleKey,
     userQuery: latestUserMessage,
+    recentUserQuery: normalizedMessages
+      .filter((message) => message.role === "user")
+      .slice(-4)
+      .map((message) => message.content)
+      .join("\n"),
   });
 
   if (guidePath) {
@@ -4618,7 +4712,7 @@ router.post("/chat", async (req, res) => {
   }
 
   try {
-    if (mode !== "llm" && moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
+    if (!taggedDonorFocus && mode !== "llm" && moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
       const topDonorResult = await buildTopDonorResult({
         organizationId,
         userId: req.user?.sub ?? "",
@@ -4653,7 +4747,7 @@ router.post("/chat", async (req, res) => {
       return;
     }
 
-    if (mode !== "llm" && moduleKey === "donor" && isReportQuestion(latestUserMessage)) {
+    if (!taggedDonorFocus && mode !== "llm" && moduleKey === "donor" && isReportQuestion(latestUserMessage)) {
       const reportResult = await buildReportCardResult({
         organizationId,
         userId: req.user?.sub ?? "",
@@ -4712,17 +4806,22 @@ router.post("/chat", async (req, res) => {
     });
 
     const agenticToolPass = mode === "agentic"
-      ? await buildAgenticToolPass({
-          organizationId,
-          enabled: Boolean(setting?.enabled),
-          config,
-          moduleKey,
-          scopePath,
-          userQuery: latestUserMessage,
-          contextText: modelContextText,
-          userId: req.user?.sub ?? "",
-          role: req.user?.role ?? "readonly",
-        })
+      ? (taggedDonorFocus
+          ? {
+              notes: ["Agentic read-tool planning skipped because tagged donor focus mode is active."],
+              toolsUsed: ["agentic.tools.skipped.taggedDonorFocus"],
+            }
+          : await buildAgenticToolPass({
+              organizationId,
+              enabled: Boolean(setting?.enabled),
+              config,
+              moduleKey,
+              scopePath,
+              userQuery: latestUserMessage,
+              contextText: modelContextText,
+              userId: req.user?.sub ?? "",
+              role: req.user?.role ?? "readonly",
+            }))
       : { notes: [] as string[], toolsUsed: [] as string[] };
 
     const agenticNotes = [...thoughtStack.summaryLines, ...agenticPreparation.stageSummaries, ...agenticToolPass.notes];

@@ -110,6 +110,127 @@ type StewardChatStreamEvent =
   | StewardChatStreamProgress
   | StewardChatStreamThinking;
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function parseMetricNumeric(value: string): number | null {
+  const input = (value || "").trim();
+  if (!input) return null;
+
+  const normalized = input.replace(/[,$\s]/g, "").toUpperCase();
+  const match = normalized.match(/^(-?\d+(?:\.\d+)?)([KMB])?$/);
+  if (!match) return null;
+
+  const base = Number(match[1]);
+  if (!Number.isFinite(base)) return null;
+  const suffix = match[2];
+  if (suffix === "K") return base * 1_000;
+  if (suffix === "M") return base * 1_000_000;
+  if (suffix === "B") return base * 1_000_000_000;
+  return base;
+}
+
+function formatCompact(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+function buildReportPrintHtml(params: {
+  title: string;
+  fiscalYearLabel?: string;
+  route: string;
+  metrics: Array<{ label: string; value: string; delta?: string }>;
+  evidence: Array<{ label: string; detail?: string }>;
+  insights: string[];
+}): string {
+  const now = new Date();
+  const timestamp = new Intl.DateTimeFormat("en-US", {
+    dateStyle: "full",
+    timeStyle: "short",
+  }).format(now);
+
+  const metricRows = params.metrics
+    .map((metric) => {
+      const delta = metric.delta ? `<div class=\"delta\">${escapeHtml(metric.delta)}</div>` : "";
+      return `
+        <div class=\"metric\">
+          <div class=\"metric-label\">${escapeHtml(metric.label)}</div>
+          <div class=\"metric-value\">${escapeHtml(metric.value)}</div>
+          ${delta}
+        </div>
+      `;
+    })
+    .join("\n");
+
+  const evidenceRows = params.evidence
+    .slice(0, 16)
+    .map((item) => `<li>${escapeHtml(item.label)}${item.detail ? ` - ${escapeHtml(item.detail)}` : ""}</li>`)
+    .join("\n");
+
+  const insightRows = params.insights
+    .slice(0, 8)
+    .map((item) => `<li>${escapeHtml(item)}</li>`)
+    .join("\n");
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset=\"utf-8\" />
+  <title>${escapeHtml(params.title)} - Printable Report</title>
+  <style>
+    body { font-family: "Segoe UI", Arial, sans-serif; color: #0f172a; margin: 28px; }
+    h1 { margin: 0 0 4px; font-size: 24px; }
+    .sub { color: #334155; margin: 0 0 16px; font-size: 13px; }
+    .meta { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; font-size: 12px; color: #334155; }
+    .section { margin-top: 16px; }
+    .section h2 { margin: 0 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: .05em; color: #0f766e; }
+    .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .metric { border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px; }
+    .metric-label { font-size: 11px; text-transform: uppercase; color: #475569; }
+    .metric-value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+    .delta { margin-top: 4px; font-size: 11px; color: #0f766e; }
+    ul { margin: 0; padding-left: 20px; }
+    li { margin: 4px 0; font-size: 13px; line-height: 1.35; }
+    .footer { margin-top: 20px; font-size: 11px; color: #64748b; }
+    @media print { body { margin: 14mm; } }
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(params.title)}</h1>
+  <p class=\"sub\">Steward AI report snapshot${params.fiscalYearLabel ? ` - ${escapeHtml(params.fiscalYearLabel)}` : ""}</p>
+  <div class=\"meta\">
+    <span><strong>Generated:</strong> ${escapeHtml(timestamp)}</span>
+    <span><strong>Route:</strong> ${escapeHtml(params.route)}</span>
+  </div>
+
+  <section class=\"section\">
+    <h2>Key Metrics</h2>
+    <div class=\"metrics\">${metricRows}</div>
+  </section>
+
+  <section class=\"section\">
+    <h2>Steward Insights</h2>
+    <ul>${insightRows || "<li>No insights were generated for this snapshot.</li>"}</ul>
+  </section>
+
+  <section class=\"section\">
+    <h2>Evidence Highlights</h2>
+    <ul>${evidenceRows || "<li>No evidence highlights were attached.</li>"}</ul>
+  </section>
+
+  <p class=\"footer\">Generated from Steward Report Workspace for printable review.</p>
+</body>
+</html>`;
+}
+
 // ─── Scope config ─────────────────────────────────────────────────────────────
 
 const SCOPE_OPTIONS: Array<{ key: ModuleKey; label: string; description: string; color: string }> = [
@@ -602,12 +723,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
 
-  // --- Open sidebar on large screens on initial mount ---
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.innerWidth >= 640) {
-      setSidebarOpen(true);
-    }
-  }, []);
+  // Sidebar intentionally stays collapsed by default across viewport sizes.
 
   // --- iOS visual viewport listener: keeps layout above keyboard on Safari ---
   useEffect(() => {
@@ -996,9 +1112,9 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     truncateAt?: number;
   }
 
-  const send = useCallback(async (content?: string, opts: SendOpts = {}) => {
+  const send = useCallback(async (content?: string, opts: SendOpts = {}): Promise<boolean> => {
     const text = (content ?? draft).trim();
-    if (!text || sending) return;
+    if (!text || sending) return false;
 
     const appendUser = opts.appendUser ?? true;
     const base       = opts.historyOverride ?? messages;
@@ -1041,7 +1157,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           mode,
           moduleKey: scope === "all" ? "donor" : scope,
           scopePath: "/steward-ai-workspace",
-          fyMode: reportingYearMode,
+          reportingYearMode,
           fiscalYear: getFiscalYearForDate(new Date(), fiscalYearStart),
           fiscalYearStart,
           // Inject locked donor context so the AI knows who we're talking about
@@ -1135,12 +1251,14 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           };
         })
       );
+      return true;
     } catch (err) {
       setMessages((prev) =>
         prev.filter((m) => m.id !== assistantId || m.content.trim().length > 0)
       );
       const isAbort = err instanceof Error && (err.name === "AbortError" || /abort/i.test(err.message));
       if (!isAbort) setError(err instanceof Error ? err.message : "Request failed.");
+      return false;
     } finally {
       streamAbort.current = null;
       setSending(false);
@@ -1250,7 +1368,11 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       const prompt = typeof payload?.prompt === "string" && payload.prompt.trim().length > 0
         ? payload.prompt.trim()
         : action.label;
-      await send(prompt);
+      const sent = await send(prompt);
+      if (!sent) {
+        setActionStatus({ tone: "error", message: "GuidePath continuation is waiting for the current response to finish. Try again in a second." });
+        return;
+      }
       setActionStatus({ tone: "success", message: "GuidePath selection applied. Continuing with your request." });
       return;
     }
@@ -1260,7 +1382,11 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       const prompt = typeof payload?.prompt === "string" && payload.prompt.trim().length > 0
         ? payload.prompt.trim()
         : action.label;
-      await send(prompt);
+      const sent = await send(prompt);
+      if (!sent) {
+        setActionStatus({ tone: "error", message: "ThoughtStack continuation is waiting for the current response to finish. Try again in a second." });
+        return;
+      }
 
       const thoughtStackMessage = action.actionType === "thoughtstack.review_first"
         ? "ThoughtStack set this request to review-first. Generating a dry-run style preview."
@@ -1358,6 +1484,100 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     if (!reportWorkspace?.structured?.artifacts) return [];
     return reportWorkspace.structured.artifacts.filter((artifact) => artifact.type === "chart") as StewardChartArtifact[];
   }, [reportWorkspace]);
+
+  const reportMetricBars = useMemo(() => {
+    const metrics = reportCardArtifact?.metrics ?? [];
+    const numeric = metrics
+      .map((metric) => ({ metric, numericValue: parseMetricNumeric(metric.value) }))
+      .filter((item) => typeof item.numericValue === "number") as Array<{
+        metric: StewardReportCardArtifact["metrics"][number];
+        numericValue: number;
+      }>;
+
+    if (numeric.length === 0) return [] as Array<{ label: string; value: string; width: number; normalized: number }>;
+
+    const maxValue = Math.max(...numeric.map((item) => item.numericValue), 1);
+    return numeric
+      .sort((a, b) => b.numericValue - a.numericValue)
+      .slice(0, 6)
+      .map((item) => {
+        const normalized = item.numericValue / maxValue;
+        return {
+          label: item.metric.label,
+          value: item.metric.value,
+          normalized,
+          width: Math.max(6, Math.round(normalized * 100)),
+        };
+      });
+  }, [reportCardArtifact]);
+
+  const reportInsights = useMemo(() => {
+    const insights: string[] = [];
+    const metrics = reportCardArtifact?.metrics ?? [];
+    const numericMetrics = metrics
+      .map((metric) => ({ label: metric.label, value: parseMetricNumeric(metric.value), raw: metric.value }))
+      .filter((item) => typeof item.value === "number") as Array<{ label: string; value: number; raw: string }>;
+
+    if (numericMetrics.length > 1) {
+      const strongest = [...numericMetrics].sort((a, b) => b.value - a.value)[0];
+      const weakest = [...numericMetrics].sort((a, b) => a.value - b.value)[0];
+      insights.push(`${strongest.label} is currently the strongest signal at ${strongest.raw}.`);
+      insights.push(`${weakest.label} is the weakest tracked metric at ${weakest.raw}; review root causes and remediation.`);
+    }
+
+    const trendUp = metrics.filter((metric) => metric.trend === "up").length;
+    const trendDown = metrics.filter((metric) => metric.trend === "down").length;
+    if (trendUp || trendDown) {
+      insights.push(`Trend mix: ${trendUp} improving metrics and ${trendDown} declining metrics in this snapshot.`);
+    }
+
+    const chart = reportCharts[0];
+    const firstSeries = chart?.series?.[0];
+    if (chart && firstSeries && firstSeries.data.length > 1) {
+      const seriesMax = Math.max(...firstSeries.data);
+      const seriesMin = Math.min(...firstSeries.data);
+      const spread = seriesMax - seriesMin;
+      const spreadPct = seriesMin > 0 ? Math.round((spread / seriesMin) * 100) : null;
+      insights.push(
+        spreadPct !== null
+          ? `${firstSeries.name} variance is ${formatCompact(spread)} (${spreadPct}% spread across reported periods).`
+          : `${firstSeries.name} variance is ${formatCompact(spread)} across reported periods.`
+      );
+    }
+
+    if (reportWorkspace?.structured?.evidence?.length) {
+      insights.push(`Evidence pack includes ${reportWorkspace.structured.evidence.length} supporting highlights.`);
+    }
+
+    return insights.slice(0, 6);
+  }, [reportCardArtifact, reportCharts, reportWorkspace]);
+
+  const printReportWorkspace = useCallback(() => {
+    if (!reportWorkspace) return;
+
+    const metrics = reportCardArtifact?.metrics ?? [];
+    const evidence = reportWorkspace.structured?.evidence ?? [];
+    const printHtml = buildReportPrintHtml({
+      title: reportCardArtifact?.title || reportWorkspace.title,
+      fiscalYearLabel: reportCardArtifact?.fiscalYearLabel,
+      route: reportWorkspace.path,
+      metrics,
+      evidence,
+      insights: reportInsights,
+    });
+
+    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1024,height=768");
+    if (!printWindow) {
+      setActionStatus({ tone: "error", message: "Unable to open print preview. Please allow pop-ups and try again." });
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }, [reportWorkspace, reportCardArtifact, reportInsights]);
 
   const askStewardFromReport = useCallback(async () => {
     if (!reportWorkspace) return;
@@ -1823,6 +2043,11 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     onSaveTemplate={() => openSaveTemplateModal(msg.id)}
                     onRunAction={(idx) => void runAction(msg.id, idx)}
                     onOpenReport={(path, label) => openReportWorkspaceFromMessage(msg.id, path, label)}
+                    onAskReportQuestion={(prompt) => {
+                      const cardArtifact = msg.structured?.artifacts?.find((artifact) => artifact.type === "report_card") as StewardReportCardArtifact | undefined;
+                      const contextTitle = cardArtifact?.title || "report artifact";
+                      void send(`Report artifact follow-up (${contextTitle}): ${prompt}`);
+                    }}
                     isLast={i === messages.length - 1}
                   />
                 ))}
@@ -2113,23 +2338,32 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           onClose={() => setReportWorkspace(null)}
           maxWidthClassName="max-w-[96vw]"
         >
-          <div className="px-4 pb-4 pt-12 bg-[#020617]">
-            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2 text-xs text-slate-300">
-              <span className="truncate text-slate-300">Report route: {reportWorkspace.path}</span>
-              <a
-                href={reportWorkspace.path}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-lg border border-white/15 bg-slate-900/70 px-2.5 py-1 text-xs font-semibold text-slate-100 hover:bg-slate-800"
-              >
-                Open full page
-              </a>
+          <div className="h-[calc(100dvh-8.5rem)] overflow-y-auto bg-[#020617] px-3 pb-4 pt-10 sm:h-[calc(100dvh-7.5rem)] sm:px-4 sm:pt-12">
+            <div className="mb-3 flex flex-col items-start gap-2 rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2 text-xs text-slate-300 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+              <span className="w-full truncate text-slate-300">Report route: {reportWorkspace.path}</span>
+              <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+                <button
+                  type="button"
+                  onClick={printReportWorkspace}
+                  className="rounded-lg border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/20"
+                >
+                  Print paper report
+                </button>
+                <a
+                  href={reportWorkspace.path}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg border border-white/15 bg-slate-900/70 px-2.5 py-1 text-xs font-semibold text-slate-100 hover:bg-slate-800"
+                >
+                  Open full page
+                </a>
+              </div>
             </div>
 
-            <div className="grid gap-3 lg:grid-cols-[1.25fr_1fr]">
-              <div className="rounded-xl border border-white/10 bg-[#060d1a] p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-slate-100">{reportCardArtifact?.title || reportWorkspace.title}</h3>
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,1fr)]">
+              <div className="rounded-xl border border-white/10 bg-[#060d1a] p-3 sm:p-4">
+                <div className="mb-3 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="text-sm font-semibold text-slate-100 sm:text-base">{reportCardArtifact?.title || reportWorkspace.title}</h3>
                   {reportCardArtifact?.fiscalYearLabel && (
                     <span className="rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
                       {reportCardArtifact.fiscalYearLabel}
@@ -2151,6 +2385,65 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                   <p className="text-sm text-slate-400">No report metrics were attached to this response.</p>
                 )}
 
+                {reportMetricBars.length > 0 && (
+                  <div className="mt-4 rounded-lg border border-white/10 bg-[#0b1324] p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Metric weight distribution</p>
+                    <div className="space-y-2">
+                      {reportMetricBars.map((item) => (
+                        <div key={item.label}>
+                          <div className="mb-1 flex items-center justify-between text-[11px] text-slate-300">
+                            <span className="truncate pr-2">{item.label}</span>
+                            <span className="font-semibold text-slate-100">{item.value}</span>
+                          </div>
+                          <div className="h-2 overflow-hidden rounded bg-slate-900/60">
+                            <div
+                              className="h-full rounded bg-gradient-to-r from-cyan-500/70 to-emerald-400/70"
+                              style={{ width: `${item.width}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {reportCharts.length > 0 && (
+                  <div className="mt-4 rounded-lg border border-white/10 bg-[#0b1324] p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Chart snapshot</p>
+                    <div className="space-y-2">
+                      {reportCharts.slice(0, 1).map((chart) => {
+                        const series = chart.series?.[0];
+                        if (!series || series.data.length === 0) {
+                          return <p key={chart.title || chart.chartType} className="text-xs text-slate-400">No chart series data available.</p>;
+                        }
+
+                        const maxValue = Math.max(...series.data, 1);
+                        return (
+                          <div key={chart.title || chart.chartType}>
+                            <p className="mb-1 text-xs font-medium text-slate-300">{chart.title || series.name}</p>
+                            <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-3">
+                              {series.data.slice(0, 9).map((value, idx) => (
+                                <div key={`${series.name}-${idx}`} className="rounded border border-white/10 bg-slate-900/50 px-2 py-1.5">
+                                  <p className="truncate text-[10px] uppercase tracking-wide text-slate-400">{chart.labels[idx] || `P${idx + 1}`}</p>
+                                  <div className="mt-1 flex items-center gap-2">
+                                    <div className="h-1.5 flex-1 overflow-hidden rounded bg-slate-800">
+                                      <div
+                                        className="h-full rounded bg-cyan-400/80"
+                                        style={{ width: `${Math.max(8, Math.round((value / maxValue) * 100))}%` }}
+                                      />
+                                    </div>
+                                    <span className="font-semibold text-slate-200">{chart.yAxisPrefix || ""}{formatCompact(value)}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {reportWorkspace.structured?.evidence && reportWorkspace.structured.evidence.length > 0 && (
                   <div className="mt-4">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Evidence highlights</p>
@@ -2165,8 +2458,34 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                 )}
               </div>
 
-              <div className="space-y-3">
-                <div className="rounded-xl border border-white/10 bg-[#060d1a] p-4">
+              <div className="space-y-3 xl:sticky xl:top-0 xl:self-start">
+                {reportInsights.length > 0 && (
+                  <div className="rounded-xl border border-cyan-400/20 bg-[#06101f] p-3 sm:p-4">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-cyan-300">CRM intelligence snapshot</p>
+                    <ul className="space-y-1.5 text-sm text-slate-200">
+                      {reportInsights.map((item, idx) => (
+                        <li key={`${item}-${idx}`} className="rounded border border-cyan-400/10 bg-cyan-500/5 px-2 py-1">{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/5 p-3 sm:p-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-300">Printable paper version</p>
+                  <p className="text-xs leading-5 text-slate-300">
+                    Generate a print-optimized report packet with KPI tiles, stewardship insights, and evidence highlights.
+                    Use this for board packets, staff briefings, and physical review meetings.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={printReportWorkspace}
+                    className="mt-3 rounded-lg border border-emerald-400/35 bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/25"
+                  >
+                    Open print layout
+                  </button>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-[#060d1a] p-3 sm:p-4">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Report tools</p>
                   <div className="flex flex-wrap gap-2">
                     {[
@@ -2174,12 +2493,18 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                       "Find the biggest risk in this report and propose mitigation.",
                       "Show weekly, monthly, and fiscal comparisons from this report.",
                       "Recommend 5 donor actions based on these metrics.",
+                      "Build a board-ready executive summary from this report.",
+                      "Identify unusual metric combinations and likely root causes.",
+                      "Recommend campaign and segment pivots for the next 30 days.",
+                      "Estimate next-month outlook using current trend and seasonality.",
+                      "List immediate task assignments with owners and due dates.",
+                      "Show which KPIs improved vs declined and why.",
                     ].map((toolPrompt) => (
                       <button
                         key={toolPrompt}
                         type="button"
                         onClick={() => setReportQuestion(toolPrompt)}
-                        className="rounded-lg border border-white/15 bg-slate-900/70 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800"
+                        className="w-full rounded-lg border border-white/15 bg-slate-900/70 px-2.5 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800 sm:w-auto"
                       >
                         {toolPrompt}
                       </button>
@@ -2187,15 +2512,15 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-[#060d1a] p-4">
+                <div className="rounded-xl border border-white/10 bg-[#060d1a] p-3 sm:p-4">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Ask LLM about this report</p>
                   <textarea
                     value={reportQuestion}
                     onChange={(event) => setReportQuestion(event.target.value)}
                     placeholder="Ask for trends, risks, recommendations, or forecast insights..."
-                    className="min-h-24 w-full resize-y rounded-lg border border-white/15 bg-[#020817] px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-emerald-400/70 focus:ring-2 focus:ring-emerald-400/20"
+                    className="min-h-28 w-full resize-y rounded-lg border border-white/15 bg-[#020817] px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-emerald-400/70 focus:ring-2 focus:ring-emerald-400/20"
                   />
-                  <div className="mt-2 flex items-center justify-end gap-2">
+                  <div className="mt-2 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
                     <button
                       type="button"
                       onClick={() => setReportQuestion("")}
@@ -2235,9 +2560,10 @@ interface MessageRowProps {
   onSaveTemplate: () => void;
   onRunAction: (idx: number) => void;
   onOpenReport: (path: string, label?: string) => void;
+  onAskReportQuestion: (prompt: string) => void;
 }
 
-function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegenerate, onCopy, onSaveTemplate, onRunAction, onOpenReport }: MessageRowProps) {
+function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegenerate, onCopy, onSaveTemplate, onRunAction, onOpenReport, onAskReportQuestion }: MessageRowProps) {
   if (msg.role === "user") {
     return (
       <div className="steward-message-row steward-message-row-user flex justify-end animate-slide-up-fade-in">
@@ -2325,6 +2651,7 @@ function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegene
               if (idx >= 0) onRunAction(idx);
             }}
             onOpenReport={(path, label) => onOpenReport(path, label)}
+            onAskReportQuestion={(prompt) => onAskReportQuestion(prompt)}
             onCopy={!isStreaming && (isLast || true) ? onCopy : undefined}
             onRegenerate={!isStreaming ? onRegenerate : undefined}
             onSaveTemplate={!isStreaming && canSaveAsTemplate ? onSaveTemplate : undefined}

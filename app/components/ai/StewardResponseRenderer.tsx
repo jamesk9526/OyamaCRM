@@ -99,6 +99,7 @@ interface StewardResponseRendererProps {
   /** Callbacks */
   onSuggestedAction?: (action: StewardSuggestedAction) => void | Promise<void>;
   onOpenReport?: (path: string, label?: string) => void;
+  onAskReportQuestion?: (prompt: string) => void;
   onCopy?: () => void;
   onRegenerate?: () => void;
   onSaveTemplate?: () => void;
@@ -108,6 +109,7 @@ interface StewardResponseRendererProps {
 function renderArtifact(
   artifact: StewardArtifact,
   onOpenReport?: (path: string, label?: string) => void,
+  onAskReportQuestion?: (prompt: string) => void,
 ): React.ReactElement | null {
   if (artifact.type === "email_draft") return <EmailDraftArtifactCard artifact={artifact} />;
   if (artifact.type === "donor_list") return <EnhancedDonorListArtifactCard artifact={artifact} />;
@@ -115,8 +117,8 @@ function renderArtifact(
   if (artifact.type === "task_list") return <TaskListArtifactCard artifact={artifact} />;
   if (artifact.type === "call_script") return <CallScriptArtifactCard artifact={artifact} />;
   if (artifact.type === "csv_rows") return <CsvRowsArtifactCard artifact={artifact} />;
-  if (artifact.type === "report_card") return <ReportCardArtifactCard artifact={artifact} onOpenReport={onOpenReport} />;
-  if (artifact.type === "chart") return <EnhancedChartArtifactCard artifact={artifact} />;
+  if (artifact.type === "report_card") return <ReportCardArtifactCard artifact={artifact} onOpenReport={onOpenReport} onAskReportQuestion={onAskReportQuestion} />;
+  if (artifact.type === "chart") return <EnhancedChartArtifactCard artifact={artifact} onAskReportQuestion={onAskReportQuestion} />;
   return null;
 }
 
@@ -333,6 +335,7 @@ export default function StewardResponseRenderer({
   generatedAt,
   onSuggestedAction,
   onOpenReport,
+  onAskReportQuestion,
   onCopy,
   onRegenerate,
   onSaveTemplate,
@@ -354,7 +357,7 @@ export default function StewardResponseRenderer({
       {hasArtifacts && (
         <div className={`space-y-2 ${compact ? "mb-2" : "mb-3"}`}>
           {(structured?.artifacts ?? []).map((artifact, i) => (
-            <div key={`${artifact.type}-${i}`}>{renderArtifact(artifact, onOpenReport)}</div>
+            <div key={`${artifact.type}-${i}`}>{renderArtifact(artifact, onOpenReport, onAskReportQuestion)}</div>
           ))}
         </div>
       )}
