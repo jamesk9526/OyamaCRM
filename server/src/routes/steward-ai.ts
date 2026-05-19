@@ -146,7 +146,7 @@ interface BridgePairingKeyPayload {
 
 interface StewardAiChatPayload {
   messages?: StewardAiChatMessage[];
-  mode?: "ask" | "analyze" | "draft" | "writing" | "llm" | "action" | "help";
+  mode?: "ask" | "analyze" | "draft" | "free" | "agentic" | "writing" | "llm" | "action" | "help";
   moduleKey?: "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview";
   scopePath?: string;
   /** @mention-locked donors from the chat composer. Each entry provides a constituentId to load a full profile for. */
@@ -277,6 +277,10 @@ const ALLOWED_SUGGESTED_ACTION_TYPES = new Set<string>([
   "letters.create_letter_draft",
   "letters.build_full_letter_draft",
   "guidepath.choose",
+  "thoughtstack.continue",
+  "thoughtstack.review_first",
+  "thoughtstack.provide_details",
+  "thoughtstack.cancel",
 ]);
 
 function buildGuidePathChoice(label: string, prompt: string): StewardSuggestedActionPayload {
@@ -284,6 +288,15 @@ function buildGuidePathChoice(label: string, prompt: string): StewardSuggestedAc
     label,
     actionType: "guidepath.choose",
     requiresConfirmation: false,
+    payload: { prompt },
+  };
+}
+
+function buildThoughtStackChoice(actionType: "thoughtstack.continue" | "thoughtstack.review_first" | "thoughtstack.provide_details" | "thoughtstack.cancel", label: string, prompt: string): StewardSuggestedActionPayload {
+  return {
+    label,
+    actionType,
+    requiresConfirmation: actionType === "thoughtstack.continue",
     payload: { prompt },
   };
 }
@@ -332,7 +345,7 @@ function buildGuidePathClarification(options: {
         version: 1,
         replyMarkdown: [
           "**GuidePath: Needs Guided Setup**",
-          `I can build this report, but one detail is missing: **${missing}**.",
+          `I can build this report, but one detail is missing: **${missing}**.`,
           "",
           question,
           "Choose one option below to continue.",
@@ -436,6 +449,255 @@ function buildGuidePathClarification(options: {
   }
 
   return null;
+}
+
+type ThoughtStackRiskLevel = "low" | "medium" | "high";
+type ThoughtStackConfidence = "low" | "medium" | "high";
+
+interface ThoughtStackToolContract {
+  toolName: string;
+  riskLevel: ThoughtStackRiskLevel;
+  requiresConfirmation: boolean;
+  supportsDryRun: boolean;
+  requiredFields: string[];
+  verificationChecks: string[];
+}
+
+interface ThoughtStackAssessment {
+  state: GuidePathState;
+  confidence: ThoughtStackConfidence;
+  riskLevel: ThoughtStackRiskLevel;
+  requiresConfirmation: boolean;
+  dryRunRecommended: boolean;
+  selectedWorkflow: string;
+  missingDetails: string[];
+  summaryLines: string[];
+  toolContract?: ThoughtStackToolContract;
+  structured?: StewardStructuredResponsePayload;
+}
+
+function hasExplicitConfirmation(userQuery: string): boolean {
+  return /(\b(confirm|confirmed|approve|approved|continue|proceed|send now|run now|yes, continue)\b)/i.test(userQuery);
+}
+
+function buildThoughtStackToolContract(userQuery: string): ThoughtStackToolContract | undefined {
+  const normalized = userQuery.toLowerCase();
+
+  if (/(send|email|text|sms|newsletter|appeal|follow-?up|blast)/.test(normalized)) {
+    return {
+      toolName: "communications.sendDonorEmail",
+      riskLevel: "high",
+      requiresConfirmation: true,
+      supportsDryRun: true,
+      requiredFields: ["recipientSegment", "templateOrMessage", "deliveryTiming", "channel"],
+      verificationChecks: ["preparedCount", "sentCount", "failedCount", "skippedCount"],
+    };
+  }
+
+  if (/(import|csv|upload|spreadsheet|batch\s+entry)/.test(normalized)) {
+    return {
+      toolName: "data.importCsv",
+      riskLevel: "high",
+      requiresConfirmation: true,
+      supportsDryRun: true,
+      requiredFields: ["fileSource", "fieldMap", "duplicateStrategy"],
+      verificationChecks: ["rowsRead", "createdCount", "updatedCount", "duplicateCount", "failedCount"],
+    };
+  }
+
+  if (/(merge|dedupe|deduplicate|delete|remove|erase|publish|automation|bulk\s+update)/.test(normalized)) {
+    return {
+      toolName: "records.mutate",
+      riskLevel: "high",
+      requiresConfirmation: true,
+      supportsDryRun: true,
+      requiredFields: ["targetScope", "changePlan", "rollbackPlan"],
+      verificationChecks: ["affectedCount", "successCount", "failureCount"],
+    };
+  }
+
+  if (/(report|dashboard|summary|analy[sz]e|trend|retention|kpi|forecast|top donor)/.test(normalized)) {
+    return {
+      toolName: "reports.readInsights",
+      riskLevel: "low",
+      requiresConfirmation: false,
+      supportsDryRun: false,
+      requiredFields: ["timeRange", "focusArea"],
+      verificationChecks: ["recordsExamined", "sourcesUsed"],
+    };
+  }
+
+  return undefined;
+}
+
+function findThoughtStackMissingDetails(userQuery: string, contract?: ThoughtStackToolContract): string[] {
+  if (!contract) return [];
+
+  const normalized = userQuery.toLowerCase();
+  const missing: string[] = [];
+
+  if (contract.toolName === "communications.sendDonorEmail") {
+    if (!/(all\s+active|monthly|lapsed|attendees?|guests?|segment|group|list|recipients?)/.test(normalized)) {
+      missing.push("recipient segment");
+    }
+    if (!/(template|subject|message|thank\s?you|appeal|invitation|follow-?up)/.test(normalized)) {
+      missing.push("message template or subject");
+    }
+    if (!/(send\s+now|schedule|scheduled|draft|tomorrow|today|next\s+week)/.test(normalized)) {
+      missing.push("delivery timing (send now, schedule, or draft)");
+    }
+  }
+
+  if (contract.toolName === "data.importCsv") {
+    if (!/(csv|file|upload|sheet|spreadsheet)/.test(normalized)) {
+      missing.push("data file source");
+    }
+    if (!/(map|mapping|field|columns?)/.test(normalized)) {
+      missing.push("field mapping plan");
+    }
+    if (!/(duplicate|merge|skip|overwrite)/.test(normalized)) {
+      missing.push("duplicate handling strategy");
+    }
+  }
+
+  if (contract.toolName === "reports.readInsights") {
+    if (!/(today|this week|last week|this month|last month|this quarter|last quarter|year to date|ytd|fiscal|calendar|between|q[1-4]|fy\s?\d{4})/.test(normalized)) {
+      missing.push("time range");
+    }
+    if (!/(financial|revenue|donor|engagement|campaign|attendance|board|operations)/.test(normalized)) {
+      missing.push("report focus");
+    }
+  }
+
+  return missing.slice(0, 3);
+}
+
+function buildThoughtStackAssessment(options: {
+  mode: StewardChatMode;
+  moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>;
+  userIntent: StewardResponseIntent;
+  userQuery: string;
+}): ThoughtStackAssessment {
+  if (options.mode === "free") {
+    return {
+      state: "Ready to Act",
+      confidence: "medium",
+      riskLevel: "low",
+      requiresConfirmation: false,
+      dryRunRecommended: false,
+      selectedWorkflow: "pure.no-tools",
+      missingDetails: [],
+      summaryLines: [
+        "ThoughtStack intent layer: direct no-tools response requested.",
+        "ThoughtStack tool layer: no CRM tool selected.",
+        "ThoughtStack safety layer: low risk, response-only action.",
+      ],
+    };
+  }
+
+  const contract = buildThoughtStackToolContract(options.userQuery);
+  const missingDetails = findThoughtStackMissingDetails(options.userQuery, contract);
+  const riskLevel = contract?.riskLevel ?? "low";
+  const requiresConfirmation = Boolean(contract?.requiresConfirmation);
+  const dryRunRecommended = Boolean(contract?.supportsDryRun) || riskLevel === "high";
+  const confidence: ThoughtStackConfidence = missingDetails.length === 0 ? "high" : missingDetails.length === 1 ? "medium" : "low";
+  const selectedWorkflow = contract?.toolName ?? `response.${options.userIntent}`;
+
+  if (missingDetails.length > 0) {
+    const detailList = missingDetails.map((detail, index) => `${index + 1}. ${detail}`).join("\n");
+    return {
+      state: "Needs Clarification",
+      confidence,
+      riskLevel,
+      requiresConfirmation,
+      dryRunRecommended,
+      selectedWorkflow,
+      missingDetails,
+      toolContract: contract,
+      summaryLines: [
+        `ThoughtStack intent layer: ${options.userIntent}.`,
+        `ThoughtStack tool layer: proposed workflow ${selectedWorkflow}.`,
+        `ThoughtStack clarification layer: missing ${missingDetails.length} required detail(s).`,
+      ],
+      structured: {
+        version: 1,
+        replyMarkdown: [
+          "**ThoughtStack: Needs Clarification**",
+          "I can continue safely once these details are confirmed:",
+          "",
+          detailList,
+          "",
+          "Choose one option:",
+        ].join("\n"),
+        artifacts: [],
+        suggestedActions: [
+          buildThoughtStackChoice("thoughtstack.review_first", "Review First", "Show a dry-run preview first and do not execute live changes."),
+          buildThoughtStackChoice("thoughtstack.provide_details", "I will provide details", "I will provide the missing details now so you can continue."),
+          buildThoughtStackChoice("thoughtstack.cancel", "Cancel", "Cancel this request for now."),
+        ],
+        evidence: [
+          { label: "ThoughtStack classified request as Needs Clarification" },
+          ...(contract ? [{ label: `Proposed contract: ${contract.toolName}` }] : []),
+        ],
+      },
+    };
+  }
+
+  if (requiresConfirmation && !hasExplicitConfirmation(options.userQuery)) {
+    return {
+      state: "Needs Confirmation",
+      confidence,
+      riskLevel,
+      requiresConfirmation,
+      dryRunRecommended,
+      selectedWorkflow,
+      missingDetails,
+      toolContract: contract,
+      summaryLines: [
+        `ThoughtStack safety layer: ${riskLevel} risk action detected.`,
+        "ThoughtStack confirmation layer: explicit user confirmation required before execution.",
+        dryRunRecommended ? "ThoughtStack dry-run layer: preview recommended before commit." : "",
+      ].filter(Boolean),
+      structured: {
+        version: 1,
+        replyMarkdown: [
+          "**ThoughtStack: Needs Confirmation**",
+          "This request can change CRM data or send outbound communication.",
+          "I can proceed after confirmation, or prepare a review-first preview.",
+          "",
+          "Choose one option:",
+        ].join("\n"),
+        artifacts: [],
+        suggestedActions: [
+          buildThoughtStackChoice("thoughtstack.continue", "Continue", "Confirmed. Continue with this workflow."),
+          buildThoughtStackChoice("thoughtstack.review_first", "Review First", "Run a dry-run preview only. Do not execute live changes."),
+          buildThoughtStackChoice("thoughtstack.cancel", "Cancel", "Cancel this request."),
+        ],
+        evidence: [
+          { label: "ThoughtStack classified request as Needs Confirmation" },
+          ...(contract ? [{ label: `Proposed contract: ${contract.toolName}` }] : []),
+        ],
+      },
+    };
+  }
+
+  return {
+    state: "Ready to Act",
+    confidence,
+    riskLevel,
+    requiresConfirmation,
+    dryRunRecommended,
+    selectedWorkflow,
+    missingDetails,
+    toolContract: contract,
+    summaryLines: [
+      `ThoughtStack intent layer: ${options.userIntent}.`,
+      `ThoughtStack tool layer: ${selectedWorkflow}.`,
+      `ThoughtStack safety layer: ${riskLevel} risk (${requiresConfirmation ? "confirmation required" : "no confirmation required"}).`,
+      dryRunRecommended ? "ThoughtStack execution layer: dry-run-first path is recommended." : "",
+      "ThoughtStack verification layer: execution results must be verified before reporting completion.",
+    ].filter(Boolean),
+  };
 }
 
 function asSafeText(value: unknown, fallback = "", maxLength = 4000): string {
@@ -1041,6 +1303,21 @@ async function buildReportCardResult(context: StewardToolExecutionContext): Prom
 
 /** Returns mode-specific next-step defaults when the model does not provide explicit actions. */
 function defaultNextStepsByMode(mode: StewardChatMode): string[] {
+  if (mode === "free") {
+    return [
+      "Ask a follow-up question if you want a narrower answer.",
+      "Switch to Draft Outreach or Agentic mode if you want CRM-grounded output.",
+    ];
+  }
+
+  if (mode === "agentic") {
+    return [
+      "Review the tool-grounded answer and confirm any write actions before proceeding.",
+      "Ask for another pass if you want a different tool or a narrower scope.",
+      "Switch to Pure mode if you want an unrestricted no-tools response.",
+    ];
+  }
+
   if (mode === "analyze") {
     return [
       "Filter the Constituents view by this segment and review individual records.",
@@ -1214,11 +1491,14 @@ function parseDraftEmailParts(raw: string): DraftEmailParts {
 /** Serializes parsed draft email parts into the strict Steward response contract shape. */
 function serializeDraftEmailParts(parts: DraftEmailParts): string {
   return [
+    "```email",
     `Subject: ${parts.subject}`,
     `Preview Text: ${parts.previewText}`,
+    "",
     "Body:",
     parts.body,
-  ].join("\n\n");
+    "```",
+  ].join("\n");
 }
 
 /** Runs the dedicated draft email pipeline: draft -> thinking review -> strict formatting. */
@@ -1961,6 +2241,197 @@ async function buildAgenticPreparation(options: {
   }
 }
 
+interface AgenticToolRequest {
+  tool: string;
+  reason: string;
+  input?: Record<string, unknown>;
+}
+
+interface AgenticToolPassResult {
+  notes: string[];
+  toolsUsed: string[];
+}
+
+function summarizeToolVerification(result: unknown): string {
+  if (Array.isArray(result)) {
+    return `Verification: result returned ${result.length} row(s).`;
+  }
+
+  if (!result || typeof result !== "object") {
+    return "Verification: result payload was present but not object-shaped.";
+  }
+
+  const payload = result as Record<string, unknown>;
+  const numericChecks = [
+    "rowsRead",
+    "createdCount",
+    "updatedCount",
+    "duplicateCount",
+    "failedCount",
+    "sentCount",
+    "skippedCount",
+    "affectedCount",
+    "successCount",
+    "total",
+  ]
+    .map((key) => ({ key, value: payload[key] }))
+    .filter((entry) => typeof entry.value === "number" && Number.isFinite(entry.value as number))
+    .slice(0, 5);
+
+  if (numericChecks.length > 0) {
+    return `Verification: ${numericChecks.map((entry) => `${entry.key}=${String(entry.value)}`).join(", ")}.`;
+  }
+
+  const keys = Object.keys(payload).slice(0, 6);
+  return keys.length > 0
+    ? `Verification: result keys present (${keys.join(", ")}).`
+    : "Verification: empty result object returned.";
+}
+
+function extractVerificationEvidence(notes: string[]): StewardEvidencePayload[] {
+  const items: StewardEvidencePayload[] = [];
+
+  for (const note of notes) {
+    const lines = String(note || "").split("\n");
+    for (const line of lines) {
+      if (!line.startsWith("Verification:")) continue;
+      items.push({ label: asSafeText(line, "", 220) });
+      if (items.length >= 6) return items;
+    }
+  }
+
+  return items;
+}
+
+function parseAgenticToolRequestPlan(raw: string): AgenticToolRequest[] {
+  const content = String(raw || "").trim();
+  if (!content) return [];
+
+  const fencedJson = content.match(/```(?:json|steward-artifacts)?\s*\n([\s\S]*?)```/i)?.[1] ?? content;
+
+  try {
+    const parsed = JSON.parse(fencedJson) as { toolRequests?: unknown } | unknown;
+    const toolRequests = (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+      ? (parsed as { toolRequests?: unknown }).toolRequests
+      : undefined;
+    if (!Array.isArray(toolRequests)) return [];
+
+    return toolRequests
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry))
+      .map((entry) => ({
+        tool: asSafeText(entry.tool, "", 120),
+        reason: asSafeText(entry.reason, "", 240),
+        input: entry.input && typeof entry.input === "object" && !Array.isArray(entry.input)
+          ? (entry.input as Record<string, unknown>)
+          : undefined,
+      }))
+      .filter((entry) => Boolean(entry.tool));
+  } catch {
+    return [];
+  }
+}
+
+async function buildAgenticToolPass(options: {
+  organizationId: string;
+  enabled: boolean;
+  config: ReturnType<typeof parseStewardAiConfig>;
+  moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>;
+  scopePath: string;
+  userQuery: string;
+  contextText: string;
+  userId: string;
+  role: string;
+}): Promise<AgenticToolPassResult> {
+  const context: StewardToolExecutionContext = {
+    organizationId: options.organizationId,
+    userId: options.userId,
+    role: options.role,
+    moduleKey: options.moduleKey === "oshareview" ? "oshareview" : "donor",
+    scopePath: options.scopePath,
+    requestRoute: "/api/steward-ai/chat",
+  };
+
+  const availableTools = (await listStewardTools(context)).filter((tool) => tool.allowed && tool.kind === "read");
+  if (availableTools.length === 0) {
+    return { notes: ["No safe read tools were available for this request."], toolsUsed: [] };
+  }
+
+  const toolCatalog = availableTools
+    .slice(0, 18)
+    .map((tool) => `- ${tool.name}: ${tool.description}`)
+    .join("\n");
+
+  const plannerPrompt = [
+    "You are Steward's agentic tool planner.",
+    "Decide whether one or more safe read tools would improve the answer.",
+    "Use only the tool names listed below.",
+    "Do not request write tools.",
+    "Return exactly one JSON object shaped as {\"toolRequests\":[{\"tool\":\"...\",\"reason\":\"...\",\"input\":{...}}]}.",
+    "If no tools are needed, return {\"toolRequests\":[]}.",
+    "User query:",
+    options.userQuery || "(empty query)",
+    "Context:",
+    options.contextText || "(none)",
+    "Available tools:",
+    toolCatalog,
+  ].join("\n\n");
+
+  const plannerResult = await withStewardAiTask(
+    {
+      organizationId: options.organizationId,
+      enabled: options.enabled,
+      config: options.config,
+      label: "Planning tool-assisted answer",
+      status: "thinking",
+      fallbackOnError: true,
+    },
+    () => runStewardAiChat(
+      options.config,
+      [{ role: "system", content: plannerPrompt }],
+      {
+        model: options.config.reasoningMode === "thinking" ? resolveThinkingModel(options.config) : options.config.model,
+        temperature: 0.1,
+        maxTokens: 700,
+      }
+    )
+  );
+
+  const plannedRequests = parseAgenticToolRequestPlan(plannerResult.content).slice(0, 3);
+  if (plannedRequests.length === 0) {
+    return {
+      notes: ["Agentic planner decided not to use any tools."],
+      toolsUsed: ["agentic.tools.none"],
+    };
+  }
+
+  const notes: string[] = [`Tool planner selected ${plannedRequests.length} read tool${plannedRequests.length === 1 ? "" : "s"}.`];
+  const toolsUsed: string[] = ["agentic.tools.plan"];
+
+  for (const request of plannedRequests) {
+    const toolDefinition = availableTools.find((tool) => tool.name === request.tool);
+    if (!toolDefinition) {
+      notes.push(`Skipped unavailable tool: ${request.tool}.`);
+      continue;
+    }
+
+    try {
+      const execution = await executeStewardTool(context, toolDefinition.name, request.input, { confirm: false });
+      toolsUsed.push(`agentic.tool.${toolDefinition.name}`);
+      const verificationSummary = summarizeToolVerification(execution.result);
+      notes.push([
+        `Tool result: ${toolDefinition.name}`,
+        request.reason ? `Reason: ${request.reason}` : "",
+        verificationSummary,
+        `Summary: ${JSON.stringify(execution.result).slice(0, 1200)}`,
+      ].filter(Boolean).join("\n"));
+    } catch (error) {
+      notes.push(`Tool failed: ${toolDefinition.name} — ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+
+  return { notes, toolsUsed };
+}
+
 /** Creates a runtime instruction block tailored to mode/module/context. */
 function buildRuntimeSystemPrompt(options: {
   mode: NonNullable<StewardAiChatPayload["mode"]>;
@@ -1976,11 +2447,15 @@ function buildRuntimeSystemPrompt(options: {
   const actionPolicy = options.mode === "action"
     ? "Action mode policy: do not claim an action is executed. Propose explicit steps, required confirmations, and rollback considerations."
     : "Non-action policy: provide read-first analysis and practical next steps.";
-  const modeSpecificPolicy = options.mode === "writing"
-    ? "Writing mode policy: prioritize strong writing quality, voice, and structure. Deliver polished draft-ready content first, then supporting rationale briefly."
-    : options.mode === "llm"
-      ? "LLM mode policy: allow broader brainstorming and synthesis while staying grounded in retrieved CRM context; when context is missing, explicitly label uncertainty."
-      : "";
+  const modeSpecificPolicy = options.mode === "free"
+    ? "Pure mode policy: do not use CRM tools, retrieval context, or structured artifacts. Answer directly from the user's prompt and general knowledge only."
+    : options.mode === "agentic"
+      ? "Agentic mode policy: if CRM evidence would improve the answer, expect tool-backed reasoning first and adapt the final answer after tool results arrive. Prefer the minimum number of read tools needed, and never auto-execute write tools without confirmation."
+      : options.mode === "writing"
+        ? "Legacy writing-mode alias: behave like Pure mode with a stronger emphasis on polished prose and draft quality. Do not use tools."
+        : options.mode === "llm"
+          ? "LLM mode policy: allow broader brainstorming and synthesis while staying grounded in retrieved CRM context; when context is missing, explicitly label uncertainty."
+          : "";
 
   const moduleLexicon = options.moduleKey === "compassion"
     ? "Use client-care terminology (client, case, appointment, follow-up). Avoid donor fundraising terms unless explicitly requested."
@@ -3652,6 +4127,33 @@ router.post("/chat/stream", async (req, res) => {
     return;
   }
 
+  const thoughtStack = buildThoughtStackAssessment({
+    mode,
+    moduleKey,
+    userIntent,
+    userQuery: latestUserMessage,
+  });
+
+  if (thoughtStack.state !== "Ready to Act" && thoughtStack.structured) {
+    const toolsUsed = ["thoughtstack.assess", ...(explicitSavedMemory ? ["memory.saveExplicit"] : [])];
+    res.write(`${JSON.stringify({ type: "chunk", delta: thoughtStack.structured.replyMarkdown })}\n`);
+    res.write(`${JSON.stringify({
+      type: "done",
+      reply: thoughtStack.structured.replyMarkdown,
+      structured: thoughtStack.structured,
+      model: config.model,
+      mode,
+      runtimeMode: config.mode,
+      provider: "thoughtstack",
+      toolsUsed,
+      recordsUsed: [],
+      moduleKey,
+      scopePath,
+    })}\n`);
+    res.end();
+    return;
+  }
+
   try {
     if (mode !== "llm" && moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
       writeProgress("Looking up top donor records…");
@@ -3720,33 +4222,41 @@ router.post("/chat/stream", async (req, res) => {
     }
 
     // ── Stage 1: Retrieval ──────────────────────────────────────────────────
-    const retrievalProgressMessages: Record<string, string> = {
-      donor:      "Reviewing donor records and giving history…",
-      compassion: "Reviewing client and case records…",
-      events:     "Reviewing event and registration data…",
-      watchdog:   "Reviewing compliance and audit data…",
-      webmaster:  "Reviewing site and content data…",
-    };
-    writeProgress(retrievalProgressMessages[moduleKey] ?? "Reviewing CRM records…");
+    const retrieval = mode === "free"
+      ? {
+          contextText: "Pure mode selected: answer from the user's prompt only. Do not use CRM tools or retrieved records.",
+          toolsUsed: [] as string[],
+          recordsUsed: [] as string[],
+        }
+      : await (async () => {
+          const retrievalProgressMessages: Record<string, string> = {
+            donor:      "Reviewing donor records and giving history…",
+            compassion: "Reviewing client and case records…",
+            events:     "Reviewing event and registration data…",
+            watchdog:   "Reviewing compliance and audit data…",
+            webmaster:  "Reviewing site and content data…",
+          };
+          writeProgress(retrievalProgressMessages[moduleKey] ?? "Reviewing CRM records…");
 
-    const retrieval = await buildRetrievalContext({
-      organizationId,
-      moduleKey,
-      mode,
-      scopePath,
-      userQuery: latestUserMessage,
-      userId: req.user?.sub ?? "",
-      role: req.user?.role ?? "readonly",
-      mentionedConstituentIds: mentionedConstituentIds.length > 0 ? mentionedConstituentIds : undefined,
-    });
+          return buildRetrievalContext({
+            organizationId,
+            moduleKey,
+            mode,
+            scopePath,
+            userQuery: latestUserMessage,
+            userId: req.user?.sub ?? "",
+            role: req.user?.role ?? "readonly",
+            mentionedConstituentIds: mentionedConstituentIds.length > 0 ? mentionedConstituentIds : undefined,
+          });
+        })();
     const modelContextText = buildModelContextForIntent(retrieval.contextText, userIntent);
 
-    if (retrieval.toolsUsed.length > 1) {
+    if (mode !== "free" && retrieval.toolsUsed.length > 1) {
       writeProgress(`Checking ${retrieval.toolsUsed.length} data sources…`);
     }
 
     // ── Stage 2: Agentic multi-stage reasoning ──────────────────────────────
-    if (config.agenticMultiStage) {
+    if (config.agenticMultiStage && mode !== "free") {
       writeProgress("Planning how to answer your question…");
     }
 
@@ -3762,6 +4272,23 @@ router.post("/chat/stream", async (req, res) => {
       userQuery: latestUserMessage,
       contextText: modelContextText,
     });
+
+    const agenticToolPass = mode === "agentic"
+      ? await buildAgenticToolPass({
+          organizationId,
+          enabled: Boolean(setting?.enabled),
+          config,
+          moduleKey,
+          scopePath,
+          userQuery: latestUserMessage,
+          contextText: modelContextText,
+          userId: req.user?.sub ?? "",
+          role: req.user?.role ?? "readonly",
+        })
+      : { notes: [] as string[], toolsUsed: [] as string[] };
+
+    const agenticNotes = [...thoughtStack.summaryLines, ...agenticPreparation.stageSummaries, ...agenticToolPass.notes];
+    const agenticToolsUsed = [...agenticPreparation.toolsUsed, ...agenticToolPass.toolsUsed];
 
     if (agenticPreparation.stageSummaries.length > 0) {
       writeProgress("Verifying data and checking for gaps…");
@@ -3782,14 +4309,15 @@ router.post("/chat/stream", async (req, res) => {
       moduleKey,
       scopePath,
       contextText: modelContextText + `\n\n${yearModeNote}`,
-      agenticNotes: agenticPreparation.stageSummaries,
+      agenticNotes,
       fiscalYearLabel: resolvedFyLabel,
       calendarYear: resolvedCalendarYear,
     });
 
     const toolsUsed = [
       ...retrieval.toolsUsed,
-      ...agenticPreparation.toolsUsed,
+      "thoughtstack.assess",
+      ...agenticToolsUsed,
       ...(explicitSavedMemory ? ["memory.saveExplicit"] : []),
     ];
     let provider = agenticPreparation.stageSummaries.length > 0 ? "ollama-agentic" : "ollama";
@@ -3892,9 +4420,20 @@ router.post("/chat/stream", async (req, res) => {
       toolsUsed,
       recordsUsed: retrieval.recordsUsed,
     });
+    const thoughtStackEvidence: StewardEvidencePayload[] = [
+      { label: `ThoughtStack state: ${thoughtStack.state}` },
+      { label: `ThoughtStack workflow: ${thoughtStack.selectedWorkflow}` },
+      { label: `ThoughtStack risk: ${thoughtStack.riskLevel}` },
+    ];
+    const verificationEvidence = extractVerificationEvidence(agenticToolPass.notes);
     const structured: StewardStructuredResponsePayload = {
       ...parsedStructured,
       replyMarkdown: templatedReply,
+      evidence: [
+        ...thoughtStackEvidence,
+        ...verificationEvidence,
+        ...parsedStructured.evidence,
+      ].slice(0, 16),
     };
 
     await logAudit({
@@ -3912,6 +4451,13 @@ router.post("/chat/stream", async (req, res) => {
         reasoningModelUsed: agenticPreparation.reasoningModel,
         agenticMultiStage: config.agenticMultiStage,
         agenticStageCount: agenticPreparation.stageSummaries.length,
+        thoughtStackState: thoughtStack.state,
+        thoughtStackRiskLevel: thoughtStack.riskLevel,
+        thoughtStackConfidence: thoughtStack.confidence,
+        thoughtStackWorkflow: thoughtStack.selectedWorkflow,
+        thoughtStackMissingDetails: thoughtStack.missingDetails,
+        thoughtStackRequiresConfirmation: thoughtStack.requiresConfirmation,
+        thoughtStackDryRunRecommended: thoughtStack.dryRunRecommended,
         chatMode: mode,
         userIntent,
         moduleKey,
@@ -4045,6 +4591,32 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
+  const thoughtStack = buildThoughtStackAssessment({
+    mode,
+    moduleKey,
+    userIntent,
+    userQuery: latestUserMessage,
+  });
+
+  if (thoughtStack.state !== "Ready to Act" && thoughtStack.structured) {
+    const toolsUsed = ["thoughtstack.assess", ...(explicitSavedMemory ? ["memory.saveExplicit"] : [])];
+    res.json({
+      data: {
+        reply: thoughtStack.structured.replyMarkdown,
+        structured: thoughtStack.structured,
+        model: config.model,
+        mode,
+        runtimeMode: config.mode,
+        provider: "thoughtstack",
+        toolsUsed,
+        recordsUsed: [],
+        moduleKey,
+        scopePath,
+      },
+    });
+    return;
+  }
+
   try {
     if (mode !== "llm" && moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
       const topDonorResult = await buildTopDonorResult({
@@ -4108,16 +4680,22 @@ router.post("/chat", async (req, res) => {
       return;
     }
 
-    const retrieval = await buildRetrievalContext({
-      organizationId,
-      moduleKey,
-      mode,
-      scopePath,
-      userQuery: latestUserMessage,
-      userId: req.user?.sub ?? "",
-      role: req.user?.role ?? "readonly",
-      mentionedConstituentIds: mentionedConstituentIds.length > 0 ? mentionedConstituentIds : undefined,
-    });
+    const retrieval = mode === "free"
+      ? {
+          contextText: "Pure mode selected: answer from the user's prompt only. Do not use CRM tools or retrieved records.",
+          toolsUsed: [] as string[],
+          recordsUsed: [] as string[],
+        }
+      : await buildRetrievalContext({
+          organizationId,
+          moduleKey,
+          mode,
+          scopePath,
+          userQuery: latestUserMessage,
+          userId: req.user?.sub ?? "",
+          role: req.user?.role ?? "readonly",
+          mentionedConstituentIds: mentionedConstituentIds.length > 0 ? mentionedConstituentIds : undefined,
+        });
     const modelContextText = buildModelContextForIntent(retrieval.contextText, userIntent);
 
     const agenticPreparation = await buildAgenticPreparation({
@@ -4133,6 +4711,23 @@ router.post("/chat", async (req, res) => {
       contextText: modelContextText,
     });
 
+    const agenticToolPass = mode === "agentic"
+      ? await buildAgenticToolPass({
+          organizationId,
+          enabled: Boolean(setting?.enabled),
+          config,
+          moduleKey,
+          scopePath,
+          userQuery: latestUserMessage,
+          contextText: modelContextText,
+          userId: req.user?.sub ?? "",
+          role: req.user?.role ?? "readonly",
+        })
+      : { notes: [] as string[], toolsUsed: [] as string[] };
+
+    const agenticNotes = [...thoughtStack.summaryLines, ...agenticPreparation.stageSummaries, ...agenticToolPass.notes];
+    const agenticToolsUsed = [...agenticPreparation.toolsUsed, ...agenticToolPass.toolsUsed];
+
     const fyMeta = extractFiscalYearFromContext(retrieval.contextText);
     const resolvedFyLabelSync = fyMeta.fiscalYearLabel
       ?? (clientReportingYearMode === "fiscal" && clientFiscalYear ? `FY${clientFiscalYear}` : undefined);
@@ -4147,14 +4742,15 @@ router.post("/chat", async (req, res) => {
       moduleKey,
       scopePath,
       contextText: modelContextText + `\n\n${yearModeNoteSync}`,
-      agenticNotes: agenticPreparation.stageSummaries,
+      agenticNotes,
       fiscalYearLabel: resolvedFyLabelSync,
       calendarYear: resolvedCalendarYearSync,
     });
 
     const toolsUsed = [
       ...retrieval.toolsUsed,
-      ...agenticPreparation.toolsUsed,
+      "thoughtstack.assess",
+      ...agenticToolsUsed,
       ...(explicitSavedMemory ? ["memory.saveExplicit"] : []),
     ];
     let provider = agenticPreparation.stageSummaries.length > 0 ? "ollama-agentic" : "ollama";
@@ -4236,9 +4832,20 @@ router.post("/chat", async (req, res) => {
       toolsUsed,
       recordsUsed: retrieval.recordsUsed,
     });
+    const thoughtStackEvidence: StewardEvidencePayload[] = [
+      { label: `ThoughtStack state: ${thoughtStack.state}` },
+      { label: `ThoughtStack workflow: ${thoughtStack.selectedWorkflow}` },
+      { label: `ThoughtStack risk: ${thoughtStack.riskLevel}` },
+    ];
+    const verificationEvidence = extractVerificationEvidence(agenticToolPass.notes);
     const structured: StewardStructuredResponsePayload = {
       ...parsedStructured,
       replyMarkdown: templatedReply,
+      evidence: [
+        ...thoughtStackEvidence,
+        ...verificationEvidence,
+        ...parsedStructured.evidence,
+      ].slice(0, 16),
     };
 
     await logAudit({
@@ -4256,6 +4863,13 @@ router.post("/chat", async (req, res) => {
         reasoningModelUsed: agenticPreparation.reasoningModel,
         agenticMultiStage: config.agenticMultiStage,
         agenticStageCount: agenticPreparation.stageSummaries.length,
+        thoughtStackState: thoughtStack.state,
+        thoughtStackRiskLevel: thoughtStack.riskLevel,
+        thoughtStackConfidence: thoughtStack.confidence,
+        thoughtStackWorkflow: thoughtStack.selectedWorkflow,
+        thoughtStackMissingDetails: thoughtStack.missingDetails,
+        thoughtStackRequiresConfirmation: thoughtStack.requiresConfirmation,
+        thoughtStackDryRunRecommended: thoughtStack.dryRunRecommended,
         chatMode: mode,
         userIntent,
         moduleKey,

@@ -18,7 +18,7 @@ import type { StewardStructuredResponse } from "@/app/components/ai/steward-arti
 import { executeStewardSuggestedAction } from "@/app/components/ai/steward-action-executor";
 
 type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview" | "hrm" | "password";
-type ChatMode = "ask" | "analyze" | "draft" | "writing" | "llm" | "action" | "help";
+type ChatMode = "ask" | "analyze" | "draft" | "free" | "agentic" | "writing" | "llm" | "action" | "help";
 export type StewardPanelMode = "collapsed" | "dock-right" | "popout" | "maximized";
 type StewardChatDisplayMode = "dock" | "dock-right" | "popout" | "maximized" | "workspace";
 
@@ -170,7 +170,7 @@ function normalizeStoredMessages(messages: unknown): UiMessage[] {
           ? candidate.recordsUsed.filter((item): item is string => typeof item === "string")
           : undefined,
         provider: typeof candidate.provider === "string" ? candidate.provider : undefined,
-        responseMode: ["ask", "analyze", "draft", "writing", "llm", "action", "help"].includes(String(candidate.responseMode))
+        responseMode: ["ask", "analyze", "draft", "free", "agentic", "writing", "llm", "action", "help"].includes(String(candidate.responseMode))
           ? candidate.responseMode as ChatMode
           : undefined,
         runtimeMode: candidate.runtimeMode === "local" || candidate.runtimeMode === "remote" || candidate.runtimeMode === "unknown"
@@ -265,7 +265,8 @@ const MODE_BUTTONS: Array<{ key: ChatMode; label: string }> = [
   { key: "ask", label: "Ask & Retrieve" },
   { key: "analyze", label: "Analyze Trends" },
   { key: "draft", label: "Draft Outreach" },
-  { key: "writing", label: "Writing Studio" },
+  { key: "free", label: "Pure Mode" },
+  { key: "agentic", label: "Agentic Mode" },
   { key: "llm", label: "LLM Deep" },
   { key: "action", label: "Action Plan" },
   { key: "help", label: "Workflow Help" },
@@ -486,7 +487,7 @@ export default function StewardChatPanel({
 
   /** Persists updated active-thread messages in local thread state. */
   useEffect(() => {
-    if (!threadsHydrated || !activeThreadId || sending) return;
+    if (!threadsHydrated || !activeThreadId) return;
 
     const normalizedMessages = messages.slice(-CHAT_HISTORY_LIMIT);
     const nextTitle = inferThreadTitle(messages, activeThread?.title ?? "Chat");
@@ -762,6 +763,25 @@ export default function StewardChatPanel({
         : action.label;
       await sendMessage(prompt);
       setActionStatus({ tone: "success", message: "GuidePath selection applied. Continuing with your request." });
+      return;
+    }
+
+    if (action.actionType.startsWith("thoughtstack.")) {
+      const payload = action.payload as Record<string, unknown> | undefined;
+      const prompt = typeof payload?.prompt === "string" && payload.prompt.trim().length > 0
+        ? payload.prompt.trim()
+        : action.label;
+      await sendMessage(prompt);
+
+      const thoughtStackMessage = action.actionType === "thoughtstack.review_first"
+        ? "ThoughtStack set this request to review-first. Generating a dry-run style preview."
+        : action.actionType === "thoughtstack.cancel"
+          ? "ThoughtStack canceled this request."
+          : action.actionType === "thoughtstack.provide_details"
+            ? "ThoughtStack is waiting for your details."
+            : "ThoughtStack confirmation applied. Continuing execution flow.";
+
+      setActionStatus({ tone: "success", message: thoughtStackMessage });
       return;
     }
 
@@ -1279,6 +1299,17 @@ export default function StewardChatPanel({
                       >
                         {message.role === "assistant" ? (
                           <>
+                          {sending && activeAssistantMessageId === message.id && (() => {
+                            const effectiveMode: ChatMode = message.responseMode ?? mode;
+                            const thoughtStackActive = effectiveMode !== "free";
+                            return (
+                              <div className="mb-1 inline-flex items-center gap-1.5">
+                                <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${thoughtStackActive ? "border-cyan-300/45 bg-cyan-400/10 text-cyan-700" : "border-slate-300 bg-slate-100 text-slate-600"}`}>
+                                  ThoughtStack {thoughtStackActive ? "on" : "off"}
+                                </span>
+                              </div>
+                            );
+                          })()}
                           {/* Thinking panel: progress steps + reasoning tokens (shown while streaming or after) */}
                           {(sending && activeAssistantMessageId === message.id
                             ? (message.progressSteps?.length || message.thinkingContent || !message.content.trim())

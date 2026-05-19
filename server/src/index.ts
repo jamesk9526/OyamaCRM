@@ -50,7 +50,7 @@ import notificationsRoutes from "./routes/notifications.js";
 import stewardSignalsRoutes from "./routes/steward-signals.js";
 import stewardPathRoutes from "./routes/steward-paths.js";
 import lettersRoutes from "./routes/letters.js";
-import stewardAiRoutes from "./routes/steward-ai.js";
+import * as stewardAiRoutesModule from "./routes/steward-ai.js";
 import communicationsAiRoutes from "./routes/communications-ai.js";
 import hrmRoutes from "./routes/hrm.js";
 import watchdogRoutes from "./routes/watchdog.js";
@@ -69,6 +69,9 @@ import { prisma } from "./lib/prisma.js";
 import { getAppInfo } from "./lib/app-info.js";
 import { getEmailQueueWorkerStatus, startEmailQueueWorker } from "./services/email-queue-worker.js";
 import { getStewardPathsWorkerStatus, startStewardPathsWorker } from "./services/steward-paths-worker.js";
+
+const stewardAiRoutes =
+  (((stewardAiRoutesModule as { default?: express.Router }).default ?? stewardAiRoutesModule) as unknown as express.Router);
 
 const app = express();
 const PORT = process.env.API_PORT ? parseInt(process.env.API_PORT) : 4000;

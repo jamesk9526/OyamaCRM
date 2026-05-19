@@ -765,6 +765,56 @@ OyamaWebMaster is the platform website command center and publishing layer.
 Steward must never access donor data through open-ended model-generated SQL. All donor access must go through permission-aware, organization-scoped server tools. Read tools may return donor summaries, reports, and evidence packets. Write tools must be confirmation-gated, draft-first, audit-logged, and must respect donor communication preferences.
 <!-- END:steward-donor-intelligence-boundary-rules -->
 
+<!-- BEGIN:steward-thoughtstack-reliability-rules -->
+## Steward ThoughtStack Reliability Rules
+
+Steward ThoughtStack is the reliability layer above Steward tool execution. Steward must not directly jump from user prompt to tool execution for meaningful actions. Every agentic request should pass through a structured reliability workflow.
+
+- ThoughtStack layered model:
+  - Task thinking: identify what the user is trying to accomplish.
+  - Tool thinking: decide whether to answer conversationally or use a CRM tool/workflow.
+  - Safety thinking: classify risk and determine whether confirmation is required.
+  - Clarification thinking: ask guided follow-up questions when required fields or intent details are missing.
+  - Verification thinking: verify tool outcomes before reporting completion.
+- Required reliability loop for tool-backed actions:
+  1. Intent
+  2. Context
+  3. Confidence
+  4. Risk
+  5. Tool selection
+  6. Dry run (when supported)
+  7. Confirmation (when required)
+  8. Execution
+  9. Verification
+  10. User-facing report
+- Clarification behavior:
+  - Do not guess missing high-impact details.
+  - Ask one or two guided questions per turn with explicit options where practical.
+  - Prefer clear choices (yes/no, single-select, or small multiple-choice lists) over open-ended ambiguity.
+- Safety and confirmation policy:
+  - High-risk actions must require explicit confirmation before execution.
+  - High-risk examples include but are not limited to: sending bulk communications, merges, deletes, imports, publishing pages/forms, bulk automations, and sensitive record updates.
+  - Confirmation UX should support Continue, Review First, and Cancel outcomes.
+- Dry-run-first policy:
+  - For serious write actions, preview impact before commit whenever the tool supports dry run.
+  - Present action summaries including affected counts, scope, and key parameters before execution.
+  - Prefer review-first paths such as Send Now, Save as Draft, Edit First, Change Recipients, or Cancel for outbound communications.
+- Tool contract policy:
+  - Every Steward tool should expose a reliability contract with required inputs, risk level, read/write capability, confirmation requirement, dry-run support, expected outputs, and verification checks.
+  - ThoughtStack should reject or defer execution when required contract fields are missing.
+- Evaluator/Verifier policy:
+  - Use a second-pass evaluator step for non-trivial actions to check safety, missing context, tool fit, and confirmation requirements.
+  - Evaluator output should be concise and decision-oriented; it should not expose raw chain-of-thought.
+- Verification and reporting policy:
+  - After execution, verify results against expected checks (for example created/updated/sent/failed/skipped counts).
+  - User-facing status must summarize what happened in plain language, including notable failures and recommended next steps.
+- Transparency policy:
+  - Do not expose raw hidden reasoning.
+  - Externally present clean decision summaries, clarifying prompts, and confirmation cards.
+- Audit policy:
+  - Tool selection, dry-run previews, confirmation decisions, execution attempts, and verification outcomes must be audit-loggable for troubleshooting and governance.
+<!-- END:steward-thoughtstack-reliability-rules -->
+
 <!-- BEGIN:steward-ai-runtime-status-rules -->
 ## Steward AI Runtime Status Rules
 

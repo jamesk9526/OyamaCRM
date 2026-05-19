@@ -37,7 +37,7 @@ type ModuleKey =
   | "hrm"
   | "all";
 
-type ChatMode = "ask" | "analyze" | "draft" | "writing" | "llm" | "action" | "help";
+type ChatMode = "ask" | "analyze" | "draft" | "free" | "agentic" | "writing" | "llm" | "action" | "help";
 type RenderMode = "markdown" | "html";
 
 interface UiMessage {
@@ -211,7 +211,9 @@ const MODE_HELP: Record<ChatMode, string> = {
   ask: "Ask & retrieve: grounded CRM answers with source-aware context and no record changes.",
   analyze: "Trend & diagnostics: compare periods, surface risk/opportunity, and explain why.",
   draft: "Draft outreach fast: generate editable emails/letters/reports for human review.",
-  writing: "Writing studio: higher-quality voice, structure, and polish for donor-facing content.",
+  free: "Pure mode: no CRM tools, no retrieval, and no structured artifacts. Direct answers only.",
+  agentic: "Agentic mode: tool-aware reasoning that can plan and use CRM tools before answering.",
+  writing: "Legacy writing mode alias. Use Pure mode instead.",
   llm: "LLM deep reasoning: broader synthesis, strategy exploration, and clarifying follow-up questions.",
   action: "Action planner: propose CRM actions as confirm-first, reviewable steps.",
   help: "Workflow guide: where to click, what order to follow, and what to do next.",
@@ -220,7 +222,8 @@ const MODE_HELP: Record<ChatMode, string> = {
 const QUICK_WORKFLOWS: Array<{ label: string; mode: ChatMode; prompt: string }> = [
   { label: "Today’s priorities", mode: "analyze", prompt: "Review my donor CRM data and summarize the most important stewardship priorities for today." },
   { label: "Draft outreach", mode: "draft", prompt: "Draft a donor outreach email for the selected audience. Include subject, preview text, and a warm nonprofit tone." },
-  { label: "Writing mode", mode: "writing", prompt: "Write a polished donor letter with clear voice, warm stewardship tone, and editable sections for mission impact." },
+  { label: "Pure mode", mode: "free", prompt: "Answer the question directly with no CRM tools, no retrieval, and no structured artifacts. Use only the user's prompt and general knowledge." },
+  { label: "Agentic mode", mode: "agentic", prompt: "Use CRM tools if they help, plan the steps, and adapt the answer after the tool results arrive. Keep write actions confirm-first." },
   { label: "LLM brainstorm", mode: "llm", prompt: "Use LLM mode to brainstorm 5 donor engagement angles, then rank them by likely impact and effort." },
   { label: "Find a segment", mode: "analyze", prompt: "Find a useful donor segment for outreach and explain the selection criteria before suggesting next steps." },
   { label: "Create follow-up plan", mode: "action", prompt: "Create a review-first follow-up plan with tasks I can confirm before anything is written to the CRM." },
@@ -291,7 +294,7 @@ function normalizeMessages(raw: unknown): UiMessage[] {
     .filter((m) => m && typeof m === "object")
     .map((m): UiMessage => {
       const role: UiMessage["role"] = m.role === "assistant" ? "assistant" : "user";
-      const responseMode: ChatMode | undefined = ["ask", "analyze", "draft", "writing", "llm", "action", "help"].includes(String(m.responseMode))
+      const responseMode: ChatMode | undefined = ["ask", "analyze", "draft", "free", "agentic", "writing", "llm", "action", "help"].includes(String(m.responseMode))
         ? (m.responseMode as ChatMode)
         : undefined;
       const runtimeMode: UiMessage["runtimeMode"] = m.runtimeMode === "local" || m.runtimeMode === "remote" || m.runtimeMode === "unknown"
@@ -370,8 +373,53 @@ function emailTextToHtml(value: string): string {
     .join("\n");
 }
 
+function parseEmailDraftText(value: string): StewardTemplateDraft | null {
+  const content = (value || "").trim();
+  if (!content) return null;
+
+  const subjectMatch = content.match(/^\**\s*subject\s*:\s*(.+)$/im);
+  const previewMatch = content.match(/^\**\s*preview\s*text\s*:\s*(.+)$/im);
+  const bodyHeader = content.match(/^\**\s*body\s*:\s*(.*)$/im);
+
+  let body = content;
+  if (bodyHeader) {
+    const headerIndex = bodyHeader.index ?? 0;
+    const afterHeader = content.slice(headerIndex + bodyHeader[0].length).trim();
+    body = afterHeader || bodyHeader[1]?.trim() || content;
+  }
+
+  if (!subjectMatch && !previewMatch && !bodyHeader) {
+    return null;
+  }
+
+  return {
+    name: "Steward Draft Template",
+    subject: normalizeEmailTemplateMergeFields((subjectMatch?.[1] || "").trim()),
+    previewText: normalizeEmailTemplateMergeFields((previewMatch?.[1] || "").trim()),
+    bodyText: normalizeEmailTemplateMergeFields(body),
+  };
+}
+
+function extractEmailDraftBlock(content: string): string | null {
+  const source = (content || "").trim();
+  if (!source) return null;
+
+  const fencedBlock = source.match(/```(?:email|markdown|text)?\s*\n([\s\S]*?)```/i);
+  if (fencedBlock?.[1]?.trim()) {
+    return fencedBlock[1].trim();
+  }
+
+  return null;
+}
+
 /** Extracts draft email fields from a Steward assistant message. */
 function extractTemplateDraftFromMessage(msg: UiMessage): StewardTemplateDraft | null {
+  const content = msg.content || "";
+  const fencedDraft = extractEmailDraftBlock(content);
+  if (fencedDraft) {
+    return parseEmailDraftText(fencedDraft);
+  }
+
   const emailArtifact = msg.structured?.artifacts.find((artifact) => artifact.type === "email_draft") as StewardEmailDraftArtifact | undefined;
   if (emailArtifact) {
     const bodyFromArtifact = emailArtifact.bodyPlainText || emailArtifact.bodyMarkdown || emailArtifact.body || "";
@@ -383,29 +431,7 @@ function extractTemplateDraftFromMessage(msg: UiMessage): StewardTemplateDraft |
     };
   }
 
-  const content = msg.content || "";
-  const subjectMatch = content.match(/^\**\s*subject\s*:\s*(.+)$/im);
-  const previewMatch = content.match(/^\**\s*preview\s*text\s*:\s*(.+)$/im);
-  const bodyHeader = content.match(/^\**\s*body\s*:\s*(.*)$/im);
-
-  let body = content.trim();
-  if (bodyHeader) {
-    const headerIndex = bodyHeader.index ?? 0;
-    const afterHeader = content.slice(headerIndex + bodyHeader[0].length).trim();
-    body = afterHeader || bodyHeader[1]?.trim() || "";
-  }
-
-  const hasEmailShape = Boolean(subjectMatch || previewMatch || bodyHeader);
-  if (!hasEmailShape) {
-    return null;
-  }
-
-  return {
-    name: "Steward Draft Template",
-    subject: normalizeEmailTemplateMergeFields((subjectMatch?.[1] || "").trim()),
-    previewText: normalizeEmailTemplateMergeFields((previewMatch?.[1] || "").trim()),
-    bodyText: normalizeEmailTemplateMergeFields(body),
-  };
+  return parseEmailDraftText(content);
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -449,6 +475,7 @@ interface StewardReportWorkspaceState {
 interface StewardTemplateModalState {
   sourceMessageId: string;
   draft: StewardTemplateDraft;
+  donorCandidates: MentionedDonor[];
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -547,7 +574,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
 
   // --- Sync active thread title when messages change ---
   useEffect(() => {
-    if (!hydrated || !activeId || sending) return;
+    if (!hydrated || !activeId) return;
     const title  = inferTitle(messages, activeThread?.title ?? "New chat");
     const sliced = messages.slice(-MSG_LIMIT);
     setThreads((prev) => {
@@ -1228,6 +1255,25 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       return;
     }
 
+    if (action.actionType.startsWith("thoughtstack.")) {
+      const payload = action.payload as Record<string, unknown> | undefined;
+      const prompt = typeof payload?.prompt === "string" && payload.prompt.trim().length > 0
+        ? payload.prompt.trim()
+        : action.label;
+      await send(prompt);
+
+      const thoughtStackMessage = action.actionType === "thoughtstack.review_first"
+        ? "ThoughtStack set this request to review-first. Generating a dry-run style preview."
+        : action.actionType === "thoughtstack.cancel"
+          ? "ThoughtStack canceled this request."
+          : action.actionType === "thoughtstack.provide_details"
+            ? "ThoughtStack is waiting for your details."
+            : "ThoughtStack confirmation applied. Continuing execution flow.";
+
+      setActionStatus({ tone: "success", message: thoughtStackMessage });
+      return;
+    }
+
     try {
       const res = await executeStewardSuggestedAction({
         action,
@@ -1261,6 +1307,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     setTemplateModal({
       sourceMessageId: messageId,
       draft: extracted,
+      donorCandidates: lockedDonors.slice(0, 20),
     });
   }
 
@@ -1695,7 +1742,8 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                         <option value="ask" className="bg-slate-900 text-slate-100">Ask & Retrieve</option>
                         <option value="analyze" className="bg-slate-900 text-slate-100">Analyze Trends</option>
                         <option value="draft" className="bg-slate-900 text-slate-100">Draft Outreach</option>
-                        <option value="writing" className="bg-slate-900 text-slate-100">Writing Studio</option>
+                        <option value="free" className="bg-slate-900 text-slate-100">Pure Mode</option>
+                        <option value="agentic" className="bg-slate-900 text-slate-100">Agentic Mode</option>
                         <option value="llm" className="bg-slate-900 text-slate-100">LLM Deep Reasoning</option>
                         <option value="action" className="bg-slate-900 text-slate-100">Action Planner</option>
                         <option value="help" className="bg-slate-900 text-slate-100">Workflow Help</option>
@@ -1767,6 +1815,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                   <MessageRow
                     key={msg.id}
                     msg={msg}
+                    activeMode={mode}
                     renderMode={renderMode}
                     isStreaming={msg.id === activeAssistantId}
                     onRegenerate={() => regenerate(msg.id)}
@@ -1907,7 +1956,8 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     <option value="ask" className="bg-slate-900 text-slate-100">Ask & Retrieve</option>
                     <option value="analyze" className="bg-slate-900 text-slate-100">Analyze Trends</option>
                     <option value="draft" className="bg-slate-900 text-slate-100">Draft Outreach</option>
-                    <option value="writing" className="bg-slate-900 text-slate-100">Writing Studio</option>
+                    <option value="free" className="bg-slate-900 text-slate-100">Pure Mode</option>
+                    <option value="agentic" className="bg-slate-900 text-slate-100">Agentic Mode</option>
                     <option value="llm" className="bg-slate-900 text-slate-100">LLM Deep Reasoning</option>
                     <option value="action" className="bg-slate-900 text-slate-100">Action Planner</option>
                     <option value="help" className="bg-slate-900 text-slate-100">Workflow Help</option>
@@ -1984,6 +2034,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       <StewardSaveTemplateModal
         open={Boolean(templateModal)}
         draft={templateModal?.draft ?? { name: "", subject: "", previewText: "", bodyText: "" }}
+        donorCandidates={templateModal?.donorCandidates ?? []}
         saving={templateSaving}
         error={templateSaveError}
         onChange={(next) => setTemplateModal((prev) => (prev ? { ...prev, draft: next } : prev))}
@@ -2175,6 +2226,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
 
 interface MessageRowProps {
   msg: UiMessage;
+  activeMode: ChatMode;
   renderMode: RenderMode;
   isStreaming: boolean;
   isLast: boolean;
@@ -2185,7 +2237,7 @@ interface MessageRowProps {
   onOpenReport: (path: string, label?: string) => void;
 }
 
-function MessageRow({ msg, renderMode, isStreaming, isLast, onRegenerate, onCopy, onSaveTemplate, onRunAction, onOpenReport }: MessageRowProps) {
+function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegenerate, onCopy, onSaveTemplate, onRunAction, onOpenReport }: MessageRowProps) {
   if (msg.role === "user") {
     return (
       <div className="steward-message-row steward-message-row-user flex justify-end animate-slide-up-fade-in">
@@ -2199,7 +2251,9 @@ function MessageRow({ msg, renderMode, isStreaming, isLast, onRegenerate, onCopy
   // Assistant message
   const hasEmailArtifact = Boolean(msg.structured?.artifacts?.some((artifact) => artifact.type === "email_draft"));
   const hasEmailLikeBody = /(^|\n)\s*subject\s*:/i.test(msg.content) && /(^|\n)\s*body\s*:/i.test(msg.content);
-  const canSaveAsTemplate = hasEmailArtifact || hasEmailLikeBody || msg.responseMode === "draft" || msg.responseMode === "writing";
+  const canSaveAsTemplate = hasEmailArtifact || hasEmailLikeBody || msg.responseMode === "draft" || msg.responseMode === "free" || msg.responseMode === "agentic" || msg.responseMode === "writing";
+  const effectiveMode: ChatMode = msg.responseMode ?? activeMode;
+  const thoughtStackActive = effectiveMode !== "free";
 
   return (
     <div className="steward-message-row steward-message-row-assistant group flex flex-col gap-2 animate-slide-up-fade-in">
@@ -2224,6 +2278,14 @@ function MessageRow({ msg, renderMode, isStreaming, isLast, onRegenerate, onCopy
               <span />
               <span />
             </span>
+          </span>
+        )}
+        {isStreaming && (
+          <span
+            className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${thoughtStackActive ? "border-cyan-300/45 bg-cyan-400/10 text-cyan-200" : "border-slate-400/40 bg-slate-700/20 text-slate-300"}`}
+            title={thoughtStackActive ? "ThoughtStack reliability layer is active for this response." : "ThoughtStack reliability layer is bypassed in Pure mode."}
+          >
+            ThoughtStack {thoughtStackActive ? "on" : "off"}
           </span>
         )}
       </div>
