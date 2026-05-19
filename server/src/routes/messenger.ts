@@ -55,6 +55,12 @@ function broadcastToOrg(orgId: string, eventName: string, data: unknown) {
   }
 }
 
+function getAuthUserId(req: Request): string {
+  const subject = req.user?.sub;
+  if (Array.isArray(subject)) return String(subject[0] || "");
+  return String(subject || "");
+}
+
 // ─── Helper: check if messenger plugin is enabled for the org ────────────────
 
 async function isMessengerEnabled(orgId: string): Promise<boolean> {
@@ -123,7 +129,7 @@ router.get("/users", requireAuth, async (req: Request, res: Response) => {
     }
 
     const users = await prisma.user.findMany({
-      where: { organizationId: orgId, active: true, id: { not: req.user!.sub } },
+      where: { organizationId: orgId, active: true, id: { not: getAuthUserId(req) } },
       select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true, role: true },
       orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
     });
@@ -147,7 +153,7 @@ router.get("/threads", requireAuth, async (req: Request, res: Response) => {
 
     // Find all threads this user participates in, with latest message + participant info.
     const participations = await prisma.crmThreadParticipant.findMany({
-      where: { userId: req.user!.sub },
+      where: { userId: getAuthUserId(req) },
       include: {
         thread: {
           include: {
@@ -171,13 +177,13 @@ router.get("/threads", requireAuth, async (req: Request, res: Response) => {
     });
 
     const threads = participations.map((p) => {
-      const myParticipant = p.thread.participants.find((tp) => tp.userId === req.user!.sub);
+      const myParticipant = p.thread.participants.find((tp) => tp.userId === getAuthUserId(req));
       const lastReadAt = myParticipant?.lastReadAt ?? null;
       const lastMessage = p.thread.messages[0] ?? null;
 
       // Count unread: messages after lastReadAt not sent by me.
       // We'll calculate this in the query below for accuracy.
-      const otherParticipants = p.thread.participants.filter((tp) => tp.userId !== req.user!.sub);
+      const otherParticipants = p.thread.participants.filter((tp) => tp.userId !== getAuthUserId(req));
 
       return {
         id: p.thread.id,
@@ -213,7 +219,7 @@ router.get("/threads", requireAuth, async (req: Request, res: Response) => {
           const count = await prisma.crmMessage.count({
             where: {
               threadId: t.id,
-              senderId: { not: req.user!.sub },
+              senderId: { not: getAuthUserId(req) },
               deletedAt: null,
               createdAt: t.lastReadAt ? { gt: t.lastReadAt } : undefined,
             },
@@ -255,7 +261,7 @@ router.post("/threads", requireAuth, async (req: Request, res: Response) => {
     });
     if (!recipient) return res.status(404).json({ error: "Recipient not found in organization" });
 
-    const myId = req.user!.sub;
+    const myId = getAuthUserId(req);
 
     // Check if a DIRECT thread already exists between these two users in this org.
     const existing = await prisma.crmThread.findFirst({
@@ -321,7 +327,7 @@ router.get("/threads/:threadId/messages", requireAuth, async (req: Request, res:
 
     // Verify caller is a participant.
     const participant = await prisma.crmThreadParticipant.findUnique({
-      where: { threadId_userId: { threadId, userId: req.user!.sub } },
+      where: { threadId_userId: { threadId, userId: getAuthUserId(req) } },
     });
     if (!participant) return res.status(403).json({ error: "Not a participant of this thread" });
 
@@ -364,12 +370,12 @@ router.post("/threads/:threadId/messages", requireAuth, async (req: Request, res
 
     // Verify caller is a participant.
     const participant = await prisma.crmThreadParticipant.findUnique({
-      where: { threadId_userId: { threadId, userId: req.user!.sub } },
+      where: { threadId_userId: { threadId, userId: getAuthUserId(req) } },
     });
     if (!participant) return res.status(403).json({ error: "Not a participant of this thread" });
 
     const message = await prisma.crmMessage.create({
-      data: { threadId, senderId: req.user!.sub, body: body.trim() },
+      data: { threadId, senderId: getAuthUserId(req), body: body.trim() },
       include: {
         sender: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
       },
@@ -383,7 +389,7 @@ router.post("/threads/:threadId/messages", requireAuth, async (req: Request, res
 
     // Mark sender as read immediately.
     await prisma.crmThreadParticipant.update({
-      where: { threadId_userId: { threadId, userId: req.user!.sub } },
+      where: { threadId_userId: { threadId, userId: getAuthUserId(req) } },
       data: { lastReadAt: new Date() },
     });
 
@@ -412,12 +418,12 @@ router.patch("/threads/:threadId/read", requireAuth, async (req: Request, res: R
   try {
     const { threadId } = req.params;
     const participant = await prisma.crmThreadParticipant.findUnique({
-      where: { threadId_userId: { threadId, userId: req.user!.sub } },
+      where: { threadId_userId: { threadId, userId: getAuthUserId(req) } },
     });
     if (!participant) return res.status(403).json({ error: "Not a participant of this thread" });
 
     await prisma.crmThreadParticipant.update({
-      where: { threadId_userId: { threadId, userId: req.user!.sub } },
+      where: { threadId_userId: { threadId, userId: getAuthUserId(req) } },
       data: { lastReadAt: new Date() },
     });
 
@@ -436,7 +442,7 @@ router.get("/unread-count", requireAuth, async (req: Request, res: Response) => 
     if (!orgId) return res.json({ count: 0 });
     if (!(await isMessengerEnabled(orgId))) return res.json({ count: 0 });
 
-    const myId = req.user!.sub;
+    const myId = getAuthUserId(req);
 
     const participations = await prisma.crmThreadParticipant.findMany({
       where: { userId: myId },
@@ -484,7 +490,7 @@ router.get("/sse", requireAuth, async (req: Request, res: Response) => {
   // Send a heartbeat immediately so the client knows the connection is alive.
   res.write(": heartbeat\n\n");
 
-  const subscriber: SseSubscriber = { userId: req.user!.sub, res };
+  const subscriber: SseSubscriber = { userId: getAuthUserId(req), res };
   addSseSubscriber(orgId, subscriber);
 
   // Heartbeat every 25 s to prevent proxy timeouts.

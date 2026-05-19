@@ -164,13 +164,43 @@ function normalizeUsageLedger(raw) {
   };
 }
 
+function ensureCurrentMonthReceiptEntry(ledger) {
+  const normalized = normalizeUsageLedger(ledger);
+  const monthKey = monthKeyFromTimestamp(new Date().toISOString());
+  const nowIso = new Date().toISOString();
+
+  if (normalized.months[monthKey] && typeof normalized.months[monthKey] === "object") {
+    return normalized;
+  }
+
+  normalized.months[monthKey] = {
+    month: monthKey,
+    receiptId: `OYB-${monthKey.replace("-", "")}`,
+    generatedAt: nowIso,
+    updatedAt: nowIso,
+    requestCount: 0,
+    totalInputBytes: 0,
+    totalOutputBytes: 0,
+    estimatedInputTokens: 0,
+    estimatedOutputTokens: 0,
+    estimatedCostUsd: 0,
+  };
+  normalized.updatedAt = nowIso;
+  return normalized;
+}
+
 function readUsageLedger() {
   try {
     const raw = fs.readFileSync(getUsageLedgerPath(), "utf8");
     const parsed = JSON.parse(raw);
-    return normalizeUsageLedger(parsed);
+    const normalized = normalizeUsageLedger(parsed);
+    const withCurrentMonth = ensureCurrentMonthReceiptEntry(normalized);
+    if (!parsed || !parsed.months || !parsed.months[monthKeyFromTimestamp(new Date().toISOString())]) {
+      writeUsageLedger(withCurrentMonth);
+    }
+    return withCurrentMonth;
   } catch {
-    const fallback = buildEmptyUsageLedger();
+    const fallback = ensureCurrentMonthReceiptEntry(buildEmptyUsageLedger());
     writeUsageLedger(fallback);
     return fallback;
   }
