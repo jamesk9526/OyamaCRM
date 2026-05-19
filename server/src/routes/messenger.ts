@@ -321,7 +321,9 @@ router.get("/threads/:threadId/messages", requireAuth, async (req: Request, res:
     const orgId = await resolveOrganizationId({ req });
     if (!orgId) return res.status(400).json({ error: "Organization not found" });
 
-    const { threadId } = req.params;
+    const threadId = Array.isArray(req.params.threadId)
+      ? String(req.params.threadId[0] || "")
+      : String(req.params.threadId || "");
     const cursor = req.query.before as string | undefined;
     const limit = Math.min(Number(req.query.limit ?? 40), 100);
 
@@ -362,7 +364,9 @@ router.post("/threads/:threadId/messages", requireAuth, async (req: Request, res
       return res.status(403).json({ error: "Messenger is disabled for this organization." });
     }
 
-    const { threadId } = req.params;
+    const threadId = Array.isArray(req.params.threadId)
+      ? String(req.params.threadId[0] || "")
+      : String(req.params.threadId || "");
     const { body } = req.body as { body?: string };
 
     if (!body?.trim()) return res.status(400).json({ error: "Message body is required" });
@@ -416,7 +420,9 @@ router.post("/threads/:threadId/messages", requireAuth, async (req: Request, res
 
 router.patch("/threads/:threadId/read", requireAuth, async (req: Request, res: Response) => {
   try {
-    const { threadId } = req.params;
+    const threadId = Array.isArray(req.params.threadId)
+      ? String(req.params.threadId[0] || "")
+      : String(req.params.threadId || "");
     const participant = await prisma.crmThreadParticipant.findUnique({
       where: { threadId_userId: { threadId, userId: getAuthUserId(req) } },
     });
