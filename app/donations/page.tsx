@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import DonationTable from "@/app/components/donations/DonationTable";
 import { DonationRow, formatCurrency } from "@/app/components/donations/donation-utils";
 import EmailFromTemplateModal from "@/app/components/donations/EmailFromTemplateModal";
+import LetterFromTemplateModal from "@/app/components/donations/LetterFromTemplateModal";
 import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
@@ -65,6 +66,7 @@ export default function DonationsPage() {
   const [acknowledgingDonationId, setAcknowledgingDonationId] = useState<string | null>(null);
   const [actionBusyDonationId, setActionBusyDonationId] = useState<string | null>(null);
   const [emailTemplateDonation, setEmailTemplateDonation] = useState<DonationRow | null>(null);
+  const [letterTemplateDonation, setLetterTemplateDonation] = useState<DonationRow | null>(null);
 
   const [page, setPage] = useState(1);
   const [allYears, setAllYears] = useState(false);
@@ -260,6 +262,12 @@ export default function DonationsPage() {
     setEmailTemplateDonation(d);
   }
 
+  /** Opens the Letter From Template modal for the selected donation row. */
+  function handleOpenLetterFromTemplate(id: string) {
+    const d = donations.find((x) => x.id === id) ?? null;
+    setLetterTemplateDonation(d);
+  }
+
   return (
     <>
     <EnterprisePageShell
@@ -404,6 +412,7 @@ export default function DonationsPage() {
             onMarkThanked={handleMarkThanked}
             onCreateEmailDraft={handleCreateEmailDraft}
             onEmailFromTemplate={handleOpenEmailFromTemplate}
+            onLetterFromTemplate={handleOpenLetterFromTemplate}
             onCreateCallTask={handleCreateCallTask}
             onStartPath={handleStartPath}
             onCompleteStewardshipLoop={handleCompleteStewardshipLoop}
@@ -453,6 +462,19 @@ export default function DonationsPage() {
           date: emailTemplateDonation.date,
         }}
         onClose={() => setEmailTemplateDonation(null)}
+      />
+    )}
+
+    {letterTemplateDonation && (
+      <LetterFromTemplateModal
+        donation={{
+          donationId: letterTemplateDonation.id,
+          constituentId: letterTemplateDonation.constituent.id,
+          donorName: `${letterTemplateDonation.constituent.firstName} ${letterTemplateDonation.constituent.lastName}`.trim(),
+          amount: letterTemplateDonation.amount,
+          date: letterTemplateDonation.date,
+        }}
+        onClose={() => setLetterTemplateDonation(null)}
       />
     )}
     </>

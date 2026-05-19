@@ -128,6 +128,7 @@ function normalizeStructuredResponse(raw: unknown): StewardStructuredResponse | 
 
 const CHAT_HISTORY_LIMIT = 60;
 const CHAT_THREAD_LIMIT = 20;
+const THOUGHTSTACK_SESSION_STORAGE_KEY = "steward-thoughtstack-enabled:v1";
 
 interface ChatThread {
   id: string;
@@ -391,11 +392,14 @@ export default function StewardChatPanel({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionStatus, setActionStatus] = useState<{ tone: "success" | "error"; message: string } | null>(null);
+  const [queuedContinuationPrompt, setQueuedContinuationPrompt] = useState<string | null>(null);
   const [modelUsed, setModelUsed] = useState<string | null>(null);
   const [conversationsOpen, setConversationsOpen] = useState(false);
   const [activeAssistantMessageId, setActiveAssistantMessageId] = useState<string | null>(null);
   const [reportingYearMode, setReportingYearModeState] = useState<ReportingYearMode>("calendar");
   const [fiscalYearStart, setFiscalYearStart] = useState<number>(1);
+  const [thoughtStackEnabled, setThoughtStackEnabled] = useState(true);
+  const [thoughtStackHydrated, setThoughtStackHydrated] = useState(false);
   const messagesBottomRef = useRef<HTMLDivElement | null>(null);
   const composerInputRef = useRef<HTMLInputElement | null>(null);
   const streamAbortRef = useRef<AbortController | null>(null);
@@ -449,6 +453,25 @@ export default function StewardChatPanel({
       .catch(() => {});
     return () => { active = false; };
   }, []);
+
+  /** Restore ThoughtStack beta toggle from this browser session. */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.sessionStorage.getItem(THOUGHTSTACK_SESSION_STORAGE_KEY);
+    if (stored === "true" || stored === "false") {
+      setThoughtStackEnabled(stored === "true");
+    }
+    setThoughtStackHydrated(true);
+  }, []);
+
+  /** Persist ThoughtStack beta toggle for this browser session. */
+  useEffect(() => {
+    if (!thoughtStackHydrated || typeof window === "undefined") return;
+    window.sessionStorage.setItem(
+      THOUGHTSTACK_SESSION_STORAGE_KEY,
+      thoughtStackEnabled ? "true" : "false",
+    );
+  }, [thoughtStackEnabled, thoughtStackHydrated]);
 
   /** Toggle FY mode and persist to localStorage (kept in sync with TopBar). */
   const toggleReportingYearMode = useCallback(() => {
@@ -761,9 +784,17 @@ export default function StewardChatPanel({
       const prompt = typeof payload?.prompt === "string" && payload.prompt.trim().length > 0
         ? payload.prompt.trim()
         : action.label;
+
+      if (sending) {
+        setQueuedContinuationPrompt(prompt);
+        setActionStatus({ tone: "success", message: "GuidePath selection saved. Continuing as soon as the current response finishes." });
+        return;
+      }
+
       const sent = await sendMessage(prompt);
       if (!sent) {
-        setActionStatus({ tone: "error", message: "GuidePath continuation is waiting for the current response to finish. Try again in a second." });
+        setQueuedContinuationPrompt(prompt);
+        setActionStatus({ tone: "success", message: "GuidePath selection queued. Continuing shortly." });
         return;
       }
       setActionStatus({ tone: "success", message: "GuidePath selection applied. Continuing with your request." });
@@ -775,9 +806,17 @@ export default function StewardChatPanel({
       const prompt = typeof payload?.prompt === "string" && payload.prompt.trim().length > 0
         ? payload.prompt.trim()
         : action.label;
+
+      if (sending) {
+        setQueuedContinuationPrompt(prompt);
+        setActionStatus({ tone: "success", message: "ThoughtStack selection saved. Continuing as soon as the current response finishes." });
+        return;
+      }
+
       const sent = await sendMessage(prompt);
       if (!sent) {
-        setActionStatus({ tone: "error", message: "ThoughtStack continuation is waiting for the current response to finish. Try again in a second." });
+        setQueuedContinuationPrompt(prompt);
+        setActionStatus({ tone: "success", message: "ThoughtStack selection queued. Continuing shortly." });
         return;
       }
 
@@ -896,6 +935,8 @@ export default function StewardChatPanel({
             structured: undefined,
             toolsUsed: undefined,
             recordsUsed: undefined,
+            progressSteps: [],
+            thinkingContent: "",
             provider: undefined,
             responseMode: undefined,
             runtimeMode: undefined,
@@ -926,6 +967,7 @@ export default function StewardChatPanel({
         reportingYearMode,
         fiscalYear: currentFiscalYear,
         fiscalYearStart,
+        thoughtStackEnabled,
       };
 
       const response = await apiFetchResponse("/api/steward-ai/chat/stream", {
@@ -1076,6 +1118,20 @@ export default function StewardChatPanel({
       setActiveAssistantMessageId(null);
     }
   }
+
+  // Queue GuidePath/ThoughtStack continuation clicks while a stream is still finishing.
+  useEffect(() => {
+    if (sending || !queuedContinuationPrompt) return;
+    const prompt = queuedContinuationPrompt;
+    setQueuedContinuationPrompt(null);
+    void sendMessage(prompt).then((sent) => {
+      if (!sent) {
+        setActionStatus({ tone: "error", message: "Unable to continue from the selected option. Please try again." });
+      }
+    });
+    // sendMessage is intentionally omitted to avoid effect churn from function recreation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queuedContinuationPrompt, sending]);
 
   if (!open && !isWorkspaceMode && aiConfig?.chatHeadEnabled !== false) {
     return (
@@ -1390,7 +1446,7 @@ export default function StewardChatPanel({
                           id="steward-mode-select"
                           value={mode}
                           onChange={(event) => setMode(event.target.value as ChatMode)}
-                          className="h-8 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          className="h-7 rounded-full border border-slate-200 bg-slate-50 px-2.5 text-[10px] font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                         >
                           {MODE_BUTTONS.map((button) => (
                             <option key={button.key} value={button.key}>{button.label}</option>
@@ -1427,6 +1483,20 @@ export default function StewardChatPanel({
                             </span>
                           </button>
                         ) : null}
+
+                        <button
+                          type="button"
+                          onClick={() => setThoughtStackEnabled((value) => !value)}
+                          title={thoughtStackEnabled ? "ThoughtStack beta is enabled. Click to disable for direct chat responses." : "ThoughtStack beta is disabled. Click to enable reliability gating."}
+                          className={`h-7 inline-flex items-center gap-1 rounded-full border px-2 text-[10px] font-semibold transition-all ${
+                            thoughtStackEnabled
+                              ? "border-cyan-500/60 bg-cyan-600/15 text-cyan-700 hover:bg-cyan-600/25"
+                              : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:bg-slate-100"
+                          }`}
+                        >
+                          <span className="rounded border border-current/30 px-1 py-[1px] text-[8px] font-bold uppercase leading-none">BETA</span>
+                          {thoughtStackEnabled ? "ThoughtStack On" : "ThoughtStack Off"}
+                        </button>
                       </div>
                       <p className="text-[11px] text-slate-500">Confirm-first for write actions.</p>
                     </div>

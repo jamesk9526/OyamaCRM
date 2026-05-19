@@ -2759,7 +2759,8 @@ interface DonorRetrievalIntent {
 /** Detects the user's retrieval intent so context loading stays focused and less noisy. */
 function detectDonorRetrievalIntent(lowerQuery: string): DonorRetrievalIntent {
   return {
-    draftCommunication: /(draft|write|compose|email|letter|message|subject line|thank you note)/i.test(lowerQuery),
+    // Require explicit draft+email intent — avoid false-positive on generic "write" or "email" mentions.
+    draftCommunication: /(draft (an? )?(email|letter|message|thank.you|acknowledgment)|write (an? )?(email|letter|thank.you)|compose (an? )?(email|message)|email draft|subject line for|thank you (note|email)|acknowledgment (email|letter))/i.test(lowerQuery),
     helpWorkflow: /(how do i|how to|steps|where do i|walk me through)/i.test(lowerQuery),
     analysis: /(analy[sz]e|trend|why|risk|retention|opportun|segment|insight|compare)/i.test(lowerQuery),
     reporting: /(report|ytd|revenue|giving|fiscal|kpi|dashboard|month|year)/i.test(lowerQuery),
@@ -3344,15 +3345,30 @@ export async function buildDonorToolContextForChat(params: {
 
   if (intent.draftQueue || intent.draftCommunication) {
     try {
-      const draftsResult = await executeStewardTool(context, "communications.listDraftsForReview", { limit: 10 });
+      const draftsResult = await executeStewardTool(context, "communications.listDraftsForReview", { limit: 20 });
       toolsUsed.push(draftsResult.tool);
       const drafts = draftsResult.result as {
         totalDrafts: number;
         drafts: Array<{ name: string; subject: string; ageDays: number; deepLink: string }>;
       };
 
-      lines.push(`Communication drafts pending review: ${drafts.totalDrafts}.`);
-      for (const row of drafts.drafts.slice(0, 5)) {
+      // Filter out smoke/test records and deduplicate by normalized subject so the same
+      // email draft spawned multiple times (e.g. stewardship-loop Donation Follow-ups)
+      // only appears once in context.
+      const seenSubjects = new Set<string>();
+      const cleanDrafts = drafts.drafts.filter((row) => {
+        const normSubject = row.subject.trim().toLowerCase();
+        const normName = row.name.trim().toLowerCase();
+        // Drop smoke/test records created by automated test runs.
+        if (normSubject === "smoke" || normName.includes("smoke test") || normName.includes("test draft")) return false;
+        // Deduplicate by subject content — keep the first (most recently updated) occurrence.
+        if (seenSubjects.has(normSubject)) return false;
+        seenSubjects.add(normSubject);
+        return true;
+      });
+
+      lines.push(`Communication drafts pending review: ${cleanDrafts.length}.`);
+      for (const row of cleanDrafts.slice(0, 5)) {
         const record = `${row.name} — "${row.subject}" (${row.ageDays} day(s) old) [${row.deepLink}]`;
         lines.push(`- Draft review: ${record}`);
         recordsUsed.push(record);

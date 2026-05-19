@@ -35,6 +35,8 @@ export interface StewardAiStreamOptions {
   model?: string;
   temperature?: number;
   maxTokens?: number;
+  /** Per-call timeout override in ms. Falls back to config.timeoutMs when omitted. */
+  timeoutMs?: number;
 }
 
 /**
@@ -72,6 +74,8 @@ export interface StewardAiRunOptions {
   model?: string;
   temperature?: number;
   maxTokens?: number;
+  /** Per-call timeout override in ms. Falls back to config.timeoutMs when omitted. */
+  timeoutMs?: number;
 }
 
 interface OllamaTagsResponse {
@@ -144,7 +148,7 @@ const DEFAULT_CONFIG: StewardAiConfig = {
   chatHeadEnabled: true,
   temperature: 0.3,
   maxTokens: 600,
-  timeoutMs: 36500,
+  timeoutMs: 120000,
   systemPrompt: [
     "You are Steward, the built-in AI assistant inside the Donor CRM.",
     "Your role is to help nonprofit staff understand donor data, improve stewardship, draft communications, identify follow-up opportunities, and guide users through the CRM safely and clearly.",
@@ -266,7 +270,7 @@ export function parseStewardAiConfig(rawConfig: unknown): StewardAiConfig {
       : DEFAULT_CONFIG.chatHeadEnabled,
     temperature: toBoundedNumber(config.temperature, DEFAULT_CONFIG.temperature, 0, 2),
     maxTokens: Math.round(toBoundedNumber(config.maxTokens, DEFAULT_CONFIG.maxTokens, 64, 4096)),
-    timeoutMs: Math.round(toBoundedNumber(config.timeoutMs, DEFAULT_CONFIG.timeoutMs, 3650, 120000)),
+    timeoutMs: Math.round(toBoundedNumber(config.timeoutMs, DEFAULT_CONFIG.timeoutMs, 3650, 300000)),
     systemPrompt: String(config.systemPrompt ?? DEFAULT_CONFIG.systemPrompt).trim() || DEFAULT_CONFIG.systemPrompt,
     apiKey: normalizeApiKey(config.apiKey),
   };
@@ -430,12 +434,14 @@ export async function runStewardAiChat(
   messages: StewardAiChatMessage[],
   options: StewardAiRunOptions = {}
 ): Promise<StewardAiChatResult> {
-  const mergedMessages = buildMergedMessages(config, messages);
-  const selectedModel = String(options.model ?? config.model).trim() || config.model;
-  const selectedTemperature = toBoundedNumber(options.temperature, config.temperature, 0, 2);
-  const selectedMaxTokens = Math.round(toBoundedNumber(options.maxTokens, config.maxTokens, 64, 4096));
+  // Apply per-call timeout override so callers can extend/shorten without mutating the shared config.
+  const effectiveConfig = options.timeoutMs != null ? { ...config, timeoutMs: options.timeoutMs } : config;
+  const mergedMessages = buildMergedMessages(effectiveConfig, messages);
+  const selectedModel = String(options.model ?? effectiveConfig.model).trim() || effectiveConfig.model;
+  const selectedTemperature = toBoundedNumber(options.temperature, effectiveConfig.temperature, 0, 2);
+  const selectedMaxTokens = Math.round(toBoundedNumber(options.maxTokens, effectiveConfig.maxTokens, 64, 4096));
 
-  const data = await ollamaJsonRequest<OllamaChatResponse>(config, "/api/chat", {
+  const data = await ollamaJsonRequest<OllamaChatResponse>(effectiveConfig, "/api/chat", {
     method: "POST",
     body: JSON.stringify({
       model: selectedModel,
@@ -470,7 +476,8 @@ export async function runStewardAiChatStream(
   const selectedTemperature = toBoundedNumber(options.temperature, config.temperature, 0, 2);
   const selectedMaxTokens = Math.round(toBoundedNumber(options.maxTokens, config.maxTokens, 64, 4096));
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+  // Honour per-call override so long-running pipelines (email, agentic) can extend past the default.
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? config.timeoutMs);
 
   try {
     const response = await fetch(`${config.endpointUrl}/api/chat`, {
@@ -509,6 +516,7 @@ export async function runStewardAiChatStream(
     const decoder = new TextDecoder();
     let buffer = "";
     let fullText = "";
+    let thinkingChars = 0;
     let model = selectedModel;
     let done = false;
     let finalEventPayload: unknown = null;
@@ -520,12 +528,18 @@ export async function runStewardAiChatStream(
       // Dedicated thinking field (Ollama deepseek-r1 sometimes uses message.thinking).
       const dedicatedThinking = rawEvent.message?.thinking;
       if (typeof dedicatedThinking === "string" && dedicatedThinking.length > 0) {
+        thinkingChars += dedicatedThinking.length;
         options.onThinkingDelta?.(dedicatedThinking);
         // Also pick up content field separately if present alongside thinking.
         const contentOnly = rawEvent.message?.content;
         if (typeof contentOnly === "string" && contentOnly.length > 0) {
           fullText += contentOnly;
           options.onDelta?.(contentOnly);
+        }
+        // Some reasoning models can stream long thinking text without emitting final content.
+        // End early so callers can trigger deterministic rescue instead of hanging on reasoning.
+        if (!fullText.trim() && thinkingChars >= 2400) {
+          done = true;
         }
         return;
       }
@@ -534,11 +548,15 @@ export async function runStewardAiChatStream(
       if (!rawDelta) return;
       const { content, thinking } = routeThinkDelta(rawDelta, thinkState);
       if (thinking) {
+        thinkingChars += thinking.length;
         options.onThinkingDelta?.(thinking);
       }
       if (content) {
         fullText += content;
         options.onDelta?.(content);
+      }
+      if (!fullText.trim() && thinkingChars >= 2400) {
+        done = true;
       }
     }
 
@@ -573,6 +591,10 @@ export async function runStewardAiChatStream(
         }
 
         handleRawDelta(event);
+
+        if (done) {
+          break;
+        }
 
         if (event.done) {
           done = true;

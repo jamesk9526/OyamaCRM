@@ -332,6 +332,22 @@ main {
   position: relative;
 }
 
+/* Slide-in animation for live tool feed entries */
+.steward-tool-entry {
+  animation: stewardToolSlideIn 180ms ease-out both;
+}
+
+@keyframes stewardToolSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 .steward-thinking-scan {
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.82), transparent);

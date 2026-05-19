@@ -51,6 +51,11 @@ const DEFAULT_CONFIG = {
   bridgeCudaDevice: "auto",
   bridgeTemperature: 0.3,
   bridgeTimeoutMs: 180000,
+  // Ollama inference performance settings
+  ollamaNumGpuLayers: 999,       // 999 = offload all layers to GPU
+  ollamaMaxLoadedModels: 1,      // 1 = keep only one model in VRAM at a time
+  ollamaKeepAliveSeconds: -1,    // -1 = keep model loaded until idle timer fires
+  ollamaNumThreads: 0,           // 0 = auto-detect CPU threads
   donorReportsOnly: true,
   backgroundBackupEnabled: false,
   backgroundBackupDirectory: "",
@@ -461,6 +466,25 @@ function sanitizeConfig(rawConfig) {
     merged.bridgeTimeoutMs = 180000;
   }
   merged.bridgeTimeoutMs = Math.min(600000, Math.max(3650, merged.bridgeTimeoutMs));
+
+  // Ollama inference performance settings
+  merged.ollamaNumGpuLayers = Number.isInteger(Number(merged.ollamaNumGpuLayers))
+    ? Math.max(0, Number(merged.ollamaNumGpuLayers))
+    : 999;
+
+  merged.ollamaMaxLoadedModels = Number.isInteger(Number(merged.ollamaMaxLoadedModels))
+    ? Math.min(4, Math.max(1, Number(merged.ollamaMaxLoadedModels)))
+    : 1;
+
+  // -1 means "keep loaded indefinitely"; 0+ is seconds
+  merged.ollamaKeepAliveSeconds = Number.isFinite(Number(merged.ollamaKeepAliveSeconds))
+    ? Math.max(-1, Math.round(Number(merged.ollamaKeepAliveSeconds)))
+    : -1;
+
+  // 0 = auto-detect; positive = explicit thread count (capped at 64)
+  merged.ollamaNumThreads = Number.isInteger(Number(merged.ollamaNumThreads))
+    ? Math.min(64, Math.max(0, Number(merged.ollamaNumThreads)))
+    : 0;
 
   merged.bridgeSystemPromptBase = String(merged.bridgeSystemPromptBase || DEFAULT_CONFIG.bridgeSystemPromptBase)
     .trim()
@@ -1726,32 +1750,47 @@ app.whenReady().then(() => {
   });
 });
 
-app.on("before-quit", () => {
+app.on("before-quit", (event) => {
+  // Guard: second invocation after we call app.quit() from the async cleanup below.
+  if (isAppQuitting) return;
+
+  event.preventDefault();
   isAppQuitting = true;
   clearVramIdleTimer();
 
-  if (ollamaRuntimeManager) {
-    ollamaRuntimeManager.clearVram("app-quit").catch(() => {
-      // Ignore shutdown cleanup failures.
-    });
-  }
+  // Force quit after 6 seconds if cleanup hangs, so the app never gets stuck.
+  const forceQuitTimer = setTimeout(() => { app.quit(); }, 6000);
 
-  if (bridgeManager) {
-    bridgeManager.stop().catch(() => {
-      // Ignore shutdown errors.
-    });
-  }
+  (async () => {
+    // Unload model from VRAM before killing the process so GPU memory is freed cleanly.
+    try {
+      if (ollamaRuntimeManager) await ollamaRuntimeManager.clearVram("app-quit");
+    } catch {
+      // Best-effort; never block quit on VRAM clear failure.
+    }
 
-  if (ollamaRuntimeManager) {
-    ollamaRuntimeManager.stop().catch(() => {
-      // Ignore shutdown errors.
-    });
-  }
+    // Stop the HTTP bridge gateway first.
+    try {
+      if (bridgeManager) await bridgeManager.stop();
+    } catch {
+      // Ignore bridge stop errors.
+    }
 
-  if (tray) {
-    tray.destroy();
-    tray = null;
-  }
+    // Kill the managed Ollama child process.
+    try {
+      if (ollamaRuntimeManager) await ollamaRuntimeManager.stop();
+    } catch {
+      // Ignore Ollama stop errors.
+    }
+
+    if (tray) {
+      tray.destroy();
+      tray = null;
+    }
+
+    clearTimeout(forceQuitTimer);
+    app.quit();
+  })();
 });
 
 app.on("window-all-closed", () => {

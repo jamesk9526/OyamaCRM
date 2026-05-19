@@ -56,6 +56,10 @@ interface UiMessage {
   progressSteps?: string[];
   /** Reasoning tokens from DeepSeek or other thinking-capable models. */
   thinkingContent?: string;
+  /** Live tool feed — populated from "tool" stream events during generation. */
+  activeTools?: ActiveTool[];
+  /** Whether ThoughtStack beta was enabled for this specific request. */
+  thoughtStackEnabled?: boolean;
 }
 
 interface ChatThread {
@@ -103,12 +107,24 @@ type SpeechRecognitionConstructorLike = new () => SpeechRecognitionLike;
 interface StewardChatStreamProgress { type: "progress"; message: string; }
 /** Reasoning token from DeepSeek or other thinking-capable models. */
 interface StewardChatStreamThinking { type: "thinking"; delta: string; }
+/** Live tool lifecycle event — name/label/status of a CRM tool being run. */
+interface StewardChatStreamTool { type: "tool"; name: string; label: string; status: "start" | "done"; }
+
+/** A single entry in the live tool feed shown in the thinking panel. */
+export interface ActiveTool {
+  name: string;
+  label: string;
+  /** "active" while running, "done" once complete. */
+  status: "active" | "done";
+}
+
 type StewardChatStreamEvent =
   | StewardChatStreamChunk
   | StewardChatStreamDone
   | StewardChatStreamError
   | StewardChatStreamProgress
-  | StewardChatStreamThinking;
+  | StewardChatStreamThinking
+  | StewardChatStreamTool;
 
 function escapeHtml(value: string): string {
   return value
@@ -357,6 +373,7 @@ const MSG_LIMIT    = 80;
 const STORAGE_KEY  = "agent-steward-threads:v1";
 const ACTIVE_THREAD_STORAGE_KEY = "agent-steward-active-thread:v1";
 const RENDER_MODE_STORAGE_KEY = "agent-steward-render-mode:v1";
+const THOUGHTSTACK_SESSION_STORAGE_KEY = "steward-thoughtstack-enabled:v1";
 
 interface MemoryPreferencesPayload {
   memoryEnabled: boolean;
@@ -436,6 +453,7 @@ function normalizeMessages(raw: unknown): UiMessage[] {
         runtimeMode,
         progressSteps: Array.isArray(m.progressSteps) ? (m.progressSteps as string[]) : undefined,
         thinkingContent: typeof m.thinkingContent === "string" ? m.thinkingContent : undefined,
+        thoughtStackEnabled: typeof m.thoughtStackEnabled === "boolean" ? m.thoughtStackEnabled : undefined,
       };
     })
     .filter((m) => m.content.trim() || m.role === "assistant")
@@ -620,6 +638,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
   const [aiConfig, setAiConfig]         = useState<AiConfigPayload | null>(null);
   const [error, setError]               = useState<string | null>(null);
   const [actionStatus, setActionStatus] = useState<{ tone: "success" | "error"; message: string } | null>(null);
+  const [queuedContinuationPrompt, setQueuedContinuationPrompt] = useState<string | null>(null);
   const [modelUsed, setModelUsed]       = useState<string | null>(null);
   const [activeAssistantId, setActiveAssistantId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery]   = useState("");
@@ -628,6 +647,8 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
   const [lockedDonors, setLockedDonors] = useState<MentionedDonor[]>([]); // donors pinned to this chat
   const [reportingYearMode, setReportingYearMode] = useState<"fiscal" | "calendar">("calendar");
   const [fiscalYearStart, setFiscalYearStart]     = useState<number>(1);
+  const [thoughtStackEnabled, setThoughtStackEnabled] = useState(true);
+  const [thoughtStackHydrated, setThoughtStackHydrated] = useState(false);
   // iOS visual viewport height — tracks keyboard-open shrinkage on Safari
   const [viewportH, setViewportH] = useState<number | null>(null);
   const [emailWorkspace, setEmailWorkspace] = useState<StewardEmailWorkspaceState | null>(null);
@@ -831,6 +852,24 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       window.localStorage.setItem(RENDER_MODE_STORAGE_KEY, next);
     }
   }, []);
+
+  // Keep ThoughtStack beta toggle scoped to the current browser session.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.sessionStorage.getItem(THOUGHTSTACK_SESSION_STORAGE_KEY);
+    if (stored === "true" || stored === "false") {
+      setThoughtStackEnabled(stored === "true");
+    }
+    setThoughtStackHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!thoughtStackHydrated || typeof window === "undefined") return;
+    window.sessionStorage.setItem(
+      THOUGHTSTACK_SESSION_STORAGE_KEY,
+      thoughtStackEnabled ? "true" : "false",
+    );
+  }, [thoughtStackEnabled, thoughtStackHydrated]);
 
   // --- Load fiscal year settings for FY mode toggle ---
   useEffect(() => {
@@ -1128,14 +1167,33 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     if (appendUser) {
       setMessages([
         ...payload,
-        { id: assistantId, role: "assistant", content: "", createdAt: new Date().toISOString() },
+        {
+          id: assistantId,
+          role: "assistant",
+          content: "",
+          createdAt: new Date().toISOString(),
+          thoughtStackEnabled,
+        },
       ]);
     } else {
       setMessages((prev) => {
         const sliced = typeof opts.truncateAt === "number" ? prev.slice(0, opts.truncateAt + 1) : prev;
         return sliced.map((m) =>
           m.id !== assistantId ? m
-            : { ...m, content: "", structured: undefined, toolsUsed: undefined, recordsUsed: undefined }
+            : {
+                ...m,
+                content: "",
+                structured: undefined,
+                toolsUsed: undefined,
+                recordsUsed: undefined,
+                progressSteps: [],
+                thinkingContent: "",
+                activeTools: [],
+                provider: undefined,
+                responseMode: undefined,
+                runtimeMode: undefined,
+                thoughtStackEnabled,
+              }
         );
       });
     }
@@ -1160,6 +1218,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           reportingYearMode,
           fiscalYear: getFiscalYearForDate(new Date(), fiscalYearStart),
           fiscalYearStart,
+          thoughtStackEnabled,
           // Inject locked donor context so the AI knows who we're talking about
           ...(lockedDonors.length > 0 && {
             donorContext: lockedDonors.map((d) => ({
@@ -1216,6 +1275,24 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                 ? { ...m, thinkingContent: (m.thinkingContent ?? "") + ev.delta }
                 : m)
             );
+          } else if (ev.type === "tool") {
+            const toolEv = ev as StewardChatStreamTool;
+            setMessages((prev) =>
+              prev.map((m) => {
+                if (m.id !== assistantId) return m;
+                const existing = m.activeTools ?? [];
+                if (toolEv.status === "start") {
+                  return { ...m, activeTools: [...existing, { name: toolEv.name, label: toolEv.label, status: "active" as const }] };
+                }
+                // "done" — mark matching tool as done
+                return {
+                  ...m,
+                  activeTools: existing.map((t) =>
+                    t.name === toolEv.name && t.status === "active" ? { ...t, status: "done" as const } : t
+                  ),
+                };
+              })
+            );
           } else if (ev.type === "done") { done = ev; break; }
           else if (ev.type === "error") throw new Error(ev.message || "Stream error");
         }
@@ -1239,6 +1316,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         prev.map((m) => {
           if (m.id !== assistantId) return m;
           const finalReply = done!.reply?.length ? done!.reply : streamed;
+          const finalizedTools = (m.activeTools ?? []).map((tool) => ({ ...tool, status: "done" as const }));
           return {
             ...m, content: finalReply,
             structured:   done!.structured ? normalizeStructured(done!.structured) : undefined,
@@ -1248,6 +1326,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
             responseMode: done!.mode,
             moduleKey:    done!.moduleKey,
             runtimeMode:  done!.runtimeMode ?? "unknown",
+            activeTools: finalizedTools,
           };
         })
       );
@@ -1265,7 +1344,19 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       setActiveAssistantId(null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, messages, mode, scope, sending]);
+  }, [draft, messages, mode, scope, sending, reportingYearMode, fiscalYearStart, thoughtStackEnabled, lockedDonors]);
+
+  // Queue GuidePath/ThoughtStack continuation clicks while a stream is still finishing.
+  useEffect(() => {
+    if (sending || !queuedContinuationPrompt) return;
+    const prompt = queuedContinuationPrompt;
+    setQueuedContinuationPrompt(null);
+    void send(prompt).then((sent) => {
+      if (!sent) {
+        setActionStatus({ tone: "error", message: "Unable to continue from the selected option. Please try again." });
+      }
+    });
+  }, [queuedContinuationPrompt, sending, send]);
 
   // ─── Regenerate ────────────────────────────────────────────────────────────
   function regenerate(assistantMsgId: string) {
@@ -1368,9 +1459,17 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       const prompt = typeof payload?.prompt === "string" && payload.prompt.trim().length > 0
         ? payload.prompt.trim()
         : action.label;
+
+      if (sending) {
+        setQueuedContinuationPrompt(prompt);
+        setActionStatus({ tone: "success", message: "GuidePath selection saved. Continuing as soon as the current response finishes." });
+        return;
+      }
+
       const sent = await send(prompt);
       if (!sent) {
-        setActionStatus({ tone: "error", message: "GuidePath continuation is waiting for the current response to finish. Try again in a second." });
+        setQueuedContinuationPrompt(prompt);
+        setActionStatus({ tone: "success", message: "GuidePath selection queued. Continuing shortly." });
         return;
       }
       setActionStatus({ tone: "success", message: "GuidePath selection applied. Continuing with your request." });
@@ -1382,9 +1481,17 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       const prompt = typeof payload?.prompt === "string" && payload.prompt.trim().length > 0
         ? payload.prompt.trim()
         : action.label;
+
+      if (sending) {
+        setQueuedContinuationPrompt(prompt);
+        setActionStatus({ tone: "success", message: "ThoughtStack selection saved. Continuing as soon as the current response finishes." });
+        return;
+      }
+
       const sent = await send(prompt);
       if (!sent) {
-        setActionStatus({ tone: "error", message: "ThoughtStack continuation is waiting for the current response to finish. Try again in a second." });
+        setQueuedContinuationPrompt(prompt);
+        setActionStatus({ tone: "success", message: "ThoughtStack selection queued. Continuing shortly." });
         return;
       }
 
@@ -1888,26 +1995,32 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                   )}
 
                   {lockedDonors.length > 0 && (
-                    <div className="mb-1 flex flex-wrap gap-1.5 px-1 pt-1 text-left">
-                      {lockedDonors.map((d) => {
-                        const name = [d.firstName, d.lastName].filter(Boolean).join(" ") || d.email || "Unknown";
-                        return (
-                          <span
-                            key={d.id}
-                            className="inline-flex items-center gap-1 rounded-full border border-emerald-300/40 bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-200"
-                          >
-                            {name}
-                            <button
-                              type="button"
-                              onClick={() => setLockedDonors((prev) => prev.filter((x) => x.id !== d.id))}
-                              className="text-emerald-300 hover:text-emerald-100"
-                              aria-label={`Remove ${name} from context`}
+                    <div className="mb-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-left">
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                        Tagged donor context
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {lockedDonors.map((d) => {
+                          const name = [d.firstName, d.lastName].filter(Boolean).join(" ") || d.email || "Unknown";
+                          return (
+                            <span
+                              key={d.id}
+                              className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-white px-2 py-0.5 text-xs font-medium text-emerald-800"
                             >
-                              x
-                            </button>
-                          </span>
-                        );
-                      })}
+                              <span className="text-emerald-600">@</span>
+                              {name}
+                              <button
+                                type="button"
+                                onClick={() => setLockedDonors((prev) => prev.filter((x) => x.id !== d.id))}
+                                className="rounded-full px-1 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-800"
+                                aria-label={`Remove ${name} from context`}
+                              >
+                                x
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
@@ -1956,7 +2069,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                       <select
                         value={mode}
                         onChange={(event) => setMode(event.target.value as ChatMode)}
-                        className="h-8 appearance-none rounded-full border border-slate-700/80 bg-slate-900/80 py-0 pl-3 pr-8 text-xs font-semibold text-slate-100 outline-none transition-colors hover:border-slate-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-500/20"
+                        className="h-7 appearance-none rounded-full border border-slate-700/80 bg-slate-900/80 py-0 pl-2.5 pr-7 text-[10px] font-semibold text-slate-100 outline-none transition-colors hover:border-slate-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-500/20"
                         title="Chat mode"
                       >
                         <option value="ask" className="bg-slate-900 text-slate-100">Ask & Retrieve</option>
@@ -1969,7 +2082,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                         <option value="help" className="bg-slate-900 text-slate-100">Workflow Help</option>
                       </select>
                       <svg
-                        className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-300"
+                        className="pointer-events-none absolute right-2 top-1/2 h-2.5 w-2.5 -translate-y-1/2 text-slate-300"
                         fill="none"
                         stroke="currentColor"
                         strokeWidth={2.25}
@@ -1979,6 +2092,20 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                       </svg>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setThoughtStackEnabled((value) => !value)}
+                      className={`hidden sm:inline-flex h-7 items-center gap-1 rounded-full border px-2 text-[10px] font-semibold transition-colors ${
+                        thoughtStackEnabled
+                          ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25"
+                          : "border-slate-600 bg-slate-800 text-slate-300 hover:border-slate-500 hover:bg-slate-700"
+                      }`}
+                      title={thoughtStackEnabled ? "ThoughtStack beta is enabled. Click to disable for direct chat responses." : "ThoughtStack beta is disabled. Click to enable reliability gating."}
+                    >
+                      <span className="rounded bg-black/30 px-1 py-[1px] text-[8px] font-bold uppercase tracking-wide">BETA</span>
+                      {thoughtStackEnabled ? "ThoughtStack On" : "ThoughtStack Off"}
+                    </button>
 
                     <button
                       type="button"
@@ -2107,26 +2234,32 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
               )}
 
               {lockedDonors.length > 0 && (
-                <div className="mb-1 flex flex-wrap gap-1.5 px-1 pt-1 text-left">
-                  {lockedDonors.map((d) => {
-                    const name = [d.firstName, d.lastName].filter(Boolean).join(" ") || d.email || "Unknown";
-                    return (
-                      <span
-                        key={d.id}
-                        className="inline-flex items-center gap-1 rounded-full border border-emerald-300/40 bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-200"
-                      >
-                        {name}
-                        <button
-                          type="button"
-                          onClick={() => setLockedDonors((prev) => prev.filter((x) => x.id !== d.id))}
-                          className="text-emerald-300 hover:text-emerald-100"
-                          aria-label={`Remove ${name} from context`}
+                <div className="mb-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-left">
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                    Tagged donor context
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {lockedDonors.map((d) => {
+                      const name = [d.firstName, d.lastName].filter(Boolean).join(" ") || d.email || "Unknown";
+                      return (
+                        <span
+                          key={d.id}
+                          className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-white px-2 py-0.5 text-xs font-medium text-emerald-800"
                         >
-                          x
-                        </button>
-                      </span>
-                    );
-                  })}
+                          <span className="text-emerald-600">@</span>
+                          {name}
+                          <button
+                            type="button"
+                            onClick={() => setLockedDonors((prev) => prev.filter((x) => x.id !== d.id))}
+                            className="rounded-full px-1 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-800"
+                            aria-label={`Remove ${name} from context`}
+                          >
+                            x
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -2175,7 +2308,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                   <select
                     value={mode}
                     onChange={(event) => setMode(event.target.value as ChatMode)}
-                    className="h-8 appearance-none rounded-full border border-slate-700/80 bg-slate-900/80 py-0 pl-3 pr-8 text-xs font-semibold text-slate-100 outline-none transition-colors hover:border-slate-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-500/20"
+                    className="h-7 appearance-none rounded-full border border-slate-700/80 bg-slate-900/80 py-0 pl-2.5 pr-7 text-[10px] font-semibold text-slate-100 outline-none transition-colors hover:border-slate-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-500/20"
                     title="Chat mode"
                   >
                     <option value="ask" className="bg-slate-900 text-slate-100">Ask & Retrieve</option>
@@ -2188,7 +2321,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     <option value="help" className="bg-slate-900 text-slate-100">Workflow Help</option>
                   </select>
                   <svg
-                    className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-300"
+                    className="pointer-events-none absolute right-2 top-1/2 h-2.5 w-2.5 -translate-y-1/2 text-slate-300"
                     fill="none"
                     stroke="currentColor"
                     strokeWidth={2.25}
@@ -2198,6 +2331,20 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                   </svg>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setThoughtStackEnabled((value) => !value)}
+                  className={`hidden sm:inline-flex h-7 items-center gap-1 rounded-full border px-2 text-[10px] font-semibold transition-colors ${
+                    thoughtStackEnabled
+                      ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25"
+                      : "border-slate-600 bg-slate-800 text-slate-300 hover:border-slate-500 hover:bg-slate-700"
+                  }`}
+                  title={thoughtStackEnabled ? "ThoughtStack beta is enabled. Click to disable for direct chat responses." : "ThoughtStack beta is disabled. Click to enable reliability gating."}
+                >
+                  <span className="rounded bg-black/30 px-1 py-[1px] text-[8px] font-bold uppercase tracking-wide">BETA</span>
+                  {thoughtStackEnabled ? "ThoughtStack On" : "ThoughtStack Off"}
+                </button>
 
                 <button
                   type="button"
@@ -2579,7 +2726,7 @@ function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegene
   const hasEmailLikeBody = /(^|\n)\s*subject\s*:/i.test(msg.content) && /(^|\n)\s*body\s*:/i.test(msg.content);
   const canSaveAsTemplate = hasEmailArtifact || hasEmailLikeBody || msg.responseMode === "draft" || msg.responseMode === "free" || msg.responseMode === "agentic" || msg.responseMode === "writing";
   const effectiveMode: ChatMode = msg.responseMode ?? activeMode;
-  const thoughtStackActive = effectiveMode !== "free";
+  const thoughtStackActive = effectiveMode === "free" ? false : (msg.thoughtStackEnabled ?? true);
 
   return (
     <div className="steward-message-row steward-message-row-assistant group flex flex-col gap-2 animate-slide-up-fade-in">
@@ -2618,15 +2765,6 @@ function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegene
 
       {/* Content */}
       <div className="pl-8">
-        {/* Thinking panel: progress steps + reasoning tokens */}
-        {(isStreaming || msg.progressSteps?.length || msg.thinkingContent) && (
-          <StewardThinkingPanel
-            progressSteps={msg.progressSteps ?? []}
-            thinkingContent={msg.thinkingContent ?? ""}
-            isActive={isStreaming}
-            tone="dark"
-          />
-        )}
         {isStreaming && !msg.content ? (
           <span className="steward-stream-placeholder inline-flex items-center gap-1.5 text-slate-400">
             <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300" style={{ animationDelay: "0ms" }} />

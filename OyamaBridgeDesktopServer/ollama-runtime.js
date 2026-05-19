@@ -74,6 +74,41 @@ function buildOllamaLaunchEnv(config, baseEnv = process.env) {
   env.OLLAMA_HOST = settings.hostBinding;
   env.OYAMA_OLLAMA_MODE = settings.mode;
 
+  // --- Performance / offload settings ---
+
+  // Flash attention: ~20-40% faster inference on supported hardware; safe to always enable.
+  env.OLLAMA_FLASH_ATTENTION = "1";
+
+  // GPU layer offload: 999 = "offload all layers to GPU" (Ollama clips to model max).
+  const rawNumGpu = Number(config?.ollamaNumGpuLayers);
+  env.OLLAMA_NUM_GPU = Number.isInteger(rawNumGpu) && rawNumGpu >= 0
+    ? String(rawNumGpu)
+    : "999";
+
+  // Limit to 1 simultaneously loaded model — prevents VRAM fragmentation when both
+  // bridgeModel and bridgeThinkingModel are used in the same session.
+  const rawMaxLoaded = Number(config?.ollamaMaxLoadedModels);
+  env.OLLAMA_MAX_LOADED_MODELS = Number.isInteger(rawMaxLoaded) && rawMaxLoaded >= 1
+    ? String(rawMaxLoaded)
+    : "1";
+
+  // Keep model resident in VRAM between requests. -1 = indefinitely; 0 = unload immediately.
+  // The app's idle VRAM-clear timer handles eventual cleanup, so we keep the model hot.
+  const rawKeepAlive = Number(config?.ollamaKeepAliveSeconds ?? -1);
+  env.OLLAMA_KEEP_ALIVE = Number.isFinite(rawKeepAlive)
+    ? String(Math.round(rawKeepAlive))
+    : "-1";
+
+  // CPU thread count for non-GPU layers; 0 = Ollama auto-detects (recommended).
+  const rawNumThreads = Number(config?.ollamaNumThreads);
+  if (Number.isInteger(rawNumThreads) && rawNumThreads > 0) {
+    env.OLLAMA_NUM_THREAD = String(rawNumThreads);
+  } else {
+    delete env.OLLAMA_NUM_THREAD;
+  }
+
+  // --- GPU device pinning ---
+
   GPU_PIN_ENV_KEYS.forEach((key) => {
     delete env[key];
   });
@@ -92,6 +127,10 @@ function buildOllamaLaunchEnv(config, baseEnv = process.env) {
 
 function buildOllamaRuntimeSummary(config) {
   const settings = resolveOllamaRuntimeSettings(config);
+  const rawNumGpu = Number(config?.ollamaNumGpuLayers);
+  const rawMaxLoaded = Number(config?.ollamaMaxLoadedModels);
+  const rawKeepAlive = Number(config?.ollamaKeepAliveSeconds ?? -1);
+  const rawNumThreads = Number(config?.ollamaNumThreads);
   return {
     mode: settings.mode,
     upstreamUrl: settings.upstreamUrl,
@@ -99,6 +138,11 @@ function buildOllamaRuntimeSummary(config) {
     args: ["serve"],
     selectedGpu: settings.selectedGpu,
     envHint: settings.envHint,
+    flashAttention: true,
+    numGpuLayers: Number.isInteger(rawNumGpu) && rawNumGpu >= 0 ? rawNumGpu : 999,
+    maxLoadedModels: Number.isInteger(rawMaxLoaded) && rawMaxLoaded >= 1 ? rawMaxLoaded : 1,
+    keepAliveSeconds: Number.isFinite(rawKeepAlive) ? Math.round(rawKeepAlive) : -1,
+    numThreads: Number.isInteger(rawNumThreads) && rawNumThreads > 0 ? rawNumThreads : 0,
   };
 }
 

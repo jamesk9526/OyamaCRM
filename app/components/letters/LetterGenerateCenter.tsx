@@ -85,6 +85,8 @@ async function downloadBlobFromResponse(response: Response, fallbackName: string
 export default function LetterGenerateCenter() {
   const searchParams = useSearchParams();
   const seededTemplateId = searchParams.get("templateId")?.trim() || "";
+  const seededConstituentId = searchParams.get("constituentId")?.trim() || "";
+  const seededDonationId = searchParams.get("donationId")?.trim() || "";
   const seededMode = searchParams.get("mode") === "batch" ? "batch" : "single";
   const seededTarget = searchParams.get("target") === "mail" ? "mail" : searchParams.get("target") === "print" ? "print" : "none";
 
@@ -194,6 +196,44 @@ export default function LetterGenerateCenter() {
     }, 250);
     return () => window.clearTimeout(timer);
   }, [contactSearch]);
+
+  useEffect(() => {
+    if (!seededConstituentId || selectedConstituent?.id === seededConstituentId) return;
+
+    let cancelled = false;
+    apiFetch<ConstituentLookup>(`/api/constituents/${encodeURIComponent(seededConstituentId)}`)
+      .then((row) => {
+        if (cancelled || !row?.id) return;
+        setSelectedConstituent(row);
+        setConstituentSearch(formatConstituentName(row));
+      })
+      .catch(() => {
+        // Ignore seeded lookup failures to keep manual search path available.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [seededConstituentId, selectedConstituent?.id]);
+
+  useEffect(() => {
+    if (!seededDonationId || selectedDonation?.id === seededDonationId) return;
+
+    let cancelled = false;
+    apiFetch<DonationLookup>(`/api/donations/${encodeURIComponent(seededDonationId)}`)
+      .then((row) => {
+        if (cancelled || !row?.id) return;
+        setSelectedDonation(row);
+        setDonationSearch(formatDonationLabel(row));
+      })
+      .catch(() => {
+        // Ignore seeded lookup failures to keep manual search path available.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [seededDonationId, selectedDonation?.id]);
 
   useEffect(() => {
     if (!audienceListId || batchSource !== "list") return;

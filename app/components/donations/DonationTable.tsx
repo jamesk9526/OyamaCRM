@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { DonationRow, formatCurrency, formatDate, methodLabel, statusColor } from "./donation-utils";
 
@@ -12,11 +12,175 @@ interface Props {
   onMarkThanked?: (id: string) => void;
   onCreateEmailDraft?: (id: string) => void;
   onEmailFromTemplate?: (id: string) => void;
+  onLetterFromTemplate?: (id: string) => void;
   onCreateCallTask?: (id: string) => void;
   onStartPath?: (id: string) => void;
   onCompleteStewardshipLoop?: (id: string) => void;
   acknowledgingDonationId?: string | null;
   actionBusyDonationId?: string | null;
+}
+
+function RowQuickActionsMenu({
+  donation,
+  onMarkThanked,
+  onCreateEmailDraft,
+  onEmailFromTemplate,
+  onLetterFromTemplate,
+  onCreateCallTask,
+  onStartPath,
+  onCompleteStewardshipLoop,
+  acknowledgingDonationId,
+  actionBusyDonationId,
+}: {
+  donation: DonationRow;
+  onMarkThanked?: (id: string) => void;
+  onCreateEmailDraft?: (id: string) => void;
+  onEmailFromTemplate?: (id: string) => void;
+  onLetterFromTemplate?: (id: string) => void;
+  onCreateCallTask?: (id: string) => void;
+  onStartPath?: (id: string) => void;
+  onCompleteStewardshipLoop?: (id: string) => void;
+  acknowledgingDonationId?: string | null;
+  actionBusyDonationId?: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const actionBusy = actionBusyDonationId === donation.id;
+  const acknowledging = acknowledgingDonationId === donation.id;
+
+  useEffect(() => {
+    if (!open) return;
+
+    function onDocumentClick(event: MouseEvent) {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    function onDocumentKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    document.addEventListener("mousedown", onDocumentClick);
+    document.addEventListener("keydown", onDocumentKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onDocumentClick);
+      document.removeEventListener("keydown", onDocumentKeyDown);
+    };
+  }, [open]);
+
+  function runAction(handler?: (id: string) => void) {
+    if (!handler || actionBusy) return;
+    setOpen(false);
+    handler(donation.id);
+  }
+
+  function runMarkThanked() {
+    if (!onMarkThanked || donation.acknowledgmentSentAt || acknowledging) return;
+    setOpen(false);
+    onMarkThanked(donation.id);
+  }
+
+  const itemClass = "flex w-full items-center justify-between rounded px-2.5 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50";
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Open donation quick actions"
+      >
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5h.01M12 12h.01M12 19h.01" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 z-30 mt-1 w-48 rounded-md border border-gray-200 bg-white p-1.5 shadow-lg">
+          <button
+            type="button"
+            onClick={() => runAction(onCompleteStewardshipLoop)}
+            disabled={!onCompleteStewardshipLoop || actionBusy}
+            className={itemClass}
+          >
+            <span>{actionBusy ? "Running..." : "Complete Loop"}</span>
+          </button>
+
+          <Link
+            href={`/letters-printables/generate?constituentId=${donation.constituent.id}&donationId=${donation.id}`}
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center justify-between rounded px-2.5 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-50"
+          >
+            <span>Letter</span>
+          </Link>
+
+          <button
+            type="button"
+            onClick={() => runAction(onCreateEmailDraft)}
+            disabled={!onCreateEmailDraft || actionBusy}
+            className={itemClass}
+          >
+            <span>Email Draft</span>
+          </button>
+
+          {onEmailFromTemplate && (
+            <button
+              type="button"
+              onClick={() => runAction(onEmailFromTemplate)}
+              disabled={actionBusy}
+              className={itemClass}
+            >
+              <span>Email Template</span>
+            </button>
+          )}
+
+          {onLetterFromTemplate && (
+            <button
+              type="button"
+              onClick={() => runAction(onLetterFromTemplate)}
+              disabled={actionBusy}
+              className={itemClass}
+            >
+              <span>Letter Template</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => runAction(onCreateCallTask)}
+            disabled={!onCreateCallTask || actionBusy}
+            className={itemClass}
+          >
+            <span>Call Task</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => runAction(onStartPath)}
+            disabled={!onStartPath || actionBusy}
+            className={itemClass}
+          >
+            <span>Start Path</span>
+          </button>
+
+          {onMarkThanked && !donation.acknowledgmentSentAt && (
+            <button
+              type="button"
+              onClick={runMarkThanked}
+              disabled={acknowledging}
+              className={itemClass}
+            >
+              <span>{acknowledging ? "Saving..." : "Mark Thanked"}</span>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function SortHeader({
@@ -49,6 +213,7 @@ export default function DonationTable({
   onMarkThanked,
   onCreateEmailDraft,
   onEmailFromTemplate,
+  onLetterFromTemplate,
   onCreateCallTask,
   onStartPath,
   onCompleteStewardshipLoop,
@@ -121,87 +286,42 @@ export default function DonationTable({
               </div>
             )}
 
-            <div className="mt-3 flex items-center gap-2">
-              <Link
-                href={`/donations/${d.id}/edit`}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50"
-              >
-                Edit
-              </Link>
-              {onDelete && (
-                <button
-                  onClick={() => onDelete(d.id)}
-                  className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50"
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/donations/${d.id}/edit`}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50"
                 >
-                  Delete
-                </button>
-              )}
-            </div>
+                  Edit
+                </Link>
+                {onDelete && (
+                  <button
+                    onClick={() => onDelete(d.id)}
+                    className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
 
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => onCompleteStewardshipLoop?.(d.id)}
-                disabled={!onCompleteStewardshipLoop || actionBusyDonationId === d.id}
-                className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-emerald-800 bg-emerald-100 border border-emerald-300 rounded-md hover:bg-emerald-200 disabled:opacity-60"
-              >
-                {actionBusyDonationId === d.id ? "Running..." : "Complete Loop"}
-              </button>
-              <Link
-                href={`/letters-printables/generate?constituentId=${d.constituent.id}&donationId=${d.id}`}
-                className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-green-700 bg-green-50 border border-green-200 rounded-md hover:bg-green-100"
-              >
-                Letter
-              </Link>
-              <button
-                type="button"
-                onClick={() => onCreateEmailDraft?.(d.id)}
-                disabled={!onCreateEmailDraft || actionBusyDonationId === d.id}
-                className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 disabled:opacity-60"
-              >
-                {actionBusyDonationId === d.id ? "Creating..." : "Email Draft"}
-              </button>
-              {onEmailFromTemplate && (
-                <button
-                  type="button"
-                  onClick={() => onEmailFromTemplate(d.id)}
-                  disabled={actionBusyDonationId === d.id}
-                  className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-md hover:bg-teal-100 disabled:opacity-60"
-                >
-                  Email Template
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => onCreateCallTask?.(d.id)}
-                disabled={!onCreateCallTask || actionBusyDonationId === d.id}
-                className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 disabled:opacity-60"
-              >
-                Call Task
-              </button>
-              <button
-                type="button"
-                onClick={() => onStartPath?.(d.id)}
-                disabled={!onStartPath || actionBusyDonationId === d.id}
-                className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 disabled:opacity-60"
-              >
-                Start Path
-              </button>
-              {onMarkThanked && !d.acknowledgmentSentAt && (
-                <button
-                  onClick={() => onMarkThanked(d.id)}
-                  disabled={acknowledgingDonationId === d.id}
-                  className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-md hover:bg-amber-100 disabled:opacity-60"
-                >
-                  {acknowledgingDonationId === d.id ? "Saving..." : "Mark Thanked"}
-                </button>
-              )}
+              <RowQuickActionsMenu
+                donation={d}
+                onMarkThanked={onMarkThanked}
+                onCreateEmailDraft={onCreateEmailDraft}
+                onEmailFromTemplate={onEmailFromTemplate}
+                onLetterFromTemplate={onLetterFromTemplate}
+                onCreateCallTask={onCreateCallTask}
+                onStartPath={onStartPath}
+                onCompleteStewardshipLoop={onCompleteStewardshipLoop}
+                acknowledgingDonationId={acknowledgingDonationId}
+                actionBusyDonationId={actionBusyDonationId}
+              />
             </div>
           </article>
         ))}
       </div>
 
-      <div className="hidden md:block overflow-x-auto">
+      <div className="hidden md:block overflow-x-auto overflow-y-visible">
       <table className="w-full text-sm">
         <thead className="bg-gray-50 border-b border-gray-200">
           <tr>
@@ -276,65 +396,18 @@ export default function DonationTable({
                       </svg>
                     </button>
                   )}
-                </div>
-                <div className="mt-1 flex items-center gap-1 justify-end flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => onCompleteStewardshipLoop?.(d.id)}
-                    disabled={!onCompleteStewardshipLoop || actionBusyDonationId === d.id}
-                    className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-emerald-800 bg-emerald-100 border border-emerald-300 rounded-md hover:bg-emerald-200 disabled:opacity-60"
-                  >
-                    {actionBusyDonationId === d.id ? "Running..." : "Complete Loop"}
-                  </button>
-                  <Link
-                    href={`/letters-printables/generate?constituentId=${d.constituent.id}&donationId=${d.id}`}
-                    className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-green-700 bg-green-50 border border-green-200 rounded-md hover:bg-green-100"
-                  >
-                    Letter
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => onCreateEmailDraft?.(d.id)}
-                    disabled={!onCreateEmailDraft || actionBusyDonationId === d.id}
-                    className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 disabled:opacity-60"
-                  >
-                    {actionBusyDonationId === d.id ? "Creating..." : "Email Draft"}
-                  </button>
-                  {onEmailFromTemplate && (
-                    <button
-                      type="button"
-                      onClick={() => onEmailFromTemplate(d.id)}
-                      disabled={actionBusyDonationId === d.id}
-                      className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-md hover:bg-teal-100 disabled:opacity-60"
-                    >
-                      Email Template
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => onCreateCallTask?.(d.id)}
-                    disabled={!onCreateCallTask || actionBusyDonationId === d.id}
-                    className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 disabled:opacity-60"
-                  >
-                    Call Task
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onStartPath?.(d.id)}
-                    disabled={!onStartPath || actionBusyDonationId === d.id}
-                    className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 disabled:opacity-60"
-                  >
-                    Start Path
-                  </button>
-                  {onMarkThanked && !d.acknowledgmentSentAt && (
-                    <button
-                      onClick={() => onMarkThanked(d.id)}
-                      disabled={acknowledgingDonationId === d.id}
-                      className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-md hover:bg-amber-100 disabled:opacity-60"
-                    >
-                      {acknowledgingDonationId === d.id ? "Saving..." : "Mark Thanked"}
-                    </button>
-                  )}
+                  <RowQuickActionsMenu
+                    donation={d}
+                    onMarkThanked={onMarkThanked}
+                    onCreateEmailDraft={onCreateEmailDraft}
+                    onEmailFromTemplate={onEmailFromTemplate}
+                    onLetterFromTemplate={onLetterFromTemplate}
+                    onCreateCallTask={onCreateCallTask}
+                    onStartPath={onStartPath}
+                    onCompleteStewardshipLoop={onCompleteStewardshipLoop}
+                    acknowledgingDonationId={acknowledgingDonationId}
+                    actionBusyDonationId={actionBusyDonationId}
+                  />
                 </div>
               </td>
             </tr>
