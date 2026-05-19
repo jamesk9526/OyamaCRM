@@ -48,6 +48,7 @@ interface RichTextRenderOptions {
   baseFontSizePx?: number;
   linkColor?: string;
   quoteAccentColor?: string;
+  fontFamily?: string;
 }
 
 function appendInlineStyleToTag(html: string, tagName: string, inlineStyle: string): string {
@@ -70,22 +71,24 @@ export function formatRichTextHtml(html: string, options: RichTextRenderOptions 
     baseFontSizePx = 16,
     linkColor = '#166534',
     quoteAccentColor = '#16a34a',
+    fontFamily,
   } = options;
+  const fontStyle = fontFamily ? `font-family:${fontFamily};` : '';
 
   let formatted = String(html || '').trim();
   if (!formatted) {
-    return `<p style="margin:0;font-size:${baseFontSizePx}px;line-height:1.6;color:${textColor};">&nbsp;</p>`;
+    return `<p style="margin:0;font-size:${baseFontSizePx}px;line-height:1.6;color:${textColor};${fontStyle}">&nbsp;</p>`;
   }
 
-  formatted = appendInlineStyleToTag(formatted, 'p', `margin:0 0 12px;font-size:${baseFontSizePx}px;line-height:1.6;color:${textColor};`);
-  formatted = appendInlineStyleToTag(formatted, 'h1', `margin:0 0 14px;font-size:32px;line-height:1.2;font-weight:700;color:${textColor};`);
-  formatted = appendInlineStyleToTag(formatted, 'h2', `margin:0 0 12px;font-size:26px;line-height:1.25;font-weight:700;color:${textColor};`);
-  formatted = appendInlineStyleToTag(formatted, 'h3', `margin:0 0 10px;font-size:20px;line-height:1.3;font-weight:700;color:${textColor};`);
-  formatted = appendInlineStyleToTag(formatted, 'ul', `margin:0 0 12px 24px;padding:0;color:${textColor};`);
-  formatted = appendInlineStyleToTag(formatted, 'ol', `margin:0 0 12px 24px;padding:0;color:${textColor};`);
-  formatted = appendInlineStyleToTag(formatted, 'li', `margin:0 0 8px;font-size:${baseFontSizePx}px;line-height:1.6;color:${textColor};`);
-  formatted = appendInlineStyleToTag(formatted, 'blockquote', `margin:0 0 12px;padding:0 0 0 16px;border-left:4px solid ${quoteAccentColor};font-style:italic;color:${textColor};`);
-  formatted = appendInlineStyleToTag(formatted, 'a', `color:${linkColor};text-decoration:underline;`);
+  formatted = appendInlineStyleToTag(formatted, 'p', `margin:0 0 12px;font-size:${baseFontSizePx}px;line-height:1.6;color:${textColor};${fontStyle}`);
+  formatted = appendInlineStyleToTag(formatted, 'h1', `margin:0 0 14px;font-size:32px;line-height:1.2;font-weight:700;color:${textColor};${fontStyle}`);
+  formatted = appendInlineStyleToTag(formatted, 'h2', `margin:0 0 12px;font-size:26px;line-height:1.25;font-weight:700;color:${textColor};${fontStyle}`);
+  formatted = appendInlineStyleToTag(formatted, 'h3', `margin:0 0 10px;font-size:20px;line-height:1.3;font-weight:700;color:${textColor};${fontStyle}`);
+  formatted = appendInlineStyleToTag(formatted, 'ul', `margin:0 0 12px 24px;padding:0;color:${textColor};${fontStyle}`);
+  formatted = appendInlineStyleToTag(formatted, 'ol', `margin:0 0 12px 24px;padding:0;color:${textColor};${fontStyle}`);
+  formatted = appendInlineStyleToTag(formatted, 'li', `margin:0 0 8px;font-size:${baseFontSizePx}px;line-height:1.6;color:${textColor};${fontStyle}`);
+  formatted = appendInlineStyleToTag(formatted, 'blockquote', `margin:0 0 12px;padding:0 0 0 16px;border-left:4px solid ${quoteAccentColor};font-style:italic;color:${textColor};${fontStyle}`);
+  formatted = appendInlineStyleToTag(formatted, 'a', `color:${linkColor};text-decoration:underline;${fontStyle}`);
 
   return formatted;
 }
@@ -592,6 +595,7 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
       textColor: block.color,
       baseFontSizePx: block.fontSize,
       linkColor: block.color,
+      fontFamily,
     })}
   </td>
 </tr>`;
@@ -908,6 +912,7 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
       textColor: '#1f2937',
       baseFontSizePx: 16,
       linkColor: '#166534',
+      fontFamily,
     })}
   </td>
 </tr>`;
@@ -1021,7 +1026,7 @@ export function generateEmailHtml(template: EmailTemplate): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Email</title>
   <!--[if mso]>
-  <style type="text/css">body,table,td,a{font-family:Arial,sans-serif!important;}</style>
+  <style type="text/css">body,table,td,a{font-family:${fontFamily}!important;}</style>
   <![endif]-->
 </head>
 <body style="margin:0;padding:0;background-color:${backgroundColor};">

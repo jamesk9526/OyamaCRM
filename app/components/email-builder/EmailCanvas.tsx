@@ -30,6 +30,7 @@ type CanvasViewport = 'desktop' | 'mobile';
 
 interface SortableBlockProps {
   block:      EmailBlock;
+  templateFontFamily?: string;
   isSelected: boolean;
   onSelect:   (id: string) => void;
   onDelete:   () => void;
@@ -48,6 +49,7 @@ interface SortableBlockProps {
  */
 function SortableBlock({
   block,
+  templateFontFamily,
   isSelected,
   onSelect,
   onDelete,
@@ -116,6 +118,7 @@ function SortableBlock({
       >
         <BlockRenderer
           block={block}
+          templateFontFamily={templateFontFamily}
           editable={isSelected}
           onChangeContent={onInlineContentChange}
         />
@@ -249,6 +252,7 @@ export default function EmailCanvas({
           maxWidth:        viewport === 'mobile' ? 380 : template.contentWidth,
           margin:          '0 auto',
           backgroundColor: '#ffffff',
+          fontFamily:      template.fontFamily,
           boxShadow:       '0 4px 24px rgba(0,0,0,0.18)',
         }}
         /* Stop click propagation so the canvas deselect above doesn't fire */
@@ -301,6 +305,7 @@ export default function EmailCanvas({
                 <SortableBlock
                   key={block.id}
                   block={block}
+                  templateFontFamily={template.fontFamily}
                   isSelected={selectedId === block.id}
                   onSelect={onSelectBlock}
                   onDelete={() => onDeleteBlock(block.id)}

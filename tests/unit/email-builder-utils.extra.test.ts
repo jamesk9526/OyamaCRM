@@ -117,14 +117,35 @@ describe("generateEmailHtml / generatePlainText", () => {
         textColor: "#123456",
         baseFontSizePx: 17,
         linkColor: "#16a34a",
+        fontFamily: "Georgia, serif",
       },
     );
 
-    expect(html).toContain('<h1 style="margin:0 0 14px;font-size:32px;line-height:1.2;font-weight:700;color:#123456;">');
-    expect(html).toContain('<h2 style="margin:0 0 12px;font-size:26px;line-height:1.25;font-weight:700;color:#123456;">');
-    expect(html).toContain('<ul style="margin:0 0 12px 24px;padding:0;color:#123456;">');
-    expect(html).toContain('<blockquote style="margin:0 0 12px;padding:0 0 0 16px;border-left:4px solid #16a34a;font-style:italic;color:#123456;">');
-    expect(html).toContain('<a href="https://example.com" style="color:#16a34a;text-decoration:underline;">');
+    expect(html).toContain('<h1 style="margin:0 0 14px;font-size:32px;line-height:1.2;font-weight:700;color:#123456;font-family:Georgia, serif;">');
+    expect(html).toContain('<h2 style="margin:0 0 12px;font-size:26px;line-height:1.25;font-weight:700;color:#123456;font-family:Georgia, serif;">');
+    expect(html).toContain('<ul style="margin:0 0 12px 24px;padding:0;color:#123456;font-family:Georgia, serif;">');
+    expect(html).toContain('<blockquote style="margin:0 0 12px;padding:0 0 0 16px;border-left:4px solid #16a34a;font-style:italic;color:#123456;font-family:Georgia, serif;">');
+    expect(html).toContain('<a href="https://example.com" style="color:#16a34a;text-decoration:underline;font-family:Georgia, serif;">');
+  });
+
+  it("uses the selected template font in generated html and Outlook fallback styles", () => {
+    const textBlock = createDefaultBlock("text");
+    if (textBlock.type !== "text") {
+      throw new Error("Expected text block");
+    }
+
+    textBlock.content = '<p>Styled body copy</p>';
+
+    const html = generateEmailHtml({
+      backgroundColor: "#ffffff",
+      contentWidth: 600,
+      fontFamily: "Georgia, serif",
+      blocks: [textBlock, createDefaultBlock("footerCompliance")],
+    });
+
+    expect(html).toContain('body,table,td,a{font-family:Georgia, serif!important;}');
+    expect(html).toContain('style="max-width:600px;background-color:#ffffff;font-family:Georgia, serif;"');
+    expect(html).toContain('<p style="margin:0 0 12px;font-size:16px;line-height:1.6;color:#333333;font-family:Georgia, serif;">Styled body copy</p>');
   });
 
   it("renders HTML for an event preset and contains the RSVP label", () => {
@@ -149,7 +170,7 @@ describe("generateEmailHtml / generatePlainText", () => {
     });
 
     expect(html).toContain("Campaign Headline");
-    expect(html).toContain('<h1 style="margin:0 0 14px;font-size:32px;line-height:1.2;font-weight:700;color:#333333;">');
+    expect(html).toContain('<h1 style="margin:0 0 14px;font-size:32px;line-height:1.2;font-weight:700;color:#333333;font-family:Arial, Helvetica, sans-serif;">');
   });
 
   it("plain-text output includes button labels for accessibility", () => {

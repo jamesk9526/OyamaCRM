@@ -7,14 +7,15 @@ import { formatRichTextHtml } from "@/app/lib/email-builder-utils";
 
 interface Props {
   block: AiTextBlockData;
+  fontFamily?: string;
   editable?: boolean;
   onChangeContent?: (content: string) => void;
 }
 
 /** Renders generated AI text and keeps a subtle tone badge for editor clarity. */
-export default function AiTextBlock({ block, editable = false, onChangeContent }: Props) {
+export default function AiTextBlock({ block, fontFamily, editable = false, onChangeContent }: Props) {
   return (
-    <div style={{ padding: block.padding, position: "relative" }}>
+    <div style={{ padding: block.padding, position: "relative", fontFamily }}>
       <span
         style={{
           position: "absolute",
@@ -38,6 +39,7 @@ export default function AiTextBlock({ block, editable = false, onChangeContent }
           value={block.content}
           onChange={(content) => onChangeContent?.(content)}
           minHeight={140}
+          fontFamily={fontFamily}
         />
       ) : (
         <div
@@ -46,9 +48,10 @@ export default function AiTextBlock({ block, editable = false, onChangeContent }
               textColor: "#1f2937",
               baseFontSizePx: 16,
               linkColor: "#166534",
+              fontFamily,
             }),
           }}
-          style={{ color: "#1f2937", lineHeight: 1.5 }}
+          style={{ color: "#1f2937", lineHeight: 1.5, fontFamily }}
         />
       )}
     </div>

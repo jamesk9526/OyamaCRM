@@ -13,6 +13,7 @@ import { formatRichTextHtml } from '@/app/lib/email-builder-utils';
 
 interface Props {
   block: TextBlockData;
+  fontFamily?: string;
   editable?: boolean;
   onChangeContent?: (content: string) => void;
 }
@@ -21,7 +22,7 @@ interface Props {
  * Renders a text block in the email canvas.
  * Inline styles mirror what the HTML email generator produces.
  */
-export default function TextBlock({ block, editable = false, onChangeContent }: Props) {
+export default function TextBlock({ block, fontFamily, editable = false, onChangeContent }: Props) {
   if (editable) {
     return (
       <div style={{ padding: block.padding }}>
@@ -29,6 +30,7 @@ export default function TextBlock({ block, editable = false, onChangeContent }: 
           value={block.content}
           onChange={(content) => onChangeContent?.(content)}
           minHeight={140}
+          fontFamily={fontFamily}
         />
       </div>
     );
@@ -38,6 +40,7 @@ export default function TextBlock({ block, editable = false, onChangeContent }: 
     <div
       style={{
         padding:    block.padding,
+        fontFamily,
         fontSize:   block.fontSize,
         color:      block.color,
         textAlign:  block.align,
@@ -49,6 +52,7 @@ export default function TextBlock({ block, editable = false, onChangeContent }: 
           textColor: block.color,
           baseFontSizePx: block.fontSize,
           linkColor: block.color,
+          fontFamily,
         }),
       }}
     />

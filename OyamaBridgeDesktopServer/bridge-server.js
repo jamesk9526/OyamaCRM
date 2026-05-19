@@ -97,6 +97,7 @@ function forwardToUpstream(config, req, targetPath, bodyBuffer) {
   const base = new URL(config.bridgeUpstreamUrl);
   const targetUrl = new URL(targetPath, `${base.origin}/`);
   const transport = targetUrl.protocol === "https:" ? https : http;
+  const timeoutMs = Math.max(1000, Number(config.bridgeTimeoutMs || 180000));
 
   const headers = {};
   for (const [key, value] of Object.entries(req.headers || {})) {
@@ -120,7 +121,7 @@ function forwardToUpstream(config, req, targetPath, bodyBuffer) {
       method: req.method,
       path: `${targetUrl.pathname}${targetUrl.search}`,
       headers,
-      timeout: Math.max(1000, Number(config.bridgeTimeoutMs || 30000)),
+      timeout: timeoutMs,
     }, (upstreamResponse) => {
       const responseChunks = [];
       upstreamResponse.on("data", (chunk) => responseChunks.push(chunk));
@@ -134,7 +135,7 @@ function forwardToUpstream(config, req, targetPath, bodyBuffer) {
     });
 
     upstreamRequest.on("timeout", () => {
-      upstreamRequest.destroy(new Error("Bridge request timed out while waiting for upstream."));
+      upstreamRequest.destroy(new Error(`Bridge request timed out while waiting for upstream after ${timeoutMs} ms.`));
     });
 
     upstreamRequest.on("error", (error) => {
@@ -212,6 +213,8 @@ function createBridgeServer(readConfig, options = {}) {
       serverErrorCount: 0,
       recentErrorCount: 0,
       upstreamUrl: "",
+      totalBodyBytes: 0,
+      totalResponseBytes: 0,
     },
   };
 
@@ -337,6 +340,8 @@ function createBridgeServer(readConfig, options = {}) {
     runtime.telemetry.averageLatencyMs = Math.round(nextAverage);
     runtime.telemetry.totalLoggedRequests = nextTotal;
     runtime.telemetry.upstreamUrl = String(entry.upstreamUrl || runtime.telemetry.upstreamUrl || "");
+    runtime.telemetry.totalBodyBytes += Math.max(0, Number(entry.bodyBytes || 0));
+    runtime.telemetry.totalResponseBytes += Math.max(0, Number(entry.responseBytes || 0));
 
     if (statusCode >= 200 && statusCode < 300) {
       runtime.telemetry.successCount += 1;
@@ -544,22 +549,23 @@ function createBridgeServer(readConfig, options = {}) {
       server = http.createServer((req, res) => {
         Promise.resolve(handleRequest(req, res)).catch((error) => {
           runtime.lastError = error instanceof Error ? error.message : String(error);
-          res.statusCode = 502;
+          const statusCode = /timed out while waiting for upstream/i.test(runtime.lastError) ? 504 : 502;
           res.setHeader("Content-Type", "application/json");
+          res.statusCode = statusCode;
           res.end(JSON.stringify({ error: { message: runtime.lastError } }));
           pushErrorLog({
             level: "error",
-            code: "REQUEST_HANDLER_ERROR",
+            code: statusCode === 504 ? "REQUEST_HANDLER_TIMEOUT" : "REQUEST_HANDLER_ERROR",
             message: runtime.lastError,
             method: req.method || "GET",
             path: String(req.url || "/"),
-            statusCode: 502,
+            statusCode,
           });
           pushRequestLog({
             requestId: `${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 10)}`,
             method: req.method || "GET",
             path: String(req.url || "/"),
-            statusCode: 502,
+            statusCode,
             durationMs: 0,
             origin: typeof req.headers.origin === "string" ? req.headers.origin : "",
             detail: runtime.lastError,

@@ -78,9 +78,11 @@ const selectCls = inputCls;
 function TextEditor({
   block,
   onUpdate,
+  templateFontFamily,
 }: {
   block: TextBlock;
   onUpdate: (partial: Partial<TextBlock>) => void;
+  templateFontFamily?: string;
 }) {
   return (
     <>
@@ -88,6 +90,7 @@ function TextEditor({
         <RichTextEditor
           value={block.content}
           onChange={(content) => onUpdate({ content })}
+          fontFamily={templateFontFamily}
           htmlEnabled={!!block.htmlEditingEnabled}
           onToggleHtmlEnabled={(enabled) => onUpdate({ htmlEditingEnabled: enabled })}
           htmlLabel="Enable raw HTML editor for this block"
@@ -1377,11 +1380,13 @@ function AiTextEditor({
   onUpdate,
   onGenerate,
   generating,
+  templateFontFamily,
 }: {
   block: AiTextBlock;
   onUpdate: (partial: Partial<AiTextBlock>) => void;
   onGenerate?: () => void;
   generating: boolean;
+  templateFontFamily?: string;
 }) {
   return (
     <>
@@ -1420,6 +1425,7 @@ function AiTextEditor({
         <RichTextEditor
           value={block.content}
           onChange={(content) => onUpdate({ content })}
+          fontFamily={templateFontFamily}
           htmlEnabled={!!block.htmlEditingEnabled}
           onToggleHtmlEnabled={(enabled) => onUpdate({ htmlEditingEnabled: enabled })}
           htmlLabel="Enable raw HTML editor for this AI block"
@@ -1954,6 +1960,7 @@ export default function BlockEditor({
             {selectedBlock.type === 'text' && (
               <TextEditor
                 block={selectedBlock as TextBlock}
+                templateFontFamily={template.fontFamily}
                 onUpdate={update as (p: Partial<TextBlock>) => void}
               />
             )}
@@ -2090,6 +2097,7 @@ export default function BlockEditor({
             {selectedBlock.type === 'aiText' && (
               <AiTextEditor
                 block={selectedBlock as AiTextBlock}
+                templateFontFamily={template.fontFamily}
                 onUpdate={update as (p: Partial<AiTextBlock>) => void}
                 onGenerate={onGenerateAiBlock ? () => onGenerateAiBlock(selectedBlock.id) : undefined}
                 generating={aiGeneratingBlockId === selectedBlock.id}

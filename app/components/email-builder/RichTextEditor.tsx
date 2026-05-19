@@ -14,6 +14,7 @@ interface RichTextEditorProps {
   value: string;
   onChange: (nextHtml: string) => void;
   minHeight?: number;
+  fontFamily?: string;
   htmlEnabled?: boolean;
   onToggleHtmlEnabled?: (enabled: boolean) => void;
   htmlLabel?: string;
@@ -52,6 +53,7 @@ export default function RichTextEditor({
   value,
   onChange,
   minHeight = 160,
+  fontFamily,
   htmlEnabled = false,
   onToggleHtmlEnabled,
   htmlLabel = 'Enable raw HTML editor',
@@ -113,6 +115,7 @@ export default function RichTextEditor({
         <textarea
           className="block w-full rounded border border-gray-200 px-2.5 py-2 font-mono text-xs focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500"
           rows={8}
+          style={fontFamily ? { fontFamily } : undefined}
           value={value}
           onChange={(event) => onChange(event.target.value)}
         />
@@ -196,7 +199,7 @@ export default function RichTextEditor({
       </div>
       <div
         className="rounded border border-gray-200 bg-white px-3 py-2 text-sm leading-relaxed text-gray-800"
-        style={{ minHeight }}
+        style={{ minHeight, fontFamily }}
       >
         <EditorContent editor={editor} />
       </div>

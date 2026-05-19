@@ -80,4 +80,102 @@ describe("steward paths api", () => {
       .set(auth);
     expect(archivedCopy.status).toBe(204);
   });
+
+  it("allows saving new steps after prior steps were archived", async () => {
+    const auth = { Authorization: `Bearer ${adminToken}` };
+
+    const created = await request(app)
+      .post("/api/steward-paths/templates")
+      .set(auth)
+      .send({
+        name: `API Steward Path ReSave ${Date.now()}`,
+        targetType: "CONSTITUENT",
+        crmScope: "DONOR",
+        status: "DRAFT",
+        triggerType: "MANUAL",
+      });
+    expect(created.status).toBe(201);
+    const pathId = created.body.id as string;
+
+    const firstStep = await request(app)
+      .post(`/api/steward-paths/templates/${pathId}/steps`)
+      .set(auth)
+      .send({
+        name: "Initial step",
+        stepType: "CREATE_TASK",
+      });
+    expect(firstStep.status).toBe(201);
+    const firstStepId = firstStep.body.id as string;
+
+    const archived = await request(app)
+      .delete(`/api/steward-paths/templates/${pathId}/steps/${firstStepId}`)
+      .set(auth);
+    expect(archived.status).toBe(204);
+
+    const secondStep = await request(app)
+      .post(`/api/steward-paths/templates/${pathId}/steps`)
+      .set(auth)
+      .send({
+        name: "Resaved step",
+        stepType: "CREATE_TASK",
+        orderIndex: 0,
+      });
+    expect(secondStep.status).toBe(201);
+
+    const cleanup = await request(app)
+      .delete(`/api/steward-paths/templates/${pathId}`)
+      .set(auth);
+    expect(cleanup.status).toBe(204);
+  });
+
+  it("reorders steps without unique order collisions", async () => {
+    const auth = { Authorization: `Bearer ${adminToken}` };
+
+    const created = await request(app)
+      .post("/api/steward-paths/templates")
+      .set(auth)
+      .send({
+        name: `API Steward Path Reorder ${Date.now()}`,
+        targetType: "CONSTITUENT",
+        crmScope: "DONOR",
+        status: "DRAFT",
+        triggerType: "MANUAL",
+      });
+    expect(created.status).toBe(201);
+    const pathId = created.body.id as string;
+
+    const stepA = await request(app)
+      .post(`/api/steward-paths/templates/${pathId}/steps`)
+      .set(auth)
+      .send({ name: "Step A", stepType: "CREATE_TASK", orderIndex: 0 });
+    expect(stepA.status).toBe(201);
+
+    const stepB = await request(app)
+      .post(`/api/steward-paths/templates/${pathId}/steps`)
+      .set(auth)
+      .send({ name: "Step B", stepType: "CREATE_TASK", orderIndex: 1 });
+    expect(stepB.status).toBe(201);
+
+    const stepC = await request(app)
+      .post(`/api/steward-paths/templates/${pathId}/steps`)
+      .set(auth)
+      .send({ name: "Step C", stepType: "CREATE_TASK", orderIndex: 2 });
+    expect(stepC.status).toBe(201);
+
+    const reordered = await request(app)
+      .post(`/api/steward-paths/templates/${pathId}/steps/reorder`)
+      .set(auth)
+      .send({ stepIds: [stepC.body.id, stepA.body.id, stepB.body.id] });
+    expect(reordered.status).toBe(200);
+    expect(reordered.body.steps.map((step: { id: string }) => step.id)).toEqual([
+      stepC.body.id,
+      stepA.body.id,
+      stepB.body.id,
+    ]);
+
+    const cleanup = await request(app)
+      .delete(`/api/steward-paths/templates/${pathId}`)
+      .set(auth);
+    expect(cleanup.status).toBe(204);
+  });
 });

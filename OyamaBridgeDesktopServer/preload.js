@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("oyamaBridge", {
   setConfig: (payload) => ipcRenderer.invoke("oyama-bridge:set-config", payload),
   getBridgeState: () => ipcRenderer.invoke("oyama-bridge:get-bridge-state"),
   getGpuTelemetry: () => ipcRenderer.invoke("oyama-bridge:get-gpu-telemetry"),
+  getUsageHistory: () => ipcRenderer.invoke("oyama-bridge:get-usage-history"),
   buildPairing: (payload) => ipcRenderer.invoke("oyama-bridge:build-pairing", payload),
   bridgeChat: (payload) => ipcRenderer.invoke("oyama-bridge:chat", payload),
   getBackgroundTools: () => ipcRenderer.invoke("oyama-bridge:get-background-tools"),

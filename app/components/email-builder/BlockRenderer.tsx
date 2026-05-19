@@ -39,15 +39,16 @@ import CustomHtmlBlock from './blocks/CustomHtmlBlock';
 
 interface Props {
   block: EmailBlock;
+  templateFontFamily?: string;
   editable?: boolean;
   onChangeContent?: (id: string, content: string) => void;
 }
 
 /** Renders the appropriate canvas component for any EmailBlock. */
-export default function BlockRenderer({ block, editable = false, onChangeContent }: Props) {
+export default function BlockRenderer({ block, templateFontFamily, editable = false, onChangeContent }: Props) {
   switch (block.type) {
     case 'heading': return <HeadingBlock block={block} />;
-    case 'text':    return <TextBlock    block={block} editable={editable} onChangeContent={(content) => onChangeContent?.(block.id, content)} />;
+    case 'text':    return <TextBlock    block={block} fontFamily={templateFontFamily} editable={editable} onChangeContent={(content) => onChangeContent?.(block.id, content)} />;
     case 'quote':   return <QuoteBlock   block={block} />;
     case 'impactStat': return <ImpactStatBlock block={block} />;
     case 'impactStory': return <ImpactStoryBlock block={block} />;
@@ -68,12 +69,12 @@ export default function BlockRenderer({ block, editable = false, onChangeContent
     case 'image':   return <ImageBlock   block={block} />;
     case 'video':   return <VideoBlock   block={block} />;
     case 'button':  return <ButtonBlock  block={block} />;
-    case 'aiText':  return <AiTextBlock  block={block} editable={editable} onChangeContent={(content) => onChangeContent?.(block.id, content)} />;
+    case 'aiText':  return <AiTextBlock  block={block} fontFamily={templateFontFamily} editable={editable} onChangeContent={(content) => onChangeContent?.(block.id, content)} />;
     case 'aiButton': return <AiButtonBlock block={block} />;
     case 'divider': return <DividerBlock block={block} />;
     case 'spacer':  return <SpacerBlock  block={block} />;
     case 'social':  return <SocialBlock  block={block} />;
-    case 'columns': return <ColumnsBlock block={block} />;
+    case 'columns': return <ColumnsBlock block={block} templateFontFamily={templateFontFamily} />;
     case 'customHtml': return <CustomHtmlBlock block={block} />;
     default:        return null;
   }

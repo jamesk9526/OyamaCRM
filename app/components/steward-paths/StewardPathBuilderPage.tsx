@@ -87,6 +87,18 @@ interface QuickStartPreset {
   steps: QuickStartStepPreset[];
 }
 
+interface StewardPathHistoryResponse {
+  pathId: string;
+  pathName: string;
+  items: Array<{
+    id: string;
+    eventType: string;
+    message: string;
+    createdAt: string;
+    enrollmentId: string;
+  }>;
+}
+
 const QUICK_START_PRESETS: QuickStartPreset[] = [
   {
     key: "donor-welcome",
@@ -176,6 +188,9 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<"save" | "activate" | "test" | null>(null);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
+  const [historyItems, setHistoryItems] = useState<StewardPathHistoryResponse["items"]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   const supportReport = useMemo(() => analyzeWorkflowSupport(doc), [doc]);
   const insertTargetLabel = useMemo(() => describeInsertTarget(doc, insertTarget), [doc, insertTarget]);
@@ -336,6 +351,21 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
     }
   }, [persistLinearWorkflow]);
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        event.preventDefault();
+      }
+      if (busyAction !== null) return;
+      event.preventDefault();
+      void saveDraft();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [busyAction, saveDraft]);
+
   /** Activates the workflow after ensuring persistence and support checks. */
   const activateWorkflow = useCallback(async () => {
     if (!supportReport.canActivate) {
@@ -426,6 +456,36 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
       cancelled = true;
     };
   }, [templateIdFromQuery]);
+
+  useEffect(() => {
+    if (doc.activeTab !== "history") return;
+    if (!doc.persistence.templateId) {
+      setHistoryItems([]);
+      setHistoryError("Save this workflow first to load run history.");
+      return;
+    }
+
+    let cancelled = false;
+    setHistoryLoading(true);
+    setHistoryError(null);
+
+    void apiFetch<StewardPathHistoryResponse>(`/api/steward-paths/templates/${doc.persistence.templateId}/history?limit=40`)
+      .then((response) => {
+        if (cancelled) return;
+        setHistoryItems(response.items ?? []);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setHistoryError(error instanceof Error ? error.message : "Failed to load workflow history.");
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [doc.activeTab, doc.persistence.templateId]);
 
   /** Applies one quick-start preset when requested from query string and no template id is loaded. */
   useEffect(() => {
@@ -700,6 +760,17 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
             {feedbackMessage}
           </div>
         )}
+
+        {!supportReport.canSaveLinear && (
+          <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <p className="font-semibold">Save blocked until workflow issues are resolved:</p>
+            <ul className="mt-1 list-disc pl-4">
+              {supportReport.reasons.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </header>
 
       <div className="flex flex-1 overflow-hidden">
@@ -721,17 +792,76 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
             onDropNode={handleDropNode}
             onDropPaletteKind={handleDropPaletteKind}
           />
+        ) : doc.activeTab === "settings" ? (
+          <div className="flex flex-1 overflow-auto bg-gray-100/80 p-6">
+            <div className="w-full max-w-3xl space-y-4 rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-700">
+              <h3 className="text-base font-semibold text-gray-900">Workflow settings</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Path name</span>
+                  <input
+                    type="text"
+                    value={doc.pathName}
+                    onChange={(event) => setDoc((prev) => ({ ...prev, pathName: event.target.value }))}
+                    className="w-full rounded-md border border-gray-300 px-2 py-1.5"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Audience label</span>
+                  <input
+                    type="text"
+                    value={doc.audienceLabel}
+                    onChange={(event) => setDoc((prev) => ({ ...prev, audienceLabel: event.target.value }))}
+                    className="w-full rounded-md border border-gray-300 px-2 py-1.5"
+                  />
+                </label>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Root nodes</p>
+                  <p className="mt-1 text-base font-semibold text-gray-900">{doc.rootNodeIds.length}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Total nodes</p>
+                  <p className="mt-1 text-base font-semibold text-gray-900">{allNodes.length}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Persistence</p>
+                  <p className="mt-1 text-base font-semibold text-gray-900">{doc.persistence.mode === "api" ? "API" : "Memory"}</p>
+                </div>
+              </div>
+              <p className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                Save shortcut: Ctrl/Cmd+S. Activation is available after save blockers are cleared.
+              </p>
+            </div>
+          </div>
         ) : (
           <div className="flex flex-1 items-center justify-center bg-gray-100/80 p-6">
-            <div className="w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-600">
-              <h3 className="text-base font-semibold text-gray-900">
-                {doc.activeTab === "settings" ? "Workflow settings" : "Workflow history"}
-              </h3>
-              <p className="mt-1">
-                {doc.activeTab === "settings"
-                  ? "Settings panel is available. Core status and persistence controls are available in the top bar."
-                  : "History timeline is available from run history and /api/steward-paths/enrollments for operational logs."}
+            <div className="w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-600">
+              <h3 className="text-base font-semibold text-gray-900">Workflow history</h3>
+              <p className="mt-1 text-xs text-gray-500">
+                Most recent timeline events from this path template.
               </p>
+              {historyLoading ? (
+                <p className="mt-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs">Loading history…</p>
+              ) : historyError ? (
+                <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{historyError}</p>
+              ) : historyItems.length === 0 ? (
+                <p className="mt-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs">No history events yet for this path.</p>
+              ) : (
+                <div className="mt-3 max-h-[420px] space-y-2 overflow-auto pr-1">
+                  {historyItems.map((item) => (
+                    <div key={item.id} className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+                      <div className="flex items-center justify-between gap-2 text-[11px] text-gray-500">
+                        <span className="font-semibold text-gray-700">{item.eventType}</span>
+                        <span>{new Date(item.createdAt).toLocaleString()}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-700">{item.message || "No message"}</p>
+                      <p className="mt-1 text-[11px] text-gray-500">Enrollment: {item.enrollmentId}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

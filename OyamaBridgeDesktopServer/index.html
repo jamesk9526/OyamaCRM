@@ -36,15 +36,30 @@
   <main class="app-frame">
     <aside id="commandSidebar" class="command-sidebar" aria-label="Bridge command sidebar">
       <div class="sidebar-rail">
-        <button id="sidebarToggleBtn" class="rail-icon" type="button" title="Open command sidebar" aria-label="Open command sidebar">☰</button>
+        <button id="sidebarToggleBtn" class="rail-icon" type="button" title="Open command sidebar" aria-label="Open command sidebar">
+          <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
         <button class="rail-icon active" type="button" title="Dashboard" aria-label="Dashboard" data-tab-target="dashboard">
           <span class="steward-mark mini" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 4.5c6.35 0 11.5 5.15 11.5 11.5S22.35 27.5 16 27.5 4.5 22.35 4.5 16 9.65 4.5 16 4.5Z" /><path d="M10.2 17.9c0-4.75 3.38-7.55 7.15-7.55 2.9 0 5.15 1.66 5.15 4.08 0 4.18-6.12 3.48-6.12 6.17 0 1.16.96 1.88 2.34 1.88 1.5 0 2.74-.7 3.72-1.78" /><path d="M10.1 21.7c1.06-1.2 2.43-1.82 4.08-1.82" /></svg></span>
         </button>
-        <button class="rail-icon" type="button" title="Requests" aria-label="Requests" data-tab-target="requests">R</button>
-        <button class="rail-icon" type="button" title="Generated content" aria-label="Generated content" data-tab-target="generated">G</button>
-        <button class="rail-icon" type="button" title="Pair CRM" aria-label="Pair CRM" data-tab-target="pairing">P</button>
-        <button class="rail-icon" type="button" title="Debug" aria-label="Debug" data-tab-target="advanced">?</button>
-        <button class="rail-icon rail-bottom" type="button" title="Settings" aria-label="Settings" data-tab-target="settings">S</button>
+        <button class="rail-icon" type="button" title="Requests" aria-label="Requests" data-tab-target="requests">
+          <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </button>
+        <button class="rail-icon" type="button" title="Generated content" aria-label="Generated content" data-tab-target="generated">
+          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </button>
+        <button class="rail-icon" type="button" title="Usage receipts" aria-label="Usage receipts" data-tab-target="usage">
+          <svg viewBox="0 0 24 24"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="14" y2="15"/></svg>
+        </button>
+        <button class="rail-icon" type="button" title="Pair CRM" aria-label="Pair CRM" data-tab-target="pairing">
+          <svg viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+        </button>
+        <button class="rail-icon" type="button" title="Debug" aria-label="Debug" data-tab-target="advanced">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </button>
+        <button class="rail-icon rail-bottom" type="button" title="Settings" aria-label="Settings" data-tab-target="settings">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
       </div>
 
       <div class="sidebar-content">
@@ -65,6 +80,7 @@
           <span class="sidebar-label">Workspace</span>
           <button class="sidebar-action" type="button" data-tab-target="requests">Request Flow</button>
           <button class="sidebar-action" type="button" data-tab-target="generated">Generated Log</button>
+          <button class="sidebar-action" type="button" data-tab-target="usage">Usage Receipts</button>
           <button class="sidebar-action" type="button" data-tab-target="advanced">Ask Bridge</button>
         </section>
 
@@ -83,6 +99,7 @@
       <button class="page-tab active" type="button" data-tab-target="dashboard">Dashboard</button>
       <button class="page-tab" type="button" data-tab-target="requests">Requests</button>
       <button class="page-tab" type="button" data-tab-target="generated">Generated</button>
+      <button class="page-tab" type="button" data-tab-target="usage">Usage</button>
       <button class="page-tab" type="button" data-tab-target="pairing">Pairing</button>
       <button class="page-tab" type="button" data-tab-target="backup">Backup</button>
       <button class="page-tab" type="button" data-tab-target="advanced">Debug</button>
@@ -185,6 +202,11 @@
             <span class="card-label">GPU Memory</span>
             <strong id="gpuMemoryValue">-</strong>
             <span>Selected device</span>
+          </article>
+          <article class="service-card">
+            <span class="card-label">Usage Cost</span>
+            <strong id="usageCostValue">$0.00</strong>
+            <span id="usageCostHint">OpenAI equivalent (est.)</span>
           </article>
         </section>
 
@@ -412,7 +434,7 @@
               <div class="field"><label for="bridgeThinkingModelInput">Thinking Model</label><input id="bridgeThinkingModelInput" type="text" /></div>
               <div class="field"><label for="bridgeCudaDeviceSelect">CUDA Device</label><select id="bridgeCudaDeviceSelect"></select><p id="activeCudaDeviceValue" class="field-hint">Selected CUDA: auto</p></div>
               <div class="field"><label for="bridgeTemperatureInput">Temperature</label><input id="bridgeTemperatureInput" type="number" min="0" max="2" step="0.1" /></div>
-              <div class="field"><label for="bridgeTimeoutInput">Timeout (ms)</label><input id="bridgeTimeoutInput" type="number" min="3650" max="120000" step="1000" /></div>
+              <div class="field"><label for="bridgeTimeoutInput">Timeout (ms)</label><input id="bridgeTimeoutInput" type="number" min="3650" max="600000" step="1000" /><p class="field-hint">Large local models can take longer than 30-60 seconds. Default is 180000 ms.</p></div>
             </div>
           </section>
 
@@ -475,6 +497,47 @@
             <div class="copy-row"><span>Last run</span><input id="backupLastRunOutput" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="backupLastRunOutput" type="button">Copy</button></div>
             <div class="copy-row"><span>Last file</span><input id="backupLastFileOutput" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="backupLastFileOutput" type="button">Copy</button></div>
             <div class="copy-row"><span>Status</span><input id="backupStatusOutput" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="backupStatusOutput" type="button">Copy</button></div>
+          </div>
+        </section>
+      </section>
+
+      <section id="usagePage" class="tab-page" data-tab-page="usage">
+        <section class="panel settings-card wide">
+          <div class="panel-head">
+            <div>
+              <h2>Usage Receipts</h2>
+              <p id="usageHistoryMeta" class="panel-subtitle">Monthly estimated OpenAI equivalent costs based on bridge traffic.</p>
+            </div>
+            <div class="row-inline">
+              <button id="usageRefreshBtn" type="button" class="btn ghost">Refresh</button>
+            </div>
+          </div>
+
+          <div class="hero-grid server-metrics" style="margin-bottom: 12px;">
+            <article class="service-card">
+              <span class="card-label">Current Month</span>
+              <strong id="usageCurrentMonthValue">-</strong>
+              <span id="usageCurrentRequestsValue">0 requests</span>
+            </article>
+            <article class="service-card">
+              <span class="card-label">Monthly Cost</span>
+              <strong id="usageCurrentCostValue">$0.00</strong>
+              <span id="usageCurrentTokensValue">0 tokens est.</span>
+            </article>
+            <article class="service-card endpoint-card">
+              <span class="card-label">Receipt ID</span>
+              <strong id="usageCurrentReceiptValue">-</strong>
+              <span id="usageCurrentUpdatedValue">No updates yet</span>
+            </article>
+          </div>
+
+          <div class="request-log-wrap">
+            <table>
+              <thead>
+                <tr><th>Month</th><th>Receipt ID</th><th>Requests</th><th>Input / Output</th><th>Estimated Tokens</th><th>Usage Cost</th><th>Generated</th></tr>
+              </thead>
+              <tbody id="usageHistoryBody"><tr><td class="empty" colspan="7">No monthly usage receipts yet.</td></tr></tbody>
+            </table>
           </div>
         </section>
       </section>

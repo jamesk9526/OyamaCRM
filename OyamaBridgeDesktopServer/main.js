@@ -19,12 +19,15 @@ let tray = null;
 let bridgeManager = null;
 let ollamaRuntimeManager = null;
 let isAppQuitting = false;
+let vramIdleTimer = null;
 let backupRuntimeState = {
   lastRunAt: "",
   lastFilePath: "",
   lastStatus: "Idle",
   lastError: "",
 };
+
+const VRAM_IDLE_TIMEOUT_MS = 12 * 60 * 1000;
 
 const DEFAULT_CONFIG = {
   crmSiteUrl: "",
@@ -47,7 +50,7 @@ const DEFAULT_CONFIG = {
   bridgeInternalChatPrompt: "When possible, summarize bridge runtime state, request health, and operational risks in practical terms.",
   bridgeCudaDevice: "auto",
   bridgeTemperature: 0.3,
-  bridgeTimeoutMs: 36500,
+  bridgeTimeoutMs: 180000,
   donorReportsOnly: true,
   backgroundBackupEnabled: false,
   backgroundBackupDirectory: "",
@@ -80,6 +83,246 @@ function getConfigPath() {
   return path.join(app.getPath("userData"), "oyama-bridge-config.json");
 }
 
+function getUsageLedgerPath() {
+  return path.join(app.getPath("userData"), "oyama-bridge-usage-ledger.json");
+}
+
+const USAGE_LEDGER_VERSION = 1;
+const USAGE_ESTIMATE_MODEL = "OpenAI GPT-4o equivalent";
+const USAGE_BYTES_PER_TOKEN = 4;
+const USAGE_INPUT_COST_PER_MILLION_USD = 5;
+const USAGE_OUTPUT_COST_PER_MILLION_USD = 15;
+
+function toFiniteNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function monthKeyFromTimestamp(timestamp) {
+  const date = new Date(timestamp || Date.now());
+  if (Number.isNaN(date.getTime())) {
+    const now = new Date();
+    return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  }
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function buildEmptyUsageLedger() {
+  const nowIso = new Date().toISOString();
+  return {
+    version: USAGE_LEDGER_VERSION,
+    currency: "USD",
+    model: USAGE_ESTIMATE_MODEL,
+    pricing: {
+      bytesPerToken: USAGE_BYTES_PER_TOKEN,
+      inputCostPerMillionUsd: USAGE_INPUT_COST_PER_MILLION_USD,
+      outputCostPerMillionUsd: USAGE_OUTPUT_COST_PER_MILLION_USD,
+    },
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    months: {},
+  };
+}
+
+function normalizeUsageLedger(raw) {
+  const fallback = buildEmptyUsageLedger();
+  const source = raw && typeof raw === "object" ? raw : {};
+  const rawMonths = source.months && typeof source.months === "object" ? source.months : {};
+
+  const normalizedMonths = Object.entries(rawMonths).reduce((acc, [monthKey, rawMonth]) => {
+    if (!/^\d{4}-\d{2}$/.test(monthKey)) return acc;
+    const month = rawMonth && typeof rawMonth === "object" ? rawMonth : {};
+    acc[monthKey] = {
+      month: monthKey,
+      receiptId: String(month.receiptId || `OYB-${monthKey.replace("-", "")}`),
+      generatedAt: String(month.generatedAt || source.createdAt || fallback.createdAt),
+      updatedAt: String(month.updatedAt || source.updatedAt || fallback.updatedAt),
+      requestCount: Math.max(0, Math.round(toFiniteNumber(month.requestCount, 0))),
+      totalInputBytes: Math.max(0, Math.round(toFiniteNumber(month.totalInputBytes, 0))),
+      totalOutputBytes: Math.max(0, Math.round(toFiniteNumber(month.totalOutputBytes, 0))),
+      estimatedInputTokens: Math.max(0, toFiniteNumber(month.estimatedInputTokens, 0)),
+      estimatedOutputTokens: Math.max(0, toFiniteNumber(month.estimatedOutputTokens, 0)),
+      estimatedCostUsd: Math.max(0, toFiniteNumber(month.estimatedCostUsd, 0)),
+    };
+    return acc;
+  }, {});
+
+  return {
+    ...fallback,
+    ...source,
+    version: USAGE_LEDGER_VERSION,
+    currency: "USD",
+    model: USAGE_ESTIMATE_MODEL,
+    pricing: {
+      bytesPerToken: USAGE_BYTES_PER_TOKEN,
+      inputCostPerMillionUsd: USAGE_INPUT_COST_PER_MILLION_USD,
+      outputCostPerMillionUsd: USAGE_OUTPUT_COST_PER_MILLION_USD,
+    },
+    createdAt: String(source.createdAt || fallback.createdAt),
+    updatedAt: String(source.updatedAt || fallback.updatedAt),
+    months: normalizedMonths,
+  };
+}
+
+function readUsageLedger() {
+  try {
+    const raw = fs.readFileSync(getUsageLedgerPath(), "utf8");
+    const parsed = JSON.parse(raw);
+    return normalizeUsageLedger(parsed);
+  } catch {
+    const fallback = buildEmptyUsageLedger();
+    writeUsageLedger(fallback);
+    return fallback;
+  }
+}
+
+function writeUsageLedger(nextLedger) {
+  const normalized = normalizeUsageLedger(nextLedger);
+  fs.writeFileSync(getUsageLedgerPath(), JSON.stringify(normalized, null, 2), "utf8");
+  return normalized;
+}
+
+function estimateCostFromBytes(totalInputBytes, totalOutputBytes) {
+  const inputBytes = Math.max(0, toFiniteNumber(totalInputBytes, 0));
+  const outputBytes = Math.max(0, toFiniteNumber(totalOutputBytes, 0));
+  const estimatedInputTokens = inputBytes / USAGE_BYTES_PER_TOKEN;
+  const estimatedOutputTokens = outputBytes / USAGE_BYTES_PER_TOKEN;
+  const inputCostUsd = (estimatedInputTokens / 1_000_000) * USAGE_INPUT_COST_PER_MILLION_USD;
+  const outputCostUsd = (estimatedOutputTokens / 1_000_000) * USAGE_OUTPUT_COST_PER_MILLION_USD;
+  return {
+    estimatedInputTokens,
+    estimatedOutputTokens,
+    estimatedCostUsd: Number((inputCostUsd + outputCostUsd).toFixed(6)),
+  };
+}
+
+function shouldTrackBillableUsage(entry) {
+  const routeGroup = String(entry?.routeGroup || "").toLowerCase();
+  if (routeGroup === "chat" || routeGroup === "generate") return true;
+  const pathValue = String(entry?.path || "").toLowerCase();
+  return pathValue.startsWith("/api/chat") || pathValue.startsWith("/api/generate");
+}
+
+function recordUsageEntry(entry) {
+  if (!entry || typeof entry !== "object") return;
+  if (!shouldTrackBillableUsage(entry)) return;
+
+  const timestamp = String(entry.timestamp || new Date().toISOString());
+  const monthKey = monthKeyFromTimestamp(timestamp);
+  const ledger = readUsageLedger();
+  const nowIso = new Date().toISOString();
+
+  const existingMonth = ledger.months[monthKey] && typeof ledger.months[monthKey] === "object"
+    ? ledger.months[monthKey]
+    : {
+      month: monthKey,
+      receiptId: `OYB-${monthKey.replace("-", "")}`,
+      generatedAt: nowIso,
+      updatedAt: nowIso,
+      requestCount: 0,
+      totalInputBytes: 0,
+      totalOutputBytes: 0,
+      estimatedInputTokens: 0,
+      estimatedOutputTokens: 0,
+      estimatedCostUsd: 0,
+    };
+
+  const nextInputBytes = Math.max(0, Math.round(toFiniteNumber(entry.bodyBytes, 0)));
+  const nextOutputBytes = Math.max(0, Math.round(toFiniteNumber(entry.responseBytes, 0)));
+  const totalInputBytes = Math.max(0, Math.round(toFiniteNumber(existingMonth.totalInputBytes, 0))) + nextInputBytes;
+  const totalOutputBytes = Math.max(0, Math.round(toFiniteNumber(existingMonth.totalOutputBytes, 0))) + nextOutputBytes;
+  const totals = estimateCostFromBytes(totalInputBytes, totalOutputBytes);
+
+  ledger.months[monthKey] = {
+    ...existingMonth,
+    month: monthKey,
+    requestCount: Math.max(0, Math.round(toFiniteNumber(existingMonth.requestCount, 0))) + 1,
+    totalInputBytes,
+    totalOutputBytes,
+    estimatedInputTokens: totals.estimatedInputTokens,
+    estimatedOutputTokens: totals.estimatedOutputTokens,
+    estimatedCostUsd: totals.estimatedCostUsd,
+    updatedAt: nowIso,
+  };
+
+  ledger.updatedAt = nowIso;
+  writeUsageLedger(ledger);
+}
+
+function buildUsageHistoryResponse() {
+  const ledger = readUsageLedger();
+  const currentMonthKey = monthKeyFromTimestamp(new Date().toISOString());
+  const months = Object.values(ledger.months)
+    .sort((a, b) => String(b.month).localeCompare(String(a.month)));
+
+  const currentMonth = ledger.months[currentMonthKey] || {
+    month: currentMonthKey,
+    receiptId: `OYB-${currentMonthKey.replace("-", "")}`,
+    generatedAt: "",
+    updatedAt: "",
+    requestCount: 0,
+    totalInputBytes: 0,
+    totalOutputBytes: 0,
+    estimatedInputTokens: 0,
+    estimatedOutputTokens: 0,
+    estimatedCostUsd: 0,
+  };
+
+  return {
+    currency: "USD",
+    model: USAGE_ESTIMATE_MODEL,
+    pricing: {
+      bytesPerToken: USAGE_BYTES_PER_TOKEN,
+      inputCostPerMillionUsd: USAGE_INPUT_COST_PER_MILLION_USD,
+      outputCostPerMillionUsd: USAGE_OUTPUT_COST_PER_MILLION_USD,
+    },
+    currentMonth,
+    months,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+function clearVramIdleTimer() {
+  if (vramIdleTimer) {
+    clearTimeout(vramIdleTimer);
+    vramIdleTimer = null;
+  }
+}
+
+function shouldCountAsModelActivity(entry) {
+  const routeGroup = String(entry?.routeGroup || "").toLowerCase();
+  if (routeGroup === "chat" || routeGroup === "generate") return true;
+
+  const pathValue = String(entry?.path || "").toLowerCase();
+  return pathValue.startsWith("/api/chat") || pathValue.startsWith("/api/generate");
+}
+
+function scheduleIdleVramClear() {
+  clearVramIdleTimer();
+
+  vramIdleTimer = setTimeout(() => {
+    vramIdleTimer = null;
+
+    if (!ollamaRuntimeManager || typeof ollamaRuntimeManager.clearVram !== "function") return;
+
+    ollamaRuntimeManager.clearVram("idle-timeout").catch(() => {
+      // Best-effort cleanup; never crash runtime flow on idle unload failures.
+    });
+  }, VRAM_IDLE_TIMEOUT_MS);
+}
+
+async function clearVramNow(reason) {
+  if (!ollamaRuntimeManager || typeof ollamaRuntimeManager.clearVram !== "function") {
+    return null;
+  }
+
+  try {
+    return await ollamaRuntimeManager.clearVram(reason);
+  } catch {
+    return null;
+  }
+}
+
 function generateBridgeApiKey() {
   return `oyama-${crypto.randomBytes(18).toString("hex")}`;
 }
@@ -95,8 +338,9 @@ function toBase64Url(text) {
 function buildPairingBundle(config, options = {}) {
   const safe = sanitizeConfig(config);
   const now = Date.now();
-  const ttlDays = Math.min(90, Math.max(1, Number(options.ttlDays || 14)));
-  const expiresAt = new Date(now + ttlDays * 24 * 60 * 60 * 1000).toISOString();
+  // Pairing keys never expire — set expiresAt to null so the CRM and bridge
+  // accept them indefinitely without requiring re-pairing.
+  const expiresAt = null;
   const keyName = String(options.keyName || "Oyama Bridge Pairing Key").trim().slice(0, 80) || "Oyama Bridge Pairing Key";
   const mode = String(options.mode || "donor_reports_only").toLowerCase() === "full" ? "full" : "donor_reports_only";
 
@@ -182,8 +426,11 @@ function sanitizeConfig(rawConfig) {
 
   merged.bridgeTimeoutMs = Number.isFinite(Number(merged.bridgeTimeoutMs))
     ? Math.round(Number(merged.bridgeTimeoutMs))
-    : 36500;
-  merged.bridgeTimeoutMs = Math.min(120000, Math.max(3650, merged.bridgeTimeoutMs));
+    : 180000;
+  if (merged.bridgeTimeoutMs === 30000 || merged.bridgeTimeoutMs === 36500) {
+    merged.bridgeTimeoutMs = 180000;
+  }
+  merged.bridgeTimeoutMs = Math.min(600000, Math.max(3650, merged.bridgeTimeoutMs));
 
   merged.bridgeSystemPromptBase = String(merged.bridgeSystemPromptBase || DEFAULT_CONFIG.bridgeSystemPromptBase)
     .trim()
@@ -557,6 +804,7 @@ async function startBridgeStack() {
   }
 
   await bridgeManager.start();
+  scheduleIdleVramClear();
   updateTrayMenu();
   return buildBridgeState();
 }
@@ -575,6 +823,9 @@ async function stopBridgeStack(options = {}) {
   if (disableBridge && current.bridgeEnabled) {
     writeConfig({ ...current, bridgeEnabled: false });
   }
+
+  clearVramIdleTimer();
+  await clearVramNow("bridge-stop");
 
   await bridgeManager.stop();
 
@@ -686,6 +937,17 @@ function buildFallbackTrayImage() {
 }
 
 function emitBridgeEvent(payload) {
+  if (payload && payload.type === "request" && payload.entry) {
+    try {
+      recordUsageEntry(payload.entry);
+      if (shouldCountAsModelActivity(payload.entry)) {
+        scheduleIdleVramClear();
+      }
+    } catch {
+      // Never block bridge event flow on usage ledger writes.
+    }
+  }
+
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send("oyama-bridge:event", payload);
 }
@@ -940,6 +1202,10 @@ ipcMain.handle("oyama-bridge:get-gpu-telemetry", async () => {
     selectedCudaDevice: String(config.bridgeCudaDevice || "auto"),
     cudaVisibleDevicesHint: getCudaVisibleDevicesHint(config),
   };
+});
+
+ipcMain.handle("oyama-bridge:get-usage-history", () => {
+  return buildUsageHistoryResponse();
 });
 
 ipcMain.handle("oyama-bridge:get-startup-settings", () => {
@@ -1432,6 +1698,13 @@ app.whenReady().then(() => {
 
 app.on("before-quit", () => {
   isAppQuitting = true;
+  clearVramIdleTimer();
+
+  if (ollamaRuntimeManager) {
+    ollamaRuntimeManager.clearVram("app-quit").catch(() => {
+      // Ignore shutdown cleanup failures.
+    });
+  }
 
   if (bridgeManager) {
     bridgeManager.stop().catch(() => {

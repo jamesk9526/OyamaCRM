@@ -734,7 +734,11 @@ router.post("/templates/:id/steps", requirePermission("steward_paths.edit"), asy
   const requestedOrder = parsePositiveInt(req.body?.orderIndex, steps.length, 0, steps.length);
 
   const created = await prisma.$transaction(async (tx) => {
-    for (const step of steps.filter((item) => item.orderIndex >= requestedOrder)) {
+    // Update from highest to lowest index to avoid unique(pathId, orderIndex)
+    // collisions while shifting rows up by +1.
+    for (const step of steps
+      .filter((item) => item.orderIndex >= requestedOrder)
+      .sort((a, b) => b.orderIndex - a.orderIndex)) {
       await tx.stewardPathStep.update({
         where: { id: step.id },
         data: { orderIndex: step.orderIndex + 1 },
@@ -878,14 +882,28 @@ router.post("/templates/:id/steps/reorder", requirePermission("steward_paths.edi
     return;
   }
 
-  await prisma.$transaction(
-    orderedUnique.map((id, idx) =>
-      prisma.stewardPathStep.update({
+  await prisma.$transaction(async (tx) => {
+    const existingById = new Map(existing.map((step, index) => [step.id, index]));
+    const offset = orderedUnique.length + 10;
+
+    // Phase 1: move every step out of the target range to avoid unique collisions.
+    for (const id of orderedUnique) {
+      const currentIndex = existingById.get(id);
+      if (currentIndex === undefined) continue;
+      await tx.stewardPathStep.update({
+        where: { id },
+        data: { orderIndex: currentIndex + offset },
+      });
+    }
+
+    // Phase 2: assign final compact order indexes.
+    for (const [idx, id] of orderedUnique.entries()) {
+      await tx.stewardPathStep.update({
         where: { id },
         data: { orderIndex: idx },
-      }),
-    ),
-  );
+      });
+    }
+  });
 
   await prisma.stewardPath.update({ where: { id: path.id }, data: { lastEditedByUserId: userId } });
 

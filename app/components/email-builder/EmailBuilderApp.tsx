@@ -1217,6 +1217,22 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
     }
   };
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 's') return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        event.preventDefault();
+      }
+      if (!campaignId || saving || authLoading || loading) return;
+      event.preventDefault();
+      void handleSave();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [campaignId, saving, authLoading, loading, handleSave]);
+
   /** Sends one test email to validate content before scheduling or sending broadly. */
   const handleSendTest = async () => {
     if (!campaignId) {
@@ -1371,6 +1387,7 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
   const requiresCompliance = COMPLIANCE_REQUIRED_PURPOSES.has(campaignPurpose);
   const hasSavedDraft = !dirty;
   const hasRouteContext = Boolean(campaignId && campaignId.trim().length > 0);
+  const canSaveDraftAction = Boolean(campaignId) && !saving && !authLoading && !loading;
   const hasTestEvidence = Boolean(testStatus) || hasPersistedTestSend;
   const reviewChecks = [
     { label: 'Subject line added', pass: subjectLine.trim().length > 0 },
@@ -1573,18 +1590,25 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
 
               <button
                 onClick={handleSave}
-                disabled={saving || !campaignId || authLoading || loading}
+                disabled={!canSaveDraftAction}
                 className={[
                   'rounded-lg px-3 py-1 text-xs font-semibold transition-colors',
                   saving
                     ? 'bg-green-400 text-white cursor-wait'
                     : 'bg-green-600 hover:bg-green-700 text-white',
                 ].join(' ')}
+                title={canSaveDraftAction ? 'Save draft (Ctrl/Cmd+S)' : 'Open this builder from a campaign route to save'}
               >
-                {saving ? 'Saving…' : 'Save'}
+                {saving ? 'Saving…' : 'Save Draft'}
               </button>
             </div>
           </div>
+
+          {!hasRouteContext && (
+            <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              Route context missing: this builder was opened without a campaign id, so draft saves and test sends are disabled.
+            </div>
+          )}
 
           <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-2 py-2">
             <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">

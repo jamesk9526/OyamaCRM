@@ -102,18 +102,28 @@ function buildOllamaRuntimeSummary(config) {
   };
 }
 
-function requestJson(url, pathname, timeoutMs) {
+function requestJson(url, pathname, options = {}) {
   const base = new URL(url);
   const target = new URL(pathname, `${base.origin}/`);
   const transport = target.protocol === "https:" ? https : http;
+  const timeoutMs = Math.max(500, Number(options.timeoutMs || 1500));
+  const method = String(options.method || "GET").toUpperCase();
+  const body = options.body && typeof options.body === "object" ? options.body : null;
+  const bodyText = body ? JSON.stringify(body) : "";
 
   return new Promise((resolve, reject) => {
     const req = transport.request({
       protocol: target.protocol,
       hostname: target.hostname,
       port: target.port || (target.protocol === "https:" ? 443 : 80),
-      method: "GET",
+      method,
       path: `${target.pathname}${target.search}`,
+      headers: bodyText
+        ? {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(bodyText),
+        }
+        : undefined,
       timeout: timeoutMs,
     }, (res) => {
       const chunks = [];
@@ -139,13 +149,18 @@ function requestJson(url, pathname, timeoutMs) {
       req.destroy(new Error("Timed out waiting for Ollama."));
     });
     req.on("error", reject);
+
+    if (bodyText) {
+      req.write(bodyText);
+    }
+
     req.end();
   });
 }
 
 async function probeOllamaHealth(upstreamUrl, timeoutMs = 1500) {
   try {
-    const response = await requestJson(upstreamUrl, "/api/version", timeoutMs);
+    const response = await requestJson(upstreamUrl, "/api/version", { timeoutMs });
     return {
       ok: response.statusCode >= 200 && response.statusCode < 300,
       statusCode: response.statusCode,
@@ -236,6 +251,95 @@ function createOllamaRuntimeManager(readConfig, options = {}) {
     if (!text) return;
     recentOutput = `${recentOutput}\n${text}`.trim().slice(-4000);
     state.lastOutput = recentOutput;
+  }
+
+  async function unloadModel(upstreamUrl, modelName) {
+    const model = String(modelName || "").trim();
+    if (!model) {
+      return { ok: false, statusCode: 0, model: "", message: "No model configured." };
+    }
+
+    const response = await requestJson(upstreamUrl, "/api/generate", {
+      method: "POST",
+      timeoutMs: 5000,
+      body: {
+        model,
+        prompt: "",
+        keep_alive: 0,
+        stream: false,
+      },
+    });
+
+    const ok = response.statusCode >= 200 && response.statusCode < 300;
+    return {
+      ok,
+      statusCode: response.statusCode,
+      model,
+      message: ok
+        ? `Unloaded ${model}`
+        : `Unload request for ${model} returned ${response.statusCode}`,
+    };
+  }
+
+  async function clearVram(reason = "manual") {
+    const config = readConfig();
+    const settings = resolveOllamaRuntimeSettings(config);
+    applySettings(settings);
+
+    const probe = await probeOllamaHealth(settings.upstreamUrl, 2500);
+    if (!probe.ok) {
+      return {
+        ok: false,
+        reason,
+        cleared: [],
+        message: probe.message || "Ollama is not reachable for VRAM clear.",
+      };
+    }
+
+    const models = Array.from(new Set([
+      String(config?.bridgeModel || "").trim(),
+      String(config?.bridgeThinkingModel || "").trim(),
+    ].filter(Boolean)));
+
+    if (!models.length) {
+      return {
+        ok: true,
+        reason,
+        cleared: [],
+        message: "No configured models to unload.",
+      };
+    }
+
+    const results = [];
+    for (const model of models) {
+      try {
+        const unloadResult = await unloadModel(settings.upstreamUrl, model);
+        results.push(unloadResult);
+      } catch (error) {
+        results.push({
+          ok: false,
+          statusCode: 0,
+          model,
+          message: error instanceof Error ? error.message : `Failed to unload ${model}`,
+        });
+      }
+    }
+
+    const cleared = results.filter((result) => result.ok).map((result) => result.model);
+    const failed = results.filter((result) => !result.ok);
+
+    const summary = {
+      ok: failed.length === 0,
+      reason,
+      cleared,
+      failed,
+      message: failed.length
+        ? `VRAM clear completed with ${failed.length} failed unload request(s).`
+        : (cleared.length ? `Cleared models: ${cleared.join(", ")}` : "No models required unload."),
+    };
+
+    broadcast("vram-cleared", summary);
+    return summary;
   }
 
   async function refreshHealth() {
@@ -420,6 +524,7 @@ function createOllamaRuntimeManager(readConfig, options = {}) {
     refreshHealth,
     start,
     stop,
+    clearVram,
   };
 }
 

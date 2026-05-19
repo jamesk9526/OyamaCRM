@@ -28,6 +28,17 @@ const selectedGpuHintValue = document.getElementById("selectedGpuHintValue");
 const gpuUsageValue = document.getElementById("gpuUsageValue");
 const gpuTempValue = document.getElementById("gpuTempValue");
 const gpuMemoryValue = document.getElementById("gpuMemoryValue");
+const usageCostValue = document.getElementById("usageCostValue");
+const usageCostHint = document.getElementById("usageCostHint");
+const usageCurrentMonthValue = document.getElementById("usageCurrentMonthValue");
+const usageCurrentRequestsValue = document.getElementById("usageCurrentRequestsValue");
+const usageCurrentCostValue = document.getElementById("usageCurrentCostValue");
+const usageCurrentTokensValue = document.getElementById("usageCurrentTokensValue");
+const usageCurrentReceiptValue = document.getElementById("usageCurrentReceiptValue");
+const usageCurrentUpdatedValue = document.getElementById("usageCurrentUpdatedValue");
+const usageHistoryMeta = document.getElementById("usageHistoryMeta");
+const usageHistoryBody = document.getElementById("usageHistoryBody");
+const usageRefreshBtn = document.getElementById("usageRefreshBtn");
 const gpuMonitorList = document.getElementById("gpuMonitorList");
 const gpuMonitorMeta = document.getElementById("gpuMonitorMeta");
 const latencyTrendChart = document.getElementById("latencyTrendChart");
@@ -156,6 +167,8 @@ let chatHistory = [];
 let draftSaveTimer = null;
 let uiReadyForDraft = false;
 let backgroundToolsState = null;
+let usageHistoryState = null;
+let usageRefreshTimer = null;
 
 const UI_DRAFT_KEY = "oyamaBridge.uiDraft.v1";
 const MAX_CHAT_HISTORY = 60;
@@ -505,6 +518,22 @@ function updateRuntimeSummary(runtime) {
     requestSuccessRateValue.textContent = totalClassified > 0 ? `${successRate}% success` : "No traffic yet";
   }
 
+  if (usageCostValue) {
+    const currentMonth = usageHistoryState?.currentMonth;
+    if (currentMonth && typeof currentMonth === "object") {
+      const month = formatMonthLabel(currentMonth.month);
+      usageCostValue.textContent = formatUsd(currentMonth.estimatedCostUsd);
+      if (usageCostHint) usageCostHint.textContent = `${month} receipt estimate`;
+    } else {
+      const totalBytes = Math.max(0, Number(telemetry.totalBodyBytes || 0)) +
+                         Math.max(0, Number(telemetry.totalResponseBytes || 0));
+      const estimatedTokens = totalBytes / 4;
+      const estimatedCostUsd = (estimatedTokens / 1000) * 0.010;
+      usageCostValue.textContent = formatUsd(estimatedCostUsd);
+      if (usageCostHint) usageCostHint.textContent = "OpenAI equivalent (est.)";
+    }
+  }
+
   if (upstreamHealthValue) {
     upstreamHealthValue.textContent = telemetry.upstreamUrl ? `Upstream ${telemetry.upstreamUrl}` : "Upstream pending";
   }
@@ -588,6 +617,112 @@ function formatBytes(value) {
   return `${bytes} B`;
 }
 
+function formatUsd(value) {
+  const amount = Math.max(0, Number(value || 0));
+  if (amount === 0) return "$0.00";
+  if (amount < 0.01) return `$${amount.toFixed(4)}`;
+  return `$${amount.toFixed(2)}`;
+}
+
+function formatMonthLabel(monthKey) {
+  const match = String(monthKey || "").match(/^(\d{4})-(\d{2})$/);
+  if (!match) return "Unknown month";
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1));
+  return date.toLocaleString(undefined, { month: "long", year: "numeric" });
+}
+
+function scheduleUsageHistoryRefresh() {
+  if (usageRefreshTimer) return;
+  usageRefreshTimer = window.setTimeout(() => {
+    usageRefreshTimer = null;
+    void refreshUsageHistory(false);
+  }, 1200);
+}
+
+function renderUsageHistory(history) {
+  usageHistoryState = history && typeof history === "object" ? history : null;
+
+  const currentMonth = usageHistoryState?.currentMonth && typeof usageHistoryState.currentMonth === "object"
+    ? usageHistoryState.currentMonth
+    : null;
+  const months = Array.isArray(usageHistoryState?.months) ? usageHistoryState.months : [];
+
+  if (usageCurrentMonthValue) usageCurrentMonthValue.textContent = currentMonth ? formatMonthLabel(currentMonth.month) : "-";
+  if (usageCurrentRequestsValue) usageCurrentRequestsValue.textContent = `${Number(currentMonth?.requestCount || 0).toLocaleString()} requests`;
+  if (usageCurrentCostValue) usageCurrentCostValue.textContent = formatUsd(currentMonth?.estimatedCostUsd || 0);
+  if (usageCurrentTokensValue) {
+    const totalTokens = Number(currentMonth?.estimatedInputTokens || 0) + Number(currentMonth?.estimatedOutputTokens || 0);
+    usageCurrentTokensValue.textContent = `${Math.round(totalTokens).toLocaleString()} tokens est.`;
+  }
+  if (usageCurrentReceiptValue) usageCurrentReceiptValue.textContent = String(currentMonth?.receiptId || "-");
+  if (usageCurrentUpdatedValue) {
+    const updatedAt = String(currentMonth?.updatedAt || "");
+    if (!updatedAt) {
+      usageCurrentUpdatedValue.textContent = "No updates yet";
+    } else {
+      const date = new Date(updatedAt);
+      usageCurrentUpdatedValue.textContent = Number.isNaN(date.getTime())
+        ? updatedAt
+        : `Updated ${date.toLocaleString()}`;
+    }
+  }
+
+  if (usageCostValue && currentMonth) {
+    usageCostValue.textContent = formatUsd(currentMonth.estimatedCostUsd || 0);
+  }
+  if (usageCostHint && currentMonth) {
+    usageCostHint.textContent = `${formatMonthLabel(currentMonth.month)} receipt estimate`;
+  }
+
+  if (usageHistoryMeta) {
+    const generatedAt = String(usageHistoryState?.generatedAt || "");
+    const generatedDate = generatedAt ? new Date(generatedAt) : null;
+    usageHistoryMeta.textContent = months.length
+      ? `Tracking ${months.length} month${months.length === 1 ? "" : "s"} of usage. ${generatedDate && !Number.isNaN(generatedDate.getTime()) ? `Updated ${generatedDate.toLocaleString()}.` : ""}`
+      : "Monthly estimated OpenAI equivalent costs based on bridge traffic.";
+  }
+
+  if (!usageHistoryBody) return;
+
+  if (!months.length) {
+    usageHistoryBody.innerHTML = '<tr><td class="empty" colspan="7">No monthly usage receipts yet.</td></tr>';
+    return;
+  }
+
+  usageHistoryBody.innerHTML = months
+    .map((month) => {
+      const inputBytes = Math.max(0, Number(month.totalInputBytes || 0));
+      const outputBytes = Math.max(0, Number(month.totalOutputBytes || 0));
+      const estimatedTokens = Math.round(Number(month.estimatedInputTokens || 0) + Number(month.estimatedOutputTokens || 0));
+      const generated = month.generatedAt ? new Date(month.generatedAt) : null;
+      const generatedText = generated && !Number.isNaN(generated.getTime())
+        ? generated.toLocaleDateString()
+        : "-";
+
+      return `
+        <tr>
+          <td>${escapeHtml(formatMonthLabel(month.month))}</td>
+          <td><span class="mono-inline">${escapeHtml(String(month.receiptId || "-"))}</span></td>
+          <td>${Number(month.requestCount || 0).toLocaleString()}</td>
+          <td>${escapeHtml(`${formatBytes(inputBytes)} / ${formatBytes(outputBytes)}`)}</td>
+          <td>${estimatedTokens.toLocaleString()}</td>
+          <td>${escapeHtml(formatUsd(month.estimatedCostUsd || 0))}</td>
+          <td>${escapeHtml(generatedText)}</td>
+        </tr>
+      `;
+    })
+    .join("");
+}
+
+async function refreshUsageHistory(showMessage = false) {
+  if (typeof window.oyamaBridge.getUsageHistory !== "function") return;
+  const history = await window.oyamaBridge.getUsageHistory();
+  renderUsageHistory(history);
+  if (showMessage) {
+    setBridgeMessage("Usage receipts refreshed.");
+  }
+}
+
 function parseMetricNumber(value) {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -610,25 +745,61 @@ function clampNumber(value, min, max) {
   return Math.min(max, Math.max(min, parsed));
 }
 
-function buildSparklineSvg(values, { stroke = "#0a84ff", fill = "rgba(10,132,255,0.12)" } = {}) {
+function buildSparklineSvg(values, { stroke = "#34d399", fill = "rgba(52,211,153,0.12)", gradientId = "spkGrad" } = {}) {
   const width = 420;
-  const height = 122;
-  const padding = 12;
+  const height = 118;
+  const padX = 10;
+  const padY = 14;
+  const chartH = height - padY * 2;
+  const chartW = width - padX * 2;
   const safeValues = values.length ? values : [0];
   const maxValue = Math.max(1, ...safeValues);
-  const step = safeValues.length > 1 ? (width - padding * 2) / (safeValues.length - 1) : 0;
-  const points = safeValues.map((value, index) => {
-    const x = padding + index * step;
-    const y = height - padding - ((value / maxValue) * (height - padding * 2));
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  const step = safeValues.length > 1 ? chartW / (safeValues.length - 1) : 0;
+
+  const pts = safeValues.map((v, i) => {
+    const x = padX + i * step;
+    const y = padY + chartH - (v / maxValue) * chartH;
+    return [x, y];
   });
-  const area = `${padding},${height - padding} ${points.join(" ")} ${width - padding},${height - padding}`;
+
+  // Smooth curve via cubic bezier control points
+  let pathD = `M ${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+  for (let i = 1; i < pts.length; i++) {
+    const prev = pts[i - 1];
+    const cur = pts[i];
+    const cpx = (prev[0] + cur[0]) / 2;
+    pathD += ` C ${cpx.toFixed(1)} ${prev[1].toFixed(1)}, ${cpx.toFixed(1)} ${cur[1].toFixed(1)}, ${cur[0].toFixed(1)} ${cur[1].toFixed(1)}`;
+  }
+
+  const areaD = `${pathD} L ${pts[pts.length - 1][0].toFixed(1)} ${padY + chartH} L ${padX} ${padY + chartH} Z`;
+
+  // Horizontal grid lines at 25%, 50%, 75%
+  const gridLines = [0.25, 0.5, 0.75].map((t) => {
+    const y = (padY + chartH - t * chartH).toFixed(1);
+    const label = Math.round(maxValue * t);
+    return `
+      <line x1="${padX}" y1="${y}" x2="${width - padX}" y2="${y}" stroke="#222" stroke-width="1"/>
+      <text x="${padX + 2}" y="${(Number(y) - 2).toFixed(1)}" fill="#444" font-size="8" font-family="Consolas,monospace">${label}ms</text>`;
+  }).join("");
+
+  // Latest value label
+  const lastPt = pts[pts.length - 1];
+  const lastLabel = safeValues[safeValues.length - 1];
 
   return `
-    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Latency trend chart">
-      <polygon points="${area}" fill="${fill}"></polygon>
-      <polyline points="${points.join(" ")}" fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
-      <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#303030" stroke-width="1"></line>
+    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Latency trend chart" style="overflow:visible">
+      <defs>
+        <linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${stroke}" stop-opacity="0.25"/>
+          <stop offset="100%" stop-color="${stroke}" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      ${gridLines}
+      <line x1="${padX}" y1="${padY + chartH}" x2="${width - padX}" y2="${padY + chartH}" stroke="#2a2a2a" stroke-width="1"/>
+      <path d="${areaD}" fill="url(#${gradientId})"/>
+      <path d="${pathD}" fill="none" stroke="${stroke}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="${lastPt[0].toFixed(1)}" cy="${lastPt[1].toFixed(1)}" r="3" fill="${stroke}"/>
+      <text x="${(lastPt[0] + 5).toFixed(1)}" y="${(lastPt[1] + 4).toFixed(1)}" fill="${stroke}" font-size="9" font-family="Consolas,monospace">${lastLabel}ms</text>
     </svg>
   `;
 }
@@ -666,13 +837,15 @@ function renderReportCharts(rows, network) {
     statusMixChart.innerHTML = total
       ? `
         <div class="donut" style="--success:${successPct}; --client:${clientPct}; --server:${serverPct};">
-          <strong>${successPct}%</strong>
-          <span>success</span>
+          <div>
+            <strong>${successPct}%</strong>
+            <span>success</span>
+          </div>
         </div>
         <div class="chart-legend">
           <span><i class="legend-success"></i>${successCount} success</span>
-          <span><i class="legend-client"></i>${clientErrorCount} client</span>
-          <span><i class="legend-server"></i>${serverErrorCount} server</span>
+          <span><i class="legend-client"></i>${clientErrorCount} client err</span>
+          <span><i class="legend-server"></i>${serverErrorCount} server err</span>
         </div>
       `
       : '<p class="empty">No status data yet.</p>';
@@ -697,15 +870,13 @@ function renderReportCharts(rows, network) {
         const used = parseMetricNumber(gpu.memoryUsedMiB);
         const totalMemory = parseMetricNumber(gpu.memoryTotalMiB);
         const memoryPct = totalMemory && used !== null ? clampNumber(Math.round((used / totalMemory) * 100), 0, 100) : 0;
+        const useFill = usage >= 90 ? "critical" : usage >= 70 ? "high" : "use";
+        const memFill = memoryPct >= 90 ? "critical" : memoryPct >= 70 ? "high" : "mem";
         return `
           <div class="gpu-report-row">
-            <div><strong>GPU ${escapeHtml(gpu.index)}</strong><span>${escapeHtml(gpu.name)}</span></div>
-            <div class="bar-pair">
-              <span>Use</span><b style="width:${usage}%"></b><em>${usage}%</em>
-            </div>
-            <div class="bar-pair">
-              <span>Mem</span><b style="width:${memoryPct}%"></b><em>${memoryPct}%</em>
-            </div>
+            <div><strong>GPU ${escapeHtml(String(gpu.index))}</strong><span>${escapeHtml(gpu.name || "NVIDIA GPU")}</span></div>
+            <div class="bar-pair"><span>Use</span><b class="${useFill}" style="width:${usage}%"></b><em>${usage}%</em></div>
+            <div class="bar-pair"><span>Mem</span><b class="${memFill}" style="width:${memoryPct}%"></b><em>${memoryPct}%</em></div>
           </div>
         `;
       }).join("")
@@ -796,30 +967,41 @@ function renderGpuTelemetry(network) {
     .map((gpu) => {
       const active = selected !== "auto" && String(gpu.index) === selected;
       const utilizationValue = parseMetricNumber(gpu.utilizationPct);
-      const utilization = utilizationValue ?? 0;
+      const utilization = clampNumber(utilizationValue ?? 0, 0, 100);
       const memoryUsed = parseMetricNumber(gpu.memoryUsedMiB);
       const memoryTotal = parseMetricNumber(gpu.memoryTotalMiB);
-      const memoryPct = memoryTotal && memoryUsed !== null ? Math.round((memoryUsed / memoryTotal) * 100) : 0;
+      const memoryPct = memoryTotal && memoryUsed !== null ? clampNumber(Math.round((memoryUsed / memoryTotal) * 100), 0, 100) : 0;
       const tempValue = parseMetricNumber(gpu.temperatureC);
       const powerValue = parseMetricNumber(gpu.powerDrawW);
-      const usageText = utilizationValue === null ? "Unknown" : `${utilizationValue}%`;
+      const freqValue = parseMetricNumber(gpu.clockMHz || gpu.smClockMHz);
+      const usageText = utilizationValue === null ? "—" : `${utilizationValue}%`;
       const memoryText = `${formatMiB(memoryUsed)} / ${formatMiB(memoryTotal)}`;
-      const temp = tempValue === null ? "Unknown" : `${tempValue} C`;
-      const power = powerValue === null ? "Unknown" : `${powerValue.toFixed(1)} W`;
+      const temp = tempValue === null ? "—" : `${tempValue}°C`;
+      const power = powerValue === null ? "—" : `${powerValue.toFixed(1)} W`;
+      const freq = freqValue === null ? "" : `${freqValue} MHz`;
+      const useFillClass = utilization >= 90 ? "gpu-prog-fill critical" : utilization >= 70 ? "gpu-prog-fill high" : "gpu-prog-fill";
+      const memFillClass = memoryPct >= 90 ? "gpu-prog-fill critical" : memoryPct >= 70 ? "gpu-prog-fill high" : "gpu-prog-fill mem";
       return `
         <article class="gpu-row ${active ? "active" : ""}">
           <div class="gpu-row-head">
-            <strong>GPU ${escapeHtml(gpu.index)} - ${escapeHtml(gpu.name || "NVIDIA GPU")}</strong>
+            <strong>GPU ${escapeHtml(String(gpu.index))} &nbsp;—&nbsp; ${escapeHtml(gpu.name || "NVIDIA GPU")}</strong>
             <span>${active ? "Selected" : "Visible"}</span>
           </div>
           <div class="gpu-bars">
-            <div><span>Usage ${escapeHtml(usageText)}</span><meter min="0" max="100" value="${utilization}"></meter></div>
-            <div><span>Memory ${escapeHtml(memoryText)}</span><meter min="0" max="100" value="${memoryPct}"></meter></div>
+            <div>
+              <span>Utilization <em>${escapeHtml(usageText)}</em></span>
+              <div class="gpu-prog"><div class="${useFillClass}" style="width:${utilization}%"></div></div>
+            </div>
+            <div>
+              <span>VRAM <em>${escapeHtml(memoryText)}</em></span>
+              <div class="gpu-prog"><div class="${memFillClass}" style="width:${memoryPct}%"></div></div>
+            </div>
           </div>
           <div class="gpu-row-foot">
-            <span>Temp ${escapeHtml(temp)}</span>
-            <span>Power ${escapeHtml(power)}</span>
-            <span class="mono-value">${escapeHtml(gpu.uuid || "No UUID reported")}</span>
+            <div class="gpu-foot-stat"><span class="gpu-foot-label">Temp</span><span class="gpu-foot-value">${escapeHtml(temp)}</span></div>
+            <div class="gpu-foot-stat"><span class="gpu-foot-label">Power</span><span class="gpu-foot-value">${escapeHtml(power)}</span></div>
+            ${freq ? `<div class="gpu-foot-stat"><span class="gpu-foot-label">Clock</span><span class="gpu-foot-value">${escapeHtml(freq)}</span></div>` : ""}
+            <span class="gpu-uuid">${escapeHtml(gpu.uuid || "No UUID")}</span>
           </div>
         </article>
       `;
@@ -902,6 +1084,10 @@ function switchPage(pageName) {
   });
   updateNavActive(nextPage);
   persistUiDraft(false);
+
+  if (nextPage === "usage") {
+    void refreshUsageHistory(false);
+  }
 }
 
 function renderDashboardRequestRows(rows) {
@@ -1288,7 +1474,7 @@ function renderPairing(pairing, rawToken) {
   if (pairingExpiresOutput) {
     const expiresAt = pairing && typeof pairing.expiresAt === "string" ? pairing.expiresAt : "";
     if (!expiresAt) {
-      pairingExpiresOutput.value = "No expiry provided by token.";
+      pairingExpiresOutput.value = "Never expires";
     } else {
       const date = new Date(expiresAt);
       pairingExpiresOutput.value = Number.isNaN(date.getTime())
@@ -1309,7 +1495,8 @@ async function applyBridgePairing(rawInput, sourceLabel = "Pairing") {
     throw new Error("Pairing token is missing bridgeConfig.");
   }
 
-  if (typeof pairing.expiresAt === "string") {
+  // expiresAt is null for non-expiring keys — only reject if a real date is present and past.
+  if (typeof pairing.expiresAt === "string" && pairing.expiresAt) {
     const expiryDate = new Date(pairing.expiresAt);
     if (!Number.isNaN(expiryDate.getTime()) && expiryDate.getTime() < Date.now()) {
       throw new Error(`Pairing token expired at ${expiryDate.toLocaleString()}. Generate a new pairing key in CRM.`);
@@ -1705,6 +1892,8 @@ function appendRequestLog(entry, runtimeSnapshot) {
       bridgeState.runtime = runtimeSnapshot;
     }
   }
+
+  scheduleUsageHistoryRefresh();
 }
 
 function appendErrorLog(entry, runtimeSnapshot) {
@@ -1836,6 +2025,7 @@ async function bootstrap() {
   await refreshBridgeState(false);
   await refreshStartupSettings();
   await refreshBackgroundTools();
+  await refreshUsageHistory(false);
   await syncMaxButton();
   restoreUiDraft();
 
@@ -1915,6 +2105,11 @@ window.addEventListener("beforeunload", () => {
   if (draftSaveTimer) {
     window.clearTimeout(draftSaveTimer);
     draftSaveTimer = null;
+  }
+
+  if (usageRefreshTimer) {
+    window.clearTimeout(usageRefreshTimer);
+    usageRefreshTimer = null;
   }
 });
 
@@ -2125,6 +2320,10 @@ copyLatestGeneratedBtn?.addEventListener("click", () => {
     return;
   }
   void copyText(latest.text, "Latest generated content copied.");
+});
+
+usageRefreshBtn?.addEventListener("click", () => {
+  void refreshUsageHistory(true);
 });
 
 settingsCloseBtn?.addEventListener("click", () => {

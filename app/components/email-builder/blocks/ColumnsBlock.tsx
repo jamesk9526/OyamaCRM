@@ -12,10 +12,11 @@ import BlockRenderer from '../BlockRenderer';
 
 interface Props {
   block: ColumnsBlockData;
+  templateFontFamily?: string;
 }
 
 /** Renders a two-column layout block in the email canvas. */
-export default function ColumnsBlock({ block }: Props) {
+export default function ColumnsBlock({ block, templateFontFamily }: Props) {
   const totalColumns = block.columnCount === 3 ? 3 : 2;
   const columns = Array.from({ length: totalColumns }, (_, index) => block.columns[index] ?? []);
 
@@ -34,7 +35,7 @@ export default function ColumnsBlock({ block }: Props) {
             }}
           >
             {column.map((child) => (
-              <BlockRenderer key={child.id} block={child} />
+              <BlockRenderer key={child.id} block={child} templateFontFamily={templateFontFamily} />
             ))}
             {column.length === 0 && (
               <div

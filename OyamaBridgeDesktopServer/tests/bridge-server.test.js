@@ -355,6 +355,52 @@ test("bridge request metadata stores generated previews without storing prompt c
   }
 });
 
+test("bridge returns 504 when the upstream runtime exceeds the configured timeout", async () => {
+  const upstream = await startUpstreamServer(async (_req, res) => {
+    await new Promise((resolve) => setTimeout(resolve, 1300));
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ ok: true }));
+  });
+
+  const bridgePort = await getFreePort();
+  const config = {
+    bridgePort,
+    bridgeApiKey: "timeout-key",
+    bridgeAllowedOrigins: "",
+    bridgeUpstreamUrl: `http://127.0.0.1:${upstream.port}`,
+    bridgeTimeoutMs: 1000,
+    bridgeCudaDevice: "auto",
+  };
+
+  const bridge = createBridgeServer(() => config);
+  await bridge.start();
+
+  try {
+    const result = await requestJson({
+      port: bridgePort,
+      method: "POST",
+      path: "/api/generate",
+      headers: {
+        authorization: "Bearer timeout-key",
+      },
+      body: {
+        model: "llama3.2:3b",
+        prompt: "slow request",
+      },
+    });
+
+    assert.equal(result.statusCode, 504);
+    assert.match(result.json?.error?.message || "", /timed out while waiting for upstream/i);
+
+    const runtime = bridge.getRuntimeState();
+    assert.equal(runtime.lastError.includes("timed out while waiting for upstream"), true);
+    assert.equal(runtime.requestLog.some((entry) => entry.statusCode === 504), true);
+  } finally {
+    await bridge.stop();
+    await new Promise((resolve) => upstream.server.close(resolve));
+  }
+});
+
 test("bridge captures generated assistant previews for chat and generate routes", async () => {
   const upstream = await startUpstreamServer(async (req, res) => {
     const chunks = [];
