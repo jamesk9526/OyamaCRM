@@ -18,7 +18,7 @@ import type { StewardStructuredResponse } from "@/app/components/ai/steward-arti
 import { executeStewardSuggestedAction } from "@/app/components/ai/steward-action-executor";
 
 type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview" | "hrm" | "password";
-type ChatMode = "ask" | "analyze" | "draft" | "action" | "help";
+type ChatMode = "ask" | "analyze" | "draft" | "writing" | "llm" | "action" | "help";
 export type StewardPanelMode = "collapsed" | "dock-right" | "popout" | "maximized";
 type StewardChatDisplayMode = "dock" | "dock-right" | "popout" | "maximized" | "workspace";
 
@@ -170,7 +170,7 @@ function normalizeStoredMessages(messages: unknown): UiMessage[] {
           ? candidate.recordsUsed.filter((item): item is string => typeof item === "string")
           : undefined,
         provider: typeof candidate.provider === "string" ? candidate.provider : undefined,
-        responseMode: ["ask", "analyze", "draft", "action", "help"].includes(String(candidate.responseMode))
+        responseMode: ["ask", "analyze", "draft", "writing", "llm", "action", "help"].includes(String(candidate.responseMode))
           ? candidate.responseMode as ChatMode
           : undefined,
         runtimeMode: candidate.runtimeMode === "local" || candidate.runtimeMode === "remote" || candidate.runtimeMode === "unknown"
@@ -262,14 +262,16 @@ function writeStoredThreads(moduleKey: ModuleKey, threads: ChatThread[]) {
 }
 
 const MODE_BUTTONS: Array<{ key: ChatMode; label: string }> = [
-  { key: "ask", label: "Ask" },
-  { key: "analyze", label: "Analyze" },
-  { key: "draft", label: "Draft" },
-  { key: "action", label: "Action" },
-  { key: "help", label: "Help" },
+  { key: "ask", label: "Ask & Retrieve" },
+  { key: "analyze", label: "Analyze Trends" },
+  { key: "draft", label: "Draft Outreach" },
+  { key: "writing", label: "Writing Studio" },
+  { key: "llm", label: "LLM Deep" },
+  { key: "action", label: "Action Plan" },
+  { key: "help", label: "Workflow Help" },
 ];
 
-const STEWARD_READY_MESSAGE = "Steward is ready with CRM retrieval tools. Ask, analyze, draft, or action with explicit confirmation for writes.";
+const STEWARD_READY_MESSAGE = "Steward is ready with CRM retrieval and multi-stage reasoning tools. Choose a mode for retrieval, analysis, drafting, deep reasoning, or confirm-first action planning.";
 const STEWARD_DISABLED_MESSAGE = "Steward AI is not enabled yet. Open Settings > AI Assistant to configure local or remote Ollama.";
 
 /** Returns starter prompts based on current CRM module context. */
@@ -750,6 +752,16 @@ export default function StewardChatPanel({
     const action = sourceMessage.structured.suggestedActions[actionIndex];
     if (!action) {
       setActionStatus({ tone: "error", message: "That suggestion is no longer available." });
+      return;
+    }
+
+    if (action.actionType === "guidepath.choose") {
+      const payload = action.payload as Record<string, unknown> | undefined;
+      const prompt = typeof payload?.prompt === "string" && payload.prompt.trim().length > 0
+        ? payload.prompt.trim()
+        : action.label;
+      await sendMessage(prompt);
+      setActionStatus({ tone: "success", message: "GuidePath selection applied. Continuing with your request." });
       return;
     }
 

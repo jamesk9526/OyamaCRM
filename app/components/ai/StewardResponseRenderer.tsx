@@ -51,6 +51,9 @@ const TOOL_LABELS: Record<string, string> = {
   "knowledge.searchGrants": "Grant record search",
   "agentic.plan": "Multi-stage planning",
   "agentic.reason": "AI reasoning pass",
+  "agentic.meta": "Meta validation pass",
+  "agentic.meta2": "Meta-meta resilience check",
+  "guidepath.classifier": "GuidePath clarification engine",
   "fiscal.context": "Fiscal year context",
   "tasks.createFollowUpTask": "Create follow-up task",
   "communications.createEmailDraft": "Create email draft",
@@ -92,19 +95,24 @@ interface StewardResponseRendererProps {
   generatedAt?: string;
   /** Callbacks */
   onSuggestedAction?: (action: StewardSuggestedAction) => void | Promise<void>;
+  onOpenReport?: (path: string, label?: string) => void;
   onCopy?: () => void;
   onRegenerate?: () => void;
+  onSaveTemplate?: () => void;
 }
 
 // ─── Artifact card dispatcher ─────────────────────────────────────────────────
-function renderArtifact(artifact: StewardArtifact): React.ReactElement | null {
+function renderArtifact(
+  artifact: StewardArtifact,
+  onOpenReport?: (path: string, label?: string) => void,
+): React.ReactElement | null {
   if (artifact.type === "email_draft") return <EmailDraftArtifactCard artifact={artifact} />;
   if (artifact.type === "donor_list") return <EnhancedDonorListArtifactCard artifact={artifact} />;
   if (artifact.type === "report_summary") return <ReportSummaryArtifactCard artifact={artifact} />;
   if (artifact.type === "task_list") return <TaskListArtifactCard artifact={artifact} />;
   if (artifact.type === "call_script") return <CallScriptArtifactCard artifact={artifact} />;
   if (artifact.type === "csv_rows") return <CsvRowsArtifactCard artifact={artifact} />;
-  if (artifact.type === "report_card") return <ReportCardArtifactCard artifact={artifact} />;
+  if (artifact.type === "report_card") return <ReportCardArtifactCard artifact={artifact} onOpenReport={onOpenReport} />;
   if (artifact.type === "chart") return <EnhancedChartArtifactCard artifact={artifact} />;
   return null;
 }
@@ -231,12 +239,14 @@ function SuggestedActionPills({
 function ActionBar({
   onCopy,
   onRegenerate,
+  onSaveTemplate,
   onAbout,
   aboutOpen,
   compact,
 }: {
   onCopy?: () => void;
   onRegenerate?: () => void;
+  onSaveTemplate?: () => void;
   onAbout: () => void;
   aboutOpen: boolean;
   compact?: boolean;
@@ -280,6 +290,16 @@ function ActionBar({
         </button>
       )}
 
+      {onSaveTemplate && (
+        <button type="button" onClick={onSaveTemplate} className={btnClass} title="Save as email template">
+          <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 9h6M9 13h6M9 17h4" />
+          </svg>
+          Save Template
+        </button>
+      )}
+
       <button
         type="button"
         onClick={onAbout}
@@ -309,8 +329,10 @@ export default function StewardResponseRenderer({
   moduleKey,
   generatedAt,
   onSuggestedAction,
+  onOpenReport,
   onCopy,
   onRegenerate,
+  onSaveTemplate,
 }: StewardResponseRendererProps) {
   const [aboutOpen, setAboutOpen] = useState(false);
 
@@ -329,7 +351,7 @@ export default function StewardResponseRenderer({
       {hasArtifacts && (
         <div className={`space-y-2 ${compact ? "mb-2" : "mb-3"}`}>
           {(structured?.artifacts ?? []).map((artifact, i) => (
-            <div key={`${artifact.type}-${i}`}>{renderArtifact(artifact)}</div>
+            <div key={`${artifact.type}-${i}`}>{renderArtifact(artifact, onOpenReport)}</div>
           ))}
         </div>
       )}
@@ -352,10 +374,11 @@ export default function StewardResponseRenderer({
       )}
 
       {/* Action bar */}
-      {(onCopy || onRegenerate || hasMetadata) && (
+      {(onCopy || onRegenerate || onSaveTemplate || hasMetadata) && (
         <ActionBar
           onCopy={onCopy}
           onRegenerate={onRegenerate}
+          onSaveTemplate={onSaveTemplate}
           onAbout={handleAbout}
           aboutOpen={aboutOpen}
           compact={compact}

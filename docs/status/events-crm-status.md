@@ -38,7 +38,7 @@ Status labels are restricted to: **Working / Partially Working / Demo Only / Bro
 
 | Route | Status | Backing API | Notes |
 |---|---|---|---|
-| `/events` (dashboard) | Working | `/api/events/dashboard-summary`, `/api/events` | Real KPIs, upcoming events, recent activity. |
+| `/events` (event-first selector) | Working | `/api/events/dashboard-summary`, `/api/events` | First EventSTUDIO entry now uses the selector surface before staff open scoped event tools. |
 | `/events/events` (registry / selector) | Working | `/api/events`, `POST /api/events` | Lists real events; create modal hits real API. |
 | `/events/[eventId]/overview` | Working | `/api/events/[id]`, `/guests`, `/orders`, `/tables`, `/sponsors`, `/report` | All command-center cards backed by real per-event data via `Promise.all`. |
 | `/events/[eventId]/guests` | Working | `/api/events/[id]/guests` | Scoped by `useParams().eventId`; CRUD + check-in toggle wired. |
@@ -48,7 +48,7 @@ Status labels are restricted to: **Working / Partially Working / Demo Only / Bro
 | `/events/[eventId]/tickets` | Working | `/api/events/[id]/ticket-types` | Full CRUD for ticket types including table tickets. |
 | `/events/[eventId]/orders` | Working | `/api/events/[id]/orders`, `POST /api/events/orders` | Staff manual orders + status update. Order → auto-create guests is **Not Implemented**. |
 | `/events/[eventId]/hosts` | Partially Working | `/api/events/[id]/tables` | Coverage view live; host portal links / invites / audit not implemented. |
-| `/events/[eventId]/event-page` | Partially Working | `/api/events/[id]/page-builder-config`, `/api/events/public/page/[slug]`, `POST /api/events/public/page/[slug]/register` | Section editor + draft save work; published public pages can accept multi-attendee registration, but payment, deployment history, and QR camera scanning remain incomplete. |
+| `/events/[eventId]/event-page` | Working | `/api/events/[id]/page-builder-config`, `/api/events/public/page/[slug]`, `POST /api/events/public/page/[slug]/register` | Section editor, autosave, in-app preview, publish/unpublish, explicit payment policy, deployment history, and public multi-attendee registration with check-in codes are wired. QR camera scanning remains a Check-In workspace enhancement, not a page-builder blocker. |
 | `/events/[eventId]/communications` (alias `/emails`) | Partially Working | `/api/events/[id]/guests` + central email API | Audience preview + workspace routing live; send execution depends on central comms orchestration. |
 | `/events/[eventId]/fundraising` (alias `/donations`) | Partially Working | `/api/events/[id]/orders` | Revenue-vs-goal view exists; pledge tracking and donor-link round-trip not implemented. |
 | `/events/[eventId]/follow-up` | Partially Working | `/api/events/[id]/report` | Reads real attendance/revenue; thank-you status not surfaced. |
@@ -92,7 +92,7 @@ Each `FeatureStatusWarning` in the Events workspace must carry an explicit condi
 
 | Surface | Warning text | Removal condition |
 |---|---|---|
-| `EventPageBuilderShell` | "Event Page Builder public workflow is partially wired" | Payment collection or an explicit no-payment event policy is implemented, deployment history is wired, and a public page E2E test covers publish-to-registration. |
+| `EventPageBuilderShell` | Removed | Removal criteria met: the builder now has an explicit registration payment policy, deployment history, and smoke coverage for publish-to-registration. |
 | `/events/[eventId]/settings` | "Event settings is partially wired" | A per-event settings model exists, save/load round-trip is wired to the API, and a smoke test covers update + reload. |
 | `/events/[eventId]/hosts` (existing) | "Table Host Manager is partially working" | Host invite links, resend controls, host portal, and audit events for host actions are implemented and covered by tests. |
 | `/events/[eventId]/follow-up` (existing) | "Post-event follow-up is partially wired" | Thank-you status, donor-link round-trip, and follow-up task creation are persisted and reflected in reports. |
@@ -112,7 +112,7 @@ Events CRM is now being shaped around a FundEasy / Attendance-style nonprofit fu
 
 | Surface | Release status | Notes |
 |---|---|---|
-| `/events` module root | Working | Events module home is active; the sidebar uses `/events/events` as the single create/select event entrypoint. |
+| `/events` module root | Working | Events module home now renders the event-first selector; `/events/events` remains the all-events registry/create page. |
 | TopBar overlap in Events shell | Working | Events sidebar and main content now include the fixed TopBar offset. |
 | Event-scoped event lock | Working | `/events/[eventId]/*` pages lock to the selected event; switching events requires returning to `/events/events`. |
 | Sidebar grouping (V2) | Working | Sidebar now follows: Events -> Selected Event -> Event Command Center -> Event Settings. |
@@ -122,7 +122,8 @@ Events CRM is now being shaped around a FundEasy / Attendance-style nonprofit fu
 | Manager integrations import | Partially Working | Admin-only Events manager integration import endpoint snapshots donor payment/email settings for event operations. |
 | Donor-safe follow-up export | Partially Working | Event-scoped follow-up export endpoint supports JSON/CSV queue outputs for post-event workflows. |
 | Table Host Manager | Partially Working | Host coverage workspace is available, but host portal links, permissions, guest-list persistence, staff resend controls, and audit coverage are still incomplete. |
-| Event Page Builder, Emails, Donations/Pledges, Follow-Up | Partially Working / Not Implemented | These are visible with status labels in the command center, but their incomplete state is documented in `docs/STATUS.md`. |
+| Event Page Builder | Working | Public page composition, publish readiness, payment policy, deployment history, and registration are wired. |
+| Emails, Donations/Pledges, Follow-Up | Partially Working / Not Implemented | These are visible with status labels in the command center, but their incomplete state is documented in `docs/STATUS.md`. |
 | In-development warning popups | Working | Partially implemented Events tools now show popup + banner warnings so unfinished behavior is visible to staff and reviewers. |
 
 ## 2026-05-10 Production Readiness Overrides
@@ -144,7 +145,7 @@ Critical overrides from the latest full testing and browser pass:
 |---|---|---|
 | Event-scoped guests route (`/events/[eventId]/guests`) | Working | Current code uses guarded event access and authenticated API helpers. |
 | Events reports page (`/events/reports`) | Working | Current reports content uses the authenticated request helper. |
-| Event workspace selector (`/events/workspace`) | Working | Event-first selector model is present and now matches `/events`. |
+| Event workspace selector (`/events`, `/events/workspace`) | Working | Event-first selector model is present at both the module root and compatibility selector route. |
 | Event-scoped tool set overall | Partially Working | Core tools exist but several pages remain scaffold/demo-level or unstable under non-happy-path data. |
 
 ---
@@ -176,7 +177,7 @@ Critical overrides from the latest full testing and browser pass:
 
 | Feature | Status | Notes |
 |---|---|---|
-| Event workspace selector (`/events/workspace`) | 🟡 Working | Compatibility selector route remains available; primary operator entry in sidebar is now `/events/events`. |
+| Event workspace selector (`/events`, `/events/workspace`) | 🟡 Working | Module root and compatibility route both render the selector; `/events/events` remains available for all-events registry management. |
 | Scoped workspace routes (`/events/[eventId]/[tool]`) | ✅ Production Ready | Event operations remain tied to selected event context |
 | Global tools section in Events sidebar | ✅ Production Ready | Reports, templates, and event registry remain global while event-page editing moved into selected-event command center scope |
 | Global page builder route (`/events/page-builder`) | 🟡 Working | Compatibility selector that redirects `eventId` query links to `/events/[eventId]/event-page` |
@@ -188,7 +189,7 @@ Critical overrides from the latest full testing and browser pass:
 
 | Feature | Status | Notes |
 |---|---|---|
-| Dashboard page | 🟡 Working | `app/events/page.tsx` → `EventsDashboard.tsx` |
+| Module root selector page | 🟡 Working | `app/events/page.tsx` → `EventsWorkspaceSelectorPage.tsx` |
 | Live KPI cards (total/active/upcoming events, guests, revenue) | ✅ Production Ready | Fetches from `/api/events/dashboard-summary` |
 | Upcoming events list | 🟡 Working | Shows next 3 upcoming events with date/type |
 | Event registry list | 🟡 Working | `app/events/events/page.tsx` |
@@ -342,6 +343,8 @@ Critical overrides from the latest full testing and browser pass:
 | EventSTUDIO sidebar scoping | ✅ Production Ready | Home/global pages no longer render event-scoped Reports, Event Page, or Settings groups from `?eventId=` query state; scoped tools appear only under `/events/[eventId]/*`. |
 | Publish readiness workflow | ✅ Production Ready | Builder header now exposes slug, hero, visitor action, and autosave readiness before staff can publish. |
 | New public page blocks | ✅ Production Ready | Auction Preview, Live Appeal, and Volunteer Callout blocks render in preview/published pages and persist through the server section sanitizer. |
+| Payment policy and deployment history | ✅ Production Ready | Builder config stores explicit offline/no-payment policy plus publish/unpublish deployment history in the Events page-builder plugin setting. |
+| In-app preview | ✅ Production Ready | The top-bar preview opens a fullscreen in-app renderer using the same document component as the public page; no new-tab preview behavior remains. |
 | EventSTUDIO naming | ✅ Production Ready | Primary switcher/sidebar/entry surfaces now use EventSTUDIO product naming. |
 
 ## Event Page Builder
@@ -350,9 +353,11 @@ Critical overrides from the latest full testing and browser pass:
 |---|---|---|
 | Page builder entry point | 🟡 Working | Canonical route is `/events/[eventId]/event-page`; `/events/page-builder` remains compatibility selector |
 | Template library | 🔶 Partial | `/events/templates` supports draft template creation from existing events |
-| Block-based editor | 🟡 Working | Event-scoped section rail, preview, inspector shell, autosave persistence, and public-page rendering are implemented for the current block catalog |
-| Public event registration page | 🔶 Partial | Published event pages can now submit a registration and receive check-in codes; payment collection and full multi-attendee editing remain future work |
-| Publish/unpublish | 🟡 Working | Publish/unpublish persists status and timestamp with readiness gating; deeper deployment history/versioning remains future work |
+| Block-based editor | ✅ Production Ready | Event-scoped section rail, preview, inspector shell, autosave persistence, sanitized block content, and public-page rendering are implemented for the current block catalog |
+| Public event registration page | ✅ Production Ready | Published event pages submit single- and multi-attendee registrations, create orders/guests, return check-in codes, and honor explicit offline/no-payment policy |
+| Publish/unpublish | ✅ Production Ready | Publish/unpublish persists status, timestamp, readiness gating, and deployment history entries |
+| Public page output actions | ✅ Production Ready | Hero, CTA, donation, TableLink, document, volunteer, and share controls render as functional links/actions in the shared public renderer |
+| Ticketing + guest provisioning | ✅ Production Ready | Staff orders compute totals from stored ticket prices, consume availability, create guest shells with check-in codes, and propagate order status to guest RSVP/payment state |
 
 ---
 

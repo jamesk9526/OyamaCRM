@@ -15,6 +15,8 @@ interface DashboardCommandCenterProps {
   loading: boolean;
   dataThroughLabel: string;
   ytdAmount: number;
+  weekAmount: number;
+  weekCount: number;
   monthAmount: number;
   revenueGoal: number;
   retentionRate: number;
@@ -209,6 +211,8 @@ export default function DashboardCommandCenter({
   loading,
   dataThroughLabel,
   ytdAmount,
+  weekAmount,
+  weekCount,
   monthAmount,
   revenueGoal,
   retentionRate,
@@ -269,10 +273,36 @@ export default function DashboardCommandCenter({
               </p>
             </div>
 
-            <div className="rounded-2xl border border-white/80 bg-white/85 px-4 py-3 text-right shadow-sm backdrop-blur">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Data window</p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">{dataThroughLabel}</p>
-              <p className="mt-1 text-xs text-slate-500">{loading ? "Updating dashboard metrics..." : `${activeCampaigns} active campaign${activeCampaigns === 1 ? "" : "s"}`}</p>
+            <div className="rounded-2xl border border-white/80 bg-white/85 px-4 py-3 shadow-sm backdrop-blur min-w-[220px]">
+              <div className="flex items-center justify-between gap-2 mb-2.5">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Data snapshot</p>
+                <span className="text-[10px] text-slate-400 truncate max-w-[120px]" title={dataThroughLabel}>
+                  {loading ? "Updating…" : dataThroughLabel.replace("Data through ", "").replace("Refreshed ", "")}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 divide-x divide-slate-100">
+                <div className="pr-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">This Week</p>
+                  <p className="mt-1 text-base font-bold text-slate-900">{loading ? "—" : formatCurrency(weekAmount)}</p>
+                  <p className="text-[11px] text-slate-500">{loading ? "—" : `${weekCount} gift${weekCount === 1 ? "" : "s"}`}</p>
+                </div>
+                <div className="px-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">This Month</p>
+                  <p className="mt-1 text-base font-bold text-slate-900">{loading ? "—" : formatCurrency(monthAmount)}</p>
+                  {!loading && monthTrend !== null ? (
+                    <p className={`text-[11px] font-medium ${monthTrend >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                      {monthTrend >= 0 ? "▲" : "▼"} {Math.abs(Math.round(monthTrend))}% vs last mo
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-slate-500">vs last month</p>
+                  )}
+                </div>
+                <div className="pl-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Campaigns</p>
+                  <p className="mt-1 text-base font-bold text-slate-900">{loading ? "—" : activeCampaigns}</p>
+                  <p className="text-[11px] text-slate-500">{loading ? "—" : `${newDonorsThisMonth} new donor${newDonorsThisMonth === 1 ? "" : "s"}`}</p>
+                </div>
+              </div>
             </div>
           </div>
 

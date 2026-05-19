@@ -1,6 +1,16 @@
 /** Shared types for the event-scoped Events CRM page builder workspace. */
 
 export type EventPageStatus = "Draft" | "Published";
+export type EventPagePaymentPolicy = "OfflineFollowUp" | "NoPaymentRequired";
+export type EventPageDeploymentAction = "Published" | "Unpublished";
+
+export interface EventPageDeploymentHistoryEntry {
+  id: string;
+  action: EventPageDeploymentAction;
+  status: EventPageStatus;
+  pageSlug: string;
+  deployedAt: string;
+}
 
 export interface EventPageBuilderConfig {
   eventId: string;
@@ -9,6 +19,8 @@ export interface EventPageBuilderConfig {
   baseOrigin: string;
   status: EventPageStatus;
   lastPublishedAt: string | null;
+  paymentPolicy: EventPagePaymentPolicy;
+  deploymentHistory: EventPageDeploymentHistoryEntry[];
   sections?: EventPageSectionState[];
 }
 
@@ -63,6 +75,14 @@ export interface EventPageSectionState {
     mediaUrl?: string;
     documentLabel?: string;
     documentUrl?: string;
+    /** Dress code / attire guidance shown in the hero details row. */
+    attire?: string;
+    /** Structured schedule items for the Schedule section. */
+    scheduleItems?: Array<{ time?: string; label?: string }>;
+    /** FAQ entries for the FAQ section. */
+    faqItems?: Array<{ question?: string; answer?: string }>;
+    /** Image URLs for the Image Gallery section. */
+    galleryImages?: string[];
   };
   design?: {
     backgroundType?: "image" | "color" | "video";
@@ -150,6 +170,7 @@ export interface EventPageBuilderWorkspaceData {
   sponsors: EventBuilderSponsor[];
   report: EventBuilderReport | null;
   publicUrl: string;
+  paymentPolicy?: EventPagePaymentPolicy;
   /** Published page slug used by the public registration endpoint. */
   pageSlug?: string;
   /** True only on the external public page, not inside the builder preview. */

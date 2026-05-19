@@ -322,6 +322,7 @@ describe("events CRUD", () => {
     expect(res.body.id).toBeTruthy();
     expect(res.body.constituent?.id).toBe(supportConstituentId);
     expect(Number(res.body.totalAmount)).toBe(170);
+    expect(res.body._count?.guests).toBe(2);
     orderId = res.body.id;
   });
 
@@ -338,6 +339,17 @@ describe("events CRUD", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("CONFIRMED");
+
+    const guests = await request(app)
+      .get(`/api/events/${eventId}/guests`)
+      .set(auth());
+
+    expect(guests.status).toBe(200);
+    const orderGuests = (guests.body as Array<{ order?: { id: string } | null; checkinCode?: string; paymentStatus?: string; rsvpStatus?: string }>).filter((guest) => guest.order?.id === orderId);
+    expect(orderGuests).toHaveLength(2);
+    expect(orderGuests.every((guest) => /^[A-Z0-9]{6,}$/.test(guest.checkinCode ?? ""))).toBe(true);
+    expect(orderGuests.every((guest) => guest.paymentStatus === "PAID")).toBe(true);
+    expect(orderGuests.every((guest) => guest.rsvpStatus === "CONFIRMED")).toBe(true);
   });
 
   it("lists orders for the event", async () => {
@@ -420,6 +432,8 @@ describe("events CRUD", () => {
     expect(typeof res.body.pageUrl).toBe("string");
     expect(res.body.pageUrl).toContain(`/${res.body.pageSlug}`);
     expect(["Draft", "Published"]).toContain(res.body.status);
+    expect(["OfflineFollowUp", "NoPaymentRequired"]).toContain(res.body.paymentPolicy);
+    expect(Array.isArray(res.body.deploymentHistory)).toBe(true);
   });
 
   it("updates event page builder url config", async () => {
@@ -432,6 +446,7 @@ describe("events CRUD", () => {
       .send({
         pageSlug: nextSlug,
         status: "Published",
+        paymentPolicy: "OfflineFollowUp",
         lastPublishedAt: new Date().toISOString(),
       });
 
@@ -440,6 +455,9 @@ describe("events CRUD", () => {
     expect(res.body.pageSlug).toBe(nextSlug);
     expect(res.body.pageUrl).toContain(`/${nextSlug}`);
     expect(res.body.status).toBe("Published");
+    expect(res.body.paymentPolicy).toBe("OfflineFollowUp");
+    expect(res.body.deploymentHistory[0]?.action).toBe("Published");
+    expect(res.body.deploymentHistory[0]?.pageSlug).toBe(nextSlug);
     savedEventPageSlug = nextSlug;
   });
 
@@ -459,6 +477,7 @@ describe("events CRUD", () => {
               kicker: "Join us for a night of hope",
               subtitle: "Gala 2027",
               primaryButtonText: "Get Tickets",
+              attire: "Business formal",
             },
             design: {
               backgroundType: "image",
@@ -470,6 +489,11 @@ describe("events CRUD", () => {
             id: "event-details",
             enabled: true,
             lockToEventData: true,
+            content: {
+              scheduleItems: [{ time: "6:00 PM", label: "Doors open" }],
+              faqItems: [{ question: "Can I host a table?", answer: "Yes." }],
+              galleryImages: ["https://example.org/event.jpg"],
+            },
           },
           {
             id: "registration-form",
@@ -490,6 +514,9 @@ describe("events CRUD", () => {
 
     expect(persisted.status).toBe(200);
     expect(persisted.body.sections).toHaveLength(3);
+    expect(persisted.body.sections[0].content.attire).toBe("Business formal");
+    expect(persisted.body.sections[1].content.scheduleItems[0].label).toBe("Doors open");
+    expect(persisted.body.sections[1].content.faqItems[0].question).toBe("Can I host a table?");
     expect(persisted.body.sections[2].enabled).toBe(false);
   });
 
@@ -516,6 +543,8 @@ describe("events CRUD", () => {
     expect(res.status).toBe(200);
     expect(res.body.pageSlug).toBe(savedEventPageSlug);
     expect(res.body.pageUrl).toContain(`/${savedEventPageSlug}`);
+    expect(res.body.paymentPolicy).toBe("OfflineFollowUp");
+    expect(Array.isArray(res.body.deploymentHistory)).toBe(true);
   });
 
   it("returns public event page payload by slug without auth", async () => {
@@ -526,6 +555,7 @@ describe("events CRUD", () => {
     expect(res.status).toBe(200);
     expect(res.body.pageSlug).toBe(savedEventPageSlug);
     expect(res.body.status).toBe("Published");
+    expect(res.body.paymentPolicy).toBe("OfflineFollowUp");
     expect(res.body.event?.id).toBe(eventId);
     expect(typeof res.body.pageUrl).toBe("string");
     expect(Array.isArray(res.body.ticketTypes)).toBe(true);
@@ -558,6 +588,7 @@ describe("events CRUD", () => {
     expect(res.status).toBe(201);
     expect(res.body.order?.orderNumber).toMatch(/^PUB-/);
     expect(res.body.order?.ticketType?.id ?? ticketTypeId).toBe(ticketTypeId);
+    expect(res.body.order?.status).toBe("PENDING");
     expect(Array.isArray(res.body.guests)).toBe(true);
     expect(res.body.guests).toHaveLength(1);
     expect(res.body.guests[0].checkinCode).toMatch(/^[A-Z0-9]{6,}$/);
@@ -598,6 +629,57 @@ describe("events CRUD", () => {
     expect(res.body.guests).toHaveLength(2);
     expect(res.body.guests.map((guest: { firstName?: string }) => guest.firstName)).toEqual(["Multi", "Multi"]);
     expect(res.body.guests.every((guest: { checkinCode?: string }) => /^[A-Z0-9]{6,}$/.test(guest.checkinCode ?? ""))).toBe(true);
+  });
+
+  it("supports no-payment public registration policy", async () => {
+    expect(eventId).toBeTruthy();
+    expect(savedEventPageSlug).toBeTruthy();
+    expect(ticketTypeId).toBeTruthy();
+
+    const policy = await request(app)
+      .patch(`/api/events/${eventId}/page-builder-config`)
+      .set(auth())
+      .send({
+        pageSlug: savedEventPageSlug,
+        status: "Published",
+        paymentPolicy: "NoPaymentRequired",
+      });
+
+    expect(policy.status).toBe(200);
+    expect(policy.body.paymentPolicy).toBe("NoPaymentRequired");
+
+    const res = await request(app)
+      .post(`/api/events/public/page/${encodeURIComponent(savedEventPageSlug)}/register`)
+      .send({
+        ticketTypeId,
+        quantity: 1,
+        consentAccepted: true,
+        attendees: [
+          {
+            firstName: "NoPay",
+            lastName: "Registrant",
+            email: `nopay-registrant-${Date.now()}@example.org`,
+          },
+        ],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.order?.status).toBe("CONFIRMED");
+    expect(res.body.order?.totalAmount).toBe(0);
+    expect(res.body.guests[0]?.paymentStatus).toBe("COMP");
+  });
+
+  it("tracks remaining ticket availability after staff and public registrations", async () => {
+    expect(eventId).toBeTruthy();
+    expect(ticketTypeId).toBeTruthy();
+
+    const res = await request(app)
+      .get(`/api/events/${eventId}/ticket-types`)
+      .set(auth());
+
+    expect(res.status).toBe(200);
+    const ticket = (res.body as Array<{ id: string; available?: number | null }>).find((row) => row.id === ticketTypeId);
+    expect(ticket?.available).toBe(144);
   });
 
   it("does not expose draft event pages publicly", async () => {

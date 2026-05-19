@@ -10,6 +10,7 @@ import type { StewardReportCardArtifact } from "@/app/components/ai/steward-arti
 
 interface Props {
   artifact: StewardReportCardArtifact;
+  onOpenReport?: (path: string, label?: string) => void;
 }
 
 // ─── Inline SVG Sparkline ──────────────────────────────────────────────────────
@@ -46,7 +47,7 @@ function SparkBar({ labels, values }: { labels: string[]; values: number[] }) {
               width={barW}
               height={barH}
               rx={2}
-              fill={isLast ? "#16a34a" : "#bbf7d0"}
+              fill={isLast ? "#22d3ee" : "#334155"}
             />
             {barCount <= 12 && labels[i] && (
               <text
@@ -71,7 +72,7 @@ function SparkBar({ labels, values }: { labels: string[]; values: number[] }) {
 function TrendIcon({ trend }: { trend?: "up" | "down" | "flat" }) {
   if (trend === "up") {
     return (
-      <svg className="h-3 w-3 text-emerald-600" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+      <svg className="h-3 w-3 text-cyan-300" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7 7 7" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18" />
       </svg>
@@ -89,38 +90,38 @@ function TrendIcon({ trend }: { trend?: "up" | "down" | "flat" }) {
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function ReportCardArtifactCard({ artifact }: Props) {
+export default function ReportCardArtifactCard({ artifact, onOpenReport }: Props) {
   const { title, fiscalYearLabel, metrics, deepLink, deepLinkLabel, chartData } = artifact;
 
   return (
-    <article className="rounded-xl border border-emerald-200 bg-white shadow-sm overflow-hidden">
+    <article className="overflow-hidden rounded-2xl border border-white/10 bg-[#0d1117] text-slate-200 shadow-[0_18px_50px_rgba(0,0,0,0.28)]">
       {/* Header */}
-      <header className="flex items-center justify-between gap-2 bg-emerald-50 px-3 py-2 border-b border-emerald-100">
+      <header className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.03] px-4 py-3">
         <div className="flex items-center gap-2">
           {/* Bar chart icon */}
-          <svg className="h-4 w-4 text-emerald-700 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+          <svg className="h-4 w-4 shrink-0 text-cyan-300" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 16V8m4 8v-5m4 5v-3" />
           </svg>
-          <h4 className="text-sm font-semibold text-emerald-900">{title || "CRM Report"}</h4>
+          <h4 className="text-sm font-semibold text-white">{title || "CRM Report"}</h4>
         </div>
-        <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[10px] text-emerald-700 font-medium">
+        <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[10px] font-medium text-cyan-100">
           {fiscalYearLabel ?? "Report"}
         </span>
       </header>
 
       {/* KPI metric tiles */}
       {metrics && metrics.length > 0 && (
-        <div className="grid grid-cols-2 gap-px bg-emerald-50/50 border-b border-emerald-100">
+        <div className="grid grid-cols-2 gap-px border-b border-white/10 bg-white/10">
           {metrics.map((m, i) => (
-            <div key={i} className="bg-white px-3 py-2.5">
-              <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide truncate">{m.label}</p>
-              <p className="mt-0.5 text-base font-bold text-slate-800 tabular-nums leading-tight">{m.value}</p>
+            <div key={i} className="bg-[#0d1117] px-4 py-3">
+              <p className="truncate text-[10px] font-medium uppercase tracking-wide text-slate-500">{m.label}</p>
+              <p className="mt-1 text-lg font-semibold leading-tight text-white tabular-nums">{m.value}</p>
               {(m.delta || m.trend) && (
                 <div className="mt-0.5 flex items-center gap-1">
                   <TrendIcon trend={m.trend} />
                   {m.delta && (
-                    <span className={`text-[10px] font-medium ${m.trend === "up" ? "text-emerald-600" : m.trend === "down" ? "text-rose-500" : "text-slate-400"}`}>
+                    <span className={`text-[10px] font-medium ${m.trend === "up" ? "text-cyan-300" : m.trend === "down" ? "text-rose-400" : "text-slate-500"}`}>
                       {m.delta}
                     </span>
                   )}
@@ -133,24 +134,37 @@ export default function ReportCardArtifactCard({ artifact }: Props) {
 
       {/* Optional sparkline chart */}
       {chartData && chartData.labels.length > 0 && (
-        <div className="px-3 py-2 border-b border-emerald-50">
-          <p className="text-[10px] font-medium text-slate-400 mb-1">Monthly giving</p>
+        <div className="border-b border-white/10 px-4 py-3">
+          <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-500">Monthly giving</p>
           <SparkBar labels={chartData.labels} values={chartData.values} />
         </div>
       )}
 
       {/* Deep link footer */}
       {deepLink && (
-        <div className="px-3 py-2 flex items-center justify-end">
-          <Link
-            href={deepLink}
-            className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-100 transition-colors"
-          >
-            {deepLinkLabel ?? "View Full Report"}
-            <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" />
-            </svg>
-          </Link>
+        <div className="flex items-center justify-end px-4 py-3">
+          {onOpenReport ? (
+            <button
+              type="button"
+              onClick={() => onOpenReport(deepLink, deepLinkLabel)}
+              className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:bg-white/10"
+            >
+              {deepLinkLabel ?? "View Full Report"}
+              <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+          ) : (
+            <Link
+              href={deepLink}
+              className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:bg-white/10"
+            >
+              {deepLinkLabel ?? "View Full Report"}
+              <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" />
+              </svg>
+            </Link>
+          )}
         </div>
       )}
     </article>

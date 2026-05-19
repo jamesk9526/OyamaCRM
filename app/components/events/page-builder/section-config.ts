@@ -55,9 +55,20 @@ const SOURCE_FIELD_MAP: Record<EventPageSectionId, string[]> = {
   footer: ["event.name", "event.location", "event.startDate"],
 };
 
-/** Creates default section state with event-data locking enabled. */
+/**
+ * Creates blank section state for a new event page.
+ * All text content is empty so staff build each page from scratch.
+ * Hero defaults to enabled; optional sections start hidden.
+ */
 export function createDefaultEventPageSectionState(): EventPageSectionState[] {
-  const optionalSections = new Set<EventPageSectionId>(["auction-preview", "donation-form", "video", "image-gallery", "documents", "volunteer-callout"]);
+  const optionalSections = new Set<EventPageSectionId>([
+    "auction-preview",
+    "donation-form",
+    "video",
+    "image-gallery",
+    "documents",
+    "volunteer-callout",
+  ]);
 
   return EVENT_PAGE_SECTION_DEFINITIONS.map((section) => {
     if (section.id === "hero") {
@@ -65,18 +76,19 @@ export function createDefaultEventPageSectionState(): EventPageSectionState[] {
         id: section.id,
         enabled: true,
         lockToEventData: true,
+        // Intentionally blank so every event page starts fresh — staff fill in their own content.
         content: {
-          kicker: "Join us for a night of hope",
+          kicker: "",
           title: "",
-          subtitle: "Gala 2027",
-          primaryButtonText: "Get Tickets",
+          subtitle: "",
+          primaryButtonText: "Register Now",
           primaryButtonLink: "#registration",
-          secondaryButtonText: "View Event Details",
+          secondaryButtonText: "Event Details",
           secondaryButtonLink: "#event-details",
         },
         design: {
           backgroundType: "image",
-          backgroundImageUrl: "https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?auto=format&fit=crop&w=1800&q=80",
+          backgroundImageUrl: "", // Staff uploads their own event photo
           backgroundColor: "#120c3b",
           overlayOpacity: 62,
           showScrollIndicator: true,
@@ -91,10 +103,8 @@ export function createDefaultEventPageSectionState(): EventPageSectionState[] {
       id: section.id,
       enabled: !optionalSections.has(section.id),
       lockToEventData: true,
-      content: {
-        heading: section.label,
-        body: section.description,
-      },
+      // No pre-filled content — staff add their own copy per event.
+      content: {},
       design: {
         accentColor: "#8b5cf6",
         textAlign: "left",

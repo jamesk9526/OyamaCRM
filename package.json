@@ -30,6 +30,7 @@
     "test:smoke:livecom": "vitest run tests/smoke/livecom-workflow.test.ts",
     "test:e2e": "node tests/e2e/ui-production-smoke.mjs",
     "test:e2e:events": "node tests/e2e/events-command-center.e2e.mjs",
+    "test:e2e:events-public": "node tests/e2e/events-public-page-builder.e2e.mjs",
     "test:e2e:auth": "node tests/e2e/auth.e2e.mjs",
     "test:e2e:watchdog": "node tests/e2e/watchdog.e2e.mjs",
     "test:e2e:setup-watchdog": "node tests/e2e/setup-watchdog-config.e2e.mjs",

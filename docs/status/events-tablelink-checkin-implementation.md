@@ -1,7 +1,7 @@
 # EventSTUDIO TableLink + Check-In Implementation Status
 
 Source plan: docs/oyamacrm-event-studio-tablelink-checkin-agent-instructions.md
-Last updated: 2026-05-18 (Phase 9 completed)
+Last updated: 2026-05-18 (Phase 10 testing started)
 
 ## Phase Status
 
@@ -14,7 +14,39 @@ Last updated: 2026-05-18 (Phase 9 completed)
 - Phase 7 - Guest self-entry flow: Done
 - Phase 8 - Check-In Studio redesign: Done
 - Phase 9 - Reporting and exports: Done
-- Phase 10 - Testing and documentation: Not Started
+- Phase 10 - Testing and documentation: In Progress
+
+## Phase 10 Testing Progress
+
+Implemented coverage:
+
+- `tests/api/events-tablelink-public.api.test.ts`
+  - Public host access denial and token verification.
+  - Locked-table edit/invite blocking.
+  - Host invite creation.
+  - Public guest self-entry completion.
+  - Seat detail refresh showing completed guest assignment.
+  - Cancelled and expired invite outcomes.
+- `tests/smoke/events-crud.test.ts`
+  - Staff order creation now provisions guest shells with check-in codes.
+  - Order status updates propagate RSVP/payment state to provisioned guests.
+  - Public page registration supports offline-payment and no-payment policies.
+  - Ticket availability is decremented by staff orders and public registrations.
+- `tests/e2e/events-public-page-builder.e2e.mjs`
+  - Browser setup creates a published event page from builder config.
+  - Public page renders the shared builder output.
+  - Public registration submits successfully and displays returned check-in code.
+
+Validation:
+
+- `pnpm exec vitest run tests/smoke/events-crud.test.ts`: successful (44 tests)
+- `pnpm exec vitest run tests/api/events-tablelink-public.api.test.ts`: successful (7 tests)
+- `pnpm typecheck`: successful
+
+Pending:
+
+- Run `pnpm test:e2e:events-public` against live local web/API servers.
+- Add browser coverage for TableLink host portal UI once the public portal UX is finalized.
 
 ## Phase 1 Deliverables (Completed)
 
@@ -367,7 +399,7 @@ Public portal capabilities delivered:
 
 Event command center replacement delivered:
 
-- `/events` now renders the EventSTUDIO project-library registry view by default via `app/components/events/EventsDashboard.tsx` -> `EventsRegistryPage`.
+- `/events` now renders the EventSTUDIO event-first selector by default via `app/components/events/EventsWorkspaceSelectorPage.tsx`; `/events/events` remains the project-library registry view.
 
 Additional shell/public routing support:
 

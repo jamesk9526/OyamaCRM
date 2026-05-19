@@ -21,10 +21,11 @@ function resolveModuleKey(raw: string | null): ModuleKey {
 export default function StewardAIWorkspace() {
   const searchParams = useSearchParams();
   const initialModule = useMemo(() => resolveModuleKey(searchParams.get("module")), [searchParams]);
+  const initialThreadId = useMemo(() => searchParams.get("thread") || undefined, [searchParams]);
 
   return (
     <div className="h-full min-h-0 overflow-hidden">
-      <AGENTStewardWorkspace initialModule={initialModule} />
+      <AGENTStewardWorkspace initialModule={initialModule} initialThreadId={initialThreadId} />
     </div>
   );
 }

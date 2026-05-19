@@ -1,4 +1,27 @@
-/** EventsWorkspaceSelectorPage — Event selection and discovery interface. */
+/**
+ * EventsWorkspaceSelectorPage — Event selection and discovery interface.
+ *
+ * This is the landing page for the Events CRM when no specific event is selected.
+ * It renders the event registry (all events) with summary metrics and journey overview cards.
+ *
+ * TODO: Replace the 4 summary metric cards with live data from /api/events/dashboard-summary
+ *       once that endpoint returns accurate cross-event totals. Currently some values
+ *       (volunteer hours, registered guest counts) are placeholders or approximations.
+ *       See EventsDashboardSummary type in types.ts for the expected shape.
+ *
+ * TODO: Add search/filter controls to the event list (filter by type, date range, status).
+ *       Large organizations will have 50+ events making scrolling impractical.
+ *       Consider a top search bar + type/status filter chips above the event grid.
+ *
+ * TODO: Add an "Active / Upcoming / Past" tab switcher or filter pill row above the event grid
+ *       instead of the current two static sections. This scales better with event volume.
+ *
+ * TODO: Add a quick "Duplicate event" action to each event card for organizations that
+ *       run recurring annual events (Gala 2024 → Gala 2025).
+ *
+ * TODO: Show a "last updated" or event health indicator per card (registration open/closed,
+ *       check-in status, page published) so staff can scan the registry for action items.
+ */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -30,6 +53,7 @@ export default function EventsWorkspaceSelectorPage() {
   const [summary, setSummary] = useState<EventsDashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNewEventModal, setShowNewEventModal] = useState(false);
+  const [selectedEventId, setSelectedEventId] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -63,6 +87,12 @@ export default function EventsWorkspaceSelectorPage() {
 
   function openEvent(eventId: string) {
     router.push(`/events/${eventId}/overview`);
+  }
+
+  /** Opens the selected event from the primary dropdown selector. */
+  function openSelectedEvent() {
+    if (!selectedEventId) return;
+    openEvent(selectedEventId);
   }
 
   // Helper: summary metric card
@@ -179,11 +209,57 @@ export default function EventsWorkspaceSelectorPage() {
       {/* Ribbon */}
       <WorkspaceRibbon>
         <WorkspaceRibbonGroup label="Tools">
+          <WorkspaceRibbonButton label="All Events" href="/events/events" accentTone="purple" />
           <WorkspaceRibbonButton label="Templates" href="/events/templates" accentTone="purple" />
           <WorkspaceRibbonButton label="Global Reports" href="/events/reports" accentTone="purple" />
           <WorkspaceRibbonButton label="Page Builder" href="/events/page-builder" accentTone="purple" />
         </WorkspaceRibbonGroup>
       </WorkspaceRibbon>
+
+      {/* Primary event selector */}
+      <section className="rounded-xl border border-violet-200 bg-white p-4 shadow-sm">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-end">
+          <div className="min-w-0">
+            <label
+              htmlFor="eventstudio-root-selector"
+              className="block text-xs font-semibold uppercase tracking-wide text-slate-500"
+            >
+              Select event workspace
+            </label>
+            <select
+              id="eventstudio-root-selector"
+              value={selectedEventId}
+              onChange={(event) => setSelectedEventId(event.target.value)}
+              disabled={loading || events.length === 0}
+              className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <option value="">
+                {loading ? "Loading events..." : events.length === 0 ? "No events found" : "Choose an event..."}
+              </option>
+              {events.map((event) => (
+                <option key={event.id} value={event.id}>
+                  {event.name} - {formatEventDate(event.startDate)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={openSelectedEvent}
+            disabled={!selectedEventId}
+            className="h-10 rounded-lg bg-violet-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Open Workspace
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowNewEventModal(true)}
+            className="h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700"
+          >
+            Create Event
+          </button>
+        </div>
+      </section>
 
       {/* Summary metrics */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

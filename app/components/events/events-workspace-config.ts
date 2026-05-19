@@ -17,10 +17,15 @@ export type EventWorkspaceTool =
   | "follow-up"
   | "settings";
 
+/** Journey stage labels used in sidebar grouping. */
+export type EventStage = "Plan" | "Fill" | "Fundraise" | "Run" | "Follow Up";
+
 export interface EventWorkspaceToolMeta {
   id: EventWorkspaceTool;
   label: string;
-  stage: "Plan" | "Fill" | "Fundraise" | "Run" | "Follow Up";
+  /** Emoji icon shown next to the tool label in the sidebar. */
+  icon: string;
+  stage: EventStage;
   description: string;
   status: EventToolStatus;
   routeSegment?: string;
@@ -28,10 +33,24 @@ export interface EventWorkspaceToolMeta {
   notes: string;
 }
 
+/**
+ * Maps each stage name to a display label and icon shown in the sidebar header row.
+ * Stages correspond to the nonprofit fundraising event journey:
+ *   Plan → Fill seats → Fundraise → Run the event → Follow up after
+ */
+export const STAGE_META: Record<EventStage, { label: string; icon: string; description: string }> = {
+  "Plan":       { label: "Plan",      icon: "📋", description: "Set up registration, pages, and seating" },
+  "Fill":       { label: "Fill",      icon: "👥", description: "Manage guests, tables, hosts, and sponsors" },
+  "Fundraise":  { label: "Fundraise", icon: "💰", description: "Donations, pledges, and email outreach" },
+  "Run":        { label: "Run",       icon: "🎪", description: "Live operations, check-in, and walk-ins" },
+  "Follow Up":  { label: "Follow Up", icon: "✅", description: "Reports, thank-yous, and post-event stewardship" },
+};
+
 export const EVENT_WORKSPACE_TOOLS: EventWorkspaceToolMeta[] = [
   {
     id: "overview",
     label: "Overview",
+    icon: "📊",
     stage: "Plan",
     description: "Event command center, readiness, goals, and next actions.",
     status: "Working",
@@ -41,6 +60,7 @@ export const EVENT_WORKSPACE_TOOLS: EventWorkspaceToolMeta[] = [
   {
     id: "registration",
     label: "Registration",
+    icon: "🎫",
     stage: "Plan",
     description: "Ticket types, free registration options, table tickets, and capacity rules.",
     status: "Working",
@@ -50,15 +70,17 @@ export const EVENT_WORKSPACE_TOOLS: EventWorkspaceToolMeta[] = [
   {
     id: "event-page",
     label: "Event Page",
+    icon: "🌐",
     stage: "Plan",
     description: "Hosted event page and campaign-page builder entry point.",
-    status: "Partially Working",
+    status: "Working",
     routeSegment: "event-page",
-    notes: "Event-scoped page builder workspace is available; persistence and publish history still need deeper backend coverage.",
+    notes: "Event-scoped builder has persistence, publish readiness, payment policy, deployment history, in-app preview, and public registration.",
   },
   {
     id: "guests",
     label: "Guests",
+    icon: "👥",
     stage: "Fill",
     description: "Registrant list, RSVP status, donor links, dietary notes, and check-in state.",
     status: "Working",
@@ -68,6 +90,7 @@ export const EVENT_WORKSPACE_TOOLS: EventWorkspaceToolMeta[] = [
   {
     id: "tables",
     label: "Tables",
+    icon: "🪑",
     stage: "Fill",
     description: "Structured seating list with capacity, open seats, and assignments.",
     status: "Working",
@@ -77,6 +100,7 @@ export const EVENT_WORKSPACE_TOOLS: EventWorkspaceToolMeta[] = [
   {
     id: "hosts",
     label: "Hosts",
+    icon: "🤝",
     stage: "Fill",
     description: "Table host portal links, host guest lists, and open-seat follow-up.",
     status: "Partially Working",
@@ -86,6 +110,7 @@ export const EVENT_WORKSPACE_TOOLS: EventWorkspaceToolMeta[] = [
   {
     id: "sponsors",
     label: "Sponsors",
+    icon: "💎",
     stage: "Fill",
     description: "Sponsor records, packages, fulfillment notes, and sponsor table context.",
     status: "Working",
@@ -95,6 +120,7 @@ export const EVENT_WORKSPACE_TOOLS: EventWorkspaceToolMeta[] = [
   {
     id: "donations",
     label: "Donations",
+    icon: "💳",
     stage: "Fundraise",
     description: "Event donations, pledges, recurring giving prospects, and giving follow-up.",
     status: "Partially Working",
@@ -104,6 +130,7 @@ export const EVENT_WORKSPACE_TOOLS: EventWorkspaceToolMeta[] = [
   {
     id: "emails",
     label: "Emails",
+    icon: "✉️",
     stage: "Fundraise",
     description: "Segmented event invitations, host reminders, sponsor thanks, and post-event follow-up.",
     status: "Partially Working",
@@ -113,6 +140,7 @@ export const EVENT_WORKSPACE_TOOLS: EventWorkspaceToolMeta[] = [
   {
     id: "check-in",
     label: "Check-In",
+    icon: "✅",
     stage: "Run",
     description: "Live arrival workflow for search, check-in, table assignment, and walk-ins.",
     status: "Working",
@@ -122,6 +150,7 @@ export const EVENT_WORKSPACE_TOOLS: EventWorkspaceToolMeta[] = [
   {
     id: "reports",
     label: "Reports",
+    icon: "📈",
     stage: "Follow Up",
     description: "Attendance, revenue, check-in rate, sponsor performance, and event outcomes.",
     status: "Working",
@@ -131,6 +160,7 @@ export const EVENT_WORKSPACE_TOOLS: EventWorkspaceToolMeta[] = [
   {
     id: "follow-up",
     label: "Follow-Up",
+    icon: "💌",
     stage: "Follow Up",
     description: "Thank-you tasks, pledge follow-up, monthly donor prospects, and Steward summaries.",
     status: "Partially Working",
@@ -140,6 +170,7 @@ export const EVENT_WORKSPACE_TOOLS: EventWorkspaceToolMeta[] = [
   {
     id: "settings",
     label: "Settings",
+    icon: "⚙️",
     stage: "Follow Up",
     description: "Event defaults, publishing controls, registration policy, and internal notes.",
     status: "Partially Working",
@@ -148,7 +179,7 @@ export const EVENT_WORKSPACE_TOOLS: EventWorkspaceToolMeta[] = [
   },
 ];
 
-export const EVENT_JOURNEY_STAGES: Array<EventWorkspaceToolMeta["stage"]> = [
+export const EVENT_JOURNEY_STAGES: EventStage[] = [
   "Plan",
   "Fill",
   "Fundraise",
@@ -156,24 +187,35 @@ export const EVENT_JOURNEY_STAGES: Array<EventWorkspaceToolMeta["stage"]> = [
   "Follow Up",
 ];
 
+/**
+ * Global Events CRM tools that operate outside a single selected event.
+ * These appear in the "Studio Tools" section at the bottom of the sidebar.
+ *
+ * TODO: Add a `status: EventToolStatus` field here once templates have full metadata bundle cloning,
+ *       so partial global tools can show amber dots like event-scoped tools.
+ */
 export const GLOBAL_EVENTS_TOOLS = [
   {
     label: "All Events",
+    icon: "🗓️",
     description: "Create, select, duplicate, archive, and review event records.",
     href: "/events/events",
   },
   {
     label: "Event Templates",
+    icon: "📄",
     description: "Reusable starting points for banquets, galas, campaigns, and open houses.",
     href: "/events/templates",
   },
   {
     label: "Global Reports",
+    icon: "📊",
     description: "Cross-event reporting across active and archived fundraising events.",
     href: "/events/reports",
   },
   {
     label: "Event Page Builder",
+    icon: "🌐",
     description: "Compatibility selector that routes staff into the scoped /events/[eventId]/event-page builder.",
     href: "/events/page-builder",
   },

@@ -146,7 +146,7 @@ interface BridgePairingKeyPayload {
 
 interface StewardAiChatPayload {
   messages?: StewardAiChatMessage[];
-  mode?: "ask" | "analyze" | "draft" | "action" | "help";
+  mode?: "ask" | "analyze" | "draft" | "writing" | "llm" | "action" | "help";
   moduleKey?: "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview";
   scopePath?: string;
   /** @mention-locked donors from the chat composer. Each entry provides a constituentId to load a full profile for. */
@@ -196,6 +196,12 @@ interface AiContextFilePayload {
 
 type StewardChatMode = NonNullable<StewardAiChatPayload["mode"]>;
 type StewardResponseIntent = "draft_email" | "how_to" | "action_plan" | "analysis" | "summary" | "general";
+type GuidePathState =
+  | "Ready to Act"
+  | "Needs Clarification"
+  | "Needs Confirmation"
+  | "Needs Guided Setup"
+  | "Cannot Safely Answer Yet";
 
 interface StewardContextResult {
   contextText: string;
@@ -270,7 +276,167 @@ const ALLOWED_SUGGESTED_ACTION_TYPES = new Set<string>([
   "tasks.create_follow_up_task",
   "letters.create_letter_draft",
   "letters.build_full_letter_draft",
+  "guidepath.choose",
 ]);
+
+function buildGuidePathChoice(label: string, prompt: string): StewardSuggestedActionPayload {
+  return {
+    label,
+    actionType: "guidepath.choose",
+    requiresConfirmation: false,
+    payload: { prompt },
+  };
+}
+
+/**
+ * GuidePath decision engine: asks only the minimum follow-up when intent is risky or underspecified.
+ * Returns null when Steward has enough context to proceed normally.
+ */
+function buildGuidePathClarification(options: {
+  mode: StewardChatMode;
+  moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>;
+  userQuery: string;
+}): { state: Exclude<GuidePathState, "Ready to Act">; structured: StewardStructuredResponsePayload } | null {
+  const q = options.userQuery.trim();
+  if (!q) return null;
+  const normalized = q.toLowerCase();
+
+  const asksReport = /(report|dashboard|summary|kpi|metrics|board report|analysis)/.test(normalized);
+  const hasTimeRange = /(today|this week|last week|this month|last month|this quarter|last quarter|year to date|ytd|fiscal|calendar|between|from\s+.+\s+to|q[1-4]|fy\s?\d{4})/.test(normalized);
+  const hasReportFocus = /(financial|revenue|donor|engagement|campaign|attendance|clients?|events?|board)/.test(normalized);
+
+  if (asksReport && (!hasTimeRange || !hasReportFocus)) {
+    const missing = !hasTimeRange ? "time period" : "report focus";
+    const question = !hasTimeRange
+      ? "What time period should this report cover?"
+      : "What should this report focus on?";
+    const choices = !hasTimeRange
+      ? [
+          buildGuidePathChoice("This month", "Use this month as the report timeframe and continue."),
+          buildGuidePathChoice("Last month", "Use last month as the report timeframe and continue."),
+          buildGuidePathChoice("This quarter", "Use this quarter as the report timeframe and continue."),
+          buildGuidePathChoice("Year to date", "Use year-to-date as the report timeframe and continue."),
+          buildGuidePathChoice("Custom range", "I want a custom date range for this report."),
+        ]
+      : [
+          buildGuidePathChoice("Financial totals", "Focus this report on financial totals and continue."),
+          buildGuidePathChoice("Donor engagement", "Focus this report on donor engagement and continue."),
+          buildGuidePathChoice("Campaign performance", "Focus this report on campaign performance and continue."),
+          buildGuidePathChoice("Attendance/operations", "Focus this report on attendance and operations and continue."),
+          buildGuidePathChoice("All of the above", "Include financial totals, engagement, and campaign performance in one board report."),
+        ];
+
+    return {
+      state: "Needs Guided Setup",
+      structured: {
+        version: 1,
+        replyMarkdown: [
+          "**GuidePath: Needs Guided Setup**",
+          `I can build this report, but one detail is missing: **${missing}**.",
+          "",
+          question,
+          "Choose one option below to continue.",
+        ].join("\n"),
+        artifacts: [],
+        suggestedActions: choices,
+        evidence: [{ label: "GuidePath classified request as Needs Guided Setup" }],
+      },
+    };
+  }
+
+  const asksComms = /(send|email|message|notify|thank.?you|appeal|reminder)/.test(normalized);
+  const hasAudience = /(all active|monthly|lapsed|attendees?|guests?|segment|group|campaign|recipients?|these donors|this list)/.test(normalized);
+  const hasTone = /(warm|formal|direct|celebratory|board-ready|ministry|tone)/.test(normalized);
+
+  if (asksComms && (!hasAudience || !hasTone)) {
+    const question = !hasAudience
+      ? "Which audience should this message apply to?"
+      : "Which tone should Steward use for this message?";
+    const choices = !hasAudience
+      ? [
+          buildGuidePathChoice("All active donors", "Use all active donors as the audience and continue."),
+          buildGuidePathChoice("Monthly donors only", "Use monthly donors only as the audience and continue."),
+          buildGuidePathChoice("Lapsed donors", "Use lapsed donors as the audience and continue."),
+          buildGuidePathChoice("Event attendees", "Use event attendees as the audience and continue."),
+          buildGuidePathChoice("Choose manually", "I want to choose the audience manually before continuing."),
+        ]
+      : [
+          buildGuidePathChoice("Warm and personal", "Use a warm and personal tone and continue."),
+          buildGuidePathChoice("Formal and board-ready", "Use a formal board-ready tone and continue."),
+          buildGuidePathChoice("Short and direct", "Use a short and direct tone and continue."),
+          buildGuidePathChoice("Ministry-centered", "Use a ministry-centered tone and continue."),
+          buildGuidePathChoice("Include donation history: Yes", "Include donation history in this message and continue."),
+          buildGuidePathChoice("Include donation history: No", "Do not include donation history in this message and continue."),
+        ];
+
+    return {
+      state: "Needs Clarification",
+      structured: {
+        version: 1,
+        replyMarkdown: [
+          "**GuidePath: Needs Clarification**",
+          "I can do that, but I need one detail first.",
+          "",
+          question,
+          "Choose an option below to continue quickly.",
+        ].join("\n"),
+        artifacts: [],
+        suggestedActions: choices,
+        evidence: [{ label: "GuidePath classified request as Needs Clarification" }],
+      },
+    };
+  }
+
+  const riskyMutation = /(delete|remove|erase|bulk\s+update|merge\s+records|trigger\s+automation|send\s+now|enroll\s+all|auto-?send)/.test(normalized);
+  if (riskyMutation) {
+    return {
+      state: "Needs Confirmation",
+      structured: {
+        version: 1,
+        replyMarkdown: [
+          "**GuidePath: Needs Confirmation**",
+          "This action may affect real CRM data or outbound communication.",
+          "I can proceed once you confirm the exact intent.",
+          "",
+          "Choose one option:",
+        ].join("\n"),
+        artifacts: [],
+        suggestedActions: [
+          buildGuidePathChoice("Continue", "Confirmed. Continue with this action exactly as requested."),
+          buildGuidePathChoice("Save as Draft", "Do not execute live changes. Prepare this as a draft instead."),
+          buildGuidePathChoice("Edit First", "I want to edit scope/recipients before continuing."),
+          buildGuidePathChoice("Cancel", "Cancel this action."),
+        ],
+        evidence: [{ label: "GuidePath classified request as Needs Confirmation" }],
+      },
+    };
+  }
+
+  const tooVague = /(do it|run it|make it|fix this|send this|use that)/.test(normalized) && normalized.length < 40;
+  if (tooVague) {
+    return {
+      state: "Cannot Safely Answer Yet",
+      structured: {
+        version: 1,
+        replyMarkdown: [
+          "**GuidePath: Cannot Safely Answer Yet**",
+          "I may guess wrong because the request is too ambiguous.",
+          "Tell me what this should apply to so I can proceed safely.",
+        ].join("\n"),
+        artifacts: [],
+        suggestedActions: [
+          buildGuidePathChoice("Donor CRM", "Apply this request to Donor CRM context."),
+          buildGuidePathChoice("Events CRM", "Apply this request to Events CRM context."),
+          buildGuidePathChoice("Compassion CRM", "Apply this request to Compassion CRM context."),
+          buildGuidePathChoice("Describe manually", "I will describe exactly what this should apply to."),
+        ],
+        evidence: [{ label: "GuidePath classified request as Cannot Safely Answer Yet" }],
+      },
+    };
+  }
+
+  return null;
+}
 
 function asSafeText(value: unknown, fallback = "", maxLength = 4000): string {
   if (typeof value !== "string") return fallback;
@@ -743,11 +909,12 @@ interface ReportCardResult {
 async function buildReportCardResult(context: StewardToolExecutionContext): Promise<ReportCardResult> {
   const toolsUsed: string[] = [];
 
-  const [summaryResult, monthlyResult] = await Promise.all([
+  const [summaryResult, monthlyResult, totalsSnapshotResult] = await Promise.all([
     executeStewardTool(context, "reports.runSummary", undefined),
     executeStewardTool(context, "reports.runGivingByMonth", undefined),
+    executeStewardTool(context, "reports.runTotalsSnapshot", undefined),
   ]);
-  toolsUsed.push(summaryResult.tool, monthlyResult.tool);
+  toolsUsed.push(summaryResult.tool, monthlyResult.tool, totalsSnapshotResult.tool);
 
   const s = summaryResult.result as {
     fiscalYearLabel?: string;
@@ -766,6 +933,14 @@ async function buildReportCardResult(context: StewardToolExecutionContext): Prom
     months?: Array<{ month: string; amount: number; count: number }>;
     totals?: { amount: number; count: number };
   };
+  const totalsSnapshot = totalsSnapshotResult.result as {
+    windows?: {
+      weekly?: { amount?: number; donorTotal?: number; giftCount?: number };
+      monthly?: { amount?: number; donorTotal?: number; giftCount?: number };
+      fiscalYtd?: { amount?: number; donorTotal?: number; giftCount?: number };
+      fiscalFullYear?: { amount?: number; donorTotal?: number; giftCount?: number };
+    };
+  };
 
   const fyLabel = s.fiscalYearLabel ?? "This Fiscal Year";
   const ytdRevenue = Number(s.ytdRevenue ?? 0);
@@ -777,6 +952,10 @@ async function buildReportCardResult(context: StewardToolExecutionContext): Prom
   const overdueTasks = Number(s.overdueTasks ?? 0);
 
   const months = m.months ?? [];
+  const weeklyTotal = Number(totalsSnapshot.windows?.weekly?.amount ?? weekRevenue);
+  const monthlyTotal = Number(totalsSnapshot.windows?.monthly?.amount ?? 0);
+  const fiscalTotal = Number(totalsSnapshot.windows?.fiscalYtd?.amount ?? ytdRevenue);
+  const donorTotal = Number(totalsSnapshot.windows?.fiscalYtd?.donorTotal ?? 0);
 
   const reportCardArtifact = {
     type: "report_card",
@@ -784,6 +963,10 @@ async function buildReportCardResult(context: StewardToolExecutionContext): Prom
     fiscalYearLabel: fyLabel,
     metrics: [
       { label: "YTD Revenue", value: fmtDollar(ytdRevenue), trend: "up" as const },
+      { label: "Fiscal Total", value: fmtDollar(fiscalTotal) },
+      { label: "Monthly Total", value: fmtDollar(monthlyTotal) },
+      { label: "Weekly Total", value: fmtDollar(weeklyTotal) },
+      { label: "Donor Total", value: donorTotal.toLocaleString() },
       { label: "YTD Gifts", value: ytdGiftCount.toLocaleString() },
       { label: "Grants Awarded", value: fmtDollar(ytdGrantAmount) },
       { label: "This Week", value: fmtDollar(weekRevenue) },
@@ -817,6 +1000,10 @@ async function buildReportCardResult(context: StewardToolExecutionContext): Prom
     `Here is the YTD fundraising summary for **${fyLabel}**:`,
     "",
     `- **Total revenue raised:** ${fmtDollar(ytdRevenue)} across ${ytdGiftCount} gifts`,
+    `- **Fiscal total (YTD):** ${fmtDollar(fiscalTotal)}`,
+    `- **Monthly total:** ${fmtDollar(monthlyTotal)}`,
+    `- **Weekly total:** ${fmtDollar(weeklyTotal)}`,
+    donorTotal > 0 ? `- **Donor total (YTD):** ${donorTotal.toLocaleString()} unique donors` : "",
     ytdGrantAmount > 0 ? `- **Grants awarded:** ${fmtDollar(ytdGrantAmount)}` : "",
     weekRevenue > 0 ? `- **This week:** ${fmtDollar(weekRevenue)} (${Number(s.weekGiftCount ?? 0)} gifts)` : "",
     `- **Constituents:** ${totalConstituents.toLocaleString()}`,
@@ -870,6 +1057,22 @@ function defaultNextStepsByMode(mode: StewardChatMode): string[] {
     ];
   }
 
+  if (mode === "writing") {
+    return [
+      "Choose one audience and tailor the first paragraph to that audience's motivation.",
+      "Validate names, campaign references, and gift facts before moving to review.",
+      "Save the draft to Communications or Letters for team approval.",
+    ];
+  }
+
+  if (mode === "llm") {
+    return [
+      "Convert the strongest recommendation into a concrete workflow or draft asset.",
+      "Cross-check important numbers against report views before sending externally.",
+      "Use follow-up prompts to refine one path into an executable action plan.",
+    ];
+  }
+
   if (mode === "action") {
     return [
       "Review the proposed steps and confirm the scope of impacted records.",
@@ -905,14 +1108,241 @@ function formatReplyByMode(options: {
   // Only append next steps when the reply itself does not already end with one.
   const cleaned = options.reply.trim() || "No summary was returned from the CRM data.";
   if (options.userIntent === "draft_email") {
-    return cleaned;
+    return normalizeDraftEmailMergeFields(cleaned);
   }
   const hasNextSteps = /next step|recommended|suggest|you can|you should/i.test(cleaned);
-  if (!hasNextSteps && (options.mode === "analyze" || options.mode === "ask")) {
+  if (!hasNextSteps && (options.mode === "analyze" || options.mode === "ask" || options.mode === "llm" || options.mode === "writing")) {
     const steps = defaultNextStepsByMode(options.mode);
     return `${cleaned}\n\n**What you can do next:**\n${steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}`;
   }
   return cleaned;
+}
+
+/** Normalizes common natural-language placeholders to canonical Email Builder merge fields. */
+function normalizeDraftEmailMergeFields(reply: string): string {
+  const replacements: Array<{ pattern: RegExp; token: string }> = [
+    { pattern: /`?\[\s*donor\s*name\s*\]`?/gi, token: "{{fullName}}" },
+    { pattern: /`?\[\s*full\s*name\s*\]`?/gi, token: "{{fullName}}" },
+    { pattern: /`?\[\s*first\s*name\s*\]`?/gi, token: "{{preferredName}}" },
+    { pattern: /`?\[\s*preferred\s*name\s*\]`?/gi, token: "{{preferredName}}" },
+    { pattern: /`?\[\s*amount\s*\]`?/gi, token: "{{lastGiftAmount}}" },
+    { pattern: /`?\[\s*gift\s*amount\s*\]`?/gi, token: "{{lastGiftAmount}}" },
+    { pattern: /`?\[\s*date\s*\]`?/gi, token: "{{lastGiftDate}}" },
+    { pattern: /`?\[\s*gift\s*date\s*\]`?/gi, token: "{{lastGiftDate}}" },
+    { pattern: /`?\[\s*campaign\s*name\s*\]`?/gi, token: "{{campaignName}}" },
+    { pattern: /`?\[\s*campaign\s*\]`?/gi, token: "{{campaignName}}" },
+    { pattern: /`?\[\s*organization\s*name\s*\]`?/gi, token: "{{organizationName}}" },
+    { pattern: /`?\[\s*staff\s*name\s*\]`?/gi, token: "{{staffName}}" },
+    { pattern: /`?\[\s*contact\s*information\s*\]`?/gi, token: "{{organizationName}}" },
+    { pattern: /`?\[\s*unsubscribe\s*url\s*\]`?/gi, token: "{{unsubscribeUrl}}" },
+    { pattern: /`?\[\s*manage\s*preferences\s*url\s*\]`?/gi, token: "{{managePreferencesUrl}}" },
+  ];
+
+  let normalized = reply;
+  for (const entry of replacements) {
+    normalized = normalized.replace(entry.pattern, entry.token);
+  }
+
+  return normalized;
+}
+
+interface DraftEmailParts {
+  subject: string;
+  previewText: string;
+  body: string;
+}
+
+/** Extracts strict email sections from AI output and repairs common markdown drift. */
+function parseDraftEmailParts(raw: string): DraftEmailParts {
+  const normalized = String(raw || "").replace(/\r\n/g, "\n").trim();
+  const lines = normalized.split("\n");
+
+  let subject = "";
+  let previewText = "";
+  const bodyLines: string[] = [];
+  let inBody = false;
+
+  for (const line of lines) {
+    const clean = line.trim();
+    const subjectMatch = clean.match(/^\**\s*subject\s*:\s*(.+)$/i);
+    const previewMatch = clean.match(/^\**\s*preview\s*text\s*:\s*(.+)$/i);
+    const bodyHeaderMatch = clean.match(/^\**\s*body\s*:\s*(.*)$/i);
+
+    if (subjectMatch) {
+      subject = subjectMatch[1]?.trim() || subject;
+      continue;
+    }
+
+    if (previewMatch) {
+      previewText = previewMatch[1]?.trim() || previewText;
+      continue;
+    }
+
+    if (bodyHeaderMatch) {
+      inBody = true;
+      const firstLine = bodyHeaderMatch[1]?.trim();
+      if (firstLine) bodyLines.push(firstLine);
+      continue;
+    }
+
+    if (inBody) {
+      bodyLines.push(line);
+      continue;
+    }
+  }
+
+  // Fallback: if no explicit body header, treat remaining content as body after removing known headers.
+  if (bodyLines.length === 0) {
+    const fallbackBody = lines
+      .filter((line) => !/^\**\s*(subject|preview\s*text)\s*:/i.test(line.trim()))
+      .join("\n")
+      .trim();
+    if (fallbackBody) bodyLines.push(fallbackBody);
+  }
+
+  const finalSubject = normalizeDraftEmailMergeFields(subject || "Thank You For Your Support");
+  const finalPreview = normalizeDraftEmailMergeFields(previewText || "A quick update on the impact your support is making.");
+  const finalBody = normalizeDraftEmailMergeFields(bodyLines.join("\n").trim() || "Dear {{preferredName}},\n\nThank you for your support.\n\nWith gratitude,\n{{organizationName}}");
+
+  return {
+    subject: finalSubject,
+    previewText: finalPreview,
+    body: finalBody,
+  };
+}
+
+/** Serializes parsed draft email parts into the strict Steward response contract shape. */
+function serializeDraftEmailParts(parts: DraftEmailParts): string {
+  return [
+    `Subject: ${parts.subject}`,
+    `Preview Text: ${parts.previewText}`,
+    "Body:",
+    parts.body,
+  ].join("\n\n");
+}
+
+/** Runs the dedicated draft email pipeline: draft -> thinking review -> strict formatting. */
+async function runDraftEmailPipeline(options: {
+  organizationId: string;
+  enabled: boolean;
+  config: ReturnType<typeof parseStewardAiConfig>;
+  mode: StewardChatMode;
+  userQuery: string;
+  contextText: string;
+  reasoningModel: string;
+}): Promise<{ content: string; model: string; toolsUsed: string[] }> {
+  const toolsUsed: string[] = [];
+
+  const draftPrompt = [
+    "You are Steward's first-pass email writer.",
+    "Write the donor email draft naturally and do not include tool names, JSON, or artifact blocks.",
+    "Do not add markdown emphasis around field labels.",
+    "Use merge fields for personalization: {{preferredName}}, {{fullName}}, {{lastGiftAmount}}, {{lastGiftDate}}, {{campaignName}}, {{organizationName}}, {{staffName}}, {{unsubscribeUrl}}, {{managePreferencesUrl}}.",
+    "Output sections in this order: Subject, Preview Text, Body.",
+    "User request:",
+    options.userQuery || "(empty query)",
+    "CRM context:",
+    options.contextText || "No retrieval context available.",
+  ].join("\n\n");
+
+  const firstPass = await withStewardAiTask(
+    {
+      organizationId: options.organizationId,
+      enabled: options.enabled,
+      config: options.config,
+      label: "Writing first-pass email draft",
+      status: "running_task",
+      fallbackOnError: true,
+    },
+    () => runStewardAiChat(
+      options.config,
+      [{ role: "system", content: draftPrompt }],
+      {
+        model: options.config.model,
+        temperature: 0.35,
+        maxTokens: 1400,
+      }
+    )
+  );
+  toolsUsed.push("email.pipeline.draft");
+
+  const reviewPrompt = [
+    "You are Steward's email quality reviewer (thinking pass).",
+    "Do not write a full replacement email.",
+    "Return exactly three sections:",
+    "1) Missing information",
+    "2) Tone and clarity issues",
+    "3) Formatting risks",
+    "Keep each section under 4 bullets.",
+    "User request:",
+    options.userQuery || "(empty query)",
+    "Draft to review:",
+    firstPass.content,
+  ].join("\n\n");
+
+  const reviewPass = await withStewardAiTask(
+    {
+      organizationId: options.organizationId,
+      enabled: options.enabled,
+      config: options.config,
+      label: "Running email thinking review",
+      status: "thinking",
+      fallbackOnError: true,
+    },
+    () => runStewardAiChat(
+      options.config,
+      [{ role: "system", content: reviewPrompt }],
+      {
+        model: options.reasoningModel,
+        temperature: 0.1,
+        maxTokens: 700,
+      }
+    )
+  );
+  toolsUsed.push("email.pipeline.review");
+
+  const formatterPrompt = [
+    "You are Steward's email formatter.",
+    "Reformat the draft into strict output with exactly these headers:",
+    "Subject:",
+    "Preview Text:",
+    "Body:",
+    "Do not include markdown bold markers around headers.",
+    "Do not include any additional sections.",
+    "Preserve merge fields and ensure placeholders use canonical tokens.",
+    "Original draft:",
+    firstPass.content,
+    "Reviewer notes:",
+    reviewPass.content,
+  ].join("\n\n");
+
+  const formatPass = await withStewardAiTask(
+    {
+      organizationId: options.organizationId,
+      enabled: options.enabled,
+      config: options.config,
+      label: "Formatting email output",
+      status: "running_task",
+      fallbackOnError: true,
+    },
+    () => runStewardAiChat(
+      options.config,
+      [{ role: "system", content: formatterPrompt }],
+      {
+        model: options.reasoningModel,
+        temperature: 0.05,
+        maxTokens: 1200,
+      }
+    )
+  );
+  toolsUsed.push("email.pipeline.format");
+
+  const parsed = parseDraftEmailParts(formatPass.content || firstPass.content);
+  return {
+    content: serializeDraftEmailParts(parsed),
+    model: formatPass.model || firstPass.model,
+    toolsUsed,
+  };
 }
 
 function buildTopDonorStructuredResponse(result: TopDonorResult, templatedReply: string): StewardStructuredResponsePayload {
@@ -969,12 +1399,62 @@ function buildFallbackReplyFromContext(options: {
     ].filter(Boolean).join("\n\n");
   }
 
+  const isDraftAsk = /(thank\s*you|draft|write|email|letter|message)/i.test(options.userQuery);
+  const clarificationQuestions = isDraftAsk
+    ? [
+        "Who should this message be addressed to (full donor name)?",
+        "What specific gift or impact should be acknowledged?",
+        "Which tone do you want (warm, formal, celebratory, concise)?",
+      ]
+    : [
+        "What exact outcome do you want from this response?",
+        "Do you want a summary, analysis, or an executable action plan?",
+        "Should I optimize for quick decisions or deeper diagnostics?",
+      ];
+
   return [
     "The AI model did not return a response, but here is what the CRM currently shows for your question:",
     options.userQuery ? `> ${options.userQuery}` : "",
     contextLines.map((line) => `- ${line.replace(/^-\s*/, "")}`).join("\n"),
-    "**What you can do next:** Open the relevant records directly, or re-ask once AI connectivity is restored.",
+    "**Recovery mode:** I can continue now if you answer these quick questions:",
+    clarificationQuestions.map((question, idx) => `${idx + 1}. ${question}`).join("\n"),
+    "**What you can do next:** Answer the questions above for an immediate recovery response, or re-ask once AI connectivity is restored.",
   ].filter(Boolean).join("\n\n");
+}
+
+/** Attempts a non-stream rescue completion after an empty assistant response. */
+async function runRescueCompletion(options: {
+  config: ReturnType<typeof parseStewardAiConfig>;
+  mode: StewardChatMode;
+  userQuery: string;
+  contextText: string;
+  normalizedMessages: StewardAiChatMessage[];
+}): Promise<{ content: string; model: string }> {
+  const rescuePrompt = [
+    "You are Steward rescue mode.",
+    "The prior generation returned empty output.",
+    "Produce a useful response now using available CRM context.",
+    "If required details are missing, ask at most 3 concise clarification questions.",
+    "Do not mention internal tools or system failures.",
+    `Chat mode: ${options.mode}`,
+    "User query:",
+    options.userQuery || "(empty query)",
+    "CRM context:",
+    options.contextText || "No retrieval context available.",
+  ].join("\n\n");
+
+  return runStewardAiChat(
+    options.config,
+    [
+      { role: "system", content: rescuePrompt },
+      ...options.normalizedMessages,
+    ],
+    {
+      model: resolveThinkingModel(options.config),
+      temperature: 0.1,
+      maxTokens: 1000,
+    }
+  );
 }
 
 /** Picks the effective thinking model, falling back to the primary model when unset. */
@@ -996,7 +1476,7 @@ function extractFiscalYearFromContext(contextText: string): { fiscalYearLabel?: 
 function detectStewardIntent(userQuery: string, mode: StewardChatMode): StewardResponseIntent {
   const q = userQuery.toLowerCase();
 
-  if (mode === "draft" || /(draft|write|compose|create)\s+.*\b(email|letter|message)\b/.test(q)) {
+  if (mode === "draft" || mode === "writing" || /(draft|write|compose|create)\s+.*\b(email|letter|message)\b/.test(q)) {
     return "draft_email";
   }
   if (mode === "help" || /(how\s+do\s+i|how\s+to|where\s+is|steps?\s+to|walk\s+me\s+through)/.test(q)) {
@@ -1024,6 +1504,8 @@ function buildIntentResponseContract(intent: StewardResponseIntent): string {
       "Preview Text: <single line>",
       "Body:",
       "<email body in natural paragraphs>",
+      "Do not wrap Subject/Preview Text/Body labels in markdown bold or special characters.",
+      "Use Email Builder merge fields when personal or gift data is needed: {{preferredName}}, {{fullName}}, {{lastGiftAmount}}, {{lastGiftDate}}, {{campaignName}}, {{organizationName}}, {{staffName}}, {{unsubscribeUrl}}, {{managePreferencesUrl}}.",
       "Do not output donor data tables, tool traces, record dumps, JSON, or bullet lists of raw CRM fields.",
       "Use only facts needed for the draft and keep placeholders explicit only when data is missing.",
     ].join("\n");
@@ -1232,6 +1714,31 @@ function buildMetaReflectionPrompt(options: {
   ].join("\n\n");
 }
 
+/** Builds a second-order meta reflection prompt to harden instruction-following under uncertainty. */
+function buildMetaMetaReflectionPrompt(options: {
+  userIntent: StewardResponseIntent;
+  responseContract: string;
+  userQuery: string;
+  metaNotes: string;
+}): string {
+  return [
+    "You are Steward's second-pass meta validator (meta-meta).",
+    "Do not answer the user directly.",
+    `Intent: ${options.userIntent}`,
+    "Required response contract:",
+    options.responseContract,
+    "Return exactly three sections:",
+    "1) Hidden failure modes",
+    "2) Ambiguity you must surface",
+    "3) Recovery strategy if model output is sparse",
+    "Each section max 4 bullets.",
+    "User query:",
+    options.userQuery || "(empty query)",
+    "Meta notes from prior pass:",
+    options.metaNotes || "(none)",
+  ].join("\n\n");
+}
+
 /** Runs agentic planning + reasoning stages when enabled and returns summary artifacts. */
 async function buildAgenticPreparation(options: {
   organizationId: string;
@@ -1404,6 +1911,39 @@ async function buildAgenticPreparation(options: {
     stageSummaries.push(`Meta Notes:\n${metaResult.content}`);
     toolsUsed.push("agentic.meta");
 
+    const metaMetaResult = await withStewardAiTask(
+      {
+        organizationId: options.organizationId,
+        enabled: options.enabled,
+        config: options.config,
+        label: "Running meta-meta resilience check",
+        status: "thinking",
+        fallbackOnError: true,
+      },
+      () => runStewardAiChat(
+        options.config,
+        [
+          {
+            role: "system",
+            content: buildMetaMetaReflectionPrompt({
+              userIntent: options.userIntent,
+              responseContract: options.responseContract,
+              userQuery: options.userQuery,
+              metaNotes: metaResult.content,
+            }),
+          },
+        ],
+        {
+          model: reasoningModel,
+          temperature: 0.05,
+          maxTokens: 600,
+        }
+      )
+    );
+
+    stageSummaries.push(`Meta-Meta Notes:\n${metaMetaResult.content}`);
+    toolsUsed.push("agentic.meta2");
+
     return {
       reasoningModel,
       stageSummaries,
@@ -1436,6 +1976,11 @@ function buildRuntimeSystemPrompt(options: {
   const actionPolicy = options.mode === "action"
     ? "Action mode policy: do not claim an action is executed. Propose explicit steps, required confirmations, and rollback considerations."
     : "Non-action policy: provide read-first analysis and practical next steps.";
+  const modeSpecificPolicy = options.mode === "writing"
+    ? "Writing mode policy: prioritize strong writing quality, voice, and structure. Deliver polished draft-ready content first, then supporting rationale briefly."
+    : options.mode === "llm"
+      ? "LLM mode policy: allow broader brainstorming and synthesis while staying grounded in retrieved CRM context; when context is missing, explicitly label uncertainty."
+      : "";
 
   const moduleLexicon = options.moduleKey === "compassion"
     ? "Use client-care terminology (client, case, appointment, follow-up). Avoid donor fundraising terms unless explicitly requested."
@@ -1470,6 +2015,7 @@ function buildRuntimeSystemPrompt(options: {
       ? `Current fiscal year: ${options.fiscalYearLabel}. Calendar year: ${options.calendarYear ?? new Date().getFullYear()}.`
       : `Calendar year: ${options.calendarYear ?? new Date().getFullYear()}.`,
     actionPolicy,
+    modeSpecificPolicy,
     moduleLexicon,
     "CRITICAL OUTPUT RULES — follow these exactly:",
     "1. Write your answer in natural, flowing prose. Do not create sections labeled 'Evidence:', 'Tool:', 'Record:', or 'Sources:'.",
@@ -3080,8 +3626,34 @@ router.post("/chat/stream", async (req, res) => {
     res.write(`${JSON.stringify({ type: "thinking", delta })}\n`);
   }
 
+  const guidePath = buildGuidePathClarification({
+    mode,
+    moduleKey,
+    userQuery: latestUserMessage,
+  });
+
+  if (guidePath) {
+    const toolsUsed = ["guidepath.classifier", ...(explicitSavedMemory ? ["memory.saveExplicit"] : [])];
+    res.write(`${JSON.stringify({ type: "chunk", delta: guidePath.structured.replyMarkdown })}\n`);
+    res.write(`${JSON.stringify({
+      type: "done",
+      reply: guidePath.structured.replyMarkdown,
+      structured: guidePath.structured,
+      model: config.model,
+      mode,
+      runtimeMode: config.mode,
+      provider: "guidepath",
+      toolsUsed,
+      recordsUsed: [],
+      moduleKey,
+      scopePath,
+    })}\n`);
+    res.end();
+    return;
+  }
+
   try {
-    if (moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
+    if (mode !== "llm" && moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
       writeProgress("Looking up top donor records…");
       const topDonorResult = await buildTopDonorResult({
         organizationId,
@@ -3118,7 +3690,7 @@ router.post("/chat/stream", async (req, res) => {
       return;
     }
 
-    if (moduleKey === "donor" && isReportQuestion(latestUserMessage)) {
+    if (mode !== "llm" && moduleKey === "donor" && isReportQuestion(latestUserMessage)) {
       writeProgress("Running YTD giving report…");
       const reportResult = await buildReportCardResult({
         organizationId,
@@ -3225,50 +3797,88 @@ router.post("/chat/stream", async (req, res) => {
 
     writeProgress("Drafting a response…");
 
-    try {
-      completion = await withStewardAiTask(
-        {
-          organizationId,
-          enabled: Boolean(setting?.enabled),
-          config,
-          label: "Generating donor engagement recommendations",
-          status: "running_task",
-          fallbackOnError: true,
-        },
-        () => runStewardAiChatStream(
-          config,
-          [
-            { role: "system", content: runtimeSystemPrompt },
-            ...normalizedMessages,
-          ],
-          {
-            onDelta: (delta) => {
-              res.write(`${JSON.stringify({ type: "chunk", delta })}\n`);
-            },
-            onThinkingDelta: (delta) => {
-              writeThinking(delta);
-            },
-          }
-        )
-      );
-    } catch (streamError) {
-      const message = streamError instanceof Error ? streamError.message : "";
-      if (!/empty assistant response/i.test(message)) {
-        throw streamError;
-      }
-
+    if (userIntent === "draft_email") {
+      writeProgress("Writing first-pass email draft…");
+      const emailPipeline = await runDraftEmailPipeline({
+        organizationId,
+        enabled: Boolean(setting?.enabled),
+        config,
+        mode,
+        userQuery: latestUserMessage,
+        contextText: modelContextText,
+        reasoningModel: agenticPreparation.reasoningModel,
+      });
       completion = {
-        content: buildFallbackReplyFromContext({
-          mode,
-          moduleKey,
-          scopePath,
-          userQuery: latestUserMessage,
-          retrieval,
-        }),
-        model: config.model,
+        content: emailPipeline.content,
+        model: emailPipeline.model,
       };
-      provider = "crm-fallback";
-      toolsUsed.push("fallback.emptyAssistantResponse");
+      provider = "ollama-email-pipeline";
+      toolsUsed.push(...emailPipeline.toolsUsed);
+      if (completion.content?.trim()) {
+        res.write(`${JSON.stringify({ type: "chunk", delta: completion.content })}\n`);
+      }
+    } else {
+      try {
+        completion = await withStewardAiTask(
+          {
+            organizationId,
+            enabled: Boolean(setting?.enabled),
+            config,
+            label: "Generating donor engagement recommendations",
+            status: "running_task",
+            fallbackOnError: true,
+          },
+          () => runStewardAiChatStream(
+            config,
+            [
+              { role: "system", content: runtimeSystemPrompt },
+              ...normalizedMessages,
+            ],
+            {
+              onDelta: (delta) => {
+                res.write(`${JSON.stringify({ type: "chunk", delta })}\n`);
+              },
+              onThinkingDelta: (delta) => {
+                writeThinking(delta);
+              },
+            }
+          )
+        );
+      } catch (streamError) {
+        const message = streamError instanceof Error ? streamError.message : "";
+        if (!/empty assistant response/i.test(message)) {
+          throw streamError;
+        }
+
+        writeProgress("Primary model returned empty output; attempting recovery generation…");
+        try {
+          completion = await runRescueCompletion({
+            config,
+            mode,
+            userQuery: latestUserMessage,
+            contextText: modelContextText,
+            normalizedMessages,
+          });
+          provider = "ollama-recovery";
+          toolsUsed.push("fallback.recoveryCompletion");
+          if (completion.content?.trim()) {
+            res.write(`${JSON.stringify({ type: "chunk", delta: completion.content })}\n`);
+          }
+        } catch {
+          completion = {
+            content: buildFallbackReplyFromContext({
+              mode,
+              moduleKey,
+              scopePath,
+              userQuery: latestUserMessage,
+              retrieval,
+            }),
+            model: config.model,
+          };
+          provider = "crm-fallback";
+          toolsUsed.push("fallback.emptyAssistantResponse");
+        }
+      }
     }
 
     const parsedStructured = normalizeStewardStructuredResponse(completion.content, {
@@ -3410,8 +4020,33 @@ router.post("/chat", async (req, res) => {
     });
   }
 
+  const guidePath = buildGuidePathClarification({
+    mode,
+    moduleKey,
+    userQuery: latestUserMessage,
+  });
+
+  if (guidePath) {
+    const toolsUsed = ["guidepath.classifier", ...(explicitSavedMemory ? ["memory.saveExplicit"] : [])];
+    res.json({
+      data: {
+        reply: guidePath.structured.replyMarkdown,
+        structured: guidePath.structured,
+        model: config.model,
+        mode,
+        runtimeMode: config.mode,
+        provider: "guidepath",
+        toolsUsed,
+        recordsUsed: [],
+        moduleKey,
+        scopePath,
+      },
+    });
+    return;
+  }
+
   try {
-    if (moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
+    if (mode !== "llm" && moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
       const topDonorResult = await buildTopDonorResult({
         organizationId,
         userId: req.user?.sub ?? "",
@@ -3446,7 +4081,7 @@ router.post("/chat", async (req, res) => {
       return;
     }
 
-    if (moduleKey === "donor" && isReportQuestion(latestUserMessage)) {
+    if (mode !== "llm" && moduleKey === "donor" && isReportQuestion(latestUserMessage)) {
       const reportResult = await buildReportCardResult({
         organizationId,
         userId: req.user?.sub ?? "",
@@ -3525,39 +4160,69 @@ router.post("/chat", async (req, res) => {
     let provider = agenticPreparation.stageSummaries.length > 0 ? "ollama-agentic" : "ollama";
     let completion: { content: string; model: string };
 
-    try {
-      completion = await withStewardAiTask(
-        {
-          organizationId,
-          enabled: Boolean(setting?.enabled),
-          config,
-          label: "Generating donor engagement recommendations",
-          status: "running_task",
-          fallbackOnError: true,
-        },
-        () => runStewardAiChat(config, [
-          { role: "system", content: runtimeSystemPrompt },
-          ...normalizedMessages,
-        ])
-      );
-    } catch (chatError) {
-      const message = chatError instanceof Error ? chatError.message : "";
-      if (!/empty assistant response/i.test(message)) {
-        throw chatError;
-      }
-
+    if (userIntent === "draft_email") {
+      const emailPipeline = await runDraftEmailPipeline({
+        organizationId,
+        enabled: Boolean(setting?.enabled),
+        config,
+        mode,
+        userQuery: latestUserMessage,
+        contextText: modelContextText,
+        reasoningModel: agenticPreparation.reasoningModel,
+      });
       completion = {
-        content: buildFallbackReplyFromContext({
-          mode,
-          moduleKey,
-          scopePath,
-          userQuery: latestUserMessage,
-          retrieval,
-        }),
-        model: config.model,
+        content: emailPipeline.content,
+        model: emailPipeline.model,
       };
-      provider = "crm-fallback";
-      toolsUsed.push("fallback.emptyAssistantResponse");
+      provider = "ollama-email-pipeline";
+      toolsUsed.push(...emailPipeline.toolsUsed);
+    } else {
+      try {
+        completion = await withStewardAiTask(
+          {
+            organizationId,
+            enabled: Boolean(setting?.enabled),
+            config,
+            label: "Generating donor engagement recommendations",
+            status: "running_task",
+            fallbackOnError: true,
+          },
+          () => runStewardAiChat(config, [
+            { role: "system", content: runtimeSystemPrompt },
+            ...normalizedMessages,
+          ])
+        );
+      } catch (chatError) {
+        const message = chatError instanceof Error ? chatError.message : "";
+        if (!/empty assistant response/i.test(message)) {
+          throw chatError;
+        }
+
+        try {
+          completion = await runRescueCompletion({
+            config,
+            mode,
+            userQuery: latestUserMessage,
+            contextText: modelContextText,
+            normalizedMessages,
+          });
+          provider = "ollama-recovery";
+          toolsUsed.push("fallback.recoveryCompletion");
+        } catch {
+          completion = {
+            content: buildFallbackReplyFromContext({
+              mode,
+              moduleKey,
+              scopePath,
+              userQuery: latestUserMessage,
+              retrieval,
+            }),
+            model: config.model,
+          };
+          provider = "crm-fallback";
+          toolsUsed.push("fallback.emptyAssistantResponse");
+        }
+      }
     }
 
     const parsedStructured = normalizeStewardStructuredResponse(completion.content, {

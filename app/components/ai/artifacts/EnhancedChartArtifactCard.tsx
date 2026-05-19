@@ -39,7 +39,7 @@ function safeValue(v: TooltipEntry["value"]): string {
   return fmtValue(v as number | string);
 }
 
-const DEFAULT_COLOURS = ["#16a34a", "#2563eb", "#d97706", "#db2777", "#7c3aed", "#0891b2"];
+const DEFAULT_COLOURS = ["#22d3ee", "#60a5fa", "#a78bfa", "#34d399", "#f472b6", "#fbbf24"];
 
 function fmtValue(v: number | string): string {
   if (typeof v === "string") return v;
@@ -56,13 +56,13 @@ function CustomTooltip(props: { active?: boolean; payload?: readonly TooltipEntr
   if (!active || !payload || payload.length === 0) return null;
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
+    <div className="rounded-lg border border-white/10 bg-[#0d1117] p-2 shadow-xl">
       {payload.map((entry, i) => (
         <div key={i} className="text-xs">
           <span style={{ color: entry.color ?? "#000" }} className="font-semibold">
             {entry.name ?? "Value"}:{" "}
           </span>
-          <span className="text-slate-700">
+          <span className="text-slate-200">
             {yAxisPrefix}
             {safeValue(entry.value)}
           </span>
@@ -98,7 +98,7 @@ function BarChartRenderer({
   return (
     <ResponsiveContainer width="100%" height={280}>
       <RechartBar data={data} margin={{ top: 20, right: 30, left: 0, bottom: 40 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.18)" />
         <XAxis
           dataKey="name"
           angle={-45}
@@ -108,14 +108,14 @@ function BarChartRenderer({
         />
         <YAxis
           tick={{ fontSize: 12, fill: "#94a3b8" }}
-          label={{ value: yAxisPrefix ? `${yAxisPrefix} Value` : "Value", angle: -90, position: "insideLeft" }}
+          label={{ value: yAxisPrefix ? `${yAxisPrefix} Value` : "Value", angle: -90, position: "insideLeft", fill: "#94a3b8" }}
         />
         <Tooltip
           content={({ active, payload }) => (
             <CustomTooltip active={active} payload={payload} yAxisPrefix={yAxisPrefix} />
           )}
         />
-        <Legend wrapperStyle={{ paddingTop: "16px" }} />
+        <Legend wrapperStyle={{ paddingTop: "16px", color: "#cbd5e1" }} />
         {series.map((s, i) => (
           <Bar
             key={s.name}
@@ -154,7 +154,7 @@ function LineChartRenderer({
   return (
     <ResponsiveContainer width="100%" height={280}>
       <RechartLine data={data} margin={{ top: 20, right: 30, left: 0, bottom: 40 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.18)" />
         <XAxis
           dataKey="name"
           angle={-45}
@@ -164,14 +164,14 @@ function LineChartRenderer({
         />
         <YAxis
           tick={{ fontSize: 12, fill: "#94a3b8" }}
-          label={{ value: yAxisPrefix ? `${yAxisPrefix} Value` : "Value", angle: -90, position: "insideLeft" }}
+          label={{ value: yAxisPrefix ? `${yAxisPrefix} Value` : "Value", angle: -90, position: "insideLeft", fill: "#94a3b8" }}
         />
         <Tooltip
           content={({ active, payload }) => (
             <CustomTooltip active={active} payload={payload} yAxisPrefix={yAxisPrefix} />
           )}
         />
-        <Legend wrapperStyle={{ paddingTop: "16px" }} />
+        <Legend wrapperStyle={{ paddingTop: "16px", color: "#cbd5e1" }} />
         {series.map((s, i) => (
           <Line
             key={s.name}
@@ -242,9 +242,9 @@ function PieChartRenderer({
             const num = typeof val === "number" ? val : 0;
             return `${yAxisPrefix}${fmtValue(num)}`;
           }}
-          contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", background: "white" }}
+          contentStyle={{ borderRadius: "8px", border: "1px solid rgba(255,255,255,0.12)", background: "#0d1117", color: "#e5e7eb" }}
         />
-        <Legend wrapperStyle={{ paddingTop: "16px" }} />
+        <Legend wrapperStyle={{ paddingTop: "16px", color: "#cbd5e1" }} />
       </RechartPie>
     </ResponsiveContainer>
   );
@@ -302,53 +302,56 @@ export default function EnhancedChartArtifactCard({ artifact }: Props) {
   })();
 
   return (
-    <article className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 space-y-3">
+    <article className="space-y-3 rounded-2xl border border-white/10 bg-[#0d1117] p-4 text-slate-200 shadow-[0_18px_50px_rgba(0,0,0,0.28)]">
       <header className="flex items-center justify-between gap-2">
-        <h4 className="text-sm font-semibold text-blue-900">{artifact.title || "Chart"}</h4>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300/80">Interactive Chart</p>
+          <h4 className="mt-1 text-sm font-semibold text-white">{artifact.title || "Chart"}</h4>
+        </div>
         <div className="flex items-center gap-2">
-          <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5 text-[11px] text-blue-700">
+          <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[11px] text-cyan-100">
             {artifact.chartType.replace("_", " ")}
           </span>
           <button
             onClick={() => setShowDetails(!showDetails)}
-            className="text-xs text-blue-700 hover:text-blue-900 font-medium"
+            className="text-xs font-medium text-slate-400 hover:text-white"
           >
             {showDetails ? "Hide" : "Details"}
           </button>
         </div>
       </header>
 
-      {artifact.description && <p className="text-xs text-blue-800">{artifact.description}</p>}
+      {artifact.description && <p className="text-xs leading-5 text-slate-400">{artifact.description}</p>}
 
       {/* Chart container */}
-      <div className="rounded-lg border border-blue-100 bg-white p-3 overflow-hidden">
+      <div className="overflow-hidden rounded-xl border border-white/10 bg-black/25 p-3">
         {chartComponent}
       </div>
 
       {/* Details panel */}
       {showDetails && (
-        <div className="rounded-lg border border-blue-200 bg-white p-3 space-y-2">
-          <p className="text-[11px] font-semibold text-blue-900 uppercase tracking-wide">Data Details</p>
+        <div className="space-y-2 rounded-xl border border-white/10 bg-black/25 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-cyan-200">Data Details</p>
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div>
-              <span className="text-blue-700 font-medium">Total</span>
-              <p className="text-slate-700 font-semibold">{artifact.yAxisPrefix}{fmtValue(totalValue)}</p>
+              <span className="font-medium text-slate-500">Total</span>
+              <p className="font-semibold text-white">{artifact.yAxisPrefix}{fmtValue(totalValue)}</p>
             </div>
             <div>
-              <span className="text-blue-700 font-medium">Series</span>
-              <p className="text-slate-700 font-semibold">{artifact.series.length}</p>
+              <span className="font-medium text-slate-500">Series</span>
+              <p className="font-semibold text-white">{artifact.series.length}</p>
             </div>
             {!isPie && !isDonut && (
               <div>
-                <span className="text-blue-700 font-medium">Periods</span>
-                <p className="text-slate-700 font-semibold">{artifact.labels.length}</p>
+                <span className="font-medium text-slate-500">Periods</span>
+                <p className="font-semibold text-white">{artifact.labels.length}</p>
               </div>
             )}
           </div>
 
           {/* Series legend */}
           <div className="space-y-1">
-            <p className="text-[11px] font-semibold text-blue-900 uppercase tracking-wide">Series</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-cyan-200">Series</p>
             <div className="flex flex-wrap gap-2">
               {artifact.series.map((s, i) => (
                 <div key={i} className="flex items-center gap-1">
@@ -356,7 +359,7 @@ export default function EnhancedChartArtifactCard({ artifact }: Props) {
                     className="w-2 h-2 rounded-full"
                     style={{ backgroundColor: s.color ?? DEFAULT_COLOURS[i % DEFAULT_COLOURS.length] }}
                   />
-                  <span className="text-xs text-slate-700">{s.name}</span>
+                  <span className="text-xs text-slate-300">{s.name}</span>
                 </div>
               ))}
             </div>

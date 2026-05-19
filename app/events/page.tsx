@@ -1,10 +1,11 @@
-/** Events CRM dashboard route. */
+/** Events CRM module root route. */
 
-import EventsDashboard from "@/app/components/events/EventsDashboard";
+import EventsWorkspaceSelectorPage from "@/app/components/events/EventsWorkspaceSelectorPage";
 
 /**
- * EventsPage is the module root for Events CRM and renders the command-center dashboard.
+ * EventsPage is the EventSTUDIO first-entry surface and requires staff to choose an event
+ * before moving into event-scoped operations.
  */
 export default function EventsPage() {
-  return <EventsDashboard />;
+  return <EventsWorkspaceSelectorPage />;
 }

@@ -23,6 +23,7 @@ import { resolveOrganizationId } from "../lib/organization.js";
 import { donationOrgWhere } from "../lib/donationScope.js";
 import { getFiscalYTDRange, normalizeFiscalYearStart } from "../lib/dateRanges.js";
 import { executeStewardPathsForTrigger } from "../services/stewardPathsEngine.js";
+import { createOrganizationEmailSender } from "../services/smtp-service.js";
 
 const router = Router();
 
@@ -1681,5 +1682,266 @@ router.delete("/:id", async (req, res) => {
 
   res.status(204).send();
 });
+
+// ---------------------------------------------------------------------------
+// Email From Template quick-action routes
+// ---------------------------------------------------------------------------
+
+/** Replaces {{token}} merge vars in a string with the provided values. */
+function substituteTokens(text: string, vars: Record<string, string>): string {
+  return text.replace(/{\{\s*([a-zA-Z0-9_]+)\s*}}/g, (_full: string, key: string) => vars[key] ?? "");
+}
+
+/**
+ * Recursively walks any JSON-serializable object and applies substituteTokens
+ * to every string value. Used to resolve merge tokens inside templateJson blocks.
+ */
+function substituteTokensInObject(obj: unknown, vars: Record<string, string>): unknown {
+  if (typeof obj === "string") return substituteTokens(obj, vars);
+  if (Array.isArray(obj)) return obj.map((item) => substituteTokensInObject(item, vars));
+  if (obj !== null && typeof obj === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
+      result[key] = substituteTokensInObject(val, vars);
+    }
+    return result;
+  }
+  return obj;
+}
+
+/** Strips HTML tags and collapses whitespace for plain-text fallback. */
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&quot;/g, '"')
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+/**
+ * GET /api/donations/:id/email-templates
+ * Lists DRAFT email campaigns that can be used as templates for this donation's donor.
+ */
+router.get(
+  "/:id/email-templates",
+  requirePermission("edit:communications"),
+  async (req, res) => {
+    const userId = req.user?.sub;
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId || !userId) {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+      return;
+    }
+
+    const donationId = getRouteIdParam(req.params.id);
+    const donation = await loadDonationQuickActionContext(organizationId, donationId);
+    if (!donation) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Donation not found" } });
+      return;
+    }
+    if (!donation.constituent.email) {
+      res.status(400).json({ error: { code: "MISSING_EMAIL", message: "Constituent has no email address." } });
+      return;
+    }
+
+    const templates = await prisma.emailCampaign.findMany({
+      where: { organizationId, status: "DRAFT" },
+      select: { id: true, name: true, subject: true, purpose: true, updatedAt: true },
+      orderBy: { updatedAt: "desc" },
+      take: 100,
+    });
+
+    res.json({ templates });
+  },
+);
+
+/**
+ * POST /api/donations/:id/email-template-preview
+ * Loads a template and substitutes donation + constituent merge tokens.
+ * Returns personalized subject, bodyHtml, and bodyText ready for editing/preview.
+ * Body: { templateId: string }
+ */
+router.post(
+  "/:id/email-template-preview",
+  requirePermission("edit:communications"),
+  async (req, res) => {
+    const userId = req.user?.sub;
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId || !userId) {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+      return;
+    }
+
+    const templateId = typeof req.body?.templateId === "string" ? req.body.templateId.trim() : "";
+    if (!templateId) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "templateId is required" } });
+      return;
+    }
+
+    const donationId = getRouteIdParam(req.params.id);
+    const [donation, template, org] = await Promise.all([
+      loadDonationQuickActionContext(organizationId, donationId),
+      prisma.emailCampaign.findFirst({
+        where: { id: templateId, organizationId },
+        select: { id: true, name: true, subject: true, bodyHtml: true, bodyText: true, purpose: true, templateJson: true },
+      }),
+      prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { name: true },
+      }),
+    ]);
+
+    if (!donation) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Donation not found" } });
+      return;
+    }
+    if (!donation.constituent.email) {
+      res.status(400).json({ error: { code: "MISSING_EMAIL", message: "Constituent has no email address." } });
+      return;
+    }
+    if (!template) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Email template not found" } });
+      return;
+    }
+
+    const donorFullName = `${donation.constituent.firstName} ${donation.constituent.lastName}`.trim();
+    const donationAmount = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(Number(donation.amount));
+    const donationDate = donation.date.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+
+    const vars: Record<string, string> = {
+      firstName: donation.constituent.firstName,
+      lastName: donation.constituent.lastName,
+      fullName: donorFullName,
+      email: donation.constituent.email,
+      donationAmount,
+      donationDate,
+      campaignName: donation.campaign?.name ?? "",
+      designationName: donation.designation?.name ?? "",
+      organizationName: org?.name ?? "Our Organization",
+    };
+
+    const subject = substituteTokens(template.subject || template.name, vars);
+    const rawHtml = template.bodyHtml || (template.bodyText ? `<p>${template.bodyText}</p>` : "");
+    const rawText = template.bodyText || "";
+    const bodyHtml = substituteTokens(rawHtml, vars);
+    const bodyText = substituteTokens(rawText, vars);
+
+    // Resolve templateJson tokens so the client can use the block structure directly
+    let resolvedTemplateJson: string | null = null;
+    if (template.templateJson) {
+      try {
+        const parsed: unknown = JSON.parse(template.templateJson);
+        const substituted = substituteTokensInObject(parsed, vars);
+        resolvedTemplateJson = JSON.stringify(substituted);
+      } catch {
+        // ignore — client falls back to bodyHtml textarea
+      }
+    }
+
+    res.json({
+      templateId: template.id,
+      templateName: template.name,
+      toEmail: donation.constituent.email,
+      toName: donorFullName,
+      subject,
+      bodyHtml,
+      bodyText,
+      resolvedTemplateJson,
+    });
+  },
+);
+
+/**
+ * POST /api/donations/:id/send-from-template
+ * Sends a personalized email (with any user edits applied) to this donation's donor.
+ * Body: { templateId: string; subject: string; bodyHtml: string }
+ */
+router.post(
+  "/:id/send-from-template",
+  requirePermission("edit:communications"),
+  async (req, res) => {
+    const userId = req.user?.sub;
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId || !userId) {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+      return;
+    }
+
+    const templateId = typeof req.body?.templateId === "string" ? req.body.templateId.trim() : "";
+    const subject = typeof req.body?.subject === "string" ? req.body.subject.trim() : "";
+    const bodyHtml = typeof req.body?.bodyHtml === "string" ? req.body.bodyHtml.trim() : "";
+    if (!templateId || !subject || !bodyHtml) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "templateId, subject, and bodyHtml are required." } });
+      return;
+    }
+
+    const donationId = getRouteIdParam(req.params.id);
+    const donation = await loadDonationQuickActionContext(organizationId, donationId);
+    if (!donation) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Donation not found" } });
+      return;
+    }
+    if (!donation.constituent.email) {
+      res.status(400).json({ error: { code: "MISSING_EMAIL", message: "Constituent has no email address." } });
+      return;
+    }
+
+    const bodyText = htmlToPlainText(bodyHtml);
+    const sender = await createOrganizationEmailSender(organizationId);
+    await sender.send({
+      to: donation.constituent.email,
+      subject,
+      text: bodyText,
+      html: bodyHtml,
+    });
+
+    const donorFullName = `${donation.constituent.firstName} ${donation.constituent.lastName}`.trim();
+
+    await prisma.activity.create({
+      data: {
+        constituentId: donation.constituent.id,
+        donationId: donation.id,
+        userId,
+        type: "EMAIL_SENT",
+        description: `Template email sent: "${subject}" → ${donation.constituent.email}`,
+        metadata: {
+          source: "api/donations:send-from-template",
+          templateId,
+          subject,
+          recipientEmail: donation.constituent.email,
+        },
+      },
+    });
+
+    await logAudit({
+      action: "DONATION_TEMPLATE_EMAIL_SENT",
+      entity: "Donation",
+      entityId: donation.id,
+      userId,
+      organizationId,
+      metadata: {
+        templateId,
+        subject,
+        recipientEmail: donation.constituent.email,
+        donorName: donorFullName,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.json({ success: true, sentTo: donation.constituent.email });
+  },
+);
 
 export default router;

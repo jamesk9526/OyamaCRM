@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import DonationTable from "@/app/components/donations/DonationTable";
 import { DonationRow, formatCurrency } from "@/app/components/donations/donation-utils";
+import EmailFromTemplateModal from "@/app/components/donations/EmailFromTemplateModal";
 import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
@@ -63,6 +64,7 @@ export default function DonationsPage() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [acknowledgingDonationId, setAcknowledgingDonationId] = useState<string | null>(null);
   const [actionBusyDonationId, setActionBusyDonationId] = useState<string | null>(null);
+  const [emailTemplateDonation, setEmailTemplateDonation] = useState<DonationRow | null>(null);
 
   const [page, setPage] = useState(1);
   const [allYears, setAllYears] = useState(false);
@@ -252,7 +254,14 @@ export default function DonationsPage() {
     }
   }
 
+  /** Opens the Email From Template modal for the selected donation row. */
+  function handleOpenEmailFromTemplate(id: string) {
+    const d = donations.find((x) => x.id === id) ?? null;
+    setEmailTemplateDonation(d);
+  }
+
   return (
+    <>
     <EnterprisePageShell
       ribbon={(
         <div className="space-y-3">
@@ -394,6 +403,7 @@ export default function DonationsPage() {
             onDelete={handleDelete}
             onMarkThanked={handleMarkThanked}
             onCreateEmailDraft={handleCreateEmailDraft}
+            onEmailFromTemplate={handleOpenEmailFromTemplate}
             onCreateCallTask={handleCreateCallTask}
             onStartPath={handleStartPath}
             onCompleteStewardshipLoop={handleCompleteStewardshipLoop}
@@ -431,5 +441,20 @@ export default function DonationsPage() {
       </div>
     </div>
     </EnterprisePageShell>
+
+    {/* Email From Template modal — sits outside the shell scroll container so it overlays the full viewport */}
+    {emailTemplateDonation && (
+      <EmailFromTemplateModal
+        donation={{
+          donationId: emailTemplateDonation.id,
+          donorName: `${emailTemplateDonation.constituent.firstName} ${emailTemplateDonation.constituent.lastName}`.trim(),
+          donorEmail: emailTemplateDonation.constituent.email,
+          amount: emailTemplateDonation.amount,
+          date: emailTemplateDonation.date,
+        }}
+        onClose={() => setEmailTemplateDonation(null)}
+      />
+    )}
+    </>
   );
 }

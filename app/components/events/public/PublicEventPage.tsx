@@ -22,6 +22,7 @@ interface PublicEventPagePayload {
   pageSlug: string;
   pageUrl: string;
   status: "Draft" | "Published";
+  paymentPolicy?: "OfflineFollowUp" | "NoPaymentRequired";
   sections: EventPageSectionState[] | null;
 }
 
@@ -131,6 +132,7 @@ export default function PublicEventPage({ pageSlug }: PublicEventPageProps) {
             sponsors,
             report,
             publicUrl: payload.pageUrl,
+            paymentPolicy: payload.paymentPolicy ?? "OfflineFollowUp",
             pageSlug: payload.pageSlug,
             isPublicRegistration: true,
           }}

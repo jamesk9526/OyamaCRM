@@ -172,7 +172,7 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
         { label: "Sponsors", href: `/events/${activeEventId}/sponsors` },
         { label: "Donations", href: `/events/${activeEventId}/donations` },
         { label: "Check-In", href: `/events/${activeEventId}/check-in` },
-        { label: "Event Page", href: `/events/${activeEventId}/event-page`, newTab: true },
+        { label: "Event Page", href: `/events/${activeEventId}/event-page` },
         { label: "Emails", href: `/events/${activeEventId}/emails` },
         { label: "Reports", href: `/events/${activeEventId}/reports` },
         { label: "Follow-Up", href: `/events/${activeEventId}/follow-up` },
@@ -198,8 +198,6 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
               <Link
                 key={item.href}
                 href={item.href}
-                target={item.newTab ? "_blank" : undefined}
-                rel={item.newTab ? "noopener noreferrer" : undefined}
                 className={[
                   "group flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-[11px] font-semibold transition",
                   active ? "bg-violet-500 text-white shadow-lg shadow-violet-950/30" : "text-violet-100/88 hover:bg-white/10 hover:text-white",
@@ -287,7 +285,7 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
             <span className="hidden items-center gap-1 text-xs font-semibold text-emerald-300 sm:inline-flex">✓ Saved</span>
             {activeEventId ? (
               <>
-                <Link href={`/events/${activeEventId}/event-page`} target="_blank" rel="noopener noreferrer" className="hidden rounded-lg border border-white/25 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10 md:inline-flex">
+                <Link href={`/events/${activeEventId}/event-page`} className="hidden rounded-lg border border-white/25 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10 md:inline-flex">
                   Page Builder
                 </Link>
                 <Link href={`/events/${activeEventId}/check-in`} className="rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white shadow-lg shadow-violet-950/30 hover:bg-violet-500">

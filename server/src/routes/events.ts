@@ -126,6 +126,8 @@ interface EventsManagerIntegrationSnapshot extends EventsManagerIntegrationSourc
 }
 
 type EventPageBuilderStatus = "Draft" | "Published";
+type EventPagePaymentPolicy = "OfflineFollowUp" | "NoPaymentRequired";
+type EventPageDeploymentAction = "Published" | "Unpublished";
 
 type StoredEventPageSectionId =
   | "hero"
@@ -172,6 +174,10 @@ interface StoredEventPageBuilderSection {
     mediaUrl?: string;
     documentLabel?: string;
     documentUrl?: string;
+    attire?: string;
+    scheduleItems?: Array<{ time?: string; label?: string }>;
+    faqItems?: Array<{ question?: string; answer?: string }>;
+    galleryImages?: string[];
   };
   design?: {
     backgroundType?: "image" | "color" | "video";
@@ -189,10 +195,20 @@ interface StoredEventPageBuilderSection {
   };
 }
 
+interface StoredEventPageDeploymentHistoryEntry {
+  id: string;
+  action: EventPageDeploymentAction;
+  status: EventPageBuilderStatus;
+  pageSlug: string;
+  deployedAt: string;
+}
+
 interface StoredEventPageBuilderEntry {
   pageSlug: string;
   status: EventPageBuilderStatus;
   lastPublishedAt: string | null;
+  paymentPolicy: EventPagePaymentPolicy;
+  deploymentHistory: StoredEventPageDeploymentHistoryEntry[];
   updatedAt: string;
   sections?: StoredEventPageBuilderSection[];
 }
@@ -259,6 +275,10 @@ function normalizeEventPageStatus(value: unknown): EventPageBuilderStatus {
   return value === "Published" ? "Published" : "Draft";
 }
 
+function normalizeEventPagePaymentPolicy(value: unknown): EventPagePaymentPolicy {
+  return value === "NoPaymentRequired" ? "NoPaymentRequired" : "OfflineFollowUp";
+}
+
 const ALLOWED_EVENT_PAGE_SECTION_IDS = new Set<StoredEventPageSectionId>([
   "hero",
   "countdown",
@@ -290,6 +310,62 @@ function safePageBuilderText(value: unknown, maxLength: number): string | undefi
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim().slice(0, maxLength);
   return trimmed || undefined;
+}
+
+function safePageBuilderTextList(value: unknown, maxItems: number, maxLength: number): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const items = value
+    .map((item) => safePageBuilderText(item, maxLength))
+    .filter((item): item is string => Boolean(item))
+    .slice(0, maxItems);
+  return items.length > 0 ? items : undefined;
+}
+
+function sanitizePageBuilderScheduleItems(value: unknown): Array<{ time?: string; label?: string }> | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const items = value
+    .filter(isRecord)
+    .map((item) => ({
+      time: safePageBuilderText(item.time, 40),
+      label: safePageBuilderText(item.label, 140),
+    }))
+    .filter((item) => item.time || item.label)
+    .slice(0, 12);
+  return items.length > 0 ? items : undefined;
+}
+
+function sanitizePageBuilderFaqItems(value: unknown): Array<{ question?: string; answer?: string }> | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const items = value
+    .filter(isRecord)
+    .map((item) => ({
+      question: safePageBuilderText(item.question, 180),
+      answer: safePageBuilderText(item.answer, 600),
+    }))
+    .filter((item) => item.question || item.answer)
+    .slice(0, 12);
+  return items.length > 0 ? items : undefined;
+}
+
+function sanitizeEventPageDeploymentHistory(value: unknown): StoredEventPageDeploymentHistoryEntry[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(isRecord)
+    .map((item) => {
+      const deployedAt = toIsoOrNull(item.deployedAt);
+      const action = item.action === "Unpublished" ? "Unpublished" : "Published";
+      const pageSlug = sanitizeEventPageSlug(item.pageSlug);
+      if (!deployedAt || !pageSlug) return null;
+      return {
+        id: safePageBuilderText(item.id, 80) ?? createHash("sha1").update(`${action}:${pageSlug}:${deployedAt}`).digest("hex").slice(0, 16),
+        action,
+        status: normalizeEventPageStatus(item.status),
+        pageSlug,
+        deployedAt,
+      };
+    })
+    .filter((item): item is StoredEventPageDeploymentHistoryEntry => Boolean(item))
+    .slice(0, 20);
 }
 
 function sanitizeEventPageBuilderSections(value: unknown): StoredEventPageBuilderSection[] | undefined {
@@ -330,6 +406,10 @@ function sanitizeEventPageBuilderSections(value: unknown): StoredEventPageBuilde
         mediaUrl: safePageBuilderText(rawContent.mediaUrl, 800),
         documentLabel: safePageBuilderText(rawContent.documentLabel, 120),
         documentUrl: safePageBuilderText(rawContent.documentUrl, 800),
+        attire: safePageBuilderText(rawContent.attire, 180),
+        scheduleItems: sanitizePageBuilderScheduleItems(rawContent.scheduleItems),
+        faqItems: sanitizePageBuilderFaqItems(rawContent.faqItems),
+        galleryImages: safePageBuilderTextList(rawContent.galleryImages, 6, 800),
       },
       design: {
         backgroundType: backgroundTypeRaw === "color" || backgroundTypeRaw === "video" ? backgroundTypeRaw : "image",
@@ -423,6 +503,21 @@ function buildEventPageUrl(origin: string, pageSlug: string): string {
   return `${normalizedOrigin}/${pageSlug}`;
 }
 
+function createEventPageDeploymentHistoryEntry(
+  status: EventPageBuilderStatus,
+  pageSlug: string,
+  deployedAt: string,
+): StoredEventPageDeploymentHistoryEntry {
+  const action: EventPageDeploymentAction = status === "Published" ? "Published" : "Unpublished";
+  return {
+    id: randomBytes(8).toString("hex"),
+    action,
+    status,
+    pageSlug,
+    deployedAt,
+  };
+}
+
 function readStoredEventPageBuilderConfig(config: unknown): StoredEventPageBuilderConfig {
   if (!isRecord(config)) {
     return { events: {} };
@@ -441,6 +536,8 @@ function readStoredEventPageBuilderConfig(config: unknown): StoredEventPageBuild
       pageSlug,
       status: normalizeEventPageStatus(rawValue.status),
       lastPublishedAt: toIsoOrNull(rawValue.lastPublishedAt),
+      paymentPolicy: normalizeEventPagePaymentPolicy(rawValue.paymentPolicy),
+      deploymentHistory: sanitizeEventPageDeploymentHistory(rawValue.deploymentHistory),
       updatedAt: toIsoOrNull(rawValue.updatedAt) ?? new Date().toISOString(),
       sections: sanitizeEventPageBuilderSections(rawValue.sections),
     };
@@ -561,6 +658,43 @@ function createGuestNameFallback(index: number, partyName: string) {
   };
 }
 
+interface EventOrderItemRequest {
+  ticketTypeId: string;
+  quantity: number;
+}
+
+function normalizePositiveInt(value: unknown, fallback = 1): number {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizeEventOrderStatus(value: unknown): "PENDING" | "CONFIRMED" | "CANCELLED" | "REFUNDED" {
+  return value === "CONFIRMED" || value === "CANCELLED" || value === "REFUNDED" ? value : "PENDING";
+}
+
+function paymentStatusForOrder(status: "PENDING" | "CONFIRMED" | "CANCELLED" | "REFUNDED", totalAmount: number): EventGuestPaymentStatus {
+  if (totalAmount <= 0) return "COMP";
+  if (status === "CONFIRMED") return "PAID";
+  return "DUE";
+}
+
+function rsvpStatusForOrder(status: "PENDING" | "CONFIRMED" | "CANCELLED" | "REFUNDED"): EventGuestRsvpStatus {
+  if (status === "CONFIRMED") return "CONFIRMED";
+  if (status === "CANCELLED" || status === "REFUNDED") return "DECLINED";
+  return "PENDING";
+}
+
+function normalizeEventOrderItems(value: unknown): EventOrderItemRequest[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(isRecord)
+    .map((item) => ({
+      ticketTypeId: normalizeTextInput(item.ticketTypeId, 120),
+      quantity: normalizePositiveInt(item.quantity, 1),
+    }))
+    .filter((item) => item.ticketTypeId);
+}
+
 /** GET /api/events/public/page/:pageSlug — Public event page payload resolved by configured slug. */
 router.get("/public/page/:pageSlug", async (req, res) => {
   const pageSlug = sanitizeEventPageSlug(req.params.pageSlug);
@@ -585,7 +719,13 @@ router.get("/public/page/:pageSlug", async (req, res) => {
     },
   });
 
-  const matches: Array<{ organizationId: string; eventId: string; status: EventPageBuilderStatus; sections?: StoredEventPageBuilderSection[] }> = [];
+  const matches: Array<{
+    organizationId: string;
+    eventId: string;
+    status: EventPageBuilderStatus;
+    paymentPolicy: EventPagePaymentPolicy;
+    sections?: StoredEventPageBuilderSection[];
+  }> = [];
   for (const row of settingRows) {
     const config = readStoredEventPageBuilderConfig(row.config);
     const found = findEventPageEntryBySlug(config, pageSlug);
@@ -594,6 +734,7 @@ router.get("/public/page/:pageSlug", async (req, res) => {
       organizationId: row.organizationId,
       eventId: found.eventId,
       status: found.entry.status,
+      paymentPolicy: found.entry.paymentPolicy,
       sections: found.entry.sections,
     });
   }
@@ -640,6 +781,7 @@ router.get("/public/page/:pageSlug", async (req, res) => {
         organizationId: fallbackMatches[0].organizationId,
         eventId: fallbackMatches[0].id,
         status: "Draft",
+        paymentPolicy: "OfflineFollowUp",
         sections: undefined,
       };
     }
@@ -781,6 +923,7 @@ router.get("/public/page/:pageSlug", async (req, res) => {
     pageSlug,
     pageUrl: buildEventPageUrl(origin, pageSlug),
     status: match.status,
+    paymentPolicy: match.paymentPolicy,
     sections: match.sections ?? null,
   });
 });
@@ -809,7 +952,7 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
     },
   });
 
-  const matches: Array<{ organizationId: string; eventId: string; status: EventPageBuilderStatus }> = [];
+  const matches: Array<{ organizationId: string; eventId: string; status: EventPageBuilderStatus; paymentPolicy: EventPagePaymentPolicy }> = [];
   for (const row of settingRows) {
     const config = readStoredEventPageBuilderConfig(row.config);
     const found = findEventPageEntryBySlug(config, pageSlug);
@@ -818,6 +961,7 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
       organizationId: row.organizationId,
       eventId: found.eventId,
       status: found.entry.status,
+      paymentPolicy: found.entry.paymentPolicy,
     });
   }
 
@@ -895,6 +1039,7 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
       name: true,
       price: true,
       capacity: true,
+      available: true,
       isTable: true,
       seatsIncluded: true,
       minPerOrder: true,
@@ -940,7 +1085,12 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
     return;
   }
 
-  const unitPrice = Number(ticketType.price ?? 0);
+  if (ticketType.available != null && ticketType.available < ticketUnits) {
+    res.status(409).json({ error: { code: "TICKET_SOLD_OUT", message: "Not enough ticket availability remains for this registration." } });
+    return;
+  }
+
+  const unitPrice = match.paymentPolicy === "NoPaymentRequired" ? 0 : Number(ticketType.price ?? 0);
   const totalAmount = unitPrice * ticketUnits;
   const paymentStatus: EventGuestPaymentStatus = totalAmount > 0 ? "DUE" : "COMP";
   const orderStatus = totalAmount > 0 ? "PENDING" : "CONFIRMED";
@@ -1000,6 +1150,13 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
         items: { include: { ticketType: true } },
       },
     });
+
+    if (ticketType.available != null) {
+      await tx.ticketType.update({
+        where: { id: ticketType.id },
+        data: { available: { decrement: ticketUnits } },
+      });
+    }
 
     const guests = [];
     for (let index = 0; index < requestedSeats; index++) {
@@ -1688,6 +1845,8 @@ router.get("/:eventId/page-builder-config", async (req, res) => {
     baseOrigin,
     status: entry?.status ?? "Draft",
     lastPublishedAt: entry?.lastPublishedAt ?? null,
+    paymentPolicy: entry?.paymentPolicy ?? "OfflineFollowUp",
+    deploymentHistory: entry?.deploymentHistory ?? [],
     sections: entry?.sections ?? null,
   });
 });
@@ -1795,17 +1954,31 @@ router.patch("/:eventId/page-builder-config", async (req, res) => {
     ? (previous?.status ?? "Draft")
     : normalizeEventPageStatus(req.body.status);
 
-  const nextLastPublishedAt = req.body.lastPublishedAt === undefined
+  const deploymentTimestamp = new Date().toISOString();
+  let nextLastPublishedAt = req.body.lastPublishedAt === undefined
     ? (previous?.lastPublishedAt ?? null)
     : req.body.lastPublishedAt === null
       ? null
       : toIsoOrNull(req.body.lastPublishedAt);
+  const invalidExplicitLastPublishedAt = req.body.lastPublishedAt !== undefined && req.body.lastPublishedAt !== null && !nextLastPublishedAt;
+
+  if (nextStatus === "Published" && !nextLastPublishedAt) {
+    nextLastPublishedAt = deploymentTimestamp;
+  }
+
+  if (req.body.status !== undefined && nextStatus === "Draft") {
+    nextLastPublishedAt = null;
+  }
+
+  const nextPaymentPolicy = req.body.paymentPolicy === undefined
+    ? (previous?.paymentPolicy ?? "OfflineFollowUp")
+    : normalizeEventPagePaymentPolicy(req.body.paymentPolicy);
 
   const nextSections = req.body.sections === undefined
     ? previous?.sections
     : sanitizeEventPageBuilderSections(req.body.sections);
 
-  if (req.body.lastPublishedAt !== undefined && req.body.lastPublishedAt !== null && !nextLastPublishedAt) {
+  if (invalidExplicitLastPublishedAt) {
     res.status(400).json({
       error: {
         code: "INVALID_INPUT",
@@ -1815,10 +1988,22 @@ router.patch("/:eventId/page-builder-config", async (req, res) => {
     return;
   }
 
+  const previousHistory = previous?.deploymentHistory ?? [];
+  const statusChanged = previous?.status !== undefined && previous.status !== nextStatus;
+  const shouldRecordInitialPublish = !previous && nextStatus === "Published";
+  const nextDeploymentHistory = statusChanged || shouldRecordInitialPublish
+    ? [
+        createEventPageDeploymentHistoryEntry(nextStatus, nextPageSlug, deploymentTimestamp),
+        ...previousHistory,
+      ].slice(0, 20)
+    : previousHistory;
+
   const entry: StoredEventPageBuilderEntry = {
     pageSlug: nextPageSlug,
     status: nextStatus,
     lastPublishedAt: nextLastPublishedAt,
+    paymentPolicy: nextPaymentPolicy,
+    deploymentHistory: nextDeploymentHistory,
     updatedAt: new Date().toISOString(),
     sections: nextSections,
   };
@@ -1860,6 +2045,8 @@ router.patch("/:eventId/page-builder-config", async (req, res) => {
       pageUrl: buildEventPageUrl(baseOrigin, entry.pageSlug),
       status: entry.status,
       lastPublishedAt: entry.lastPublishedAt,
+      paymentPolicy: entry.paymentPolicy,
+      deploymentCount: entry.deploymentHistory.length,
       sectionCount: entry.sections?.length ?? 0,
     },
     ipAddress: req.ip,
@@ -1873,6 +2060,8 @@ router.patch("/:eventId/page-builder-config", async (req, res) => {
     baseOrigin,
     status: entry.status,
     lastPublishedAt: entry.lastPublishedAt,
+    paymentPolicy: entry.paymentPolicy,
+    deploymentHistory: entry.deploymentHistory,
     sections: entry.sections ?? null,
   });
 });
@@ -2433,10 +2622,92 @@ router.post("/:eventId/orders", async (req, res) => {
   }
 
   const { constituentId, items, paymentMethod, status, notes, paidAt } = req.body;
+  const requestedItems = normalizeEventOrderItems(items);
+  const nextStatus = normalizeEventOrderStatus(status);
 
-  if (!constituentId || !items || items.length === 0) {
+  if (!constituentId || requestedItems.length === 0) {
     res.status(400).json({ error: { code: "INVALID_INPUT", message: "constituentId and items are required" } });
     return;
+  }
+
+  const constituent = await prisma.constituent.findFirst({
+    where: { id: constituentId, organizationId },
+    select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+  });
+
+  if (!constituent) {
+    res.status(404).json({ error: { code: "CONSTITUENT_NOT_FOUND", message: "Constituent not found" } });
+    return;
+  }
+
+  const ticketTypes = await prisma.ticketType.findMany({
+    where: {
+      eventId: req.params.eventId,
+      id: { in: requestedItems.map((item) => item.ticketTypeId) },
+      active: true,
+    },
+    select: {
+      id: true,
+      name: true,
+      price: true,
+      capacity: true,
+      available: true,
+      isTable: true,
+      seatsIncluded: true,
+      minPerOrder: true,
+      maxPerOrder: true,
+    },
+  });
+  const ticketTypeById = new Map(ticketTypes.map((ticketType) => [ticketType.id, ticketType]));
+
+  if (ticketTypes.length !== new Set(requestedItems.map((item) => item.ticketTypeId)).size) {
+    res.status(400).json({ error: { code: "INVALID_TICKET_TYPE", message: "Every order item must reference an active ticket type for this event." } });
+    return;
+  }
+
+  const normalizedItems = requestedItems.map((item) => {
+    const ticketType = ticketTypeById.get(item.ticketTypeId);
+    if (!ticketType) throw new Error("Ticket type lookup failed.");
+    const maxPerOrder = Math.max(1, ticketType.maxPerOrder ?? 99);
+    const minPerOrder = Math.max(1, Math.min(ticketType.minPerOrder, maxPerOrder));
+    const quantity = Math.min(maxPerOrder, Math.max(minPerOrder, item.quantity));
+    const unitPrice = Number(ticketType.price ?? 0);
+    const seatsIncluded = ticketType.isTable ? Math.max(1, ticketType.seatsIncluded ?? 1) : 1;
+    return {
+      ticketType,
+      quantity,
+      unitPrice,
+      totalPrice: unitPrice * quantity,
+      seatCount: quantity * seatsIncluded,
+    };
+  });
+
+  const requestedSeats = normalizedItems.reduce((sum, item) => sum + item.seatCount, 0);
+  const [eventGuestCount, ticketGuestCounts] = await Promise.all([
+    prisma.eventGuest.count({ where: { eventId: req.params.eventId } }),
+    prisma.eventGuest.groupBy({
+      by: ["ticketTypeId"],
+      where: { eventId: req.params.eventId, ticketTypeId: { in: normalizedItems.map((item) => item.ticketType.id) } },
+      _count: { id: true },
+    }),
+  ]);
+  const guestCountByTicketType = new Map(ticketGuestCounts.map((row) => [row.ticketTypeId, row._count.id]));
+
+  if (event.capacity != null && event.capacity > 0 && eventGuestCount + requestedSeats > event.capacity) {
+    res.status(409).json({ error: { code: "EVENT_CAPACITY_REACHED", message: "Not enough event capacity remains for this order." } });
+    return;
+  }
+
+  for (const item of normalizedItems) {
+    const existingGuests = guestCountByTicketType.get(item.ticketType.id) ?? 0;
+    if (item.ticketType.capacity != null && item.ticketType.capacity > 0 && existingGuests + item.seatCount > item.ticketType.capacity) {
+      res.status(409).json({ error: { code: "TICKET_CAPACITY_REACHED", message: `${item.ticketType.name} does not have enough remaining seat capacity.` } });
+      return;
+    }
+    if (item.ticketType.available != null && item.ticketType.available < item.quantity) {
+      res.status(409).json({ error: { code: "TICKET_SOLD_OUT", message: `${item.ticketType.name} does not have enough remaining ticket availability.` } });
+      return;
+    }
   }
 
   // Generate unique order number
@@ -2444,59 +2715,100 @@ router.post("/:eventId/orders", async (req, res) => {
   const random = Math.random().toString(36).substring(2, 6).toUpperCase();
   const orderNumber = `ORD-${timestamp}-${random}`;
 
-  interface OrderItemInput {
-    ticketTypeId: string;
-    quantity: number;
-    unitPrice: number;
-    totalPrice: number;
-  }
-
   // Calculate totals
-  const totalAmount = items.reduce((sum: number, item: OrderItemInput) => sum + Number(item.totalPrice), 0);
+  const totalAmount = normalizedItems.reduce((sum, item) => sum + item.totalPrice, 0);
+  const partyName = `${constituent.firstName} ${constituent.lastName}`.trim() || constituent.email || "Event Guest";
+  const guestPaymentStatus = paymentStatusForOrder(nextStatus, totalAmount);
+  const guestRsvpStatus = rsvpStatusForOrder(nextStatus);
 
-  const order = await prisma.eventOrder.create({
-    data: {
-      eventId: req.params.eventId,
-      constituentId,
-      orderNumber,
-      status: status ?? "PENDING",
-      totalAmount,
-      feeAmount: 0,
-      paymentMethod: paymentMethod ?? undefined,
-      paidAt: paidAt ? new Date(paidAt) : undefined,
-      notes: notes ?? undefined,
-      items: {
-        create: items.map((item: OrderItemInput) => ({
-          ticketTypeId: item.ticketTypeId,
-          quantity: item.quantity ?? 1,
-          unitPrice: item.unitPrice,
-          totalPrice: item.totalPrice,
-        })),
-      },
-    },
-    include: {
-      event: { select: { id: true, name: true } },
-      constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
-      items: { include: { ticketType: true } },
-      _count: { select: { guests: true } },
-    },
-  });
-
-  // Log activity for constituent timeline (donor sync)
-  await prisma.activity.create({
-    data: {
-      constituentId,
-      eventId: req.params.eventId,
-      type: "EVENT_REGISTRATION",
-      description: `Registered for event: ${order.event.name} (${items.length} ticket${items.length > 1 ? "s" : ""}, $${totalAmount.toFixed(2)})`,
-      metadata: {
-        orderId: order.id,
-        orderNumber: order.orderNumber,
+  const order = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const createdOrder = await tx.eventOrder.create({
+      data: {
+        eventId: req.params.eventId,
+        constituentId,
+        orderNumber,
+        status: nextStatus,
         totalAmount,
-        itemCount: items.length,
-        source: "api/events:orders:create",
+        feeAmount: 0,
+        paymentMethod: paymentMethod ?? undefined,
+        paidAt: paidAt ? new Date(paidAt) : nextStatus === "CONFIRMED" && totalAmount > 0 ? new Date() : undefined,
+        notes: notes ?? undefined,
+        items: {
+          create: normalizedItems.map((item) => ({
+            ticketTypeId: item.ticketType.id,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalPrice: item.totalPrice,
+          })),
+        },
       },
-    },
+      include: {
+        event: { select: { id: true, name: true } },
+        constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
+        items: { include: { ticketType: true } },
+        _count: { select: { guests: true } },
+      },
+    });
+
+    let guestIndex = 0;
+    for (const item of normalizedItems) {
+      if (item.ticketType.available != null) {
+        await tx.ticketType.update({
+          where: { id: item.ticketType.id },
+          data: { available: { decrement: item.quantity } },
+        });
+      }
+
+      for (let seatIndex = 0; seatIndex < item.seatCount; seatIndex += 1) {
+        const isPrimary = guestIndex === 0;
+        const fallbackName = createGuestNameFallback(guestIndex, partyName);
+        await tx.eventGuest.create({
+          data: {
+            eventId: req.params.eventId,
+            orderId: createdOrder.id,
+            constituentId: isPrimary ? constituent.id : undefined,
+            ticketTypeId: item.ticketType.id,
+            firstName: isPrimary ? constituent.firstName : fallbackName.firstName,
+            lastName: isPrimary ? constituent.lastName : fallbackName.lastName,
+            email: isPrimary ? constituent.email : undefined,
+            phone: isPrimary ? constituent.phone : undefined,
+            checkinCode: await generateUniqueCheckinCode(tx),
+            paymentStatus: guestPaymentStatus,
+            rsvpStatus: guestRsvpStatus,
+            partyName,
+            notes: `Provisioned from staff order ${orderNumber}.`,
+          },
+        });
+        guestIndex += 1;
+      }
+    }
+
+    await tx.activity.create({
+      data: {
+        constituentId,
+        eventId: req.params.eventId,
+        type: "EVENT_REGISTRATION",
+        description: `Registered for event: ${createdOrder.event.name} (${normalizedItems.length} ticket type${normalizedItems.length === 1 ? "" : "s"}, ${requestedSeats} seat${requestedSeats === 1 ? "" : "s"}, $${totalAmount.toFixed(2)})`,
+        metadata: {
+          orderId: createdOrder.id,
+          orderNumber: createdOrder.orderNumber,
+          totalAmount,
+          itemCount: normalizedItems.length,
+          requestedSeats,
+          source: "api/events:orders:create",
+        },
+      },
+    });
+
+    return tx.eventOrder.findUniqueOrThrow({
+      where: { id: createdOrder.id },
+      include: {
+        event: { select: { id: true, name: true } },
+        constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
+        items: { include: { ticketType: true } },
+        _count: { select: { guests: true } },
+      },
+    });
   });
 
   res.status(201).json(order);
@@ -2521,21 +2833,36 @@ router.patch("/orders/:orderId", async (req, res) => {
   }
 
   const { status, paymentMethod, paidAt, notes } = req.body;
+  const nextStatus = status === undefined ? order.status : normalizeEventOrderStatus(status);
 
-  const updated = await prisma.eventOrder.update({
-    where: { id: req.params.orderId },
-    data: {
-      ...(status !== undefined && { status }),
-      ...(paymentMethod !== undefined && { paymentMethod }),
-      ...(paidAt !== undefined && { paidAt: paidAt ? new Date(paidAt) : null }),
-      ...(notes !== undefined && { notes }),
-    },
-    include: {
-      event: { select: { id: true, name: true, startDate: true } },
-      constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
-      items: { include: { ticketType: true } },
-      _count: { select: { guests: true } },
-    },
+  const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const nextOrder = await tx.eventOrder.update({
+      where: { id: req.params.orderId },
+      data: {
+        ...(status !== undefined && { status: nextStatus }),
+        ...(paymentMethod !== undefined && { paymentMethod }),
+        ...(paidAt !== undefined && { paidAt: paidAt ? new Date(paidAt) : null }),
+        ...(notes !== undefined && { notes }),
+      },
+      include: {
+        event: { select: { id: true, name: true, startDate: true } },
+        constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
+        items: { include: { ticketType: true } },
+        _count: { select: { guests: true } },
+      },
+    });
+
+    if (status !== undefined) {
+      await tx.eventGuest.updateMany({
+        where: { orderId: req.params.orderId },
+        data: {
+          paymentStatus: paymentStatusForOrder(nextStatus, Number(nextOrder.totalAmount ?? 0)),
+          rsvpStatus: rsvpStatusForOrder(nextStatus),
+        },
+      });
+    }
+
+    return nextOrder;
   });
 
   res.json(updated);

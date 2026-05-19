@@ -8,7 +8,7 @@ The Events CRM is now oriented around a FundEasy / Attendance-style nonprofit fu
 
 | Area | Status | Notes |
 |---|---|---|
-| Event-first entry | Working | `/events/events` is the single sidebar entry for creating/selecting events; `/events/workspace` remains a compatibility route. |
+| Event-first entry | Working | `/events` and `/events/workspace` now render the event-first selector entry; `/events/events` remains the all-events registry/create page. |
 | Event-scoped routes | Working | Core scoped tools route through `/events/[eventId]/...` so guests, tables, sponsors, registration, check-in, and reports stay tied to one event. |
 | Event command center overview | Working | `/events/[eventId]/overview` now uses a polished purple command-center layout with selected-event header, at-a-glance KPIs, readiness checks, and operations sections. |
 | Event lock behavior | Working | Event-scoped pages lock to the selected event; users switch only by returning to `/events/events`. |
@@ -16,9 +16,10 @@ The Events CRM is now oriented around a FundEasy / Attendance-style nonprofit fu
 | Tables / seating list | Working | Structured table management is available at `/events/[eventId]/tables` with Floor Plan, Table List, and Guest Placement views. |
 | Sponsors | Working | Event-scoped sponsor manager is available with event lock behavior in scoped routes. |
 | Registration | Working | Current ticket type manager is used as the registration setup surface. |
+| Ticketing / guest provisioning | Working | Staff orders validate active event ticket types, compute totals from stored prices, consume availability, create guest shells with check-in codes, and sync guest RSVP/payment state on order status changes. |
 | Live check-in | Working | Core check-in route is event-scoped with a simplified dark operations UI; dedicated volunteer/tablet mode is not complete. |
 | Table hosts | Partially Working | Host workspace route exists, but host portal links, resend controls, permissions, and audit coverage are still required. |
-| Event page builder | Partially Working | Canonical route is `/events/[eventId]/event-page`; compatibility selector remains at `/events/page-builder`; editor layout, drag/drop section ordering, hero settings, publish status, and section config persistence are working. Full public renderer parity is still pending. |
+| Event page builder | Working | Canonical route is `/events/[eventId]/event-page`; compatibility selector remains at `/events/page-builder`; editor layout, drag/drop section ordering, hero settings, publish status, explicit payment policy, deployment history, in-app preview, section config persistence, public renderer parity, and publish-to-registration are working. |
 | Event emails | Partially Working | Scaffold route exists; segmented drafts, scheduling, and sending are incomplete. |
 | Donations / pledges | Partially Working | Scaffold route exists; pledge workflows, recurring giving prospects, and donor follow-up conversion are incomplete. |
 | Post-event follow-up | Partially Working | Follow-up queue UI and donor-safe export endpoint are available; orchestration and automation still need implementation. |
@@ -33,12 +34,13 @@ The Events CRM is now oriented around a FundEasy / Attendance-style nonprofit fu
 | Event-scoped chrome | Working | `/events/[eventId]/*` inherits the studio header/sidebar and no longer adds the extra standard selected-event context bar. |
 | Event Page Builder UI | Working | The scoped builder now has a left section rail, central public-page canvas, and right settings inspector modeled after a page-building workspace. |
 | Drag/drop sections | Working | Section ordering supports HTML5 drag/drop plus fallback move buttons. Visibility can be toggled from the rail or inspector. |
-| Builder persistence | Working | Page slug, publish status, section order, visibility, hero content, and hero design settings are saved through `/api/events/:eventId/page-builder-config`. |
+| Builder persistence | Working | Page slug, publish status, payment policy, deployment history, section order, visibility, hero content, and hero design settings are saved through `/api/events/:eventId/page-builder-config`. |
 | Public page config API | Working | Public event page payloads include saved section config, and draft pages return `NOT_PUBLISHED` instead of being publicly exposed. |
 | Full public renderer parity | Working | The CRM builder preview and public page route now use the same saved section config/document renderer path for section order, visibility, and hero design. |
+| Public page output actions | Working | Hero, CTA, donation, TableLink, document, volunteer, and share controls are functional links/actions in the shared renderer. |
 | Workspace switcher | Working | The Events studio top bar includes a workspace selector with links back to Donor CRM, Compassion CRM, Steward AI, HRM, Webmaster, and Watchdog. |
 
-Canonical next build order: table host data model and staff UI, guest/table reassignment improvements, dedicated live check-in mode, full public page renderer parity with builder sections, event page templates, event email segments, event donations/pledges, and post-event follow-up dashboard.
+Canonical next build order: table host data model and staff UI, guest/table reassignment improvements, dedicated live check-in mode, event page templates, event email segments, event donations/pledges, and post-event follow-up dashboard.
 
 ## Steward AI Memory And Context
 

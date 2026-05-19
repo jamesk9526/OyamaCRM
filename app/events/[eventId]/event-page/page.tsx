@@ -1,8 +1,10 @@
-// Event-scoped event-page route wrapper for /events/[eventId]/event-page.
+"use client";
 
-import EventsPageBuilderRoute from "@/app/events/page-builder/page";
+import { useParams } from "next/navigation";
+import EventPageBuilderShell from "@/app/components/events/page-builder/EventPageBuilderShell";
 
-/** EventWorkspaceEventPageRoute renders the event-scoped public page builder inside Events CRM. */
+/** Event-scoped page builder entry point — renders the builder directly for the event in context. */
 export default function EventWorkspaceEventPageRoute() {
-  return <EventsPageBuilderRoute />;
+  const { eventId } = useParams<{ eventId: string }>();
+  return <EventPageBuilderShell eventId={eventId} />;
 }

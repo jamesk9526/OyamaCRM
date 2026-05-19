@@ -194,7 +194,44 @@ function AutoRibbonIcon({ label }: { label: string }) {
     );
   }
 
-  if (key.includes("edit") || key.includes("customize") || key.includes("layout")) {
+  // Free-flow / masonry layout toggle — staggered columns icon
+  if (key.includes("free flow") || key.includes("masonry") || key.includes("freeflow")) {
+    return (
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="4" width="6" height="9" rx="1" />
+        <rect x="14" y="4" width="6" height="6" rx="1" />
+        <rect x="4" y="15" width="6" height="5" rx="1" />
+        <rect x="14" y="12" width="6" height="8" rx="1" />
+      </svg>
+    );
+  }
+
+  // Customize / personalize — horizontal sliders icon (distinct from the Edit Layout grid icon)
+  if (key.includes("customize") || key.includes("personaliz")) {
+    return (
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+        <circle cx="9" cy="6" r="2" fill="currentColor" stroke="none" />
+        <circle cx="15" cy="12" r="2" fill="currentColor" stroke="none" />
+        <circle cx="9" cy="18" r="2" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  }
+
+  // Reset / restore sizes — equal 4-grid icon communicates "normalize to default"
+  if (key.includes("reset") || key.includes("restore size") || key.includes("default size")) {
+    return (
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="4" width="6" height="6" rx="1" />
+        <rect x="14" y="4" width="6" height="6" rx="1" />
+        <rect x="4" y="14" width="6" height="6" rx="1" />
+        <rect x="14" y="14" width="6" height="6" rx="1" />
+      </svg>
+    );
+  }
+
+  // Edit layout — dashboard grid editor icon
+  if (key.includes("edit") || key.includes("layout")) {
     return (
       <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h7v5H4zM13 6h7v12h-7zM4 13h7v5H4z" />

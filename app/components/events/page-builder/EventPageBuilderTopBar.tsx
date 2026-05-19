@@ -1,4 +1,4 @@
-import type { EventPageStatus } from "@/app/components/events/page-builder/types";
+import type { EventPageDeploymentHistoryEntry, EventPagePaymentPolicy, EventPageStatus } from "@/app/components/events/page-builder/types";
 
 interface PublishReadinessItem {
   label: string;
@@ -14,8 +14,11 @@ interface EventPageBuilderTopBarProps {
   urlFeedback: string | null;
   status: EventPageStatus;
   lastPublishedAt: string | null;
+  paymentPolicy: EventPagePaymentPolicy;
+  deploymentHistory: EventPageDeploymentHistoryEntry[];
   autoSaveState: "idle" | "saving" | "saved" | "error";
   publishReadiness: PublishReadinessItem[];
+  onPaymentPolicyChange: (value: EventPagePaymentPolicy) => void;
   onPageSlugDraftChange: (value: string) => void;
   onSavePageSlug: () => void;
   onPreview: () => void;
@@ -51,8 +54,11 @@ export default function EventPageBuilderTopBar({
   urlFeedback,
   status,
   lastPublishedAt,
+  paymentPolicy,
+  deploymentHistory,
   autoSaveState,
   publishReadiness,
+  onPaymentPolicyChange,
   onPageSlugDraftChange,
   onSavePageSlug,
   onPreview,
@@ -60,9 +66,8 @@ export default function EventPageBuilderTopBar({
 }: EventPageBuilderTopBarProps) {
   const publishReady = publishReadiness.every((item) => item.passed);
   const readinessCount = publishReadiness.filter((item) => item.passed).length;
-  const workflowWarningTitle = "Event Page Builder public workflow is partially wired";
-  const workflowWarningDescription =
-    "Published pages render at their public slug, registrations proxy through the app origin, attendees can be edited per seat, and completion returns check-in codes. Payment collection, deployment history, and QR camera scanning are still incomplete.";
+  const latestDeployment = deploymentHistory[0] ?? null;
+  const paymentPolicyLabel = paymentPolicy === "NoPaymentRequired" ? "No payment required" : "Offline payment follow-up";
 
   return (
     <header className="shrink-0 border-b border-slate-200 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
@@ -70,10 +75,10 @@ export default function EventPageBuilderTopBar({
         <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-violet-700">EventSTUDIO / Page Builder</span>
         <span className="max-w-[30ch] truncate text-xs font-semibold text-slate-700">{eventName}</span>
         <span
-          title={`${workflowWarningTitle} ${workflowWarningDescription}`}
-          className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700"
+          title="Public pages, registrations, check-in code return, deployment history, and an explicit payment policy are wired."
+          className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
         >
-          Partially Implemented
+          Production Ready
         </span>
         <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
           <span className={`h-1.5 w-1.5 rounded-full ${getAutosaveIndicatorColor(autoSaveState)}`} />
@@ -84,9 +89,12 @@ export default function EventPageBuilderTopBar({
           Readiness {readinessCount}/{publishReadiness.length}
         </span>
         <span className="text-[10px] text-slate-500">Published {formatTimestamp(lastPublishedAt)}</span>
+        {latestDeployment ? (
+          <span className="text-[10px] text-slate-500">Last deployment {formatTimestamp(latestDeployment.deployedAt)}</span>
+        ) : null}
       </div>
 
-      <div className="mt-2 grid gap-2 xl:grid-cols-[minmax(0,1fr)_auto_auto] xl:items-center">
+      <div className="mt-2 grid gap-2 xl:grid-cols-[minmax(0,1fr)_220px_auto_auto] xl:items-center">
         <div className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
           <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-white text-emerald-500 shadow-sm">▣</span>
           <input
@@ -106,6 +114,18 @@ export default function EventPageBuilderTopBar({
             {saveUrlPending ? "Saving" : "Save"}
           </button>
         </div>
+        <label className="flex h-8 min-w-0 items-center gap-2 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700">
+          <span className="shrink-0 text-[10px] uppercase tracking-[0.12em] text-slate-400">Policy</span>
+          <select
+            value={paymentPolicy}
+            onChange={(event) => onPaymentPolicyChange(event.target.value as EventPagePaymentPolicy)}
+            className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-slate-800 outline-none"
+            aria-label="Registration payment policy"
+          >
+            <option value="OfflineFollowUp">Offline follow-up</option>
+            <option value="NoPaymentRequired">No payment required</option>
+          </select>
+        </label>
         <button
           type="button"
           onClick={onPreview}
@@ -136,6 +156,11 @@ export default function EventPageBuilderTopBar({
             {item.passed ? "✓" : "!"} {item.label}
           </span>
         ))}
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-semibold text-slate-600">
+        <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">Payment: {paymentPolicyLabel}</span>
+        <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">Deployments: {deploymentHistory.length}</span>
       </div>
 
       {urlFeedback ? <p className="mt-2 rounded-md border border-violet-100 bg-violet-50 px-2.5 py-1.5 text-[11px] font-medium text-violet-800">{urlFeedback}</p> : null}

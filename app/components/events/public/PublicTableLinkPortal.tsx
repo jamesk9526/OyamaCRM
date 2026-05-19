@@ -62,9 +62,11 @@ export default function PublicTableLinkPortal({ eventId, tableUid }: PublicTable
   const router = useRouter();
 
   const tokenFromQuery = searchParams.get("token") ?? "";
+  const eventIdFromQuery = searchParams.get("eventId") ?? "";
+  const tableKeyFromQuery = searchParams.get("tableKey") ?? "";
 
-  const [eventIdInput, setEventIdInput] = useState(eventId ?? "");
-  const [tableKeyInput, setTableKeyInput] = useState(tableUid ?? "");
+  const [eventIdInput, setEventIdInput] = useState(eventId ?? eventIdFromQuery);
+  const [tableKeyInput, setTableKeyInput] = useState(tableUid ?? tableKeyFromQuery);
   const [emailInput, setEmailInput] = useState("");
 
   const [token, setToken] = useState(tokenFromQuery);
@@ -98,6 +100,11 @@ export default function PublicTableLinkPortal({ eventId, tableUid }: PublicTable
   useEffect(() => {
     setToken(tokenFromQuery);
   }, [tokenFromQuery]);
+
+  useEffect(() => {
+    if (!eventId && eventIdFromQuery) setEventIdInput(eventIdFromQuery);
+    if (!tableUid && tableKeyFromQuery) setTableKeyInput(tableKeyFromQuery);
+  }, [eventId, eventIdFromQuery, tableKeyFromQuery, tableUid]);
 
   useEffect(() => {
     if (!detail) return;

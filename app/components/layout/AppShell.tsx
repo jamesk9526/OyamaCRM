@@ -159,10 +159,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     function handleDockState(event: Event) {
       const detail = (event as CustomEvent<{ pushLayout?: boolean; panelWidth?: number }>).detail;
       if (!detail?.pushLayout) {
-        setDockInsetPx(0);
+        setDockInsetPx((current) => (current === 0 ? current : 0));
         return;
       }
-      setDockInsetPx(typeof detail.panelWidth === "number" ? detail.panelWidth : 420);
+      const nextInset = typeof detail.panelWidth === "number" ? detail.panelWidth : 420;
+      setDockInsetPx((current) => (current === nextInset ? current : nextInset));
     }
 
     window.addEventListener("steward-dock-state", handleDockState);

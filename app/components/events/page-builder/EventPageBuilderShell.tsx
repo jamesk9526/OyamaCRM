@@ -6,13 +6,17 @@ import EventPageBuilderTopBar from "@/app/components/events/page-builder/EventPa
 import EventPageBuilderSectionRail from "@/app/components/events/page-builder/EventPageBuilderSectionRail";
 import EventPageBuilderPreview from "@/app/components/events/page-builder/EventPageBuilderPreview";
 import EventPageBuilderInspector from "@/app/components/events/page-builder/EventPageBuilderInspector";
+import EventPageBuilderPreviewDialog from "@/app/components/events/page-builder/EventPageBuilderPreviewDialog";
 import { createDefaultEventPageSectionState, EVENT_PAGE_SECTION_DEFINITIONS } from "@/app/components/events/page-builder/section-config";
 import type {
   EventPageBuilderConfig,
+  EventPageBuilderWorkspaceData,
   EventBuilderEventDetail,
   EventBuilderReport,
   EventBuilderSponsor,
   EventBuilderTicketType,
+  EventPageDeploymentHistoryEntry,
+  EventPagePaymentPolicy,
   EventPageSectionId,
   EventPageSectionState,
   EventPageStatus,
@@ -125,6 +129,8 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
   const [selectedSectionId, setSelectedSectionId] = useState<EventPageSectionId>(EVENT_PAGE_SECTION_DEFINITIONS[0].id);
   const [pageStatus, setPageStatus] = useState<EventPageStatus>("Draft");
   const [lastPublishedAt, setLastPublishedAt] = useState<string | null>(null);
+  const [paymentPolicy, setPaymentPolicy] = useState<EventPagePaymentPolicy>("OfflineFollowUp");
+  const [deploymentHistory, setDeploymentHistory] = useState<EventPageDeploymentHistoryEntry[]>([]);
   const [baseOrigin, setBaseOrigin] = useState<string>(resolveRuntimeOrigin());
   const [pageSlug, setPageSlug] = useState<string>("event-page");
   const [pageSlugDraft, setPageSlugDraft] = useState<string>("event-page");
@@ -133,6 +139,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
   const [autoSaveState, setAutoSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const hasLoadedSectionsRef = useRef(false);
 
   const resolvedDraftSlug = useMemo(() => {
@@ -176,6 +183,8 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         setPageSlugDraft(resolvedSlug);
         setPageStatus(pageConfig?.status ?? "Draft");
         setLastPublishedAt(pageConfig?.lastPublishedAt ?? null);
+        setPaymentPolicy(pageConfig?.paymentPolicy ?? "OfflineFollowUp");
+        setDeploymentHistory(pageConfig?.deploymentHistory ?? []);
         hasLoadedSectionsRef.current = true;
       } catch (requestError) {
         if (!active) return;
@@ -208,9 +217,23 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         label: "Visitor action block",
         passed: visibleSections.some((section) => section.id === "registration-form" || section.id === "donation-form" || section.id === "cta-banner" || section.id === "live-appeal"),
       },
+      { label: "Payment policy set", passed: paymentPolicy === "OfflineFollowUp" || paymentPolicy === "NoPaymentRequired" },
       { label: "Autosave complete", passed: autoSaveState !== "saving" },
     ];
-  }, [autoSaveState, pageSlugDraft, sections]);
+  }, [autoSaveState, pageSlugDraft, paymentPolicy, sections]);
+
+  const builderData = useMemo<EventPageBuilderWorkspaceData | null>(() => {
+    if (!event) return null;
+    return {
+      event,
+      ticketTypes,
+      sponsors,
+      report,
+      publicUrl: draftPreviewUrl,
+      paymentPolicy,
+      pageSlug,
+    };
+  }, [draftPreviewUrl, event, pageSlug, paymentPolicy, report, sponsors, ticketTypes]);
 
   useEffect(() => {
     if (!hasLoadedSectionsRef.current || loading || !event) return;
@@ -223,6 +246,8 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         .then((updated) => {
           setPageStatus(updated.status);
           setLastPublishedAt(updated.lastPublishedAt);
+          setPaymentPolicy(updated.paymentPolicy);
+          setDeploymentHistory(updated.deploymentHistory);
           setAutoSaveState("saved");
         })
         .catch(() => {
@@ -234,12 +259,26 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
   }, [event, eventId, loading, sections]);
 
   function handlePreview() {
-    if (typeof window === "undefined") return;
-    if (pageStatus !== "Published") {
-      setUrlFeedback("Publish this page before opening the public URL. Use the canvas below for draft preview.");
-      return;
+    setPreviewOpen(true);
+  }
+
+  async function handlePaymentPolicyChange(nextPaymentPolicy: EventPagePaymentPolicy) {
+    setPaymentPolicy(nextPaymentPolicy);
+    setAutoSaveState("saving");
+    try {
+      const updated = await apiFetch<EventPageBuilderConfig>(`/api/events/${eventId}/page-builder-config`, {
+        method: "PATCH",
+        body: JSON.stringify({ paymentPolicy: nextPaymentPolicy }),
+      });
+      setPaymentPolicy(updated.paymentPolicy);
+      setDeploymentHistory(updated.deploymentHistory);
+      setPageStatus(updated.status);
+      setLastPublishedAt(updated.lastPublishedAt);
+      setAutoSaveState("saved");
+    } catch (policyError) {
+      setAutoSaveState("error");
+      setUrlFeedback(policyError instanceof Error ? policyError.message : "Failed to save payment policy.");
     }
-    window.open(draftPreviewUrl, "_blank", "noopener,noreferrer");
   }
 
   async function handleSavePageSlug() {
@@ -262,6 +301,8 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
       setPageSlugDraft(updated.pageSlug);
       setPageStatus(updated.status);
       setLastPublishedAt(updated.lastPublishedAt);
+      setPaymentPolicy(updated.paymentPolicy);
+      setDeploymentHistory(updated.deploymentHistory);
       setUrlFeedback("Event page slug saved.");
     } catch (saveError) {
       setUrlFeedback(saveError instanceof Error ? saveError.message : "Failed to save event page slug.");
@@ -288,6 +329,10 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         setUrlFeedback("Publish blocked: add a registration, donation, or CTA section so visitors have a clear next step.");
         return;
       }
+      if (paymentPolicy !== "OfflineFollowUp" && paymentPolicy !== "NoPaymentRequired") {
+        setUrlFeedback("Publish blocked: choose a registration payment policy.");
+        return;
+      }
       if (autoSaveState === "saving") {
         setUrlFeedback("Publish blocked: wait for autosave to finish, then publish again.");
         return;
@@ -303,11 +348,14 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         body: JSON.stringify({
           status: nextStatus,
           lastPublishedAt: nextPublishedAt,
+          paymentPolicy,
           sections,
         }),
       });
       setPageStatus(updated.status);
       setLastPublishedAt(updated.lastPublishedAt);
+      setPaymentPolicy(updated.paymentPolicy);
+      setDeploymentHistory(updated.deploymentHistory);
       setAutoSaveState("saved");
     } catch {
       setAutoSaveState("error");
@@ -335,6 +383,10 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
     );
   }
 
+  if (!builderData) {
+    return null;
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#f7f8fc]">
       <EventPageBuilderTopBar
@@ -346,8 +398,11 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         urlFeedback={urlFeedback}
         status={pageStatus}
         lastPublishedAt={lastPublishedAt}
+        paymentPolicy={paymentPolicy}
+        deploymentHistory={deploymentHistory}
         autoSaveState={autoSaveState}
         publishReadiness={publishReadiness}
+        onPaymentPolicyChange={handlePaymentPolicyChange}
         onPageSlugDraftChange={setPageSlugDraft}
         onSavePageSlug={handleSavePageSlug}
         onPreview={handlePreview}
@@ -374,14 +429,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         <EventPageBuilderPreview
           sections={sections}
           selectedSectionId={selectedSection.id}
-          data={{
-            event,
-            ticketTypes,
-            sponsors,
-            report,
-            publicUrl: draftPreviewUrl,
-            pageSlug,
-          }}
+          data={builderData}
           onSelectSection={setSelectedSectionId}
         />
 
@@ -397,6 +445,13 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
           }}
         />
       </div>
+
+      <EventPageBuilderPreviewDialog
+        open={previewOpen}
+        sections={sections}
+        data={builderData}
+        onClose={() => setPreviewOpen(false)}
+      />
     </div>
   );
 }

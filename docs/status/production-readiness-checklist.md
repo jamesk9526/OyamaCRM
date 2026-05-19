@@ -21,7 +21,8 @@ Use only these status labels:
 | Central partial implementation audit established | Working | `docs/status/PARTIAL_IMPLEMENTATION_AUDIT.md` |
 | CRM-wide readiness matrix established | Working | `docs/status/PRODUCTION_READINESS_MATRIX.md` |
 | Events sidebar now avoids known dead event-scoped routes | Working | `app/components/layout/sidebar-configs.tsx` |
-| EventSTUDIO sidebar scoping and page-builder publish readiness | Working | `app/components/layout/sidebar-configs.tsx`, `app/components/events/page-builder/*`, `server/src/routes/events.ts` |
+| EventSTUDIO sidebar scoping and page-builder production readiness | Working | `app/components/layout/sidebar-configs.tsx`, `app/components/events/page-builder/*`, `server/src/routes/events.ts`, `tests/smoke/events-crud.test.ts` |
+| EventSTUDIO ticketing, guest provisioning, and TableLink public tests | Working | `server/src/routes/events.ts`, `tests/smoke/events-crud.test.ts`, `tests/api/events-tablelink-public.api.test.ts`, `tests/e2e/events-public-page-builder.e2e.mjs` |
 | Compassion primary sidebar no longer exposes placeholder Tasks route | Working | `app/components/layout/sidebar-configs.tsx`, `app/compassion/tasks/page.tsx` |
 | Settings landing page no longer links to placeholder Events settings card | Working | `app/settings/page.tsx`, `app/settings/events/page.tsx` |
 | Campaign and communications route-level browser dialogs replaced with modal UX | Working | `app/campaigns/page.tsx`, `app/campaigns/[id]/page.tsx`, `app/communications/page.tsx` |

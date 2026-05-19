@@ -91,7 +91,24 @@ async function processQueuePass(): Promise<void> {
       } catch (err) {
         // Keep the worker alive and surface per-campaign failures in status.
         workerState.lastError = err instanceof Error ? err.message : "Unknown queue send error";
-        console.error("[email-queue-worker] Failed to process campaign:", campaign.id, err);
+
+        // For SMTP authentication / config errors, print a concise one-line warning
+        // instead of a full stack trace so dev logs stay readable before creds are set up.
+        const isSmtpConfigError =
+          err instanceof Error &&
+          (err.message.includes("Authentication required") ||
+            err.message.includes("Outbound email provider is not ready") ||
+            err.message.includes("SMTP host is required") ||
+            (err as NodeJS.ErrnoException).code === "EAUTH" ||
+            (err as NodeJS.ErrnoException).code === "EENVELOPE");
+
+        if (isSmtpConfigError) {
+          console.warn(
+            `[email-queue-worker] Campaign ${campaign.id} skipped — email not configured yet (${err instanceof Error ? err.message : "unknown"})`,
+          );
+        } else {
+          console.error("[email-queue-worker] Failed to process campaign:", campaign.id, err);
+        }
       }
     }
 

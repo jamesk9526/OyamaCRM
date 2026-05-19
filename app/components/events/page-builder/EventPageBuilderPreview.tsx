@@ -90,23 +90,40 @@ function textAlignClass(section: EventPageSectionState): string {
   return section.design?.textAlign === "center" ? "text-center" : "text-left";
 }
 
+function publicHref(value: string | undefined, fallback: string): string {
+  const trimmed = value?.trim();
+  return trimmed || fallback;
+}
+
+function tableLinkHref(data: EventPageBuilderWorkspaceData): string {
+  return `/tablelink?eventId=${encodeURIComponent(data.event.id)}`;
+}
+
 function renderHero(section: EventPageSectionState, data: EventPageBuilderWorkspaceData) {
   const content = section.content ?? {};
   const design = section.design ?? {};
   const title = content.title?.trim() || data.event.name;
-  const subtitle = content.subtitle?.trim() || "Gala 2027";
+  // Subtitle intentionally falls to empty — staff set their own per-event tagline.
+  const subtitle = content.subtitle?.trim() || "";
   const overlay = Math.max(0, Math.min(90, design.overlayOpacity ?? 62)) / 100;
-  const backgroundImage = design.backgroundImageUrl || "https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?auto=format&fit=crop&w=1800&q=80";
+  const backgroundImage = design.backgroundImageUrl?.trim() || "";
   const backgroundColor = design.backgroundColor || "#120c3b";
+  const primaryHref = publicHref(content.primaryButtonLink, "#registration");
+  const secondaryHref = publicHref(content.secondaryButtonLink, "#event-details");
   const backgroundStyle = design.backgroundType === "color"
     ? { background: `linear-gradient(rgba(5,7,30,${overlay}),rgba(5,7,30,${overlay + 0.08})), ${backgroundColor}` }
     : design.backgroundType === "video"
       ? { background: `linear-gradient(rgba(5,7,30,${overlay}),rgba(5,7,30,${overlay + 0.08})), ${backgroundColor}` }
-      : {
-          backgroundImage: `linear-gradient(rgba(5,7,30,${overlay}),rgba(5,7,30,${overlay + 0.12})), url("${backgroundImage}")`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        };
+      : backgroundImage
+        ? {
+            backgroundImage: `linear-gradient(rgba(5,7,30,${overlay}),rgba(5,7,30,${overlay + 0.12})), url("${backgroundImage}")`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }
+        : {
+            // No image uploaded yet — show the base color gradient so the hero still looks composed.
+            background: `linear-gradient(135deg, ${backgroundColor} 0%, #1e1040 60%, #0f0820 100%)`,
+          };
 
   return (
     <section
@@ -127,8 +144,10 @@ function renderHero(section: EventPageSectionState, data: EventPageBuilderWorksp
       <div className="relative mx-auto flex min-h-[410px] max-w-5xl flex-col px-8 py-7">
         <nav className="flex items-center justify-between gap-4 text-xs">
           <div className="flex items-center gap-3">
-            <div className="grid h-9 w-9 place-items-center rounded-full border border-violet-300/50 bg-violet-500/18 font-bold text-violet-100">OY</div>
-            <div className="font-semibold uppercase leading-4 tracking-[0.22em]">Oyama<br />Church</div>
+            <div className="grid h-9 w-9 place-items-center rounded-full border border-violet-300/50 bg-violet-500/18 font-bold text-violet-100">
+              {data.event.name.split(" ").map((w: string) => w[0] ?? "").slice(0, 2).join("").toUpperCase() || "EV"}
+            </div>
+            <div className="max-w-[120px] truncate font-semibold uppercase leading-4 tracking-[0.22em]">{data.event.name}</div>
           </div>
           <div className="hidden items-center gap-7 text-white/82 md:flex">
             <span>About</span>
@@ -137,31 +156,33 @@ function renderHero(section: EventPageSectionState, data: EventPageBuilderWorksp
             <span>Sponsors</span>
             <span>Contact</span>
           </div>
-          <button type="button" className="rounded-md bg-violet-600 px-5 py-2 font-semibold text-white shadow-lg shadow-violet-950/35">
+          <a href={primaryHref} className="rounded-md bg-violet-600 px-5 py-2 font-semibold text-white shadow-lg shadow-violet-950/35">
             {content.primaryButtonText || "Get Tickets"}
-          </button>
+          </a>
         </nav>
 
         <div className="flex flex-1 flex-col items-center justify-center py-12 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.42em] text-violet-200">
-            {content.kicker || "Join us for a night of hope"}
-          </p>
+          {(content.kicker?.trim()) ? (
+            <p className="text-xs font-semibold uppercase tracking-[0.42em] text-violet-200">
+              {content.kicker.trim()}
+            </p>
+          ) : null}
           <h1 className="mt-4 text-5xl font-light italic leading-tight tracking-normal text-white md:text-7xl">{title}</h1>
-          <p className="mt-2 text-4xl font-semibold uppercase tracking-[0.12em] text-violet-400 md:text-5xl">{subtitle}</p>
+          {subtitle ? <p className="mt-2 text-4xl font-semibold uppercase tracking-[0.12em] text-violet-400 md:text-5xl">{subtitle}</p> : null}
 
           <div className="mt-7 grid gap-4 text-left text-sm text-white/92 md:grid-cols-3">
             <p><span className="font-semibold text-violet-300">Date</span><br />{formatDateTimeRange(data.event.startDate, data.event.endDate)}</p>
             <p><span className="font-semibold text-violet-300">Location</span><br />{data.event.location ?? "Location to be announced"}<br />{locationLine(data)}</p>
-            <p><span className="font-semibold text-violet-300">Attire</span><br />Formal Attire<br />Black Tie Optional</p>
+            {content.attire?.trim() ? <p><span className="font-semibold text-violet-300">Attire</span><br />{content.attire}</p> : null}
           </div>
 
           <div className="mt-7 flex flex-wrap justify-center gap-3">
-            <button type="button" className="rounded-md bg-violet-600 px-7 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-950/30">
+            <a href={primaryHref} className="rounded-md bg-violet-600 px-7 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-950/30">
               {content.primaryButtonText || "Get Tickets"}
-            </button>
-            <button type="button" className="rounded-md border border-white/35 bg-white/8 px-7 py-3 text-sm font-semibold text-white backdrop-blur hover:bg-white/12">
-              {content.secondaryButtonText || "View Event Details"} v
-            </button>
+            </a>
+            <a href={secondaryHref} className="rounded-md border border-white/35 bg-white/8 px-7 py-3 text-sm font-semibold text-white backdrop-blur hover:bg-white/12">
+              {content.secondaryButtonText || "View Event Details"}
+            </a>
           </div>
           {design.showScrollIndicator !== false ? <div className="mt-5 text-3xl font-light text-white/72">↓</div> : null}
         </div>
@@ -224,6 +245,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
           <PublicEventRegistrationForm
             pageSlug={data.pageSlug}
             ticketTypes={data.ticketTypes}
+            paymentPolicy={data.paymentPolicy}
             previewOnly={!data.isPublicRegistration}
           />
         </div>
@@ -232,6 +254,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
   }
 
   if (section.id === "table-host-signup") {
+    const hostSignupHref = publicHref(content.buttonLink, tableLinkHref(data));
     return (
       <section className={`bg-white ${sectionPadding(section)} ${textAlignClass(section)}`}>
         <h2 className="text-2xl font-semibold text-slate-950">{heading}</h2>
@@ -244,6 +267,9 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
             </article>
           ))}
         </div>
+        <a href={hostSignupHref} className="mt-5 inline-flex rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white">
+          {content.buttonText || "Open TableLink"}
+        </a>
       </section>
     );
   }
@@ -270,7 +296,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
       <section className={`bg-white ${sectionPadding(section)}`}>
         <div className="grid gap-8 md:grid-cols-[1fr_320px] md:items-center">
           <div className={textAlignClass(section)}>
-            <h2 className="text-2xl font-semibold text-slate-950">{content.heading || "A Night That Changes Lives"}</h2>
+            <h2 className="text-2xl font-semibold text-slate-950">{heading}</h2>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">{body}</p>
           </div>
           <aside className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -283,7 +309,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
             <div className="mt-2 h-2 rounded-full bg-slate-100">
               <div className="h-full rounded-full bg-violet-600" style={{ width: `${Math.min(100, progress)}%` }} />
             </div>
-            <button type="button" className="mt-4 h-10 w-full rounded-md bg-violet-600 text-sm font-semibold text-white">Make a Donation</button>
+            <a href={publicHref(content.buttonLink, "#donate")} className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-md bg-violet-600 text-sm font-semibold text-white">Make a Donation</a>
           </aside>
         </div>
       </section>
@@ -298,27 +324,32 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
           <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
           <div className="mt-5 grid gap-2 sm:grid-cols-4">
             {[50, 100, 250, 500].map((amount) => (
-              <button key={amount} type="button" className="h-11 rounded-lg border border-violet-200 bg-violet-50 text-sm font-semibold text-violet-700">${amount}</button>
+              <a key={amount} href={`${publicHref(content.buttonLink, "#registration")}?amount=${amount}`} className="inline-flex h-11 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-sm font-semibold text-violet-700">${amount}</a>
             ))}
           </div>
-          <button type="button" className="mt-4 h-11 w-full rounded-lg bg-violet-600 text-sm font-semibold text-white">{content.buttonText || "Give Now"}</button>
+          <a href={publicHref(content.buttonLink, "#registration")} className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-lg bg-violet-600 text-sm font-semibold text-white">{content.buttonText || "Give Now"}</a>
         </div>
       </section>
     );
   }
 
   if (section.id === "schedule") {
+    const scheduleItems = (content.scheduleItems as Array<{ time?: string; label?: string }> | undefined) ?? [];
     return (
       <section className={`bg-slate-50 ${sectionPadding(section)} ${textAlignClass(section)}`}>
         <h2 className="text-2xl font-semibold text-slate-950">{heading}</h2>
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
-          {["Doors Open", "Dinner & Program", "Giving Moment"].map((item, index) => (
-            <article key={item} className="rounded-xl border border-slate-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600">Step {index + 1}</p>
-              <p className="mt-2 text-sm font-semibold text-slate-950">{item}</p>
-            </article>
-          ))}
-        </div>
+        {scheduleItems.length > 0 ? (
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            {scheduleItems.map((item, index) => (
+              <article key={index} className="rounded-xl border border-slate-200 bg-white p-4">
+                {item.time ? <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600">{item.time}</p> : null}
+                <p className="mt-2 text-sm font-semibold text-slate-950">{item.label || `Item ${index + 1}`}</p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-slate-400">Add schedule items in the section inspector to show your event timeline here.</p>
+        )}
       </section>
     );
   }
@@ -405,16 +436,26 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
   }
 
   if (section.id === "image-gallery") {
-    const image = content.mediaUrl || "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80";
+    const galleryImages = (content.galleryImages as string[] | undefined) ?? (content.mediaUrl ? [content.mediaUrl] : []);
     return (
       <section className={`bg-white ${sectionPadding(section)} ${textAlignClass(section)}`}>
         <h2 className="text-2xl font-semibold text-slate-950">{heading}</h2>
         <p className="mt-2 text-sm text-slate-600">{body}</p>
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
-          {[0, 1, 2].map((index) => (
-            <div key={index} className="h-44 rounded-2xl bg-cover bg-center shadow-sm" style={{ backgroundImage: `url("${image}")` }} />
-          ))}
-        </div>
+        {galleryImages.length > 0 ? (
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            {galleryImages.slice(0, 6).map((src, index) => (
+              <div key={index} className="h-44 rounded-2xl bg-cover bg-center shadow-sm" style={{ backgroundImage: `url("${src}")` }} />
+            ))}
+          </div>
+        ) : (
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            {[0, 1, 2].map((index) => (
+              <div key={index} className="h-44 rounded-2xl border border-dashed border-slate-300 bg-slate-50 grid place-items-center text-xs text-slate-400">
+                Add photo {index + 1}
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     );
   }
@@ -458,14 +499,22 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
   }
 
   if (section.id === "faq") {
+    const faqItems = (content.faqItems as Array<{ question?: string; answer?: string }> | undefined) ?? [];
     return (
       <section className={`bg-white ${sectionPadding(section)} ${textAlignClass(section)}`}>
         <h2 className="text-2xl font-semibold text-slate-950">{heading}</h2>
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
-          {["What should I wear?", "Can I host a table?", "How do I update registration?"].map((question) => (
-            <article key={question} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-900">{question}</article>
-          ))}
-        </div>
+        {faqItems.length > 0 ? (
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            {faqItems.map((item, index) => (
+              <article key={index} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-semibold text-slate-900">{item.question ?? `Question ${index + 1}`}</p>
+                {item.answer ? <p className="mt-2 text-sm text-slate-600">{item.answer}</p> : null}
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-slate-400">Add FAQ items in the section inspector to answer common attendee questions here.</p>
+        )}
       </section>
     );
   }
@@ -498,12 +547,30 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
   }
 
   if (section.id === "share-buttons") {
+    const encodedUrl = encodeURIComponent(data.publicUrl);
+    const encodedTitle = encodeURIComponent(data.event.name);
+    const shareActions = [
+      { label: "Email", href: `mailto:?subject=${encodedTitle}&body=${encodedUrl}` },
+      { label: "Facebook", href: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}` },
+      { label: "X", href: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedTitle}` },
+    ];
     return (
       <section className={`bg-slate-50 ${sectionPadding(section)} ${textAlignClass(section)}`}>
         <h2 className="text-2xl font-semibold text-slate-950">{heading}</h2>
         <div className="mt-5 flex flex-wrap gap-2">
-          {["Copy Link", "Email", "Facebook", "X"].map((label) => (
-            <button key={label} type="button" className="rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700">{label}</button>
+          <button
+            type="button"
+            onClick={() => {
+              void navigator.clipboard?.writeText(data.publicUrl);
+            }}
+            className="rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700"
+          >
+            Copy Link
+          </button>
+          {shareActions.map((action) => (
+            <a key={action.label} href={action.href} className="rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700">
+              {action.label}
+            </a>
           ))}
         </div>
       </section>

@@ -11,6 +11,7 @@ interface Props {
   onDelete?: (id: string) => void;
   onMarkThanked?: (id: string) => void;
   onCreateEmailDraft?: (id: string) => void;
+  onEmailFromTemplate?: (id: string) => void;
   onCreateCallTask?: (id: string) => void;
   onStartPath?: (id: string) => void;
   onCompleteStewardshipLoop?: (id: string) => void;
@@ -47,6 +48,7 @@ export default function DonationTable({
   onDelete,
   onMarkThanked,
   onCreateEmailDraft,
+  onEmailFromTemplate,
   onCreateCallTask,
   onStartPath,
   onCompleteStewardshipLoop,
@@ -159,6 +161,16 @@ export default function DonationTable({
               >
                 {actionBusyDonationId === d.id ? "Creating..." : "Email Draft"}
               </button>
+              {onEmailFromTemplate && (
+                <button
+                  type="button"
+                  onClick={() => onEmailFromTemplate(d.id)}
+                  disabled={actionBusyDonationId === d.id}
+                  className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-md hover:bg-teal-100 disabled:opacity-60"
+                >
+                  Email Template
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => onCreateCallTask?.(d.id)}
@@ -288,6 +300,16 @@ export default function DonationTable({
                   >
                     {actionBusyDonationId === d.id ? "Creating..." : "Email Draft"}
                   </button>
+                  {onEmailFromTemplate && (
+                    <button
+                      type="button"
+                      onClick={() => onEmailFromTemplate(d.id)}
+                      disabled={actionBusyDonationId === d.id}
+                      className="inline-flex items-center px-2 py-1 text-[11px] font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-md hover:bg-teal-100 disabled:opacity-60"
+                    >
+                      Email Template
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => onCreateCallTask?.(d.id)}

@@ -631,8 +631,9 @@ export default function DashboardPage() {
   const topKpiWidgets: WidgetId[] = ["revenue", "goal-health", "retention", "engagement-pulse"];
   const stewardshipWidgets: WidgetId[] = ["start-here", "todays-focus", "actionable-insights", "stewardship-attention"];
   const intelligenceWidgets: WidgetId[] = ["ai-insights", "ai-opportunities", "ai-chat"];
-  const analyticsWidgets: WidgetId[] = ["monthly-donors", "giving-trend", "top-donors", "weekly-stats"];
-  const activityWidgets: WidgetId[] = ["recent-donations", "tasks", "meetings"];
+  const weeklyWidgets: WidgetId[] = ["weekly-stats", "recent-donations"];
+  const monthlyWidgets: WidgetId[] = ["monthly-donors", "giving-trend"];
+  const otherWidgets: WidgetId[] = ["top-donors", "tasks", "meetings"];
 
   function scrollToDashboardSection(id: string) {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -868,16 +869,17 @@ export default function DashboardPage() {
             statusLabel={locked ? "Layout locked" : editMode ? "Editing layout" : reportingYearMode === "fiscal" ? "Fiscal year mode" : "Calendar year mode"}
             metadata={`Refreshed ${lastRefreshed.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`}
             primaryAction={<WorkspaceRibbonButton label="New Constituent" href="/constituents/new" variant="primary" />}
-            overflowActions={<WorkspaceRibbonButton label="Record Gift" href="/donations/new" />}
           />
           <WorkspaceRibbon>
             <WorkspaceRibbonGroup label="Views">
               <WorkspaceRibbonButton label="Overview" onClick={() => scrollToDashboardSection("dashboard-overview")} variant="primary" />
+              <WorkspaceRibbonButton label="This Week" onClick={() => scrollToDashboardSection("dashboard-weekly")} />
+              <WorkspaceRibbonButton label="This Month" onClick={() => scrollToDashboardSection("dashboard-monthly")} />
               <WorkspaceRibbonButton label="Stewardship" onClick={() => scrollToDashboardSection("dashboard-stewardship")} />
-              <WorkspaceRibbonButton label="Giving" onClick={() => scrollToDashboardSection("dashboard-analytics")} />
-              <WorkspaceRibbonButton label="Activity" onClick={() => scrollToDashboardSection("dashboard-activity")} />
+              <WorkspaceRibbonButton label="Other" onClick={() => scrollToDashboardSection("dashboard-other")} />
             </WorkspaceRibbonGroup>
             <WorkspaceRibbonGroup label="Create">
+              <WorkspaceRibbonButton label="Record Gift" href="/donations/new" variant="primary" />
               <WorkspaceRibbonButton label="New Task" href="/tasks" />
               <WorkspaceRibbonButton label="Campaign" href="/campaigns" />
               <WorkspaceRibbonButton label="Letter" href="/letters-printables/generate" />
@@ -900,7 +902,7 @@ export default function DashboardPage() {
                 className="py-1"
               />
             </WorkspaceRibbonGroup>
-            <WorkspaceRibbonGroup label="Dashboard">
+            <WorkspaceRibbonGroup label="Layout">
               <WorkspaceRibbonButton label="Refresh" onClick={() => void load()} />
               {!editMode ? (
                 <WorkspaceRibbonButton label="Edit Layout" onClick={() => { if (!locked) setEditMode(true); }} disabled={locked} />
@@ -908,13 +910,15 @@ export default function DashboardPage() {
                 <WorkspaceRibbonButton label="Done" onClick={() => setEditMode(false)} variant="primary" />
               )}
               <WorkspaceRibbonButton label={locked ? "Unlock" : "Lock"} onClick={() => setLocked((value) => !value)} />
+            </WorkspaceRibbonGroup>
+            <WorkspaceRibbonGroup label="Widgets">
               <WorkspaceRibbonButton label="Customize" onClick={() => setShowCustomizeModal(true)} />
               <WorkspaceRibbonButton
-                label="Masonry"
+                label="Free Flow"
                 onClick={() => setLayoutMode((current) => (current === "MASONRY" ? "GRID" : "MASONRY"))}
                 active={layoutMode === "MASONRY"}
                 disabled={editMode}
-                title={editMode ? "Exit edit mode to change layout flow" : "Toggle free-flow masonry layout"}
+                title={editMode ? "Exit edit mode to change layout" : "Toggle free-flow masonry layout"}
               />
               <WorkspaceRibbonButton label="Reset Sizes" onClick={() => setWidgetSizes({ ...DEFAULT_WIDGET_SIZES })} disabled={locked} />
             </WorkspaceRibbonGroup>
@@ -929,6 +933,8 @@ export default function DashboardPage() {
           loading={loading}
           dataThroughLabel={dataThroughLabel}
           ytdAmount={summary?.ytdAmount ?? 0}
+          weekAmount={summary?.weekAmount ?? 0}
+          weekCount={summary?.weekCount ?? 0}
           monthAmount={summary?.monthAmount ?? 0}
           revenueGoal={revenueGoal}
           retentionRate={retention?.rate ?? 0}
@@ -1019,6 +1025,35 @@ export default function DashboardPage() {
         </div>
       </section>
 
+      <section id="dashboard-weekly" className="scroll-mt-28 space-y-3">
+        <div className="flex items-center gap-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">This Week</h2>
+          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-500">
+            {loading ? "—" : `${formatUsd(summary?.weekAmount ?? 0)} · ${summary?.weekCount ?? 0} gift${(summary?.weekCount ?? 0) === 1 ? "" : "s"}`}
+          </span>
+        </div>
+        <div className={sectionLayoutClassName}>
+          {visibleSectionWidgets(weeklyWidgets).map(renderWidgetById)}
+        </div>
+      </section>
+
+      <section id="dashboard-monthly" className="scroll-mt-28 space-y-3">
+        <div className="flex items-center gap-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">This Month</h2>
+          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-500">
+            {loading ? "—" : formatUsd(summary?.monthAmount ?? 0)}
+          </span>
+          {!loading && (summary?.momTrend ?? null) !== null && (
+            <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${(summary?.momTrend ?? 0) >= 0 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}>
+              {(summary?.momTrend ?? 0) >= 0 ? "▲" : "▼"} {Math.abs(Math.round(summary?.momTrend ?? 0))}% vs last month
+            </span>
+          )}
+        </div>
+        <div className={sectionLayoutClassName}>
+          {visibleSectionWidgets(monthlyWidgets).map(renderWidgetById)}
+        </div>
+      </section>
+
       <section id="dashboard-stewardship" className="scroll-mt-28 space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Stewardship And Actions</h2>
         <div className={sectionLayoutClassName}>
@@ -1035,17 +1070,10 @@ export default function DashboardPage() {
         </section>
       ) : null}
 
-      <section id="dashboard-analytics" className="scroll-mt-28 space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Giving Analytics</h2>
+      <section id="dashboard-other" className="scroll-mt-28 space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Other</h2>
         <div className={sectionLayoutClassName}>
-          {visibleSectionWidgets(analyticsWidgets).map(renderWidgetById)}
-        </div>
-      </section>
-
-      <section id="dashboard-activity" className="scroll-mt-28 space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Recent Activity</h2>
-        <div className={sectionLayoutClassName}>
-          {visibleSectionWidgets(activityWidgets).map(renderWidgetById)}
+          {visibleSectionWidgets(otherWidgets).map(renderWidgetById)}
         </div>
       </section>
 

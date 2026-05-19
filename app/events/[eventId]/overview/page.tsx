@@ -2,6 +2,32 @@
  * Event Overview page — /events/[eventId]/overview
  *
  * Polished event-scoped command center with nonprofit fundraising operations focus.
+ * Shows KPI cards, fundraising progress, check-in progress, and an action queue.
+ *
+ * TODO: Wire the "Need Attention" action queue to a real API endpoint.
+ *       Currently the attention items (Payment Issues, Guest Placement, Pending RSVPs)
+ *       are derived from local data computations. They should come from
+ *       GET /api/events/[id]/action-queue which can apply org-specific thresholds and priorities.
+ *
+ * TODO: Add a "Check-In Volunteer Mode" quick-launch button on this page that opens
+ *       /events/[id]/check-in?mode=volunteer — a stripped-down check-in view with no CRM nav.
+ *       This is referenced in events-workspace-config.ts notes for the check-in tool.
+ *
+ * TODO: Replace the "Check-In Readiness" percentage with a real readiness checklist API.
+ *       Currently it counts readiness items on the frontend. Move the checklist logic server-side
+ *       and return a structured { passed: number, total: number, items: [...] } response.
+ *
+ * TODO: The Milestones section at the bottom shows Registration Deadline, Event Start, Event End.
+ *       Add a "Days Until Event" countdown badge that becomes a "Days Since" badge after the event.
+ *       Also add a "Copy public event URL" button next to the event page milestone.
+ *
+ * TODO: The 8 KPI cards in "Event At A Glance" are rendered in a horizontal scroll on small
+ *       laptop screens. Wrap to 2 rows at < 1280px width instead of allowing overflow.
+ *       Use a responsive grid: grid-cols-4 xl:grid-cols-8 or similar.
+ *
+ * TODO: Add real-time refresh using polling or SSE for the Check-In progress card
+ *       during live events. Staff use this page on a secondary monitor during events.
+ *       Suggested: auto-refresh every 60s when the event's check-in is active.
  */
 "use client";
 
@@ -426,7 +452,7 @@ export default function EventOverviewPage() {
   }
 
   const checkInStatusLabel = checkedInGuests > 0 ? "Live" : "Not Started";
-  const pageBuilderStatusLabel = "Partially Working";
+  const pageBuilderStatusLabel = "Working";
   const eventStatus = event.status ? toDisplayStatus(event.status) : event.active ? "active" : "inactive";
   const registrationGoal = event.registrationGoal ?? event.capacity ?? null;
   const registrationProgress = registrationGoal && registrationGoal > 0

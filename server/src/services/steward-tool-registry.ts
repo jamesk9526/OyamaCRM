@@ -36,6 +36,7 @@ export type StewardToolName =
   | "donor.getLapseRisks"
   | "donor.getTopOpportunities"
   | "donor.getProfileDecisionPacket"
+  | "donor.getCommunicationSnapshot"
   | "donor.getFullProfile"
   | "donor.getDonationHistory"
   | "donor.getGiftSummaryByYear"
@@ -43,6 +44,7 @@ export type StewardToolName =
   | "tasks.listOverdue"
   | "reports.getOShareviewDonorSummary"
   | "reports.runSummary"
+  | "reports.runTotalsSnapshot"
   | "reports.runGivingByMonth"
   | "reports.runDonorRetention"
   | "reports.runLybunt"
@@ -60,7 +62,12 @@ export type StewardToolName =
   | "tasks.createFollowUpTask"
   | "tasks.createThankYouTask"
   | "letters.createLetterDraft"
-  | "communications.createEmailDraft";
+  | "letters.createThankYouLetterDraft"
+  | "letters.createAppealLetterDraft"
+  | "communications.createEmailDraft"
+  | "communications.createThankYouEmailDraft"
+  | "communications.createImpactUpdateEmailDraft"
+  | "communications.createReEngagementEmailDraft";
 
 export type StewardToolKind = "read" | "write";
 
@@ -178,6 +185,14 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     allowedModules: ["donor", "oshareview"],
   },
   {
+    name: "donor.getCommunicationSnapshot",
+    kind: "read",
+    description: "Returns donor communication readiness details: preferences, latest gift context, and open outreach tasks. Requires constituentId.",
+    requiredPermissions: ["view:constituents", "view:donations", "view:tasks"],
+    requiresConfirmation: false,
+    allowedModules: ["donor", "oshareview"],
+  },
+  {
     name: "donor.getFullProfile",
     kind: "read",
     description: "Returns the full profile for a single donor: contact info, giving history, open tasks, stewardship signals, and communication preferences. Requires constituentId.",
@@ -242,10 +257,42 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     allowedModules: ["donor", "oshareview"],
   },
   {
+    name: "communications.createThankYouEmailDraft",
+    kind: "write",
+    description: "Creates a donor thank-you email draft with stewardship-safe defaults (review-first, never auto-send).",
+    requiredPermissions: ["edit:communications", "view:constituents"],
+    requiresConfirmation: true,
+    allowedModules: ["donor", "oshareview"],
+  },
+  {
+    name: "communications.createImpactUpdateEmailDraft",
+    kind: "write",
+    description: "Creates an impact-update email draft focused on outcomes and gratitude for the selected donor.",
+    requiredPermissions: ["edit:communications", "view:constituents"],
+    requiresConfirmation: true,
+    allowedModules: ["donor", "oshareview"],
+  },
+  {
+    name: "communications.createReEngagementEmailDraft",
+    kind: "write",
+    description: "Creates a re-engagement email draft for lapsed or cooling donors, with respectful stewardship language.",
+    requiredPermissions: ["edit:communications", "view:constituents"],
+    requiresConfirmation: true,
+    allowedModules: ["donor", "oshareview"],
+  },
+  {
     name: "reports.runSummary",
     kind: "read",
     description: "Runs the org KPI summary report for the current fiscal year: YTD giving, gift count, constituents, active campaigns, pending tasks, grant awards.",
     requiredPermissions: ["view:reports", "view:donations"],
+    requiresConfirmation: false,
+    allowedModules: ["donor", "oshareview"],
+  },
+  {
+    name: "reports.runTotalsSnapshot",
+    kind: "read",
+    description: "Returns weekly total, monthly total, fiscal YTD total, full fiscal-year total, and unique donor counts for Steward reporting.",
+    requiredPermissions: ["view:reports", "view:donations", "view:constituents"],
     requiresConfirmation: false,
     allowedModules: ["donor", "oshareview"],
   },
@@ -373,6 +420,22 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     name: "letters.createLetterDraft",
     kind: "write",
     description: "Creates one donor letter template draft only (never send), with review-first defaults.",
+    requiredPermissions: ["letters.create", "letters.view"],
+    requiresConfirmation: true,
+    allowedModules: ["donor", "oshareview"],
+  },
+  {
+    name: "letters.createThankYouLetterDraft",
+    kind: "write",
+    description: "Creates a donor thank-you letter draft with nonprofit stewardship defaults.",
+    requiredPermissions: ["letters.create", "letters.view"],
+    requiresConfirmation: true,
+    allowedModules: ["donor", "oshareview"],
+  },
+  {
+    name: "letters.createAppealLetterDraft",
+    kind: "write",
+    description: "Creates a donor appeal letter draft with campaign-ready structure and review-first status.",
     requiredPermissions: ["letters.create", "letters.view"],
     requiresConfirmation: true,
     allowedModules: ["donor", "oshareview"],
@@ -911,6 +974,108 @@ export async function executeStewardTool(
       break;
     }
 
+    case "donor.getCommunicationSnapshot": {
+      const constituentId = asText(input?.constituentId, "", 120);
+      if (!constituentId) {
+        throw new StewardToolError(400, "VALIDATION_ERROR", "constituentId is required.");
+      }
+
+      const [constituent, recentDonation, openTasks] = await Promise.all([
+        prisma.constituent.findFirst({
+          where: {
+            id: constituentId,
+            organizationId: context.organizationId,
+          },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            doNotEmail: true,
+            emailOptOut: true,
+            doNotCall: true,
+            doNotMail: true,
+            doNotContact: true,
+            donorStatus: true,
+            totalLifetimeGiving: true,
+            lastGiftDate: true,
+          },
+        }),
+        prisma.donation.findFirst({
+          where: {
+            constituentId,
+            status: "COMPLETED",
+          },
+          orderBy: { date: "desc" },
+          select: {
+            id: true,
+            amount: true,
+            date: true,
+            campaign: { select: { name: true } },
+          },
+        }),
+        prisma.task.findMany({
+          where: {
+            constituentId,
+            status: "PENDING",
+          },
+          orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
+          take: 8,
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            priority: true,
+            dueDate: true,
+          },
+        }),
+      ]);
+
+      if (!constituent) {
+        throw new StewardToolError(404, "NOT_FOUND", "Constituent not found.");
+      }
+
+      const preferences: DonorCommunicationPreferences = {
+        doNotEmail: constituent.doNotEmail,
+        emailOptOut: constituent.emailOptOut,
+        doNotCall: constituent.doNotCall,
+        doNotMail: constituent.doNotMail,
+        doNotContact: constituent.doNotContact,
+      };
+
+      result = {
+        generatedAt: new Date().toISOString(),
+        constituent: {
+          id: constituent.id,
+          donorName: `${constituent.firstName} ${constituent.lastName}`.trim(),
+          donorStatus: constituent.donorStatus,
+          totalLifetimeGiving: Number(constituent.totalLifetimeGiving ?? 0),
+          lastGiftDate: constituent.lastGiftDate?.toISOString().slice(0, 10) ?? null,
+          primaryEmail: constituent.email,
+          primaryPhone: constituent.phone,
+        },
+        communicationPreferences: preferences,
+        blockedReason: communicationBlockReason(preferences),
+        recentDonation: recentDonation
+          ? {
+              donationId: recentDonation.id,
+              amount: Number(recentDonation.amount),
+              date: recentDonation.date.toISOString().slice(0, 10),
+              campaignName: recentDonation.campaign?.name ?? null,
+            }
+          : null,
+        openTasks: openTasks.map((task) => ({
+          taskId: task.id,
+          title: task.title,
+          type: task.type,
+          priority: task.priority,
+          dueDate: task.dueDate?.toISOString().slice(0, 10) ?? null,
+        })),
+      };
+      break;
+    }
+
     case "reports.getOShareviewDonorSummary": {
       const year = asPositiveInt(input?.year, new Date().getFullYear(), 2000, 2200);
       result = await getOShareviewDonorSummary(context.organizationId, { year });
@@ -1159,6 +1324,96 @@ export async function executeStewardTool(
       break;
     }
 
+    case "communications.createThankYouEmailDraft": {
+      const subject = asText(input?.subject, "Thank you for your generosity", 180);
+      const previewText = asText(input?.previewText, "Your support is making a real impact.", 220);
+      const bodyPlainText = asText(
+        input?.bodyPlainText,
+        "Dear {{preferredName}},\n\nThank you for your generous support. Your gift is helping us serve more people with consistency and care.\n\nWith gratitude,\n{{organizationName}}",
+        12000
+      );
+      const bodyHtml = asText(
+        input?.bodyHtml,
+        "<p>Dear {{preferredName}},</p><p>Thank you for your generous support. Your gift is helping us serve more people with consistency and care.</p><p>With gratitude,<br/>{{organizationName}}</p>",
+        24000
+      );
+      const nested = await executeStewardTool(
+        context,
+        "communications.createEmailDraft",
+        {
+          ...input,
+          subject,
+          previewText,
+          bodyPlainText,
+          bodyHtml,
+          name: asText(input?.name, "Steward Thank-You Draft", 180),
+        },
+        { confirm: true }
+      );
+      result = nested.result;
+      break;
+    }
+
+    case "communications.createImpactUpdateEmailDraft": {
+      const subject = asText(input?.subject, "Your support in action this month", 180);
+      const previewText = asText(input?.previewText, "A quick update on what your support made possible.", 220);
+      const bodyPlainText = asText(
+        input?.bodyPlainText,
+        "Dear {{preferredName}},\n\nThank you again for standing with us. Here is a short impact update on the outcomes your support helped make possible this month.\n\nWe are grateful for your continued partnership.\n\nWarmly,\n{{organizationName}}",
+        12000
+      );
+      const bodyHtml = asText(
+        input?.bodyHtml,
+        "<p>Dear {{preferredName}},</p><p>Thank you again for standing with us. Here is a short impact update on the outcomes your support helped make possible this month.</p><p>We are grateful for your continued partnership.</p><p>Warmly,<br/>{{organizationName}}</p>",
+        24000
+      );
+      const nested = await executeStewardTool(
+        context,
+        "communications.createEmailDraft",
+        {
+          ...input,
+          subject,
+          previewText,
+          bodyPlainText,
+          bodyHtml,
+          name: asText(input?.name, "Steward Impact Update Draft", 180),
+        },
+        { confirm: true }
+      );
+      result = nested.result;
+      break;
+    }
+
+    case "communications.createReEngagementEmailDraft": {
+      const subject = asText(input?.subject, "We miss you and value your partnership", 180);
+      const previewText = asText(input?.previewText, "A quick note and invitation to reconnect.", 220);
+      const bodyPlainText = asText(
+        input?.bodyPlainText,
+        "Dear {{preferredName}},\n\nWe wanted to reach out and thank you for the support you have given in the past. If now is a good time, we would love to reconnect and share what is happening this season.\n\nGratefully,\n{{organizationName}}",
+        12000
+      );
+      const bodyHtml = asText(
+        input?.bodyHtml,
+        "<p>Dear {{preferredName}},</p><p>We wanted to reach out and thank you for the support you have given in the past. If now is a good time, we would love to reconnect and share what is happening this season.</p><p>Gratefully,<br/>{{organizationName}}</p>",
+        24000
+      );
+      const nested = await executeStewardTool(
+        context,
+        "communications.createEmailDraft",
+        {
+          ...input,
+          subject,
+          previewText,
+          bodyPlainText,
+          bodyHtml,
+          name: asText(input?.name, "Steward Re-Engagement Draft", 180),
+        },
+        { confirm: true }
+      );
+      result = nested.result;
+      break;
+    }
+
     case "reports.runSummary": {
       const fiscal = await getOrgFiscalYear(context.organizationId);
       const now = new Date();
@@ -1194,6 +1449,138 @@ export async function executeStewardTool(
         pendingTasks,
         overdueTasks,
         generatedAt: new Date().toISOString(),
+      };
+      break;
+    }
+
+    case "reports.runTotalsSnapshot": {
+      const fiscal = await getOrgFiscalYear(context.organizationId);
+      const now = new Date();
+      // Monday-start week for consistent nonprofit operations reporting.
+      const weekday = (now.getDay() + 6) % 7;
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - weekday);
+      weekStart.setHours(0, 0, 0, 0);
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      const [
+        weeklyAggregate,
+        monthlyAggregate,
+        fiscalYtdAggregate,
+        fiscalYearAggregate,
+        weeklyDonors,
+        monthlyDonors,
+        fiscalYtdDonors,
+        fiscalYearDonors,
+      ] = await Promise.all([
+        prisma.donation.aggregate({
+          where: {
+            status: "COMPLETED",
+            date: { gte: weekStart, lte: now },
+            constituent: { organizationId: context.organizationId },
+          },
+          _sum: { amount: true },
+          _count: true,
+        }),
+        prisma.donation.aggregate({
+          where: {
+            status: "COMPLETED",
+            date: { gte: monthStart, lte: now },
+            constituent: { organizationId: context.organizationId },
+          },
+          _sum: { amount: true },
+          _count: true,
+        }),
+        prisma.donation.aggregate({
+          where: {
+            status: "COMPLETED",
+            date: fiscal.ytdRange,
+            constituent: { organizationId: context.organizationId },
+          },
+          _sum: { amount: true },
+          _count: true,
+        }),
+        prisma.donation.aggregate({
+          where: {
+            status: "COMPLETED",
+            date: fiscal.fyRange,
+            constituent: { organizationId: context.organizationId },
+          },
+          _sum: { amount: true },
+          _count: true,
+        }),
+        prisma.donation.findMany({
+          where: {
+            status: "COMPLETED",
+            date: { gte: weekStart, lte: now },
+            constituent: { organizationId: context.organizationId },
+          },
+          select: { constituentId: true },
+          distinct: ["constituentId"],
+        }),
+        prisma.donation.findMany({
+          where: {
+            status: "COMPLETED",
+            date: { gte: monthStart, lte: now },
+            constituent: { organizationId: context.organizationId },
+          },
+          select: { constituentId: true },
+          distinct: ["constituentId"],
+        }),
+        prisma.donation.findMany({
+          where: {
+            status: "COMPLETED",
+            date: fiscal.ytdRange,
+            constituent: { organizationId: context.organizationId },
+          },
+          select: { constituentId: true },
+          distinct: ["constituentId"],
+        }),
+        prisma.donation.findMany({
+          where: {
+            status: "COMPLETED",
+            date: fiscal.fyRange,
+            constituent: { organizationId: context.organizationId },
+          },
+          select: { constituentId: true },
+          distinct: ["constituentId"],
+        }),
+      ]);
+
+      result = {
+        generatedAt: now.toISOString(),
+        fiscalYearLabel: fiscal.fyLabel,
+        calendarMonthLabel: now.toLocaleString("en-US", { month: "long", year: "numeric" }),
+        windows: {
+          weekly: {
+            startDate: weekStart.toISOString().slice(0, 10),
+            endDate: now.toISOString().slice(0, 10),
+            amount: Number(weeklyAggregate._sum.amount ?? 0),
+            giftCount: weeklyAggregate._count,
+            donorTotal: weeklyDonors.length,
+          },
+          monthly: {
+            startDate: monthStart.toISOString().slice(0, 10),
+            endDate: now.toISOString().slice(0, 10),
+            amount: Number(monthlyAggregate._sum.amount ?? 0),
+            giftCount: monthlyAggregate._count,
+            donorTotal: monthlyDonors.length,
+          },
+          fiscalYtd: {
+            startDate: fiscal.ytdRange.gte.toISOString().slice(0, 10),
+            endDate: fiscal.ytdRange.lte.toISOString().slice(0, 10),
+            amount: Number(fiscalYtdAggregate._sum.amount ?? 0),
+            giftCount: fiscalYtdAggregate._count,
+            donorTotal: fiscalYtdDonors.length,
+          },
+          fiscalFullYear: {
+            startDate: fiscal.fyRange.gte.toISOString().slice(0, 10),
+            endDate: new Date(fiscal.fyRange.lt.getTime() - 1).toISOString().slice(0, 10),
+            amount: Number(fiscalYearAggregate._sum.amount ?? 0),
+            giftCount: fiscalYearAggregate._count,
+            donorTotal: fiscalYearDonors.length,
+          },
+        },
       };
       break;
     }
@@ -1996,6 +2383,48 @@ export async function executeStewardTool(
         draft: template,
         deepLink: `/letters-printables/templates/${template.id}`,
       };
+      break;
+    }
+
+    case "letters.createThankYouLetterDraft": {
+      const nested = await executeStewardTool(
+        context,
+        "letters.createLetterDraft",
+        {
+          ...input,
+          category: "THANK_YOU",
+          name: asText(input?.name, "Steward Thank-You Letter", 180),
+          printSubject: asText(input?.printSubject, "Thank you for your generous support", 200),
+          printBody: asText(
+            input?.printBody,
+            "<p>Dear {{preferredName}},</p><p>Thank you for your generous support and partnership. Your gift is helping us continue this mission with strength and consistency.</p><p>With gratitude,<br/>{{organizationName}}</p>",
+            60000
+          ),
+        },
+        { confirm: true }
+      );
+      result = nested.result;
+      break;
+    }
+
+    case "letters.createAppealLetterDraft": {
+      const nested = await executeStewardTool(
+        context,
+        "letters.createLetterDraft",
+        {
+          ...input,
+          category: "CAMPAIGN",
+          name: asText(input?.name, "Steward Appeal Letter", 180),
+          printSubject: asText(input?.printSubject, "Join us in this season of impact", 200),
+          printBody: asText(
+            input?.printBody,
+            "<p>Dear {{preferredName}},</p><p>Because of supporters like you, this mission keeps moving forward. We are writing with an invitation to help meet this season's goal so more families can be served.</p><p>Thank you for considering this appeal and for standing with us.</p><p>Sincerely,<br/>{{organizationName}}</p>",
+            60000
+          ),
+        },
+        { confirm: true }
+      );
+      result = nested.result;
       break;
     }
 

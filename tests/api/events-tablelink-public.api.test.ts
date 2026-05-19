@@ -134,6 +134,56 @@ describe("events public tablelink api", () => {
     expect(inviteRes.body?.error?.code).toBe("TABLE_LOCKED");
   });
 
+  it("lets hosts invite a guest and lets the guest complete self-entry", async () => {
+    const unlock = await request(app)
+      .patch(`/api/events/tables/${tableId}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: "OPEN" });
+    expect(unlock.status).toBe(200);
+
+    const detail = await request(app)
+      .get(`/api/events/public/tablelink/${eventId}/${tableUid}`)
+      .set("x-tablelink-token", hostToken);
+    expect(detail.status).toBe(200);
+    const seatId = detail.body?.seats?.[0]?.id;
+    expect(seatId).toBeTruthy();
+
+    const inviteEmail = `self-entry-${randomUUID()}@example.org`;
+    const invite = await request(app)
+      .post(`/api/events/public/tablelink/${eventId}/${tableUid}/invite-guest`)
+      .set("x-tablelink-token", hostToken)
+      .send({ inviteEmail, seatId });
+
+    expect(invite.status).toBe(201);
+    expect(invite.body?.invite?.id).toBeTruthy();
+    expect(invite.body?.token).toBeTruthy();
+
+    const read = await request(app).get(`/api/events/public/tablelink/invites/${invite.body.token}`);
+    expect(read.status).toBe(200);
+    expect(read.body?.invite?.status).toBe("OPENED");
+
+    const complete = await request(app)
+      .post(`/api/events/public/tablelink/invites/${invite.body.token}/complete`)
+      .send({
+        firstName: "Self",
+        lastName: "Entry",
+        email: inviteEmail,
+        dietaryRestrictions: "No peanuts",
+      });
+
+    expect(complete.status).toBe(200);
+    expect(complete.body?.ok).toBe(true);
+    expect(complete.body?.guest?.seatId).toBe(seatId);
+    expect(complete.body?.guest?.checkinCode).toMatch(/^[A-Z0-9]{6,}$/);
+
+    const updatedDetail = await request(app)
+      .get(`/api/events/public/tablelink/${eventId}/${tableUid}`)
+      .set("x-tablelink-token", hostToken);
+    expect(updatedDetail.status).toBe(200);
+    const filledSeat = updatedDetail.body?.seats?.find((seat: { id: string }) => seat.id === seatId);
+    expect(filledSeat?.guest?.email).toBe(inviteEmail);
+  });
+
   it("returns cancelled and expired invite outcomes for guest self-entry routes", async () => {
     const cancelledToken = `cancelled-${randomUUID()}`;
     const cancelledHash = createHash("sha256").update(cancelledToken).digest("hex");

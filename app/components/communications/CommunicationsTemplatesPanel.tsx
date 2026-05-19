@@ -18,6 +18,7 @@ interface CommunicationsTemplatesPanelProps {
   creatingFromTemplateId: string | null;
   onOpenTemplate: (campaignId: string) => void;
   onCreateFromTemplate: (campaignId: string) => void;
+  onDeleteTemplate: (campaignId: string) => void;
 }
 
 function formatDateTime(value: string) {
@@ -35,6 +36,7 @@ export default function CommunicationsTemplatesPanel({
   creatingFromTemplateId,
   onOpenTemplate,
   onCreateFromTemplate,
+  onDeleteTemplate,
 }: CommunicationsTemplatesPanelProps) {
   const templateCandidates = campaigns
     .filter((campaign) => Boolean(campaign.subject || campaign.bodyHtml || campaign.bodyText || campaign.templateJson))
@@ -82,6 +84,13 @@ export default function CommunicationsTemplatesPanel({
                     className="rounded-md bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-60"
                   >
                     {creatingFromTemplateId === campaign.id ? "Creating..." : "Create From Template"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDeleteTemplate(campaign.id)}
+                    className="rounded-md border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                  >
+                    Delete
                   </button>
                 </div>
               </div>

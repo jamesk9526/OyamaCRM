@@ -2,13 +2,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { EventBuilderTicketType } from "@/app/components/events/page-builder/types";
+import type { EventBuilderTicketType, EventPagePaymentPolicy } from "@/app/components/events/page-builder/types";
 
 interface PublicEventRegistrationFormProps {
   /** Published event page slug used by the unauthenticated registration endpoint. */
   pageSlug?: string;
   /** Active ticket types exposed by the public event page payload. */
   ticketTypes: EventBuilderTicketType[];
+  /** Explicit production payment handling policy for public registration. */
+  paymentPolicy?: EventPagePaymentPolicy;
   /** When true, render a non-submitting preview inside the page builder canvas. */
   previewOnly?: boolean;
 }
@@ -59,7 +61,7 @@ function formatMoney(value: number | string | null | undefined): string {
 }
 
 /** PublicEventRegistrationForm renders a compact one-ticket checkout starter flow. */
-export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, previewOnly = false }: PublicEventRegistrationFormProps) {
+export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, paymentPolicy = "OfflineFollowUp", previewOnly = false }: PublicEventRegistrationFormProps) {
   const activeTickets = useMemo(() => ticketTypes.filter((ticket) => ticket.id), [ticketTypes]);
   const [ticketTypeId, setTicketTypeId] = useState(activeTickets[0]?.id ?? "");
   const [quantity, setQuantity] = useState("1");
@@ -73,7 +75,7 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pre
   const requestedTicketUnits = Math.max(1, Math.min(10, Number(quantity) || 1));
   const seatsPerTicket = selectedTicket?.isTable ? Math.max(1, selectedTicket.seatsIncluded ?? 1) : 1;
   const requestedSeats = Math.min(50, requestedTicketUnits * seatsPerTicket);
-  const totalAmount = Number(selectedTicket?.price ?? 0) * requestedTicketUnits;
+  const totalAmount = paymentPolicy === "NoPaymentRequired" ? 0 : Number(selectedTicket?.price ?? 0) * requestedTicketUnits;
   const primaryAttendee = attendees[0];
   const allAttendeesNamed = attendees.slice(0, requestedSeats).every(hasRequiredAttendeeNames);
   const canSubmit = Boolean(
@@ -172,7 +174,11 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pre
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-700">Registration</p>
           <h3 className="mt-1 text-lg font-semibold text-slate-950">Reserve seats for this event</h3>
-          <p className="mt-1 text-sm text-slate-600">Choose a ticket, enter attendee details, and receive check-in codes after confirmation.</p>
+          <p className="mt-1 text-sm text-slate-600">
+            {paymentPolicy === "NoPaymentRequired"
+              ? "Choose a ticket, enter attendee details, and receive check-in codes after confirmation."
+              : "Choose a ticket, enter attendee details, and receive check-in codes. Staff will follow up on payment when needed."}
+          </p>
         </div>
         <div className="rounded-lg border border-violet-100 bg-violet-50 px-3 py-2 text-right">
           <p className="text-xs font-semibold text-violet-700">Estimated total</p>
@@ -259,6 +265,7 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pre
         I agree to share this registration information with the event organizer for event operations and check-in.
       </label>
 
+      {paymentPolicy === "OfflineFollowUp" ? <p className="mt-3 text-xs text-slate-500">Payment policy: staff offline follow-up for paid registrations.</p> : null}
       {previewOnly ? <p className="mt-3 text-xs text-amber-700">Preview mode: publish the event page to enable live registration.</p> : null}
       {error ? <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
 
@@ -268,7 +275,7 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pre
         disabled={!canSubmit || submitting}
         className="mt-4 rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-300"
       >
-        {submitting ? "Registering..." : selectedTicket && Number(selectedTicket.price) > 0 ? "Reserve registration" : "Register"}
+        {submitting ? "Registering..." : totalAmount > 0 ? "Reserve registration" : "Register"}
       </button>
       {!allAttendeesNamed ? <p className="mt-2 text-xs text-slate-500">Enter first and last names for every seat before submitting.</p> : null}
     </section>

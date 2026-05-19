@@ -30,38 +30,45 @@ export default function ReportSummaryArtifactCard({ artifact }: ReportSummaryArt
   }
 
   return (
-    <article className="rounded-xl border border-purple-200 bg-purple-50/60 p-3 space-y-2">
-      <header className="flex items-center justify-between gap-2">
-        <h4 className="text-sm font-semibold text-purple-900">{artifact.title || "Report Summary"}</h4>
-        <span className="rounded-full border border-purple-200 bg-white px-2 py-0.5 text-[11px] text-purple-700">Summary</span>
+    <article className="overflow-hidden rounded-2xl border border-white/10 bg-[#0d1117] text-slate-200 shadow-[0_18px_50px_rgba(0,0,0,0.28)]">
+      <header className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.03] px-4 py-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300/80">Steward Report</p>
+          <h4 className="mt-1 text-sm font-semibold text-white">{artifact.title || "Report Summary"}</h4>
+        </div>
+        <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[11px] font-medium text-cyan-100">Summary</span>
       </header>
 
-      {artifact.headline && <p className="text-sm font-medium text-purple-900">{artifact.headline}</p>}
-      {artifact.boardSummary && <p className="text-sm text-slate-700 whitespace-pre-wrap">{artifact.boardSummary}</p>}
+      <div className="space-y-3 px-4 py-3">
+      {artifact.headline && <p className="text-base font-semibold leading-6 text-white">{artifact.headline}</p>}
+      {artifact.boardSummary && <p className="whitespace-pre-wrap text-sm leading-6 text-slate-300">{artifact.boardSummary}</p>}
 
       {artifact.keyMetrics && artifact.keyMetrics.length > 0 && (
-        <div>
-          <p className="text-[11px] font-semibold text-purple-800">Key Metrics</p>
-          <ul className="mt-1 list-disc pl-5 text-xs text-slate-700 space-y-0.5">{artifact.keyMetrics.map((item) => <li key={item}>{item}</li>)}</ul>
+        <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-cyan-200">Key Metrics</p>
+          <ul className="mt-2 grid gap-1.5 text-xs text-slate-300 sm:grid-cols-2">{artifact.keyMetrics.map((item) => <li key={item} className="rounded-lg bg-white/[0.03] px-2.5 py-2">{item}</li>)}</ul>
         </div>
       )}
 
       {artifact.risks && artifact.risks.length > 0 && (
-        <div>
-          <p className="text-[11px] font-semibold text-rose-700">Risks</p>
-          <ul className="mt-1 list-disc pl-5 text-xs text-slate-700 space-y-0.5">{artifact.risks.map((item) => <li key={item}>{item}</li>)}</ul>
+        <div className="rounded-xl border border-rose-400/20 bg-rose-500/10 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-200">Risks</p>
+          <ul className="mt-2 space-y-1 text-xs leading-5 text-rose-50/90">{artifact.risks.map((item) => <li key={item}>- {item}</li>)}</ul>
         </div>
       )}
 
       {artifact.opportunities && artifact.opportunities.length > 0 && (
-        <div>
-          <p className="text-[11px] font-semibold text-emerald-700">Opportunities</p>
-          <ul className="mt-1 list-disc pl-5 text-xs text-slate-700 space-y-0.5">{artifact.opportunities.map((item) => <li key={item}>{item}</li>)}</ul>
+        <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-200">Opportunities</p>
+          <ul className="mt-2 space-y-1 text-xs leading-5 text-emerald-50/90">{artifact.opportunities.map((item) => <li key={item}>- {item}</li>)}</ul>
         </div>
       )}
 
-      <button type="button" onClick={() => void copyBoardSummary()} className="rounded-md border border-purple-300 bg-white px-2 py-1 text-[11px] font-medium text-purple-800 hover:bg-purple-100">Copy For Board Report</button>
-      {notice && <p className="text-[11px] text-purple-700">{notice}</p>}
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={() => void copyBoardSummary()} className="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[11px] font-medium text-slate-200 transition-colors hover:bg-white/10">Copy For Board Report</button>
+        {notice && <p className="text-[11px] text-cyan-200">{notice}</p>}
+      </div>
+      </div>
     </article>
   );
 }

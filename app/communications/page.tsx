@@ -589,6 +589,7 @@ export default function CommunicationsPage() {
           onCreateFromTemplate={(campaignId) => {
             openCloneCampaignModal(campaignId);
           }}
+          onDeleteTemplate={openDeleteCampaignModal}
         />
       )}
 

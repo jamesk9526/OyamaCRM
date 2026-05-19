@@ -1,6 +1,6 @@
 /**
- * AGENTStewardWorkspace — full-page ChatGPT-style CRM assistant workspace.
- * Clean, light-mode, conversation-first layout with a left sidebar for
+ * AGENTStewardWorkspace — full-page modern CRM assistant workspace.
+ * Chroma-dark, conversation-first layout with a left sidebar for
  * thread history, a wide central message area, and a bottom composer.
  * CRM scope is always visible and manually selectable.
  */
@@ -13,9 +13,15 @@ import { getFiscalYearForDate, getFiscalYearEndMonth } from "@/app/lib/fiscal-ye
 import StewardResponseRenderer from "@/app/components/ai/StewardResponseRenderer";
 import { StewardThinkingPanel } from "@/app/components/ai/StewardThinkingPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
-import type { StewardStructuredResponse } from "@/app/components/ai/steward-artifact-types";
+import type {
+  StewardEmailDraftArtifact,
+  StewardChartArtifact,
+  StewardReportCardArtifact,
+  StewardStructuredResponse,
+} from "@/app/components/ai/steward-artifact-types";
 import { executeStewardSuggestedAction } from "@/app/components/ai/steward-action-executor";
 import DonorMentionPicker, { type MentionedDonor } from "@/app/components/ai/DonorMentionPicker";
+import StewardSaveTemplateModal, { type StewardTemplateDraft } from "@/app/components/ai/StewardSaveTemplateModal";
 import EmailBuilderApp from "@/app/components/email-builder/EmailBuilderApp";
 import LetterTemplateEditor from "@/app/components/letters/LetterTemplateEditor";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
@@ -31,7 +37,7 @@ type ModuleKey =
   | "hrm"
   | "all";
 
-type ChatMode = "ask" | "analyze" | "draft" | "action" | "help";
+type ChatMode = "ask" | "analyze" | "draft" | "writing" | "llm" | "action" | "help";
 type RenderMode = "markdown" | "html";
 
 interface UiMessage {
@@ -115,16 +121,6 @@ const SCOPE_OPTIONS: Array<{ key: ModuleKey; label: string; description: string;
   { key: "watchdog",   label: "Watchdog",         description: "Security events, alerts, audit logs",             color: "bg-slate-50 text-slate-700 border-slate-200" },
   { key: "all",        label: "All CRM Data",     description: "All modules where you have permission",           color: "bg-slate-900 text-white border-slate-900" },
 ];
-
-const SCOPE_COLOR: Record<ModuleKey, string> = {
-  donor:      "bg-emerald-50 text-emerald-700 border-emerald-200",
-  compassion: "bg-blue-50 text-blue-700 border-blue-200",
-  events:     "bg-amber-50 text-amber-700 border-amber-200",
-  hrm:        "bg-purple-50 text-purple-700 border-purple-200",
-  webmaster:  "bg-rose-50 text-rose-700 border-rose-200",
-  watchdog:   "bg-slate-50 text-slate-700 border-slate-200",
-  all:        "bg-slate-900 text-white border-slate-900",
-};
 
 type AddContextActionKey =
   | "attach_file"
@@ -212,16 +208,20 @@ const STARTER_PROMPTS: Record<ModuleKey, string[]> = {
 };
 
 const MODE_HELP: Record<ChatMode, string> = {
-  ask: "Ask questions and retrieve CRM context without changing records.",
-  analyze: "Compare, summarize, and find patterns across the selected scope.",
-  draft: "Write email, letter, report, and follow-up copy for human review.",
-  action: "Prepare CRM actions with confirmation before anything is changed.",
-  help: "Explain where to go and how to use OyamaCRM workflows.",
+  ask: "Ask & retrieve: grounded CRM answers with source-aware context and no record changes.",
+  analyze: "Trend & diagnostics: compare periods, surface risk/opportunity, and explain why.",
+  draft: "Draft outreach fast: generate editable emails/letters/reports for human review.",
+  writing: "Writing studio: higher-quality voice, structure, and polish for donor-facing content.",
+  llm: "LLM deep reasoning: broader synthesis, strategy exploration, and clarifying follow-up questions.",
+  action: "Action planner: propose CRM actions as confirm-first, reviewable steps.",
+  help: "Workflow guide: where to click, what order to follow, and what to do next.",
 };
 
 const QUICK_WORKFLOWS: Array<{ label: string; mode: ChatMode; prompt: string }> = [
   { label: "Today’s priorities", mode: "analyze", prompt: "Review my donor CRM data and summarize the most important stewardship priorities for today." },
   { label: "Draft outreach", mode: "draft", prompt: "Draft a donor outreach email for the selected audience. Include subject, preview text, and a warm nonprofit tone." },
+  { label: "Writing mode", mode: "writing", prompt: "Write a polished donor letter with clear voice, warm stewardship tone, and editable sections for mission impact." },
+  { label: "LLM brainstorm", mode: "llm", prompt: "Use LLM mode to brainstorm 5 donor engagement angles, then rank them by likely impact and effort." },
   { label: "Find a segment", mode: "analyze", prompt: "Find a useful donor segment for outreach and explain the selection criteria before suggesting next steps." },
   { label: "Create follow-up plan", mode: "action", prompt: "Create a review-first follow-up plan with tasks I can confirm before anything is written to the CRM." },
 ];
@@ -231,7 +231,14 @@ const QUICK_WORKFLOWS: Array<{ label: string; mode: ChatMode; prompt: string }> 
 const THREAD_LIMIT = 30;
 const MSG_LIMIT    = 80;
 const STORAGE_KEY  = "agent-steward-threads:v1";
+const ACTIVE_THREAD_STORAGE_KEY = "agent-steward-active-thread:v1";
 const RENDER_MODE_STORAGE_KEY = "agent-steward-render-mode:v1";
+
+interface MemoryPreferencesPayload {
+  memoryEnabled: boolean;
+  fileContextEnabled: boolean;
+  updatedAt?: string;
+}
 
 function readThreads(): ChatThread[] {
   if (typeof window === "undefined") return [];
@@ -263,13 +270,28 @@ function writeThreads(threads: ChatThread[]) {
   } catch { /* quota guard */ }
 }
 
+function readStoredActiveThreadId(): string | null {
+  if (typeof window === "undefined") return null;
+  const stored = window.localStorage.getItem(ACTIVE_THREAD_STORAGE_KEY);
+  return stored && stored.trim().length > 0 ? stored : null;
+}
+
+function writeStoredActiveThreadId(threadId: string | null) {
+  if (typeof window === "undefined") return;
+  if (!threadId) {
+    window.localStorage.removeItem(ACTIVE_THREAD_STORAGE_KEY);
+    return;
+  }
+  window.localStorage.setItem(ACTIVE_THREAD_STORAGE_KEY, threadId);
+}
+
 function normalizeMessages(raw: unknown): UiMessage[] {
   if (!Array.isArray(raw)) return [];
   return (raw as Partial<UiMessage>[])
     .filter((m) => m && typeof m === "object")
     .map((m): UiMessage => {
       const role: UiMessage["role"] = m.role === "assistant" ? "assistant" : "user";
-      const responseMode: ChatMode | undefined = ["ask", "analyze", "draft", "action", "help"].includes(String(m.responseMode))
+      const responseMode: ChatMode | undefined = ["ask", "analyze", "draft", "writing", "llm", "action", "help"].includes(String(m.responseMode))
         ? (m.responseMode as ChatMode)
         : undefined;
       const runtimeMode: UiMessage["runtimeMode"] = m.runtimeMode === "local" || m.runtimeMode === "remote" || m.runtimeMode === "unknown"
@@ -308,6 +330,84 @@ function newThread(moduleKey: ModuleKey, n: number): ChatThread {
   return { id: crypto.randomUUID(), title: `New chat ${n}`, createdAt: now, updatedAt: now, moduleKey, messages: [] };
 }
 
+/** Normalizes common placeholder labels into canonical Email Builder merge fields. */
+function normalizeEmailTemplateMergeFields(input: string): string {
+  const replacements: Array<{ pattern: RegExp; token: string }> = [
+    { pattern: /`?\[\s*donor\s*name\s*\]`?/gi, token: "{{fullName}}" },
+    { pattern: /`?\[\s*full\s*name\s*\]`?/gi, token: "{{fullName}}" },
+    { pattern: /`?\[\s*first\s*name\s*\]`?/gi, token: "{{preferredName}}" },
+    { pattern: /`?\[\s*preferred\s*name\s*\]`?/gi, token: "{{preferredName}}" },
+    { pattern: /`?\[\s*amount\s*\]`?/gi, token: "{{lastGiftAmount}}" },
+    { pattern: /`?\[\s*gift\s*amount\s*\]`?/gi, token: "{{lastGiftAmount}}" },
+    { pattern: /`?\[\s*date\s*\]`?/gi, token: "{{lastGiftDate}}" },
+    { pattern: /`?\[\s*gift\s*date\s*\]`?/gi, token: "{{lastGiftDate}}" },
+    { pattern: /`?\[\s*campaign\s*name\s*\]`?/gi, token: "{{campaignName}}" },
+    { pattern: /`?\[\s*campaign\s*\]`?/gi, token: "{{campaignName}}" },
+    { pattern: /`?\[\s*organization\s*name\s*\]`?/gi, token: "{{organizationName}}" },
+    { pattern: /`?\[\s*contact\s*information\s*\]`?/gi, token: "{{organizationName}}" },
+    { pattern: /`?\[\s*staff\s*name\s*\]`?/gi, token: "{{staffName}}" },
+    { pattern: /`?\[\s*unsubscribe\s*url\s*\]`?/gi, token: "{{unsubscribeUrl}}" },
+    { pattern: /`?\[\s*manage\s*preferences\s*url\s*\]`?/gi, token: "{{managePreferencesUrl}}" },
+  ];
+
+  let normalized = input;
+  for (const entry of replacements) {
+    normalized = normalized.replace(entry.pattern, entry.token);
+  }
+  return normalized;
+}
+
+/** Converts plain text into minimal HTML paragraphs for campaign draft persistence. */
+function emailTextToHtml(value: string): string {
+  const escaped = value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  return escaped
+    .split(/\n{2,}/)
+    .map((block) => `<p>${block.replace(/\n/g, "<br />")}</p>`)
+    .join("\n");
+}
+
+/** Extracts draft email fields from a Steward assistant message. */
+function extractTemplateDraftFromMessage(msg: UiMessage): StewardTemplateDraft | null {
+  const emailArtifact = msg.structured?.artifacts.find((artifact) => artifact.type === "email_draft") as StewardEmailDraftArtifact | undefined;
+  if (emailArtifact) {
+    const bodyFromArtifact = emailArtifact.bodyPlainText || emailArtifact.bodyMarkdown || emailArtifact.body || "";
+    return {
+      name: "Steward Draft Template",
+      subject: normalizeEmailTemplateMergeFields(emailArtifact.subject || ""),
+      previewText: normalizeEmailTemplateMergeFields(emailArtifact.previewText || ""),
+      bodyText: normalizeEmailTemplateMergeFields(bodyFromArtifact || ""),
+    };
+  }
+
+  const content = msg.content || "";
+  const subjectMatch = content.match(/^\**\s*subject\s*:\s*(.+)$/im);
+  const previewMatch = content.match(/^\**\s*preview\s*text\s*:\s*(.+)$/im);
+  const bodyHeader = content.match(/^\**\s*body\s*:\s*(.*)$/im);
+
+  let body = content.trim();
+  if (bodyHeader) {
+    const headerIndex = bodyHeader.index ?? 0;
+    const afterHeader = content.slice(headerIndex + bodyHeader[0].length).trim();
+    body = afterHeader || bodyHeader[1]?.trim() || "";
+  }
+
+  const hasEmailShape = Boolean(subjectMatch || previewMatch || bodyHeader);
+  if (!hasEmailShape) {
+    return null;
+  }
+
+  return {
+    name: "Steward Draft Template",
+    subject: normalizeEmailTemplateMergeFields((subjectMatch?.[1] || "").trim()),
+    previewText: normalizeEmailTemplateMergeFields((previewMatch?.[1] || "").trim()),
+    bodyText: normalizeEmailTemplateMergeFields(body),
+  };
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface AGENTStewardWorkspaceProps {
@@ -324,6 +424,8 @@ interface AGENTStewardWorkspaceProps {
   externalPrompt?: { prompt: string; moduleKey?: string; mode?: string };
   /** Called after the externalPrompt has been consumed so the parent can clear it. */
   onExternalPromptConsumed?: () => void;
+  /** Optional thread id to restore when opening this workspace. */
+  initialThreadId?: string;
 }
 
 interface StewardEmailWorkspaceState {
@@ -336,10 +438,23 @@ interface StewardLetterWorkspaceState {
   initialPanel?: "document" | "preview" | "publish";
 }
 
+interface StewardReportWorkspaceState {
+  path: string;
+  title: string;
+  sourceMessageId?: string;
+  structured?: StewardStructuredResponse;
+  replyContent?: string;
+}
+
+interface StewardTemplateModalState {
+  sourceMessageId: string;
+  draft: StewardTemplateDraft;
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
-/** AGENTStewardWorkspace — clean ChatGPT-style full-page CRM AI assistant. */
-export default function AGENTStewardWorkspace({ initialModule = "donor", dockMode = false, onCloseDock, externalPrompt, onExternalPromptConsumed }: AGENTStewardWorkspaceProps) {
+/** AGENTStewardWorkspace renders the dark Steward AI chat workspace and dock content. */
+export default function AGENTStewardWorkspace({ initialModule = "donor", dockMode = false, onCloseDock, externalPrompt, onExternalPromptConsumed, initialThreadId }: AGENTStewardWorkspaceProps) {
   // --- State ---
   const [threads, setThreads]           = useState<ChatThread[]>([]);
   const [activeId, setActiveId]         = useState<string | null>(null);
@@ -350,7 +465,6 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
   const [renderMode, setRenderMode]     = useState<RenderMode>("markdown");
   const [scope, setScope]               = useState<ModuleKey>(initialModule);
   const [scopeOpen, setScopeOpen]       = useState(false);       // composer Scope button
-  const [headerScopeOpen, setHeaderScopeOpen] = useState(false); // header scope pill
   const [addOpen, setAddOpen]           = useState(false);
   const [toolsOpen, setToolsOpen]       = useState(false);
   const [sidebarOpen, setSidebarOpen]   = useState(false); // hidden by default (mobile-first; JS reopens on large screens)
@@ -370,20 +484,33 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
   const [viewportH, setViewportH] = useState<number | null>(null);
   const [emailWorkspace, setEmailWorkspace] = useState<StewardEmailWorkspaceState | null>(null);
   const [letterWorkspace, setLetterWorkspace] = useState<StewardLetterWorkspaceState | null>(null);
+  const [reportWorkspace, setReportWorkspace] = useState<StewardReportWorkspaceState | null>(null);
+  const [templateModal, setTemplateModal] = useState<StewardTemplateModalState | null>(null);
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [templateSaveError, setTemplateSaveError] = useState<string | null>(null);
+  const [reportQuestion, setReportQuestion] = useState("");
+  const [memoryPreferences, setMemoryPreferences] = useState<MemoryPreferencesPayload | null>(null);
+  const [memorySaving, setMemorySaving] = useState(false);
+  const [memoryError, setMemoryError] = useState<string | null>(null);
 
   const bottomRef     = useRef<HTMLDivElement | null>(null);
   const textareaRef   = useRef<HTMLTextAreaElement | null>(null);
   const composerRef   = useRef<HTMLDivElement | null>(null); // anchor for mention picker
   const streamAbort   = useRef<AbortController | null>(null);
   const scopeRef      = useRef<HTMLDivElement | null>(null);
-  const headerScopeRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef  = useRef<HTMLInputElement | null>(null);
 
   // --- Derived ---
   const activeThread = useMemo(() => threads.find((t) => t.id === activeId) ?? null, [threads, activeId]);
   const scopeLabel   = SCOPE_OPTIONS.find((s) => s.key === scope)?.label ?? "Donor CRM";
-  const scopeColor   = SCOPE_COLOR[scope];
   const prompts      = STARTER_PROMPTS[scope];
+  const workspaceHref = useMemo(() => {
+    const params = new URLSearchParams({ module: scope });
+    if (activeId) {
+      params.set("thread", activeId);
+    }
+    return `/steward-ai-workspace?${params.toString()}`;
+  }, [scope, activeId]);
 
   const filteredThreads = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -396,13 +523,16 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
   useEffect(() => {
     const stored = readThreads();
     const list   = stored.length > 0 ? stored : [newThread(scope, 1)];
-    const first  = list[0];
+    const preferredId = initialThreadId || readStoredActiveThreadId();
+    const first = preferredId
+      ? (list.find((thread) => thread.id === preferredId) ?? list[0])
+      : list[0];
     setThreads(list);
     setActiveId(first.id);
     setMessages(first.messages);
     setHydrated(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [initialThreadId]);
 
   // --- Persist on change ---
   useEffect(() => {
@@ -410,17 +540,33 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     writeThreads(threads);
   }, [threads, hydrated]);
 
+  useEffect(() => {
+    if (!hydrated) return;
+    writeStoredActiveThreadId(activeId);
+  }, [activeId, hydrated]);
+
   // --- Sync active thread title when messages change ---
   useEffect(() => {
     if (!hydrated || !activeId || sending) return;
     const title  = inferTitle(messages, activeThread?.title ?? "New chat");
     const sliced = messages.slice(-MSG_LIMIT);
-    setThreads((prev) =>
-      prev.map((t) =>
-        t.id !== activeId ? t
-          : { ...t, title, updatedAt: new Date().toISOString(), messages: sliced }
-      )
-    );
+    setThreads((prev) => {
+      let changed = false;
+      const next = prev.map((t) => {
+        if (t.id !== activeId) return t;
+
+        const sameTitle = t.title === title;
+        const sameMessages = JSON.stringify(t.messages) === JSON.stringify(sliced);
+        if (sameTitle && sameMessages) {
+          return t;
+        }
+
+        changed = true;
+        return { ...t, title, updatedAt: new Date().toISOString(), messages: sliced };
+      });
+
+      return changed ? next : prev;
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, activeId, hydrated, sending]);
 
@@ -456,10 +602,6 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         setScopeOpen(false);
         setToolsOpen(false);
       }
-      // Close header scope pill when clicking outside it
-      if (headerScopeRef.current && !headerScopeRef.current.contains(target)) {
-        setHeaderScopeOpen(false);
-      }
     }
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
@@ -467,10 +609,69 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
 
   // --- Load AI config ---
   useEffect(() => {
+    let active = true;
     apiFetch<AiConfigPayload>("/api/steward-ai/config")
-      .then((cfg) => setAiConfig(cfg))
+      .then((cfg) => {
+        if (!active) return;
+        setAiConfig((current) => {
+          if (
+            current
+            && current.enabled === cfg.enabled
+            && current.mode === cfg.mode
+            && current.endpointUrl === cfg.endpointUrl
+            && current.model === cfg.model
+            && current.chatHeadEnabled === cfg.chatHeadEnabled
+          ) {
+            return current;
+          }
+          return cfg;
+        });
+      })
       .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    apiFetch<{ data: MemoryPreferencesPayload }>("/api/steward-ai/memory/preferences")
+      .then((payload) => {
+        if (!active) return;
+        setMemoryPreferences(payload.data);
+      })
+      .catch(() => {
+        if (!active) return;
+        setMemoryError("Could not load memory settings.");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const updateMemoryPreferences = useCallback(async (patch: Partial<MemoryPreferencesPayload>) => {
+    if (!memoryPreferences || memorySaving) return;
+    setMemorySaving(true);
+    setMemoryError(null);
+    const optimistic = {
+      memoryEnabled: patch.memoryEnabled ?? memoryPreferences.memoryEnabled,
+      fileContextEnabled: patch.fileContextEnabled ?? memoryPreferences.fileContextEnabled,
+    };
+    setMemoryPreferences((current) => current ? { ...current, ...optimistic } : current);
+
+    try {
+      const payload = await apiFetch<{ data: MemoryPreferencesPayload }>("/api/steward-ai/memory/preferences", {
+        method: "PUT",
+        body: JSON.stringify(optimistic),
+      });
+      setMemoryPreferences(payload.data);
+    } catch (err) {
+      setMemoryError(err instanceof Error ? err.message : "Unable to update memory settings.");
+      setMemoryPreferences(memoryPreferences);
+    } finally {
+      setMemorySaving(false);
+    }
+  }, [memoryPreferences, memorySaving]);
 
   // --- Load fiscal year settings for FY mode toggle ---
   useEffect(() => {
@@ -537,6 +738,11 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
   }
 
   function deleteThread(id: string) {
+    if (typeof window !== "undefined") {
+      const approved = window.confirm("Delete this chat thread? This cannot be undone.");
+      if (!approved) return;
+    }
+
     if (threads.length <= 1) {
       const replacement = newThread(scope, 1);
       setThreads([replacement]);
@@ -550,6 +756,21 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       const next = remaining[0];
       if (next) { setActiveId(next.id); setMessages(next.messages); }
     }
+  }
+
+  function renameThread(id: string) {
+    const existing = threads.find((thread) => thread.id === id);
+    if (!existing) return;
+    if (typeof window === "undefined") return;
+
+    const nextTitle = window.prompt("Rename chat", existing.title)?.trim();
+    if (!nextTitle) return;
+
+    setThreads((prev) => prev.map((thread) => (
+      thread.id === id
+        ? { ...thread, title: nextTitle.slice(0, 120), updatedAt: new Date().toISOString() }
+        : thread
+    )));
   }
 
   function clearChat() {
@@ -613,24 +834,25 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
 
   /** Inject a selected donor into the draft and lock them as context. */
   function handleMentionSelect(donor: MentionedDonor) {
-    const name = [donor.firstName, donor.lastName].filter(Boolean).join(" ") || donor.email || "Unknown";
-    const mentionTag = `@[${name}](donor:${donor.id})`;
-    // Replace the "@<fragment>" in the draft with the full mention tag
+    // Replace the "@<fragment>" trigger with plain text spacing and keep donor context as chips.
     const cursor = textareaRef.current?.selectionStart ?? draft.length;
     const before = draft.slice(0, cursor);
     const atIdx  = before.lastIndexOf("@");
     const after  = draft.slice(cursor);
-    const newDraft = (atIdx >= 0 ? before.slice(0, atIdx) : before) + mentionTag + " " + after;
+    const prefix = (atIdx >= 0 ? before.slice(0, atIdx) : before).replace(/\s+$/g, "");
+    const suffix = after.replace(/^\s+/g, "");
+    const spacer = prefix.length > 0 && suffix.length > 0 ? " " : "";
+    const newDraft = `${prefix}${spacer}${suffix}`;
     setDraft(newDraft);
     setMentionQuery(null);
     // Lock this donor into the conversation context (deduplicated)
     setLockedDonors((prev) => prev.find((d) => d.id === donor.id) ? prev : [...prev, donor]);
-    // Re-focus and move cursor to after the tag
+    // Re-focus and move cursor to the old @ position.
     setTimeout(() => {
       const ta = textareaRef.current;
       if (ta) {
         ta.focus();
-        const pos = (atIdx >= 0 ? before.slice(0, atIdx).length : before.length) + mentionTag.length + 1;
+        const pos = atIdx >= 0 ? Math.max(0, atIdx) : Math.max(0, prefix.length);
         ta.setSelectionRange(pos, pos);
       }
     }, 30);
@@ -947,7 +1169,34 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       return true;
     }
 
+    if (pathname.startsWith("/reports")) {
+      const latestReportMessage = [...messages].reverse().find((m) => (
+        m.role === "assistant"
+        && Boolean(m.structured?.artifacts?.some((artifact) => artifact.type === "report_card"))
+      ));
+
+      setReportWorkspace({
+        path,
+        title: "View Full Report",
+        sourceMessageId: latestReportMessage?.id,
+        structured: latestReportMessage?.structured,
+        replyContent: latestReportMessage?.content,
+      });
+      return true;
+    }
+
     return false;
+  }
+
+  function openReportWorkspaceFromMessage(messageId: string, path: string, title = "View Full Report") {
+    const source = messages.find((m) => m.id === messageId && m.role === "assistant");
+    setReportWorkspace({
+      path,
+      title,
+      sourceMessageId: messageId,
+      structured: source?.structured,
+      replyContent: source?.content,
+    });
   }
 
   // ─── Run suggested action ──────────────────────────────────────────────────
@@ -956,6 +1205,29 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     if (!src?.structured) return;
     const action = src.structured.suggestedActions[actionIndex];
     if (!action) return;
+
+    if (action.actionType === "open_report") {
+      const payload = action.payload as Record<string, unknown> | undefined;
+      const path = typeof payload?.path === "string"
+        ? payload.path
+        : typeof payload?.reportPath === "string"
+          ? payload.reportPath
+          : "/reports?tab=overview&module=donor";
+      openReportWorkspaceFromMessage(messageId, path, action.label || "View Full Report");
+      setActionStatus({ tone: "success", message: "Opened in-chat report workspace." });
+      return;
+    }
+
+    if (action.actionType === "guidepath.choose") {
+      const payload = action.payload as Record<string, unknown> | undefined;
+      const prompt = typeof payload?.prompt === "string" && payload.prompt.trim().length > 0
+        ? payload.prompt.trim()
+        : action.label;
+      await send(prompt);
+      setActionStatus({ tone: "success", message: "GuidePath selection applied. Continuing with your request." });
+      return;
+    }
+
     try {
       const res = await executeStewardSuggestedAction({
         action,
@@ -974,6 +1246,85 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       setActionStatus({ tone: "error", message: e instanceof Error ? e.message : "Action failed." });
     }
   }
+
+  function openSaveTemplateModal(messageId: string) {
+    const source = messages.find((m) => m.id === messageId && m.role === "assistant");
+    if (!source) return;
+
+    const extracted = extractTemplateDraftFromMessage(source);
+    if (!extracted) {
+      setActionStatus({ tone: "error", message: "This response is not in email draft format yet. Ask Steward to draft an email first." });
+      return;
+    }
+
+    setTemplateSaveError(null);
+    setTemplateModal({
+      sourceMessageId: messageId,
+      draft: extracted,
+    });
+  }
+
+  async function saveTemplateFromModal() {
+    if (!templateModal) return;
+    setTemplateSaving(true);
+    setTemplateSaveError(null);
+
+    const cleanedDraft: StewardTemplateDraft = {
+      name: templateModal.draft.name.trim() || "Steward Draft Template",
+      subject: normalizeEmailTemplateMergeFields(templateModal.draft.subject.trim()),
+      previewText: normalizeEmailTemplateMergeFields(templateModal.draft.previewText.trim()),
+      bodyText: normalizeEmailTemplateMergeFields(templateModal.draft.bodyText.trim()),
+    };
+
+    try {
+      const created = await apiFetch<{ id: string }>("/api/email-campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: cleanedDraft.name,
+          subject: cleanedDraft.subject,
+          previewText: cleanedDraft.previewText,
+          bodyText: cleanedDraft.bodyText,
+          bodyHtml: emailTextToHtml(cleanedDraft.bodyText),
+        }),
+      });
+
+      setTemplateModal(null);
+      setActionStatus({ tone: "success", message: "Template saved. Opening Steward Email Workspace editor." });
+      setEmailWorkspace({
+        campaignId: created.id,
+        returnTo: workspaceHref,
+      });
+    } catch (e) {
+      setTemplateSaveError(e instanceof Error ? e.message : "Failed to save template.");
+    } finally {
+      setTemplateSaving(false);
+    }
+  }
+
+  const reportCardArtifact = useMemo<StewardReportCardArtifact | null>(() => {
+    if (!reportWorkspace?.structured?.artifacts) return null;
+    return (reportWorkspace.structured.artifacts.find((artifact) => artifact.type === "report_card") as StewardReportCardArtifact | undefined) ?? null;
+  }, [reportWorkspace]);
+
+  const reportCharts = useMemo<StewardChartArtifact[]>(() => {
+    if (!reportWorkspace?.structured?.artifacts) return [];
+    return reportWorkspace.structured.artifacts.filter((artifact) => artifact.type === "chart") as StewardChartArtifact[];
+  }, [reportWorkspace]);
+
+  const askStewardFromReport = useCallback(async () => {
+    if (!reportWorkspace) return;
+    const prompt = reportQuestion.trim();
+    if (!prompt) return;
+
+    const fyLabel = reportCardArtifact?.fiscalYearLabel ? ` for ${reportCardArtifact.fiscalYearLabel}` : "";
+    const chartHint = reportCharts.length > 0 ? " Use the monthly chart and KPI metrics in your explanation." : "";
+    const fullPrompt = `Report deep dive (${reportWorkspace.path}${fyLabel}): ${prompt}.${chartHint}`;
+
+    setReportWorkspace(null);
+    setReportQuestion("");
+    await send(fullPrompt);
+  }, [reportWorkspace, reportQuestion, reportCardArtifact, reportCharts, send]);
 
   // ─── External prompt (from StewardContextButton) ────────────────────────────
   // When a contextual button outside the dock fires a prompt, start a fresh chat
@@ -1005,7 +1356,9 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
 
   return (
     <div
-      className={`flex ${dockMode ? "h-full" : "h-[100dvh]"} min-h-0 overflow-hidden bg-white`}
+      className={`steward-chroma-dark flex ${dockMode ? "h-full" : "h-[100dvh]"} min-h-0 overflow-hidden bg-[#09090b] text-slate-100`}
+      data-empty={isEmptyChat ? "true" : "false"}
+      data-dock={dockMode ? "true" : "false"}
       style={viewportH && !dockMode ? { height: `${viewportH}px` } : undefined}
     >
 
@@ -1020,25 +1373,27 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
 
       {/* ── Left sidebar — hidden entirely in dock mode ───────────────────── */}
       {!dockMode && <aside
+        data-expanded={sidebarOpen ? "true" : "false"}
         className={`
+          steward-chroma-sidebar
           fixed inset-y-0 left-0 z-40 flex flex-col
           w-72 sm:w-64 bg-slate-50 border-r border-slate-100
           transition-transform duration-300 ease-out
           sm:static sm:z-auto sm:shrink-0
-          ${sidebarOpen ? "translate-x-0 shadow-xl sm:shadow-none animate-sidebar-slide-in" : "-translate-x-full sm:-translate-x-full sm:w-0 sm:overflow-hidden"}
+          ${sidebarOpen ? "translate-x-0 shadow-xl sm:w-64 sm:shadow-none animate-sidebar-slide-in" : "-translate-x-full sm:translate-x-0 sm:w-12 sm:overflow-visible"}
         `}
       >
         <div className="flex items-center justify-between gap-2 px-3 pt-4 pb-3">
           {/* Logo mark */}
           <div className="flex items-center gap-2 min-w-0">
             <StewardAvatarIcon size={32} alt="Steward" />
-            <span className="text-sm font-semibold text-slate-900 truncate">AGENTSteward</span>
+            <span className="steward-rail-collapsible text-sm font-semibold text-slate-900 truncate">Steward</span>
           </div>
           {/* Collapse button — touch-friendly */}
           <button
             type="button"
             onClick={() => setSidebarOpen(false)}
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+            className="steward-rail-collapsible flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
             title="Close sidebar"
             aria-label="Close sidebar"
           >
@@ -1055,12 +1410,12 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
             className="flex w-full items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all duration-150"
           >
             <svg className="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16M4 12h16" /></svg>
-            New chat
+            <span className="steward-rail-collapsible">New chat</span>
           </button>
         </div>
 
         {/* Search */}
-        <div className="px-3 pb-2">
+        <div className="steward-rail-collapsible px-3 pb-2">
           <div className="relative">
             <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 transition-colors duration-200" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" /></svg>
             <input
@@ -1074,7 +1429,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         </div>
 
         {/* Thread list */}
-        <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
+        <div className="steward-rail-collapsible flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
           {filteredThreads.length === 0 ? (
             <p className="px-2 py-4 text-center text-xs text-slate-400">No chats yet</p>
           ) : filteredThreads.map((t) => (
@@ -1099,6 +1454,14 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
               <span className="min-w-0 flex-1 truncate text-xs">{t.title}</span>
               <button
                 type="button"
+                onClick={(e) => { e.stopPropagation(); renameThread(t.id); }}
+                className="flex h-8 w-8 sm:h-5 sm:w-5 shrink-0 items-center justify-center rounded text-slate-300 hover:text-slate-600 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-manipulation"
+                title="Rename chat"
+              >
+                <svg className="h-3.5 w-3.5 sm:h-3 sm:w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.768-6.768a2.5 2.5 0 113.536 3.536L12.536 16.536a4 4 0 01-1.768 1.036L7 19l1.428-3.768A4 4 0 019 13z" /></svg>
+              </button>
+              <button
+                type="button"
                 onClick={(e) => { e.stopPropagation(); deleteThread(t.id); }}
                 className="flex h-8 w-8 sm:h-5 sm:w-5 shrink-0 items-center justify-center rounded text-slate-300 hover:text-red-400 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-manipulation"
                 title="Delete chat"
@@ -1110,7 +1473,36 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         </div>
 
         {/* Bottom sidebar actions */}
-        <div className="border-t border-slate-100 px-3 py-3 space-y-1">
+        <div className="steward-rail-collapsible border-t border-slate-100 px-3 py-3 space-y-1">
+          <div className="mb-3 rounded-xl border border-slate-200 bg-white p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Current context</p>
+            <div className="mt-2 space-y-2 text-xs">
+              <div>
+                <p className="font-semibold text-slate-900">{scopeLabel}</p>
+                <p className="mt-0.5 leading-4 text-slate-500">{MODE_HELP[mode]}</p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  disabled={memorySaving || !memoryPreferences}
+                  onClick={() => void updateMemoryPreferences({ memoryEnabled: !Boolean(memoryPreferences?.memoryEnabled) })}
+                  className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors ${memoryPreferences?.memoryEnabled ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-300 bg-white text-slate-600"}`}
+                >
+                  {memoryPreferences?.memoryEnabled ? "Memory on" : "Memory off"}
+                </button>
+                <button
+                  type="button"
+                  disabled={memorySaving || !memoryPreferences}
+                  onClick={() => void updateMemoryPreferences({ fileContextEnabled: !Boolean(memoryPreferences?.fileContextEnabled) })}
+                  className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors ${memoryPreferences?.fileContextEnabled ? "border-blue-300 bg-blue-50 text-blue-700" : "border-slate-300 bg-white text-slate-600"}`}
+                >
+                  {memoryPreferences?.fileContextEnabled ? "Files on" : "Files off"}
+                </button>
+              </div>
+              {memorySaving && <p className="text-[10px] text-slate-400">Saving memory settings...</p>}
+              {memoryError && <p className="text-[10px] text-red-600">{memoryError}</p>}
+            </div>
+          </div>
           <Link
             href="/settings"
             className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-slate-500 hover:bg-white hover:text-slate-700 transition-colors"
@@ -1130,12 +1522,12 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       </aside>}
 
       {/* ── Main area ─────────────────────────────────────────────────────── */}
-      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="steward-chroma-main relative flex min-w-0 flex-1 flex-col overflow-hidden">
 
         {/* Top bar inside the workspace — full mode vs compact dock mode */}
         {dockMode ? (
-          /* ── Dock-mode header: close + title + scope + mode + expand ─── */
-          <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 bg-white px-3 py-2 min-h-[52px]">
+          /* ── Dock-mode header: close + identity + expand ─── */
+          <div className="steward-chroma-header flex shrink-0 items-center gap-2 border-b border-slate-100 bg-white px-3 py-2 min-h-[52px]">
             {/* Close dock */}
             <button
               type="button"
@@ -1147,65 +1539,21 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
               <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
 
-            {/* Scope pill */}
-            <div className="relative" ref={headerScopeRef}>
-              <button
-                type="button"
-                onClick={() => { setHeaderScopeOpen((v) => !v); setScopeOpen(false); setAddOpen(false); setToolsOpen(false); }}
-                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-opacity ${scopeColor} ${headerScopeOpen ? "opacity-80" : "hover:opacity-80"}`}
-              >
-                {scopeLabel}
-                <svg className={`h-2.5 w-2.5 transition-transform ${headerScopeOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-              </button>
-              {headerScopeOpen && (
-                <div className="absolute left-0 top-full z-50 mt-1.5 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl animate-dropdown-slide-down">
-                  <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Working scope</p>
-                  {SCOPE_OPTIONS.map((opt) => (
-                    <button key={opt.key} type="button" onClick={() => { changeScope(opt.key); setHeaderScopeOpen(false); }}
-                      className={`flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left transition-colors ${scope === opt.key ? "bg-slate-50" : "hover:bg-slate-50"}`}>
-                      <span className={`mt-0.5 h-2 w-2 shrink-0 rounded-full border ${opt.key === "compassion" ? "bg-blue-400 border-blue-300" : opt.key === "events" ? "bg-amber-400 border-amber-300" : opt.key === "hrm" ? "bg-purple-400 border-purple-300" : opt.key === "webmaster" ? "bg-rose-400 border-rose-300" : opt.key === "watchdog" ? "bg-slate-400 border-slate-300" : opt.key === "all" ? "bg-slate-700 border-slate-600" : "bg-emerald-500 border-emerald-400"}`} />
-                      <div className="min-w-0"><p className="text-xs font-semibold text-slate-800">{opt.label}</p><p className="text-[10px] text-slate-500">{opt.description}</p></div>
-                      {scope === opt.key && <svg className="ml-auto mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Mode tabs — compact */}
-            <div className="flex items-center gap-0.5 rounded-lg border border-slate-100 bg-slate-50 p-0.5 overflow-x-auto scrollbar-none ml-1">
-              {(["ask", "analyze", "draft", "action"] as ChatMode[]).map((m) => (
-                <button key={m} type="button" onClick={() => setMode(m)}
-                  className={`rounded-md px-2 py-1 text-[10px] font-semibold capitalize transition-colors whitespace-nowrap ${mode === m ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-                  {m}
-                </button>
-              ))}
-            </div>
-
-            <div className="ml-1 flex items-center rounded-lg border border-slate-100 bg-slate-50 p-0.5">
-              {(["markdown", "html"] as RenderMode[]).map((current) => (
-                <button
-                  key={current}
-                  type="button"
-                  onClick={() => changeRenderMode(current)}
-                  className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase transition-colors ${
-                    renderMode === current ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  {current}
-                </button>
-              ))}
+            <div className="flex min-w-0 items-center gap-2">
+              <StewardAvatarIcon size={22} alt="Steward" className="ring-cyan-300/60" />
+              <span className="truncate text-xs font-semibold text-slate-900">Steward</span>
+              <span className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.8)]" />
             </div>
 
             {/* Expand to full workspace */}
-            <a href="/steward-ai-workspace" target="_blank" rel="noopener noreferrer"
+            <a href={workspaceHref} target="_blank" rel="noopener noreferrer"
               className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
               title="Open full workspace">
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
             </a>
           </div>
         ) : (
-        <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 bg-white px-3 py-2 sm:px-4 sm:py-2.5 min-h-[52px]">
+        <div className="steward-chroma-header flex shrink-0 items-center gap-2 border-b border-slate-100 bg-white px-3 py-2 sm:px-4 sm:py-2.5 min-h-[52px]">
           {/* Hamburger — always visible, opens sidebar */}
           <button
             type="button"
@@ -1217,81 +1565,10 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
             <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
 
-          {/* Scope selector pill — visible on all screen sizes (replaces plain mobile title) */}
-          <div className="relative" ref={headerScopeRef}>
-            <button
-              type="button"
-              onClick={() => { setHeaderScopeOpen((v) => !v); setScopeOpen(false); setAddOpen(false); setToolsOpen(false); }}
-              className={`inline-flex items-center gap-1 sm:gap-1.5 rounded-full border px-2 sm:px-3 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold transition-opacity ${scopeColor} ${headerScopeOpen ? "opacity-80" : "hover:opacity-80"}`}
-            >
-              <span className="sm:hidden max-w-[80px] truncate">{scopeLabel.split(" ")[0]}</span>
-              <span className="hidden sm:inline">{scopeLabel}</span>
-              <svg className={`h-2.5 w-2.5 sm:h-3 sm:w-3 transition-transform ${headerScopeOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-            </button>
-
-            {headerScopeOpen && (
-              <div className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl animate-dropdown-slide-down">
-                <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Working scope</p>
-                {SCOPE_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => { changeScope(opt.key); setHeaderScopeOpen(false); }}
-                    className={`flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${
-                      scope === opt.key ? "bg-slate-50" : "hover:bg-slate-50"
-                    }`}
-                  >
-                    <span className={`mt-0.5 h-2 w-2 shrink-0 rounded-full border ${
-                      opt.key === "compassion" ? "bg-blue-400 border-blue-300" :
-                      opt.key === "events"     ? "bg-amber-400 border-amber-300" :
-                      opt.key === "hrm"        ? "bg-purple-400 border-purple-300" :
-                      opt.key === "webmaster"  ? "bg-rose-400 border-rose-300" :
-                      opt.key === "watchdog"   ? "bg-slate-400 border-slate-300" :
-                      opt.key === "all"        ? "bg-slate-700 border-slate-600" : "bg-emerald-500 border-emerald-400"
-                    }`} />
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-slate-800">{opt.label}</p>
-                      <p className="text-[10px] text-slate-500 leading-4">{opt.description}</p>
-                    </div>
-                    {scope === opt.key && (
-                      <svg className="ml-auto mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Mode selector — horizontally scrollable, no max-width cap */}
-          <div className="flex items-center gap-0.5 rounded-xl border border-slate-100 bg-slate-50 p-0.5 overflow-x-auto scrollbar-none shrink min-w-0">
-            {(["ask", "analyze", "draft", "action"] as ChatMode[]).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMode(m)}
-                className={`rounded-lg px-2.5 py-1.5 sm:py-1 text-[11px] font-semibold capitalize transition-colors whitespace-nowrap touch-manipulation ${
-                  mode === m
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-          <div className="hidden sm:flex items-center gap-0.5 rounded-xl border border-slate-100 bg-slate-50 p-0.5">
-            {(["markdown", "html"] as RenderMode[]).map((current) => (
-              <button
-                key={current}
-                type="button"
-                onClick={() => changeRenderMode(current)}
-                className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold uppercase transition-colors ${
-                  renderMode === current ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                {current}
-              </button>
-            ))}
+          <div className="flex min-w-0 items-center gap-2">
+            <StewardAvatarIcon size={22} alt="Steward" className="ring-cyan-300/60" />
+            <span className="truncate text-sm font-semibold text-slate-900">Steward</span>
+            <span className="hidden truncate text-xs text-slate-500 sm:inline">{scopeLabel}</span>
           </div>
 
           <div className="ml-auto flex items-center gap-2">
@@ -1315,62 +1592,173 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         </div>
         )} {/* end dockMode ? dock-header : full-header */}
 
-        {!dockMode && (
-          <div className="shrink-0 border-b border-slate-100 bg-slate-50/70 px-3 py-2 sm:px-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-              <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-slate-600">
-                <Link href="/" className="hover:text-emerald-700 hover:underline">Donor CRM</Link>
-                <span className="text-slate-300">/</span>
-                <span className="font-semibold text-slate-900">AGENTSteward</span>
-                <span className={`ml-1 rounded-full border px-2 py-0.5 font-semibold ${scopeColor}`}>{scopeLabel}</span>
-              </div>
-              <span className="max-w-full truncate text-slate-500">{MODE_HELP[mode]}</span>
-            </div>
-          </div>
-        )}
-
         {/* ── Conversation ────────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+        <div className="steward-chroma-scroll chat-scroll-smooth flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
           <div className="mx-auto max-w-3xl px-3 py-4 sm:px-4 sm:py-6">
 
             {/* Empty state with starter prompts */}
             {isEmptyChat ? (
-              <div className="flex flex-col items-center justify-center min-h-[40vh] sm:min-h-[50vh] gap-4 sm:gap-8 text-center px-2">
-                <div>
-                  <div className="mx-auto mb-3 sm:mb-4 flex h-12 sm:h-14 w-12 sm:w-14 items-center justify-center rounded-2xl bg-emerald-50 shadow-lg">
-                    <StewardAvatarIcon size={40} alt="Steward" className="ring-emerald-300" />
-                  </div>
-                  <h2 className="text-xl sm:text-2xl font-semibold text-slate-900">What can I help with?</h2>
-                  <p className="mt-1.5 sm:mt-2 text-sm text-slate-500 max-w-sm mx-auto hidden sm:block">
-                    Ask anything about your {scopeLabel} data, draft content, analyze trends, or plan next steps.
-                  </p>
-                  <p className="mt-1.5 text-xs text-slate-500 sm:hidden">{scopeLabel} · Ask, analyze, draft or take action.</p>
-                </div>
+              <div className="steward-empty-state flex min-h-[62vh] flex-col items-center justify-center gap-7 px-2 text-center">
+                <h2 className="text-xl font-semibold text-slate-900 sm:text-2xl">Ready when you are.</h2>
 
-                <div className="grid w-full max-w-xl gap-2 sm:grid-cols-2">
-                  {QUICK_WORKFLOWS.map((workflow) => (
-                    <button
-                      key={workflow.label}
-                      type="button"
-                      onClick={() => { setMode(workflow.mode); void send(workflow.prompt); }}
+                <div ref={composerRef} className="steward-hero-composer relative w-full max-w-[740px] rounded-full border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => handleFileAttach(e.target.files)}
+                  />
+
+                  {mentionQuery !== null && (
+                    <div className="relative">
+                      <DonorMentionPicker
+                        query={mentionQuery}
+                        onSelect={handleMentionSelect}
+                        onDismiss={() => setMentionQuery(null)}
+                        anchorRef={composerRef}
+                      />
+                    </div>
+                  )}
+
+                  {lockedDonors.length > 0 && (
+                    <div className="mb-1 flex flex-wrap gap-1.5 px-1 pt-1 text-left">
+                      {lockedDonors.map((d) => {
+                        const name = [d.firstName, d.lastName].filter(Boolean).join(" ") || d.email || "Unknown";
+                        return (
+                          <span
+                            key={d.id}
+                            className="inline-flex items-center gap-1 rounded-full border border-emerald-300/40 bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-200"
+                          >
+                            {name}
+                            <button
+                              type="button"
+                              onClick={() => setLockedDonors((prev) => prev.filter((x) => x.id !== d.id))}
+                              className="text-emerald-300 hover:text-emerald-100"
+                              aria-label={`Remove ${name} from context`}
+                            >
+                              x
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="flex min-h-10 items-center gap-2">
+                    <div className="relative shrink-0" data-composer-dropdown>
+                      <button
+                        type="button"
+                        onClick={() => { setAddOpen((v) => !v); setToolsOpen(false); setScopeOpen(false); }}
+                        className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-100"
+                        title="Add context or files"
+                        aria-expanded={addOpen}
+                      >
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" /></svg>
+                      </button>
+                      {addOpen && (
+                        <div className="absolute bottom-full left-0 z-50 mb-3 w-[calc(100vw-2rem)] max-w-[240px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl animate-dropdown-slide-down sm:w-52">
+                          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 animate-fade-in">Add context</div>
+                          {ADD_CONTEXT_MENU_ITEMS.map(({ key, label, icon }) => (
+                            <button
+                              key={label}
+                              type="button"
+                              onClick={() => handleAddContextAction(key)}
+                              className="flex w-full items-center gap-2.5 px-3 py-3 text-sm text-slate-700 transition-all duration-150 hover:bg-slate-50 active:bg-slate-100 sm:py-2"
+                            >
+                              <svg className="h-4 w-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={icon} /></svg>
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <textarea
+                      ref={textareaRef}
+                      value={draft}
+                      onChange={handleDraftChange}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Ask anything (type @ to mention a donor)"
+                      rows={1}
                       disabled={sending}
-                      className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-left text-sm text-emerald-800 shadow-sm transition-all hover:border-emerald-300 hover:bg-emerald-100"
-                    >
-                      <span className="block text-xs font-semibold uppercase tracking-wide text-emerald-600">{workflow.mode}</span>
-                      {workflow.label}
-                    </button>
-                  ))}
-                  {prompts.map((p) => (
+                      className="steward-chroma-textarea min-h-8 flex-1 resize-none bg-transparent py-1 text-base text-slate-900 placeholder-slate-400 outline-none sm:text-sm"
+                      style={{ maxHeight: "120px" }}
+                    />
+
+                    <div className="relative hidden sm:block">
+                      <select
+                        value={mode}
+                        onChange={(event) => setMode(event.target.value as ChatMode)}
+                        className="h-8 appearance-none rounded-full border border-slate-700/80 bg-slate-900/80 py-0 pl-3 pr-8 text-xs font-semibold text-slate-100 outline-none transition-colors hover:border-slate-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-500/20"
+                        title="Chat mode"
+                      >
+                        <option value="ask" className="bg-slate-900 text-slate-100">Ask & Retrieve</option>
+                        <option value="analyze" className="bg-slate-900 text-slate-100">Analyze Trends</option>
+                        <option value="draft" className="bg-slate-900 text-slate-100">Draft Outreach</option>
+                        <option value="writing" className="bg-slate-900 text-slate-100">Writing Studio</option>
+                        <option value="llm" className="bg-slate-900 text-slate-100">LLM Deep Reasoning</option>
+                        <option value="action" className="bg-slate-900 text-slate-100">Action Planner</option>
+                        <option value="help" className="bg-slate-900 text-slate-100">Workflow Help</option>
+                      </select>
+                      <svg
+                        className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-300"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2.25}
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+
                     <button
-                      key={p}
                       type="button"
-                      onClick={() => void send(p)}
                       disabled={sending}
-                      className="rounded-xl border border-slate-200 bg-white px-4 py-3 min-h-[52px] sm:min-h-0 text-left text-sm text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50 hover:shadow transition-all"
+                      onClick={() => {
+                        if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) return;
+                        const speechWindow = window as Window & {
+                          SpeechRecognition?: SpeechRecognitionConstructorLike;
+                          webkitSpeechRecognition?: SpeechRecognitionConstructorLike;
+                        };
+                        const SR = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+                        if (!SR) return;
+                        const recog = new SR();
+                        recog.lang = "en-US";
+                        recog.interimResults = false;
+                        recog.onresult = (ev: SpeechRecognitionEventLike) => {
+                          const text = ev.results[0]?.[0]?.transcript ?? "";
+                          if (text) setDraft((d) => (d ? `${d} ${text}` : text));
+                        };
+                        recog.start();
+                      }}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-100 disabled:opacity-40"
+                      title="Voice input"
                     >
-                      {p}
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" /></svg>
                     </button>
-                  ))}
+
+                    {sending ? (
+                      <button
+                        type="button"
+                        onClick={stopGeneration}
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-950 transition-transform active:scale-95"
+                        title="Stop generation"
+                      >
+                        <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void send()}
+                        disabled={!draft.trim()}
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1388d8] text-white transition-all hover:bg-[#1d9bf0] active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
+                        title="Send"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.4} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5M5 12l7-7 7 7" /></svg>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (
@@ -1383,7 +1771,9 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     isStreaming={msg.id === activeAssistantId}
                     onRegenerate={() => regenerate(msg.id)}
                     onCopy={() => void copyMessage(msg.content)}
+                    onSaveTemplate={() => openSaveTemplateModal(msg.id)}
                     onRunAction={(idx) => void runAction(msg.id, idx)}
+                    onOpenReport={(path, label) => openReportWorkspaceFromMessage(msg.id, path, label)}
                     isLast={i === messages.length - 1}
                   />
                 ))}
@@ -1420,35 +1810,17 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         {/* ── Composer ─────────────────────────────────────────────────────
              Safe-area padding handles iOS home-indicator area.
         ──────────────────────────────────────────────────────────────────── */}
-        <div className="shrink-0 border-t border-slate-100 bg-white px-3 pt-3 sm:px-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+        {(!isEmptyChat || dockMode) && (
+        <div className="steward-chroma-composer-wrap shrink-0 border-t border-slate-100 bg-white px-3 pt-3 sm:px-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
           <div className="mx-auto max-w-3xl">
-            {/* Composer card */}
-            <div ref={composerRef} className="relative rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 focus-within:shadow-lg focus-within:border-emerald-300 hover:shadow-md">
-              {lockedDonors.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 px-3 pt-2.5 sm:px-4">
-                  {lockedDonors.map((d) => {
-                    const name = [d.firstName, d.lastName].filter(Boolean).join(" ") || d.email || "Unknown";
-                    return (
-                      <span
-                        key={d.id}
-                        className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-medium text-emerald-700 animate-scale-in shadow-sm"
-                      >
-                        <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                        {name}
-                        <button
-                          type="button"
-                          onClick={() => setLockedDonors((prev) => prev.filter((x) => x.id !== d.id))}
-                          className="ml-0.5 text-emerald-400 hover:text-emerald-700 leading-none"
-                          aria-label={`Remove ${name} from context`}
-                        >×</button>
-                      </span>
-                    );
-                  })}
-                  <span className="text-[10px] text-slate-400 self-center">— locked in context</span>
-                </div>
-              )}
+            <div ref={composerRef} className="steward-hero-composer relative w-full rounded-full border border-slate-200 bg-white px-3 py-2 shadow-sm">
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => handleFileAttach(e.target.files)}
+              />
 
-              {/* @mention picker — rendered above the textarea */}
               {mentionQuery !== null && (
                 <div className="relative">
                   <DonorMentionPicker
@@ -1460,230 +1832,144 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                 </div>
               )}
 
-              {/* Hidden file input for attach / CSV upload */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                onChange={(e) => handleFileAttach(e.target.files)}
-              />
+              {lockedDonors.length > 0 && (
+                <div className="mb-1 flex flex-wrap gap-1.5 px-1 pt-1 text-left">
+                  {lockedDonors.map((d) => {
+                    const name = [d.firstName, d.lastName].filter(Boolean).join(" ") || d.email || "Unknown";
+                    return (
+                      <span
+                        key={d.id}
+                        className="inline-flex items-center gap-1 rounded-full border border-emerald-300/40 bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-200"
+                      >
+                        {name}
+                        <button
+                          type="button"
+                          onClick={() => setLockedDonors((prev) => prev.filter((x) => x.id !== d.id))}
+                          className="text-emerald-300 hover:text-emerald-100"
+                          aria-label={`Remove ${name} from context`}
+                        >
+                          x
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
 
-              {/* Text input */}
-              <div className="px-3 pt-3 pb-2 sm:px-4">
+              <div className="flex min-h-10 items-center gap-2">
+                <div className="relative shrink-0" data-composer-dropdown>
+                  <button
+                    type="button"
+                    onClick={() => { setAddOpen((v) => !v); setToolsOpen(false); setScopeOpen(false); }}
+                    className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-100"
+                    title="Add context or files"
+                    aria-expanded={addOpen}
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" /></svg>
+                  </button>
+                  {addOpen && (
+                    <div className="absolute bottom-full left-0 z-50 mb-3 w-[calc(100vw-2rem)] max-w-[240px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl animate-dropdown-slide-down sm:w-52">
+                      <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 animate-fade-in">Add context</div>
+                      {ADD_CONTEXT_MENU_ITEMS.map(({ key, label, icon }) => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => handleAddContextAction(key)}
+                          className="flex w-full items-center gap-2.5 px-3 py-3 text-sm text-slate-700 transition-all duration-150 hover:bg-slate-50 active:bg-slate-100 sm:py-2"
+                        >
+                          <svg className="h-4 w-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={icon} /></svg>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <textarea
                   ref={textareaRef}
                   value={draft}
                   onChange={handleDraftChange}
                   onKeyDown={handleKeyDown}
-                  placeholder={lockedDonors.length > 0
-                    ? `Ask about ${[lockedDonors[0].firstName, lockedDonors[0].lastName].filter(Boolean).join(" ") || "this donor"}…`
-                    : "Ask Steward anything… (type @ to mention a donor)"}
+                  placeholder="Ask anything (type @ to mention a donor)"
                   rows={1}
                   disabled={sending}
-                  className="w-full resize-none bg-transparent text-base sm:text-sm text-slate-900 placeholder-slate-400 outline-none"
-                  style={{ maxHeight: "140px" }}
+                  className="steward-chroma-textarea min-h-8 flex-1 resize-none bg-transparent py-1 text-base text-slate-900 placeholder-slate-400 outline-none sm:text-sm"
+                  style={{ maxHeight: "120px" }}
                 />
-              </div>
 
-              {/* Composer toolbar */}
-              <div className="flex items-center justify-between gap-1.5 border-t border-slate-100 px-2 py-2 sm:px-3">
-                {/* Left: Add · Scope · Tools — allow wrapping so dropdowns are not clipped */}
-                <div className="flex min-w-0 flex-wrap items-center gap-1 overflow-visible sm:flex-nowrap">
-
-                  {/* + Add */}
-                  <div className="relative shrink-0" data-composer-dropdown>
-                    <button
-                      type="button"
-                      onClick={() => { setAddOpen((v) => !v); setToolsOpen(false); setScopeOpen(false); }}
-                      className={`flex h-9 w-9 sm:h-7 sm:w-7 items-center justify-center rounded-xl sm:rounded-lg border text-base font-light transition-colors ${addOpen ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700"}`}
-                      title="Add context or files"
-                      aria-expanded={addOpen}
-                    >
-                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" /></svg>
-                    </button>
-                    {addOpen && (
-                      <div className="absolute bottom-full left-0 mb-2 z-50 w-[calc(100vw-2rem)] max-w-[240px] sm:w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl animate-dropdown-slide-down">
-                        <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 animate-fade-in">Add context</div>
-                        {ADD_CONTEXT_MENU_ITEMS.map(({ key, label, icon }) => (
-                          <button
-                            key={label}
-                            type="button"
-                            onClick={() => handleAddContextAction(key)}
-                            className="flex w-full items-center gap-2.5 px-3 py-3 sm:py-2 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-all duration-150"
-                          >
-                            <svg className="h-4 w-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={icon} /></svg>
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Scope */}
-                  <div className="relative shrink-0" ref={scopeRef} data-composer-dropdown>
-                    <button
-                      type="button"
-                      onClick={() => { setScopeOpen((v) => !v); setAddOpen(false); setToolsOpen(false); setHeaderScopeOpen(false); }}
-                      className={`flex h-9 sm:h-7 items-center gap-1.5 rounded-xl sm:rounded-lg border px-2.5 text-xs font-medium transition-colors ${scopeOpen ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
-                      aria-expanded={scopeOpen}
-                    >
-                      <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" /></svg>
-                      {scopeLabel}
-                      <svg className={`h-3 w-3 transition-transform ${scopeOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                    </button>
-                    {scopeOpen && (
-                      <div className="absolute bottom-full left-0 mb-2 z-50 w-[calc(100vw-2rem)] max-w-[260px] sm:w-60 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl animate-dropdown-slide-down">
-                        <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 animate-fade-in">Scope</div>
-                        {SCOPE_OPTIONS.map((opt) => (
-                          <button
-                            key={opt.key}
-                            type="button"
-                            onClick={() => { setScope(opt.key); setScopeOpen(false); }}
-                            className={`flex w-full items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 ${opt.key === scope ? "bg-slate-50" : ""}`}
-                          >
-                            <span className={`mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ${opt.color}`}>
-                              {opt.label[0]}
-                            </span>
-                            <div>
-                              <p className={`text-xs font-semibold ${opt.key === scope ? "text-emerald-700" : "text-slate-800"}`}>{opt.label}</p>
-                              <p className="text-[11px] text-slate-400">{opt.description}</p>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Tools */}
-                  <div className="relative shrink-0" data-composer-dropdown>
-                    <button
-                      type="button"
-                      onClick={() => { setToolsOpen((v) => !v); setAddOpen(false); setScopeOpen(false); }}
-                      className={`flex h-9 sm:h-7 items-center gap-1.5 rounded-xl sm:rounded-lg border px-2.5 text-xs font-medium transition-colors ${toolsOpen ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
-                      aria-expanded={toolsOpen}
-                    >
-                      <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
-                      Tools
-                      <svg className={`h-3 w-3 transition-transform ${toolsOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                    </button>
-                    {toolsOpen && (
-                      <div className="absolute bottom-full left-0 mb-2 z-50 w-[calc(100vw-2rem)] max-w-[240px] sm:w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl animate-dropdown-slide-down">
-                        <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 animate-fade-in">Tools</div>
-                        {[
-                          { label: "Create report",        prompt: "Create a report on " },
-                          { label: "Draft email",          prompt: "Draft an email to " },
-                          { label: "Draft letter",         prompt: "Draft a letter to " },
-                          { label: "Analyze donors",       prompt: "Analyze donor giving patterns and summarize insights." },
-                          { label: "Build export",         prompt: "Build an export of " },
-                          { label: "Create task",          prompt: "Create a follow-up task for " },
-                          { label: "Summarize records",    prompt: "Summarize the key records and activity for " },
-                          { label: "Compare campaigns",    prompt: "Compare giving performance across campaigns." },
-                          { label: "Find lapsed donors",   prompt: "Find donors who gave last year but not this year." },
-                        ].map(({ label, prompt }) => (
-                          <button
-                            key={label}
-                            type="button"
-                            onClick={() => {
-                              setDraft(prompt);
-                              setToolsOpen(false);
-                              setTimeout(() => {
-                                const ta = textareaRef.current;
-                                if (ta) { ta.focus(); ta.setSelectionRange(prompt.length, prompt.length); }
-                              }, 50);
-                            }}
-                            className="flex w-full items-center px-3 py-3 sm:py-2 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-all duration-150"
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Fiscal year toggle — locks Steward to FY vs calendar year */}
-                  {(scope === "donor" || scope === "all") && (
-                    <button
-                      type="button"
-                      onClick={toggleReportingYearMode}
-                      // shrink-0 keeps the FY pill from getting squished in the scrollable toolbar
-                      title={
-                        reportingYearMode === "fiscal"
-                          ? `Fiscal year mode on — FY${getFiscalYearForDate(new Date(), fiscalYearStart)} (month ${fiscalYearStart}–${getFiscalYearEndMonth(fiscalYearStart)}). Click for calendar year.`
-                          : `Calendar year mode — ${new Date().getFullYear()}. Click for fiscal year mode.`
-                      }
-                      className={`flex h-9 sm:h-7 shrink-0 items-center gap-1.5 rounded-xl sm:rounded-lg border px-2.5 text-xs font-semibold transition-all ${
-                        reportingYearMode === "fiscal"
-                          ? "border-emerald-500/60 bg-emerald-600/15 text-emerald-700 hover:bg-emerald-600/25"
-                          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-100"
-                      }`}
-                    >
-                      <span className={`flex h-3.5 w-3.5 items-center justify-center rounded border text-[9px] font-bold leading-none ${
-                        reportingYearMode === "fiscal"
-                          ? "border-emerald-500/60 bg-emerald-600/20 text-emerald-700"
-                          : "border-slate-300 bg-slate-100 text-slate-500"
-                      }`}>
-                        {reportingYearMode === "fiscal" ? "FY" : "CY"}
-                      </span>
-                      <span>
-                        {reportingYearMode === "fiscal"
-                          ? `FY${getFiscalYearForDate(new Date(), fiscalYearStart)}`
-                          : String(new Date().getFullYear())}
-                      </span>
-                    </button>
-                  )}
+                <div className="relative hidden sm:block">
+                  <select
+                    value={mode}
+                    onChange={(event) => setMode(event.target.value as ChatMode)}
+                    className="h-8 appearance-none rounded-full border border-slate-700/80 bg-slate-900/80 py-0 pl-3 pr-8 text-xs font-semibold text-slate-100 outline-none transition-colors hover:border-slate-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-500/20"
+                    title="Chat mode"
+                  >
+                    <option value="ask" className="bg-slate-900 text-slate-100">Ask & Retrieve</option>
+                    <option value="analyze" className="bg-slate-900 text-slate-100">Analyze Trends</option>
+                    <option value="draft" className="bg-slate-900 text-slate-100">Draft Outreach</option>
+                    <option value="writing" className="bg-slate-900 text-slate-100">Writing Studio</option>
+                    <option value="llm" className="bg-slate-900 text-slate-100">LLM Deep Reasoning</option>
+                    <option value="action" className="bg-slate-900 text-slate-100">Action Planner</option>
+                    <option value="help" className="bg-slate-900 text-slate-100">Workflow Help</option>
+                  </select>
+                  <svg
+                    className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-300"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2.25}
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
                 </div>
 
-                {/* Right: Mic · Send/Stop */}
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {/* Mic */}
+                <button
+                  type="button"
+                  disabled={sending}
+                  onClick={() => {
+                    if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) return;
+                    const speechWindow = window as Window & {
+                      SpeechRecognition?: SpeechRecognitionConstructorLike;
+                      webkitSpeechRecognition?: SpeechRecognitionConstructorLike;
+                    };
+                    const SR = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+                    if (!SR) return;
+                    const recog = new SR();
+                    recog.lang = "en-US";
+                    recog.interimResults = false;
+                    recog.onresult = (ev: SpeechRecognitionEventLike) => {
+                      const text = ev.results[0]?.[0]?.transcript ?? "";
+                      if (text) setDraft((d) => (d ? `${d} ${text}` : text));
+                    };
+                    recog.start();
+                  }}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-100 disabled:opacity-40"
+                  title="Voice input"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" /></svg>
+                </button>
+
+                {sending ? (
                   <button
                     type="button"
-                    disabled={sending}
-                    onClick={() => {
-                      if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) return;
-                      const speechWindow = window as Window & {
-                        SpeechRecognition?: SpeechRecognitionConstructorLike;
-                        webkitSpeechRecognition?: SpeechRecognitionConstructorLike;
-                      };
-                      const SR = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
-                      if (!SR) return;
-                      const recog = new SR();
-                      recog.lang = "en-US";
-                      recog.interimResults = false;
-                      recog.onresult = (ev: SpeechRecognitionEventLike) => {
-                        const text = ev.results[0]?.[0]?.transcript ?? "";
-                        if (text) setDraft((d) => (d ? `${d} ${text}` : text));
-                      };
-                      recog.start();
-                    }}
-                    className="flex h-9 w-9 sm:h-7 sm:w-7 items-center justify-center rounded-xl sm:rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-600 disabled:opacity-40 transition-colors"
-                    title="Voice input"
+                    onClick={stopGeneration}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-950 transition-transform active:scale-95"
+                    title="Stop generation"
                   >
-                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" /></svg>
+                    <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg>
                   </button>
-
-                  {/* Send / Stop */}
-                  {sending ? (
-                    <button
-                      type="button"
-                      onClick={stopGeneration}
-                      className="flex h-9 w-9 sm:h-7 sm:w-7 items-center justify-center rounded-xl sm:rounded-lg bg-slate-900 text-white hover:bg-slate-700 active:scale-95 transition-all duration-150"
-                      title="Stop generation"
-                    >
-                      <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => void send()}
-                      disabled={!draft.trim()}
-                      className="flex h-9 w-9 sm:h-7 sm:w-7 items-center justify-center rounded-xl sm:rounded-lg bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 hover:shadow-md active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
-                      title="Send (Enter)"
-                    >
-                      <svg className="h-4 w-4 sm:h-3.5 sm:w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5M5 12l7-7 7 7" /></svg>
-                    </button>
-                  )}
-                </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void send()}
+                    disabled={!draft.trim()}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1388d8] text-white transition-all hover:bg-[#1d9bf0] active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
+                    title="Send"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.4} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5M5 12l7-7 7 7" /></svg>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1692,7 +1978,22 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
             </p>
           </div>
         </div>
+        )}
       </div>
+
+      <StewardSaveTemplateModal
+        open={Boolean(templateModal)}
+        draft={templateModal?.draft ?? { name: "", subject: "", previewText: "", bodyText: "" }}
+        saving={templateSaving}
+        error={templateSaveError}
+        onChange={(next) => setTemplateModal((prev) => (prev ? { ...prev, draft: next } : prev))}
+        onClose={() => {
+          if (templateSaving) return;
+          setTemplateModal(null);
+          setTemplateSaveError(null);
+        }}
+        onSave={saveTemplateFromModal}
+      />
 
       {emailWorkspace && (
         <WorkspaceSetupModal
@@ -1753,6 +2054,119 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           </div>
         </WorkspaceSetupModal>
       )}
+
+      {reportWorkspace && (
+        <WorkspaceSetupModal
+          title="Steward Report Workspace"
+          subtitle="Review deeper report details and ask Steward follow-up questions without leaving chat."
+          onClose={() => setReportWorkspace(null)}
+          maxWidthClassName="max-w-[96vw]"
+        >
+          <div className="px-4 pb-4 pt-12 bg-[#020617]">
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2 text-xs text-slate-300">
+              <span className="truncate text-slate-300">Report route: {reportWorkspace.path}</span>
+              <a
+                href={reportWorkspace.path}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-white/15 bg-slate-900/70 px-2.5 py-1 text-xs font-semibold text-slate-100 hover:bg-slate-800"
+              >
+                Open full page
+              </a>
+            </div>
+
+            <div className="grid gap-3 lg:grid-cols-[1.25fr_1fr]">
+              <div className="rounded-xl border border-white/10 bg-[#060d1a] p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-slate-100">{reportCardArtifact?.title || reportWorkspace.title}</h3>
+                  {reportCardArtifact?.fiscalYearLabel && (
+                    <span className="rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                      {reportCardArtifact.fiscalYearLabel}
+                    </span>
+                  )}
+                </div>
+
+                {reportCardArtifact?.metrics && reportCardArtifact.metrics.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {reportCardArtifact.metrics.map((metric, idx) => (
+                      <div key={`${metric.label}-${idx}`} className="rounded-lg border border-white/10 bg-[#0b1324] px-3 py-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{metric.label}</p>
+                        <p className="mt-1 text-lg font-semibold text-slate-100">{metric.value}</p>
+                        {metric.delta && <p className="text-xs text-slate-400">{metric.delta}</p>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-400">No report metrics were attached to this response.</p>
+                )}
+
+                {reportWorkspace.structured?.evidence && reportWorkspace.structured.evidence.length > 0 && (
+                  <div className="mt-4">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Evidence highlights</p>
+                    <ul className="space-y-1 text-sm text-slate-300">
+                      {reportWorkspace.structured.evidence.slice(0, 12).map((item, idx) => (
+                        <li key={`${item.label}-${idx}`} className="rounded border border-white/10 bg-[#0b1324] px-2 py-1">
+                          {item.label}{item.detail ? ` - ${item.detail}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <div className="rounded-xl border border-white/10 bg-[#060d1a] p-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Report tools</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      "Explain the top 3 drivers behind this report.",
+                      "Find the biggest risk in this report and propose mitigation.",
+                      "Show weekly, monthly, and fiscal comparisons from this report.",
+                      "Recommend 5 donor actions based on these metrics.",
+                    ].map((toolPrompt) => (
+                      <button
+                        key={toolPrompt}
+                        type="button"
+                        onClick={() => setReportQuestion(toolPrompt)}
+                        className="rounded-lg border border-white/15 bg-slate-900/70 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800"
+                      >
+                        {toolPrompt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-[#060d1a] p-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Ask LLM about this report</p>
+                  <textarea
+                    value={reportQuestion}
+                    onChange={(event) => setReportQuestion(event.target.value)}
+                    placeholder="Ask for trends, risks, recommendations, or forecast insights..."
+                    className="min-h-24 w-full resize-y rounded-lg border border-white/15 bg-[#020817] px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-emerald-400/70 focus:ring-2 focus:ring-emerald-400/20"
+                  />
+                  <div className="mt-2 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setReportQuestion("")}
+                      className="rounded-lg border border-white/15 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void askStewardFromReport()}
+                      disabled={!reportQuestion.trim() || sending}
+                      className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Ask Steward
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </WorkspaceSetupModal>
+      )}
     </div>
   );
 }
@@ -1766,14 +2180,16 @@ interface MessageRowProps {
   isLast: boolean;
   onRegenerate: () => void;
   onCopy: () => void;
+  onSaveTemplate: () => void;
   onRunAction: (idx: number) => void;
+  onOpenReport: (path: string, label?: string) => void;
 }
 
-function MessageRow({ msg, renderMode, isStreaming, isLast, onRegenerate, onCopy, onRunAction }: MessageRowProps) {
+function MessageRow({ msg, renderMode, isStreaming, isLast, onRegenerate, onCopy, onSaveTemplate, onRunAction, onOpenReport }: MessageRowProps) {
   if (msg.role === "user") {
     return (
-      <div className="flex justify-end animate-slide-up-fade-in">
-        <div className="max-w-[85%] sm:max-w-[80%] rounded-2xl rounded-br-sm bg-slate-900 px-4 py-3 text-sm text-white shadow-sm hover:shadow-md transition-shadow duration-200">
+      <div className="steward-message-row steward-message-row-user flex justify-end animate-slide-up-fade-in">
+        <div className="steward-message-user max-w-[85%] sm:max-w-[80%] rounded-2xl rounded-br-sm bg-slate-900 px-4 py-3 text-sm text-white shadow-sm hover:shadow-md transition-shadow duration-200">
           <p className="whitespace-pre-wrap break-words">{msg.content}</p>
         </div>
       </div>
@@ -1781,8 +2197,12 @@ function MessageRow({ msg, renderMode, isStreaming, isLast, onRegenerate, onCopy
   }
 
   // Assistant message
+  const hasEmailArtifact = Boolean(msg.structured?.artifacts?.some((artifact) => artifact.type === "email_draft"));
+  const hasEmailLikeBody = /(^|\n)\s*subject\s*:/i.test(msg.content) && /(^|\n)\s*body\s*:/i.test(msg.content);
+  const canSaveAsTemplate = hasEmailArtifact || hasEmailLikeBody || msg.responseMode === "draft" || msg.responseMode === "writing";
+
   return (
-    <div className="group flex flex-col gap-2 animate-slide-up-fade-in">
+    <div className="steward-message-row steward-message-row-assistant group flex flex-col gap-2 animate-slide-up-fade-in">
       {/* Avatar + name row */}
       <div className="flex items-center gap-2">
         <div className="relative">
@@ -1796,9 +2216,14 @@ function MessageRow({ msg, renderMode, isStreaming, isLast, onRegenerate, onCopy
           </span>
         )}
         {isStreaming && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 animate-fade-in">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-            Thinking…
+          <span className="steward-live-thinking inline-flex items-center gap-1.5 text-[10px] text-emerald-600 animate-fade-in">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" />
+            Thinking
+            <span className="steward-thinking-dots" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
           </span>
         )}
       </div>
@@ -1811,19 +2236,20 @@ function MessageRow({ msg, renderMode, isStreaming, isLast, onRegenerate, onCopy
             progressSteps={msg.progressSteps ?? []}
             thinkingContent={msg.thinkingContent ?? ""}
             isActive={isStreaming}
+            tone="dark"
           />
         )}
         {isStreaming && !msg.content ? (
-          <span className="inline-flex items-center gap-1.5 text-slate-400">
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: "0ms" }} />
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: "150ms" }} />
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: "300ms" }} />
+          <span className="steward-stream-placeholder inline-flex items-center gap-1.5 text-slate-400">
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300" style={{ animationDelay: "0ms" }} />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300" style={{ animationDelay: "150ms" }} />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300" style={{ animationDelay: "300ms" }} />
           </span>
         ) : (
           <StewardResponseRenderer
             content={msg.content}
             structured={msg.structured}
-            tone="light"
+            tone="dark"
             renderMode={renderMode}
             toolsUsed={msg.toolsUsed}
             recordsUsed={msg.recordsUsed}
@@ -1836,8 +2262,10 @@ function MessageRow({ msg, renderMode, isStreaming, isLast, onRegenerate, onCopy
               ) ?? -1;
               if (idx >= 0) onRunAction(idx);
             }}
+            onOpenReport={(path, label) => onOpenReport(path, label)}
             onCopy={!isStreaming && (isLast || true) ? onCopy : undefined}
             onRegenerate={!isStreaming ? onRegenerate : undefined}
+            onSaveTemplate={!isStreaming && canSaveAsTemplate ? onSaveTemplate : undefined}
           />
         )}
       </div>

@@ -73,3 +73,321 @@ main {
   background: #484f58;
   background-clip: padding-box;
 }
+
+/* Steward AI chroma-dark shell. Scoped overrides keep the existing chat logic intact. */
+.steward-chroma-dark {
+  color-scheme: dark;
+  --steward-bg: #09090b;
+  --steward-surface: #0d1117;
+  --steward-surface-2: #11151c;
+  --steward-surface-3: #161b22;
+  --steward-border: rgba(148, 163, 184, 0.16);
+  --steward-border-strong: rgba(34, 211, 238, 0.28);
+  --steward-text: #e5e7eb;
+  --steward-muted: #8b949e;
+  --steward-dim: #6b7280;
+  --steward-accent: #22d3ee;
+  background: var(--steward-bg);
+}
+
+.steward-chroma-dark[data-dock="false"] {
+  --steward-bg: #000000;
+}
+
+.steward-chroma-dark .steward-chroma-sidebar,
+.steward-chroma-dark .steward-chroma-main,
+.steward-chroma-dark .steward-chroma-header,
+.steward-chroma-dark .steward-chroma-composer-wrap {
+  background: var(--steward-bg) !important;
+  border-color: var(--steward-border) !important;
+}
+
+.steward-chroma-dark .steward-chroma-sidebar {
+  background: #000000 !important;
+  border-right-color: #1f1f1f !important;
+}
+
+.steward-chroma-dark .steward-chroma-header {
+  background: rgba(9, 9, 11, 0.92) !important;
+  backdrop-filter: blur(16px);
+}
+
+.steward-chroma-dark .bg-white {
+  background-color: var(--steward-surface) !important;
+}
+
+.steward-chroma-dark .bg-slate-50,
+.steward-chroma-dark .bg-slate-100 {
+  background-color: var(--steward-surface-2) !important;
+}
+
+.steward-chroma-dark .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+}
+
+.steward-chroma-dark .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+}
+
+.steward-chroma-dark .bg-amber-50 {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+}
+
+.steward-chroma-dark .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.12) !important;
+}
+
+.steward-chroma-dark .border-slate-100,
+.steward-chroma-dark .border-slate-200,
+.steward-chroma-dark .border-slate-300,
+.steward-chroma-dark .border-gray-200,
+.steward-chroma-dark .border-gray-300 {
+  border-color: var(--steward-border) !important;
+}
+
+.steward-chroma-dark .text-slate-950,
+.steward-chroma-dark .text-slate-900,
+.steward-chroma-dark .text-slate-800,
+.steward-chroma-dark .text-gray-900 {
+  color: #f4f7fb !important;
+}
+
+.steward-chroma-dark .text-slate-700,
+.steward-chroma-dark .text-slate-600,
+.steward-chroma-dark .text-gray-700,
+.steward-chroma-dark .text-gray-600 {
+  color: #c9d1d9 !important;
+}
+
+.steward-chroma-dark .text-slate-500,
+.steward-chroma-dark .text-slate-400,
+.steward-chroma-dark .text-gray-500 {
+  color: var(--steward-muted) !important;
+}
+
+.steward-chroma-dark .hover\:bg-slate-50:hover,
+.steward-chroma-dark .hover\:bg-slate-100:hover,
+.steward-chroma-dark .hover\:bg-white:hover {
+  background-color: rgba(34, 211, 238, 0.08) !important;
+}
+
+.steward-chroma-dark .shadow-sm,
+.steward-chroma-dark .shadow,
+.steward-chroma-dark .shadow-lg,
+.steward-chroma-dark .shadow-xl {
+  box-shadow: none !important;
+}
+
+.steward-chroma-scroll {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 180px),
+    var(--steward-bg);
+}
+
+.steward-chroma-dark[data-dock="false"] .steward-chroma-header {
+  background: #000000 !important;
+  border-bottom-color: transparent !important;
+}
+
+.steward-chroma-dark[data-dock="false"] .steward-chroma-composer-wrap {
+  background: #000000 !important;
+}
+
+@media (min-width: 640px) {
+  .steward-chroma-sidebar[data-expanded="true"] {
+    width: 16rem !important;
+  }
+
+  .steward-chroma-sidebar[data-expanded="false"] {
+    align-items: center;
+    width: 3rem !important;
+    min-width: 3rem !important;
+    max-width: 3rem !important;
+  }
+
+  .steward-chroma-sidebar[data-expanded="false"] .steward-rail-collapsible {
+    display: none !important;
+  }
+
+  .steward-chroma-sidebar[data-expanded="false"] > div:first-child {
+    justify-content: center;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .steward-chroma-sidebar[data-expanded="false"] > .px-3 {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .steward-chroma-sidebar[data-expanded="false"] button {
+    justify-content: center;
+  }
+
+  .steward-chroma-sidebar[data-expanded="false"] > div:first-child {
+    width: 100%;
+  }
+}
+
+.steward-chroma-dark[data-empty="true"][data-dock="false"] .steward-chroma-scroll {
+  display: grid;
+  place-items: center;
+}
+
+.steward-chroma-dark[data-empty="true"][data-dock="false"] .steward-chroma-scroll > div {
+  width: min(100%, 860px);
+  max-width: 860px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.steward-chroma-dark[data-empty="false"][data-dock="false"] .steward-chroma-scroll > div {
+  width: min(100%, 860px);
+  max-width: 860px !important;
+}
+
+.steward-empty-state {
+  color: #f4f4f5;
+}
+
+.steward-empty-state h2 {
+  color: #ffffff !important;
+}
+
+.steward-hero-composer {
+  background: #242424 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.steward-hero-composer:focus-within {
+  background: #272727 !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+}
+
+.steward-hero-composer select {
+  color-scheme: dark;
+}
+
+.steward-chroma-composer {
+  background: #0d1117 !important;
+  border-color: rgba(34, 211, 238, 0.24) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.025), 0 22px 48px rgba(0, 0, 0, 0.35) !important;
+}
+
+.steward-chroma-composer:focus-within {
+  border-color: rgba(34, 211, 238, 0.58) !important;
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.24), 0 24px 52px rgba(0, 0, 0, 0.42) !important;
+}
+
+.steward-chroma-textarea {
+  color: var(--steward-text) !important;
+}
+
+.steward-chroma-textarea::placeholder {
+  color: #6b7280 !important;
+}
+
+.steward-message-user {
+  background: #f4f7fb !important;
+  color: #05070a !important;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22) !important;
+}
+
+.steward-message-row-assistant {
+  color: var(--steward-text);
+}
+
+.steward-message-row-assistant > .pl-8 {
+  border-left: 1px solid rgba(34, 211, 238, 0.1);
+}
+
+.steward-live-thinking {
+  color: var(--steward-accent) !important;
+}
+
+.steward-thinking-dots {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.steward-thinking-dots span {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: stewardDotRise 1.2s ease-in-out infinite;
+}
+
+.steward-thinking-dots span:nth-child(2) {
+  animation-delay: 140ms;
+}
+
+.steward-thinking-dots span:nth-child(3) {
+  animation-delay: 280ms;
+}
+
+.steward-thinking-panel {
+  position: relative;
+}
+
+.steward-thinking-scan {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.82), transparent);
+  animation: stewardThinkingScan 1.8s linear infinite;
+}
+
+.steward-dock-shell {
+  box-shadow: -32px 0 70px rgba(0, 0, 0, 0.52) !important;
+}
+
+.steward-chat-head {
+  animation: stewardChatHeadSettle 260ms ease-out;
+}
+
+.steward-chat-head-pulse {
+  animation: stewardChromaPulse 2.6s ease-in-out infinite;
+}
+
+@keyframes stewardDotRise {
+  0%, 80%, 100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes stewardThinkingScan {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes stewardChromaPulse {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes stewardChatHeadSettle {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

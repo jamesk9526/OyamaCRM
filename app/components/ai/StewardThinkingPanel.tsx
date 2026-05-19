@@ -17,6 +17,8 @@ interface StewardThinkingPanelProps {
   isActive: boolean;
   /** Compact mode for the docked chat panel. */
   compact?: boolean;
+  /** Visual tone used by the host chat surface. */
+  tone?: "dark" | "light";
 }
 
 export function StewardThinkingPanel({
@@ -24,6 +26,7 @@ export function StewardThinkingPanel({
   thinkingContent,
   isActive,
   compact = false,
+  tone = "light",
 }: StewardThinkingPanelProps) {
   const [reasoningOpen, setReasoningOpen] = useState(false);
   const reasoningRef = useRef<HTMLDivElement>(null);
@@ -39,29 +42,37 @@ export function StewardThinkingPanel({
   if (!hasContent && !isActive) return null;
 
   const latestStep = progressSteps.at(-1);
+  const isDark = tone === "dark";
+  const shellClass = isDark
+    ? "border-cyan-400/15 bg-[#101216]/85 text-slate-300 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]"
+    : "border-slate-100 bg-slate-50/80";
+  const dividerClass = isDark ? "border-white/10" : "border-slate-100";
+  const mutedTextClass = isDark ? "text-slate-400" : "text-slate-500";
+  const activeTextClass = isDark ? "text-cyan-100" : "text-slate-600";
 
   return (
-    <div className={`mb-2 overflow-hidden rounded-xl border border-slate-100 bg-slate-50/80 ${compact ? "text-xs" : "text-sm"}`}>
+    <div className={`steward-thinking-panel mb-2 overflow-hidden rounded-xl border ${shellClass} ${compact ? "text-xs" : "text-sm"}`}>
+      {isActive && <div className="steward-thinking-scan" aria-hidden="true" />}
       {/* Active indicator + latest progress step */}
       <div className="flex items-center gap-2 px-3 py-2">
         {isActive ? (
           <span className="flex shrink-0 items-center gap-1">
             <span
-              className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-500"
+              className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300"
               style={{ animationDelay: "0ms" }}
             />
             <span
-              className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-500"
+              className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300"
               style={{ animationDelay: "140ms" }}
             />
             <span
-              className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-500"
+              className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300"
               style={{ animationDelay: "280ms" }}
             />
           </span>
         ) : (
           <svg
-            className="h-3.5 w-3.5 shrink-0 text-slate-400"
+            className={`h-3.5 w-3.5 shrink-0 ${mutedTextClass}`}
             fill="none"
             stroke="currentColor"
             strokeWidth={2}
@@ -71,7 +82,7 @@ export function StewardThinkingPanel({
           </svg>
         )}
 
-        <span className={`flex-1 truncate ${isActive ? "text-slate-600" : "text-slate-500"}`}>
+        <span className={`flex-1 truncate ${isActive ? activeTextClass : mutedTextClass}`}>
           {isActive
             ? (latestStep ?? "Steward is thinking…")
             : (latestStep ?? "Done")}
@@ -79,7 +90,7 @@ export function StewardThinkingPanel({
 
         {/* Progress step count badge */}
         {progressSteps.length > 1 && !compact && (
-          <span className="shrink-0 rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-500">
+          <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] ${isDark ? "bg-white/10 text-slate-400" : "bg-slate-200 text-slate-500"}`}>
             {progressSteps.length} steps
           </span>
         )}
@@ -89,7 +100,7 @@ export function StewardThinkingPanel({
           <button
             type="button"
             onClick={() => setReasoningOpen((v) => !v)}
-            className="ml-1 flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors"
+            className={`ml-1 flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] transition-colors ${isDark ? "text-slate-400 hover:bg-white/10 hover:text-cyan-100" : "text-slate-400 hover:bg-slate-200 hover:text-slate-700"}`}
             title={reasoningOpen ? "Hide reasoning" : "Show reasoning"}
           >
             <svg
@@ -108,26 +119,26 @@ export function StewardThinkingPanel({
 
       {/* Collapsible progress step history (non-compact only) */}
       {!compact && progressSteps.length > 1 && (
-        <div className="border-t border-slate-100 px-3 py-1.5">
+        <div className={`border-t px-3 py-1.5 ${dividerClass}`}>
           <div className="flex flex-col gap-0.5">
             {progressSteps.map((step, idx) => (
-              <div key={idx} className="flex items-center gap-1.5 text-[11px] text-slate-400">
+              <div key={idx} className={`flex items-center gap-1.5 text-[11px] ${mutedTextClass}`}>
                 <span className="flex h-3 w-3 shrink-0 items-center justify-center">
                   {idx < progressSteps.length - 1 ? (
-                    <svg className="h-2.5 w-2.5 text-emerald-500" viewBox="0 0 10 10" fill="currentColor">
+                    <svg className="h-2.5 w-2.5 text-cyan-300" viewBox="0 0 10 10" fill="currentColor">
                       <circle cx="5" cy="5" r="3" />
                     </svg>
                   ) : isActive ? (
-                    <svg className="h-2.5 w-2.5 animate-pulse text-emerald-400" viewBox="0 0 10 10" fill="currentColor">
+                    <svg className="h-2.5 w-2.5 animate-pulse text-cyan-300" viewBox="0 0 10 10" fill="currentColor">
                       <circle cx="5" cy="5" r="3" />
                     </svg>
                   ) : (
-                    <svg className="h-2.5 w-2.5 text-emerald-500" viewBox="0 0 10 10" fill="currentColor">
+                    <svg className="h-2.5 w-2.5 text-cyan-300" viewBox="0 0 10 10" fill="currentColor">
                       <circle cx="5" cy="5" r="3" />
                     </svg>
                   )}
                 </span>
-                <span className={idx === progressSteps.length - 1 && isActive ? "text-slate-600" : ""}>
+                <span className={idx === progressSteps.length - 1 && isActive ? activeTextClass : ""}>
                   {step}
                 </span>
               </div>
@@ -138,18 +149,18 @@ export function StewardThinkingPanel({
 
       {/* Collapsible reasoning stream */}
       {reasoningOpen && thinkingContent && (
-        <div className="border-t border-slate-100">
+        <div className={`border-t ${dividerClass}`}>
           <div className="px-2 py-1">
-            <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+            <p className={`mb-1 text-[10px] font-medium uppercase tracking-wide ${mutedTextClass}`}>
               Reasoning
             </p>
             <div
               ref={reasoningRef}
-              className={`overflow-y-auto rounded-lg bg-white/70 p-2 font-mono text-[10px] leading-relaxed text-slate-500 ${compact ? "max-h-28" : "max-h-48"}`}
+              className={`overflow-y-auto rounded-lg p-2 font-mono text-[10px] leading-relaxed ${isDark ? "bg-black/35 text-slate-300" : "bg-white/70 text-slate-500"} ${compact ? "max-h-28" : "max-h-48"}`}
             >
               <span className="whitespace-pre-wrap break-words">{thinkingContent}</span>
               {isActive && (
-                <span className="ml-0.5 inline-block h-2.5 w-0.5 animate-pulse bg-slate-400" />
+                <span className={`ml-0.5 inline-block h-2.5 w-0.5 animate-pulse ${isDark ? "bg-cyan-300" : "bg-slate-400"}`} />
               )}
             </div>
           </div>

@@ -1,12 +1,28 @@
-// Events CRM layout — renders the new journey-based EventsShell with sidebar navigation.
+/**
+ * Events CRM root layout — wraps all /events/* routes with EventsShell.
+ *
+ * EventsShell provides:
+ *  - Journey-based sidebar (Plan → Fill → Fundraise → Run → Follow Up)
+ *  - Top bar with event switcher and Back to DonorCRM
+ *  - Global route passthrough (no sidebar for /events, /events/reports, etc.)
+ *  - No-event selector dialog for deep-linked event-scoped routes
+ *
+ * TODO: Enforce Events module access permission here.
+ *       Currently only authentication is checked (401 redirect).
+ *       Implement a permission check against the user's `modules` array or a role guard
+ *       so users without the Events module license can't access these routes at all.
+ *       Pattern: import { requireModule } from "@/app/lib/permissions"; requireModule("events");
+ *
+ * TODO: Add an EventsContext provider here to share the loaded events list across child routes,
+ *       eliminating the redundant /api/events fetches in EventsShell and individual tool pages.
+ *       Shape: { events: EventItem[], selectedEventId: string, setSelectedEventId: fn }
+ */
 "use client";
 
 import { Suspense } from "react";
 import EventsShell from "@/app/components/events/EventsShell";
 
-// TODO: enforce Events workspace permission — currently only checks authentication, not module access
-
-/** EventsLayout wraps all /events/* routes with the new production-polished EventsShell. */
+/** EventsLayout wraps all /events/* routes with the production-polished EventsShell. */
 export default function EventsLayout({ children }: { children: React.ReactNode }) {
   return (
     <Suspense
