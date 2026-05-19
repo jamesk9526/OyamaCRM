@@ -164,7 +164,7 @@ export default function StewardDockPanel({ moduleKey }: StewardDockPanelProps) {
 
       {/* ── Slide-in right panel ──────────────────────────────────────────── */}
       <div
-        className={`steward-dock-shell fixed right-0 z-[9991] flex flex-col w-full bg-[#09090b] border-l border-white/10 shadow-2xl transition-transform duration-300 ease-in-out ${
+        className={`${open ? "steward-dock-shell shadow-2xl" : "shadow-none"} fixed right-0 z-[9991] flex flex-col w-full bg-[#09090b] border-l border-white/10 transition-transform duration-300 ease-in-out ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
         style={{

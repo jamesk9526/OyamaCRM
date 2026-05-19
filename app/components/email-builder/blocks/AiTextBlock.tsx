@@ -3,6 +3,7 @@
 
 import type { AiTextBlock as AiTextBlockData } from "@/app/lib/email-builder-types";
 import RichTextEditor from "@/app/components/email-builder/RichTextEditor";
+import { formatRichTextHtml } from "@/app/lib/email-builder-utils";
 
 interface Props {
   block: AiTextBlockData;
@@ -39,7 +40,16 @@ export default function AiTextBlock({ block, editable = false, onChangeContent }
           minHeight={140}
         />
       ) : (
-        <div dangerouslySetInnerHTML={{ __html: block.content }} style={{ color: "#1f2937", lineHeight: 1.5 }} />
+        <div
+          dangerouslySetInnerHTML={{
+            __html: formatRichTextHtml(block.content, {
+              textColor: "#1f2937",
+              baseFontSizePx: 16,
+              linkColor: "#166534",
+            }),
+          }}
+          style={{ color: "#1f2937", lineHeight: 1.5 }}
+        />
       )}
     </div>
   );

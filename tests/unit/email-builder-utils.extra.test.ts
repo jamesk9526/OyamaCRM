@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   createDefaultBlock,
   createDefaultTemplate,
+  formatRichTextHtml,
   createTemplateFromPreset,
   generateEmailHtml,
   generatePlainText,
@@ -109,10 +110,46 @@ describe("createTemplateFromPreset", () => {
 });
 
 describe("generateEmailHtml / generatePlainText", () => {
+  it("adds inline rich-text styles for headings, lists, quotes, and links", () => {
+    const html = formatRichTextHtml(
+      '<h1>Main Title</h1><h2>Section</h2><p>Body copy with a <a href="https://example.com">link</a>.</p><ul><li>First</li></ul><blockquote>Quoted</blockquote>',
+      {
+        textColor: "#123456",
+        baseFontSizePx: 17,
+        linkColor: "#16a34a",
+      },
+    );
+
+    expect(html).toContain('<h1 style="margin:0 0 14px;font-size:32px;line-height:1.2;font-weight:700;color:#123456;">');
+    expect(html).toContain('<h2 style="margin:0 0 12px;font-size:26px;line-height:1.25;font-weight:700;color:#123456;">');
+    expect(html).toContain('<ul style="margin:0 0 12px 24px;padding:0;color:#123456;">');
+    expect(html).toContain('<blockquote style="margin:0 0 12px;padding:0 0 0 16px;border-left:4px solid #16a34a;font-style:italic;color:#123456;">');
+    expect(html).toContain('<a href="https://example.com" style="color:#16a34a;text-decoration:underline;">');
+  });
+
   it("renders HTML for an event preset and contains the RSVP label", () => {
     const t = createTemplateFromPreset("event");
     const html = generateEmailHtml(t);
     expect(html).toContain("RSVP Today");
+  });
+
+  it("preserves H1 text-block content in generated email html", () => {
+    const textBlock = createDefaultBlock("text");
+    if (textBlock.type !== "text") {
+      throw new Error("Expected text block");
+    }
+
+    textBlock.content = '<h1>Campaign Headline</h1><p>Paragraph copy</p>';
+
+    const html = generateEmailHtml({
+      backgroundColor: "#ffffff",
+      contentWidth: 600,
+      fontFamily: "Arial, Helvetica, sans-serif",
+      blocks: [textBlock, createDefaultBlock("footerCompliance")],
+    });
+
+    expect(html).toContain("Campaign Headline");
+    expect(html).toContain('<h1 style="margin:0 0 14px;font-size:32px;line-height:1.2;font-weight:700;color:#333333;">');
   });
 
   it("plain-text output includes button labels for accessibility", () => {

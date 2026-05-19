@@ -59,7 +59,7 @@ export default function RichTextEditor({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: { levels: [2, 3] },
+        heading: { levels: [1, 2, 3] },
         link: false,
         underline: false,
       }),
@@ -150,6 +150,11 @@ export default function RichTextEditor({
           onClick={() => editor?.chain().focus().toggleUnderline().run()}
         />
         <ToolbarButton
+          label="H1"
+          active={!!editor?.isActive('heading', { level: 1 })}
+          onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
+        />
+        <ToolbarButton
           label="H2"
           active={!!editor?.isActive('heading', { level: 2 })}
           onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
@@ -158,6 +163,11 @@ export default function RichTextEditor({
           label="H3"
           active={!!editor?.isActive('heading', { level: 3 })}
           onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
+        />
+        <ToolbarButton
+          label="P"
+          active={!!editor?.isActive('paragraph')}
+          onClick={() => editor?.chain().focus().setParagraph().run()}
         />
         <ToolbarButton
           label="Bullets"
@@ -178,6 +188,10 @@ export default function RichTextEditor({
           label="Link"
           active={!!editor?.isActive('link')}
           onClick={setLink}
+        />
+        <ToolbarButton
+          label="Clear"
+          onClick={() => editor?.chain().focus().clearNodes().unsetAllMarks().run()}
         />
       </div>
       <div

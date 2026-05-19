@@ -9,9 +9,16 @@
 <body>
   <header class="titlebar">
     <div class="title-left">
+      <span class="steward-mark" role="img" aria-label="Steward">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M16 4.5c6.35 0 11.5 5.15 11.5 11.5S22.35 27.5 16 27.5 4.5 22.35 4.5 16 9.65 4.5 16 4.5Z" />
+          <path d="M10.2 17.9c0-4.75 3.38-7.55 7.15-7.55 2.9 0 5.15 1.66 5.15 4.08 0 4.18-6.12 3.48-6.12 6.17 0 1.16.96 1.88 2.34 1.88 1.5 0 2.74-.7 3.72-1.78" />
+          <path d="M10.1 21.7c1.06-1.2 2.43-1.82 4.08-1.82" />
+        </svg>
+      </span>
       <span id="bridgeRunningDot" class="dot" aria-hidden="true"></span>
       <div>
-        <h1>Oyama Bridge</h1>
+        <h1>Oyama Bridge Steward Workspace</h1>
         <p id="titleEndpointValue">Local LLM service dashboard</p>
       </div>
     </div>
@@ -20,69 +27,124 @@
       <span id="titleModelValue">Model pending</span>
     </div>
     <div class="window-actions">
-      <button id="minBtn" class="window-btn" type="button" aria-label="Minimize">-</button>
+      <button id="minBtn" class="window-btn" type="button" aria-label="Minimize to tray">_</button>
       <button id="maxBtn" class="window-btn" type="button" aria-label="Maximize">[]</button>
       <button id="closeBtn" class="window-btn close" type="button" aria-label="Close">x</button>
     </div>
   </header>
 
   <main class="app-frame">
-    <section class="ribbon" aria-label="Bridge command ribbon">
-      <div class="ribbon-group service-group">
-        <span class="ribbon-label">Service</span>
-        <div class="ribbon-actions">
-          <button id="bridgeStartBtn" class="ribbon-btn primary" type="button">Start</button>
-          <button id="bridgeStopBtn" class="ribbon-btn" type="button">Stop</button>
-          <button id="bridgeRestartBtn" class="ribbon-btn" type="button">Restart</button>
-          <button id="bridgeRefreshBtn" class="ribbon-btn" type="button">Refresh</button>
-        </div>
+    <aside id="commandSidebar" class="command-sidebar" aria-label="Bridge command sidebar">
+      <div class="sidebar-rail">
+        <button id="sidebarToggleBtn" class="rail-icon" type="button" title="Open command sidebar" aria-label="Open command sidebar">☰</button>
+        <button class="rail-icon active" type="button" title="Dashboard" aria-label="Dashboard" data-tab-target="dashboard">
+          <span class="steward-mark mini" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 4.5c6.35 0 11.5 5.15 11.5 11.5S22.35 27.5 16 27.5 4.5 22.35 4.5 16 9.65 4.5 16 4.5Z" /><path d="M10.2 17.9c0-4.75 3.38-7.55 7.15-7.55 2.9 0 5.15 1.66 5.15 4.08 0 4.18-6.12 3.48-6.12 6.17 0 1.16.96 1.88 2.34 1.88 1.5 0 2.74-.7 3.72-1.78" /><path d="M10.1 21.7c1.06-1.2 2.43-1.82 4.08-1.82" /></svg></span>
+        </button>
+        <button class="rail-icon" type="button" title="Requests" aria-label="Requests" data-tab-target="requests">R</button>
+        <button class="rail-icon" type="button" title="Generated content" aria-label="Generated content" data-tab-target="generated">G</button>
+        <button class="rail-icon" type="button" title="Pair CRM" aria-label="Pair CRM" data-tab-target="pairing">P</button>
+        <button class="rail-icon" type="button" title="Debug" aria-label="Debug" data-tab-target="advanced">?</button>
+        <button class="rail-icon rail-bottom" type="button" title="Settings" aria-label="Settings" data-tab-target="settings">S</button>
       </div>
-      <div class="ribbon-group">
-        <span class="ribbon-label">Persist</span>
-        <div class="ribbon-actions">
-          <button id="saveAllBtn" class="ribbon-btn primary" type="button">Save All</button>
-          <button id="saveAllBtnSettings" class="ribbon-btn" type="button">Save Settings</button>
+
+      <div class="sidebar-content">
+        <div class="sidebar-heading">
+          <span class="eyebrow">Oyama Bridge</span>
+          <strong>Commands</strong>
         </div>
+
+        <section class="sidebar-group">
+          <span class="sidebar-label">Service</span>
+          <button id="bridgeStartBtn" class="sidebar-action primary" type="button">Start</button>
+          <button id="bridgeStopBtn" class="sidebar-action" type="button">Stop</button>
+          <button id="bridgeRestartBtn" class="sidebar-action" type="button">Restart</button>
+          <button id="bridgeRefreshBtn" class="sidebar-action" type="button">Refresh</button>
+        </section>
+
+        <section class="sidebar-group">
+          <span class="sidebar-label">Workspace</span>
+          <button class="sidebar-action" type="button" data-tab-target="requests">Request Flow</button>
+          <button class="sidebar-action" type="button" data-tab-target="generated">Generated Log</button>
+          <button class="sidebar-action" type="button" data-tab-target="advanced">Ask Bridge</button>
+        </section>
+
+        <section class="sidebar-group sidebar-bottom-group">
+          <span class="sidebar-label">Tools</span>
+          <button class="sidebar-action" type="button" data-tab-target="pairing">Pair CRM</button>
+          <button class="sidebar-action" type="button" data-tab-target="backup">Backup</button>
+          <button class="sidebar-action" type="button" data-tab-target="settings">Settings</button>
+          <button id="clearLogBtn" class="sidebar-action" type="button">Clear Logs</button>
+          <button id="quitAppBtn" class="sidebar-action danger" type="button">Quit</button>
+        </section>
       </div>
-      <div class="ribbon-group">
-        <span class="ribbon-label">Startup</span>
-        <div class="ribbon-actions">
-          <button id="toggleStartupBtn" class="ribbon-btn" type="button">Enable Computer Startup</button>
-          <button id="toggleHiddenBtn" class="ribbon-btn" type="button">Enable Start Hidden</button>
-          <button id="toggleAutostartBtn" class="ribbon-btn" type="button">Disable Bridge Autostart</button>
-          <button id="toggleStartupBtnSettings" class="sr-only" type="button">Enable Computer Startup</button>
-          <button id="toggleHiddenBtnSettings" class="sr-only" type="button">Enable Start Hidden</button>
-          <button id="toggleAutostartBtnSettings" class="sr-only" type="button">Disable Bridge Autostart</button>
-        </div>
-      </div>
-      <div class="ribbon-group">
-        <span class="ribbon-label">Tools</span>
-        <div class="ribbon-actions">
-          <button class="ribbon-btn" type="button" data-tab-target="pairing">Pair CRM</button>
-          <button class="ribbon-btn" type="button" data-tab-target="backup">Backup</button>
-          <button class="ribbon-btn" type="button" data-tab-target="settings">Settings</button>
-          <button id="clearLogBtn" class="ribbon-btn" type="button">Clear Logs</button>
-          <button id="quitAppBtn" class="ribbon-btn danger" type="button">Quit</button>
-        </div>
-      </div>
-    </section>
+    </aside>
 
     <nav class="page-tabs" aria-label="Bridge pages">
       <button class="page-tab active" type="button" data-tab-target="dashboard">Dashboard</button>
       <button class="page-tab" type="button" data-tab-target="requests">Requests</button>
-      <button class="page-tab" type="button" data-tab-target="settings">Settings</button>
+      <button class="page-tab" type="button" data-tab-target="generated">Generated</button>
       <button class="page-tab" type="button" data-tab-target="pairing">Pairing</button>
       <button class="page-tab" type="button" data-tab-target="backup">Backup</button>
-      <button class="page-tab" type="button" data-tab-target="advanced">Advanced</button>
+      <button class="page-tab" type="button" data-tab-target="advanced">Debug</button>
     </nav>
 
     <section class="page-host">
       <section id="dashboardPage" class="tab-page active" data-tab-page="dashboard">
-        <section class="hero-grid" aria-label="Bridge service status">
+        <section class="server-dashboard-header" aria-label="Bridge summary">
+          <div class="server-title-block">
+            <span class="eyebrow">Enterprise local AI gateway</span>
+            <h2>Oyama Bridge Server</h2>
+            <p id="serviceModeValue">Autostart ready</p>
+          </div>
+          <div class="server-primary-actions">
+            <button id="dashboardStartBtn" class="btn primary" type="button">Start Service</button>
+            <button id="dashboardStopBtn" class="btn ghost" type="button">Stop</button>
+            <button class="btn ghost" type="button" data-tab-target="settings">Settings</button>
+          </div>
+        </section>
+
+        <section class="runtime-stage" aria-label="Ollama runtime control">
+          <article class="runtime-banner panel">
+            <div>
+              <span class="eyebrow">Reliable GPU control</span>
+              <h3>GPU pinning is only guaranteed when Oyama Bridge owns the Ollama process.</h3>
+              <p id="ollamaRuntimeHintValue" class="panel-subtitle">Managed mode launches <span class="mono-inline">ollama serve</span> with isolated device visibility. External mode keeps your existing service unchanged.</p>
+            </div>
+            <div class="runtime-banner-actions">
+              <span id="ollamaModePill" class="status-chip managed">Managed</span>
+              <span id="ollamaRuntimeStatusPill" class="status-chip idle">Idle</span>
+            </div>
+          </article>
+
+          <article class="runtime-stack panel">
+            <div class="panel-head compact-head">
+              <div>
+                <h2>Ollama Runtime</h2>
+                <p class="panel-subtitle">Mode, launch path, and GPU isolation contract.</p>
+              </div>
+            </div>
+            <div class="runtime-stack-grid">
+              <div class="runtime-stat">
+                <span>Runtime</span>
+                <strong id="ollamaRuntimeValue">Managed local runtime</strong>
+              </div>
+              <div class="runtime-stat">
+                <span>Launch</span>
+                <strong id="ollamaLaunchValue">ollama serve</strong>
+              </div>
+              <div class="runtime-stat">
+                <span>Isolation</span>
+                <strong id="ollamaIsolationValue">Automatic GPU selection</strong>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="hero-grid server-metrics" aria-label="Bridge service status">
           <article class="service-card status-card">
             <span class="card-label">Service</span>
             <strong id="bridgeStatusValue">Stopped</strong>
-            <span id="serviceModeValue">Autostart ready</span>
+            <span id="startupStatusValue">Disabled</span>
           </article>
           <article class="service-card">
             <span class="card-label">Requests</span>
@@ -92,7 +154,7 @@
           <article class="service-card">
             <span class="card-label">Uptime</span>
             <strong id="bridgeUptimeValue">0m</strong>
-            <span id="startupStatusValue">Disabled</span>
+            <span>Runtime session</span>
           </article>
           <article class="service-card">
             <span class="card-label">Latency</span>
@@ -109,16 +171,63 @@
             <strong id="bridgeLocalEndpoint">-</strong>
             <span id="upstreamHealthValue">Upstream pending</span>
           </article>
+          <article class="service-card">
+            <span class="card-label">Selected GPU</span>
+            <strong id="selectedGpuValue">Auto</strong>
+            <span id="selectedGpuHintValue">Runtime decides</span>
+          </article>
+          <article class="service-card">
+            <span class="card-label">GPU Usage</span>
+            <strong id="gpuUsageValue">-</strong>
+            <span id="gpuTempValue">Temp pending</span>
+          </article>
+          <article class="service-card">
+            <span class="card-label">GPU Memory</span>
+            <strong id="gpuMemoryValue">-</strong>
+            <span>Selected device</span>
+          </article>
+        </section>
+
+        <section class="dashboard-reports" aria-label="Bridge reports">
+          <article class="panel report-card wide">
+            <div class="panel-head">
+              <div>
+                <h2>Latency Trend</h2>
+                <p id="latencyTrendMeta" class="panel-subtitle">Waiting for request data...</p>
+              </div>
+            </div>
+            <div id="latencyTrendChart" class="chart-surface"></div>
+          </article>
+
+          <article class="panel report-card">
+            <div class="panel-head">
+              <div>
+                <h2>Status Mix</h2>
+                <p id="statusMixMeta" class="panel-subtitle">No traffic yet.</p>
+              </div>
+            </div>
+            <div id="statusMixChart" class="donut-chart"></div>
+          </article>
+
+          <article class="panel report-card">
+            <div class="panel-head">
+              <div>
+                <h2>GPU Load</h2>
+                <p id="gpuReportMeta" class="panel-subtitle">Waiting for GPU telemetry...</p>
+              </div>
+            </div>
+            <div id="gpuReportChart" class="gpu-report-bars"></div>
+          </article>
         </section>
 
         <section class="dashboard-grid">
-          <article class="panel">
+          <article class="panel live-log-shell">
             <div class="panel-head">
               <div>
-                <h2>Recent Request Flow</h2>
-                <p class="panel-subtitle">Operational metadata only. Request and response bodies are not logged.</p>
+                <h2>Live Request Flow</h2>
+                <p class="panel-subtitle">Routes, status, latency, byte counts, and model metadata.</p>
               </div>
-              <button class="btn ghost" type="button" data-tab-target="requests">Open Requests</button>
+              <button class="btn ghost" type="button" data-tab-target="requests">Full Flow</button>
             </div>
             <div class="request-log-wrap compact-log">
               <table>
@@ -130,24 +239,36 @@
             </div>
           </article>
 
-          <aside class="panel network-card">
+          <aside class="panel generated-snapshot">
             <div class="panel-head">
-              <h2>Network Values</h2>
+              <div>
+                <h2>Generated Content</h2>
+                <p id="dashboardGeneratedMeta" class="panel-subtitle">Waiting for assistant output...</p>
+              </div>
+              <button class="btn ghost" type="button" data-tab-target="generated">Open Log</button>
             </div>
-            <div class="endpoints">
-              <div class="endpoint"><strong>LAN</strong><span id="bridgeLanEndpoints" class="mono-value">-</span></div>
-              <div class="endpoint"><strong>Public</strong><span id="bridgePublicEndpoint" class="mono-value">-</span></div>
-            </div>
-            <div class="copy-grid">
-              <div class="copy-row"><span>Endpoint</span><input id="bridgeCopyEndpoint" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyEndpoint" type="button">Copy</button></div>
-              <div class="copy-row"><span>API Key</span><input id="bridgeCopyApiKey" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyApiKey" type="button">Copy</button></div>
-              <div class="copy-row"><span>Model</span><input id="bridgeCopyModel" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyModel" type="button">Copy</button></div>
-              <div class="copy-row"><span>Thinking</span><input id="bridgeCopyThinkingModel" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyThinkingModel" type="button">Copy</button></div>
-              <div class="copy-row"><span>CUDA</span><input id="bridgeCopyCuda" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyCuda" type="button">Copy</button></div>
-              <div class="copy-row"><span>Temp</span><input id="bridgeCopyTemperature" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyTemperature" type="button">Copy</button></div>
-              <div class="copy-row"><span>Timeout</span><input id="bridgeCopyTimeout" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyTimeout" type="button">Copy</button></div>
+            <div id="dashboardGeneratedLogBody" class="generated-list compact-generated">
+              <p class="empty">Generated replies will appear here as the bridge relays them.</p>
             </div>
           </aside>
+        </section>
+
+        <section class="panel gpu-monitor-panel">
+          <div class="panel-head">
+            <div>
+              <h2>GPU Monitor</h2>
+              <p id="gpuMonitorMeta" class="panel-subtitle">Reads live values from nvidia-smi.</p>
+            </div>
+            <button class="btn ghost" type="button" data-tab-target="settings">CUDA Settings</button>
+          </div>
+          <div id="gpuMonitorList" class="gpu-monitor-list">
+            <p class="empty">No NVIDIA GPU telemetry available.</p>
+          </div>
+        </section>
+
+        <section class="network-strip">
+          <div class="endpoint"><strong>LAN</strong><span id="bridgeLanEndpoints" class="mono-value">-</span></div>
+          <div class="endpoint"><strong>Public</strong><span id="bridgePublicEndpoint" class="mono-value">-</span></div>
         </section>
       </section>
 
@@ -205,29 +326,82 @@
         </section>
       </section>
 
-      <section id="settingsPanel" class="tab-page" data-tab-page="settings">
+      <section id="generatedPage" class="tab-page" data-tab-page="generated">
+        <section class="generated-layout">
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Generated Content Log</h2>
+                <p id="generatedContentMeta" class="panel-subtitle">Assistant output from chat/generate calls appears here in memory.</p>
+              </div>
+              <div class="row-inline">
+                <button class="btn ghost" type="button" data-tab-target="advanced">Ask Bridge</button>
+                <button id="copyLatestGeneratedBtn" class="btn ghost" type="button">Copy Latest</button>
+              </div>
+            </div>
+            <div id="generatedContentLogBody" class="generated-list">
+              <p class="empty">No generated content captured yet.</p>
+            </div>
+          </article>
+
+          <aside class="panel network-card">
+            <div class="panel-head"><h2>Pairing Values</h2></div>
+            <div class="copy-grid">
+              <div class="copy-row"><span>Endpoint</span><input id="bridgeCopyEndpoint" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyEndpoint" type="button">Copy</button></div>
+              <div class="copy-row"><span>API Key</span><input id="bridgeCopyApiKey" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyApiKey" type="button">Copy</button></div>
+              <div class="copy-row"><span>Model</span><input id="bridgeCopyModel" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyModel" type="button">Copy</button></div>
+              <div class="copy-row"><span>Thinking</span><input id="bridgeCopyThinkingModel" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyThinkingModel" type="button">Copy</button></div>
+              <div class="copy-row"><span>CUDA</span><input id="bridgeCopyCuda" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyCuda" type="button">Copy</button></div>
+              <div class="copy-row"><span>Temp</span><input id="bridgeCopyTemperature" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyTemperature" type="button">Copy</button></div>
+              <div class="copy-row"><span>Timeout</span><input id="bridgeCopyTimeout" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="bridgeCopyTimeout" type="button">Copy</button></div>
+            </div>
+          </aside>
+        </section>
+      </section>
+
+      <div id="settingsBackdrop" class="settings-backdrop" aria-hidden="true"></div>
+      <aside id="settingsSidebar" class="settings-sidebar" aria-hidden="true">
+        <div class="settings-sidebar-head">
+          <div>
+            <span class="eyebrow">Bridge settings</span>
+            <h2>Runtime ownership, GPU pinning, network, and Windows behavior</h2>
+          </div>
+          <div class="settings-title-actions">
+            <button id="saveAllBtn" class="btn primary" type="button">Save All</button>
+            <button id="saveAllBtnSettings" class="btn ghost" type="button">Save Settings</button>
+            <button id="settingsCloseBtn" class="window-btn" type="button" aria-label="Close settings">x</button>
+          </div>
+        </div>
         <section class="settings-grid">
           <section class="panel settings-card">
-            <div class="panel-head"><h2>Service Settings</h2></div>
+            <div class="panel-head"><h2>Windows Service Behavior</h2></div>
             <div class="checks compact-checks">
               <label class="check"><input id="bridgeAutostartInput" type="checkbox" /> Start bridge when app opens</label>
               <label class="check"><input id="bridgeMinimizeOnCloseInput" type="checkbox" /> Minimize to tray on close</label>
               <label class="check"><input id="startupLaunchEnabledInput" type="checkbox" /> Start Oyama Bridge on computer login</label>
               <label class="check"><input id="startHiddenInput" type="checkbox" /> Start hidden on login</label>
             </div>
+            <button id="trayHideBtn" class="btn ghost" type="button">Hide dashboard to tray</button>
           </section>
 
           <section class="panel settings-card">
             <div class="panel-head">
               <h2>Network</h2>
-              <button id="bridgeSaveBtn" type="button" class="btn primary">Save Settings</button>
             </div>
             <div class="form-grid">
               <div class="field span-2"><label for="crmSiteUrlInput">CRM Site URL</label><input id="crmSiteUrlInput" type="url" placeholder="https://crm.yourorg.org" /></div>
               <div class="field span-2"><label for="bridgeDomainUrlInput">Domain AI Settings URL</label><input id="bridgeDomainUrlInput" type="url" placeholder="https://crm.yourorg.org/settings/ai" /></div>
-              <div class="field span-2"><label for="bridgeUpstreamUrlInput">Upstream URL</label><input id="bridgeUpstreamUrlInput" type="url" placeholder="http://127.0.0.1:11434" /></div>
+              <div class="field span-2"><label for="bridgeUpstreamUrlInput">Ollama Upstream URL</label><input id="bridgeUpstreamUrlInput" type="url" placeholder="http://127.0.0.1:11434" /><p class="field-hint">Use a local URL for Managed mode. External mode can point at any reachable Ollama server.</p></div>
               <div class="field"><label for="bridgePortInput">Bridge Port</label><input id="bridgePortInput" type="number" min="1024" max="65535" step="1" /></div>
               <div class="field"><label for="bridgePublicBaseUrlInput">Public Base URL</label><input id="bridgePublicBaseUrlInput" type="url" placeholder="https://bridge.yourorg.org" /></div>
+            </div>
+          </section>
+
+          <section class="panel settings-card">
+            <div class="panel-head"><h2>Ollama Ownership</h2></div>
+            <div class="form-grid">
+              <div class="field"><label for="ollamaRuntimeModeSelect">Runtime Mode</label><select id="ollamaRuntimeModeSelect"><option value="managed">Managed by Oyama Bridge</option><option value="external">External service</option></select></div>
+              <div class="field span-2"><label for="ollamaExecutablePathInput">Ollama Executable Path</label><input id="ollamaExecutablePathInput" type="text" placeholder="ollama" /><p id="ollamaModeHelpText" class="field-hint">Managed mode starts <span class="mono-inline">ollama serve</span> itself and applies GPU visibility before launch.</p></div>
             </div>
           </section>
 
@@ -236,7 +410,7 @@
             <div class="form-grid">
               <div class="field"><label for="bridgeModelInput">Model</label><input id="bridgeModelInput" type="text" /></div>
               <div class="field"><label for="bridgeThinkingModelInput">Thinking Model</label><input id="bridgeThinkingModelInput" type="text" /></div>
-              <div class="field"><label for="bridgeCudaDeviceSelect">CUDA Device</label><select id="bridgeCudaDeviceSelect"></select></div>
+              <div class="field"><label for="bridgeCudaDeviceSelect">CUDA Device</label><select id="bridgeCudaDeviceSelect"></select><p id="activeCudaDeviceValue" class="field-hint">Selected CUDA: auto</p></div>
               <div class="field"><label for="bridgeTemperatureInput">Temperature</label><input id="bridgeTemperatureInput" type="number" min="0" max="2" step="0.1" /></div>
               <div class="field"><label for="bridgeTimeoutInput">Timeout (ms)</label><input id="bridgeTimeoutInput" type="number" min="3650" max="120000" step="1000" /></div>
             </div>
@@ -250,7 +424,7 @@
             </div>
           </section>
         </section>
-      </section>
+      </aside>
 
       <section id="pairingPanel" class="tab-page" data-tab-page="pairing">
         <section class="panel settings-card wide">
@@ -288,14 +462,14 @@
             </div>
           </div>
           <div class="form-grid">
-            <div class="field span-2"><label for="backupDirectoryInput">Backup Directory</label><input id="backupDirectoryInput" type="text" placeholder="C:\\Users\\...\\OyamaBridgeBackups" /></div>
+            <div class="field span-2"><label for="backupDirectoryInput">Backup Directory</label><input id="backupDirectoryInput" type="text" placeholder="C:\Users\...\OyamaBridgeBackups" /></div>
             <div class="field"><label for="backupIntervalHoursInput">Interval (hours)</label><input id="backupIntervalHoursInput" type="number" min="1" max="168" step="1" /></div>
             <div class="field"><label for="backupRetentionDaysInput">Retention (days)</label><input id="backupRetentionDaysInput" type="number" min="1" max="365" step="1" /></div>
             <div class="field span-2"><label for="backupPassphraseInput">Passphrase</label><input id="backupPassphraseInput" type="password" placeholder="Enter passphrase to encrypt backup" /></div>
           </div>
           <div class="checks compact-checks">
             <label class="check"><input id="backupEnabledInput" type="checkbox" /> Enable secure background backup profile</label>
-            <label class="check"><input id="backupIncludeLogsInput" type="checkbox" /> Include request/error logs in backup snapshot</label>
+            <label class="check"><input id="backupIncludeLogsInput" type="checkbox" /> Include request/error/generated logs in backup snapshot</label>
           </div>
           <div class="copy-grid backup-output">
             <div class="copy-row"><span>Last run</span><input id="backupLastRunOutput" class="mono-value" type="text" readonly /><button class="btn ghost" data-copy-target="backupLastRunOutput" type="button">Copy</button></div>
@@ -308,7 +482,7 @@
       <section id="advancedPage" class="tab-page" data-tab-page="advanced">
         <section class="advanced-grid">
           <section class="panel settings-card">
-            <div class="panel-head"><h2>Advanced Prompting</h2></div>
+            <div class="panel-head"><h2>Prompt Grounding</h2></div>
             <div class="form-grid">
               <div class="field span-2"><label for="bridgeSystemPromptBaseInput">Bridge System Prompt</label><textarea id="bridgeSystemPromptBaseInput" rows="5" placeholder="System behavior for bridge-generated assistant calls"></textarea></div>
               <div class="field span-2"><label for="bridgeInternalChatPromptInput">Internal Chat Prompt Addendum</label><textarea id="bridgeInternalChatPromptInput" rows="5" placeholder="Additional behavior for internal bridge chat"></textarea></div>
@@ -317,13 +491,16 @@
 
           <section class="panel settings-card">
             <div class="panel-head">
-              <h2>Internal Bridge Chat</h2>
+              <div>
+                <h2>Debug Chat</h2>
+                <p class="panel-subtitle">Ask about runtime health, request flow, and next operating steps.</p>
+              </div>
               <div class="row-inline">
                 <button id="bridgeChatSendBtn" type="button" class="btn primary">Send</button>
                 <button id="bridgeChatClearBtn" type="button" class="btn ghost">Clear</button>
               </div>
             </div>
-            <textarea id="bridgeChatInput" rows="3" placeholder="Ask about runtime health, donor/report flow, and next actions."></textarea>
+            <textarea id="bridgeChatInput" rows="3" placeholder="Ask about bridge health, current traffic, and generated content flow."></textarea>
             <div id="bridgeChatLog" class="chat-log"></div>
           </section>
         </section>

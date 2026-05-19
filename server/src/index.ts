@@ -64,6 +64,7 @@ import oyamaPasswordRoutes from "./routes/oyama-password.js";
 import triviaRoutes from "./routes/trivia.js";
 import helpAgentRoutes from "./routes/help-agent.js";
 import systemUpdatesRoutes from "./routes/system-updates.js";
+import messengerRoutes from "./routes/messenger.js";
 import { maintenanceModeGuard } from "./middleware/maintenance-mode.js";
 import { prisma } from "./lib/prisma.js";
 import { getAppInfo } from "./lib/app-info.js";
@@ -253,6 +254,7 @@ app.use("/api/oyama-password", oyamaPasswordRoutes);
 app.use("/api/livecom", liveComRoutes);
 app.use("/api/site-embeds", siteEmbedsRoutes);
 app.use("/api/apps/trivia", triviaRoutes);
+app.use("/api/messenger", messengerRoutes);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 

@@ -17,28 +17,53 @@ const errorCountValue = document.getElementById("errorCountValue");
 const recentErrorValue = document.getElementById("recentErrorValue");
 const requestSuccessRateValue = document.getElementById("requestSuccessRateValue");
 const upstreamHealthValue = document.getElementById("upstreamHealthValue");
+const ollamaModePill = document.getElementById("ollamaModePill");
+const ollamaRuntimeStatusPill = document.getElementById("ollamaRuntimeStatusPill");
+const ollamaRuntimeValue = document.getElementById("ollamaRuntimeValue");
+const ollamaLaunchValue = document.getElementById("ollamaLaunchValue");
+const ollamaIsolationValue = document.getElementById("ollamaIsolationValue");
+const ollamaRuntimeHintValue = document.getElementById("ollamaRuntimeHintValue");
+const selectedGpuValue = document.getElementById("selectedGpuValue");
+const selectedGpuHintValue = document.getElementById("selectedGpuHintValue");
+const gpuUsageValue = document.getElementById("gpuUsageValue");
+const gpuTempValue = document.getElementById("gpuTempValue");
+const gpuMemoryValue = document.getElementById("gpuMemoryValue");
+const gpuMonitorList = document.getElementById("gpuMonitorList");
+const gpuMonitorMeta = document.getElementById("gpuMonitorMeta");
+const latencyTrendChart = document.getElementById("latencyTrendChart");
+const latencyTrendMeta = document.getElementById("latencyTrendMeta");
+const statusMixChart = document.getElementById("statusMixChart");
+const statusMixMeta = document.getElementById("statusMixMeta");
+const gpuReportChart = document.getElementById("gpuReportChart");
+const gpuReportMeta = document.getElementById("gpuReportMeta");
 const selectedRequestStatus = document.getElementById("selectedRequestStatus");
 const requestDetailBody = document.getElementById("requestDetailBody");
+const settingsSidebar = document.getElementById("settingsSidebar");
+const settingsBackdrop = document.getElementById("settingsBackdrop");
+const settingsCloseBtn = document.getElementById("settingsCloseBtn");
+const activeCudaDeviceValue = document.getElementById("activeCudaDeviceValue");
+const commandSidebar = document.getElementById("commandSidebar");
+const sidebarToggleBtn = document.getElementById("sidebarToggleBtn");
 
 const requestLogBody = document.getElementById("requestLogBody");
 const dashboardRequestLogBody = document.getElementById("dashboardRequestLogBody");
 const errorLogBody = document.getElementById("errorLogBody");
 const requestLogMeta = document.getElementById("requestLogMeta");
+const generatedContentLogBody = document.getElementById("generatedContentLogBody");
+const dashboardGeneratedLogBody = document.getElementById("dashboardGeneratedLogBody");
+const generatedContentMeta = document.getElementById("generatedContentMeta");
+const dashboardGeneratedMeta = document.getElementById("dashboardGeneratedMeta");
 
 const bridgeStartBtn = document.getElementById("bridgeStartBtn");
 const bridgeStopBtn = document.getElementById("bridgeStopBtn");
 const bridgeRestartBtn = document.getElementById("bridgeRestartBtn");
 const bridgeRefreshBtn = document.getElementById("bridgeRefreshBtn");
-const bridgeSaveBtn = document.getElementById("bridgeSaveBtn");
+const dashboardStartBtn = document.getElementById("dashboardStartBtn");
+const dashboardStopBtn = document.getElementById("dashboardStopBtn");
 const clearLogBtn = document.getElementById("clearLogBtn");
+const copyLatestGeneratedBtn = document.getElementById("copyLatestGeneratedBtn");
 
-const toggleStartupBtn = document.getElementById("toggleStartupBtn");
-const toggleHiddenBtn = document.getElementById("toggleHiddenBtn");
-const toggleAutostartBtn = document.getElementById("toggleAutostartBtn");
 const saveAllBtn = document.getElementById("saveAllBtn");
-const toggleStartupBtnSettings = document.getElementById("toggleStartupBtnSettings");
-const toggleHiddenBtnSettings = document.getElementById("toggleHiddenBtnSettings");
-const toggleAutostartBtnSettings = document.getElementById("toggleAutostartBtnSettings");
 const saveAllBtnSettings = document.getElementById("saveAllBtnSettings");
 
 const crmSiteUrlInput = document.getElementById("crmSiteUrlInput");
@@ -48,6 +73,9 @@ const bridgePortInput = document.getElementById("bridgePortInput");
 const bridgeAllowedOriginsInput = document.getElementById("bridgeAllowedOriginsInput");
 const bridgeApiKeyInput = document.getElementById("bridgeApiKeyInput");
 const bridgePublicBaseUrlInput = document.getElementById("bridgePublicBaseUrlInput");
+const ollamaRuntimeModeSelect = document.getElementById("ollamaRuntimeModeSelect");
+const ollamaExecutablePathInput = document.getElementById("ollamaExecutablePathInput");
+const ollamaModeHelpText = document.getElementById("ollamaModeHelpText");
 const bridgeModelInput = document.getElementById("bridgeModelInput");
 const bridgeThinkingModelInput = document.getElementById("bridgeThinkingModelInput");
 const bridgeCudaDeviceSelect = document.getElementById("bridgeCudaDeviceSelect");
@@ -107,17 +135,22 @@ const backupRunNowBtn = document.getElementById("backupRunNowBtn");
 const minBtn = document.getElementById("minBtn");
 const maxBtn = document.getElementById("maxBtn");
 const closeBtn = document.getElementById("closeBtn");
+const trayHideBtn = document.getElementById("trayHideBtn");
 const quitAppBtn = document.getElementById("quitAppBtn");
 
 let bridgeState = null;
 let startupState = null;
 let runtimeTicker = null;
+let gpuTelemetryTicker = null;
 let detachBridgeEvents = null;
 let displayRequestLog = [];
 let displayErrorLog = [];
+let displayGeneratedLog = [];
 let requestFilter = "all";
 let selectedRequestId = "";
 let activePage = "dashboard";
+let settingsOpen = false;
+let sidebarOpen = false;
 let lastPairing = null;
 let chatHistory = [];
 let draftSaveTimer = null;
@@ -167,6 +200,31 @@ function getActiveSection() {
 
 function getActiveAuditTab() {
   return auditTabErrors?.classList.contains("active") ? "errors" : "requests";
+}
+
+function updateNavActive(targetName) {
+  const target = String(targetName || activePage || "dashboard");
+  document.querySelectorAll(".page-tab, .rail-icon, .sidebar-action[data-tab-target]").forEach((button) => {
+    button.classList.toggle("active", button.getAttribute("data-tab-target") === target);
+  });
+}
+
+function toggleSettingsSidebar(forceOpen) {
+  settingsOpen = typeof forceOpen === "boolean" ? forceOpen : !settingsOpen;
+  settingsSidebar?.classList.toggle("open", settingsOpen);
+  settingsBackdrop?.classList.toggle("open", settingsOpen);
+  settingsSidebar?.setAttribute("aria-hidden", settingsOpen ? "false" : "true");
+  settingsBackdrop?.setAttribute("aria-hidden", settingsOpen ? "false" : "true");
+  document.body.classList.toggle("settings-open", settingsOpen);
+  updateNavActive(settingsOpen ? "settings" : activePage);
+}
+
+function toggleCommandSidebar(forceOpen) {
+  sidebarOpen = typeof forceOpen === "boolean" ? forceOpen : !sidebarOpen;
+  commandSidebar?.classList.toggle("open", sidebarOpen);
+  document.body.classList.toggle("sidebar-open", sidebarOpen);
+  sidebarToggleBtn?.setAttribute("aria-label", sidebarOpen ? "Close command sidebar" : "Open command sidebar");
+  if (sidebarToggleBtn) sidebarToggleBtn.title = sidebarOpen ? "Close command sidebar" : "Open command sidebar";
 }
 
 function readDraftStore() {
@@ -220,6 +278,8 @@ function collectUiDraft() {
       bridgeAllowedOriginsInput: safeInputValue(bridgeAllowedOriginsInput),
       bridgeApiKeyInput: safeInputValue(bridgeApiKeyInput),
       bridgePublicBaseUrlInput: safeInputValue(bridgePublicBaseUrlInput),
+      ollamaRuntimeModeSelect: safeInputValue(ollamaRuntimeModeSelect),
+      ollamaExecutablePathInput: safeInputValue(ollamaExecutablePathInput),
       bridgeModelInput: safeInputValue(bridgeModelInput),
       bridgeThinkingModelInput: safeInputValue(bridgeThinkingModelInput),
       bridgeCudaDeviceSelect: safeInputValue(bridgeCudaDeviceSelect),
@@ -310,6 +370,8 @@ function restoreUiDraft() {
   applyInputValue(bridgeAllowedOriginsInput, fields.bridgeAllowedOriginsInput);
   applyInputValue(bridgeApiKeyInput, fields.bridgeApiKeyInput);
   applyInputValue(bridgePublicBaseUrlInput, fields.bridgePublicBaseUrlInput);
+  applyInputValue(ollamaRuntimeModeSelect, fields.ollamaRuntimeModeSelect);
+  applyInputValue(ollamaExecutablePathInput, fields.ollamaExecutablePathInput);
   applyInputValue(bridgeModelInput, fields.bridgeModelInput);
   applyInputValue(bridgeThinkingModelInput, fields.bridgeThinkingModelInput);
   applyInputValue(bridgeCudaDeviceSelect, fields.bridgeCudaDeviceSelect);
@@ -384,30 +446,6 @@ function updateStartupButtons() {
     startupStatusValue.textContent = startupState.startupLaunchEnabled ? "Enabled" : "Disabled";
   }
 
-  if (toggleStartupBtn) {
-    toggleStartupBtn.textContent = startupState.startupLaunchEnabled ? "Disable Computer Startup" : "Enable Computer Startup";
-  }
-
-  if (toggleStartupBtnSettings) {
-    toggleStartupBtnSettings.textContent = startupState.startupLaunchEnabled ? "Disable Computer Startup" : "Enable Computer Startup";
-  }
-
-  if (toggleHiddenBtn) {
-    toggleHiddenBtn.textContent = startupState.startHidden ? "Disable Start Hidden" : "Enable Start Hidden";
-  }
-
-  if (toggleHiddenBtnSettings) {
-    toggleHiddenBtnSettings.textContent = startupState.startHidden ? "Disable Start Hidden" : "Enable Start Hidden";
-  }
-
-  if (toggleAutostartBtn) {
-    toggleAutostartBtn.textContent = startupState.bridgeAutostart ? "Disable Bridge Autostart" : "Enable Bridge Autostart";
-  }
-
-  if (toggleAutostartBtnSettings) {
-    toggleAutostartBtnSettings.textContent = startupState.bridgeAutostart ? "Disable Bridge Autostart" : "Enable Bridge Autostart";
-  }
-
   if (startupLaunchEnabledInput) startupLaunchEnabledInput.checked = Boolean(startupState.startupLaunchEnabled);
   if (startHiddenInput) startHiddenInput.checked = Boolean(startupState.startHidden);
   if (bridgeAutostartInput) bridgeAutostartInput.checked = Boolean(startupState.bridgeAutostart);
@@ -476,6 +514,71 @@ function updateRuntimeSummary(runtime) {
   if (bridgeStartBtn) bridgeStartBtn.disabled = isRunning;
   if (bridgeStopBtn) bridgeStopBtn.disabled = !isRunning;
   if (bridgeRestartBtn) bridgeRestartBtn.disabled = !isRunning;
+  if (dashboardStartBtn) dashboardStartBtn.disabled = isRunning;
+  if (dashboardStopBtn) dashboardStopBtn.disabled = !isRunning;
+}
+
+function getRuntimeChipTone(ollama) {
+  if (ollama?.status === "managed-ready" || ollama?.status === "external-ready") return "ready";
+  if (ollama?.status === "managed-starting") return "warming";
+  if (ollama?.status === "managed-port-in-use") return "warning";
+  if (ollama?.status === "error" || ollama?.status === "external-unreachable") return "danger";
+  return "idle";
+}
+
+function renderOllamaState(ollama, config) {
+  const mode = String(ollama?.mode || config?.ollamaRuntimeMode || "managed");
+  const status = String(ollama?.status || "idle");
+  const runtimeText = mode === "managed"
+    ? (ollama?.managedByApp && ollama?.pid
+      ? `Managed PID ${ollama.pid}`
+      : "Managed local runtime")
+    : `External upstream ${String(ollama?.upstreamUrl || config?.bridgeUpstreamUrl || "").replace(/^https?:\/\//, "")}`;
+  const launchText = mode === "managed"
+    ? `${String(ollama?.executablePath || config?.ollamaExecutablePath || "ollama")} serve`
+    : `Bridge proxies ${String(ollama?.upstreamUrl || config?.bridgeUpstreamUrl || "")}`;
+  const isolationText = String(ollama?.envHint || (String(config?.bridgeCudaDevice || "auto") === "auto"
+    ? "Automatic GPU selection"
+    : `CUDA_VISIBLE_DEVICES=${String(config?.bridgeCudaDevice || "auto")}`));
+
+  let hintText = "Managed mode launches ollama serve with isolated device visibility.";
+  if (mode === "external") {
+    hintText = "External mode does not own the Ollama process. GPU selection falls back to per-request hints and cannot be strictly enforced from this app.";
+  } else if (status === "managed-ready") {
+    hintText = "Oyama Bridge owns the Ollama process right now, so the selected GPU visibility is enforced at process launch.";
+  } else if (status === "managed-port-in-use") {
+    hintText = ollama?.lastError || "Another Ollama service already owns the configured upstream URL. Managed GPU isolation is not guaranteed until that service is stopped.";
+  } else if (status === "managed-starting") {
+    hintText = "Starting a managed Ollama process and waiting for the health endpoint to come online.";
+  } else if (status === "external-unreachable" || status === "error") {
+    hintText = ollama?.lastError || "Ollama is not currently reachable.";
+  }
+
+  if (ollamaModePill) {
+    ollamaModePill.textContent = mode === "managed" ? "Managed Ollama" : "External Ollama";
+    ollamaModePill.className = `status-chip ${mode === "managed" ? "managed" : "external"}`;
+  }
+
+  if (ollamaRuntimeStatusPill) {
+    ollamaRuntimeStatusPill.textContent = status
+      .replace(/^managed-/, "")
+      .replace(/^external-/, "")
+      .replace(/-/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+    ollamaRuntimeStatusPill.className = `status-chip ${getRuntimeChipTone(ollama)}`;
+  }
+
+  if (ollamaRuntimeValue) ollamaRuntimeValue.textContent = runtimeText;
+  if (ollamaLaunchValue) ollamaLaunchValue.textContent = launchText;
+  if (ollamaIsolationValue) ollamaIsolationValue.textContent = isolationText;
+  if (ollamaRuntimeHintValue) ollamaRuntimeHintValue.textContent = hintText;
+  if (ollamaModeHelpText) ollamaModeHelpText.textContent = hintText;
+
+  if (upstreamHealthValue && mode === "managed") {
+    upstreamHealthValue.textContent = ollama?.ready
+      ? `Managed Ollama ${ollama?.version || "ready"}`
+      : `Managed Ollama ${status.replace(/^managed-/, "")}`;
+  }
 }
 
 function formatBytes(value) {
@@ -483,6 +586,245 @@ function formatBytes(value) {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${bytes} B`;
+}
+
+function parseMetricNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  const match = String(value).match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatMiB(value) {
+  const mib = parseMetricNumber(value);
+  if (!Number.isFinite(mib)) return "-";
+  if (mib >= 1024) return `${(mib / 1024).toFixed(1)} GB`;
+  return `${Math.round(mib)} MB`;
+}
+
+function clampNumber(value, min, max) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return min;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+function buildSparklineSvg(values, { stroke = "#0a84ff", fill = "rgba(10,132,255,0.12)" } = {}) {
+  const width = 420;
+  const height = 122;
+  const padding = 12;
+  const safeValues = values.length ? values : [0];
+  const maxValue = Math.max(1, ...safeValues);
+  const step = safeValues.length > 1 ? (width - padding * 2) / (safeValues.length - 1) : 0;
+  const points = safeValues.map((value, index) => {
+    const x = padding + index * step;
+    const y = height - padding - ((value / maxValue) * (height - padding * 2));
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const area = `${padding},${height - padding} ${points.join(" ")} ${width - padding},${height - padding}`;
+
+  return `
+    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Latency trend chart">
+      <polygon points="${area}" fill="${fill}"></polygon>
+      <polyline points="${points.join(" ")}" fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
+      <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#303030" stroke-width="1"></line>
+    </svg>
+  `;
+}
+
+function renderReportCharts(rows, network) {
+  const requestRows = Array.isArray(rows) ? rows : [];
+  const latencyValues = requestRows
+    .slice(0, 28)
+    .reverse()
+    .map((entry) => Math.max(0, Number(entry.durationMs || 0)));
+
+  if (latencyTrendChart) {
+    latencyTrendChart.innerHTML = latencyValues.length
+      ? buildSparklineSvg(latencyValues)
+      : '<p class="empty">No latency samples yet.</p>';
+  }
+
+  if (latencyTrendMeta) {
+    const latest = latencyValues.length ? latencyValues[latencyValues.length - 1] : 0;
+    const max = latencyValues.length ? Math.max(...latencyValues) : 0;
+    latencyTrendMeta.textContent = latencyValues.length
+      ? `${latencyValues.length} samples | latest ${latest} ms | peak ${max} ms`
+      : "Waiting for request data...";
+  }
+
+  const successCount = requestRows.filter((entry) => Number(entry.statusCode || 0) >= 200 && Number(entry.statusCode || 0) < 300).length;
+  const clientErrorCount = requestRows.filter((entry) => Number(entry.statusCode || 0) >= 400 && Number(entry.statusCode || 0) < 500).length;
+  const serverErrorCount = requestRows.filter((entry) => Number(entry.statusCode || 0) >= 500).length;
+  const total = successCount + clientErrorCount + serverErrorCount;
+  const successPct = total ? Math.round((successCount / total) * 100) : 0;
+  const clientPct = total ? Math.round((clientErrorCount / total) * 100) : 0;
+  const serverPct = total ? Math.max(0, 100 - successPct - clientPct) : 0;
+
+  if (statusMixChart) {
+    statusMixChart.innerHTML = total
+      ? `
+        <div class="donut" style="--success:${successPct}; --client:${clientPct}; --server:${serverPct};">
+          <strong>${successPct}%</strong>
+          <span>success</span>
+        </div>
+        <div class="chart-legend">
+          <span><i class="legend-success"></i>${successCount} success</span>
+          <span><i class="legend-client"></i>${clientErrorCount} client</span>
+          <span><i class="legend-server"></i>${serverErrorCount} server</span>
+        </div>
+      `
+      : '<p class="empty">No status data yet.</p>';
+  }
+
+  if (statusMixMeta) {
+    statusMixMeta.textContent = total ? `${total} classified requests` : "No traffic yet.";
+  }
+
+  const telemetry = normalizeGpuTelemetry(Array.isArray(network?.gpuTelemetry)
+    ? network.gpuTelemetry
+    : (Array.isArray(network?.cudaDevices) ? network.cudaDevices : []));
+
+  if (gpuReportMeta) {
+    gpuReportMeta.textContent = telemetry.length ? `${telemetry.length} visible NVIDIA GPU${telemetry.length === 1 ? "" : "s"}` : "Waiting for GPU telemetry...";
+  }
+
+  if (gpuReportChart) {
+    gpuReportChart.innerHTML = telemetry.length
+      ? telemetry.map((gpu) => {
+        const usage = clampNumber(parseMetricNumber(gpu.utilizationPct) ?? 0, 0, 100);
+        const used = parseMetricNumber(gpu.memoryUsedMiB);
+        const totalMemory = parseMetricNumber(gpu.memoryTotalMiB);
+        const memoryPct = totalMemory && used !== null ? clampNumber(Math.round((used / totalMemory) * 100), 0, 100) : 0;
+        return `
+          <div class="gpu-report-row">
+            <div><strong>GPU ${escapeHtml(gpu.index)}</strong><span>${escapeHtml(gpu.name)}</span></div>
+            <div class="bar-pair">
+              <span>Use</span><b style="width:${usage}%"></b><em>${usage}%</em>
+            </div>
+            <div class="bar-pair">
+              <span>Mem</span><b style="width:${memoryPct}%"></b><em>${memoryPct}%</em>
+            </div>
+          </div>
+        `;
+      }).join("")
+      : '<p class="empty">No GPU telemetry available.</p>';
+  }
+}
+
+function normalizeGpuTelemetry(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .map((gpu) => {
+      if (!gpu || typeof gpu !== "object") return null;
+      const index = parseMetricNumber(gpu.index);
+      if (!Number.isInteger(index) || index < 0) return null;
+      return {
+        ...gpu,
+        index,
+        uuid: String(gpu.uuid || ""),
+        name: String(gpu.name || `GPU ${index}`),
+        utilizationPct: parseMetricNumber(gpu.utilizationPct),
+        temperatureC: parseMetricNumber(gpu.temperatureC),
+        memoryUsedMiB: parseMetricNumber(gpu.memoryUsedMiB),
+        memoryTotalMiB: parseMetricNumber(gpu.memoryTotalMiB ?? gpu.memory),
+        powerDrawW: parseMetricNumber(gpu.powerDrawW),
+      };
+    })
+    .filter(Boolean);
+}
+
+function getSelectedGpu(telemetry, selectedValue) {
+  const rows = Array.isArray(telemetry) ? telemetry : [];
+  const selected = String(selectedValue || "auto");
+  if (selected === "auto") return rows[0] || null;
+  return rows.find((gpu) => String(gpu?.index) === selected || String(gpu?.uuid || "") === selected) || null;
+}
+
+function renderGpuTelemetry(network) {
+  const telemetry = normalizeGpuTelemetry(Array.isArray(network?.gpuTelemetry)
+    ? network.gpuTelemetry
+    : (Array.isArray(network?.cudaDevices) ? network.cudaDevices : []));
+  const selected = String(network?.selectedCudaDevice || bridgeState?.config?.bridgeCudaDevice || "auto");
+  const selectedGpu = getSelectedGpu(telemetry, selected);
+  const hint = String(network?.cudaVisibleDevicesHint || "").trim();
+
+  if (selectedGpuValue) {
+    selectedGpuValue.textContent = selected === "auto"
+      ? "Auto"
+      : `GPU ${selected}`;
+  }
+
+  if (selectedGpuHintValue) {
+    selectedGpuHintValue.textContent = hint || "Runtime decides";
+  }
+
+  if (gpuUsageValue) {
+    const utilization = selectedGpu ? parseMetricNumber(selectedGpu.utilizationPct) : null;
+    gpuUsageValue.textContent = utilization !== null
+      ? `${utilization}%`
+      : "-";
+  }
+
+  if (gpuTempValue) {
+    const temperature = selectedGpu ? parseMetricNumber(selectedGpu.temperatureC) : null;
+    gpuTempValue.textContent = temperature !== null
+      ? `${temperature} C | ${selectedGpu.name || `GPU ${selectedGpu.index}`}`
+      : "Temp pending";
+  }
+
+  if (gpuMemoryValue) {
+    gpuMemoryValue.textContent = selectedGpu
+      ? `${formatMiB(selectedGpu.memoryUsedMiB)} / ${formatMiB(selectedGpu.memoryTotalMiB)}`
+      : "-";
+  }
+
+  if (gpuMonitorMeta) {
+    gpuMonitorMeta.textContent = hint
+      ? `${hint} must be set on the Ollama/runtime process for hard GPU isolation.`
+      : "Auto mode: runtime can choose any visible GPU.";
+  }
+
+  if (!gpuMonitorList) return;
+
+  if (!telemetry.length) {
+    gpuMonitorList.innerHTML = '<p class="empty">No NVIDIA GPU telemetry available. Confirm nvidia-smi is installed and accessible.</p>';
+    return;
+  }
+
+  gpuMonitorList.innerHTML = telemetry
+    .map((gpu) => {
+      const active = selected !== "auto" && String(gpu.index) === selected;
+      const utilizationValue = parseMetricNumber(gpu.utilizationPct);
+      const utilization = utilizationValue ?? 0;
+      const memoryUsed = parseMetricNumber(gpu.memoryUsedMiB);
+      const memoryTotal = parseMetricNumber(gpu.memoryTotalMiB);
+      const memoryPct = memoryTotal && memoryUsed !== null ? Math.round((memoryUsed / memoryTotal) * 100) : 0;
+      const tempValue = parseMetricNumber(gpu.temperatureC);
+      const powerValue = parseMetricNumber(gpu.powerDrawW);
+      const usageText = utilizationValue === null ? "Unknown" : `${utilizationValue}%`;
+      const memoryText = `${formatMiB(memoryUsed)} / ${formatMiB(memoryTotal)}`;
+      const temp = tempValue === null ? "Unknown" : `${tempValue} C`;
+      const power = powerValue === null ? "Unknown" : `${powerValue.toFixed(1)} W`;
+      return `
+        <article class="gpu-row ${active ? "active" : ""}">
+          <div class="gpu-row-head">
+            <strong>GPU ${escapeHtml(gpu.index)} - ${escapeHtml(gpu.name || "NVIDIA GPU")}</strong>
+            <span>${active ? "Selected" : "Visible"}</span>
+          </div>
+          <div class="gpu-bars">
+            <div><span>Usage ${escapeHtml(usageText)}</span><meter min="0" max="100" value="${utilization}"></meter></div>
+            <div><span>Memory ${escapeHtml(memoryText)}</span><meter min="0" max="100" value="${memoryPct}"></meter></div>
+          </div>
+          <div class="gpu-row-foot">
+            <span>Temp ${escapeHtml(temp)}</span>
+            <span>Power ${escapeHtml(power)}</span>
+            <span class="mono-value">${escapeHtml(gpu.uuid || "No UUID reported")}</span>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
 }
 
 function filterRequestRows(rows) {
@@ -521,11 +863,14 @@ function renderRequestDetail(entry) {
     ["Origin", entry.origin || "Local / none"],
     ["Upstream", entry.upstreamHost || entry.upstreamUrl || "-"],
     ["Model", entry.model || "Not supplied"],
+    ["CUDA requested", entry.cudaDeviceRequested || "auto"],
+    ["CUDA applied", entry.cudaDeviceApplied || "Not applicable"],
     ["Content type", entry.contentType || "Not supplied"],
     ["Body bytes", formatBytes(entry.bodyBytes)],
     ["Response bytes", formatBytes(entry.responseBytes)],
     ["Latency", `${Math.max(0, Number(entry.durationMs || 0))} ms`],
     ["Time", entry.timestamp ? new Date(entry.timestamp).toLocaleString() : "-"],
+    ["Generated preview", entry.generatedPreview ? `${entry.generatedPreview.length.toLocaleString()} chars` : "None"],
     ["Detail", entry.detail || "-"],
   ];
 
@@ -541,16 +886,21 @@ function renderRequestDetail(entry) {
 
 function switchPage(pageName) {
   const nextPage = String(pageName || "dashboard");
+  if (nextPage === "settings") {
+    toggleSettingsSidebar(true);
+    persistUiDraft(false);
+    return;
+  }
+
   const page = document.querySelector(`[data-tab-page="${CSS.escape(nextPage)}"]`);
   if (!page) return;
 
   activePage = nextPage;
+  toggleSettingsSidebar(false);
   document.querySelectorAll("[data-tab-page]").forEach((item) => {
     item.classList.toggle("active", item === page);
   });
-  document.querySelectorAll(".page-tab").forEach((button) => {
-    button.classList.toggle("active", button.getAttribute("data-tab-target") === nextPage);
-  });
+  updateNavActive(nextPage);
   persistUiDraft(false);
 }
 
@@ -605,6 +955,19 @@ function renderCudaSelector(cudaDevices, selectedValue) {
   });
 
   bridgeCudaDeviceSelect.value = selected;
+  updateActiveCudaReadout(cudaDevices, selected);
+}
+
+function updateActiveCudaReadout(cudaDevices, selectedValue) {
+  const selected = String(selectedValue || "auto");
+  const devices = Array.isArray(cudaDevices) ? cudaDevices : [];
+  const device = devices.find((item) => String(item?.index) === selected);
+  const label = selected === "auto"
+    ? "Selected CUDA: auto"
+    : `Selected CUDA: GPU ${selected}${device ? ` - ${device.name} (${device.memory})` : ""}`;
+
+  if (activeCudaDeviceValue) activeCudaDeviceValue.textContent = label;
+  if (bridgeCopyCuda) bridgeCopyCuda.value = selected;
 }
 
 function renderRequestLogRows(rows) {
@@ -685,6 +1048,76 @@ function renderErrorLogRows(rows) {
       `;
     })
     .join("");
+}
+
+function buildGeneratedEntries(rows) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  return safeRows
+    .filter((entry) => String(entry?.generatedPreview || "").trim())
+    .map((entry) => ({
+      id: String(entry.requestId || entry.id || ""),
+      requestId: String(entry.requestId || entry.id || ""),
+      timestamp: String(entry.timestamp || ""),
+      method: String(entry.method || "POST").toUpperCase(),
+      path: String(entry.path || "/"),
+      routeGroup: String(entry.routeGroup || "generate"),
+      model: String(entry.model || "-"),
+      statusCode: Number(entry.statusCode || 0),
+      durationMs: Number(entry.durationMs || 0),
+      text: String(entry.generatedPreview || ""),
+    }));
+}
+
+function renderGeneratedContentRows(rows) {
+  const entries = buildGeneratedEntries(rows);
+  displayGeneratedLog = entries.slice(0, 250);
+
+  if (generatedContentMeta) {
+    const latest = entries[0]?.timestamp ? new Date(entries[0].timestamp) : null;
+    generatedContentMeta.textContent = entries.length
+      ? `${entries.length.toLocaleString()} generated item${entries.length === 1 ? "" : "s"} | Latest ${latest ? latest.toLocaleTimeString() : "now"}`
+      : "Assistant output from chat/generate calls appears here in memory.";
+  }
+
+  if (dashboardGeneratedMeta) {
+    dashboardGeneratedMeta.textContent = entries.length
+      ? `${entries.length.toLocaleString()} captured`
+      : "Waiting for assistant output...";
+  }
+
+  const renderList = (target, limit) => {
+    if (!target) return;
+    const safeEntries = entries.slice(0, limit);
+    if (safeEntries.length === 0) {
+      target.innerHTML = '<p class="empty">No generated content captured yet.</p>';
+      return;
+    }
+
+    target.innerHTML = safeEntries
+      .map((entry) => {
+        const time = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : "-";
+        const statusClass = statusTone(entry.statusCode);
+        const title = `${entry.method} ${entry.path}`;
+        const subline = `${entry.model || "-"} | ${entry.durationMs} ms | ${entry.routeGroup}`;
+        return `
+          <article class="generated-item" data-generated-id="${escapeHtml(entry.id)}">
+            <div class="generated-item-header">
+              <h3>${escapeHtml(title)}</h3>
+              <span class="status-pill ${statusClass}">${entry.statusCode || "-"}</span>
+            </div>
+            <pre>${escapeHtml(entry.text)}</pre>
+            <div class="generated-item-header">
+              <span>${escapeHtml(subline)}</span>
+              <span>${escapeHtml(time)}</span>
+            </div>
+          </article>
+        `;
+      })
+      .join("");
+  };
+
+  renderList(generatedContentLogBody, 250);
+  renderList(dashboardGeneratedLogBody, 3);
 }
 
 function decodeBase64Url(value) {
@@ -948,6 +1381,8 @@ function renderBridgeState(state) {
   if (bridgeAllowedOriginsInput) bridgeAllowedOriginsInput.value = config.bridgeAllowedOrigins || "";
   if (bridgeApiKeyInput) bridgeApiKeyInput.value = config.bridgeApiKey || "";
   if (bridgePublicBaseUrlInput) bridgePublicBaseUrlInput.value = config.bridgePublicBaseUrl || "";
+  if (ollamaRuntimeModeSelect) ollamaRuntimeModeSelect.value = config.ollamaRuntimeMode || "managed";
+  if (ollamaExecutablePathInput) ollamaExecutablePathInput.value = config.ollamaExecutablePath || "ollama";
   if (bridgeModelInput) bridgeModelInput.value = config.bridgeModel || "";
   if (bridgeThinkingModelInput) bridgeThinkingModelInput.value = config.bridgeThinkingModel || "";
   if (bridgeTemperatureInput) bridgeTemperatureInput.value = String(config.bridgeTemperature ?? 0.3);
@@ -958,6 +1393,8 @@ function renderBridgeState(state) {
   if (bridgeInternalChatPromptInput) bridgeInternalChatPromptInput.value = config.bridgeInternalChatPrompt || "";
 
   renderCudaSelector(network.cudaDevices || [], config.bridgeCudaDevice || "auto");
+  renderGpuTelemetry(network);
+  renderOllamaState(state.ollama || {}, config);
   updateRuntimeSummary(runtime);
 
   if (bridgeLocalEndpoint) bridgeLocalEndpoint.textContent = network.localEndpoint || "-";
@@ -966,6 +1403,7 @@ function renderBridgeState(state) {
   if (serviceModeValue) {
     const serviceBits = [
       config.bridgeAutostart ? "Autostart" : "Manual start",
+      config.ollamaRuntimeMode === "managed" ? "Managed Ollama" : "External Ollama",
       config.minimizeToTaskbarOnClose ? "Tray close" : "Window close",
     ];
     serviceModeValue.textContent = serviceBits.join(" | ");
@@ -987,6 +1425,8 @@ function renderBridgeState(state) {
   renderRequestLogRows(displayRequestLog);
   renderDashboardRequestRows(displayRequestLog);
   renderErrorLogRows(displayErrorLog);
+  renderGeneratedContentRows(displayRequestLog);
+  renderReportCharts(displayRequestLog, network);
 }
 
 function collectConfigPayload() {
@@ -1000,6 +1440,8 @@ function collectConfigPayload() {
     bridgeAllowedOrigins: bridgeAllowedOriginsInput?.value || "",
     bridgeApiKey: bridgeApiKeyInput?.value || "",
     bridgePublicBaseUrl: bridgePublicBaseUrlInput?.value || "",
+    ollamaRuntimeMode: ollamaRuntimeModeSelect?.value || "managed",
+    ollamaExecutablePath: ollamaExecutablePathInput?.value || "ollama",
     bridgeModel: bridgeModelInput?.value || "",
     bridgeThinkingModel: bridgeThinkingModelInput?.value || "",
     bridgeCudaDevice: bridgeCudaDeviceSelect?.value || "auto",
@@ -1016,6 +1458,25 @@ async function refreshBridgeState(showMessage = false) {
   if (showMessage) {
     setBridgeMessage("Bridge state refreshed.");
   }
+}
+
+async function refreshGpuTelemetry() {
+  if (typeof window.oyamaBridge.getGpuTelemetry !== "function") return;
+  const telemetryState = await window.oyamaBridge.getGpuTelemetry();
+  if (!telemetryState || typeof telemetryState !== "object") return;
+
+  const nextNetwork = {
+    ...(bridgeState?.network || {}),
+    gpuTelemetry: telemetryState.gpuTelemetry || [],
+    cudaDevices: telemetryState.gpuTelemetry || bridgeState?.network?.cudaDevices || [],
+    selectedCudaDevice: telemetryState.selectedCudaDevice || bridgeState?.config?.bridgeCudaDevice || "auto",
+    cudaVisibleDevicesHint: telemetryState.cudaVisibleDevicesHint || "",
+  };
+
+  if (bridgeState) bridgeState.network = nextNetwork;
+  renderCudaSelector(nextNetwork.cudaDevices || [], nextNetwork.selectedCudaDevice || "auto");
+  renderGpuTelemetry(nextNetwork);
+  renderReportCharts(displayRequestLog, nextNetwork);
 }
 
 async function refreshStartupSettings() {
@@ -1235,6 +1696,8 @@ function appendRequestLog(entry, runtimeSnapshot) {
   displayRequestLog = [entry, ...displayRequestLog.filter((row) => row.id !== entry.id)].slice(0, 250);
   renderRequestLogRows(displayRequestLog);
   renderDashboardRequestRows(displayRequestLog);
+  renderGeneratedContentRows(displayRequestLog);
+  renderReportCharts(displayRequestLog, bridgeState?.network || {});
 
   if (runtimeSnapshot) {
     updateRuntimeSummary(runtimeSnapshot);
@@ -1285,6 +1748,18 @@ function attachBridgeEventStream() {
       refreshBridgeState(false).catch(() => {
         // Keep UI usable if refresh fails.
       });
+      return;
+    }
+
+      if (eventPayload.type === "ollama-runtime") {
+        refreshBridgeState(false).catch(() => {
+          // Keep UI usable if refresh fails.
+        });
+        return;
+      }
+
+    if (eventPayload.type === "navigate") {
+      switchPage(eventPayload.page || "dashboard");
     }
   });
 }
@@ -1372,6 +1847,8 @@ async function bootstrap() {
     bridgeAllowedOriginsInput,
     bridgeApiKeyInput,
     bridgePublicBaseUrlInput,
+    ollamaRuntimeModeSelect,
+    ollamaExecutablePathInput,
     bridgeModelInput,
     bridgeThinkingModelInput,
     bridgeCudaDeviceSelect,
@@ -1409,6 +1886,12 @@ async function bootstrap() {
       bridgeState.runtime.uptimeMs = Number(bridgeState.runtime.uptimeMs || 0) + 1000;
     }
   }, 1000);
+
+  gpuTelemetryTicker = window.setInterval(() => {
+    refreshGpuTelemetry().catch(() => {
+      // GPU telemetry is best-effort and should not interrupt the dashboard.
+    });
+  }, 5000);
 }
 
 window.addEventListener("beforeunload", () => {
@@ -1424,6 +1907,11 @@ window.addEventListener("beforeunload", () => {
     runtimeTicker = null;
   }
 
+  if (gpuTelemetryTicker) {
+    window.clearInterval(gpuTelemetryTicker);
+    gpuTelemetryTicker = null;
+  }
+
   if (draftSaveTimer) {
     window.clearTimeout(draftSaveTimer);
     draftSaveTimer = null;
@@ -1434,7 +1922,15 @@ bridgeStartBtn?.addEventListener("click", () => {
   void startBridge();
 });
 
+dashboardStartBtn?.addEventListener("click", () => {
+  void startBridge();
+});
+
 bridgeStopBtn?.addEventListener("click", () => {
+  void stopBridge();
+});
+
+dashboardStopBtn?.addEventListener("click", () => {
   void stopBridge();
 });
 
@@ -1444,10 +1940,6 @@ bridgeRestartBtn?.addEventListener("click", () => {
 
 bridgeRefreshBtn?.addEventListener("click", () => {
   void refreshBridgeState(true);
-});
-
-bridgeSaveBtn?.addEventListener("click", () => {
-  void saveSettings();
 });
 
 saveAllBtn?.addEventListener("click", () => {
@@ -1461,52 +1953,12 @@ saveAllBtnSettings?.addEventListener("click", () => {
 clearLogBtn?.addEventListener("click", () => {
   displayRequestLog = [];
   displayErrorLog = [];
+  displayGeneratedLog = [];
   renderRequestLogRows(displayRequestLog);
   renderDashboardRequestRows(displayRequestLog);
   renderErrorLogRows(displayErrorLog);
+  renderGeneratedContentRows(displayRequestLog);
   setBridgeMessage("Cleared local audit display. Live bridge stream is still active.");
-});
-
-toggleStartupBtn?.addEventListener("click", () => {
-  void setStartupPatch(
-    { startupLaunchEnabled: !Boolean(startupState?.startupLaunchEnabled) },
-    "Computer startup preference updated."
-  );
-});
-
-toggleStartupBtnSettings?.addEventListener("click", () => {
-  void setStartupPatch(
-    { startupLaunchEnabled: !Boolean(startupState?.startupLaunchEnabled) },
-    "Computer startup preference updated."
-  );
-});
-
-toggleHiddenBtn?.addEventListener("click", () => {
-  void setStartupPatch(
-    { startHidden: !Boolean(startupState?.startHidden) },
-    "Start hidden preference updated."
-  );
-});
-
-toggleHiddenBtnSettings?.addEventListener("click", () => {
-  void setStartupPatch(
-    { startHidden: !Boolean(startupState?.startHidden) },
-    "Start hidden preference updated."
-  );
-});
-
-toggleAutostartBtn?.addEventListener("click", () => {
-  void setStartupPatch(
-    { bridgeAutostart: !Boolean(startupState?.bridgeAutostart) },
-    "Bridge autostart preference updated."
-  );
-});
-
-toggleAutostartBtnSettings?.addEventListener("click", () => {
-  void setStartupPatch(
-    { bridgeAutostart: !Boolean(startupState?.bridgeAutostart) },
-    "Bridge autostart preference updated."
-  );
 });
 
 startupLaunchEnabledInput?.addEventListener("change", () => {
@@ -1519,6 +1971,44 @@ startHiddenInput?.addEventListener("change", () => {
 
 bridgeAutostartInput?.addEventListener("change", () => {
   void setStartupPatch({ bridgeAutostart: Boolean(bridgeAutostartInput.checked) }, "Bridge autostart preference updated.");
+});
+
+bridgeCudaDeviceSelect?.addEventListener("change", () => {
+  updateActiveCudaReadout(bridgeState?.network?.cudaDevices || [], bridgeCudaDeviceSelect.value || "auto");
+  renderOllamaState({
+    ...(bridgeState?.ollama || {}),
+    mode: ollamaRuntimeModeSelect?.value || bridgeState?.ollama?.mode || "managed",
+    selectedGpu: bridgeCudaDeviceSelect.value || "auto",
+    envHint: bridgeCudaDeviceSelect.value === "auto"
+      ? "Automatic GPU selection"
+      : `CUDA_VISIBLE_DEVICES=${bridgeCudaDeviceSelect.value}`,
+  }, {
+    ...(bridgeState?.config || {}),
+    bridgeCudaDevice: bridgeCudaDeviceSelect.value || "auto",
+    ollamaRuntimeMode: ollamaRuntimeModeSelect?.value || bridgeState?.config?.ollamaRuntimeMode || "managed",
+    ollamaExecutablePath: ollamaExecutablePathInput?.value || bridgeState?.config?.ollamaExecutablePath || "ollama",
+  });
+  persistUiDraft(false);
+});
+
+ollamaRuntimeModeSelect?.addEventListener("change", () => {
+  renderOllamaState({
+    ...(bridgeState?.ollama || {}),
+    mode: ollamaRuntimeModeSelect.value || "managed",
+    status: ollamaRuntimeModeSelect.value === "managed" ? "managed-starting" : "external-unreachable",
+    envHint: bridgeCudaDeviceSelect?.value === "auto"
+      ? "Automatic GPU selection"
+      : `CUDA_VISIBLE_DEVICES=${bridgeCudaDeviceSelect?.value}`,
+    executablePath: ollamaExecutablePathInput?.value || "ollama",
+    upstreamUrl: bridgeUpstreamUrlInput?.value || bridgeState?.ollama?.upstreamUrl || "http://127.0.0.1:11434",
+  }, {
+    ...(bridgeState?.config || {}),
+    bridgeCudaDevice: bridgeCudaDeviceSelect?.value || "auto",
+    ollamaRuntimeMode: ollamaRuntimeModeSelect.value || "managed",
+    ollamaExecutablePath: ollamaExecutablePathInput?.value || "ollama",
+    bridgeUpstreamUrl: bridgeUpstreamUrlInput?.value || bridgeState?.config?.bridgeUpstreamUrl || "http://127.0.0.1:11434",
+  });
+  persistUiDraft(false);
 });
 
 pairingApplyBtn?.addEventListener("click", () => {
@@ -1598,6 +2088,10 @@ document.querySelectorAll("[data-tab-target]").forEach((button) => {
   });
 });
 
+sidebarToggleBtn?.addEventListener("click", () => {
+  toggleCommandSidebar();
+});
+
 document.querySelectorAll("[data-scroll-target]").forEach((button) => {
   button.addEventListener("click", () => {
     const targetId = button.getAttribute("data-scroll-target");
@@ -1624,6 +2118,23 @@ bridgeChatClearBtn?.addEventListener("click", () => {
   persistUiDraft(true);
 });
 
+copyLatestGeneratedBtn?.addEventListener("click", () => {
+  const latest = displayGeneratedLog[0];
+  if (!latest?.text) {
+    setBridgeMessage("No generated content is available to copy yet.", true);
+    return;
+  }
+  void copyText(latest.text, "Latest generated content copied.");
+});
+
+settingsCloseBtn?.addEventListener("click", () => {
+  toggleSettingsSidebar(false);
+});
+
+settingsBackdrop?.addEventListener("click", () => {
+  toggleSettingsSidebar(false);
+});
+
 bridgeChatInput?.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
@@ -1632,6 +2143,10 @@ bridgeChatInput?.addEventListener("keydown", (event) => {
 });
 
 minBtn?.addEventListener("click", () => {
+  window.oyamaBridge.minimize();
+});
+
+trayHideBtn?.addEventListener("click", () => {
   window.oyamaBridge.minimize();
 });
 
@@ -1655,6 +2170,11 @@ window.addEventListener("resize", () => {
 });
 
 window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && settingsOpen) {
+    toggleSettingsSidebar(false);
+    return;
+  }
+
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
     event.preventDefault();
     void saveAllState();

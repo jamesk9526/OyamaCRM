@@ -5,6 +5,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useCallback } from "react";
 import { usePlugins } from "@/app/components/plugins/PluginProvider";
 import QBConnectionStatus from "@/app/components/quickbooks/QBConnectionStatus";
 import { apiFetch } from "@/app/lib/auth-client";
@@ -16,6 +17,8 @@ import { apiFetch } from "@/app/lib/auth-client";
 export default function PluginsSettingsPage({ embedded = false }: { embedded?: boolean }) {
   const { qbConfigured, qbEnabled, loading, refresh, qbRuntimeSource, qbRedirectUri, qbEnvironment, qbClientIdPreview } = usePlugins();
   const [actionLoading, setActionLoading] = useState(false);
+    const [messengerEnabled, setMessengerEnabled] = useState<boolean | null>(null);
+    const [messengerActionLoading, setMessengerActionLoading] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [runtimeClientId, setRuntimeClientId] = useState("");
   const [runtimeClientSecret, setRuntimeClientSecret] = useState("");
@@ -30,6 +33,29 @@ export default function PluginsSettingsPage({ embedded = false }: { embedded?: b
       setRuntimeEnvironment(qbEnvironment);
     }
   }, [qbRedirectUri, qbEnvironment]);
+
+  // Load messenger plugin status on mount.
+  useEffect(() => {
+    apiFetch<{ enabled: boolean }>("/api/messenger/enabled")
+      .then((d) => setMessengerEnabled(d.enabled))
+      .catch(() => setMessengerEnabled(true));
+  }, []);
+
+  const handleToggleMessenger = useCallback(async (enabled: boolean) => {
+    setMessengerActionLoading(true);
+    try {
+      await apiFetch("/api/messenger/plugin", {
+        method: "PUT",
+        body: JSON.stringify({ enabled }),
+      });
+      setMessengerEnabled(enabled);
+      showToast("success", enabled ? "Messenger enabled." : "Messenger disabled.");
+    } catch (err) {
+      showToast("error", err instanceof Error ? err.message : "Failed to update Messenger.");
+    } finally {
+      setMessengerActionLoading(false);
+    }
+  }, []);
 
   /** Show a dismissing toast notification */
   function showToast(type: "success" | "error", message: string) {
@@ -272,6 +298,56 @@ export default function PluginsSettingsPage({ embedded = false }: { embedded?: b
       {/* Placeholder for future plugins */}
       <div className="bg-white rounded-xl border border-dashed border-gray-200 p-6 text-center">
         <p className="text-sm text-gray-400">More integrations coming soon — Stripe, Mailchimp, and more.</p>
+
+            {/* CRM Messenger Card */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-violet-600 flex items-center justify-center shrink-0">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold text-gray-900">CRM Messenger</h2>
+                    <p className="text-xs text-gray-500">
+                      Staff-to-staff direct messaging built into the CRM. Enabled by default.
+                    </p>
+                  </div>
+                </div>
+
+                {messengerEnabled !== null && (
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <span className="text-sm text-gray-600 font-medium">
+                      {messengerEnabled ? "Enabled" : "Disabled"}
+                    </span>
+                    <button
+                      role="switch"
+                      aria-checked={messengerEnabled}
+                      disabled={messengerActionLoading}
+                      onClick={() => void handleToggleMessenger(!messengerEnabled)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 ${
+                        messengerEnabled ? "bg-violet-600" : "bg-gray-300"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                          messengerEnabled ? "translate-x-6" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </label>
+                )}
+              </div>
+              <div className="px-6 py-4">
+                <ul className="text-xs text-gray-500 list-disc pl-4 space-y-1">
+                  <li>Chat bubble icon appears in the global TopBar for all logged-in staff</li>
+                  <li>Real-time 1-on-1 direct messages between staff members</li>
+                  <li>Unread badge updates every 30 seconds and via live SSE connection</li>
+                  <li>Messages are scoped to your organization and never shared externally</li>
+                </ul>
+              </div>
+            </div>
       </div>
     </div>
   );

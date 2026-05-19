@@ -471,6 +471,7 @@ model Organization {
 
   // ─── Plugin / Integration back-relations ────────────────────────────────
   pluginSettings      PluginSetting[]
+  crmThreads          CrmThread[]
   qbSyncQueueItems    QBSyncQueueItem[]
   emailRecipientLists EmailRecipientList[]
   emailDeliveryEvents EmailCampaignDeliveryEvent[]
@@ -572,6 +573,8 @@ model User {
   assignedFeedbackTickets       WatchdogFeedbackTicket[] @relation("FeedbackAssignedDeveloper")
   sentHrmMessages               HrmMessage[]            @relation("HrmMessageSender")
   receivedHrmMessages           HrmMessage[]            @relation("HrmMessageRecipient")
+  crmThreadParticipations       CrmThreadParticipant[]  @relation("CrmThreadParticipantUser")
+  crmMessagesSent               CrmMessage[]            @relation("CrmMessageSender")
 
   // ─── Steward Paths ownership/review relations ───────────────────────────
   stewardPathsCreated        StewardPath[]            @relation("StewardPathCreatedBy")
@@ -3029,6 +3032,61 @@ model CompassionFollowUp {
   appointment             CompassionAppointment? @relation(fields: [appointmentId], references: [id])
   assignedStaff           User?                  @relation("CompassionFollowUpStaff", fields: [assignedStaffId], references: [id])
   assignedCompassionStaff CompassionStaff?       @relation("CompassionFollowUpCompassionStaff", fields: [assignedCompassionStaffId], references: [id])
+}
+
+// ─── CRM Messenger ───────────────────────────────────────────────────────────
+
+/// A direct-message thread between two (or more) staff users within the same org.
+model CrmThread {
+  id             String   @id @default(cuid())
+  organizationId String
+  /// Thread display name, set for group threads; null for 1-to-1 DMs.
+  name           String?
+  /// Type: DIRECT (1-to-1) or GROUP.
+  type           String   @default("DIRECT")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  participants CrmThreadParticipant[]
+  messages     CrmMessage[]
+
+  @@index([organizationId])
+}
+
+/// Represents a user's membership in a CrmThread; tracks their last-read cursor.
+model CrmThreadParticipant {
+  id           String    @id @default(cuid())
+  threadId     String
+  userId       String
+  /// UTC timestamp of the last message the user has read in this thread.
+  lastReadAt   DateTime?
+  joinedAt     DateTime  @default(now())
+
+  thread CrmThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User      @relation("CrmThreadParticipantUser", fields: [userId], references: [id])
+
+  @@unique([threadId, userId])
+  @@index([userId])
+}
+
+/// A single chat message sent in a CrmThread.
+model CrmMessage {
+  id         String   @id @default(cuid())
+  threadId   String
+  senderId   String
+  /// Message body — supports plain text.
+  body       String   @db.Text
+  /// Optional soft-delete timestamp.
+  deletedAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  thread CrmThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender User      @relation("CrmMessageSender", fields: [senderId], references: [id])
+
+  @@index([threadId, createdAt])
+  @@index([senderId])
 }
 
 /// Activity timeline for Compassion CRM events.

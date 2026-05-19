@@ -11,6 +11,7 @@ import StewardAiRuntimePill from "@/app/components/layout/StewardAiRuntimePill";
 import StewardDockPanel from "@/app/components/ai/StewardDockPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 import { FeedbackModal } from "@/app/components/feedback/FeedbackModal";
+import MessengerPanel from "@/app/components/messenger/MessengerPanel";
 import { apiFetch } from "@/app/lib/auth-client";
 import {
   DEFAULT_WORKSPACE_SETTINGS,
@@ -736,6 +737,8 @@ export default function TopBar() {
   const [mobileQuickOpen, setMobileQuickOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [compactActionsOpen, setCompactActionsOpen] = useState(false);
+    const [messengerOpen, setMessengerOpen] = useState(false);
+    const [messengerUnread, setMessengerUnread] = useState(0);
   const [reportingModeJustChanged, setReportingModeJustChanged] = useState(false);
   const reactiveGlowFrameRef = useRef<number | null>(null);
   const reactiveGlowTimeoutRef = useRef<number | null>(null);
@@ -930,6 +933,25 @@ export default function TopBar() {
     };
   }, [loadUnreadCount]);
 
+  // Poll messenger unread count every 30 seconds.
+  useEffect(() => {
+    let active = true;
+    const poll = async () => {
+      try {
+        const { count } = await apiFetch<{ count: number }>("/api/messenger/unread-count");
+        if (active) setMessengerUnread(typeof count === "number" ? count : 0);
+      } catch {
+        // keep existing badge
+      }
+    };
+    void poll();
+    const interval = window.setInterval(() => { void poll(); }, 30000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
+
   useEffect(() => {
     const refresh = () => {
       void loadUnreadCount();
@@ -947,6 +969,7 @@ export default function TopBar() {
       setMobileQuickOpen(false);
       setMobileSearchOpen(false);
       setCompactActionsOpen(false);
+      setMessengerOpen(false);
     }, 0);
 
     return () => {
@@ -1041,6 +1064,12 @@ export default function TopBar() {
       />
       {/* StewardDockPanel renders the floating chat-head and the slide-in agent dock. */}
       <StewardDockPanel moduleKey={moduleKey} />
+            {/* CRM Messenger panel — slides in from the TopBar chat icon */}
+            <MessengerPanel
+              open={messengerOpen}
+              onClose={() => setMessengerOpen(false)}
+              onUnreadChange={setMessengerUnread}
+            />
       {/* Mobile full-screen search overlay — shows when user taps search icon on small screens */}
       {mobileSearchOpen && (
         <>
@@ -1237,6 +1266,27 @@ export default function TopBar() {
               className={chromeButtonBase}
             >
               <StewardAvatarIcon size={18} alt="Steward" />
+                        {/* Messenger — mobile */}
+                        <div className="relative">
+                          <button
+                            type="button"
+                            title="Messages"
+                            onClick={() => {
+                              setMessengerOpen((v) => !v);
+                              setNotificationsOpen(false);
+                            }}
+                            className={`${chromeButtonBase} relative`}
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
+                            </svg>
+                            {messengerUnread > 0 && (
+                              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold text-white flex items-center justify-center bg-violet-500">
+                                {Math.min(messengerUnread, 99)}
+                              </span>
+                            )}
+                          </button>
+                        </div>
             </Link>
 
             <UserMenu moduleKey={moduleKey} />
@@ -1371,6 +1421,29 @@ export default function TopBar() {
                 </div>
               </>
             )}
+          </div>
+
+          {/* ── Messenger icon (desktop) ── */}
+          <div className="relative">
+            <button
+              type="button"
+              title="Messages"
+              onClick={() => {
+                setMessengerOpen((v) => !v);
+                setNotificationsOpen(false);
+                setCompactActionsOpen(false);
+              }}
+              className={`${darkIconButtonBase} relative`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
+              </svg>
+              {messengerUnread > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold text-white flex items-center justify-center bg-violet-500">
+                  {Math.min(messengerUnread, 99)}
+                </span>
+              )}
+            </button>
           </div>
 
           {/* Notifications */}

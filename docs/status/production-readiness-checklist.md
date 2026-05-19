@@ -322,6 +322,7 @@ Notes:
    - Letters workflow policy persistence added via `GET/PUT /api/letters/workflow-settings` in `server/src/routes/letters.ts`.
    - Letters workflow settings UI switched from static TODO guidance to API-backed controls in `app/components/letters/LetterWorkflowSettingsPage.tsx`.
    - Email builder review gate now validates merge-token integrity (unknown tokens + malformed braces) in `app/components/email-builder/EmailBuilderApp.tsx`.
+   - Email builder rich-text hardening now preserves H1/H2/H3 plus list/quote/link formatting in `app/components/email-builder/RichTextEditor.tsx`, `app/lib/email-builder-utils.ts`, and preview blocks.
 11. Donor stewardship vertical-loop completion slice (donation -> acknowledgment workflow handoff).
    - Added one-click `Complete Loop` donation action in `app/components/donations/DonationTable.tsx` and `app/donations/page.tsx`.
    - Added orchestration endpoint `POST /api/donations/:id/quick-actions/stewardship-loop` in `server/src/routes/donations.ts`.

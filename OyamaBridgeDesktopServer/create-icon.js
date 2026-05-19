@@ -1,4 +1,4 @@
-// Generates assets/icon.png (256x256) and assets/icon.ico for the Oyama Bridge desktop app.
+// Generates Steward-mark assets for the Oyama Bridge desktop app.
 // Run with: node create-icon.js
 // No external dependencies — uses only Node.js built-ins.
 
@@ -74,8 +74,8 @@ function buildPNG(pixels, width, height) {
 }
 
 // ----- Icon design ----------------------------------------------------------
-// Design: green rounded-rectangle background with a white circle ring (the "O" of Oyama).
-// BG colour: #16a34a (Oyama brand green)
+// Design: green rounded-rectangle background with the Steward ring/mark.
+// BG colour: #16a34a (Oyama Steward green)
 const BG_R = 22, BG_G = 163, BG_B = 74;
 
 function drawOyamaIcon(size) {
@@ -86,9 +86,20 @@ function drawOyamaIcon(size) {
   // Rounded-rect corner radius as fraction of size
   const cornerR = size * 0.18;
 
-  // White ring dimensions (scaled to icon size)
-  const ringOuter = size * 0.32;
-  const ringInner = size * 0.19;
+  const ringOuter = size * 0.34;
+  const ringInner = size * 0.29;
+  const stroke = Math.max(2, size * 0.055);
+
+  const segments = [
+    [size * 0.32, size * 0.56, size * 0.33, size * 0.41],
+    [size * 0.33, size * 0.41, size * 0.53, size * 0.34],
+    [size * 0.53, size * 0.34, size * 0.69, size * 0.42],
+    [size * 0.69, size * 0.42, size * 0.59, size * 0.53],
+    [size * 0.59, size * 0.53, size * 0.48, size * 0.62],
+    [size * 0.48, size * 0.62, size * 0.58, size * 0.72],
+    [size * 0.58, size * 0.72, size * 0.72, size * 0.62],
+    [size * 0.31, size * 0.70, size * 0.43, size * 0.64],
+  ];
 
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
@@ -100,13 +111,13 @@ function drawOyamaIcon(size) {
         continue;
       }
 
-      // White ring check
       const dx = x - cx;
       const dy = y - cy;
       const dist = Math.sqrt(dx * dx + dy * dy);
+      const onRing = dist >= ringInner && dist <= ringOuter;
+      const onMark = segments.some(([x1, y1, x2, y2]) => distanceToSegment(x, y, x1, y1, x2, y2) <= stroke);
 
-      if (dist >= ringInner && dist <= ringOuter) {
-        // White ring
+      if (onRing || onMark) {
         pixels[off]     = 255;
         pixels[off + 1] = 255;
         pixels[off + 2] = 255;
@@ -122,6 +133,17 @@ function drawOyamaIcon(size) {
   }
 
   return pixels;
+}
+
+function distanceToSegment(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.hypot(px - x1, py - y1);
+  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lenSq));
+  const projX = x1 + t * dx;
+  const projY = y1 + t * dy;
+  return Math.hypot(px - projX, py - projY);
 }
 
 function insideRoundedRect(px, py, w, h, r) {

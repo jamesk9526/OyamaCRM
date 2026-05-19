@@ -78,6 +78,7 @@ Document the current Email Builder implementation, workflow relationship to Comm
 | Review checklist tab | Working | Review tab now checks subject, preview text, footer presence, unsubscribe path, image alt text, button URLs, and test-send confirmation. |
 | Donor-specific stewardship blocks | Working | Donor and giving block set added with editor controls, canvas rendering, and HTML/plain-text output support. |
 | Block Library search and categories | Working | Block Library now supports search and nonprofit-specific collapsible categories. |
+| Rich-text formatting round-trip | Working | Text and AI text blocks now preserve H1/H2/H3, lists, quotes, and links through save/output flows with email-safe inline styles in generated HTML. |
 | AI full-template and block generation | Partially Working | Generates draft structures; quality and governance depend on prompting and review. |
 | Saved sections library | Not Implemented | No persisted saved-sections registry yet. |
 | Version history and restore | Not Implemented | No revision timeline yet. |
@@ -96,6 +97,7 @@ Document the current Email Builder implementation, workflow relationship to Comm
 ## Known Limits
 
 - Merge token handling is still mixed across template conventions.
+- Campaigns that never stored `templateJson` still need a dedicated migration path back into fully structured blocks.
 - Full responsive mode controls and advanced section libraries are still pending.
 - Provider-side render/lint and inbox previews are not integrated.
 

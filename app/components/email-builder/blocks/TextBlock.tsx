@@ -9,6 +9,7 @@
 
 import type { TextBlock as TextBlockData } from '@/app/lib/email-builder-types';
 import RichTextEditor from '@/app/components/email-builder/RichTextEditor';
+import { formatRichTextHtml } from '@/app/lib/email-builder-utils';
 
 interface Props {
   block: TextBlockData;
@@ -43,7 +44,13 @@ export default function TextBlock({ block, editable = false, onChangeContent }: 
         lineHeight: 1.5,
       }}
       /* Safe — content is user-controlled within the builder. */
-      dangerouslySetInnerHTML={{ __html: block.content }}
+      dangerouslySetInnerHTML={{
+        __html: formatRichTextHtml(block.content, {
+          textColor: block.color,
+          baseFontSizePx: block.fontSize,
+          linkColor: block.color,
+        }),
+      }}
     />
   );
 }

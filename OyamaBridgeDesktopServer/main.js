@@ -8,10 +8,16 @@ const crypto = require("node:crypto");
 const zlib = require("node:zlib");
 const { execFile } = require("node:child_process");
 const { createBridgeServer } = require("./bridge-server");
+const { parseGpuListOutput, parseGpuTelemetryCsv } = require("./gpu-telemetry");
+const {
+  createOllamaRuntimeManager,
+  sanitizeOllamaRuntimeMode,
+} = require("./ollama-runtime");
 
 let mainWindow = null;
 let tray = null;
 let bridgeManager = null;
+let ollamaRuntimeManager = null;
 let isAppQuitting = false;
 let backupRuntimeState = {
   lastRunAt: "",
@@ -33,6 +39,8 @@ const DEFAULT_CONFIG = {
   bridgeAllowedOrigins: "",
   bridgePublicBaseUrl: "",
   bridgeDomainUrl: "",
+  ollamaRuntimeMode: "managed",
+  ollamaExecutablePath: "ollama",
   bridgeModel: "llama3.2:3b",
   bridgeThinkingModel: "deepseek-r1:8b",
   bridgeSystemPromptBase: "You are Oyama Bridge Steward assistant. Stay donor/report focused, use grounded facts, and avoid unsupported claims.",
@@ -146,6 +154,8 @@ function sanitizeConfig(rawConfig) {
   merged.donorReportsOnly = true;
   merged.backgroundBackupEnabled = Boolean(merged.backgroundBackupEnabled);
   merged.backgroundBackupIncludeLogs = Boolean(merged.backgroundBackupIncludeLogs);
+  merged.ollamaRuntimeMode = sanitizeOllamaRuntimeMode(merged.ollamaRuntimeMode);
+  merged.ollamaExecutablePath = String(merged.ollamaExecutablePath || DEFAULT_CONFIG.ollamaExecutablePath).trim() || DEFAULT_CONFIG.ollamaExecutablePath;
 
   const defaultBackupDir = path.join(app.getPath("documents"), "OyamaBridgeBackups");
   merged.backgroundBackupDirectory = String(merged.backgroundBackupDirectory || defaultBackupDir).trim() || defaultBackupDir;
@@ -269,38 +279,61 @@ function fetchPublicIpv4() {
   });
 }
 
-function listCudaDevices() {
+function parseNumberOrNull(value) {
+  const parsed = Number(String(value || "").trim());
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getCudaVisibleDevicesHint(config) {
+  const selected = String(config.bridgeCudaDevice || "auto").trim().toLowerCase();
+  if (!selected || selected === "auto") return "";
+  return `CUDA_VISIBLE_DEVICES=${selected}`;
+}
+
+function queryGpuTelemetry() {
   return new Promise((resolve) => {
+    const mergeGpuListFallback = (devices) => {
+      if (!devices.length || devices.every((device) => device.uuid)) {
+        resolve(devices);
+        return;
+      }
+
+      execFile("nvidia-smi", ["-L"], { timeout: 2500 }, (_error, listStdout) => {
+        const fallbackDevices = parseGpuListOutput(listStdout);
+
+        resolve(devices.map((device) => {
+          const fallback = fallbackDevices.find((item) => item.index === device.index);
+          return {
+            ...device,
+            uuid: device.uuid || fallback?.uuid || "",
+            name: device.name || fallback?.name || `GPU ${device.index}`,
+          };
+        }));
+      });
+    };
+
     execFile(
       "nvidia-smi",
-      ["--query-gpu=index,name,memory.total", "--format=csv,noheader"],
+      ["--query-gpu=index,uuid,name,utilization.gpu,temperature.gpu,memory.used,memory.total,power.draw", "--format=csv,noheader,nounits"],
       { timeout: 2500 },
       (error, stdout) => {
         if (error) {
-          resolve([]);
+          execFile("nvidia-smi", ["-L"], { timeout: 2500 }, (_listError, listStdout) => {
+            resolve(parseGpuListOutput(listStdout));
+          });
           return;
         }
 
-        const devices = String(stdout || "")
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter(Boolean)
-          .map((line) => {
-            const [indexRaw, nameRaw, memoryRaw] = line.split(",").map((part) => part.trim());
-            const index = Number(indexRaw);
-            if (!Number.isInteger(index) || index < 0) return null;
-            return {
-              index,
-              name: nameRaw || `GPU ${index}`,
-              memory: memoryRaw || "unknown",
-            };
-          })
-          .filter(Boolean);
+        const devices = parseGpuTelemetryCsv(stdout);
 
-        resolve(devices);
+        mergeGpuListFallback(devices);
       }
     );
   });
+}
+
+function listCudaDevices() {
+  return queryGpuTelemetry();
 }
 
 function toPublicConfig(config) {
@@ -440,10 +473,34 @@ async function buildBridgeState() {
   const runtime = bridgeManager
     ? bridgeManager.getRuntimeState()
     : { running: false, startedAt: null, uptimeMs: 0, requestCount: 0, lastError: null, requestLog: [] };
+  const ollama = ollamaRuntimeManager
+    ? await ollamaRuntimeManager.refreshHealth()
+    : {
+      mode: sanitizeOllamaRuntimeMode(config.ollamaRuntimeMode),
+      status: "idle",
+      running: false,
+      ready: false,
+      healthOk: false,
+      selectedGpu: String(config.bridgeCudaDevice || "auto"),
+      envHint: String(config.bridgeCudaDevice || "auto") === "auto"
+        ? "Automatic GPU selection"
+        : `CUDA_VISIBLE_DEVICES=${String(config.bridgeCudaDevice || "auto")}`,
+      upstreamUrl: String(config.bridgeUpstreamUrl || "http://127.0.0.1:11434"),
+      executablePath: String(config.ollamaExecutablePath || "ollama"),
+      pid: null,
+      version: "",
+      managedByApp: false,
+      startedAt: "",
+      lastError: "",
+      lastExitCode: null,
+      lastExitSignal: "",
+      lastOutput: "",
+    };
 
   const lanIps = getLanIpv4Addresses();
   const publicIp = await fetchPublicIpv4();
   const cudaDevices = await listCudaDevices();
+  const selectedCudaDevice = String(config.bridgeCudaDevice || "auto");
   const localEndpoint = `http://127.0.0.1:${config.bridgePort}`;
   const lanEndpoints = lanIps.map((ip) => `http://${ip}:${config.bridgePort}`);
   const publicEndpointCandidate = publicIp ? `http://${publicIp}:${config.bridgePort}` : "";
@@ -459,19 +516,76 @@ async function buildBridgeState() {
       publicIp,
       publicEndpointCandidate,
       cudaDevices,
+      gpuTelemetry: cudaDevices,
+      selectedCudaDevice,
+      cudaVisibleDevicesHint: getCudaVisibleDevicesHint(config),
     },
+    ollama,
     appValues: {
       endpointUrl: endpointForCrm,
       apiKey: String(config.bridgeApiKey || ""),
       model: String(config.bridgeModel || ""),
       thinkingModel: String(config.bridgeThinkingModel || ""),
       cudaDevice: String(config.bridgeCudaDevice || "auto"),
+      ollamaMode: String(config.ollamaRuntimeMode || "managed"),
       temperature: Number(config.bridgeTemperature || 0.3),
       timeoutMs: Number(config.bridgeTimeoutMs || 36500),
       systemPromptBase: String(config.bridgeSystemPromptBase || ""),
       internalChatPrompt: String(config.bridgeInternalChatPrompt || ""),
     },
   };
+}
+
+async function startBridgeStack() {
+  if (!bridgeManager) {
+    bridgeManager = createBridgeServer(() => readConfig(), { onEvent: emitBridgeEvent });
+  }
+
+  if (!ollamaRuntimeManager) {
+    ollamaRuntimeManager = createOllamaRuntimeManager(() => readConfig(), { onEvent: emitBridgeEvent });
+  }
+
+  const current = readConfig();
+  if (!current.bridgeEnabled) {
+    writeConfig({ ...current, bridgeEnabled: true });
+  }
+
+  if (sanitizeOllamaRuntimeMode(current.ollamaRuntimeMode) === "managed") {
+    await ollamaRuntimeManager.start();
+  } else {
+    await ollamaRuntimeManager.refreshHealth();
+  }
+
+  await bridgeManager.start();
+  updateTrayMenu();
+  return buildBridgeState();
+}
+
+async function stopBridgeStack(options = {}) {
+  if (!bridgeManager) {
+    bridgeManager = createBridgeServer(() => readConfig(), { onEvent: emitBridgeEvent });
+  }
+
+  if (!ollamaRuntimeManager) {
+    ollamaRuntimeManager = createOllamaRuntimeManager(() => readConfig(), { onEvent: emitBridgeEvent });
+  }
+
+  const disableBridge = options.disableBridge !== false;
+  const current = readConfig();
+  if (disableBridge && current.bridgeEnabled) {
+    writeConfig({ ...current, bridgeEnabled: false });
+  }
+
+  await bridgeManager.stop();
+
+  if (sanitizeOllamaRuntimeMode(current.ollamaRuntimeMode) === "managed") {
+    await ollamaRuntimeManager.stop();
+  } else {
+    await ollamaRuntimeManager.refreshHealth();
+  }
+
+  updateTrayMenu();
+  return buildBridgeState();
 }
 
 function getPreferredTrayIconPath() {
@@ -605,6 +719,15 @@ function showWindowFromTray() {
   mainWindow.focus();
 }
 
+function showWindowAndNavigate(page) {
+  showWindowFromTray();
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send("oyama-bridge:event", {
+    type: "navigate",
+    page: String(page || "dashboard"),
+  });
+}
+
 function requestAppQuit() {
   isAppQuitting = true;
   app.quit();
@@ -623,6 +746,7 @@ function createTray() {
 
   tray = new Tray(image);
   updateTrayMenu();
+  tray.on("click", showWindowFromTray);
   tray.on("double-click", showWindowFromTray);
 
   return tray;
@@ -647,6 +771,14 @@ function updateTrayMenu() {
     {
       label: "Open Dashboard",
       click: showWindowFromTray,
+    },
+    {
+      label: "Open Request Flow",
+      click: () => showWindowAndNavigate("requests"),
+    },
+    {
+      label: "Open Generated Log",
+      click: () => showWindowAndNavigate("generated"),
     },
     {
       label: state.running ? `Running on ${state.endpoint}` : `Stopped - ${state.endpoint}`,
@@ -678,6 +810,15 @@ function updateTrayMenu() {
           }
         } catch {
           // Ignore tray action errors.
+        }
+      },
+    },
+    {
+      label: "Hide Dashboard to Tray",
+      enabled: Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()),
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          hideWindowToTray(mainWindow);
         }
       },
     },
@@ -789,6 +930,16 @@ ipcMain.handle("oyama-bridge:get-config", () => {
 
 ipcMain.handle("oyama-bridge:get-bridge-state", async () => {
   return buildBridgeState();
+});
+
+ipcMain.handle("oyama-bridge:get-gpu-telemetry", async () => {
+  const config = readConfig();
+  const gpuTelemetry = await queryGpuTelemetry();
+  return {
+    gpuTelemetry,
+    selectedCudaDevice: String(config.bridgeCudaDevice || "auto"),
+    cudaVisibleDevicesHint: getCudaVisibleDevicesHint(config),
+  };
 });
 
 ipcMain.handle("oyama-bridge:get-startup-settings", () => {
@@ -962,6 +1113,18 @@ ipcMain.handle("oyama-bridge:set-config", async (_event, payload) => {
       next.bridgeDomainUrl = normalizeHttpUrl(payload.bridgeDomainUrl, { allowEmpty: true });
     }
 
+    if (Object.prototype.hasOwnProperty.call(payload, "ollamaRuntimeMode")) {
+      next.ollamaRuntimeMode = sanitizeOllamaRuntimeMode(payload.ollamaRuntimeMode);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, "ollamaExecutablePath")) {
+      const executablePath = String(payload.ollamaExecutablePath || "").trim();
+      if (!executablePath) {
+        return { ok: false, message: "Ollama executable path is required." };
+      }
+      next.ollamaExecutablePath = executablePath;
+    }
+
     if (Object.prototype.hasOwnProperty.call(payload, "bridgeModel")) {
       next.bridgeModel = String(payload.bridgeModel || "").trim() || current.bridgeModel;
     }
@@ -1013,21 +1176,29 @@ ipcMain.handle("oyama-bridge:set-config", async (_event, payload) => {
     };
   }
 
+  const wasRunning = Boolean(bridgeManager && bridgeManager.getRuntimeState().running);
   writeConfig(next);
 
-  if (bridgeManager && bridgeManager.getRuntimeState().running) {
-    await bridgeManager.stop();
-    if (next.bridgeEnabled) {
-      try {
-        await bridgeManager.start();
-      } catch (error) {
-        return {
-          ok: false,
-          message: error instanceof Error ? error.message : "Bridge failed to restart with the updated settings.",
-          state: await buildBridgeState(),
-        };
-      }
+  try {
+    if (bridgeManager && bridgeManager.getRuntimeState().running) {
+      await bridgeManager.stop();
     }
+
+    if (ollamaRuntimeManager) {
+      await ollamaRuntimeManager.stop();
+    }
+
+    if (wasRunning && next.bridgeEnabled) {
+      await startBridgeStack();
+    } else if (ollamaRuntimeManager) {
+      await ollamaRuntimeManager.refreshHealth();
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Bridge failed to restart with the updated settings.",
+      state: await buildBridgeState(),
+    };
   }
 
   emitBridgeEvent({ type: "config", config: toPublicConfig(next) });
@@ -1070,9 +1241,13 @@ ipcMain.handle("oyama-bridge:chat", async (_event, payload) => {
     bridgeManager = createBridgeServer(() => readConfig(), { onEvent: emitBridgeEvent });
   }
 
+  if (!ollamaRuntimeManager) {
+    ollamaRuntimeManager = createOllamaRuntimeManager(() => readConfig(), { onEvent: emitBridgeEvent });
+  }
+
   if (!bridgeManager.getRuntimeState().running) {
     try {
-      await bridgeManager.start();
+      await startBridgeStack();
     } catch (error) {
       return {
         ok: false,
@@ -1154,19 +1329,8 @@ ipcMain.handle("oyama-bridge:chat", async (_event, payload) => {
 });
 
 ipcMain.handle("oyama-bridge:start", async () => {
-  if (!bridgeManager) {
-    bridgeManager = createBridgeServer(() => readConfig(), { onEvent: emitBridgeEvent });
-  }
-
-  const current = readConfig();
-  if (!current.bridgeEnabled) {
-    writeConfig({ ...current, bridgeEnabled: true });
-  }
-
   try {
-    await bridgeManager.start();
-    updateTrayMenu();
-    return { ok: true, state: await buildBridgeState() };
+    return { ok: true, state: await startBridgeStack() };
   } catch (error) {
     return {
       ok: false,
@@ -1177,16 +1341,7 @@ ipcMain.handle("oyama-bridge:start", async () => {
 });
 
 ipcMain.handle("oyama-bridge:stop", async () => {
-  if (!bridgeManager) {
-    bridgeManager = createBridgeServer(() => readConfig(), { onEvent: emitBridgeEvent });
-  }
-
-  const current = readConfig();
-  writeConfig({ ...current, bridgeEnabled: false });
-
-  await bridgeManager.stop();
-  updateTrayMenu();
-  return { ok: true, state: await buildBridgeState() };
+  return { ok: true, state: await stopBridgeStack() };
 });
 
 ipcMain.on("oyama-bridge:window-minimize", (event) => {
@@ -1237,12 +1392,13 @@ ipcMain.handle("oyama-bridge:window-is-maximized", (event) => {
 
 app.whenReady().then(() => {
   bridgeManager = createBridgeServer(() => readConfig(), { onEvent: emitBridgeEvent });
+  ollamaRuntimeManager = createOllamaRuntimeManager(() => readConfig(), { onEvent: emitBridgeEvent });
 
   const initialConfig = readConfig();
   applyStartupSettings(initialConfig);
 
   if (initialConfig.bridgeAutostart || initialConfig.bridgeEnabled) {
-    bridgeManager.start().catch(() => {
+    startBridgeStack().catch(() => {
       // Runtime issues are shown in renderer state.
     }).finally(() => {
       updateTrayMenu();
@@ -1279,6 +1435,12 @@ app.on("before-quit", () => {
 
   if (bridgeManager) {
     bridgeManager.stop().catch(() => {
+      // Ignore shutdown errors.
+    });
+  }
+
+  if (ollamaRuntimeManager) {
+    ollamaRuntimeManager.stop().catch(() => {
       // Ignore shutdown errors.
     });
   }

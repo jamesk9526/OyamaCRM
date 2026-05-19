@@ -43,6 +43,53 @@ import type {
   CustomHtmlBlock,
 } from './email-builder-types';
 
+interface RichTextRenderOptions {
+  textColor?: string;
+  baseFontSizePx?: number;
+  linkColor?: string;
+  quoteAccentColor?: string;
+}
+
+function appendInlineStyleToTag(html: string, tagName: string, inlineStyle: string): string {
+  const pattern = new RegExp(`<${tagName}(\\s[^>]*)?>`, 'gi');
+  return html.replace(pattern, (match, attrs = '') => {
+    if (/style\s*=\s*['"]/i.test(attrs)) {
+      return match.replace(/style\s*=\s*(['"])(.*?)\1/i, (_styleMatch, quote: string, current: string) => {
+        const nextStyle = `${String(current || '').trim().replace(/;?$/, ';')} ${inlineStyle}`.trim();
+        return `style=${quote}${nextStyle}${quote}`;
+      });
+    }
+    return `<${tagName}${attrs} style="${inlineStyle}">`;
+  });
+}
+
+/** Applies inline, email-safe defaults to Tiptap-authored rich text so saved HTML survives email clients. */
+export function formatRichTextHtml(html: string, options: RichTextRenderOptions = {}): string {
+  const {
+    textColor = '#1f2937',
+    baseFontSizePx = 16,
+    linkColor = '#166534',
+    quoteAccentColor = '#16a34a',
+  } = options;
+
+  let formatted = String(html || '').trim();
+  if (!formatted) {
+    return `<p style="margin:0;font-size:${baseFontSizePx}px;line-height:1.6;color:${textColor};">&nbsp;</p>`;
+  }
+
+  formatted = appendInlineStyleToTag(formatted, 'p', `margin:0 0 12px;font-size:${baseFontSizePx}px;line-height:1.6;color:${textColor};`);
+  formatted = appendInlineStyleToTag(formatted, 'h1', `margin:0 0 14px;font-size:32px;line-height:1.2;font-weight:700;color:${textColor};`);
+  formatted = appendInlineStyleToTag(formatted, 'h2', `margin:0 0 12px;font-size:26px;line-height:1.25;font-weight:700;color:${textColor};`);
+  formatted = appendInlineStyleToTag(formatted, 'h3', `margin:0 0 10px;font-size:20px;line-height:1.3;font-weight:700;color:${textColor};`);
+  formatted = appendInlineStyleToTag(formatted, 'ul', `margin:0 0 12px 24px;padding:0;color:${textColor};`);
+  formatted = appendInlineStyleToTag(formatted, 'ol', `margin:0 0 12px 24px;padding:0;color:${textColor};`);
+  formatted = appendInlineStyleToTag(formatted, 'li', `margin:0 0 8px;font-size:${baseFontSizePx}px;line-height:1.6;color:${textColor};`);
+  formatted = appendInlineStyleToTag(formatted, 'blockquote', `margin:0 0 12px;padding:0 0 0 16px;border-left:4px solid ${quoteAccentColor};font-style:italic;color:${textColor};`);
+  formatted = appendInlineStyleToTag(formatted, 'a', `color:${linkColor};text-decoration:underline;`);
+
+  return formatted;
+}
+
 // ─── Block Factory ────────────────────────────────────────────────────────────
 
 /**
@@ -541,7 +588,11 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
     case 'text':
       return `<tr>
   <td style="padding:${block.padding}px;font-family:${fontFamily};font-size:${block.fontSize}px;color:${block.color};text-align:${block.align};line-height:1.5;">
-    ${block.content}
+    ${formatRichTextHtml(block.content, {
+      textColor: block.color,
+      baseFontSizePx: block.fontSize,
+      linkColor: block.color,
+    })}
   </td>
 </tr>`;
 
@@ -853,7 +904,11 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
     case 'aiText':
       return `<tr>
   <td style="padding:${block.padding}px;font-family:${fontFamily};font-size:16px;color:#1f2937;line-height:1.5;">
-    ${block.content}
+    ${formatRichTextHtml(block.content, {
+      textColor: '#1f2937',
+      baseFontSizePx: 16,
+      linkColor: '#166534',
+    })}
   </td>
 </tr>`;
 

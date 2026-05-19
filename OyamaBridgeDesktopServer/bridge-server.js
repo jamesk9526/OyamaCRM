@@ -5,6 +5,7 @@ const https = require("node:https");
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 const MAX_REQUEST_LOGS = 250;
 const MAX_ERROR_LOGS = 180;
+const MAX_GENERATED_PREVIEW_CHARS = 6000;
 
 function parseAllowedOrigins(rawValue) {
   const text = String(rawValue || "").trim();
@@ -150,34 +151,43 @@ function forwardToUpstream(config, req, targetPath, bodyBuffer) {
 
 function injectCudaDeviceOptions(config, pathname, bodyBuffer) {
   const selected = String(config.bridgeCudaDevice || "auto").trim().toLowerCase();
-  if (!bodyBuffer || bodyBuffer.length === 0) return bodyBuffer;
-  if (selected === "auto") return bodyBuffer;
-  if (!(pathname === "/api/chat" || pathname === "/api/generate")) return bodyBuffer;
+  const result = {
+    bodyBuffer,
+    requestedDevice: selected || "auto",
+    appliedDevice: selected === "auto" ? "auto" : "",
+  };
+
+  if (!bodyBuffer || bodyBuffer.length === 0) return result;
+  if (selected === "auto") return result;
+  if (!(pathname === "/api/chat" || pathname === "/api/generate")) return result;
 
   const cudaIndex = Number(selected);
-  if (!Number.isInteger(cudaIndex) || cudaIndex < 0) return bodyBuffer;
+  if (!Number.isInteger(cudaIndex) || cudaIndex < 0) {
+    throw new Error(`Configured CUDA device "${selected}" is invalid. Choose auto or a non-negative GPU index.`);
+  }
 
   try {
     const payload = JSON.parse(bodyBuffer.toString("utf8"));
-    if (!payload || typeof payload !== "object") return bodyBuffer;
+    if (!payload || typeof payload !== "object") return result;
 
     const options = payload.options && typeof payload.options === "object"
       ? { ...payload.options }
       : {};
 
     options.main_gpu = cudaIndex;
-    if (options.num_gpu === undefined) {
-      options.num_gpu = 1;
-    }
 
     const nextPayload = {
       ...payload,
       options,
     };
 
-    return Buffer.from(JSON.stringify(nextPayload), "utf8");
+    return {
+      bodyBuffer: Buffer.from(JSON.stringify(nextPayload), "utf8"),
+      requestedDevice: selected,
+      appliedDevice: selected,
+    };
   } catch {
-    return bodyBuffer;
+    return result;
   }
 }
 
@@ -268,6 +278,45 @@ function createBridgeServer(readConfig, options = {}) {
     }
   }
 
+  /**
+   * Pull assistant output from Ollama-style responses without storing prompts.
+   * The renderer uses this in-memory preview for live Steward generation logs.
+   */
+  function extractGeneratedPreview(pathname, responseBuffer) {
+    if (!(pathname === "/api/chat" || pathname === "/api/generate")) return "";
+    if (!responseBuffer || responseBuffer.length === 0) return "";
+
+    const text = responseBuffer.toString("utf8").trim();
+    if (!text) return "";
+
+    const getPayloadText = (payload) => {
+      if (!payload || typeof payload !== "object") return "";
+      if (typeof payload.response === "string") return payload.response;
+      if (payload.message && typeof payload.message.content === "string") return payload.message.content;
+      return "";
+    };
+
+    try {
+      return getPayloadText(JSON.parse(text)).slice(0, MAX_GENERATED_PREVIEW_CHARS);
+    } catch {
+      // Streaming responses are usually newline-delimited JSON fragments.
+    }
+
+    const parts = [];
+    text.split(/\r?\n/).forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || parts.join("").length >= MAX_GENERATED_PREVIEW_CHARS) return;
+      try {
+        const nextPart = getPayloadText(JSON.parse(trimmed));
+        if (nextPart) parts.push(nextPart);
+      } catch {
+        // Ignore malformed stream fragments.
+      }
+    });
+
+    return parts.join("").slice(0, MAX_GENERATED_PREVIEW_CHARS);
+  }
+
   function getContentType(req) {
     const raw = req.headers && req.headers["content-type"];
     return Array.isArray(raw) ? raw.join(", ").slice(0, 160) : String(raw || "").slice(0, 160);
@@ -343,6 +392,10 @@ function createBridgeServer(readConfig, options = {}) {
       routeGroup: String(entry.routeGroup || "other"),
       model: String(entry.model || ""),
       errorClass: String(entry.errorClass || classifyStatus(entry.statusCode)),
+      generatedPreview: String(entry.generatedPreview || "").slice(0, MAX_GENERATED_PREVIEW_CHARS),
+      generatedPreviewLength: Math.max(0, Number(entry.generatedPreviewLength || 0)),
+      cudaDeviceRequested: String(entry.cudaDeviceRequested || "auto"),
+      cudaDeviceApplied: String(entry.cudaDeviceApplied || ""),
     };
 
     requestLog.unshift(normalizedEntry);
@@ -370,6 +423,9 @@ function createBridgeServer(readConfig, options = {}) {
     let bodyBytes = 0;
     let responseBytes = 0;
     let safeModel = "";
+    let generatedPreview = "";
+    let cudaDeviceRequested = String(config.bridgeCudaDevice || "auto");
+    let cudaDeviceApplied = cudaDeviceRequested === "auto" ? "auto" : "";
 
     function logRequest(statusCode, detail, upstreamUrl = "") {
       if (Number(statusCode) >= 400) {
@@ -399,6 +455,10 @@ function createBridgeServer(readConfig, options = {}) {
         routeGroup: classifyRoute(url.pathname),
         model: safeModel,
         errorClass: classifyStatus(statusCode),
+        generatedPreview,
+        generatedPreviewLength: generatedPreview.length,
+        cudaDeviceRequested,
+        cudaDeviceApplied,
       });
     }
 
@@ -452,11 +512,15 @@ function createBridgeServer(readConfig, options = {}) {
     bodyBytes = bodyBuffer.length;
     safeModel = extractSafeModel(bodyBuffer);
 
-    bodyBuffer = injectCudaDeviceOptions(config, url.pathname, bodyBuffer);
+    const cudaInjection = injectCudaDeviceOptions(config, url.pathname, bodyBuffer);
+    bodyBuffer = cudaInjection.bodyBuffer;
+    cudaDeviceRequested = cudaInjection.requestedDevice;
+    cudaDeviceApplied = cudaInjection.appliedDevice;
 
     runtime.requestCount += 1;
     const upstreamResult = await forwardToUpstream(config, req, `${url.pathname}${url.search}`, bodyBuffer);
     responseBytes = upstreamResult.body ? upstreamResult.body.length : 0;
+    generatedPreview = extractGeneratedPreview(url.pathname, upstreamResult.body);
 
     res.statusCode = upstreamResult.statusCode;
     for (const [key, value] of Object.entries(upstreamResult.headers)) {
