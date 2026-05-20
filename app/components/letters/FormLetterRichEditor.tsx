@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Color from "@tiptap/extension-color";
 import { FontFamily } from "@tiptap/extension-text-style/font-family";
 import { FontSize } from "@tiptap/extension-text-style/font-size";
@@ -107,7 +108,7 @@ export default function FormLetterRichEditor({
   onRegisterCommands,
   mergeFields = [],
   onUploadImage,
-  floatingToolbarTopClassName = "top-2",
+  floatingToolbarTopClassName = "top-0",
 }: FormLetterRichEditorProps) {
   const [promptMode, setPromptMode] = useState<"link" | "image" | null>(null);
   const [promptValue, setPromptValue] = useState("");
@@ -116,6 +117,8 @@ export default function FormLetterRichEditor({
   const [slashQuery, setSlashQuery] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [showAiPrompt, setShowAiPrompt] = useState(false);
+  const [bubblePos, setBubblePos] = useState<{ top: number; left: number } | null>(null);
+  const bubbleRef = useRef<HTMLDivElement | null>(null);
 
   const editor = useEditor({
     extensions: [
@@ -405,25 +408,59 @@ export default function FormLetterRichEditor({
     setShowAiPrompt(false);
   }
 
+  // Track text selection to position the floating bubble menu
+  useEffect(() => {
+    if (!editor) return;
+
+    function update() {
+      if (!editor) return;
+      const { selection } = editor.state;
+      if (selection.empty) { setBubblePos(null); return; }
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) { setBubblePos(null); return; }
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      if (!rect.width) { setBubblePos(null); return; }
+      setBubblePos({
+        top: rect.bottom + window.scrollY + 6,
+        left: Math.max(8, rect.left + window.scrollX + rect.width / 2),
+      });
+    }
+
+    editor.on("selectionUpdate", update);
+    editor.on("blur", () => setBubblePos(null));
+    return () => { editor.off("selectionUpdate", update); };
+  }, [editor]);
+
+  const bubbleMenu = bubblePos && editor && !htmlMode
+    ? createPortal(
+        <div
+          ref={bubbleRef}
+          data-testid="letter-floating-command-bar"
+          style={{ top: bubblePos.top, left: bubblePos.left }}
+          className="pointer-events-auto fixed z-[9999] -translate-x-1/2 flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs shadow-[0_4px_20px_rgba(0,0,0,0.14)]"
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <BubbleBtn icon="bold" label="B" title="Bold" onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive("bold")} />
+          <BubbleBtn icon="italic" label="I" title="Italic" onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive("italic")} />
+          <BubbleBtn icon="underline" label="U" title="Underline" onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive("underline")} />
+          <BubbleBtn icon="strike" label="S" title="Strikethrough" onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive("strike")} />
+          <span className="mx-1 h-4 w-px shrink-0 bg-gray-200" aria-hidden="true" />
+          <BubbleBtn icon="heading" label="H2" title="Heading" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive("heading")} />
+          <BubbleBtn icon="quote" label="Q" title="Blockquote" onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive("blockquote")} />
+          <BubbleBtn icon="list" label="List" title="Bullet list" onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive("bulletList")} />
+          <span className="mx-1 h-4 w-px shrink-0 bg-gray-200" aria-hidden="true" />
+          <BubbleBtn icon="variable" label="Var" title="Insert merge token" onClick={() => insertVariableToken("{{donor.firstName}}")} />
+          <BubbleBtn icon="ai" label="AI" title="AI Write" onClick={() => { setBubblePos(null); setShowAiPrompt(true); }} accent />
+        </div>,
+        document.body
+      )
+    : null;
+
   return (
     <>
       <div className="relative">
-        {!htmlMode && (
-          <div
-            data-testid="letter-floating-command-bar"
-            className={`sticky ${floatingToolbarTopClassName} z-20 mx-auto mb-4 flex w-fit flex-wrap items-center justify-center gap-1 rounded-xl border border-gray-200 bg-white/95 px-3 py-2 text-xs shadow-lg shadow-gray-200/70 backdrop-blur`}
-          >
-            <CommandButton icon="text" label="Text" onClick={() => editor?.chain().focus().setParagraph().run()} />
-            <CommandButton icon="heading" label="Heading" onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} />
-            <CommandButton icon="list" label="List" onClick={() => editor?.chain().focus().toggleBulletList().run()} />
-            <CommandButton icon="quote" label="Quote" onClick={() => editor?.chain().focus().toggleBlockquote().run()} />
-            <CommandButton icon="image" label="Image" onClick={insertImageFromUrl} />
-            <CommandButton icon="table" label="Table" onClick={() => editor?.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: true }).run()} />
-            <CommandButton icon="divider" label="Divider" onClick={() => editor?.chain().focus().setHorizontalRule().run()} />
-            <CommandButton icon="variable" label="Variable" onClick={() => insertVariableToken("{{donor.firstName}}")} />
-            <CommandButton icon="ai" label="AI Write" onClick={() => setShowAiPrompt(true)} accent />
-          </div>
-        )}
+        {bubbleMenu}
+        {!htmlMode && editor && null /* bubble rendered via portal above */}
 
         <div className="mb-3 flex justify-end">
           <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-500">
@@ -588,6 +625,27 @@ function CommandButton({ icon, label, onClick, accent = false }: { icon: LetterB
     >
       <LetterBuilderIcon name={icon} className="h-3.5 w-3.5" />
       {label}
+    </button>
+  );
+}
+
+/** Compact icon+label button for the selection bubble menu. */
+function BubbleBtn({ icon, label, title, onClick, accent = false, active = false }: { icon: LetterBuilderIconName; label: string; title: string; onClick: () => void; accent?: boolean; active?: boolean }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className={`flex h-7 min-w-[1.75rem] items-center justify-center gap-1.5 rounded-lg px-2 font-medium transition-colors ${
+        active
+          ? "bg-gray-900 text-white"
+          : accent
+            ? "text-green-700 hover:bg-green-50"
+            : "text-gray-700 hover:bg-gray-100"
+      }`}
+    >
+      <LetterBuilderIcon name={icon} className="h-3.5 w-3.5 shrink-0" />
+      <span className="text-[11px] leading-none">{label}</span>
     </button>
   );
 }

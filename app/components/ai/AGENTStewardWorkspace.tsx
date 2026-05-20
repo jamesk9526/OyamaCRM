@@ -3224,7 +3224,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         {(!isEmptyChat || dockMode) && (
         <div className="steward-chroma-composer-wrap shrink-0 bg-white px-3 pt-3 sm:px-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
           <div className="mx-auto max-w-3xl">
-            <div ref={composerRef} className="steward-hero-composer relative w-full rounded-full border border-slate-200 bg-white px-3 py-2 shadow-sm">
+            <div ref={composerRef} className="steward-hero-composer relative w-full rounded-2xl border border-slate-200 bg-white px-3 pt-2 pb-1 shadow-sm">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -3350,48 +3350,6 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                   style={{ maxHeight: "120px" }}
                 />
 
-                <div className="relative hidden sm:block">
-                  <select
-                    value={mode}
-                    onChange={(event) => setMode(event.target.value as ChatMode)}
-                    className="h-7 appearance-none rounded-full border border-slate-700/80 bg-slate-900/80 py-0 pl-2.5 pr-7 text-[10px] font-semibold text-slate-100 outline-none transition-colors hover:border-slate-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-500/20"
-                    title="Chat mode"
-                  >
-                    <option value="ask" className="bg-slate-900 text-slate-100">Ask & Retrieve</option>
-                    <option value="analyze" className="bg-slate-900 text-slate-100">Analyze Trends</option>
-                    <option value="draft" className="bg-slate-900 text-slate-100">Draft Outreach</option>
-                    <option value="free" className="bg-slate-900 text-slate-100">Pure Mode</option>
-                    <option value="agentic" className="bg-slate-900 text-slate-100">Agentic Mode</option>
-                    <option value="llm" className="bg-slate-900 text-slate-100">LLM Deep Reasoning</option>
-                    <option value="action" className="bg-slate-900 text-slate-100">Action Planner</option>
-                    <option value="help" className="bg-slate-900 text-slate-100">Workflow Help</option>
-                  </select>
-                  <svg
-                    className="pointer-events-none absolute right-2 top-1/2 h-2.5 w-2.5 -translate-y-1/2 text-slate-300"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2.25}
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setThoughtStackEnabled((value) => !value)}
-                  className={`hidden sm:inline-flex h-7 items-center gap-1 rounded-full border px-2 text-[10px] font-semibold transition-colors ${
-                    thoughtStackEnabled
-                      ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25"
-                      : "border-slate-600 bg-slate-800 text-slate-300 hover:border-slate-500 hover:bg-slate-700"
-                  }`}
-                  title={thoughtStackEnabled ? "ThoughtStack beta is enabled. Click to disable for direct chat responses." : "ThoughtStack beta is disabled. Click to enable reliability gating."}
-                >
-                  <span className="rounded bg-black/30 px-1 py-[1px] text-[8px] font-bold uppercase tracking-wide">BETA</span>
-                  {thoughtStackEnabled ? "ThoughtStack On" : "ThoughtStack Off"}
-                </button>
-
                 <button
                   type="button"
                   disabled={sending}
@@ -3438,6 +3396,43 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.4} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5M5 12l7-7 7 7" /></svg>
                   </button>
                 )}
+              </div>
+
+              {/* ── Mode & ThoughtStack controls row ── */}
+              <div className="flex items-center gap-2 border-t border-white/10 mt-0.5 pt-1.5 pb-0.5">
+                <div className="relative shrink-0">
+                  <select
+                    value={mode}
+                    onChange={(event) => setMode(event.target.value as ChatMode)}
+                    className="h-6 appearance-none rounded-full border border-slate-700/80 bg-slate-900/80 py-0 pl-2.5 pr-6 text-[10px] font-semibold text-slate-100 outline-none transition-colors hover:border-slate-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-500/20"
+                    title="Chat mode"
+                  >
+                    <option value="ask" className="bg-slate-900 text-slate-100">Ask & Retrieve</option>
+                    <option value="analyze" className="bg-slate-900 text-slate-100">Analyze Trends</option>
+                    <option value="draft" className="bg-slate-900 text-slate-100">Draft Outreach</option>
+                    <option value="free" className="bg-slate-900 text-slate-100">Pure Mode</option>
+                    <option value="agentic" className="bg-slate-900 text-slate-100">Agentic Mode</option>
+                    <option value="llm" className="bg-slate-900 text-slate-100">LLM Deep Reasoning</option>
+                    <option value="action" className="bg-slate-900 text-slate-100">Action Planner</option>
+                    <option value="help" className="bg-slate-900 text-slate-100">Workflow Help</option>
+                  </select>
+                  <svg className="pointer-events-none absolute right-1.5 top-1/2 h-2 w-2 -translate-y-1/2 text-slate-300" fill="none" stroke="currentColor" strokeWidth={2.25} viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setThoughtStackEnabled((value) => !value)}
+                  className={`inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[10px] font-semibold transition-colors ${
+                    thoughtStackEnabled
+                      ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25"
+                      : "border-slate-600 bg-slate-800 text-slate-300 hover:border-slate-500 hover:bg-slate-700"
+                  }`}
+                  title={thoughtStackEnabled ? "ThoughtStack beta is enabled. Click to disable for direct chat responses." : "ThoughtStack beta is disabled. Click to enable reliability gating."}
+                >
+                  <span className="rounded bg-black/30 px-1 py-[1px] text-[8px] font-bold uppercase tracking-wide">BETA</span>
+                  {thoughtStackEnabled ? "ThoughtStack On" : "ThoughtStack Off"}
+                </button>
               </div>
             </div>
 

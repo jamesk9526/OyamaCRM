@@ -760,6 +760,7 @@ export default function TopBar() {
   const [mobileQuickOpen, setMobileQuickOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [compactActionsOpen, setCompactActionsOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
     const [messengerOpen, setMessengerOpen] = useState(false);
     const [messengerUnread, setMessengerUnread] = useState(0);
   const [incomingMsgToast, setIncomingMsgToast] = useState<{ senderName: string; senderInitials: string; colorClass: string; body: string; threadId: string } | null>(null);
@@ -767,12 +768,24 @@ export default function TopBar() {
   const [reportingModeJustChanged, setReportingModeJustChanged] = useState(false);
   const reactiveGlowFrameRef = useRef<number | null>(null);
   const reactiveGlowTimeoutRef = useRef<number | null>(null);
+
+  // Shrink the TopBar height when any scrollable container scrolls past a threshold.
+  useEffect(() => {
+    function handleScroll(e: Event) {
+      const target = e.target as Element;
+      if (typeof target?.scrollTop === "number") {
+        setScrolled(target.scrollTop > 24);
+      }
+    }
+    document.addEventListener("scroll", handleScroll, true);
+    return () => document.removeEventListener("scroll", handleScroll, true);
+  }, []);
   const reportingModeChangedTimeoutRef = useRef<number | null>(null);
   const desktopNotificationsRef = useRef<HTMLDivElement | null>(null);
 
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
-  const chromeButtonBase = "w-10 h-10 md:w-9 md:h-9 rounded-xl border border-slate-700 bg-slate-900 text-slate-300 shadow-[0_10px_24px_rgba(2,6,23,0.5)] flex items-center justify-center transition-all hover:-translate-y-px hover:border-emerald-400/70 hover:bg-slate-800 hover:text-emerald-300 active:translate-y-0";
-  const darkIconButtonBase = "w-9 h-9 rounded-xl border border-slate-700 bg-slate-900 text-slate-300 shadow-[0_10px_24px_rgba(2,6,23,0.5)] flex items-center justify-center transition-all hover:-translate-y-px hover:border-emerald-400/70 hover:bg-slate-800 hover:text-emerald-300 active:translate-y-0 active:scale-95";
+  const chromeButtonBase = `${scrolled ? "w-8 h-8 md:w-7 md:h-7" : "w-10 h-10 md:w-9 md:h-9"} rounded-xl border border-slate-700 bg-slate-900 text-slate-300 shadow-[0_10px_24px_rgba(2,6,23,0.5)] flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:border-emerald-400/70 hover:bg-slate-800 hover:text-emerald-300 active:translate-y-0`;
+  const darkIconButtonBase = `${scrolled ? "w-6 h-6" : "w-8 h-8"} rounded-xl border border-slate-700 bg-slate-900 text-slate-300 shadow-[0_10px_24px_rgba(2,6,23,0.5)] flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:border-emerald-400/70 hover:bg-slate-800 hover:text-emerald-300 active:translate-y-0 active:scale-95`;
   const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-700 bg-slate-900 shadow-[0_16px_40px_rgba(2,6,23,0.7)] z-50 overflow-hidden md:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
   const moduleAccentClass = moduleKey === "compassion"
     ? "bg-blue-600"
@@ -1196,7 +1209,7 @@ export default function TopBar() {
           </div>
         </>
       )}
-      <header data-topbar-root="true" className="fixed top-0 left-0 right-0 isolate z-20 flex h-14 w-full shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-950/95 px-2 shadow-[0_12px_34px_rgba(2,6,23,0.55)] backdrop-blur-md lg:gap-3 lg:px-3 min-[1440px]:gap-4 min-[1440px]:px-4" style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
+      <header data-topbar-root="true" className={`fixed top-0 left-0 right-0 isolate z-20 flex w-full shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-950/95 px-2 shadow-[0_12px_34px_rgba(2,6,23,0.55)] backdrop-blur-md transition-[height] duration-200 lg:gap-3 lg:px-3 min-[1440px]:gap-4 min-[1440px]:px-4 ${scrolled ? "h-10" : "h-14"}`} style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
         <div
           aria-hidden="true"
           className="pointer-events-none absolute left-0 top-0 hidden h-full w-[400px] bg-white lg:block min-[1440px]:w-[440px]"
@@ -1244,19 +1257,19 @@ export default function TopBar() {
               alt="OyamaCRM"
               width={68}
               height={28}
-              className="block h-7 w-[68px] object-contain object-left"
+              className={`block ${scrolled ? "h-5 w-[56px]" : "h-7 w-[68px]"} object-contain object-left transition-all duration-200`}
               priority
             />
           </Link>
 
-          <div className="w-px h-6 bg-slate-700 shrink-0" />
+          <div className={`w-px ${scrolled ? "h-4" : "h-6"} bg-slate-700 shrink-0 transition-all duration-200`} />
 
           {/* ── Module switcher (left anchor) ── */}
           {workspaceSettings.showModuleSwitcher && (
             <>
-              <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} />
+              <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled={scrolled} />
               {/* ── Divider ── */}
-              <div className="w-px h-6 bg-slate-700 shrink-0" />
+              <div className={`w-px ${scrolled ? "h-4" : "h-6"} bg-slate-700 shrink-0 transition-all duration-200`} />
             </>
           )}
 
@@ -1412,7 +1425,7 @@ export default function TopBar() {
               aria-label="Open global search"
               title="Search OyamaCRM"
               onClick={() => setMobileSearchOpen(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-300 shadow-[0_10px_24px_rgba(2,6,23,0.5)] transition-all hover:-translate-y-px hover:border-emerald-400/70 hover:bg-slate-800 hover:text-emerald-300"
+              className={`flex ${scrolled ? "h-7 w-7" : "h-10 w-10"} items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-300 shadow-[0_10px_24px_rgba(2,6,23,0.5)] transition-all duration-200 hover:-translate-y-px hover:border-emerald-400/70 hover:bg-slate-800 hover:text-emerald-300`}
             >
               <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
@@ -1735,9 +1748,11 @@ export default function TopBar() {
 function ModuleSwitcher({
   moduleKey,
   settings,
+  scrolled = false,
 }: {
   moduleKey: TopBarModuleKey;
   settings: WorkspaceSettings;
+  scrolled?: boolean;
 }) {
   const router = useRouter();
   const { user } = useAuth();
@@ -1821,9 +1836,9 @@ function ModuleSwitcher({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`group flex items-center gap-2.5 rounded-xl border ${switcherButtonTone} px-2.5 py-1.5 text-slate-900 shadow-sm transition-colors hover:border-emerald-300 hover:bg-white`}
+        className={`group flex items-center rounded-xl border ${switcherButtonTone} text-slate-900 shadow-sm transition-all duration-200 hover:border-emerald-300 hover:bg-white ${scrolled ? "gap-1.5 px-1.5 py-1" : "gap-2.5 px-2.5 py-1.5"}`}
       >
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700">
+        <span className={`flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 transition-all duration-200 ${scrolled ? "h-6 w-6" : "h-8 w-8"}`}>
           {current.icon}
         </span>
         <div className="hidden sm:block text-left leading-tight min-w-0">

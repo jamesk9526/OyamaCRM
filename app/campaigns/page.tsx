@@ -18,6 +18,7 @@ import StewardContextButton from "@/app/components/ai/StewardContextButton";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
+import FirstRunCard from "@/app/components/ui/FirstRunCard";
 import { apiFetch } from "@/app/lib/auth-client";
 
 /** Campaign as returned from the API */
@@ -155,6 +156,11 @@ export default function CampaignsPage() {
       )}
     >
     <div className="space-y-5">
+      <FirstRunCard
+        storageKey="howto:campaigns"
+        title="Getting started with Campaigns"
+        steps={["Create a campaign with a goal, date range, and fund designation", "Link donations to a campaign when recording gifts", "Track progress toward the goal on the campaign card", "Archive a campaign when it ends — history is always preserved"]}
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

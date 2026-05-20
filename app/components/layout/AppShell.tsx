@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import TopBar from "./TopBar";
 import Sidebar from "./Sidebar";
+import DonorMegaMenu from "./DonorMegaMenu";
 import MobileSidebarDrawer from "./MobileSidebarDrawer";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
@@ -191,13 +192,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       style={dockInsetPx > 0 ? { paddingRight: `${dockInsetPx}px` } : undefined}
     >
       <TopBar />
-      <div className="relative flex min-w-0 flex-1 overflow-hidden pt-14">
-        {!isOShareview && (
-          <div className="hidden lg:block">
-            <Sidebar />
-          </div>
-        )}
-
+      {/* DonorMegaMenu replaces the left sidebar for DonorCRM pages. */}
+      {!isOShareview && !isBoard && <DonorMegaMenu />}
+      <div className={`relative flex min-w-0 flex-1 overflow-hidden ${!isOShareview && !isBoard ? "pt-24" : "pt-14"}`}>
+        {/* Mobile sidebar drawer kept for small-screen access */}
         {!isOShareview ? (
           <MobileSidebarDrawer
             open={mobileNavOpen}

@@ -11,6 +11,7 @@ import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
+import FirstRunCard from "@/app/components/ui/FirstRunCard";
 import CRMDataTable from "@/app/components/ui/crm/CRMDataTable";
 import CRMFilterBar from "@/app/components/ui/crm/CRMFilterBar";
 import CRMMetricCard from "@/app/components/ui/crm/CRMMetricCard";
@@ -289,6 +290,11 @@ export default function DonationsPage() {
       )}
     >
     <div className="space-y-5">
+      <FirstRunCard
+        storageKey="howto:donations"
+        title="Getting started with Donations"
+        steps={["Use Record Gift to log a new donation", "Filter by status, date range, or campaign", "Click a row to view or edit donation details", "Export the list from the toolbar for reports"]}
+      />
       <CRMActionBar>
         <WorkspaceRibbonButton label="Record Gift" href={recordGiftHref} variant="primary" />
         <WorkspaceRibbonButton label="All" onClick={() => setStatus("")} active={!status} />

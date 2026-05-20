@@ -775,7 +775,7 @@ export default function LetterTemplateEditor({ templateId, fullScreen = false, i
                   onRegisterInsert={handleRegisterPrintInsert}
                   onRegisterCommands={setEditorCommands}
                   onUploadImage={uploadEditorImage}
-                  floatingToolbarTopClassName="top-3"
+                  floatingToolbarTopClassName="top-0"
                 />
               </PrintablePageShell>
             </div>
