@@ -938,7 +938,7 @@ function CampaignCard({
       </div>
 
       {isSent && campaignRecord.totalRecipients > 0 && (
-        <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-4 gap-4">
+        <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-4 gap-4">
           <MiniStat label="Recipients" value={campaignRecord.totalRecipients.toLocaleString()} />
           <MiniStat label="Delivered" value={pct(campaignRecord.delivered, campaignRecord.totalRecipients)} sub={campaignRecord.delivered.toLocaleString()} color="text-blue-600" />
           <MiniStat label="Opened" value={pct(campaignRecord.opened, campaignRecord.delivered)} sub={campaignRecord.opened.toLocaleString()} color={campaignRecord.opened / campaignRecord.delivered > 0.25 ? "text-green-600" : "text-amber-600"} />

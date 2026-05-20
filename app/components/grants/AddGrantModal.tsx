@@ -266,7 +266,7 @@ export default function AddGrantModal({ grant: initial, onClose, onSaved }: Prop
           </div>
 
           {/* Status + Amounts */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
               <select
@@ -318,7 +318,7 @@ export default function AddGrantModal({ grant: initial, onClose, onSaved }: Prop
                 This grant requires a Letter of Intent (LOI)
               </label>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {requiresLOI && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">LOI Deadline</label>

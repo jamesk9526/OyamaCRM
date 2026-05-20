@@ -158,7 +158,7 @@ export default function ScheduleMeetingModal({ onClose, onCreated, constituentId
           </div>
 
           {/* Date and times */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">Date <span className="text-red-500">*</span></label>
               <input

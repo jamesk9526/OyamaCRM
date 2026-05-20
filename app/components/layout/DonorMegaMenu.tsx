@@ -6,7 +6,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { usePlugins } from "@/app/components/plugins/PluginProvider";
 
@@ -242,7 +243,8 @@ function ChevronDown({ open }: { open: boolean }) {
 
 export default function DonorMegaMenu() {
   const [openSection, setOpenSection] = useState<string | null>(null);
-  const navRef = useRef<HTMLDivElement>(null);
+  const [dropdownAnchor, setDropdownAnchor] = useState<DOMRect | null>(null);
+  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const { qbEnabled } = usePlugins();
   const [scrolled, setScrolled] = useState(false);
@@ -260,17 +262,10 @@ export default function DonorMegaMenu() {
     return section;
   });
 
-  // Close when clicking outside the nav bar.
+  // Track client mount for portal rendering.
   useEffect(() => {
-    if (!openSection) return;
-    function handleOutside(e: MouseEvent) {
-      if (navRef.current && !navRef.current.contains(e.target as Node)) {
-        setOpenSection(null);
-      }
-    }
-    document.addEventListener("mousedown", handleOutside);
-    return () => document.removeEventListener("mousedown", handleOutside);
-  }, [openSection]);
+    setMounted(true);
+  }, []);
 
   // Mirror the TopBar scroll-shrink so this bar slides up as TopBar shrinks.
   useEffect(() => {
@@ -287,6 +282,7 @@ export default function DonorMegaMenu() {
   // Close on route change.
   useEffect(() => {
     setOpenSection(null);
+    setDropdownAnchor(null);
   }, [pathname]);
 
   /**
@@ -301,11 +297,19 @@ export default function DonorMegaMenu() {
     return allHrefs.some((h) => pathname === h || pathname.startsWith(h.split("?")[0] + "/"));
   }
 
+  // Compute portal position for open dropdown.
+  const activeSectionForPortal = openSection ? navSections.find((s) => s.id === openSection) : null;
+  const portalColCount = activeSectionForPortal?.columns?.length ?? 1;
+  const portalMinWidth = portalColCount > 1 ? 480 : 260;
+  const portalLeft = dropdownAnchor
+    ? Math.max(8, Math.min(dropdownAnchor.left, window.innerWidth - portalMinWidth - 8))
+    : 0;
+
   return (
+    <>
     <nav
-      ref={navRef}
       aria-label="DonorCRM primary navigation"
-      className={`fixed left-0 right-0 z-[19] flex h-10 items-stretch gap-0.5 border-b border-slate-700/60 bg-slate-900/98 px-2 backdrop-blur-sm transition-[top] duration-200 ${scrolled ? "top-10" : "top-14"}`}
+      className={`fixed left-0 right-0 z-[19] hidden md:flex h-10 items-stretch gap-0.5 border-b border-slate-700/60 bg-slate-900/98 px-2 backdrop-blur-sm transition-[top] duration-200 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${scrolled ? "top-10" : "top-14"}`}
     >
       {navSections.map((section) => {
         const active = isSectionActive(section);
@@ -317,7 +321,7 @@ export default function DonorMegaMenu() {
             <Link
               key={section.id}
               href={section.href}
-              className={`relative flex items-center px-3.5 text-sm font-medium transition-colors duration-150 ${
+              className={`relative flex shrink-0 items-center px-3.5 text-sm font-medium transition-colors duration-150 ${
                 active
                   ? "text-white after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-emerald-400"
                   : "text-slate-300 hover:text-white"
@@ -333,13 +337,21 @@ export default function DonorMegaMenu() {
         const dropdownWidth = colCount === 1 ? "min-w-[260px]" : "min-w-[480px]";
 
         return (
-          <div key={section.id} className="relative flex h-full items-stretch">
+          <div key={section.id} className="relative flex h-full shrink-0 items-stretch">
             <button
               type="button"
-              onClick={() => setOpenSection(open ? null : section.id)}
+              onClick={(e) => {
+                if (open) {
+                  setOpenSection(null);
+                  setDropdownAnchor(null);
+                } else {
+                  setDropdownAnchor(e.currentTarget.getBoundingClientRect());
+                  setOpenSection(section.id);
+                }
+              }}
               aria-expanded={open}
               aria-haspopup="true"
-              className={`relative flex h-full items-center gap-1 px-3.5 text-sm font-medium transition-colors duration-150 ${
+              className={`relative flex h-full shrink-0 items-center gap-1 px-3.5 text-sm font-medium transition-colors duration-150 ${
                 active || open
                   ? "text-white after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-emerald-400"
                   : "text-slate-300 hover:text-white"
@@ -349,77 +361,82 @@ export default function DonorMegaMenu() {
               <ChevronDown open={open} />
             </button>
 
-            {/* ── Dropdown panel ── */}
-            {open && (
-              <>
-                {/* Invisible backdrop catches outside clicks at the panel level */}
-                <div className="fixed inset-0 z-40" onClick={() => setOpenSection(null)} />
-
-                <div
-                  className={`absolute left-0 top-full z-50 mt-0.5 ${dropdownWidth} overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl`}
-                >
-                  {/* Panel header */}
-                  <div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5">
-                    <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-                      {section.label}
-                    </p>
-                  </div>
-
-                  {/* Item columns */}
-                  <div
-                    className={`grid gap-1 p-2.5 ${colCount > 1 ? "grid-cols-2" : "grid-cols-1"}`}
-                  >
-                    {section.columns?.map((col, colIdx) => (
-                      <div key={colIdx} className="flex flex-col gap-0.5">
-                        {col.map((item) => {
-                          const itemActive =
-                            pathname === item.href ||
-                            pathname.startsWith(item.href.split("?")[0] + "/");
-
-                          return (
-                            <Link
-                              key={item.id}
-                              href={item.href}
-                              onClick={() => setOpenSection(null)}
-                              className={`group flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors ${
-                                itemActive
-                                  ? "bg-emerald-50 text-emerald-700"
-                                  : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
-                              }`}
-                            >
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <span
-                                    className={`text-sm font-medium leading-tight ${
-                                      itemActive ? "text-emerald-700" : ""
-                                    }`}
-                                  >
-                                    {item.label}
-                                  </span>
-                                  {item.badge && (
-                                    <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
-                                      {item.badge}
-                                    </span>
-                                  )}
-                                </div>
-                                {item.description && (
-                                  <p className="mt-0.5 text-xs leading-snug text-slate-400">
-                                    {item.description}
-                                  </p>
-                                )}
-                              </div>
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
+            {/* Dropdown panel is portaled — see below nav */}
           </div>
         );
       })}
     </nav>
+
+    {/* Portal: dropdown panel rendered in document.body to escape overflow-x-auto clipping */}
+    {mounted && activeSectionForPortal?.columns && dropdownAnchor && createPortal(
+      <>
+        {/* Backdrop — closes dropdown on outside click */}
+        <div
+          className="fixed inset-0 z-[48]"
+          onClick={() => { setOpenSection(null); setDropdownAnchor(null); }}
+        />
+        {/* Dropdown panel */}
+        <div
+          style={{
+            position: "fixed",
+            top: dropdownAnchor.bottom + 2,
+            left: portalLeft,
+            minWidth: portalMinWidth,
+            maxWidth: "calc(100vw - 16px)",
+            zIndex: 49,
+          }}
+          className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
+        >
+          {/* Panel header */}
+          <div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+              {activeSectionForPortal.label}
+            </p>
+          </div>
+          {/* Item columns */}
+          <div className={`grid gap-1 p-2.5 ${portalColCount > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+            {activeSectionForPortal.columns.map((col, colIdx) => (
+              <div key={colIdx} className="flex flex-col gap-0.5">
+                {col.map((item) => {
+                  const itemActive =
+                    pathname === item.href ||
+                    pathname.startsWith(item.href.split("?")[0] + "/");
+                  return (
+                    <Link
+                      key={item.id}
+                      href={item.href}
+                      onClick={() => { setOpenSection(null); setDropdownAnchor(null); }}
+                      className={`group flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors ${
+                        itemActive
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-sm font-medium leading-tight ${itemActive ? "text-emerald-700" : ""}`}>
+                            {item.label}
+                          </span>
+                          {item.badge && (
+                            <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                              {item.badge}
+                            </span>
+                          )}
+                        </div>
+                        {item.description && (
+                          <p className="mt-0.5 text-xs leading-snug text-slate-400">{item.description}</p>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      </>,
+      document.body
+    )}
+    </>
   );
 }

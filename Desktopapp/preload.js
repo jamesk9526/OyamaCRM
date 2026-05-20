@@ -7,26 +7,6 @@ contextBridge.exposeInMainWorld("oyamaDesktop", {
   setBoundUrl: (url) => ipcRenderer.invoke("oyama:set-bound-url", url),
   setShellColor: (color) => ipcRenderer.invoke("oyama:set-shell-color", color),
   setLockSettings: (settings) => ipcRenderer.invoke("oyama:set-lock-settings", settings),
-  getBridgeState: () => ipcRenderer.invoke("oyama:get-bridge-state"),
-  setBridgeConfig: (payload) => ipcRenderer.invoke("oyama:set-bridge-config", payload),
-  startBridge: () => ipcRenderer.invoke("oyama:bridge-start"),
-  stopBridge: () => ipcRenderer.invoke("oyama:bridge-stop"),
-  openBridgeWindow: () => ipcRenderer.invoke("oyama:open-bridge-window"),
-  openMainWindow: () => ipcRenderer.invoke("oyama:open-main-window"),
-  onBridgeEvent: (handler) => {
-    if (typeof handler !== "function") {
-      return () => {};
-    }
-
-    const listener = (_event, payload) => {
-      handler(payload);
-    };
-
-    ipcRenderer.on("oyama:bridge-event", listener);
-    return () => {
-      ipcRenderer.removeListener("oyama:bridge-event", listener);
-    };
-  },
   minimize: () => ipcRenderer.send("oyama:window-minimize"),
   toggleMaximize: () => ipcRenderer.send("oyama:window-toggle-maximize"),
   close: () => ipcRenderer.send("oyama:window-close"),

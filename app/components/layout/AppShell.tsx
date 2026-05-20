@@ -194,7 +194,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <TopBar />
       {/* DonorMegaMenu replaces the left sidebar for DonorCRM pages. */}
       {!isOShareview && !isBoard && <DonorMegaMenu />}
-      <div className={`relative flex min-w-0 flex-1 overflow-hidden ${!isOShareview && !isBoard ? "pt-24" : "pt-14"}`}>
+      <div className={`relative flex min-w-0 flex-1 overflow-hidden ${!isOShareview && !isBoard ? "pt-14 md:pt-24" : "pt-14"}`}>
         {/* Mobile sidebar drawer kept for small-screen access */}
         {!isOShareview ? (
           <MobileSidebarDrawer

@@ -82,8 +82,8 @@ export default function WorkspaceBreadcrumbBar({
 
           {metadata ? (
             <>
-              <span className="mx-1 text-slate-300" aria-hidden="true">|</span>
-              <span className="text-xs text-slate-500">{metadata}</span>
+              <span className="mx-1 hidden sm:inline text-slate-300" aria-hidden="true">|</span>
+              <span className="hidden sm:inline text-xs text-slate-500 truncate max-w-[240px]">{metadata}</span>
             </>
           ) : null}
         </div>

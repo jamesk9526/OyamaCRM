@@ -17,9 +17,9 @@
   "build": {
     "appId": "com.oyama.desktopapp",
     "productName": "OyamaCRM Desktop",
+    "npmRebuild": false,
     "files": [
       "main.js",
-      "bridge-server.js",
       "preload.js",
       "shell.html",
       "shell.js",

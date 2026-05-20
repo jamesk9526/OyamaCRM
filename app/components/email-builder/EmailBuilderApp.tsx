@@ -1478,14 +1478,49 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
       <div
         className={[
           embedded
-            ? "h-[calc(100vh-220px)] min-h-[620px] rounded-xl border border-gray-200"
+            ? "h-[calc(100vh-130px)] min-h-[600px] rounded-xl border border-gray-200"
             : "h-screen",
           "min-w-0 flex flex-col bg-white overflow-hidden",
         ].join(" ")}
       >
 
         {/* ── Top Bar ── */}
-        <header className="z-30 shrink-0 border-b border-gray-200 bg-white px-4 py-3 shadow-sm">
+        <header className="z-30 shrink-0 border-b border-gray-200 bg-white px-4 shadow-sm" style={{ paddingTop: embedded ? '8px' : '12px', paddingBottom: embedded ? '8px' : '12px' }}>
+          {/* Compact single-row header in embedded mode */}
+          {embedded ? (
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2 text-xs text-gray-600">
+                <span
+                  className={[
+                    'rounded-md px-2 py-0.5 text-[11px] font-semibold',
+                    readinessLabel === 'Ready to Send'
+                      ? 'border border-green-200 bg-green-50 text-green-700'
+                      : readinessLabel === 'Needs Review'
+                        ? 'border border-amber-200 bg-amber-50 text-amber-700'
+                        : 'border border-gray-200 bg-gray-100 text-gray-600',
+                  ].join(' ')}
+                >
+                  {readinessLabel}
+                </span>
+                <span className="text-gray-400">{template.blocks.length} block{template.blocks.length !== 1 ? 's' : ''}</span>
+                <span className={dirty ? 'font-medium text-amber-700' : 'text-gray-400'}>{dirty ? 'Unsaved' : 'Saved'}</span>
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                <a href={fullScreenBuilderHref} target="_self" className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">Fullscreen</a>
+                <a href={fullScreenBuilderHref} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">New Tab</a>
+                <button type="button" onClick={openBuilderPopout} className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">Popout</button>
+                <button
+                  onClick={handleSave}
+                  disabled={!canSaveDraftAction}
+                  className={['rounded-lg px-3 py-1 text-xs font-semibold transition-colors', saving ? 'bg-green-400 text-white cursor-wait' : 'bg-green-600 hover:bg-green-700 text-white'].join(' ')}
+                  title={canSaveDraftAction ? 'Save draft (Ctrl/Cmd+S)' : 'Open this builder from a campaign route to save'}
+                >
+                  {saving ? 'Saving…' : 'Save Draft'}
+                </button>
+              </div>
+            </div>
+          ) : (
+          <>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -1689,6 +1724,8 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
                 </span>
               )}
             </div>
+          )}
+          </>
           )}
         </header>
 
