@@ -27,6 +27,8 @@ import MeetingsWidget from "./components/dashboard/MeetingsWidget";
 import CampaignGoalHealthWidget from "./components/dashboard/CampaignGoalHealthWidget";
 import EngagementPulseWidget from "./components/dashboard/EngagementPulseWidget";
 import StewardshipAttentionWidget from "./components/dashboard/StewardshipAttentionWidget";
+import DonationVelocityWidget from "./components/dashboard/DonationVelocityWidget";
+import WorkflowPressureWidget from "./components/dashboard/WorkflowPressureWidget";
 import ActionableInsightsWidget from "./components/dashboard/ActionableInsightsWidget";
 import AiInsightsWidget from "./components/dashboard/AiInsightsWidget";
 import AiOpportunityWidget from "./components/dashboard/AiOpportunityWidget";
@@ -35,9 +37,8 @@ import DashboardCommandCenter from "./components/dashboard/DashboardCommandCente
 import EnterprisePageShell from "./components/layout/EnterprisePageShell";
 import WorkspaceBreadcrumbBar from "./components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceHelpTip from "./components/ui/WorkspaceHelpTip";
-import WorkspaceRibbon from "./components/workspace-ribbon/WorkspaceRibbon";
-import WorkspaceRibbonButton from "./components/workspace-ribbon/WorkspaceRibbonButton";
-import WorkspaceRibbonGroup from "./components/workspace-ribbon/WorkspaceRibbonGroup";
+import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
+import CRMQuickActionCard from "@/app/components/ui/crm/CRMQuickActionCard";
 import DashboardLayoutModal, { type RevenueGoalMode, type RevenueProgressSource } from "./components/dashboard/DashboardLayoutModal";
 import { apiFetch } from "@/app/lib/auth-client";
 import { getStoredReportingYearMode, type ReportingYearMode } from "@/app/lib/fiscal-year";
@@ -114,8 +115,10 @@ const DEFAULT_WIDGET_ORDER = [
   "ai-chat",
   "revenue",
   "goal-health",
+  "donation-velocity",
   "retention",
   "engagement-pulse",
+  "workflow-pressure",
   "stewardship-attention",
   "top-donors",
   "weekly-stats",
@@ -128,6 +131,7 @@ const DEFAULT_WIDGET_ORDER = [
 
 type WidgetId = (typeof DEFAULT_WIDGET_ORDER)[number];
 type DashboardLayoutMode = "GRID" | "MASONRY";
+type AutoArrangePreset = "BALANCED" | "ALTERNATING_WIDE" | "FEATURE_FIRST" | "COMPACT";
 
 /** Human-readable label + description for each widget (used in the layout modal) */
 const WIDGET_META = [
@@ -139,8 +143,10 @@ const WIDGET_META = [
   { id: "ai-chat", label: "AI Chat", description: "Compact ask-and-reply Steward assistant" },
   { id: "revenue", label: "Revenue Progress", description: "Active campaign goal tracking" },
   { id: "goal-health", label: "Campaign Goal Health", description: "Goal gap and campaign attainment" },
+  { id: "donation-velocity", label: "Donation Velocity", description: "Short-horizon gift speed and average trend" },
   { id: "retention", label: "Donor Retention", description: "Year-over-year retention rate" },
   { id: "engagement-pulse", label: "Engagement Pulse", description: "Stewardship workload and activity" },
+  { id: "workflow-pressure", label: "Workflow Pressure", description: "Follow-up urgency and workload mix" },
   { id: "stewardship-attention", label: "Stewardship Attention", description: "Who needs follow-up today" },
   { id: "top-donors", label: "Top Donors", description: "By lifetime giving amount" },
   { id: "weekly-stats", label: "This Week", description: "Weekly donation activity summary" },
@@ -236,6 +242,7 @@ const LS_LOCK_KEY = "dashboard-locked";
 const LS_HIDDEN_WIDGETS_KEY = "dashboard-hidden-widgets";
 const LS_WIDGET_SIZES_KEY = "dashboard-widget-sizes";
 const LS_LAYOUT_MODE_KEY = "dashboard-layout-mode";
+const LS_AUTO_ARRANGE_PRESET_KEY = "dashboard-auto-arrange-preset";
 /** Persists the "Include Grants in revenue" preference */
 const LS_GRANTS_KEY = "dashboard-include-grants";
 /** Persists which data source Revenue Progress should display. */
@@ -325,8 +332,16 @@ function loadAiWidgetsEnabled(): boolean {
 
 /** Load dashboard card-flow layout mode preference from localStorage. */
 function loadLayoutMode(): DashboardLayoutMode {
-  if (typeof window === "undefined") return "GRID";
+  if (typeof window === "undefined") return "MASONRY";
   return localStorage.getItem(LS_LAYOUT_MODE_KEY) === "MASONRY" ? "MASONRY" : "GRID";
+}
+
+/** Load auto-arrange visual preset from localStorage. */
+function loadAutoArrangePreset(): AutoArrangePreset {
+  if (typeof window === "undefined") return "BALANCED";
+  const stored = localStorage.getItem(LS_AUTO_ARRANGE_PRESET_KEY);
+  if (stored === "ALTERNATING_WIDE" || stored === "FEATURE_FIRST" || stored === "COMPACT") return stored;
+  return "BALANCED";
 }
 
 const DEFAULT_WIDGET_SIZES: Record<WidgetId, DashboardWidgetSize> = {
@@ -338,8 +353,10 @@ const DEFAULT_WIDGET_SIZES: Record<WidgetId, DashboardWidgetSize> = {
   "ai-chat": "standard",
   revenue: "standard",
   "goal-health": "standard",
+  "donation-velocity": "standard",
   retention: "standard",
   "engagement-pulse": "standard",
+  "workflow-pressure": "standard",
   "stewardship-attention": "wide",
   "top-donors": "standard",
   "weekly-stats": "standard",
@@ -382,13 +399,45 @@ function getWidgetLayoutClass(size: DashboardWidgetSize): string {
 
 /** Widget class used when masonry flow is enabled. */
 function getMasonryWidgetLayoutClass(): string {
-  return "mb-4 w-full break-inside-avoid";
+  return "w-full";
+}
+
+function getAutoArrangePresetLabel(preset: AutoArrangePreset): string {
+  if (preset === "ALTERNATING_WIDE") return "Alternating Wide";
+  if (preset === "FEATURE_FIRST") return "Feature First";
+  if (preset === "COMPACT") return "Compact Tiles";
+  return "Balanced";
+}
+
+function getAutoArrangeWidgetLayoutClass(id: WidgetId, idx: number, preset: AutoArrangePreset): string {
+  const isHeroContent = id === "giving-trend";
+  const isPriorityFeature = id === "start-here" || id === "todays-focus" || id === "stewardship-attention";
+
+  if (isHeroContent) {
+    return "md:col-span-2 xl:col-span-4 min-h-[280px]";
+  }
+
+  if (preset === "ALTERNATING_WIDE") {
+    return idx % 2 === 0 ? "xl:col-span-3" : "xl:col-span-2";
+  }
+
+  if (preset === "FEATURE_FIRST") {
+    if (idx < 3 || isPriorityFeature) return "md:col-span-2 xl:col-span-3";
+    return "xl:col-span-2";
+  }
+
+  if (preset === "COMPACT") {
+    return isPriorityFeature ? "md:col-span-2 xl:col-span-3" : "xl:col-span-2";
+  }
+
+  if (isPriorityFeature) return "md:col-span-2 xl:col-span-3";
+  return "xl:col-span-2";
 }
 
 /** Shared section container class for grid or masonry flow. */
 function getSectionLayoutClass(layoutMode: DashboardLayoutMode): string {
   if (layoutMode === "MASONRY") {
-    return "columns-1 [column-gap:1rem] md:columns-2 xl:columns-3 2xl:columns-4";
+    return "grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6";
   }
   return "grid grid-cols-1 gap-4 xl:grid-cols-12";
 }
@@ -411,8 +460,11 @@ export default function DashboardPage() {
   const [editMode, setEditMode] = useState(false);
   const [locked, setLocked] = useState(loadLocked);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
+  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+  const layoutMenuRef = useRef<HTMLDivElement>(null);
   const [aiWidgetsEnabled, setAiWidgetsEnabled] = useState(loadAiWidgetsEnabled);
   const [layoutMode, setLayoutMode] = useState<DashboardLayoutMode>(loadLayoutMode);
+  const [autoArrangePreset, setAutoArrangePreset] = useState<AutoArrangePreset>(loadAutoArrangePreset);
   const [widgetSizes, setWidgetSizes] = useState<Record<WidgetId, DashboardWidgetSize>>(loadWidgetSizes);
   const [reportingYearMode, setReportingYearMode] = useState<ReportingYearMode>(getStoredReportingYearMode);
   const enableAiWidgets = () => setAiWidgetsEnabled(true);
@@ -518,10 +570,27 @@ export default function DashboardPage() {
     localStorage.setItem(LS_LAYOUT_MODE_KEY, layoutMode);
   }, [layoutMode]);
 
+  // Persist auto-arrange composition preset independently from layout mode.
+  useEffect(() => {
+    localStorage.setItem(LS_AUTO_ARRANGE_PRESET_KEY, autoArrangePreset);
+  }, [autoArrangePreset]);
+
   // Persist modular widget sizing independently from widget order.
   useEffect(() => {
     localStorage.setItem(LS_WIDGET_SIZES_KEY, JSON.stringify(widgetSizes));
   }, [widgetSizes]);
+
+  // Close the layout/widgets 3-dot dropdown when the user clicks outside it.
+  useEffect(() => {
+    if (!showLayoutMenu) return;
+    function handleOutsideClick(e: MouseEvent) {
+      if (layoutMenuRef.current && !layoutMenuRef.current.contains(e.target as Node)) {
+        setShowLayoutMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [showLayoutMenu]);
 
   const autoGoal = summary?.activeGoalTotal ?? 0;
   const dynamicFallbackGoal = Math.max(autoGoal, summary?.ytdAmount ?? 0, 1000);
@@ -628,7 +697,7 @@ export default function DashboardPage() {
     };
   }
 
-  const topKpiWidgets: WidgetId[] = ["revenue", "goal-health", "retention", "engagement-pulse"];
+  const topKpiWidgets: WidgetId[] = ["revenue", "goal-health", "donation-velocity", "retention", "engagement-pulse", "workflow-pressure"];
   const stewardshipWidgets: WidgetId[] = ["start-here", "todays-focus", "actionable-insights", "stewardship-attention"];
   const intelligenceWidgets: WidgetId[] = ["ai-insights", "ai-opportunities", "ai-chat"];
   const weeklyWidgets: WidgetId[] = ["weekly-stats", "recent-donations"];
@@ -659,7 +728,7 @@ export default function DashboardPage() {
       size: widgetSizes[id],
       onResize: (size: DashboardWidgetSize) => resizeWidget(id, size),
       layoutClassName: effectiveLayoutMode === "MASONRY"
-        ? getMasonryWidgetLayoutClass()
+        ? `${getMasonryWidgetLayoutClass()} ${getAutoArrangeWidgetLayoutClass(id, idx, autoArrangePreset)}`
         : getWidgetLayoutClass(widgetSizes[id]),
       ...(editMode ? dragProps(idx) : {}),
     };
@@ -794,6 +863,18 @@ export default function DashboardPage() {
             />
           </DashboardWidget>
         );
+      case "donation-velocity":
+        return (
+          <DashboardWidget key={id} id={id} title="Donation Velocity" subtitle="Gift speed and average size trend" {...editProps}>
+            <DonationVelocityWidget
+              weekAmount={summary?.weekAmount ?? 0}
+              weekCount={summary?.weekCount ?? 0}
+              monthAmount={summary?.monthAmount ?? 0}
+              monthCount={summary?.monthCount ?? 0}
+              loading={loading}
+            />
+          </DashboardWidget>
+        );
       case "retention":
         return (
           <DashboardWidget key={id} id={id} title="Donor Retention" subtitle="Year-over-year" {...editProps}>
@@ -821,6 +902,18 @@ export default function DashboardPage() {
         return (
           <DashboardWidget key={id} id={id} title="Stewardship Attention" subtitle="Unthanked, lapsed, and welcome follow-up" {...editProps}>
             <StewardshipAttentionWidget newDonorsThisMonth={summary?.newDonorsThisMonth ?? 0} loading={loading} />
+          </DashboardWidget>
+        );
+      case "workflow-pressure":
+        return (
+          <DashboardWidget key={id} id={id} title="Workflow Pressure" subtitle="Queue urgency and follow-up load" {...editProps}>
+            <WorkflowPressureWidget
+              pendingTasks={summary?.pendingTasks ?? 0}
+              overdueTasks={summary?.overdueTasks ?? 0}
+              newDonorsThisMonth={summary?.newDonorsThisMonth ?? 0}
+              retentionRate={retention?.rate ?? 0}
+              loading={loading}
+            />
           </DashboardWidget>
         );
       case "top-donors":
@@ -857,6 +950,12 @@ export default function DashboardPage() {
     }
   }
 
+  const actionButtonClass = "inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50";
+  const activeActionButtonClass = "border-emerald-200 bg-emerald-50 text-emerald-700";
+  const primaryActionButtonClass = "inline-flex h-8 items-center justify-center rounded-lg border border-emerald-600 bg-emerald-600 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:border-emerald-700 hover:bg-emerald-700";
+  const actionGroupClass = "flex flex-wrap items-center gap-2 pr-2";
+  const actionGroupLabelClass = "mr-0.5 hidden text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 min-[1440px]:inline";
+
   return (
     <EnterprisePageShell
       ribbon={(
@@ -868,23 +967,34 @@ export default function DashboardPage() {
             ]}
             statusLabel={locked ? "Layout locked" : editMode ? "Editing layout" : reportingYearMode === "fiscal" ? "Fiscal year mode" : "Calendar year mode"}
             metadata={`Refreshed ${lastRefreshed.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`}
-            primaryAction={<WorkspaceRibbonButton label="New Constituent" href="/constituents/new" variant="primary" />}
+            primaryAction={<Link href="/constituents/new" className={primaryActionButtonClass}>New Constituent</Link>}
           />
-          <WorkspaceRibbon>
-            <WorkspaceRibbonGroup label="Views">
-              <WorkspaceRibbonButton label="Overview" onClick={() => scrollToDashboardSection("dashboard-overview")} variant="primary" />
-              <WorkspaceRibbonButton label="This Week" onClick={() => scrollToDashboardSection("dashboard-weekly")} />
-              <WorkspaceRibbonButton label="This Month" onClick={() => scrollToDashboardSection("dashboard-monthly")} />
-              <WorkspaceRibbonButton label="Stewardship" onClick={() => scrollToDashboardSection("dashboard-stewardship")} />
-              <WorkspaceRibbonButton label="Other" onClick={() => scrollToDashboardSection("dashboard-other")} />
-            </WorkspaceRibbonGroup>
-            <WorkspaceRibbonGroup label="Create">
-              <WorkspaceRibbonButton label="Record Gift" href="/donations/new" variant="primary" />
-              <WorkspaceRibbonButton label="New Task" href="/tasks" />
-              <WorkspaceRibbonButton label="Campaign" href="/campaigns" />
-              <WorkspaceRibbonButton label="Letter" href="/letters-printables/generate" />
-            </WorkspaceRibbonGroup>
-            <WorkspaceRibbonGroup label="Steward">
+          <CRMActionBar>
+            <div className={actionGroupClass}>
+              <span className={actionGroupLabelClass}>View</span>
+              <button
+                type="button"
+                className={`${actionButtonClass} ${layoutMode === "GRID" ? activeActionButtonClass : ""}`}
+                onClick={() => scrollToDashboardSection("dashboard-overview")}
+                disabled={layoutMode !== "GRID"}
+                title={layoutMode !== "GRID" ? "Section jump is available in Structured layout" : undefined}
+              >
+                Overview
+              </button>
+              <button type="button" className={actionButtonClass} onClick={() => scrollToDashboardSection("dashboard-weekly")} disabled={layoutMode !== "GRID"}>This Week</button>
+              <button type="button" className={actionButtonClass} onClick={() => scrollToDashboardSection("dashboard-monthly")} disabled={layoutMode !== "GRID"}>This Month</button>
+              <button type="button" className={actionButtonClass} onClick={() => scrollToDashboardSection("dashboard-stewardship")} disabled={layoutMode !== "GRID"}>Stewardship</button>
+              <button type="button" className={actionButtonClass} onClick={() => scrollToDashboardSection("dashboard-other")} disabled={layoutMode !== "GRID"}>Other</button>
+            </div>
+            <div className={actionGroupClass}>
+              <span className={actionGroupLabelClass}>Create</span>
+              <Link href="/donations/new" className={primaryActionButtonClass}>Record Gift</Link>
+              <Link href="/tasks" className={actionButtonClass}>New Task</Link>
+              <Link href="/campaigns" className={actionButtonClass}>Campaign</Link>
+              <Link href="/letters-printables/generate" className={actionButtonClass}>Letter</Link>
+            </div>
+            <div className={actionGroupClass}>
+              <span className={actionGroupLabelClass}>Steward</span>
               <StewardContextButton
                 label="Summarize dashboard"
                 prompt={`Summarize the current state of our fundraising dashboard. Key stats: YTD Revenue $${(summary?.ytdAmount ?? 0).toLocaleString()}, ${summary?.totalConstituents ?? 0} total constituents, ${summary?.pendingTasks ?? 0} open tasks, ${summary?.activeCampaigns ?? 0} active campaigns. What is the overall fundraising health and what should I focus on today?`}
@@ -901,28 +1011,127 @@ export default function DashboardPage() {
                 variant="mini"
                 className="py-1"
               />
-            </WorkspaceRibbonGroup>
-            <WorkspaceRibbonGroup label="Layout">
-              <WorkspaceRibbonButton label="Refresh" onClick={() => void load()} />
-              {!editMode ? (
-                <WorkspaceRibbonButton label="Edit Layout" onClick={() => { if (!locked) setEditMode(true); }} disabled={locked} />
-              ) : (
-                <WorkspaceRibbonButton label="Done" onClick={() => setEditMode(false)} variant="primary" />
+            </div>
+            <div ref={layoutMenuRef} className="relative">
+              {/* 3-dot layout/widgets menu button */}
+              <button
+                type="button"
+                title="Layout & Widgets"
+                onClick={() => setShowLayoutMenu((v) => !v)}
+                className={`${actionButtonClass} gap-1.5 px-2.5 ${showLayoutMenu ? activeActionButtonClass : ""}`}
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" />
+                </svg>
+                <span className="hidden min-[1280px]:inline">Layout</span>
+              </button>
+
+              {/* Dropdown */}
+              {showLayoutMenu && (
+                <div className="absolute right-0 top-full z-40 mt-1.5 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1.5 shadow-xl">
+
+                  {/* Layout section */}
+                  <p className="px-3 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Layout</p>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                    onClick={() => { void load(); setShowLayoutMenu(false); }}
+                  >
+                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    Refresh
+                  </button>
+                  {!editMode ? (
+                    <button
+                      type="button"
+                      disabled={locked}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+                      onClick={() => { if (!locked) setEditMode(true); setShowLayoutMenu(false); }}
+                    >
+                      <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                      Edit Layout
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-50"
+                      onClick={() => { setEditMode(false); setShowLayoutMenu(false); }}
+                    >
+                      <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                      Done Editing
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                    onClick={() => { setLocked((v) => !v); setShowLayoutMenu(false); }}
+                  >
+                    {locked ? (
+                      <><svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>Unlock Layout</>
+                    ) : (
+                      <><svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>Lock Layout</>
+                    )}
+                  </button>
+
+                  <div className="my-1.5 border-t border-slate-100" />
+
+                  {/* Widgets section */}
+                  <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Widgets</p>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                    onClick={() => { setShowCustomizeModal(true); setShowLayoutMenu(false); }}
+                  >
+                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                    Customize
+                  </button>
+                  <button
+                    type="button"
+                    disabled={editMode}
+                    className="flex w-full items-center justify-between gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={() => { setLayoutMode((c) => (c === "MASONRY" ? "GRID" : "MASONRY")); }}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h4a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM14 5a1 1 0 011-1h4a1 1 0 011 1v14a1 1 0 01-1 1h-4a1 1 0 01-1-1V5z" /></svg>
+                      Auto Arrange
+                    </span>
+                    {layoutMode === "MASONRY" && <span className="h-2 w-2 rounded-full bg-emerald-500" />}
+                  </button>
+
+                  {/* Auto arrange presets — only shown when active */}
+                  {layoutMode === "MASONRY" && (
+                    <>
+                      {(["BALANCED", "ALTERNATING_WIDE", "FEATURE_FIRST", "COMPACT"] as const).map((preset) => {
+                        const labels: Record<string, string> = { BALANCED: "Balanced", ALTERNATING_WIDE: "Alternating Wide", FEATURE_FIRST: "Feature First", COMPACT: "Compact" };
+                        return (
+                          <button
+                            key={preset}
+                            type="button"
+                            disabled={editMode}
+                            className={`flex w-full items-center gap-3 pl-9 pr-3 py-1.5 text-sm transition-colors hover:bg-slate-50 disabled:opacity-40 ${autoArrangePreset === preset ? "font-semibold text-emerald-700" : "text-slate-600"}`}
+                            onClick={() => { setAutoArrangePreset(preset); setShowLayoutMenu(false); }}
+                          >
+                            {autoArrangePreset === preset && <span className="absolute ml-[-1.25rem] h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                            {labels[preset]}
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
+
+                  <div className="my-1.5 border-t border-slate-100" />
+                  <button
+                    type="button"
+                    disabled={locked}
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={() => { setWidgetSizes({ ...DEFAULT_WIDGET_SIZES }); setShowLayoutMenu(false); }}
+                  >
+                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    Reset Sizes
+                  </button>
+                </div>
               )}
-              <WorkspaceRibbonButton label={locked ? "Unlock" : "Lock"} onClick={() => setLocked((value) => !value)} />
-            </WorkspaceRibbonGroup>
-            <WorkspaceRibbonGroup label="Widgets">
-              <WorkspaceRibbonButton label="Customize" onClick={() => setShowCustomizeModal(true)} />
-              <WorkspaceRibbonButton
-                label="Free Flow"
-                onClick={() => setLayoutMode((current) => (current === "MASONRY" ? "GRID" : "MASONRY"))}
-                active={layoutMode === "MASONRY"}
-                disabled={editMode}
-                title={editMode ? "Exit edit mode to change layout" : "Toggle free-flow masonry layout"}
-              />
-              <WorkspaceRibbonButton label="Reset Sizes" onClick={() => setWidgetSizes({ ...DEFAULT_WIDGET_SIZES })} disabled={locked} />
-            </WorkspaceRibbonGroup>
-          </WorkspaceRibbon>
+            </div>
+          </CRMActionBar>
         </div>
       )}
     >
@@ -1018,64 +1227,83 @@ export default function DashboardPage() {
         </section>
       )}
 
-      <section id="dashboard-overview" className="scroll-mt-28 space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Overview</h2>
-        <div className={sectionLayoutClassName}>
-          {visibleSectionWidgets(topKpiWidgets).map(renderWidgetById)}
-        </div>
-      </section>
-
-      <section id="dashboard-weekly" className="scroll-mt-28 space-y-3">
-        <div className="flex items-center gap-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">This Week</h2>
-          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-500">
-            {loading ? "—" : `${formatUsd(summary?.weekAmount ?? 0)} · ${summary?.weekCount ?? 0} gift${(summary?.weekCount ?? 0) === 1 ? "" : "s"}`}
-          </span>
-        </div>
-        <div className={sectionLayoutClassName}>
-          {visibleSectionWidgets(weeklyWidgets).map(renderWidgetById)}
-        </div>
-      </section>
-
-      <section id="dashboard-monthly" className="scroll-mt-28 space-y-3">
-        <div className="flex items-center gap-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">This Month</h2>
-          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-500">
-            {loading ? "—" : formatUsd(summary?.monthAmount ?? 0)}
-          </span>
-          {!loading && (summary?.momTrend ?? null) !== null && (
-            <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${(summary?.momTrend ?? 0) >= 0 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}>
-              {(summary?.momTrend ?? 0) >= 0 ? "▲" : "▼"} {Math.abs(Math.round(summary?.momTrend ?? 0))}% vs last month
+      {layoutMode === "MASONRY" ? (
+        <section id="dashboard-overview" className="scroll-mt-28 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Auto Arrange Canvas</h2>
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+              Free-flow layout
             </span>
-          )}
-        </div>
-        <div className={sectionLayoutClassName}>
-          {visibleSectionWidgets(monthlyWidgets).map(renderWidgetById)}
-        </div>
-      </section>
-
-      <section id="dashboard-stewardship" className="scroll-mt-28 space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Stewardship And Actions</h2>
-        <div className={sectionLayoutClassName}>
-          {visibleSectionWidgets(stewardshipWidgets).map(renderWidgetById)}
-        </div>
-      </section>
-
-      {visibleSectionWidgets(intelligenceWidgets).length > 0 ? (
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Steward Intelligence</h2>
+            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
+              {getAutoArrangePresetLabel(autoArrangePreset)}
+            </span>
+          </div>
           <div className={sectionLayoutClassName}>
-            {visibleSectionWidgets(intelligenceWidgets).map(renderWidgetById)}
+            {visibleWidgetOrder.map(renderWidgetById)}
           </div>
         </section>
-      ) : null}
+      ) : (
+        <>
+          <section id="dashboard-overview" className="scroll-mt-28 space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Overview</h2>
+            <div className={sectionLayoutClassName}>
+              {visibleSectionWidgets(topKpiWidgets).map(renderWidgetById)}
+            </div>
+          </section>
 
-      <section id="dashboard-other" className="scroll-mt-28 space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Other</h2>
-        <div className={sectionLayoutClassName}>
-          {visibleSectionWidgets(otherWidgets).map(renderWidgetById)}
-        </div>
-      </section>
+          <section id="dashboard-weekly" className="scroll-mt-28 space-y-3">
+            <div className="flex items-center gap-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">This Week</h2>
+              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-500">
+                {loading ? "—" : `${formatUsd(summary?.weekAmount ?? 0)} · ${summary?.weekCount ?? 0} gift${(summary?.weekCount ?? 0) === 1 ? "" : "s"}`}
+              </span>
+            </div>
+            <div className={sectionLayoutClassName}>
+              {visibleSectionWidgets(weeklyWidgets).map(renderWidgetById)}
+            </div>
+          </section>
+
+          <section id="dashboard-monthly" className="scroll-mt-28 space-y-3">
+            <div className="flex items-center gap-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">This Month</h2>
+              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-500">
+                {loading ? "—" : formatUsd(summary?.monthAmount ?? 0)}
+              </span>
+              {!loading && (summary?.momTrend ?? null) !== null && (
+                <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${(summary?.momTrend ?? 0) >= 0 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}>
+                  {(summary?.momTrend ?? 0) >= 0 ? "▲" : "▼"} {Math.abs(Math.round(summary?.momTrend ?? 0))}% vs last month
+                </span>
+              )}
+            </div>
+            <div className={sectionLayoutClassName}>
+              {visibleSectionWidgets(monthlyWidgets).map(renderWidgetById)}
+            </div>
+          </section>
+
+          <section id="dashboard-stewardship" className="scroll-mt-28 space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Stewardship And Actions</h2>
+            <div className={sectionLayoutClassName}>
+              {visibleSectionWidgets(stewardshipWidgets).map(renderWidgetById)}
+            </div>
+          </section>
+
+          {visibleSectionWidgets(intelligenceWidgets).length > 0 ? (
+            <section className="space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Steward Intelligence</h2>
+              <div className={sectionLayoutClassName}>
+                {visibleSectionWidgets(intelligenceWidgets).map(renderWidgetById)}
+              </div>
+            </section>
+          ) : null}
+
+          <section id="dashboard-other" className="scroll-mt-28 space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Other</h2>
+            <div className={sectionLayoutClassName}>
+              {visibleSectionWidgets(otherWidgets).map(renderWidgetById)}
+            </div>
+          </section>
+        </>
+      )}
 
       {/* ── Customize Layout modal ── */}
       {showCustomizeModal && (
@@ -1189,12 +1417,23 @@ interface DashboardStartHereCardContentProps {
 
 /** DashboardStartHereCardContent supports full and compact card layouts. */
 function DashboardStartHereCardContent({ action, compact }: DashboardStartHereCardContentProps) {
+  if (compact) {
+    return (
+      <CRMQuickActionCard
+        href={action.href}
+        title={action.title}
+        description={action.description}
+        actionLabel={action.actionLabel}
+      />
+    );
+  }
+
   return (
     <Link
       href={action.href}
-      className={`rounded-lg border border-green-200 bg-white hover:border-green-400 hover:bg-green-50/50 transition-colors ${compact ? "p-2.5" : "p-3"}`}
+      className="rounded-lg border border-green-200 bg-white p-3 transition-colors hover:border-green-400 hover:bg-green-50/50"
     >
-      <p className={`${compact ? "text-xs" : "text-sm"} font-semibold text-gray-900`}>{action.title}</p>
+      <p className="text-sm font-semibold text-gray-900">{action.title}</p>
       <p className="text-xs text-gray-600 mt-1 line-clamp-2">{action.description}</p>
       <p className="text-xs font-semibold text-green-700 mt-2">{action.actionLabel}</p>
     </Link>

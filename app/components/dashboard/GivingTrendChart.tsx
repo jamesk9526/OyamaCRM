@@ -6,13 +6,20 @@
  * Renders 12 bars with hover tooltips and month labels.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface MonthData {
   month: number;       // 1-12
   amount: number;      // donation total
   grantAmount: number; // awarded grant total (may be 0)
+}
+
+interface TrendPoint {
+  month: number;
+  label: string;
+  current: number;
+  previous: number;
 }
 
 interface GivingTrendChartProps {
@@ -38,7 +45,8 @@ function formatCurrencyExact(n: number): string {
 }
 
 export default function GivingTrendChart({ includeGrants = false, dateBasis = "calendar" }: GivingTrendChartProps) {
-  const [data, setData] = useState<MonthData[]>([]);
+  const [currentData, setCurrentData] = useState<MonthData[]>([]);
+  const [previousData, setPreviousData] = useState<MonthData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hoveredMonth, setHoveredMonth] = useState<number | null>(null);
@@ -52,8 +60,16 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
 
     async function loadTrend() {
       try {
-        const query = dateBasis === "fiscal" ? "dateBasis=fiscal" : `year=${year}`;
-        const rows = await apiFetch<MonthData[]>(`/api/reports/giving-by-month?${query}`);
+        const currentQuery = dateBasis === "fiscal" ? "dateBasis=fiscal" : `year=${year}`;
+        const previousQuery = `year=${year - 1}`;
+
+        const [rows, prevRows] = await Promise.all([
+          apiFetch<MonthData[]>(`/api/reports/giving-by-month?${currentQuery}`),
+          dateBasis === "calendar"
+            ? apiFetch<MonthData[]>(`/api/reports/giving-by-month?${previousQuery}`)
+            : Promise.resolve<MonthData[]>([]),
+        ]);
+
         if (cancelled) return;
 
         const source = Array.isArray(rows) ? rows : [];
@@ -66,10 +82,22 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
             grantAmount: Number(found?.grantAmount ?? 0),
           };
         });
-        setData(filled);
+        const prevSource = Array.isArray(prevRows) ? prevRows : [];
+        const prevFilled = Array.from({ length: 12 }, (_, i) => {
+          const found = prevSource.find((row) => row.month === i + 1);
+          return {
+            month: i + 1,
+            amount: Number(found?.amount ?? 0),
+            grantAmount: Number(found?.grantAmount ?? 0),
+          };
+        });
+
+        setCurrentData(filled);
+        setPreviousData(prevFilled);
       } catch (requestError) {
         if (cancelled) return;
-        setData([]);
+        setCurrentData([]);
+        setPreviousData([]);
         setError(requestError instanceof Error ? requestError.message : "Failed to load giving trend.");
       } finally {
         if (!cancelled) {
@@ -85,13 +113,58 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
     };
   }, [dateBasis, year]);
 
-  /** Bar total = donations + grants (when includeGrants is on) */
-  const barTotal = (d: MonthData) => d.amount + (includeGrants ? d.grantAmount : 0);
-  const maxAmount = Math.max(...data.map(barTotal), 1);
+  /** Point total = donations + grants (when includeGrants is on). */
+  const monthTotal = (d: MonthData) => d.amount + (includeGrants ? d.grantAmount : 0);
 
-  /** YTD total shown in the sub-header */
-  const totalYTD = data.reduce((s, d) => s + barTotal(d), 0);
-  const currentMonth = new Date().getMonth() + 1;
+  const points: TrendPoint[] = useMemo(() => {
+    return Array.from({ length: 12 }, (_, i) => ({
+      month: i + 1,
+      label: MONTH_LABELS[i],
+      current: monthTotal(currentData[i] ?? { month: i + 1, amount: 0, grantAmount: 0 }),
+      previous: monthTotal(previousData[i] ?? { month: i + 1, amount: 0, grantAmount: 0 }),
+    }));
+  }, [currentData, previousData, includeGrants]);
+
+  const totalYTD = points.reduce((sum, p) => sum + p.current, 0);
+  const maxValue = Math.max(
+    1,
+    ...points.map((p) => p.current),
+    ...(dateBasis === "calendar" ? points.map((p) => p.previous) : [0]),
+  );
+
+  const roundedMax = Math.ceil(maxValue / 50000) * 50000 || 50000;
+
+  const chart = {
+    width: 760,
+    height: 250,
+    padTop: 16,
+    padRight: 14,
+    padBottom: 28,
+    padLeft: 52,
+  };
+  const plotW = chart.width - chart.padLeft - chart.padRight;
+  const plotH = chart.height - chart.padTop - chart.padBottom;
+
+  const xFor = (index: number) => chart.padLeft + (plotW / 11) * index;
+  const yFor = (value: number) => chart.padTop + plotH - (value / roundedMax) * plotH;
+
+  const currentPath = points
+    .map((p, i) => `${i === 0 ? "M" : "L"}${xFor(i)} ${yFor(p.current)}`)
+    .join(" ");
+  const previousPath = points
+    .map((p, i) => `${i === 0 ? "M" : "L"}${xFor(i)} ${yFor(p.previous)}`)
+    .join(" ");
+
+  const hovered = hoveredMonth != null ? points[hoveredMonth - 1] : null;
+  const isFlatZero = points.every((p) => p.current === 0 && (dateBasis !== "calendar" || p.previous === 0));
+
+  const yTicks = [1, 0.75, 0.5, 0.25, 0].map((t) => Math.round(roundedMax * t));
+
+  function fmtCompactCurrency(value: number): string {
+    if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+    if (value >= 1_000) return `$${Math.round(value / 1_000)}K`;
+    return `$${Math.round(value)}`;
+  }
 
   return (
     <div className="flex flex-col h-full min-h-[200px]">
@@ -100,7 +173,7 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
         <div>
           <span className="text-xs text-gray-500 uppercase tracking-wider">{dateBasis === "fiscal" ? "Fiscal YTD Total" : "YTD Total"}</span>
           <p className="text-2xl font-bold text-gray-900 mt-0.5">
-            {loading ? "—" : `$${totalYTD.toLocaleString()}`}
+            {loading ? "—" : formatCurrencyExact(totalYTD)}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -114,7 +187,7 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
         </div>
       </div>
 
-      {/* Bar chart */}
+      {/* Trend chart */}
       {loading ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="animate-pulse text-gray-300 text-sm">Loading chart…</div>
@@ -124,77 +197,70 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
           <p className="text-sm text-amber-700">Could not load trend data.</p>
           <p className="text-xs text-gray-500 mt-1">{error}</p>
         </div>
+      ) : isFlatZero ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+          <p className="text-sm text-slate-700">No monthly giving data yet.</p>
+          <p className="text-xs text-slate-500 mt-1">Record donations to populate the trend graph.</p>
+        </div>
       ) : (
-        <div className="flex-1 flex items-end gap-1 px-1 relative">
-          {data.map((d) => {
-            const total = barTotal(d);
-            const heightPct = maxAmount > 0 ? (total / maxAmount) * 100 : 0;
-            // Donation portion as fraction of the total bar (for the stacked inner bar)
-            const donationFrac = total > 0 ? d.amount / total : 1;
-            const isHovered = hoveredMonth === d.month;
-            const isCurrent = d.month === currentMonth;
-            const isEmpty = total === 0;
+        <div className="relative flex-1 rounded-lg border border-slate-100 bg-white/70 p-2">
+          {hovered ? (
+            <div className="absolute left-3 top-2 z-10 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] shadow-sm">
+              <p className="font-semibold text-slate-800">{hovered.label}</p>
+              <p className="text-emerald-700">This year: {formatCurrencyExact(hovered.current)}</p>
+              {dateBasis === "calendar" ? <p className="text-slate-500">Last year: {formatCurrencyExact(hovered.previous)}</p> : null}
+            </div>
+          ) : null}
 
-            return (
-              <div
-                key={d.month}
-                className="flex-1 flex flex-col items-center gap-1 group"
-                onMouseEnter={() => setHoveredMonth(d.month)}
-                onMouseLeave={() => setHoveredMonth(null)}
-              >
-                {/* Tooltip */}
-                {isHovered && (
-                  <div className="absolute -top-10 bg-gray-900 text-white text-xs px-2 py-1 rounded-lg shadow-lg whitespace-nowrap z-10 pointer-events-none"
-                    style={{ left: "50%", transform: "translateX(-50%)" }}>
-                    {MONTH_LABELS[d.month - 1]}: {formatCurrencyExact(d.amount)}
-                    {includeGrants && d.grantAmount > 0 && ` + ${formatCurrencyExact(d.grantAmount)} grants`}
-                  </div>
-                )}
+          <svg viewBox={`0 0 ${chart.width} ${chart.height}`} className="h-full w-full">
+            {/* Grid + Y labels */}
+            {yTicks.map((tick) => {
+              const y = yFor(tick);
+              return (
+                <g key={tick}>
+                  <line x1={chart.padLeft} y1={y} x2={chart.width - chart.padRight} y2={y} stroke="#e5e7eb" strokeWidth="1" />
+                  <text x={chart.padLeft - 8} y={y + 4} textAnchor="end" fontSize="10" fill="#94a3b8">
+                    {fmtCompactCurrency(tick)}
+                  </text>
+                </g>
+              );
+            })}
 
-                {/*
-                  Bar container must have an explicit height (not just min-height),
-                  otherwise child percentage heights can resolve to 0px in flex layouts.
-                */}
-                <div className="w-full h-24 flex items-end">
-                  {isEmpty ? (
-                    /* Empty bar */
-                    <div className="w-full rounded-t-sm bg-gray-100" style={{ height: "4%" }} />
-                  ) : includeGrants && d.grantAmount > 0 ? (
-                    /* Stacked bar: green (donations) on bottom, emerald-200 (grants) on top */
-                    <div
-                      className="w-full rounded-t-sm overflow-hidden flex flex-col-reverse transition-all duration-200 cursor-pointer"
-                      style={{ height: `${Math.max(heightPct, 8)}%` }}
-                    >
-                      {/* Donation segment (bottom) */}
-                      <div
-                        className={`w-full ${isCurrent ? "bg-green-500" : "bg-green-400"} ${isHovered ? "brightness-90" : ""}`}
-                        style={{ flex: `0 0 ${donationFrac * 100}%` }}
-                      />
-                      {/* Grant segment (top, lighter) */}
-                      <div
-                        className="w-full bg-emerald-200"
-                        style={{ flex: `0 0 ${(1 - donationFrac) * 100}%` }}
-                      />
-                    </div>
-                  ) : (
-                    /* Single-color bar (donations only) */
-                    <div
-                      className={`w-full rounded-t-sm transition-all duration-200 cursor-pointer
-                        ${isCurrent ? "bg-green-500" : "bg-green-400"}
-                        ${isHovered ? "!bg-green-600" : ""}
-                      `}
-                      style={{ height: `${Math.max(heightPct, 8)}%` }}
-                    />
-                  )}
-                </div>
+            {/* X labels */}
+            {points.map((p, i) => (
+              <text key={p.month} x={xFor(i)} y={chart.height - 8} textAnchor="middle" fontSize="10" fill="#94a3b8">
+                {p.label}
+              </text>
+            ))}
 
-                {/* Month label */}
-                <span className={`text-[9px] font-medium ${isCurrent ? "text-green-600" : "text-gray-400"}`}>
-                  {MONTH_LABELS[d.month - 1]}
-                </span>
-              </div>
-            );
-          })}
+            {/* Last year line */}
+            {dateBasis === "calendar" ? (
+              <path d={previousPath} fill="none" stroke="#94a3b8" strokeWidth="2" strokeDasharray="5 4" />
+            ) : null}
+
+            {/* This year line */}
+            <path d={currentPath} fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+
+            {/* Hover guide + points */}
+            {points.map((p, i) => {
+              const cx = xFor(i);
+              const cy = yFor(p.current);
+              const isActive = hoveredMonth === p.month;
+              return (
+                <g
+                  key={`point-${p.month}`}
+                  onMouseEnter={() => setHoveredMonth(p.month)}
+                  onMouseLeave={() => setHoveredMonth(null)}
+                  style={{ cursor: "pointer" }}
+                >
+                  {isActive ? (
+                    <line x1={cx} y1={chart.padTop} x2={cx} y2={chart.height - chart.padBottom} stroke="#d1d5db" strokeDasharray="3 3" />
+                  ) : null}
+                  <circle cx={cx} cy={cy} r={isActive ? 4.5 : 3} fill="#16a34a" stroke="#ffffff" strokeWidth="1.5" />
+                </g>
+              );
+            })}
+          </svg>
         </div>
       )}
 
@@ -211,6 +277,19 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
           </span>
         </div>
       )}
+
+      <div className="mt-2 flex items-center gap-3 text-[10px] text-slate-500">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-emerald-600" />
+          This year
+        </span>
+        {dateBasis === "calendar" ? (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-0 w-4 border-t-2 border-dashed border-slate-400" />
+            Last year
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }

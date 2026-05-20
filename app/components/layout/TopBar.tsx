@@ -155,7 +155,19 @@ function WorkspaceSwitcherIcon({ moduleKey, className = "w-4 h-4" }: { moduleKey
   );
 }
 
-function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pathname: string }) {
+function GlobalSearch({
+  moduleKey,
+  pathname,
+  autoFocus = false,
+  onNavigate,
+  wide = false,
+}: {
+  moduleKey: TopBarModuleKey;
+  pathname: string;
+  autoFocus?: boolean;
+  onNavigate?: () => void;
+  wide?: boolean;
+}) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -263,6 +275,7 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
     params.set("q", normalized);
     setOpen(false);
     setQuery("");
+    onNavigate?.();
     router.push(`/help?${params.toString()}`);
   }
 
@@ -282,6 +295,15 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  useEffect(() => {
+    if (!autoFocus) return;
+    const timeout = window.setTimeout(() => {
+      inputRef.current?.focus();
+      setOpen(true);
+    }, 50);
+    return () => window.clearTimeout(timeout);
+  }, [autoFocus]);
 
   useEffect(() => {
     try {
@@ -389,6 +411,7 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
     }
     setOpen(false);
     setQuery("");
+    onNavigate?.();
     router.push(href);
   }
 
@@ -572,7 +595,7 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
           : "Search constituents, campaigns, tools...";
 
   return (
-    <div className="relative w-full min-w-0 max-w-xl">
+    <div className={`relative w-full min-w-0 ${wide ? "max-w-3xl" : "max-w-xl"}`}>
       <div className="group/search relative transition-colors duration-200 ease-out">
         <svg className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500 pointer-events-none transition-colors duration-200 ease-out group-focus-within/search:text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
@@ -585,9 +608,9 @@ function GlobalSearch({ moduleKey, pathname }: { moduleKey: TopBarModuleKey; pat
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           placeholder={placeholder}
-          className={`w-full rounded-lg border border-white/55 bg-white/82 py-1.5 pl-8 pr-12 text-xs text-slate-900 placeholder:text-slate-500 shadow-[0_1px_0_rgba(255,255,255,0.82),0_10px_24px_rgba(2,6,23,0.16)] backdrop-blur-xl transition-colors duration-200 ease-out focus:bg-white/95 focus:outline-none focus:ring-1 ${focusRing}`}
+          className={`w-full rounded-xl border border-slate-200 bg-white py-2 pl-8 pr-12 text-xs text-slate-900 placeholder:text-slate-500 shadow-sm transition-colors duration-200 ease-out focus:border-emerald-200 focus:bg-white focus:outline-none focus:ring-1 ${focusRing}`}
         />
-        <kbd className="absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border border-white/70 bg-white/70 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 transition-colors duration-200 ease-out group-focus-within/search:bg-white/90 group-focus-within/search:text-slate-700 min-[1120px]:block">
+        <kbd className="absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 transition-colors duration-200 ease-out group-focus-within/search:bg-white group-focus-within/search:text-slate-700 min-[1120px]:block">
           Ctrl+K
         </kbd>
         {loading && (
@@ -739,6 +762,8 @@ export default function TopBar() {
   const [compactActionsOpen, setCompactActionsOpen] = useState(false);
     const [messengerOpen, setMessengerOpen] = useState(false);
     const [messengerUnread, setMessengerUnread] = useState(0);
+  const [incomingMsgToast, setIncomingMsgToast] = useState<{ senderName: string; senderInitials: string; colorClass: string; body: string; threadId: string } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [reportingModeJustChanged, setReportingModeJustChanged] = useState(false);
   const reactiveGlowFrameRef = useRef<number | null>(null);
   const reactiveGlowTimeoutRef = useRef<number | null>(null);
@@ -746,9 +771,9 @@ export default function TopBar() {
   const desktopNotificationsRef = useRef<HTMLDivElement | null>(null);
 
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
-  const chromeButtonBase = "w-10 h-10 md:w-9 md:h-9 rounded-xl border border-white/55 bg-white/82 text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_10px_24px_rgba(2,6,23,0.16)] backdrop-blur-xl flex items-center justify-center transition-all hover:-translate-y-px hover:border-white/80 hover:bg-white/95 hover:text-slate-950 active:translate-y-0";
-  const darkIconButtonBase = "w-9 h-9 rounded-xl border border-white/20 bg-white/14 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_8px_18px_rgba(2,6,23,0.24)] backdrop-blur-xl flex items-center justify-center transition-all hover:-translate-y-px hover:border-white/35 hover:bg-white/22 hover:text-white active:translate-y-0 active:scale-95";
-  const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-2xl z-50 overflow-hidden md:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
+  const chromeButtonBase = "w-10 h-10 md:w-9 md:h-9 rounded-xl border border-slate-700 bg-slate-900 text-slate-300 shadow-[0_10px_24px_rgba(2,6,23,0.5)] flex items-center justify-center transition-all hover:-translate-y-px hover:border-emerald-400/70 hover:bg-slate-800 hover:text-emerald-300 active:translate-y-0";
+  const darkIconButtonBase = "w-9 h-9 rounded-xl border border-slate-700 bg-slate-900 text-slate-300 shadow-[0_10px_24px_rgba(2,6,23,0.5)] flex items-center justify-center transition-all hover:-translate-y-px hover:border-emerald-400/70 hover:bg-slate-800 hover:text-emerald-300 active:translate-y-0 active:scale-95";
+  const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-700 bg-slate-900 shadow-[0_16px_40px_rgba(2,6,23,0.7)] z-50 overflow-hidden md:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
   const moduleAccentClass = moduleKey === "compassion"
     ? "bg-blue-600"
     : moduleKey === "events"
@@ -827,6 +852,18 @@ export default function TopBar() {
 
   useEffect(() => {
     setReportingYearMode(getStoredReportingYearMode());
+  }, []);
+
+  useEffect(() => {
+    function openSearchFromKeyboard(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setMobileSearchOpen(true);
+      }
+    }
+
+    window.addEventListener("keydown", openSearchFromKeyboard);
+    return () => window.removeEventListener("keydown", openSearchFromKeyboard);
   }, []);
 
   function toggleReportingYearMode() {
@@ -952,6 +989,35 @@ export default function TopBar() {
     };
   }, []);
 
+  // Background SSE: fires live notifications when the messenger panel is closed.
+  useEffect(() => {
+    if (!user || messengerOpen) return;
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+    let es: EventSource;
+    try {
+      es = new EventSource(`${apiBase}/api/messenger/sse`, { withCredentials: true });
+      es.addEventListener("message", (ev: MessageEvent) => {
+        try {
+          const payload = JSON.parse(ev.data as string) as {
+            threadId: string;
+            message: { body: string; sender: { id: string; firstName: string; lastName: string } };
+          };
+          if (payload.message.sender.id === user.id) return;
+          setMessengerUnread((prev) => prev + 1);
+          const fn = payload.message.sender.firstName;
+          const ln = payload.message.sender.lastName;
+          const initials = `${fn[0] ?? ""}${ln[0] ?? ""}`.toUpperCase();
+          const colors = ["bg-violet-500", "bg-blue-500", "bg-emerald-500", "bg-amber-500", "bg-pink-500", "bg-teal-500"];
+          const colorClass = colors[(fn.charCodeAt(0) + ln.charCodeAt(0)) % colors.length] ?? "bg-violet-500";
+          setIncomingMsgToast({ senderName: `${fn} ${ln}`, senderInitials: initials, colorClass, body: payload.message.body, threadId: payload.threadId });
+          if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+          toastTimerRef.current = setTimeout(() => setIncomingMsgToast(null), 5000);
+        } catch { /* ignore malformed */ }
+      });
+    } catch { return; }
+    return () => { es.close(); };
+  }, [user, messengerOpen]);
+
   useEffect(() => {
     const refresh = () => {
       void loadUnreadCount();
@@ -1063,54 +1129,98 @@ export default function TopBar() {
         pathname={pathname}
       />
       {/* StewardDockPanel renders the floating chat-head and the slide-in agent dock. */}
-      <StewardDockPanel moduleKey={moduleKey} />
+      <StewardDockPanel moduleKey={moduleKey} behindOverlay={messengerOpen} />
             {/* CRM Messenger panel — slides in from the TopBar chat icon */}
             <MessengerPanel
               open={messengerOpen}
               onClose={() => setMessengerOpen(false)}
               onUnreadChange={setMessengerUnread}
             />
-      {/* Mobile full-screen search overlay — shows when user taps search icon on small screens */}
+
+            {/* Incoming message toast — shown when panel is closed and a new message arrives */}
+            {incomingMsgToast && !messengerOpen && (
+              <div
+                role="alert"
+                aria-live="polite"
+                className="fixed bottom-5 right-5 z-[60] flex max-w-[340px] cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 shadow-[0_16px_48px_rgba(2,6,23,0.18)]"
+                style={{ animation: "msgPanelIn 0.2s cubic-bezier(0.22,1,0.36,1)" }}
+                onClick={() => {
+                  setMessengerOpen(true);
+                  setIncomingMsgToast(null);
+                  if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+                }}
+              >
+                <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${incomingMsgToast.colorClass}`}>
+                  {incomingMsgToast.senderInitials}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-900">{incomingMsgToast.senderName}</p>
+                  <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-slate-500">{incomingMsgToast.body}</p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Dismiss notification"
+                  onClick={(e) => { e.stopPropagation(); setIncomingMsgToast(null); if (toastTimerRef.current) clearTimeout(toastTimerRef.current); }}
+                  className="ml-0.5 flex-shrink-0 rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            )}
+      {/* Command search modal — opened from the centered top-bar icon or Ctrl+K. */}
       {mobileSearchOpen && (
         <>
-          <div className="fixed inset-0 z-50 lg:hidden" onClick={() => setMobileSearchOpen(false)} />
-          <div className="fixed inset-x-0 top-0 z-50 flex items-center gap-2 border-b border-slate-700/80 bg-[linear-gradient(135deg,#172033_0%,#0f172a_54%,#10251b_100%)] px-3 shadow-[0_18px_42px_rgba(2,6,23,0.28)] lg:hidden" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))", paddingBottom: "0.75rem" }}>
-            <button
-              type="button"
-              aria-label="Close search"
-              onClick={() => setMobileSearchOpen(false)}
-              className="shrink-0 w-10 h-10 flex items-center justify-center rounded-xl text-slate-300 hover:bg-slate-800 transition-colors active:bg-slate-700"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <div className="flex-1 min-w-0">
-              <GlobalSearch moduleKey={moduleKey} pathname={pathname} />
+          <div className="fixed inset-0 z-50 bg-slate-950/25 backdrop-blur-[2px]" onClick={() => setMobileSearchOpen(false)} />
+          <div className="fixed inset-x-2 top-3 z-50 mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl sm:top-16 sm:p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Command Search</p>
+                <h2 className="text-sm font-semibold text-slate-950">Search records, tools, campaigns, and help</h2>
+              </div>
+              <button
+                type="button"
+                aria-label="Close search"
+                onClick={() => setMobileSearchOpen(false)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-950"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </div>
+            <div className="min-w-0">
+              <GlobalSearch moduleKey={moduleKey} pathname={pathname} autoFocus wide onNavigate={() => setMobileSearchOpen(false)} />
             </div>
           </div>
         </>
       )}
-      <header data-topbar-root="true" className="fixed top-0 left-0 right-0 isolate z-20 flex h-14 w-full shrink-0 items-center gap-2 border-b border-slate-700/80 bg-[linear-gradient(135deg,#172033_0%,#0f172a_48%,#10251b_100%)] px-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_12px_28px_rgba(2,6,23,0.18)] lg:gap-3 lg:px-3 min-[1440px]:gap-4 min-[1440px]:px-4" style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
+      <header data-topbar-root="true" className="fixed top-0 left-0 right-0 isolate z-20 flex h-14 w-full shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-950/95 px-2 shadow-[0_12px_34px_rgba(2,6,23,0.55)] backdrop-blur-md lg:gap-3 lg:px-3 min-[1440px]:gap-4 min-[1440px]:px-4" style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/20"
+          className="pointer-events-none absolute left-0 top-0 hidden h-full w-[400px] bg-white lg:block min-[1440px]:w-[440px]"
+          style={{ clipPath: "polygon(0 0, 86% 0, 74% 100%, 0 100%)" }}
         />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -top-16 left-[18%] h-24 w-[34rem] rounded-full bg-white/10 blur-3xl"
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-slate-800/80"
         />
         <div
           aria-hidden="true"
-          className={`pointer-events-none absolute -bottom-20 right-[12%] h-24 w-[26rem] rounded-full blur-3xl transition-opacity duration-300 ${moduleAccentClass} ${topBarReactiveGlow ? "opacity-25" : "opacity-12"}`}
+          className="hidden"
         />
         <div
           aria-hidden="true"
-          className={`absolute inset-x-0 bottom-0 h-0.5 pointer-events-none shadow-[0_-1px_10px_rgba(255,255,255,0.24)] transition-opacity duration-300 ${moduleAccentClass} ${topBarReactiveGlow ? "opacity-100" : "opacity-80"}`}
+          className="hidden"
         />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute left-0 top-0 hidden h-full w-[min(390px,37vw)] border-r border-white/40 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_62%,#ecfdf5_100%)] shadow-[inset_-18px_0_28px_rgba(15,23,42,0.06)] lg:block min-[1440px]:w-[min(460px,40vw)]"
+          className={`absolute inset-x-0 bottom-0 h-px pointer-events-none transition-opacity duration-300 ${moduleAccentClass} ${topBarReactiveGlow ? "opacity-90" : "opacity-45"}`}
+        />
+        <div
+          aria-hidden="true"
+          className="hidden"
           style={{ clipPath: "polygon(0 0, 88% 0, 100% 100%, 0 100%)" }}
         />
 
@@ -1128,25 +1238,25 @@ export default function TopBar() {
             </svg>
           </button>
           {/* ── TopBar Brand ── */}
-          <Link href={homeHref} className="flex shrink-0 items-center rounded-xl border border-transparent px-1 py-0.5 transition-all hover:border-white/70 hover:bg-white/80 hover:shadow-[0_8px_18px_rgba(15,23,42,0.12)]" aria-label="Go to workspace home">
+          <Link href={homeHref} className="flex shrink-0 items-center rounded-xl border border-transparent px-1 py-0.5 transition-all hover:border-slate-700 hover:bg-slate-900" aria-label="Go to workspace home">
             <Image
-              src="/branding/oyama-logo-topbar-wordmark.png"
+              src="/branding/oyama-logo.png"
               alt="OyamaCRM"
-              width={124}
-              height={20}
-              className="block h-5 w-[124px] object-contain object-left"
+              width={68}
+              height={28}
+              className="block h-7 w-[68px] object-contain object-left"
               priority
             />
           </Link>
 
-          <div className="w-px h-6 bg-slate-300/90 shrink-0" />
+          <div className="w-px h-6 bg-slate-700 shrink-0" />
 
           {/* ── Module switcher (left anchor) ── */}
           {workspaceSettings.showModuleSwitcher && (
             <>
               <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} />
               {/* ── Divider ── */}
-              <div className="w-px h-6 bg-slate-300/90 shrink-0" />
+              <div className="w-px h-6 bg-slate-700 shrink-0" />
             </>
           )}
 
@@ -1266,39 +1376,48 @@ export default function TopBar() {
               className={chromeButtonBase}
             >
               <StewardAvatarIcon size={18} alt="Steward" />
-                        {/* Messenger — mobile */}
-                        <div className="relative">
-                          <button
-                            type="button"
-                            title="Messages"
-                            onClick={() => {
-                              setMessengerOpen((v) => !v);
-                              setNotificationsOpen(false);
-                            }}
-                            className={`${chromeButtonBase} relative`}
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
-                            </svg>
-                            {messengerUnread > 0 && (
-                              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold text-white flex items-center justify-center bg-violet-500">
-                                {Math.min(messengerUnread, 99)}
-                              </span>
-                            )}
-                          </button>
-                        </div>
             </Link>
+
+            {/* Messenger — mobile */}
+            <div className="relative">
+              <button
+                type="button"
+                title="Messages"
+                onClick={() => {
+                  setMessengerOpen((v) => !v);
+                  setNotificationsOpen(false);
+                }}
+                className={`${chromeButtonBase} relative`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
+                </svg>
+                {messengerUnread > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold text-white flex items-center justify-center bg-violet-500">
+                    {Math.min(messengerUnread, 99)}
+                  </span>
+                )}
+              </button>
+            </div>
 
             <UserMenu moduleKey={moduleKey} />
           </div>
         </div>
 
         <div className="relative z-10 hidden lg:flex w-full min-w-0 flex-1 items-center gap-2 lg:gap-3 min-[1440px]:gap-4">
-          {/* ── Search (right-biased) ── */}
-          <div className="flex min-w-0 flex-1 justify-end pr-1 sm:pr-2 lg:pr-1 min-[1440px]:pr-2">
-            <div className="w-full max-w-[520px] min-[1440px]:max-w-[600px]">
-              <GlobalSearch moduleKey={moduleKey} pathname={pathname} />
-            </div>
+          {/* ── Center command search trigger ── */}
+          <div className="flex min-w-0 flex-1 justify-center">
+            <button
+              type="button"
+              aria-label="Open global search"
+              title="Search OyamaCRM"
+              onClick={() => setMobileSearchOpen(true)}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-300 shadow-[0_10px_24px_rgba(2,6,23,0.5)] transition-all hover:-translate-y-px hover:border-emerald-400/70 hover:bg-slate-800 hover:text-emerald-300"
+            >
+              <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+              </svg>
+            </button>
           </div>
 
           {/* ── Right-side icon controls ── */}
@@ -1547,7 +1666,7 @@ export default function TopBar() {
           )}
         </div>
 
-            <div className="w-px h-5 bg-white/10 mx-1 shrink-0" />
+            <div className="w-px h-5 bg-slate-200 mx-1 shrink-0" />
 
             {/* User avatar */}
             <UserMenu moduleKey={moduleKey} />
@@ -1676,7 +1795,7 @@ function ModuleSwitcher({
   if (modules.length === 0) return null;
 
   const current = modules.find((m) => m.active) ?? modules[0];
-  const switcherButtonTone = "border-white/70 bg-white/78 backdrop-blur-xl";
+  const switcherButtonTone = "border-slate-200 bg-white";
   const switcherTone = current.key === "compassion"
     ? "from-blue-50 to-sky-50 border-blue-200/80"
     : current.key === "events"
@@ -1702,9 +1821,9 @@ function ModuleSwitcher({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`group flex items-center gap-2.5 rounded-xl border ${switcherButtonTone} px-2.5 py-1.5 text-slate-800 shadow-[0_1px_0_rgba(255,255,255,0.8),0_10px_24px_rgba(15,23,42,0.1)] transition-colors hover:border-white hover:bg-white/92`}
+        className={`group flex items-center gap-2.5 rounded-xl border ${switcherButtonTone} px-2.5 py-1.5 text-slate-900 shadow-sm transition-colors hover:border-emerald-300 hover:bg-white`}
       >
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/70 bg-white/70 text-slate-700">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700">
           {current.icon}
         </span>
         <div className="hidden sm:block text-left leading-tight min-w-0">

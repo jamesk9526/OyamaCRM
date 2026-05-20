@@ -28,6 +28,7 @@ import {
 } from "./steward-donor-context.js";
 
 export type StewardToolName =
+  | "branding.getOrganizationBrandKit"
   | "donor.getDailyBrief"
   | "donor.getThankYousNeeded"
   | "donor.getAcknowledgmentQueue"
@@ -64,6 +65,7 @@ export type StewardToolName =
   | "tasks.createFollowUpTask"
   | "tasks.createThankYouTask"
   | "letters.createLetterDraft"
+  | "letters.createHtmlCssLetterDraft"
   | "letters.createThankYouLetterDraft"
   | "letters.createAppealLetterDraft"
   | "communications.createEmailDraft"
@@ -122,6 +124,14 @@ interface PermissionSnapshot {
 }
 
 const TOOL_DEFINITIONS: ToolDefinition[] = [
+  {
+    name: "branding.getOrganizationBrandKit",
+    kind: "read",
+    description: "Returns organization branding context (name, sender identity, letter presets, signature defaults, and logo candidates) for draft generation.",
+    requiredPermissions: ["letters.view"],
+    requiresConfirmation: false,
+    allowedModules: ["donor", "oshareview"],
+  },
   {
     name: "donor.getDailyBrief",
     kind: "read",
@@ -443,6 +453,14 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     allowedModules: ["donor", "oshareview"],
   },
   {
+    name: "letters.createHtmlCssLetterDraft",
+    kind: "write",
+    description: "Creates a styled draft letter from provided HTML + CSS for print-ready and branded letter workflows.",
+    requiredPermissions: ["letters.create", "letters.view"],
+    requiresConfirmation: true,
+    allowedModules: ["donor", "oshareview"],
+  },
+  {
     name: "letters.createThankYouLetterDraft",
     kind: "write",
     description: "Creates a donor thank-you letter draft with nonprofit stewardship defaults.",
@@ -735,6 +753,105 @@ export async function executeStewardTool(
   let result: unknown;
 
   switch (toolName) {
+    case "branding.getOrganizationBrandKit": {
+      const [organization, settings, headerPreset, footerPreset, signatureBlock] = await Promise.all([
+        prisma.organization.findUnique({
+          where: { id: context.organizationId },
+          select: { id: true, name: true },
+        }),
+        prisma.organizationSettings.findUnique({
+          where: { organizationId: context.organizationId },
+          select: { smtpFromName: true, smtpFromEmail: true },
+        }),
+        prisma.letterHeaderPreset.findFirst({
+          where: { organizationId: context.organizationId, isActive: true },
+          orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+          select: {
+            id: true,
+            name: true,
+            logoAlignment: true,
+            showOrganizationName: true,
+            showTagline: true,
+            showAddress: true,
+            showPhone: true,
+            showWebsite: true,
+            customHtml: true,
+            isDefault: true,
+          },
+        }),
+        prisma.letterFooterPreset.findFirst({
+          where: { organizationId: context.organizationId, isActive: true },
+          orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+          select: {
+            id: true,
+            name: true,
+            showOrganizationName: true,
+            showAddress: true,
+            showPhone: true,
+            showEmail: true,
+            showWebsite: true,
+            showTaxId: true,
+            customText: true,
+            customHtml: true,
+            isDefault: true,
+          },
+        }),
+        prisma.letterSignatureBlock.findFirst({
+          where: { organizationId: context.organizationId, isActive: true },
+          orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+          select: {
+            id: true,
+            name: true,
+            signerName: true,
+            signerTitle: true,
+            closingPhrase: true,
+            signatureImageUrl: true,
+            typedSignature: true,
+            email: true,
+            phone: true,
+            isDefault: true,
+          },
+        }),
+      ]);
+
+      result = {
+        generatedAt: new Date().toISOString(),
+        organizationId: context.organizationId,
+        organizationName: organization?.name ?? "Organization",
+        senderIdentity: {
+          fromName: settings?.smtpFromName ?? organization?.name ?? "OyamaCRM Steward",
+          fromEmail: settings?.smtpFromEmail ?? null,
+        },
+        themeDefaults: {
+          primaryColor: "#16a34a",
+          secondaryColor: "#0f172a",
+          bodyFont: "'Segoe UI', Arial, Helvetica, sans-serif",
+          headingFont: "'Segoe UI', Arial, Helvetica, sans-serif",
+        },
+        logoCandidates: [
+          "/branding/oyama-logo-topbar-wordmark.png",
+          "/branding/oyama-logo-topbar.png",
+          "/branding/oyama-logo-w512.png",
+          "/branding/oyama-logo-w256.png",
+        ],
+        presets: {
+          header: headerPreset,
+          footer: footerPreset,
+          signature: signatureBlock,
+        },
+        mergeTokens: [
+          "{{preferredName}}",
+          "{{fullName}}",
+          "{{lastGiftAmount}}",
+          "{{lastGiftDate}}",
+          "{{campaignName}}",
+          "{{organizationName}}",
+          "{{staffName}}",
+        ],
+      };
+      break;
+    }
+
     case "donor.getDailyBrief": {
       result = await getDailyBrief(context.organizationId);
       break;
@@ -2624,6 +2741,53 @@ export async function executeStewardTool(
       result = {
         created: true,
         draft: template,
+        deepLink: `/letters-printables/templates/${template.id}`,
+      };
+      break;
+    }
+
+    case "letters.createHtmlCssLetterDraft": {
+      const name = asText(input?.name, "Steward Styled Letter Draft", 180);
+      const bodyHtml = asText(input?.bodyHtml, "", 90000);
+      const css = asText(input?.css, "", 40000);
+
+      if (!bodyHtml) {
+        throw new StewardToolError(400, "VALIDATION_ERROR", "bodyHtml is required for letters.createHtmlCssLetterDraft.");
+      }
+
+      const scopedCss = css
+        ? `<style>\n${css}\n</style>\n`
+        : "";
+      const printBody = `${scopedCss}<div class="steward-letter-html-draft">${bodyHtml}</div>`;
+
+      const template = await prisma.letterTemplate.create({
+        data: {
+          organizationId: context.organizationId,
+          name,
+          category: asLetterCategory(input?.category),
+          description: asText(input?.description, "Styled HTML/CSS draft generated by Steward tool workflow.", 4000),
+          status: "DRAFT",
+          printSubject: asText(input?.printSubject, "Steward Styled Letter Draft", 200) || null,
+          printBody,
+          emailSubject: asText(input?.emailSubject, "", 200) || null,
+          emailBody: asText(input?.emailBody, bodyHtml, 60000) || null,
+          crmScope: "DONOR",
+          createdByUserId: context.userId,
+          updatedByUserId: context.userId,
+        },
+        select: {
+          id: true,
+          name: true,
+          category: true,
+          status: true,
+          updatedAt: true,
+        },
+      });
+
+      result = {
+        created: true,
+        draft: template,
+        styleIncluded: Boolean(css.trim()),
         deepLink: `/letters-printables/templates/${template.id}`,
       };
       break;

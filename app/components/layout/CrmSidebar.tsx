@@ -82,24 +82,24 @@ interface CrmSidebarProps {
 
 const VARIANT_STYLES: Record<CrmSidebarVariant, SidebarVariantStyles> = {
   donor: {
-    aside: "bg-white border-r border-slate-200",
+    aside: "bg-slate-800 border-r border-slate-700/80",
     navSurface: "",
-    heading: "text-gray-500",
-    headingMuted: "hover:text-gray-700",
-    itemActive: "text-slate-900 bg-green-50 font-semibold",
-    itemInactive: "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
-    iconActive: "text-green-600",
-    iconInactive: "text-slate-400 group-hover:text-slate-600",
-    badge: "bg-slate-100 text-slate-600",
-    sectionBorder: "border-transparent",
-    sectionHover: "",
-    footer: "border-t border-slate-200 bg-white",
-    footerText: "text-gray-500",
-    collapseButton: "border-gray-200 bg-white text-gray-600 hover:text-gray-900 hover:bg-gray-50",
-    tooltip: "border-gray-200 bg-white text-gray-900 shadow-xl",
-    tooltipSubtitle: "text-gray-500",
-    divider: "bg-gray-200",
-    accent: "bg-green-600",
+    heading: "text-slate-500",
+    headingMuted: "hover:text-slate-300",
+    itemActive: "text-white bg-slate-800 font-semibold",
+    itemInactive: "text-slate-300 hover:bg-slate-900 hover:text-white",
+    iconActive: "text-emerald-400",
+    iconInactive: "text-slate-500 group-hover:text-slate-300",
+    badge: "bg-slate-700 text-slate-200",
+    sectionBorder: "border-slate-800/80",
+    sectionHover: "hover:border-slate-700/80",
+    footer: "border-t border-slate-700/80 bg-slate-800",
+    footerText: "text-slate-400",
+    collapseButton: "border-slate-700 bg-slate-900 text-slate-300 hover:text-white hover:bg-slate-800",
+    tooltip: "border-slate-700 bg-slate-900 text-slate-100 shadow-xl",
+    tooltipSubtitle: "text-slate-400",
+    divider: "bg-slate-700",
+    accent: "bg-emerald-500",
   },
   compassion: {
     aside: "bg-white border-r border-slate-200",
@@ -244,6 +244,7 @@ export default function CrmSidebar({
 }: CrmSidebarProps) {
   const pathname = usePathname();
   const styles = VARIANT_STYLES[variant];
+  const isDonorDarkTest = variant === "donor";
   const [hash, setHash] = useState("");
   const [collapsed, setCollapsed] = useState(false);
   const [compactDesktop, setCompactDesktop] = useState(false);
@@ -378,7 +379,7 @@ export default function CrmSidebar({
       className={`${styles.aside} ${isCollapsed ? collapsedWidthClass : expandedWidthClass} shrink-0 flex flex-col h-full select-none transition-[width] duration-200 ease-out`}
       data-sidebar-collapsed={isCollapsed ? "true" : "false"}
     >
-      <div className={`flex-1 overflow-y-auto py-2.5 px-2 ${SIDEBAR_SCROLLBAR_CLASS} ${styles.navSurface}`}>
+      <div className={`flex-1 overflow-y-auto py-3 px-2.5 ${SIDEBAR_SCROLLBAR_CLASS} ${styles.navSurface}`}>
         {!forceExpanded ? (
           <div className={`mb-2 flex ${isCollapsed ? "justify-center" : "justify-end"}`}>
             <button
@@ -415,7 +416,7 @@ export default function CrmSidebar({
           return (
             <div
               key={group.id}
-              className={`mb-1.5 rounded-lg border px-0.5 py-0.5 transition-colors ${groupActive && !isCollapsed ? "border-slate-100 bg-slate-50/70" : `${styles.sectionBorder} ${styles.sectionHover}`}`}
+              className={`mb-2 rounded-xl border px-0.5 py-0.5 transition-colors ${isDonorDarkTest ? "bg-slate-700/50" : "bg-white/70"} ${groupActive && !isCollapsed ? (isDonorDarkTest ? "border-slate-600" : "border-slate-200/70") : `${styles.sectionBorder} ${styles.sectionHover}`}`}
             >
               {isCollapsed ? (
                 <div className="group/section relative px-2 py-1.5" aria-hidden="true">
@@ -425,7 +426,7 @@ export default function CrmSidebar({
                   </span>
                 </div>
               ) : (
-                <div className="px-2 py-0.5">
+                  <div className="px-2 py-1">
                   {group.collapsible ? (
                     <button
                       type="button"
@@ -435,7 +436,7 @@ export default function CrmSidebar({
                           [group.id]: !(current[group.id] ?? true),
                         }));
                       }}
-                      className={`w-full flex items-center justify-between px-1 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors ${groupActive ? "text-slate-700" : styles.heading} ${styles.headingMuted}`}
+                      className={`w-full flex items-center justify-between px-1 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] transition-colors ${groupActive ? (isDonorDarkTest ? "text-slate-200" : "text-slate-600") : styles.heading} ${styles.headingMuted}`}
                     >
                       <span>{group.label}</span>
                       <svg
@@ -449,7 +450,7 @@ export default function CrmSidebar({
                       </svg>
                     </button>
                   ) : (
-                    <p className={`px-1 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${styles.heading}`}>
+                    <p className={`px-1 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${styles.heading}`}>
                       {group.label}
                     </p>
                   )}
@@ -467,14 +468,14 @@ export default function CrmSidebar({
                         href={item.href}
                         aria-current={active ? "page" : undefined}
                         aria-label={isCollapsed ? item.label : undefined}
-                        className={`group relative mx-0.5 flex items-center ${isCollapsed ? "min-h-10 justify-center rounded-xl px-1.5 py-2" : "justify-start rounded-md px-2 py-1.5"} gap-2 text-[12.5px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-green-500 ${active ? styles.itemActive : styles.itemInactive} ${isCollapsed ? "hover:shadow-sm" : ""}`}
+                        className={`group relative mx-0.5 flex items-center ${isCollapsed ? "min-h-10 justify-center rounded-xl px-1.5 py-2" : "min-h-9 justify-start rounded-lg px-2.5 py-2"} gap-2 text-[12.5px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-green-500 ${active ? styles.itemActive : styles.itemInactive} ${isCollapsed ? "hover:shadow-sm" : ""}`}
                         title={isCollapsed ? item.label : undefined}
                       >
                         {active ? (
                           <span className={`absolute left-0 top-2 bottom-2 w-0.5 rounded-full ${styles.accent}`} aria-hidden="true" />
                         ) : null}
                         <span
-                          className={`shrink-0 rounded-lg p-1 transition-colors ${active ? styles.iconActive : styles.iconInactive} ${isCollapsed && active ? "bg-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]" : ""}`}
+                          className={`shrink-0 rounded-lg p-1 transition-colors ${active ? styles.iconActive : styles.iconInactive} ${isCollapsed && active ? (isDonorDarkTest ? "bg-slate-800" : "bg-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]") : ""}`}
                           aria-hidden="true"
                         >
                           {item.icon}
@@ -488,7 +489,7 @@ export default function CrmSidebar({
                             <span className="min-w-0 flex-1">
                               <span className="block truncate">{item.label}</span>
                               {item.secondaryLabel ? (
-                                <span className="block truncate text-[10px] font-medium text-slate-500">
+                                <span className={`block truncate text-[10px] font-medium ${isDonorDarkTest ? "text-slate-400" : "text-slate-500"}`}>
                                   {item.secondaryLabel}
                                 </span>
                               ) : null}
@@ -507,7 +508,7 @@ export default function CrmSidebar({
                             className={`pointer-events-none absolute left-full top-1/2 z-50 ml-2 hidden min-w-[220px] -translate-y-1/2 rounded-xl border px-3 py-2 text-left shadow-2xl group-hover:block group-focus-visible:block ${styles.tooltip}`}
                           >
                             <span className="flex items-center gap-2 text-xs font-semibold">
-                              <span className={`inline-flex h-6 w-6 items-center justify-center rounded-lg ${active ? styles.itemActive : "bg-slate-50"}`}>{item.icon}</span>
+                              <span className={`inline-flex h-6 w-6 items-center justify-center rounded-lg ${active ? styles.itemActive : (isDonorDarkTest ? "bg-slate-800" : "bg-slate-50")}`}>{item.icon}</span>
                               <span>{item.label}</span>
                               {item.badge ? (
                                 <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${styles.badge}`}>

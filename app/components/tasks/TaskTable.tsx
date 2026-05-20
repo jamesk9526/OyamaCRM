@@ -7,6 +7,8 @@
 
 import Link from "next/link";
 import { Task } from "@/app/tasks/page";
+import CRMDataTable from "@/app/components/ui/crm/CRMDataTable";
+import CRMEmptyState from "@/app/components/ui/crm/CRMEmptyState";
 
 /** Format a date string as a short locale date */
 function fmt(d?: string) {
@@ -64,7 +66,7 @@ function SkeletonRow() {
 export default function TaskTable({ tasks, loading, highlightTaskId, onComplete, onDelete }: Props) {
   if (loading) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <CRMDataTable>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
@@ -75,20 +77,21 @@ export default function TaskTable({ tasks, loading, highlightTaskId, onComplete,
           </thead>
           <tbody>{Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}</tbody>
         </table>
-      </div>
+      </CRMDataTable>
     );
   }
 
   if (tasks.length === 0) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-        <p className="text-gray-500 text-sm">No tasks found. Try adjusting your filters or create a new task.</p>
-      </div>
+      <CRMEmptyState
+        title="No tasks found"
+        description="Try adjusting your filters or create a new task."
+      />
     );
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <CRMDataTable>
       <div className="md:hidden divide-y divide-gray-100">
         {tasks.map((task) => {
           const isOverdue = task.status === "PENDING" && task.dueDate && new Date(task.dueDate) < new Date();
@@ -252,6 +255,6 @@ export default function TaskTable({ tasks, loading, highlightTaskId, onComplete,
         </tbody>
       </table>
       </div>
-    </div>
+    </CRMDataTable>
   );
 }

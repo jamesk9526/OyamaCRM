@@ -1,14 +1,11 @@
 "use client";
 
 /**
- * StewardThinkingPanel — live progress + tool feed during Steward AI generation.
- *
- * Shows: stage pipeline (Retrieve → Plan → Generate), live tool entries with
- * spinner/checkmark, the latest progress step text, and a collapsible reasoning
- * stream for DeepSeek thinking tokens.
+ * StewardThinkingPanel — inline progress indicator with nonprofit-themed rotating sayings
+ * and an estimated animated progress bar. Shown while Steward AI is generating a response.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export interface ActiveTool {
   name: string;
@@ -25,41 +22,48 @@ interface StewardThinkingPanelProps {
   tone?: "dark" | "light";
   /** Live tool feed populated from "tool" stream events. */
   activeTools?: ActiveTool[];
+  /** Estimated completion percentage (0–100) from server pipeline stages. */
+  progressPercent?: number;
+  /** Current pipeline stage from server: "retrieve" | "plan" | "generate". */
+  progressStage?: string;
 }
 
-type Stage = "retrieve" | "plan" | "generate";
-
-/** Maps a tool name prefix to its pipeline stage. */
-const PREFIX_TO_STAGE: Record<string, Stage> = {
-  context: "retrieve",
-  fiscal: "retrieve",
-  donor: "retrieve",
-  compassion: "retrieve",
-  events: "retrieve",
-  watchdog: "retrieve",
-  webmaster: "retrieve",
-  knowledge: "retrieve",
-  reports: "retrieve",
-  help: "retrieve",
-  memory: "retrieve",
-  file: "retrieve",
-  agentic: "plan",
-  thoughtstack: "plan",
-  model: "generate",
-  email: "generate",
-};
-
-function stageForTool(name: string): Stage {
-  const prefix = name.split(".")[0] ?? "";
-  return PREFIX_TO_STAGE[prefix] ?? "retrieve";
-}
-
-const STAGE_ORDER: Stage[] = ["retrieve", "plan", "generate"];
-
-const STAGE_LABELS: Record<Stage, string> = {
-  retrieve: "Retrieve",
-  plan: "Plan",
-  generate: "Generate",
+/** Cute nonprofit-themed sayings, indexed by pipeline stage. */
+const SAYINGS: Record<string, string[]> = {
+  retrieve: [
+    "Counting donations, big and small…",
+    "Peeking at giving history…",
+    "Asking the donor database what's new…",
+    "Reading through the stewardship log…",
+    "Finding your most loyal supporters…",
+    "Sorting generosity by date…",
+    "Looking up your kind-hearted donors…",
+    "Checking in with the records…",
+  ],
+  plan: [
+    "Figuring out what I'm doing today…",
+    "Consulting my nonprofit wisdom…",
+    "Mapping out the best response…",
+    "Running it by the board… just kidding",
+    "Thinking it through, mission-first…",
+    "Checking the plan twice…",
+    "Making sure I don't miss anything…",
+  ],
+  generate: [
+    "Writing something worth reading…",
+    "Putting the mission into words…",
+    "Adding just the right amount of heart…",
+    "Making it donor-ready…",
+    "Polishing the message for you…",
+    "One more compassionate pass…",
+    "Wrapping up with gratitude…",
+  ],
+  default: [
+    "One moment while I help your mission…",
+    "Steward is on it…",
+    "Working on something good…",
+    "Almost ready…",
+  ],
 };
 
 export function StewardThinkingPanel({
@@ -69,9 +73,12 @@ export function StewardThinkingPanel({
   compact = false,
   tone = "light",
   activeTools = [],
+  progressPercent,
+  progressStage,
 }: StewardThinkingPanelProps) {
   const [reasoningOpen, setReasoningOpen] = useState(false);
-  const [tickerIndex, setTickerIndex] = useState(0);
+  const [sayingIndex, setSayingIndex] = useState(0);
+  const [creepPercent, setCreepPercent] = useState(0);
   const reasoningRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll reasoning panel as new tokens arrive.
@@ -81,170 +88,109 @@ export function StewardThinkingPanel({
     }
   }, [thinkingContent, reasoningOpen]);
 
-  // Build reasoning paragraph previews for the ticker.
-  const paragraphHeadlines = useMemo((): string[] => {
-    if (!thinkingContent.trim()) return [];
-    return thinkingContent
-      .split(/\n\s*\n+/)
-      .map((p) => {
-        const first = p.trim().split("\n").find((l) => l.trim().length > 0)?.replace(/\s+/g, " ").trim() ?? "";
-        return first.length > 84 ? `${first.slice(0, 84)}…` : first;
-      })
-      .filter((l) => l.length > 0);
-  }, [thinkingContent]);
-
-  // Rotate thinking ticker.
+  // Rotate sayings while active (every 3.5 s).
   useEffect(() => {
-    if (!isActive || paragraphHeadlines.length <= 1) { setTickerIndex(0); return; }
-    const t = window.setInterval(() => setTickerIndex((i) => (i + 1) % paragraphHeadlines.length), 1700);
+    if (!isActive) { setSayingIndex(0); return; }
+    const stage = progressStage ?? "default";
+    const pool = SAYINGS[stage] ?? SAYINGS.default;
+    const t = window.setInterval(() => setSayingIndex((i) => (i + 1) % pool.length), 3500);
     return () => window.clearInterval(t);
-  }, [isActive, paragraphHeadlines.length]);
+  }, [isActive, progressStage]);
 
-  // Per-stage status based on accumulated tool events.
-  function stageStatus(key: Stage): "done" | "active" | "pending" {
-    const tools = activeTools.filter((t) => stageForTool(t.name) === key);
-    if (tools.length === 0) return "pending";
-    if (tools.some((t) => t.status === "active")) return "active";
-    return "done";
-  }
+  // Reset saying when stage changes so we always start with index 0 for the new stage.
+  useEffect(() => { setSayingIndex(0); }, [progressStage]);
 
-  const showPipeline = (activeTools.length > 0 || isActive) && !compact;
-  const visibleTools = activeTools.slice(-6);
+  // Slow creep: advance bar ~0.5 % every 2 s while active so it feels alive between server events.
+  useEffect(() => {
+    if (!isActive) { setCreepPercent(0); return; }
+    const t = window.setInterval(() => {
+      setCreepPercent((prev) => {
+        const serverPct = progressPercent ?? 0;
+        return serverPct + prev >= 91 ? prev : prev + 0.5;
+      });
+    }, 2000);
+    return () => window.clearInterval(t);
+  }, [isActive, progressPercent]);
+
+  // Reset creep whenever the server sends a new percent (real progress beat the estimate).
+  useEffect(() => { setCreepPercent(0); }, [progressPercent]);
+
+  const stage = progressStage ?? "default";
+  const pool = SAYINGS[stage] ?? SAYINGS.default;
+  const currentSaying = pool[sayingIndex % pool.length] ?? pool[0] ?? "";
+
+  const serverPct = progressPercent ?? 0;
+  const displayPct = isActive ? Math.min(91, serverPct + creepPercent) : 100;
 
   const hasContent = progressSteps.length > 0 || thinkingContent.length > 0 || activeTools.length > 0;
   if (!hasContent && !isActive) return null;
 
-  const latestStep = progressSteps.at(-1);
   const isDark = tone === "dark";
 
   const shellCls = isDark
-    ? "border-cyan-400/15 bg-[#101216]/85 text-slate-300 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]"
-    : "border-slate-100 bg-slate-50/80";
+    ? "border-cyan-400/15 bg-[#101216]/90 text-slate-300"
+    : "border-slate-200 bg-white/95 text-slate-700";
   const divCls = isDark ? "border-white/10" : "border-slate-100";
-  const mutedCls = isDark ? "text-slate-400" : "text-slate-500";
-  const activeCls = isDark ? "text-cyan-100" : "text-slate-600";
+  const mutedCls = isDark ? "text-slate-400" : "text-slate-400";
+  const sayingCls = isDark ? "text-slate-200" : "text-slate-600";
+  const barBgCls = isDark ? "bg-white/10" : "bg-slate-100";
+  const barFillCls = isDark ? "bg-cyan-400" : "bg-green-500";
 
   return (
-    <div className={`steward-thinking-panel mb-2 overflow-hidden rounded-xl border ${shellCls} ${compact ? "text-xs" : "text-sm"}`}>
-      {isActive && <div className="steward-thinking-scan" aria-hidden="true" />}
-
-      {/* ── Header: status dots + latest step text ── */}
+    <div className={`mb-2 overflow-hidden rounded-xl border text-xs ${shellCls}`}>
+      {/* ── Header: animated dots + rotating nonprofit saying ── */}
       <div className="flex items-center gap-2 px-3 py-2">
         {isActive ? (
-          <span className="flex shrink-0 items-center gap-1">
-            <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300" style={{ animationDelay: "0ms" }} />
-            <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300" style={{ animationDelay: "140ms" }} />
-            <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300" style={{ animationDelay: "280ms" }} />
+          <span className="flex shrink-0 items-center gap-[3px]">
+            <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-green-500" style={{ animationDelay: "0ms" }} />
+            <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-green-500" style={{ animationDelay: "150ms" }} />
+            <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-green-500" style={{ animationDelay: "300ms" }} />
           </span>
         ) : (
-          <svg className={`h-3.5 w-3.5 shrink-0 ${mutedCls}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <svg className="h-3.5 w-3.5 shrink-0 text-green-500" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         )}
 
-        <span className={`flex-1 truncate ${isActive ? activeCls : mutedCls}`}>
-          {isActive ? (latestStep ?? "Steward is thinking…") : (latestStep ?? "Done")}
+        <span key={`${stage}-${sayingIndex}`} className={`flex-1 min-w-0 truncate transition-opacity duration-500 ${isActive ? sayingCls : mutedCls}`}>
+          {isActive ? currentSaying : (progressSteps.at(-1) ?? "Done")}
         </span>
-
-        {progressSteps.length > 1 && !compact && (
-          <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] ${isDark ? "bg-white/10 text-slate-400" : "bg-slate-200 text-slate-500"}`}>
-            {progressSteps.length} steps
-          </span>
-        )}
 
         {thinkingContent && (
           <button
             type="button"
             onClick={() => setReasoningOpen((v) => !v)}
-            className={`ml-1 flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] transition-colors ${isDark ? "text-slate-400 hover:bg-white/10 hover:text-cyan-100" : "text-slate-400 hover:bg-slate-200 hover:text-slate-700"}`}
+            className={`ml-1 flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 transition-colors ${isDark ? "text-slate-400 hover:bg-white/10 hover:text-cyan-100" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"}`}
             title={reasoningOpen ? "Hide reasoning" : "Show reasoning"}
           >
             <svg className={`h-3 w-3 transition-transform ${reasoningOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
-            {reasoningOpen ? "Hide reasoning" : "Show reasoning"}
+            <span className="text-[10px]">{reasoningOpen ? "Hide" : "Reasoning"}</span>
           </button>
         )}
       </div>
 
-      {/* ── Stage pipeline: Retrieve → Plan → Generate ── */}
-      {showPipeline && (
-        <div className={`border-t px-3 py-2 ${divCls}`}>
-          <div className="flex items-center">
-            {STAGE_ORDER.map((key, idx) => {
-              const status = stageStatus(key);
-              return (
-                <div key={key} className="flex items-center">
-                  <div className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-all duration-300 ${
-                    status === "active"
-                      ? isDark
-                        ? "bg-cyan-400/20 text-cyan-200 ring-1 ring-cyan-400/40"
-                        : "bg-cyan-100 text-cyan-700 ring-1 ring-cyan-300"
-                      : status === "done"
-                        ? isDark ? "bg-white/5 text-slate-400" : "bg-slate-100 text-slate-500"
-                        : isDark ? "text-slate-600" : "text-slate-400"
-                  }`}>
-                    {status === "active" ? (
-                      <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400" />
-                    ) : status === "done" ? (
-                      <svg className="h-3 w-3 text-cyan-400" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : (
-                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-current opacity-25" />
-                    )}
-                    {STAGE_LABELS[key]}
-                  </div>
-                  {idx < STAGE_ORDER.length - 1 && (
-                    <div className={`h-px w-5 ${isDark ? "bg-white/15" : "bg-slate-200"}`} />
-                  )}
-                </div>
-              );
-            })}
-          </div>
+      {/* ── Estimated progress bar ── */}
+      <div className="px-3 pb-2.5">
+        <div className={`relative h-1 overflow-hidden rounded-full ${barBgCls}`}>
+          <div
+            className={`absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out ${barFillCls}`}
+            style={{ width: `${displayPct}%` }}
+          />
+          {isActive && (
+            <div
+              className="pointer-events-none absolute inset-y-0 w-10 rounded-full opacity-50 animate-pulse"
+              style={{
+                left: `${Math.max(0, displayPct - 8)}%`,
+                background: isDark
+                  ? "linear-gradient(90deg, transparent 0%, rgba(103,232,249,0.5) 50%, transparent 100%)"
+                  : "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.7) 50%, transparent 100%)",
+              }}
+            />
+          )}
         </div>
-      )}
-
-      {/* ── Live tool feed (last 6 tools) ── */}
-      {visibleTools.length > 0 && !compact && (
-        <div className={`border-t px-3 py-1.5 ${divCls}`}>
-          <div className="flex flex-col gap-1">
-            {visibleTools.map((tool, idx) => (
-              <div key={`${tool.name}-${idx}`} className="steward-tool-entry flex items-center gap-2 text-[11px]">
-                {tool.status === "active" ? (
-                  <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-                    <span className="h-3 w-3 animate-spin rounded-full border border-cyan-400/40 border-t-cyan-400" />
-                  </span>
-                ) : (
-                  <svg className="h-3.5 w-3.5 shrink-0 text-cyan-400/70" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-                <span className={tool.status === "active" ? activeCls : mutedCls}>
-                  {tool.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Thinking ticker (DeepSeek reasoning preview) ── */}
-      {isActive && paragraphHeadlines[tickerIndex] && (
-        <div className={`border-t px-3 py-1.5 ${divCls}`}>
-          <div className={`flex items-center gap-2 text-[11px] ${isDark ? "text-cyan-200/90" : "text-cyan-700"}`}>
-            <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-cyan-400/15 text-cyan-300">
-              <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </span>
-            <span className="shrink-0 font-medium">Thinking:</span>
-            <span key={tickerIndex} className="min-w-0 flex-1 truncate animate-pulse">
-              {paragraphHeadlines[tickerIndex]}
-            </span>
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* ── Collapsible reasoning stream ── */}
       {reasoningOpen && thinkingContent && (
@@ -266,3 +212,4 @@ export function StewardThinkingPanel({
     </div>
   );
 }
+

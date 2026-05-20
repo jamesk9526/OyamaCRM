@@ -99,16 +99,16 @@ export default function DashboardWidget({
       onDrop={editMode ? onDrop : undefined}
       onDragEnd={editMode ? onDragEnd : undefined}
       className={`
-        bg-white rounded-lg shadow-sm border flex flex-col transition-all duration-150
+        bg-white rounded-xl border border-slate-200/80 flex flex-col transition-all duration-150
         ${editMode && isDragging ? "opacity-40 scale-[0.98] shadow-none" : ""}
-        ${editMode && isDragOver ? "ring-2 ring-green-400 ring-offset-1 border-transparent" : "border-gray-200"}
-        ${editMode ? "ring-1 ring-green-200" : "hover:border-gray-300"}
+        ${editMode && isDragOver ? "ring-2 ring-green-400 ring-offset-1 border-transparent" : ""}
+        ${editMode ? "ring-1 ring-green-200" : "hover:border-slate-300"}
         ${layoutClassName}
         ${className}
       `}
     >
       {/* ── Card header ── */}
-      <div className="flex min-h-14 items-center gap-2 px-4 py-3 border-b border-gray-100 select-none">
+      <div className="flex min-h-14 items-center gap-2 px-4 py-3 border-b border-slate-100/90 select-none">
 
         {/* Six-dot drag handle — visible only in edit mode */}
         {editMode && (
@@ -126,9 +126,9 @@ export default function DashboardWidget({
 
         {/* Title block */}
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-gray-900 truncate">{title}</h3>
+          <h3 className="text-sm font-semibold text-slate-900 truncate">{title}</h3>
           {subtitle && (
-            <p className="text-xs text-gray-500 truncate">{subtitle}</p>
+            <p className="text-xs text-slate-500 truncate">{subtitle}</p>
           )}
         </div>
 

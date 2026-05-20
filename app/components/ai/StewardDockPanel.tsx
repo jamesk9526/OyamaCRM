@@ -14,6 +14,8 @@ import { STEWARD_OPEN_EVENT, type StewardOpenPromptDetail } from "@/app/lib/stew
 interface StewardDockPanelProps {
   /** Active CRM module key passed from TopBar so the dock scopes correctly. */
   moduleKey?: string;
+  /** When true, lowers the chat-head z-index so overlays (e.g. Messenger panel) appear on top. */
+  behindOverlay?: boolean;
 }
 
 const STORAGE_KEY = "steward-dock-open";
@@ -25,7 +27,7 @@ const DOCK_MAX_WIDTH_PX = 780;
 const TOPBAR_OFFSET_PX = 56;
 
 /** StewardDockPanel renders the floating chat-head and the slide-in agent dock. */
-export default function StewardDockPanel({ moduleKey }: StewardDockPanelProps) {
+export default function StewardDockPanel({ moduleKey, behindOverlay = false }: StewardDockPanelProps) {
   const [open, setOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [dockWidth, setDockWidth] = useState<number>(DOCK_WIDTH_PX);
@@ -125,7 +127,7 @@ export default function StewardDockPanel({ moduleKey }: StewardDockPanelProps) {
           onClick={open_}
           title="Open Steward AI"
           style={{ bottom: "max(1.5rem, env(safe-area-inset-bottom))", right: "1.5rem" }}
-          className="steward-chat-head group fixed z-[9990] flex h-13 w-13 items-center justify-center rounded-full text-white shadow-[0_18px_40px_rgba(0,0,0,0.45)] transition-all duration-200 hover:scale-[1.04] hover:shadow-[0_22px_50px_rgba(34,211,238,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#09090b] active:scale-95 touch-manipulation"
+          className={`steward-chat-head group fixed flex h-13 w-13 items-center justify-center rounded-full text-white shadow-[0_18px_40px_rgba(0,0,0,0.45)] transition-all duration-200 hover:scale-[1.04] hover:shadow-[0_22px_50px_rgba(34,211,238,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#09090b] active:scale-95 touch-manipulation ${behindOverlay ? "z-40" : "z-[9990]"}`}
           aria-label="Open Steward AI assistant"
         >
           <span

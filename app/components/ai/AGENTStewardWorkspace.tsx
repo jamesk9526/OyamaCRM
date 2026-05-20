@@ -58,6 +58,10 @@ interface UiMessage {
   thinkingContent?: string;
   /** Live tool feed — populated from "tool" stream events during generation. */
   activeTools?: ActiveTool[];
+  /** Pipeline percent from server progress events. */
+  progressPercent?: number;
+  /** Pipeline stage from server progress events. */
+  progressStage?: string;
   /** Whether ThoughtStack beta was enabled for this specific request. */
   thoughtStackEnabled?: boolean;
 }
@@ -93,6 +97,76 @@ interface StewardChatStreamDone {
 }
 interface StewardChatStreamError { type: "error"; message: string; }
 
+type ReportGuideTemplateId = "board_pack" | "campaign_pivot" | "retention_risk_plan";
+type ReportLayoutHint = "compact" | "balanced" | "detailed";
+
+interface ReportGuideTemplate {
+  id: ReportGuideTemplateId;
+  label: string;
+  description: string;
+  defaultPrompt: string;
+  layoutHint: ReportLayoutHint;
+  defaultFilters: string[];
+}
+
+interface StewardReportRefineResponsePayload {
+  data: {
+    reply: string;
+    structured: StewardStructuredResponse;
+    guideTemplate: ReportGuideTemplateId;
+    layoutHint: ReportLayoutHint;
+    appliedFilters: string[];
+    revisionLabel: string;
+    guideTemplates: ReportGuideTemplate[];
+  };
+}
+
+interface ReportArtifactRevision {
+  id: string;
+  version: number;
+  createdAt: string;
+  label: string;
+  prompt: string;
+  guideTemplate: ReportGuideTemplateId;
+  layoutHint: ReportLayoutHint;
+  appliedFilters: string[];
+  structured?: StewardStructuredResponse;
+  replyContent?: string;
+}
+
+interface WorkspaceNoteState {
+  text: string;
+  version: number;
+  sourceOfTruth: boolean;
+}
+
+const DEFAULT_REPORT_GUIDE_TEMPLATES: ReportGuideTemplate[] = [
+  {
+    id: "board_pack",
+    label: "Board Pack",
+    description: "Executive-ready summary with governance-focused priorities and supporting evidence.",
+    defaultPrompt: "Build a board-ready executive summary with top KPI drivers, risks, and recommended decisions.",
+    layoutHint: "compact",
+    defaultFilters: ["period:ytd", "audience:board", "scope:organization"],
+  },
+  {
+    id: "campaign_pivot",
+    label: "Campaign Pivot",
+    description: "Operational pivot view focused on campaign velocity, underperformance, and next actions.",
+    defaultPrompt: "Identify campaign pivots for the next 30 days, including segments, channels, and immediate actions.",
+    layoutHint: "balanced",
+    defaultFilters: ["window:90d", "dimension:campaign", "segment:active-donors"],
+  },
+  {
+    id: "retention_risk_plan",
+    label: "Retention Risk Plan",
+    description: "Retention-first analysis of risk indicators, mitigation steps, and follow-up sequencing.",
+    defaultPrompt: "Create a retention risk plan with highest-risk cohorts, mitigation actions, and follow-up sequencing.",
+    layoutHint: "detailed",
+    defaultFilters: ["metric:retention", "cohort:lapsed-risk", "window:12m"],
+  },
+];
+
 type SpeechRecognitionAlternativeLike = { transcript: string };
 type SpeechRecognitionResultLike = ArrayLike<SpeechRecognitionAlternativeLike>;
 type SpeechRecognitionEventLike = { results: ArrayLike<SpeechRecognitionResultLike> };
@@ -104,11 +178,98 @@ type SpeechRecognitionLike = {
 };
 type SpeechRecognitionConstructorLike = new () => SpeechRecognitionLike;
 /** Progress update sent during pipeline stages (retrieval, planning, drafting). */
-interface StewardChatStreamProgress { type: "progress"; message: string; }
+interface StewardChatStreamProgress { type: "progress"; message: string; stage?: string; percent?: number; }
 /** Reasoning token from DeepSeek or other thinking-capable models. */
 interface StewardChatStreamThinking { type: "thinking"; delta: string; }
 /** Live tool lifecycle event — name/label/status of a CRM tool being run. */
 interface StewardChatStreamTool { type: "tool"; name: string; label: string; status: "start" | "done"; }
+
+interface StewardToolOption {
+  name: string;
+  kind: "read" | "write";
+  description: string;
+  allowed: boolean;
+}
+
+function splitToolWords(value: string): string[] {
+  return value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .split(/[^a-zA-Z0-9]+/)
+    .map((part) => part.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function toolSearchKeywords(tool: StewardToolOption): string[] {
+  const parts = tool.name.split(".");
+  const namespace = parts[0] ?? "";
+  const action = parts[1] ?? "";
+  const keywords = new Set<string>([
+    namespace.toLowerCase(),
+    action.toLowerCase(),
+    ...splitToolWords(tool.name),
+    ...splitToolWords(tool.description),
+  ]);
+
+  if (namespace === "reports") {
+    ["report", "analytics", "kpi", "board", "dashboard", "ytd", "summary"].forEach((k) => keywords.add(k));
+  }
+  if (namespace === "donor") {
+    ["donor", "constituent", "retention", "giving", "profile", "stewardship"].forEach((k) => keywords.add(k));
+  }
+  if (namespace === "campaigns") {
+    ["campaign", "fundraising", "goal", "progress"].forEach((k) => keywords.add(k));
+  }
+  if (namespace === "tasks") {
+    ["task", "todo", "followup", "action"].forEach((k) => keywords.add(k));
+  }
+  if (namespace === "communications") {
+    ["email", "draft", "outreach", "message"].forEach((k) => keywords.add(k));
+  }
+  if (namespace === "letters" || namespace === "branding") {
+    ["letter", "brand", "template", "html", "css"].forEach((k) => keywords.add(k));
+  }
+
+  return [...keywords];
+}
+
+function scoreToolMatch(tool: StewardToolOption, query: string): number {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return 1;
+
+  const name = tool.name.toLowerCase();
+  const description = tool.description.toLowerCase();
+  const keywords = toolSearchKeywords(tool);
+  const terms = normalizedQuery.split(/[\s._-]+/).filter(Boolean);
+  if (terms.length === 0) return 1;
+
+  let score = 0;
+  for (const term of terms) {
+    const inName = name.includes(term);
+    const inDescription = description.includes(term);
+    const inKeywords = keywords.some((keyword) => keyword.includes(term));
+    if (!inName && !inDescription && !inKeywords) {
+      return -1;
+    }
+
+    if (name === term) score += 120;
+    else if (name.startsWith(term)) score += 80;
+    else if (inName) score += 55;
+    else if (inKeywords) score += 35;
+    else if (inDescription) score += 20;
+  }
+
+  if (name.startsWith(normalizedQuery)) score += 40;
+  if (name.includes(`.${normalizedQuery}`)) score += 28;
+  return score;
+}
+
+interface StewardToolsListPayload {
+  data: {
+    moduleKey: string;
+    scopePath: string;
+    tools: StewardToolOption[];
+  };
+}
 
 /** A single entry in the live tool feed shown in the thinking panel. */
 export interface ActiveTool {
@@ -157,6 +318,55 @@ function formatCompact(value: number): string {
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(value);
+}
+
+function extractInlineForcedTools(text: string, knownToolNames: Set<string>): { cleanedText: string; tools: string[] } {
+  const tokens = text.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return { cleanedText: "", tools: [] };
+
+  const tools: string[] = [];
+  const kept: string[] = [];
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
+    const isEdgeToken = i <= 1 || i >= tokens.length - 2;
+    if (isEdgeToken && /^\/[a-zA-Z0-9._-]+$/.test(token)) {
+      const toolName = token.slice(1);
+      if (knownToolNames.has(toolName)) {
+        tools.push(toolName);
+        continue;
+      }
+    }
+    kept.push(token);
+  }
+
+  return {
+    cleanedText: kept.join(" ").trim(),
+    tools: [...new Set(tools)],
+  };
+}
+
+function createReportRevision(params: {
+  version: number;
+  label: string;
+  prompt: string;
+  guideTemplate: ReportGuideTemplateId;
+  layoutHint: ReportLayoutHint;
+  appliedFilters?: string[];
+  structured?: StewardStructuredResponse;
+  replyContent?: string;
+}): ReportArtifactRevision {
+  return {
+    id: crypto.randomUUID(),
+    version: params.version,
+    createdAt: new Date().toISOString(),
+    label: params.label,
+    prompt: params.prompt,
+    guideTemplate: params.guideTemplate,
+    layoutHint: params.layoutHint,
+    appliedFilters: params.appliedFilters ?? [],
+    structured: params.structured,
+    replyContent: params.replyContent,
+  };
 }
 
 function buildReportPrintHtml(params: {
@@ -243,6 +453,137 @@ function buildReportPrintHtml(params: {
   </section>
 
   <p class=\"footer\">Generated from Steward Report Workspace for printable review.</p>
+</body>
+</html>`;
+}
+
+function buildInteractiveReportHtml(params: {
+  title: string;
+  fiscalYearLabel?: string;
+  route: string;
+  generatedAt: string;
+  metrics: Array<{ label: string; value: string; delta?: string }>;
+  evidence: Array<{ label: string; detail?: string }>;
+  insights: string[];
+  reply?: string;
+}): string {
+  const safeTitle = escapeHtml(params.title || "Steward Report Artifact");
+  const safeRoute = escapeHtml(params.route || "/reports");
+  const safeFy = escapeHtml(params.fiscalYearLabel || "Current Reporting Window");
+  const safeGenerated = escapeHtml(params.generatedAt);
+
+  const metricsHtml = params.metrics.length > 0
+    ? params.metrics.map((metric) => {
+      const delta = metric.delta ? `<p class="metric-delta">${escapeHtml(metric.delta)}</p>` : "";
+      return `<article class="metric-card"><h4>${escapeHtml(metric.label)}</h4><p class="metric-value">${escapeHtml(metric.value)}</p>${delta}</article>`;
+    }).join("\n")
+    : "<p class=\"empty\">No metrics available for this snapshot.</p>";
+
+  const evidenceHtml = params.evidence.length > 0
+    ? params.evidence.slice(0, 24).map((item) => (
+      `<li>${escapeHtml(item.label)}${item.detail ? ` - ${escapeHtml(item.detail)}` : ""}</li>`
+    )).join("\n")
+    : "<li>No evidence highlights attached.</li>";
+
+  const insightsHtml = params.insights.length > 0
+    ? params.insights.slice(0, 12).map((item) => `<li>${escapeHtml(item)}</li>`).join("\n")
+    : "<li>No additional guidance generated.</li>";
+
+  const replyHtml = params.reply
+    ? `<section class="section"><h3>Steward Narrative</h3><p class="reply">${escapeHtml(params.reply).replace(/\n/g, "<br />")}</p></section>`
+    : "";
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${safeTitle}</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top right, #123046, #050b14 45%, #030712 100%);
+      color: #e2e8f0;
+      font-family: "Segoe UI", "Inter", sans-serif;
+      line-height: 1.45;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    .header {
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 14px;
+      background: rgba(15, 23, 42, 0.82);
+      padding: 14px;
+      backdrop-filter: blur(8px);
+    }
+    .eyebrow { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #67e8f9; margin: 0 0 6px; }
+    h1 { margin: 0; font-size: 21px; }
+    .meta { margin-top: 8px; font-size: 12px; color: #94a3b8; display: flex; flex-wrap: wrap; gap: 10px; }
+    .grid { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+    .metric-card { border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 12px; background: rgba(15, 23, 42, 0.85); padding: 10px; }
+    .metric-card h4 { margin: 0; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: #94a3b8; }
+    .metric-value { margin: 6px 0 0; font-size: 19px; font-weight: 700; color: #f8fafc; }
+    .metric-delta { margin: 4px 0 0; font-size: 11px; color: #5eead4; }
+    .cols { margin-top: 14px; display: grid; grid-template-columns: 1.1fr .9fr; gap: 12px; }
+    .section { border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 12px; background: rgba(15, 23, 42, 0.72); padding: 12px; }
+    .section h3 { margin: 0 0 8px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: #cbd5e1; }
+    .section ul { margin: 0; padding-left: 18px; }
+    .section li { margin: 4px 0; font-size: 13px; color: #cbd5e1; }
+    .reply { margin: 0; white-space: normal; color: #e2e8f0; font-size: 13px; }
+    .toolbar { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .btn {
+      border: 1px solid rgba(45, 212, 191, 0.38);
+      border-radius: 999px;
+      background: rgba(20, 184, 166, 0.15);
+      color: #ccfbf1;
+      padding: 5px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .btn:hover { background: rgba(20, 184, 166, 0.28); }
+    .btn.secondary {
+      border-color: rgba(148, 163, 184, 0.35);
+      background: rgba(15, 23, 42, 0.72);
+      color: #cbd5e1;
+    }
+    .empty { margin: 0; color: #94a3b8; font-size: 13px; }
+    @media (max-width: 860px) {
+      .cols { grid-template-columns: 1fr; }
+      .wrap { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="header">
+      <p class="eyebrow">Interactive Steward Artifact</p>
+      <h1>${safeTitle}</h1>
+      <div class="meta">
+        <span><strong>Period:</strong> ${safeFy}</span>
+        <span><strong>Route:</strong> ${safeRoute}</span>
+        <span><strong>Built:</strong> ${safeGenerated}</span>
+      </div>
+      <div class="toolbar">
+        <button class="btn" onclick="window.print()">Print</button>
+        <button class="btn secondary" onclick="window.location.href='${safeRoute}'">Open Full Report</button>
+      </div>
+    </header>
+
+    <section class="grid">${metricsHtml}</section>
+
+    <section class="cols">
+      <section class="section">
+        <h3>Evidence Highlights</h3>
+        <ul>${evidenceHtml}</ul>
+      </section>
+      <section class="section">
+        <h3>Guidance</h3>
+        <ul>${insightsHtml}</ul>
+      </section>
+    </section>
+
+    ${replyHtml}
+  </div>
 </body>
 </html>`;
 }
@@ -512,6 +853,112 @@ function emailTextToHtml(value: string): string {
     .join("\n");
 }
 
+/** Normalizes common Steward placeholders into Letters & Printables merge field tokens. */
+function normalizeLetterMergeFields(input: string): string {
+  const replacements: Array<{ pattern: RegExp; token: string }> = [
+    { pattern: /\{\{\s*preferredName\s*\}\}/gi, token: "{{donor.preferredName}}" },
+    { pattern: /\{\{\s*fullName\s*\}\}/gi, token: "{{donor.fullName}}" },
+    { pattern: /\{\{\s*firstName\s*\}\}/gi, token: "{{donor.firstName}}" },
+    { pattern: /\{\{\s*lastGiftAmount\s*\}\}/gi, token: "{{gift.amount}}" },
+    { pattern: /\{\{\s*lastGiftDate\s*\}\}/gi, token: "{{gift.date}}" },
+    { pattern: /\{\{\s*campaignName\s*\}\}/gi, token: "{{gift.campaign}}" },
+    { pattern: /\{\{\s*organizationName\s*\}\}/gi, token: "{{organization.name}}" },
+    { pattern: /\{\{\s*staffName\s*\}\}/gi, token: "{{staff.fullName}}" },
+  ];
+
+  let normalized = input;
+  for (const entry of replacements) {
+    normalized = normalized.replace(entry.pattern, entry.token);
+  }
+  return normalized;
+}
+
+/** Minimal markdown-aware conversion to HTML for Letter editor compatibility. */
+function letterContentToHtml(value: string): string {
+  const source = (value || "").trim();
+  if (!source) return "";
+
+  const escapeHtml = (text: string) => text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  const applyInline = (text: string) => {
+    let next = escapeHtml(text);
+    next = next.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    next = next.replace(/(^|\s)_([^_]+)_(?=\s|$)/g, "$1<em>$2</em>");
+    next = next.replace(/(^|\s)\*([^*]+)\*(?=\s|$)/g, "$1<em>$2</em>");
+    next = next.replace(/`([^`]+)`/g, "<code>$1</code>");
+    return next;
+  };
+
+  const lines = source.split(/\r?\n/);
+  const chunks: string[] = [];
+  let paragraph: string[] = [];
+  let listItems: string[] = [];
+  let orderedListItems: string[] = [];
+
+  const flushParagraph = () => {
+    if (paragraph.length === 0) return;
+    chunks.push(`<p>${applyInline(paragraph.join(" ").trim())}</p>`);
+    paragraph = [];
+  };
+
+  const flushLists = () => {
+    if (listItems.length > 0) {
+      chunks.push(`<ul>${listItems.map((item) => `<li>${applyInline(item)}</li>`).join("")}</ul>`);
+      listItems = [];
+    }
+    if (orderedListItems.length > 0) {
+      chunks.push(`<ol>${orderedListItems.map((item) => `<li>${applyInline(item)}</li>`).join("")}</ol>`);
+      orderedListItems = [];
+    }
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) {
+      flushParagraph();
+      flushLists();
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      flushParagraph();
+      flushLists();
+      const level = Math.min(3, heading[1].length);
+      chunks.push(`<h${level}>${applyInline(heading[2].trim())}</h${level}>`);
+      continue;
+    }
+
+    const bullet = line.match(/^[-*]\s+(.+)$/);
+    if (bullet) {
+      flushParagraph();
+      orderedListItems = [];
+      listItems.push(bullet[1].trim());
+      continue;
+    }
+
+    const numbered = line.match(/^\d+\.\s+(.+)$/);
+    if (numbered) {
+      flushParagraph();
+      listItems = [];
+      orderedListItems.push(numbered[1].trim());
+      continue;
+    }
+
+    if (listItems.length > 0 || orderedListItems.length > 0) {
+      flushLists();
+    }
+    paragraph.push(line);
+  }
+
+  flushParagraph();
+  flushLists();
+  return chunks.join("\n");
+}
+
 function parseEmailDraftText(value: string): StewardTemplateDraft | null {
   const content = (value || "").trim();
   if (!content) return null;
@@ -573,6 +1020,56 @@ function extractTemplateDraftFromMessage(msg: UiMessage): StewardTemplateDraft |
   return parseEmailDraftText(content);
 }
 
+function sanitizeLetterBody(content: string): string {
+  const source = (content || "").trim();
+  if (!source) return "";
+
+  const fencedDraft = extractEmailDraftBlock(source);
+  const base = normalizeLetterMergeFields(fencedDraft || source);
+  return base
+    .replace(/^\s*#{1,6}\s+/gm, "")
+    .replace(/\n\s*\*\*What you can do next:\*\*[\s\S]*$/im, "")
+    .replace(/\n\s*What you can do next\s*:?[\s\S]*$/im, "")
+    .trim();
+}
+
+function buildLetterDraftFromMessage(msg: UiMessage): {
+  name: string;
+  printSubject: string;
+  printBody: string;
+  emailSubject?: string | null;
+  emailBody?: string | null;
+} | null {
+  const emailDraft = extractTemplateDraftFromMessage(msg);
+  if (emailDraft) {
+    const subject = emailDraft.subject.trim() || "Steward AI Letter Draft";
+    const normalizedBody = normalizeLetterMergeFields(emailDraft.bodyText.trim() || "Letter draft body");
+    return {
+      name: `Steward Letter: ${subject}`.slice(0, 120),
+      printSubject: subject,
+      printBody: letterContentToHtml(normalizedBody) || "<p>Letter draft body</p>",
+      emailSubject: subject,
+      emailBody: emailTextToHtml(normalizedBody),
+    };
+  }
+
+  const body = sanitizeLetterBody(msg.content);
+  if (!body) return null;
+
+  const subjectCandidate = body
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.length > 0) || "Steward AI Letter Draft";
+
+  return {
+    name: `Steward Letter: ${subjectCandidate}`.slice(0, 120),
+    printSubject: subjectCandidate.slice(0, 120),
+    printBody: letterContentToHtml(body) || "<p>Letter draft body</p>",
+    emailSubject: null,
+    emailBody: null,
+  };
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface AGENTStewardWorkspaceProps {
@@ -609,6 +1106,15 @@ interface StewardReportWorkspaceState {
   sourceMessageId?: string;
   structured?: StewardStructuredResponse;
   replyContent?: string;
+  guideTemplate: ReportGuideTemplateId;
+  layoutHint: ReportLayoutHint;
+  appliedFilters: string[];
+  revisions: ReportArtifactRevision[];
+  activeRevisionId?: string;
+  guideTemplates: ReportGuideTemplate[];
+  htmlArtifact?: string;
+  htmlGeneratedAt?: string;
+  htmlSourceKey?: string;
 }
 
 interface StewardTemplateModalState {
@@ -642,6 +1148,11 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
   const [modelUsed, setModelUsed]       = useState<string | null>(null);
   const [activeAssistantId, setActiveAssistantId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery]   = useState("");
+  const [availableTools, setAvailableTools] = useState<StewardToolOption[]>([]);
+  const [toolPickerQuery, setToolPickerQuery] = useState<string | null>(null);
+  const [forcedTools, setForcedTools] = useState<string[]>([]);
+  const [notePadOpen, setNotePadOpen] = useState(false);
+  const [notesByThread, setNotesByThread] = useState<Record<string, WorkspaceNoteState>>({});
   // @mention state
   const [mentionQuery, setMentionQuery] = useState<string | null>(null); // null = picker closed
   const [lockedDonors, setLockedDonors] = useState<MentionedDonor[]>([]); // donors pinned to this chat
@@ -654,6 +1165,9 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
   const [emailWorkspace, setEmailWorkspace] = useState<StewardEmailWorkspaceState | null>(null);
   const [letterWorkspace, setLetterWorkspace] = useState<StewardLetterWorkspaceState | null>(null);
   const [reportWorkspace, setReportWorkspace] = useState<StewardReportWorkspaceState | null>(null);
+  const [reportArtifactBuilding, setReportArtifactBuilding] = useState(false);
+  const [reportArtifactError, setReportArtifactError] = useState<string | null>(null);
+  const [reportGuideTemplate, setReportGuideTemplate] = useState<ReportGuideTemplateId>("board_pack");
   const [templateModal, setTemplateModal] = useState<StewardTemplateModalState | null>(null);
   const [templateSaving, setTemplateSaving] = useState(false);
   const [templateSaveError, setTemplateSaveError] = useState<string | null>(null);
@@ -688,6 +1202,42 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     return sorted.filter((t) => t.title.toLowerCase().includes(q));
   }, [threads, searchQuery]);
 
+  const readableAllowedTools = useMemo(
+    () => availableTools.filter((tool) => tool.allowed && tool.kind === "read"),
+    [availableTools],
+  );
+
+  const filteredToolOptions = useMemo(() => {
+    if (toolPickerQuery === null) return [] as StewardToolOption[];
+    const q = toolPickerQuery.trim();
+    if (!q) return readableAllowedTools.slice(0, 12);
+    return readableAllowedTools
+      .map((tool) => ({ tool, score: scoreToolMatch(tool, q) }))
+      .filter((entry) => entry.score >= 0)
+      .sort((a, b) => b.score - a.score || a.tool.name.localeCompare(b.tool.name))
+      .map((entry) => entry.tool)
+      .slice(0, 10);
+  }, [toolPickerQuery, readableAllowedTools]);
+
+  const slashToolHints = useMemo(() => {
+    const namespaces = new Set<string>();
+    for (const tool of readableAllowedTools) {
+      const ns = tool.name.split(".")[0]?.trim();
+      if (ns) namespaces.add(ns);
+      if (namespaces.size >= 4) break;
+    }
+    const list = [...namespaces];
+    return list.length > 0 ? list.map((item) => `/${item}`).join(" or ") : "/donor";
+  }, [readableAllowedTools]);
+
+  const knownToolNames = useMemo(() => new Set(availableTools.map((tool) => tool.name)), [availableTools]);
+  const canSend = draft.trim().length > 0 || forcedTools.length > 0;
+  const activeThreadNote = useMemo<WorkspaceNoteState>(() => {
+    const fallback: WorkspaceNoteState = { text: "", version: 1, sourceOfTruth: true };
+    if (!activeId) return fallback;
+    return notesByThread[activeId] ?? fallback;
+  }, [activeId, notesByThread]);
+
   // --- Hydration ---
   useEffect(() => {
     const stored = readThreads();
@@ -708,6 +1258,93 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     if (!hydrated) return;
     writeThreads(threads);
   }, [threads, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated || typeof window === "undefined") return;
+    window.localStorage.setItem("steward.workspace.notes.v1", JSON.stringify(notesByThread));
+  }, [hydrated, notesByThread]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem("steward.workspace.notes.v1");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Record<string, WorkspaceNoteState>;
+      if (parsed && typeof parsed === "object") {
+        setNotesByThread(parsed);
+      }
+    } catch {
+      // ignore malformed local workspace notes snapshot
+    }
+  }, []);
+
+  const updateActiveThreadNote = useCallback((updater: (prev: WorkspaceNoteState) => WorkspaceNoteState) => {
+    if (!activeId) return;
+    setNotesByThread((prev) => {
+      const current = prev[activeId] ?? { text: "", version: 1, sourceOfTruth: true };
+      return {
+        ...prev,
+        [activeId]: updater(current),
+      };
+    });
+  }, [activeId]);
+
+  const replaceWorkspaceNotes = useCallback((value: string) => {
+    updateActiveThreadNote((prev) => ({
+      ...prev,
+      text: value.trim(),
+      version: prev.version + 1,
+    }));
+    setNotePadOpen(true);
+  }, [updateActiveThreadNote]);
+
+  const appendWorkspaceNotes = useCallback((value: string) => {
+    updateActiveThreadNote((prev) => ({
+      ...prev,
+      text: prev.text.trim() ? `${prev.text.trim()}\n${value.trim()}` : value.trim(),
+      version: prev.version + 1,
+    }));
+    setNotePadOpen(true);
+  }, [updateActiveThreadNote]);
+
+  const prependWorkspaceNotes = useCallback((value: string) => {
+    updateActiveThreadNote((prev) => ({
+      ...prev,
+      text: prev.text.trim() ? `${value.trim()}\n${prev.text.trim()}` : value.trim(),
+      version: prev.version + 1,
+    }));
+    setNotePadOpen(true);
+  }, [updateActiveThreadNote]);
+
+  const clearWorkspaceNotes = useCallback(() => {
+    updateActiveThreadNote((prev) => ({
+      ...prev,
+      text: "",
+      version: prev.version + 1,
+    }));
+  }, [updateActiveThreadNote]);
+
+  const setWorkspaceNoteText = useCallback((value: string) => {
+    updateActiveThreadNote((prev) => ({
+      ...prev,
+      text: value,
+    }));
+  }, [updateActiveThreadNote]);
+
+  const bumpWorkspaceNoteVersion = useCallback(() => {
+    updateActiveThreadNote((prev) => ({
+      ...prev,
+      version: prev.version + 1,
+    }));
+  }, [updateActiveThreadNote]);
+
+  const setWorkspaceNoteSourceOfTruth = useCallback((value: boolean) => {
+    updateActiveThreadNote((prev) => ({
+      ...prev,
+      sourceOfTruth: value,
+      version: prev.version + 1,
+    }));
+  }, [updateActiveThreadNote]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -813,6 +1450,24 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    const moduleKey = scope === "all" ? "donor" : "donor";
+    apiFetch<StewardToolsListPayload>(`/api/steward-ai/tools?moduleKey=${encodeURIComponent(moduleKey)}&scopePath=${encodeURIComponent("/steward-ai-workspace")}`)
+      .then((payload) => {
+        if (!active) return;
+        const list = Array.isArray(payload.data?.tools) ? payload.data.tools : [];
+        setAvailableTools(list);
+      })
+      .catch(() => {
+        if (!active) return;
+        setAvailableTools([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [scope]);
+
   const updateMemoryPreferences = useCallback(async (patch: Partial<MemoryPreferencesPayload>) => {
     if (!memoryPreferences || memorySaving) return;
     setMemorySaving(true);
@@ -903,6 +1558,8 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     setDraft("");
     setError(null);
     setActionStatus(null);
+    setForcedTools([]);
+    setToolPickerQuery(null);
   }
 
   function switchThread(id: string) {
@@ -917,6 +1574,8 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     setActionStatus(null);
     setLockedDonors([]);
     setMentionQuery(null);
+    setForcedTools([]);
+    setToolPickerQuery(null);
   }
 
   function deleteThread(id: string) {
@@ -962,6 +1621,8 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     setDraft("");
     setError(null);
     setActionStatus(null);
+    setForcedTools([]);
+    setToolPickerQuery(null);
   }
 
   // ─── Scope change ───────────────────────────────────────────────────────────
@@ -991,7 +1652,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     }
     if (e.key === "Enter" && !e.shiftKey && mentionQuery === null) {
       e.preventDefault();
-      if (!sending && draft.trim()) void send();
+      if (!sending && canSend) void send();
     }
   }
 
@@ -1012,6 +1673,29 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       }
     }
     setMentionQuery(null);
+
+    const slashMatch = before.match(/(?:^|\s)\/([a-zA-Z0-9._-]*)$/);
+    if (slashMatch) {
+      setToolPickerQuery(slashMatch[1] ?? "");
+      return;
+    }
+    setToolPickerQuery(null);
+  }
+
+  function handleForcedToolSelect(toolName: string) {
+    const ta = textareaRef.current;
+    const cursor = ta?.selectionStart ?? draft.length;
+    const before = draft.slice(0, cursor);
+    const after = draft.slice(cursor);
+    const cleanedBefore = before.replace(/(?:^|\s)\/[a-zA-Z0-9._-]*$/, " ");
+    const normalized = `${cleanedBefore}${after}`.replace(/\s{2,}/g, " ").trimStart();
+
+    setDraft(normalized);
+    setToolPickerQuery(null);
+    setForcedTools((prev) => prev.includes(toolName) ? prev : [...prev, toolName]);
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 20);
   }
 
   /** Inject a selected donor into the draft and lock them as context. */
@@ -1152,7 +1836,13 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
   }
 
   const send = useCallback(async (content?: string, opts: SendOpts = {}): Promise<boolean> => {
-    const text = (content ?? draft).trim();
+    const shouldUseComposerForcing = typeof content === "undefined";
+    const rawText = (content ?? draft).trim();
+    const inlineForced = extractInlineForcedTools(rawText, knownToolNames);
+    const mergedForcedTools = shouldUseComposerForcing
+      ? [...new Set([...forcedTools, ...inlineForced.tools])]
+      : inlineForced.tools;
+    const text = inlineForced.cleanedText || (mergedForcedTools.length > 0 ? "Run selected tools and summarize the findings." : "");
     if (!text || sending) return false;
 
     const appendUser = opts.appendUser ?? true;
@@ -1189,6 +1879,8 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                 progressSteps: [],
                 thinkingContent: "",
                 activeTools: [],
+                progressPercent: undefined,
+                progressStage: undefined,
                 provider: undefined,
                 responseMode: undefined,
                 runtimeMode: undefined,
@@ -1199,6 +1891,10 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     }
 
     setDraft("");
+    if (shouldUseComposerForcing) {
+      setForcedTools([]);
+      setToolPickerQuery(null);
+    }
     setSending(true);
     setActiveAssistantId(assistantId);
     setError(null);
@@ -1219,6 +1915,18 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           fiscalYear: getFiscalYearForDate(new Date(), fiscalYearStart),
           fiscalYearStart,
           thoughtStackEnabled,
+          ...(mergedForcedTools.length > 0 ? { forcedTools: mergedForcedTools } : {}),
+          ...(activeThreadNote.text.trim().length > 0
+            ? {
+                workspaceNotes: {
+                  title: "Steward Workspace Notepad",
+                  content: activeThreadNote.text,
+                  version: activeThreadNote.version,
+                  sourceOfTruth: activeThreadNote.sourceOfTruth,
+                  liveEditable: true,
+                },
+              }
+            : {}),
           // Inject locked donor context so the AI knows who we're talking about
           ...(lockedDonors.length > 0 && {
             donorContext: lockedDonors.map((d) => ({
@@ -1266,7 +1974,12 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           } else if (ev.type === "progress") {
             setMessages((prev) =>
               prev.map((m) => m.id === assistantId
-                ? { ...m, progressSteps: [...(m.progressSteps ?? []), ev.message] }
+                ? {
+                    ...m,
+                    progressSteps: [...(m.progressSteps ?? []), ev.message],
+                    progressPercent: typeof ev.percent === "number" ? ev.percent : m.progressPercent,
+                    progressStage: typeof ev.stage === "string" ? ev.stage : m.progressStage,
+                  }
                 : m)
             );
           } else if (ev.type === "thinking") {
@@ -1344,7 +2057,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       setActiveAssistantId(null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, messages, mode, scope, sending, reportingYearMode, fiscalYearStart, thoughtStackEnabled, lockedDonors]);
+  }, [draft, messages, mode, scope, sending, reportingYearMode, fiscalYearStart, thoughtStackEnabled, lockedDonors, forcedTools, knownToolNames, canSend]);
 
   // Queue GuidePath/ThoughtStack continuation clicks while a stream is still finishing.
   useEffect(() => {
@@ -1395,7 +2108,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
     }
 
     const letterMatch = pathname.match(/^\/letters-printables\/templates\/([^/]+)$/);
-    if (letterMatch?.[1]) {
+    if (letterMatch?.[1] && params.get("embedded") === "1") {
       const panelRaw = params.get("panel");
       const initialPanel = panelRaw === "preview" || panelRaw === "publish" ? panelRaw : "document";
       setLetterWorkspace({
@@ -1410,6 +2123,16 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         m.role === "assistant"
         && Boolean(m.structured?.artifacts?.some((artifact) => artifact.type === "report_card"))
       ));
+      const initialRevision = createReportRevision({
+        version: 1,
+        label: "Baseline",
+        prompt: "Initial report artifact",
+        guideTemplate: reportGuideTemplate,
+        layoutHint: "balanced",
+        appliedFilters: [],
+        structured: latestReportMessage?.structured,
+        replyContent: latestReportMessage?.content,
+      });
 
       setReportWorkspace({
         path,
@@ -1417,6 +2140,12 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         sourceMessageId: latestReportMessage?.id,
         structured: latestReportMessage?.structured,
         replyContent: latestReportMessage?.content,
+        guideTemplate: reportGuideTemplate,
+        layoutHint: "balanced",
+        appliedFilters: [],
+        revisions: [initialRevision],
+        activeRevisionId: initialRevision.id,
+        guideTemplates: DEFAULT_REPORT_GUIDE_TEMPLATES,
       });
       return true;
     }
@@ -1426,13 +2155,33 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
 
   function openReportWorkspaceFromMessage(messageId: string, path: string, title = "View Full Report") {
     const source = messages.find((m) => m.id === messageId && m.role === "assistant");
+    const initialRevision = createReportRevision({
+      version: 1,
+      label: "Baseline",
+      prompt: "Initial report artifact",
+      guideTemplate: reportGuideTemplate,
+      layoutHint: "balanced",
+      appliedFilters: [],
+      structured: source?.structured,
+      replyContent: source?.content,
+    });
     setReportWorkspace({
       path,
       title,
       sourceMessageId: messageId,
       structured: source?.structured,
       replyContent: source?.content,
+      guideTemplate: reportGuideTemplate,
+      layoutHint: "balanced",
+      appliedFilters: [],
+      revisions: [initialRevision],
+      activeRevisionId: initialRevision.id,
+      guideTemplates: DEFAULT_REPORT_GUIDE_TEMPLATES,
+      htmlArtifact: undefined,
+      htmlGeneratedAt: undefined,
+      htmlSourceKey: undefined,
     });
+    setReportArtifactError(null);
   }
 
   // ─── Run suggested action ──────────────────────────────────────────────────
@@ -1515,10 +2264,19 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         confirm: (msg) => typeof window !== "undefined" ? window.confirm(msg) : false,
         callApi: async (path, init) => { await apiFetch(path, { method: init?.method, body: init?.body, headers: { "Content-Type": "application/json" } }); },
         navigate: (path) => {
+          if (path.startsWith("/letters-printables/templates/")) {
+            const fullPath = path.includes("?") ? `${path}&fullscreen=1` : `${path}?fullscreen=1`;
+            if (typeof window !== "undefined") window.location.href = fullPath;
+            return;
+          }
           const openedInWorkspace = openWorkspaceFromPath(path);
           if (!openedInWorkspace && typeof window !== "undefined") window.location.href = path;
         },
         copyText: async (val) => { await navigator.clipboard.writeText(val); },
+        replaceWorkspaceNotes,
+        appendWorkspaceNotes,
+        prependWorkspaceNotes,
+        clearWorkspaceNotes,
       });
       setActionStatus({ tone: res.status === "executed" ? "success" : "error", message: res.message });
     } catch (e) {
@@ -1579,6 +2337,46 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       setTemplateSaveError(e instanceof Error ? e.message : "Failed to save template.");
     } finally {
       setTemplateSaving(false);
+    }
+  }
+
+  async function saveDraftLetterFromMessage(messageId: string) {
+    const source = messages.find((m) => m.id === messageId && m.role === "assistant");
+    if (!source) return;
+
+    const draft = buildLetterDraftFromMessage(source);
+    if (!draft) {
+      setActionStatus({ tone: "error", message: "This response does not contain draftable letter content yet." });
+      return;
+    }
+
+    try {
+      const created = await apiFetch<{ id?: string }>("/api/letters/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: draft.name,
+          category: "GENERAL",
+          status: "DRAFT",
+          printSubject: draft.printSubject,
+          printBody: draft.printBody,
+          emailSubject: draft.emailSubject ?? null,
+          emailBody: draft.emailBody ?? null,
+          crmScope: "DONOR",
+        }),
+      });
+
+      if (!created?.id) {
+        setActionStatus({ tone: "error", message: "Letter template was created without an id." });
+        return;
+      }
+
+      if (typeof window !== "undefined") {
+        window.location.href = `/letters-printables/templates/${encodeURIComponent(created.id)}?fullscreen=1`;
+      }
+      setActionStatus({ tone: "success", message: "Draft letter saved and opened in Letters workspace." });
+    } catch (e) {
+      setActionStatus({ tone: "error", message: e instanceof Error ? e.message : "Failed to save draft letter." });
     }
   }
 
@@ -1689,16 +2487,151 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
   const askStewardFromReport = useCallback(async () => {
     if (!reportWorkspace) return;
     const prompt = reportQuestion.trim();
-    if (!prompt) return;
+    if (!prompt || reportArtifactBuilding) return;
 
-    const fyLabel = reportCardArtifact?.fiscalYearLabel ? ` for ${reportCardArtifact.fiscalYearLabel}` : "";
-    const chartHint = reportCharts.length > 0 ? " Use the monthly chart and KPI metrics in your explanation." : "";
-    const fullPrompt = `Report deep dive (${reportWorkspace.path}${fyLabel}): ${prompt}.${chartHint}`;
+    setReportArtifactBuilding(true);
+    setReportArtifactError(null);
 
-    setReportWorkspace(null);
-    setReportQuestion("");
-    await send(fullPrompt);
-  }, [reportWorkspace, reportQuestion, reportCardArtifact, reportCharts, send]);
+    try {
+      const response = await apiFetch<StewardReportRefineResponsePayload>("/api/steward-ai/report-artifact/refine", {
+        method: "POST",
+        body: JSON.stringify({
+          path: reportWorkspace.path,
+          title: reportWorkspace.title,
+          prompt,
+          guideTemplate: reportGuideTemplate,
+          layoutHint: reportWorkspace.layoutHint,
+          filters: reportWorkspace.appliedFilters,
+          structured: reportWorkspace.structured,
+          replyContent: reportWorkspace.replyContent,
+        }),
+      });
+
+      setReportWorkspace((prev) => {
+        if (!prev) return prev;
+        const nextVersion = prev.revisions.length + 1;
+        const revision = createReportRevision({
+          version: nextVersion,
+          label: response.data.revisionLabel,
+          prompt,
+          guideTemplate: response.data.guideTemplate,
+          layoutHint: response.data.layoutHint,
+          appliedFilters: response.data.appliedFilters,
+          structured: response.data.structured,
+          replyContent: response.data.reply,
+        });
+        return {
+          ...prev,
+          structured: response.data.structured,
+          replyContent: response.data.reply,
+          guideTemplate: response.data.guideTemplate,
+          layoutHint: response.data.layoutHint,
+          appliedFilters: response.data.appliedFilters,
+          guideTemplates: response.data.guideTemplates?.length > 0 ? response.data.guideTemplates : prev.guideTemplates,
+          revisions: [...prev.revisions, revision],
+          activeRevisionId: revision.id,
+          htmlArtifact: undefined,
+          htmlGeneratedAt: undefined,
+          htmlSourceKey: undefined,
+        };
+      });
+      setReportGuideTemplate(response.data.guideTemplate);
+      setReportQuestion("");
+      setActionStatus({ tone: "success", message: "Report artifact refined and revision saved." });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to refresh report artifact.";
+      setReportArtifactError(message);
+      setActionStatus({ tone: "error", message });
+    } finally {
+      setReportArtifactBuilding(false);
+    }
+  }, [
+    reportWorkspace,
+    reportQuestion,
+    reportArtifactBuilding,
+    reportGuideTemplate,
+  ]);
+
+  const rollbackReportRevision = useCallback((revisionId: string) => {
+    setReportWorkspace((prev) => {
+      if (!prev) return prev;
+      const revision = prev.revisions.find((item) => item.id === revisionId);
+      if (!revision) return prev;
+      return {
+        ...prev,
+        structured: revision.structured,
+        replyContent: revision.replyContent,
+        guideTemplate: revision.guideTemplate,
+        layoutHint: revision.layoutHint,
+        appliedFilters: revision.appliedFilters,
+        activeRevisionId: revision.id,
+        htmlArtifact: undefined,
+        htmlGeneratedAt: undefined,
+        htmlSourceKey: undefined,
+      };
+    });
+    setReportGuideTemplate((prev) => {
+      const workspace = reportWorkspace;
+      const revision = workspace?.revisions.find((item) => item.id === revisionId);
+      return revision?.guideTemplate ?? prev;
+    });
+    setActionStatus({ tone: "success", message: "Report revision restored." });
+  }, [reportWorkspace]);
+
+  useEffect(() => {
+    if (!reportWorkspace) return;
+    const metrics = reportCardArtifact?.metrics ?? [];
+    const evidence = reportWorkspace.structured?.evidence ?? [];
+    const hasContent = metrics.length > 0 || evidence.length > 0 || reportInsights.length > 0 || Boolean(reportWorkspace.replyContent?.trim());
+    if (!hasContent) return;
+
+    const sourceKey = JSON.stringify({
+      path: reportWorkspace.path,
+      title: reportCardArtifact?.title || reportWorkspace.title,
+      fy: reportCardArtifact?.fiscalYearLabel || "",
+      metrics,
+      evidence,
+      insights: reportInsights,
+      reply: reportWorkspace.replyContent || "",
+    });
+    if (reportWorkspace.htmlSourceKey === sourceKey && reportWorkspace.htmlArtifact) {
+      return;
+    }
+
+    setReportArtifactBuilding(true);
+    const timer = window.setTimeout(() => {
+      const stamp = new Intl.DateTimeFormat("en-US", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(new Date());
+
+      const htmlArtifact = buildInteractiveReportHtml({
+        title: reportCardArtifact?.title || reportWorkspace.title,
+        fiscalYearLabel: reportCardArtifact?.fiscalYearLabel,
+        route: reportWorkspace.path,
+        generatedAt: stamp,
+        metrics,
+        evidence,
+        insights: reportInsights,
+        reply: reportWorkspace.replyContent,
+      });
+
+      setReportWorkspace((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          htmlArtifact,
+          htmlGeneratedAt: stamp,
+          htmlSourceKey: sourceKey,
+        };
+      });
+      setReportArtifactBuilding(false);
+    }, 120);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [reportWorkspace, reportCardArtifact, reportInsights]);
 
   // ─── External prompt (from StewardContextButton) ────────────────────────────
   // When a contextual button outside the dock fires a prompt, start a fresh chat
@@ -1754,7 +2687,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           w-72 sm:w-64 bg-slate-50 border-r border-slate-100
           transition-transform duration-300 ease-out
           sm:static sm:z-auto sm:shrink-0
-          ${sidebarOpen ? "translate-x-0 shadow-xl sm:w-64 sm:shadow-none animate-sidebar-slide-in" : "-translate-x-full sm:translate-x-0 sm:w-12 sm:overflow-visible"}
+          ${sidebarOpen ? "translate-x-0 shadow-xl sm:w-64 sm:shadow-none animate-sidebar-slide-in" : "-translate-x-full sm:translate-x-0 sm:w-14 sm:overflow-visible"}
         `}
       >
         <div className="flex items-center justify-between gap-2 px-3 pt-4 pb-3">
@@ -1773,6 +2706,68 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
           </button>
+        </div>
+
+        {/* Collapsed icon rail */}
+        <div className={`${sidebarOpen ? "hidden" : "hidden sm:flex"} flex-1 min-h-0 w-full flex-col items-center gap-2.5 px-1.5 pb-3`}>
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+            title="Open sidebar"
+            aria-label="Open sidebar"
+          >
+            <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+          </button>
+
+          <button
+            type="button"
+            onClick={startNewChat}
+            disabled={sending}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors"
+            title="New chat"
+            aria-label="New chat"
+          >
+            <svg className="h-[17px] w-[17px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16M4 12h16" /></svg>
+          </button>
+
+          <div className="mt-1.5 flex min-h-0 w-full flex-1 flex-col items-center gap-1.5 overflow-y-auto px-0.5">
+            {filteredThreads.slice(0, 14).map((t) => (
+              <button
+                key={`collapsed-${t.id}`}
+                type="button"
+                onClick={() => switchThread(t.id)}
+                className={`relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${t.id === activeId ? "bg-white text-slate-800 ring-1 ring-emerald-100" : "text-slate-400 hover:bg-white hover:text-slate-600"}`}
+                title={t.title}
+                aria-label={`Open chat ${t.title}`}
+              >
+                <svg className="h-[17px] w-[17px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h7m-9 8l-1-3a9 9 0 1116 0l-1 3-3-1a9 9 0 01-8 0l-3 1z" /></svg>
+                {t.id === activeId && <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />}
+              </button>
+            ))}
+          </div>
+
+          <Link
+            href="#"
+            onClick={(event) => {
+              event.preventDefault();
+              setNotePadOpen((value) => !value);
+            }}
+            className="mb-1 flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 hover:bg-white hover:text-slate-600 transition-colors"
+            title={notePadOpen ? "Hide workspace notes" : "Open workspace notes"}
+            aria-label={notePadOpen ? "Hide workspace notes" : "Open workspace notes"}
+          >
+            <svg className="h-[17px] w-[17px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>
+          </Link>
+
+          <Link
+            href="/settings"
+            className="mt-auto mb-1 flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 hover:bg-white hover:text-slate-600 transition-colors"
+            title="AI Settings"
+            aria-label="AI Settings"
+          >
+            <svg className="h-[17px] w-[17px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><circle cx="12" cy="12" r="3" /></svg>
+          </Link>
         </div>
 
         {/* New chat */}
@@ -1878,6 +2873,17 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
             </div>
           </div>
           <Link
+            href="#"
+            onClick={(event) => {
+              event.preventDefault();
+              setNotePadOpen((value) => !value);
+            }}
+            className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-slate-500 hover:bg-white hover:text-slate-700 transition-colors"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>
+            Workspace Notes
+          </Link>
+          <Link
             href="/settings"
             className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-slate-500 hover:bg-white hover:text-slate-700 transition-colors"
           >
@@ -1896,7 +2902,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       </aside>}
 
       {/* ── Main area ─────────────────────────────────────────────────────── */}
-      <div className="steward-chroma-main relative flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className={`steward-chroma-main relative flex min-w-0 flex-1 flex-col overflow-hidden ${notePadOpen ? "pr-0 lg:pr-[50%]" : ""}`}>
 
         {/* Top bar inside the workspace — full mode vs compact dock mode */}
         {dockMode ? (
@@ -1926,49 +2932,15 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
             </a>
           </div>
-        ) : (
-        <div className="steward-chroma-header flex shrink-0 items-center gap-2 border-b border-slate-100 bg-white px-3 py-2 sm:px-4 sm:py-2.5 min-h-[52px]">
-          {/* Hamburger — always visible, opens sidebar */}
-          <button
-            type="button"
-            onClick={() => setSidebarOpen((v) => !v)}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors"
-            title={sidebarOpen ? "Close sidebar" : "Open sidebar"}
-            aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
-          </button>
-
-          <div className="flex min-w-0 items-center gap-2">
-            <StewardAvatarIcon size={22} alt="Steward" className="ring-cyan-300/60" />
-            <span className="truncate text-sm font-semibold text-slate-900">Steward</span>
-            <span className="hidden truncate text-xs text-slate-500 sm:inline">{scopeLabel}</span>
-          </div>
-
-          <div className="ml-auto flex items-center gap-2">
-            {/* AI status indicator — icon-only on mobile */}
-            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium ${
-              aiConfig?.enabled
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-amber-200 bg-amber-50 text-amber-700"
-            }`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${aiConfig?.enabled ? "bg-emerald-500" : "bg-amber-400"}`} />
-              <span className="hidden sm:inline">
-                {aiConfig?.enabled ? (modelUsed ? `${modelUsed}` : `${aiConfig.mode === "local" ? "Local" : "Remote"} AI`) : "AI not configured"}
-              </span>
-            </span>
-            {/* Link back to CRM */}
-            <Link href="/" className="flex h-9 w-9 sm:h-auto sm:w-auto items-center justify-center sm:gap-1.5 rounded-xl border border-slate-200 bg-white sm:px-3 sm:py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800 transition-colors shadow-sm">
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11 17l-5-5m0 0l5-5m-5 5h12" /></svg>
-              <span className="hidden sm:inline">Back to CRM</span>
-            </Link>
-          </div>
-        </div>
-        )} {/* end dockMode ? dock-header : full-header */}
+        ) : null}
+        {/* end dockMode ? dock-header : full-header */}
 
         {/* ── Conversation ────────────────────────────────────────────────── */}
-        <div className="steward-chroma-scroll chat-scroll-smooth flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
-          <div className="mx-auto max-w-3xl px-3 py-4 sm:px-4 sm:py-6">
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-gradient-to-b from-black/72 via-black/28 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-10 bg-gradient-to-t from-black/70 to-transparent" />
+          <div className="steward-chroma-scroll chat-scroll-smooth h-full overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+            <div className="mx-auto max-w-3xl px-3 py-4 sm:px-4 sm:py-6">
 
             {/* Empty state with starter prompts */}
             {isEmptyChat ? (
@@ -1994,33 +2966,69 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     </div>
                   )}
 
-                  {lockedDonors.length > 0 && (
-                    <div className="mb-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-left">
-                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-                        Tagged donor context
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {lockedDonors.map((d) => {
-                          const name = [d.firstName, d.lastName].filter(Boolean).join(" ") || d.email || "Unknown";
-                          return (
-                            <span
-                              key={d.id}
-                              className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-white px-2 py-0.5 text-xs font-medium text-emerald-800"
-                            >
-                              <span className="text-emerald-600">@</span>
-                              {name}
-                              <button
-                                type="button"
-                                onClick={() => setLockedDonors((prev) => prev.filter((x) => x.id !== d.id))}
-                                className="rounded-full px-1 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-800"
-                                aria-label={`Remove ${name} from context`}
-                              >
-                                x
-                              </button>
-                            </span>
-                          );
-                        })}
+                  {toolPickerQuery !== null && mentionQuery === null && (
+                    <div className="mb-1 rounded-lg border border-cyan-400/25 bg-slate-950/80 p-1.5 text-left">
+                      <p className="px-1 text-[10px] font-medium text-cyan-200">Slash tools: type after / to search available tools, then pick one</p>
+                      <div className="mt-1 max-h-36 overflow-y-auto space-y-1">
+                        {filteredToolOptions.length > 0 ? filteredToolOptions.map((tool) => (
+                          <button
+                            key={tool.name}
+                            type="button"
+                            onClick={() => handleForcedToolSelect(tool.name)}
+                            className="w-full rounded-md border border-white/10 bg-slate-900/80 px-2 py-1 text-left text-[11px] text-slate-200 hover:border-cyan-300/40 hover:bg-slate-800"
+                          >
+                            <span className="font-semibold text-cyan-200">/{tool.name}</span>
+                            <span className="ml-1 text-slate-400">{tool.description}</span>
+                          </button>
+                        )) : (
+                          <p className="px-1 py-1 text-[11px] text-slate-400">No matching available tools. Try {slashToolHints}</p>
+                        )}
                       </div>
+                    </div>
+                  )}
+
+                  {lockedDonors.length > 0 && (
+                    <div className="mb-1.5 flex flex-wrap items-center gap-1.5 px-0.5 pt-0.5">
+                      <span className="shrink-0 text-[10px] font-medium text-slate-400">Focused on</span>
+                      {lockedDonors.map((d) => {
+                        const name = [d.firstName, d.lastName].filter(Boolean).join(" ") || d.email || "Unknown";
+                        return (
+                          <span
+                            key={d.id}
+                            className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-xs font-medium text-slate-100"
+                          >
+                            <span className="text-teal-400 text-[10px]">@</span>
+                            {name}
+                            <button
+                              type="button"
+                              onClick={() => setLockedDonors((prev) => prev.filter((x) => x.id !== d.id))}
+                              className="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/15 hover:text-slate-100"
+                              aria-label={`Remove ${name} from context`}
+                            >
+                              <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {forcedTools.length > 0 && (
+                    <div className="mb-1.5 flex flex-wrap items-center gap-1.5 px-0.5 pt-0.5 text-left">
+                      <span className="shrink-0 text-[10px] font-medium text-cyan-300">Forced tools</span>
+                      {forcedTools.map((tool) => (
+                        <span key={tool} className="inline-flex items-center gap-1 rounded-full border border-cyan-300/25 bg-cyan-500/10 px-2 py-0.5 text-xs font-medium text-cyan-100">
+                          /{tool}
+                          <button
+                            type="button"
+                            onClick={() => setForcedTools((prev) => prev.filter((t) => t !== tool))}
+                            className="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-cyan-200 transition-colors hover:bg-cyan-400/20 hover:text-cyan-100"
+                            aria-label={`Remove forced tool ${tool}`}
+                          >
+                            <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                          </button>
+                        </span>
+                      ))}
                     </div>
                   )}
 
@@ -2146,7 +3154,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                       <button
                         type="button"
                         onClick={() => void send()}
-                        disabled={!draft.trim()}
+                        disabled={!canSend}
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1388d8] text-white transition-all hover:bg-[#1d9bf0] active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
                         title="Send"
                       >
@@ -2168,6 +3176,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     onRegenerate={() => regenerate(msg.id)}
                     onCopy={() => void copyMessage(msg.content)}
                     onSaveTemplate={() => openSaveTemplateModal(msg.id)}
+                    onSaveDraftLetter={() => void saveDraftLetterFromMessage(msg.id)}
                     onRunAction={(idx) => void runAction(msg.id, idx)}
                     onOpenReport={(path, label) => openReportWorkspaceFromMessage(msg.id, path, label)}
                     onAskReportQuestion={(prompt) => {
@@ -2204,7 +3213,8 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
               </div>
             )}
 
-            <div ref={bottomRef} className="h-6" />
+              <div ref={bottomRef} className="h-6" />
+            </div>
           </div>
         </div>
 
@@ -2212,7 +3222,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
              Safe-area padding handles iOS home-indicator area.
         ──────────────────────────────────────────────────────────────────── */}
         {(!isEmptyChat || dockMode) && (
-        <div className="steward-chroma-composer-wrap shrink-0 border-t border-slate-100 bg-white px-3 pt-3 sm:px-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+        <div className="steward-chroma-composer-wrap shrink-0 bg-white px-3 pt-3 sm:px-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
           <div className="mx-auto max-w-3xl">
             <div ref={composerRef} className="steward-hero-composer relative w-full rounded-full border border-slate-200 bg-white px-3 py-2 shadow-sm">
               <input
@@ -2233,33 +3243,69 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                 </div>
               )}
 
-              {lockedDonors.length > 0 && (
-                <div className="mb-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-left">
-                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-                    Tagged donor context
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {lockedDonors.map((d) => {
-                      const name = [d.firstName, d.lastName].filter(Boolean).join(" ") || d.email || "Unknown";
-                      return (
-                        <span
-                          key={d.id}
-                          className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-white px-2 py-0.5 text-xs font-medium text-emerald-800"
-                        >
-                          <span className="text-emerald-600">@</span>
-                          {name}
-                          <button
-                            type="button"
-                            onClick={() => setLockedDonors((prev) => prev.filter((x) => x.id !== d.id))}
-                            className="rounded-full px-1 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-800"
-                            aria-label={`Remove ${name} from context`}
-                          >
-                            x
-                          </button>
-                        </span>
-                      );
-                    })}
+              {toolPickerQuery !== null && mentionQuery === null && (
+                <div className="mb-1 rounded-lg border border-cyan-400/25 bg-slate-950/80 p-1.5 text-left">
+                  <p className="px-1 text-[10px] font-medium text-cyan-200">Slash tools: type after / to search available tools, then pick one</p>
+                  <div className="mt-1 max-h-36 overflow-y-auto space-y-1">
+                    {filteredToolOptions.length > 0 ? filteredToolOptions.map((tool) => (
+                      <button
+                        key={tool.name}
+                        type="button"
+                        onClick={() => handleForcedToolSelect(tool.name)}
+                        className="w-full rounded-md border border-white/10 bg-slate-900/80 px-2 py-1 text-left text-[11px] text-slate-200 hover:border-cyan-300/40 hover:bg-slate-800"
+                      >
+                        <span className="font-semibold text-cyan-200">/{tool.name}</span>
+                        <span className="ml-1 text-slate-400">{tool.description}</span>
+                      </button>
+                    )) : (
+                      <p className="px-1 py-1 text-[11px] text-slate-400">No matching available tools. Try {slashToolHints}</p>
+                    )}
                   </div>
+                </div>
+              )}
+
+              {lockedDonors.length > 0 && (
+                <div className="mb-1.5 flex flex-wrap items-center gap-1.5 px-0.5 pt-0.5">
+                  <span className="shrink-0 text-[10px] font-medium text-slate-400">Focused on</span>
+                  {lockedDonors.map((d) => {
+                    const name = [d.firstName, d.lastName].filter(Boolean).join(" ") || d.email || "Unknown";
+                    return (
+                      <span
+                        key={d.id}
+                        className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-xs font-medium text-slate-100"
+                      >
+                        <span className="text-teal-400 text-[10px]">@</span>
+                        {name}
+                        <button
+                          type="button"
+                          onClick={() => setLockedDonors((prev) => prev.filter((x) => x.id !== d.id))}
+                          className="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/15 hover:text-slate-100"
+                          aria-label={`Remove ${name} from context`}
+                        >
+                          <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+
+              {forcedTools.length > 0 && (
+                <div className="mb-1.5 flex flex-wrap items-center gap-1.5 px-0.5 pt-0.5 text-left">
+                  <span className="shrink-0 text-[10px] font-medium text-cyan-300">Forced tools</span>
+                  {forcedTools.map((tool) => (
+                    <span key={tool} className="inline-flex items-center gap-1 rounded-full border border-cyan-300/25 bg-cyan-500/10 px-2 py-0.5 text-xs font-medium text-cyan-100">
+                      /{tool}
+                      <button
+                        type="button"
+                        onClick={() => setForcedTools((prev) => prev.filter((t) => t !== tool))}
+                        className="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-cyan-200 transition-colors hover:bg-cyan-400/20 hover:text-cyan-100"
+                        aria-label={`Remove forced tool ${tool}`}
+                      >
+                        <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </span>
+                  ))}
                 </div>
               )}
 
@@ -2385,7 +3431,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                   <button
                     type="button"
                     onClick={() => void send()}
-                    disabled={!draft.trim()}
+                    disabled={!canSend}
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1388d8] text-white transition-all hover:bg-[#1d9bf0] active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
                     title="Send"
                   >
@@ -2400,6 +3446,59 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
             </p>
           </div>
         </div>
+        )}
+
+        {notePadOpen && (
+          <aside className={`absolute bottom-0 right-0 ${dockMode ? "top-[52px]" : "top-0"} z-20 w-full border-l border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-[#09090b] lg:w-1/2`}>
+            <div className="flex h-full flex-col">
+              <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2.5 dark:border-slate-800">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">Workspace Notepad</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Attached to every prompt in this thread</p>
+                </div>
+                <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-[#111217] dark:text-slate-200">v{activeThreadNote.version}</span>
+                <button
+                  type="button"
+                  onClick={() => setNotePadOpen(false)}
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-[#17191f] dark:hover:text-slate-100"
+                  title="Close workspace notes"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setWorkspaceNoteSourceOfTruth(!activeThreadNote.sourceOfTruth)}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                    activeThreadNote.sourceOfTruth
+                      ? "border-cyan-300 bg-cyan-50 text-cyan-700 dark:border-cyan-500/50 dark:bg-cyan-500/15 dark:text-cyan-200"
+                      : "border-slate-300 bg-white text-slate-600 dark:border-slate-700 dark:bg-[#111217] dark:text-slate-300"
+                  }`}
+                >
+                  {activeThreadNote.sourceOfTruth ? "Source of truth: on" : "Source of truth: off"}
+                </button>
+                <button
+                  type="button"
+                  onClick={clearWorkspaceNotes}
+                  className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-[#111217] dark:text-slate-300 dark:hover:bg-[#1b1e26]"
+                >
+                  Clear notes
+                </button>
+              </div>
+
+              <div className="min-h-0 flex-1 px-3 py-3">
+                <textarea
+                  value={activeThreadNote.text}
+                  onChange={(event) => setWorkspaceNoteText(event.target.value)}
+                  onBlur={bumpWorkspaceNoteVersion}
+                  placeholder="Capture working context, constraints, and decisions here. Steward will treat this as attached context for each message."
+                  className="h-full w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-200 dark:border-slate-800 dark:bg-[#05070c] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-cyan-400 dark:focus:ring-cyan-500/30"
+                />
+              </div>
+            </div>
+          </aside>
         )}
       </div>
 
@@ -2424,15 +3523,18 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           subtitle="Build, preview, and revise this draft without leaving AGENTSteward."
           onClose={() => setEmailWorkspace(null)}
           maxWidthClassName="max-w-[96vw]"
+          appearance="dark"
+          openInNewTabHref={`/email-builder?campaign=${encodeURIComponent(emailWorkspace.campaignId)}${emailWorkspace.returnTo ? `&returnTo=${encodeURIComponent(emailWorkspace.returnTo)}` : ""}`}
+          openInNewTabLabel="Open full screen"
         >
           <div className="px-4 pb-4 pt-12">
-            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2 text-xs text-slate-300">
               <span>Use Preview in the builder header, then ask Steward for edits and run the next build action.</span>
               <a
                 href={`/email-builder?campaign=${encodeURIComponent(emailWorkspace.campaignId)}${emailWorkspace.returnTo ? `&returnTo=${encodeURIComponent(emailWorkspace.returnTo)}` : ""}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                className="rounded-lg border border-slate-700 bg-slate-900/70 px-2.5 py-1 text-xs font-semibold text-slate-100 hover:bg-slate-800"
               >
                 Open full page
               </a>
@@ -2455,20 +3557,23 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           subtitle="Build, preview, and revise this letter draft directly in AGENTSteward."
           onClose={() => setLetterWorkspace(null)}
           maxWidthClassName="max-w-[96vw]"
+          appearance="dark"
+          openInNewTabHref={`/letters-printables/templates/${encodeURIComponent(letterWorkspace.templateId)}?fullscreen=1`}
+          openInNewTabLabel="Open full screen"
         >
           <div className="px-4 pb-4 pt-12">
-            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2 text-xs text-slate-300">
               <span>Switch to Preview inside the letter editor and continue revisions from chat prompts.</span>
               <a
-                href={`/letters-printables/templates/${encodeURIComponent(letterWorkspace.templateId)}`}
+                href={`/letters-printables/templates/${encodeURIComponent(letterWorkspace.templateId)}?fullscreen=1`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                className="rounded-lg border border-slate-700 bg-slate-900/70 px-2.5 py-1 text-xs font-semibold text-slate-100 hover:bg-slate-800"
               >
                 Open full page
               </a>
             </div>
-            <div className="h-[82vh] min-h-[640px] overflow-hidden rounded-xl border border-gray-200 bg-white">
+            <div className="h-[82vh] min-h-[640px] overflow-hidden rounded-xl border border-white/10 bg-[#020617]">
               <LetterTemplateEditor
                 templateId={letterWorkspace.templateId}
                 initialPanel={letterWorkspace.initialPanel ?? "document"}
@@ -2484,6 +3589,9 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           subtitle="Review deeper report details and ask Steward follow-up questions without leaving chat."
           onClose={() => setReportWorkspace(null)}
           maxWidthClassName="max-w-[96vw]"
+          appearance="dark"
+          openInNewTabHref={reportWorkspace.path}
+          openInNewTabLabel="Open full screen"
         >
           <div className="h-[calc(100dvh-8.5rem)] overflow-y-auto bg-[#020617] px-3 pb-4 pt-10 sm:h-[calc(100dvh-7.5rem)] sm:px-4 sm:pt-12">
             <div className="mb-3 flex flex-col items-start gap-2 rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2 text-xs text-slate-300 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
@@ -2606,6 +3714,38 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
               </div>
 
               <div className="space-y-3 xl:sticky xl:top-0 xl:self-start">
+                <div className="rounded-xl border border-sky-400/25 bg-sky-500/5 p-3 sm:p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-sky-200">Interactive HTML artifact</p>
+                    {reportWorkspace.htmlGeneratedAt && (
+                      <span className="text-[10px] text-slate-400">Built {reportWorkspace.htmlGeneratedAt}</span>
+                    )}
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-slate-300">
+                    The report artifact is rebuilt in the background as an interactive HTML packet whenever metrics or evidence change.
+                  </p>
+                  {reportArtifactBuilding && (
+                    <p className="mt-2 text-[11px] text-sky-200">Building artifact in background...</p>
+                  )}
+                  {reportArtifactError && (
+                    <p className="mt-2 text-[11px] text-rose-300">{reportArtifactError}</p>
+                  )}
+                  {reportWorkspace.htmlArtifact ? (
+                    <div className="mt-3 overflow-hidden rounded-lg border border-white/10 bg-slate-950/60">
+                      <iframe
+                        title="Interactive report artifact"
+                        srcDoc={reportWorkspace.htmlArtifact}
+                        className="h-72 w-full border-0"
+                        sandbox="allow-same-origin allow-scripts"
+                      />
+                    </div>
+                  ) : (
+                    <div className="mt-3 rounded-lg border border-dashed border-white/15 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
+                      Artifact preview will appear after the first background build completes.
+                    </div>
+                  )}
+                </div>
+
                 {reportInsights.length > 0 && (
                   <div className="rounded-xl border border-cyan-400/20 bg-[#06101f] p-3 sm:p-4">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-cyan-300">CRM intelligence snapshot</p>
@@ -2633,7 +3773,74 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                 </div>
 
                 <div className="rounded-xl border border-white/10 bg-[#060d1a] p-3 sm:p-4">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Report tools</p>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Deterministic guide templates</p>
+                  <div className="space-y-2">
+                    {reportWorkspace.guideTemplates.map((template) => {
+                      const active = reportGuideTemplate === template.id;
+                      return (
+                        <button
+                          key={template.id}
+                          type="button"
+                          onClick={() => {
+                            setReportGuideTemplate(template.id);
+                            setReportQuestion(template.defaultPrompt);
+                          }}
+                          className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors ${active ? "border-emerald-400/60 bg-emerald-500/10" : "border-white/15 bg-slate-900/70 hover:bg-slate-800"}`}
+                        >
+                          <p className={`text-xs font-semibold ${active ? "text-emerald-200" : "text-slate-100"}`}>{template.label}</p>
+                          <p className="mt-1 text-[11px] leading-4 text-slate-400">{template.description}</p>
+                          <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-500">Layout: {template.layoutHint}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    <span className="rounded-full border border-white/15 bg-slate-900/70 px-2 py-0.5 text-[10px] text-slate-300">
+                      Active template: {reportGuideTemplate}
+                    </span>
+                    <span className="rounded-full border border-white/15 bg-slate-900/70 px-2 py-0.5 text-[10px] text-slate-300">
+                      Layout: {reportWorkspace.layoutHint}
+                    </span>
+                  </div>
+                  {reportWorkspace.appliedFilters.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {reportWorkspace.appliedFilters.map((filter) => (
+                        <span key={filter} className="rounded-full border border-cyan-300/25 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-200">
+                          {filter}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-[#060d1a] p-3 sm:p-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Revision history</p>
+                  <div className="space-y-2">
+                    {reportWorkspace.revisions.slice().reverse().map((revision) => {
+                      const active = reportWorkspace.activeRevisionId === revision.id;
+                      return (
+                        <div key={revision.id} className={`rounded-lg border px-2.5 py-2 ${active ? "border-emerald-400/50 bg-emerald-500/10" : "border-white/15 bg-slate-900/70"}`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-semibold text-slate-100">v{revision.version} - {revision.label}</p>
+                            <button
+                              type="button"
+                              onClick={() => rollbackReportRevision(revision.id)}
+                              disabled={active}
+                              className="rounded border border-white/20 px-2 py-0.5 text-[10px] text-slate-200 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              Restore
+                            </button>
+                          </div>
+                          <p className="mt-1 text-[11px] text-slate-400">{new Date(revision.createdAt).toLocaleString()}</p>
+                          <p className="mt-1 text-[11px] text-slate-300">{revision.prompt}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-[#060d1a] p-3 sm:p-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Prompt shortcuts</p>
                   <div className="flex flex-wrap gap-2">
                     {[
                       "Explain the top 3 drivers behind this report.",
@@ -2641,11 +3848,6 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                       "Show weekly, monthly, and fiscal comparisons from this report.",
                       "Recommend 5 donor actions based on these metrics.",
                       "Build a board-ready executive summary from this report.",
-                      "Identify unusual metric combinations and likely root causes.",
-                      "Recommend campaign and segment pivots for the next 30 days.",
-                      "Estimate next-month outlook using current trend and seasonality.",
-                      "List immediate task assignments with owners and due dates.",
-                      "Show which KPIs improved vs declined and why.",
                     ].map((toolPrompt) => (
                       <button
                         key={toolPrompt}
@@ -2678,10 +3880,10 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     <button
                       type="button"
                       onClick={() => void askStewardFromReport()}
-                      disabled={!reportQuestion.trim() || sending}
+                      disabled={!reportQuestion.trim() || reportArtifactBuilding}
                       className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      Ask Steward
+                      {reportArtifactBuilding ? "Rebuilding..." : "Rebuild Artifact"}
                     </button>
                   </div>
                 </div>
@@ -2705,12 +3907,13 @@ interface MessageRowProps {
   onRegenerate: () => void;
   onCopy: () => void;
   onSaveTemplate: () => void;
+  onSaveDraftLetter: () => void;
   onRunAction: (idx: number) => void;
   onOpenReport: (path: string, label?: string) => void;
   onAskReportQuestion: (prompt: string) => void;
 }
 
-function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegenerate, onCopy, onSaveTemplate, onRunAction, onOpenReport, onAskReportQuestion }: MessageRowProps) {
+function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegenerate, onCopy, onSaveTemplate, onSaveDraftLetter, onRunAction, onOpenReport, onAskReportQuestion }: MessageRowProps) {
   if (msg.role === "user") {
     return (
       <div className="steward-message-row steward-message-row-user flex justify-end animate-slide-up-fade-in">
@@ -2724,9 +3927,25 @@ function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegene
   // Assistant message
   const hasEmailArtifact = Boolean(msg.structured?.artifacts?.some((artifact) => artifact.type === "email_draft"));
   const hasEmailLikeBody = /(^|\n)\s*subject\s*:/i.test(msg.content) && /(^|\n)\s*body\s*:/i.test(msg.content);
+  const hasLetterLikeBody = hasEmailLikeBody
+    || /dear\s+\{\{?/i.test(msg.content)
+    || /warm\s+regards|sincerely|gratefully|with\s+appreciation/i.test(msg.content);
   const canSaveAsTemplate = hasEmailArtifact || hasEmailLikeBody || msg.responseMode === "draft" || msg.responseMode === "free" || msg.responseMode === "agentic" || msg.responseMode === "writing";
+  const canSaveAsDraftLetter = hasLetterLikeBody || canSaveAsTemplate;
   const effectiveMode: ChatMode = msg.responseMode ?? activeMode;
   const thoughtStackActive = effectiveMode === "free" ? false : (msg.thoughtStackEnabled ?? true);
+  const [thinkingPulseTicks, setThinkingPulseTicks] = useState(0);
+
+  useEffect(() => {
+    if (!isStreaming) {
+      setThinkingPulseTicks(0);
+      return;
+    }
+    const timer = window.setInterval(() => setThinkingPulseTicks((v) => v + 1), 1200);
+    return () => window.clearInterval(timer);
+  }, [isStreaming]);
+
+  const thinkingElapsedLabel = `${thinkingPulseTicks * 1.2}`;
 
   return (
     <div className="steward-message-row steward-message-row-assistant group flex flex-col gap-2 animate-slide-up-fade-in">
@@ -2754,6 +3973,11 @@ function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegene
           </span>
         )}
         {isStreaming && (
+          <span className="inline-flex items-center rounded-full border border-white/20 bg-white/5 px-1.5 py-0.5 text-[10px] text-cyan-100" title="Live activity heartbeat to show the model is still working.">
+            Active {thinkingElapsedLabel}s
+          </span>
+        )}
+        {isStreaming && (
           <span
             className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${thoughtStackActive ? "border-cyan-300/45 bg-cyan-400/10 text-cyan-200" : "border-slate-400/40 bg-slate-700/20 text-slate-300"}`}
             title={thoughtStackActive ? "ThoughtStack reliability layer is active for this response." : "ThoughtStack reliability layer is bypassed in Pure mode."}
@@ -2765,6 +3989,18 @@ function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegene
 
       {/* Content */}
       <div className="pl-8">
+        {isStreaming && (
+          <StewardThinkingPanel
+            progressSteps={msg.progressSteps ?? []}
+            thinkingContent={msg.thinkingContent ?? ""}
+            isActive={isStreaming}
+            compact
+            tone="dark"
+            activeTools={msg.activeTools ?? []}
+            progressPercent={msg.progressPercent}
+            progressStage={msg.progressStage}
+          />
+        )}
         {isStreaming && !msg.content ? (
           <span className="steward-stream-placeholder inline-flex items-center gap-1.5 text-slate-400">
             <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300" style={{ animationDelay: "0ms" }} />
@@ -2793,6 +4029,7 @@ function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegene
             onCopy={!isStreaming && (isLast || true) ? onCopy : undefined}
             onRegenerate={!isStreaming ? onRegenerate : undefined}
             onSaveTemplate={!isStreaming && canSaveAsTemplate ? onSaveTemplate : undefined}
+            onSaveLetterDraft={!isStreaming && canSaveAsDraftLetter ? onSaveDraftLetter : undefined}
           />
         )}
       </div>

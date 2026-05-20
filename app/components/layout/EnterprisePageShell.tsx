@@ -18,10 +18,10 @@ export default function EnterprisePageShell({
   ribbon,
   className = "",
   contentClassName = "",
-  maxWidthClassName = "max-w-[1600px]",
+  maxWidthClassName = "max-w-[1480px]",
 }: EnterprisePageShellProps) {
   return (
-    <div className={`mx-auto flex w-full ${maxWidthClassName} flex-col gap-3 min-[1360px]:gap-5 ${className}`}>
+    <div className={`mx-auto flex w-full ${maxWidthClassName} flex-col gap-3 min-[1360px]:gap-4 ${className}`}>
       {ribbon ? <div className="min-w-0">{ribbon}</div> : null}
       <div className={`min-w-0 ${contentClassName}`}>{children}</div>
     </div>

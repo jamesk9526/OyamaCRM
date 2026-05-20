@@ -383,6 +383,34 @@ The import mapper must NEVER fall behind the data model. Treat field mapping, va
 6. Add `// TODO: backend API needed` comments where import/merge backend endpoints are not yet wired.
 <!-- END:import-mapping-rules -->
 
+<!-- BEGIN:letter-builder-rules -->
+## Letters & Printables Builder Rules
+
+The Donor CRM Letters & Printables builder uses a focused document workspace model.
+
+- Keep the route journey canonical: Donor CRM → Communications → Letters & Printables → Select Template → Compose → Preview → Save Draft or Publish.
+- Do not reintroduce stacked workspace ribbons or duplicate editor toolbar rows inside the template builder.
+- Top-level builder actions are limited to Preview, Save Draft, Publish, and More Options.
+- Keep project metadata, preview context, page setup, header/footer/signature presets, merge health, and typography controls in the right sidebar tabs.
+- Keep the left builder panel focused on click-to-insert blocks and variables.
+- Publish must remain confirmation-gated and must not send, queue, or generate output without an explicit follow-up action.
+- Update `docs/audits/LETTER_BUILDER_UI_AUDIT.md` and `docs/status/LETTER_BUILDER_READINESS_REPORT.md` when builder tools move, are removed, or become production-ready.
+<!-- END:letter-builder-rules -->
+
+<!-- BEGIN:donor-crm-visual-refresh-rules -->
+## Donor CRM Visual Refresh Rules
+
+OyamaCRM's Donor CRM is moving toward a clean, calm SaaS dashboard style inspired by the provided mockups.
+
+- Treat screenshots as visual inspiration only; preserve existing OyamaCRM routes, data models, APIs, permissions, and working handlers.
+- Use shared CRM primitives from `app/components/ui/crm/` for new visual refresh work.
+- Prefer light workspace backgrounds, white cards, soft borders, subtle shadows, deep slate text, muted secondary text, and green primary accents.
+- Keep one clear page header, one clean action/filter strip, consistent metric cards, and calmer table surfaces.
+- Do not reintroduce heavy segmented toolbar boxes, stacked toolbars, loud tag colors, duplicate primary buttons, or parallel mini-workflows.
+- Primary journeys must stay canonical: Constituents -> Add Constituent, Donations -> Record Gift, Meetings -> Schedule Meeting, Communications -> Letters & Printables -> New Letter.
+- Update `docs/design/OYAMA_CRM_VISUAL_REFRESH_PLAN.md` and `docs/status/UI_REFRESH_READINESS_REPORT.md` as pages are refreshed.
+<!-- END:donor-crm-visual-refresh-rules -->
+
 <!-- BEGIN:compassion-crm-rules -->
 ## Compassion CRM (Client) Rules
 

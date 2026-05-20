@@ -203,15 +203,19 @@ export default function NodeInspector({
 
   if (!node) {
     return (
-      <aside className="w-[360px] shrink-0 border-l border-gray-200 bg-white">
-        <div className="bg-emerald-600 px-4 py-3 text-white">
-          <h2 className="text-sm font-semibold">Inspector</h2>
-          <p className="mt-0.5 text-xs text-emerald-50">Select a node to edit workflow settings.</p>
+      <aside className="w-[360px] shrink-0 border-l border-slate-200 bg-white">
+        {/* Empty state header */}
+        <div className="border-b border-slate-200 px-4 py-3">
+          <h2 className="text-sm font-semibold text-slate-900">Step Config</h2>
+          <p className="mt-0.5 text-xs text-slate-500">Select a step on the canvas to edit settings.</p>
         </div>
         <div className="p-4">
-          <p className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-3 text-xs text-gray-600">
-            Node settings appear here: title, timing, conditions, templates, approval controls, and readiness state.
-          </p>
+          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 py-10 text-center">
+            <svg className="h-8 w-8 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="3" /><path strokeLinecap="round" d="M8 12h8M12 8v8" />
+            </svg>
+            <p className="text-xs text-slate-500">Click any step to view and edit its settings here.</p>
+          </div>
         </div>
       </aside>
     );
@@ -234,45 +238,55 @@ export default function NodeInspector({
   const usingCustomBranchField = isBranchNode(activeNode) && selectedBranchField === null;
 
   return (
-    <aside className="w-[360px] shrink-0 overflow-y-auto border-l border-gray-200 bg-white">
-      <div className="border-b border-emerald-500 bg-emerald-600 px-4 py-3 text-white">
+    <aside className="w-[360px] shrink-0 overflow-y-auto border-l border-slate-200 bg-white">
+      {/* Clean white node header */}
+      <div className="border-b border-slate-200 px-4 py-3">
         <div className="flex items-start justify-between gap-2">
-          <h2 className="text-sm font-semibold">Inspector</h2>
-          <span className="rounded-full border border-white/30 bg-white/20 px-1.5 py-0.5 text-[10px] font-medium text-white">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+              <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                <rect x="2" y="2" width="12" height="12" rx="1.5" /><path strokeLinecap="round" strokeLinejoin="round" d="M5.5 8l2 2 3-3" />
+              </svg>
+            </span>
+            <div className="min-w-0">
+              <h2 className="truncate text-sm font-semibold text-slate-900">{palette?.label ?? activeNode.kind}</h2>
+              {palette?.summary && (
+                <p className="truncate text-[11px] text-slate-500">{palette.summary}</p>
+              )}
+            </div>
+          </div>
+          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${badge.toneClass}`}>
             {badge.label}
           </span>
         </div>
-        <p className="mt-0.5 text-xs text-emerald-50">{palette?.label ?? activeNode.kind}</p>
+        {/* Config / Preview tabs */}
+        <div className="mt-3 flex gap-4 border-b border-slate-200">
+          <button type="button" className="pb-2 text-xs font-semibold text-green-600 border-b-2 border-green-600 -mb-px">
+            Config
+          </button>
+          <button type="button" className="pb-2 text-xs font-medium text-slate-500 border-b-2 border-transparent -mb-px hover:text-slate-700">
+            Preview
+          </button>
+        </div>
       </div>
 
-      <div className="space-y-3 p-4">
+      <div className="space-y-4 p-4">
         <label className="block">
-          <span className="text-xs font-medium text-gray-700">Title</span>
+          <span className="text-xs font-medium text-slate-700">Step label</span>
           <input
             type="text"
             value={activeNode.title}
             onChange={(event) => onChange({ ...activeNode, title: event.target.value })}
-            className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
-          />
-        </label>
-
-        <label className="block">
-          <span className="text-xs font-medium text-gray-700">Note</span>
-          <textarea
-            value={activeNode.note ?? ""}
-            onChange={(event) => onChange({ ...activeNode, note: event.target.value })}
-            className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
-            rows={2}
-            placeholder="Optional note shown beneath the title."
+            className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
           />
         </label>
 
         {isBranchNode(activeNode) && (
-          <div className="space-y-3 rounded-md border border-emerald-200 bg-emerald-50/50 p-3">
-            <p className="text-xs font-semibold text-emerald-800">Branch logic</p>
+          <div className="space-y-3 rounded-xl border border-green-200 bg-green-50/50 p-3">
+            <p className="text-xs font-semibold text-green-800">Branch logic</p>
 
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Condition field</span>
+              <span className="text-xs font-medium text-slate-700">Condition field</span>
               <select
                 value={usingCustomBranchField ? "__custom__" : configuredBranchField}
                 onChange={(event) => {
@@ -283,7 +297,7 @@ export default function NodeInspector({
                   }
                   updateConfig("field", nextValue);
                 }}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
               >
                 {BRANCH_FIELD_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -294,24 +308,24 @@ export default function NodeInspector({
 
             {usingCustomBranchField && (
               <label className="block">
-                <span className="text-xs font-medium text-gray-700">Custom field key</span>
+                <span className="text-xs font-medium text-slate-700">Custom field key</span>
                 <input
                   type="text"
                   value={configuredBranchField}
                   onChange={(event) => updateConfig("field", event.target.value)}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                   placeholder="Example: lastGiftAmount"
                 />
               </label>
             )}
 
-            <p className="rounded-md border border-emerald-200 bg-white px-2 py-1 text-[11px] text-emerald-800">
+            <p className="rounded-lg border border-green-200 bg-white px-2 py-1 text-[11px] text-green-800">
             {selectedBranchField?.hint ?? "Custom fields use text-based comparison by default in this editor."}
           </p>
 
             {activeNode.kind === "logic.segment_condition" && (
               <label className="block">
-                <span className="text-xs font-medium text-gray-700">Segment or tag name</span>
+                <span className="text-xs font-medium text-slate-700">Segment or tag name</span>
                 <input
                   type="text"
                   value={readString(activeNode.config, "segmentKey")}
@@ -319,14 +333,14 @@ export default function NodeInspector({
                     segmentKey: event.target.value,
                     field: "segmentMembership",
                   })}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                   placeholder="Example: Major Donor"
                 />
               </label>
             )}
 
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-gray-700">Branch lanes</p>
+              <p className="text-xs font-medium text-slate-700">Branch lanes</p>
               <button
                 type="button"
                 onClick={() => onAddBranchLane(activeNode.id)}
@@ -344,7 +358,7 @@ export default function NodeInspector({
                       type="text"
                       value={lane.label}
                       onChange={(event) => onRenameBranchLane(activeNode.id, lane.id, event.target.value)}
-                      className="min-w-0 flex-1 rounded-md border border-gray-300 px-2 py-1 text-xs"
+                      className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-900 outline-none transition focus:border-green-500 focus:bg-white"
                     />
                     <button
                       type="button"
@@ -364,7 +378,7 @@ export default function NodeInspector({
 
                   {!lane.isFallback && (
                     <div className="mt-2 space-y-2">
-                      <p className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] text-gray-700">
+                      <p className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-700">
                         {summarizeConditionGroups(lane.conditionGroups)}
                       </p>
 
@@ -374,7 +388,7 @@ export default function NodeInspector({
                         const isBetween = group.operator === "between";
 
                         return (
-                          <div key={group.id} className="space-y-1 rounded-md border border-gray-200 bg-gray-50 p-2">
+                          <div key={group.id} className="space-y-1 rounded-xl border border-slate-200 bg-slate-50/60 p-2">
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
                               Condition {index + 1}
                             </p>
@@ -383,7 +397,7 @@ export default function NodeInspector({
                               <select
                                 value={group.operator}
                                 onChange={(event) => onUpdateConditionGroup(activeNode.id, lane.id, group.id, { operator: event.target.value as WorkflowBranchConditionGroup["operator"] })}
-                                className="rounded-md border border-gray-300 px-1.5 py-1 text-[11px]"
+                                className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-900 outline-none transition focus:border-green-500 focus:bg-white"
                               >
                                 {BRANCH_OPERATOR_OPTIONS.map((option) => (
                                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -394,7 +408,7 @@ export default function NodeInspector({
                                 <select
                                   value={group.value}
                                   onChange={(event) => onUpdateConditionGroup(activeNode.id, lane.id, group.id, { value: event.target.value })}
-                                  className="rounded-md border border-gray-300 px-1.5 py-1 text-[11px]"
+                                  className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-900 outline-none transition focus:border-green-500 focus:bg-white"
                                 >
                                   <option value="">Select</option>
                                   <option value="true">True</option>
@@ -405,7 +419,7 @@ export default function NodeInspector({
                                   type={inputKind === "number" && !isListOperator ? "number" : "text"}
                                   value={group.value}
                                   onChange={(event) => onUpdateConditionGroup(activeNode.id, lane.id, group.id, { value: event.target.value })}
-                                  className="rounded-md border border-gray-300 px-1.5 py-1 text-[11px]"
+                                  className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-900 outline-none transition focus:border-green-500 focus:bg-white"
                                   placeholder={getConditionValuePlaceholder(selectedBranchField, group.operator, false)}
                                 />
                               )}
@@ -448,25 +462,25 @@ export default function NodeInspector({
         )}
 
         {activeNode.kind === "timing.delay" && (
-          <div className="space-y-2 rounded-md border border-gray-200 bg-gray-50 p-3">
-            <p className="text-xs font-semibold text-gray-700">Timing controls</p>
+          <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+            <p className="text-xs font-semibold text-slate-700">Timing controls</p>
             <div className="grid grid-cols-2 gap-2">
               <label className="block">
-                <span className="text-xs font-medium text-gray-700">Amount</span>
+                <span className="text-xs font-medium text-slate-700">Amount</span>
                 <input
                   type="number"
                   min={1}
                   value={readNumber(activeNode.config, "amount", 1)}
                   onChange={(event) => updateConfig("amount", Number(event.target.value))}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-gray-700">Unit</span>
+                <span className="text-xs font-medium text-slate-700">Unit</span>
                 <select
                   value={readString(activeNode.config, "unit") || "days"}
                   onChange={(event) => updateConfig("unit", event.target.value)}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                 >
                   <option value="minutes">Minutes</option>
                   <option value="hours">Hours</option>
@@ -481,28 +495,28 @@ export default function NodeInspector({
 
         {activeNode.kind === "trigger.added_to_segment" && (
           <div className="space-y-2 rounded-md border border-emerald-200 bg-emerald-50 p-3">
-            <p className="text-xs font-semibold text-emerald-800">Segment trigger</p>
+            <p className="text-xs font-semibold text-green-800">Segment trigger</p>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Segment or tag name</span>
+              <span className="text-xs font-medium text-slate-700">Segment or tag name</span>
               <input
                 type="text"
                 value={readString(activeNode.config, "segmentKey")}
                 onChange={(event) => updateConfig("segmentKey", event.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                 placeholder="Example: Major Donor"
               />
             </label>
-            <p className="text-[11px] text-emerald-800">
+            <p className="text-[11px] text-green-800">
               Enrollment triggers when this donor is added to the selected segment/tag.
             </p>
           </div>
         )}
 
         {activeNode.kind === "timing.until_date" && (
-          <div className="space-y-2 rounded-md border border-gray-200 bg-gray-50 p-3">
-            <p className="text-xs font-semibold text-gray-700">Wait until date</p>
+          <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+            <p className="text-xs font-semibold text-slate-700">Wait until date</p>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Date and time</span>
+              <span className="text-xs font-medium text-slate-700">Date and time</span>
               <input
                 type="datetime-local"
                 value={toDateTimeLocalInput(readString(activeNode.config, "dateIso") || readString(activeNode.config, "date"))}
@@ -514,7 +528,7 @@ export default function NodeInspector({
                     date: nextIso,
                   });
                 }}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
               />
             </label>
             <p className="text-[11px] text-gray-600">
@@ -524,15 +538,15 @@ export default function NodeInspector({
         )}
 
         {activeNode.kind === "timing.until_weekday_time" && (
-          <div className="space-y-2 rounded-md border border-gray-200 bg-gray-50 p-3">
-            <p className="text-xs font-semibold text-gray-700">Wait until weekday/time</p>
+          <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+            <p className="text-xs font-semibold text-slate-700">Wait until weekday/time</p>
             <div className="grid grid-cols-2 gap-2">
               <label className="block">
-                <span className="text-xs font-medium text-gray-700">Weekday</span>
+                <span className="text-xs font-medium text-slate-700">Weekday</span>
                 <select
                   value={String(readNumber(activeNode.config, "weekday", 1))}
                   onChange={(event) => updateConfig("weekday", Number(event.target.value))}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                 >
                   <option value="0">Sunday</option>
                   <option value="1">Monday</option>
@@ -544,51 +558,51 @@ export default function NodeInspector({
                 </select>
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-gray-700">Hour (24h)</span>
+                <span className="text-xs font-medium text-slate-700">Hour (24h)</span>
                 <input
                   type="number"
                   min={0}
                   max={23}
                   value={readNumber(activeNode.config, "hour", 9)}
                   onChange={(event) => updateConfig("hour", Number(event.target.value))}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                 />
               </label>
             </div>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Minute</span>
+              <span className="text-xs font-medium text-slate-700">Minute</span>
               <input
                 type="number"
                 min={0}
                 max={59}
                 value={readNumber(activeNode.config, "minute", 0)}
                 onChange={(event) => updateConfig("minute", Number(event.target.value))}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
               />
             </label>
           </div>
         )}
 
         {activeNode.kind === "timing.after_last_gift" && (
-          <div className="space-y-2 rounded-md border border-gray-200 bg-gray-50 p-3">
-            <p className="text-xs font-semibold text-gray-700">After last donation delay</p>
+          <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+            <p className="text-xs font-semibold text-slate-700">After last donation delay</p>
             <div className="grid grid-cols-2 gap-2">
               <label className="block">
-                <span className="text-xs font-medium text-gray-700">Amount</span>
+                <span className="text-xs font-medium text-slate-700">Amount</span>
                 <input
                   type="number"
                   min={1}
                   value={readNumber(activeNode.config, "amount", 30)}
                   onChange={(event) => updateConfig("amount", Number(event.target.value))}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-gray-700">Unit</span>
+                <span className="text-xs font-medium text-slate-700">Unit</span>
                 <select
                   value={readString(activeNode.config, "unit") || "days"}
                   onChange={(event) => updateConfig("unit", event.target.value)}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                 >
                   <option value="days">Days</option>
                   <option value="weeks">Weeks</option>
@@ -600,23 +614,23 @@ export default function NodeInspector({
         )}
 
         {activeNode.kind === "task.create" && (
-          <div className="space-y-2 rounded-md border border-gray-200 bg-gray-50 p-3">
-            <p className="text-xs font-semibold text-gray-700">Task controls</p>
+          <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+            <p className="text-xs font-semibold text-slate-700">Task controls</p>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Task title</span>
+              <span className="text-xs font-medium text-slate-700">Task title</span>
               <input
                 type="text"
                 value={readString(activeNode.config, "title")}
                 onChange={(event) => updateConfig("title", event.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
               />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Priority</span>
+              <span className="text-xs font-medium text-slate-700">Priority</span>
               <select
                 value={readString(activeNode.config, "priority") || "MEDIUM"}
                 onChange={(event) => updateConfig("priority", event.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
               >
                 <option value="LOW">Low</option>
                 <option value="MEDIUM">Medium</option>
@@ -627,20 +641,20 @@ export default function NodeInspector({
         )}
 
         {activeNode.kind === "print.generate_letter" && (
-          <div className="space-y-2 rounded-md border border-gray-200 bg-gray-50 p-3">
-            <p className="text-xs font-semibold text-gray-700">Print template controls</p>
+          <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+            <p className="text-xs font-semibold text-slate-700">Print template controls</p>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Search templates</span>
+              <span className="text-xs font-medium text-slate-700">Search templates</span>
               <input
                 type="text"
                 value={templateSearch}
                 onChange={(event) => setTemplateSearch(event.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                 placeholder="Search by template name"
               />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Letter template</span>
+              <span className="text-xs font-medium text-slate-700">Letter template</span>
               <select
                 value={readString(activeNode.config, "templateId")}
                 onChange={(event) => {
@@ -652,7 +666,7 @@ export default function NodeInspector({
                     templateStatus: selected?.status ?? "",
                   });
                 }}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
               >
                 <option value="">Select a template</option>
                 {letterTemplates.map((template) => (
@@ -661,12 +675,12 @@ export default function NodeInspector({
               </select>
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Template ID (manual override)</span>
+              <span className="text-xs font-medium text-slate-700">Template ID (manual override)</span>
               <input
                 type="text"
                 value={readString(activeNode.config, "templateId")}
                 onChange={(event) => updateConfig("templateId", event.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                 placeholder="Open Letters & Printables to copy a template ID"
               />
             </label>
@@ -692,17 +706,17 @@ export default function NodeInspector({
               Outbound email stays draft-first and review-first by default. Select templates and reviewer routing in Communications before final send.
             </p>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Search campaign</span>
+              <span className="text-xs font-medium text-slate-700">Search campaign</span>
               <input
                 type="text"
                 value={campaignSearch}
                 onChange={(event) => setCampaignSearch(event.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                 placeholder="Search by campaign name"
               />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Email campaign (optional)</span>
+              <span className="text-xs font-medium text-slate-700">Email campaign (optional)</span>
               <select
                 value={readString(activeNode.config, "campaignId")}
                 onChange={(event) => {
@@ -714,7 +728,7 @@ export default function NodeInspector({
                     campaignStatus: selected?.status ?? "",
                   });
                 }}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
               >
                 <option value="">Not linked</option>
                 {emailCampaigns.map((campaign) => (
@@ -723,32 +737,32 @@ export default function NodeInspector({
               </select>
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Campaign ID (manual override)</span>
+              <span className="text-xs font-medium text-slate-700">Campaign ID (manual override)</span>
               <input
                 type="text"
                 value={readString(activeNode.config, "campaignId")}
                 onChange={(event) => updateConfig("campaignId", event.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                 placeholder="Open Communications to copy campaign ID"
               />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Draft subject template</span>
+              <span className="text-xs font-medium text-slate-700">Draft subject template</span>
               <input
                 type="text"
                 value={readString(activeNode.config, "subjectTemplate")}
                 onChange={(event) => updateConfig("subjectTemplate", event.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                 placeholder="Thanks for your support, {{firstName}}"
               />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Body template</span>
+              <span className="text-xs font-medium text-slate-700">Body template</span>
               <textarea
                 value={readString(activeNode.config, "bodyTemplate")}
                 onChange={(event) => updateConfig("bodyTemplate", event.target.value)}
                 rows={4}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                 placeholder="Hello {{firstName}},\n\nThank you for your support..."
               />
             </label>
@@ -756,20 +770,20 @@ export default function NodeInspector({
               <p className="text-xs font-semibold text-amber-900">Content block settings</p>
               <div className="mt-2 space-y-2">
                 <label className="block">
-                  <span className="text-xs font-medium text-gray-700">Preheader text</span>
+                  <span className="text-xs font-medium text-slate-700">Preheader text</span>
                   <input
                     type="text"
                     value={readString(activeNode.config, "preheaderText")}
                     onChange={(event) => updateConfig("preheaderText", event.target.value)}
-                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-medium text-gray-700">Layout</span>
+                  <span className="text-xs font-medium text-slate-700">Layout</span>
                   <select
                     value={readString(activeNode.config, "contentLayout") || "single-column"}
                     onChange={(event) => updateConfig("contentLayout", event.target.value)}
-                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                   >
                     <option value="single-column">Single column</option>
                     <option value="two-column">Two column</option>
@@ -778,21 +792,21 @@ export default function NodeInspector({
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <label className="block">
-                    <span className="text-xs font-medium text-gray-700">CTA label</span>
+                    <span className="text-xs font-medium text-slate-700">CTA label</span>
                     <input
                       type="text"
                       value={readString(activeNode.config, "ctaLabel")}
                       onChange={(event) => updateConfig("ctaLabel", event.target.value)}
-                      className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                     />
                   </label>
                   <label className="block">
-                    <span className="text-xs font-medium text-gray-700">CTA URL</span>
+                    <span className="text-xs font-medium text-slate-700">CTA URL</span>
                     <input
                       type="text"
                       value={readString(activeNode.config, "ctaUrl")}
                       onChange={(event) => updateConfig("ctaUrl", event.target.value)}
-                      className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                     />
                   </label>
                 </div>
@@ -826,17 +840,17 @@ export default function NodeInspector({
           <div className="space-y-2 rounded-md border border-blue-200 bg-blue-50 p-3">
             <p className="text-xs font-semibold text-blue-900">Campaign scheduling</p>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Search campaign</span>
+              <span className="text-xs font-medium text-slate-700">Search campaign</span>
               <input
                 type="text"
                 value={campaignSearch}
                 onChange={(event) => setCampaignSearch(event.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                 placeholder="Search by campaign name"
               />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Email campaign</span>
+              <span className="text-xs font-medium text-slate-700">Email campaign</span>
               <select
                 value={readString(activeNode.config, "campaignId")}
                 onChange={(event) => {
@@ -848,7 +862,7 @@ export default function NodeInspector({
                     campaignStatus: selected?.status ?? "",
                   });
                 }}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
               >
                 <option value="">Select campaign</option>
                 {emailCampaigns.map((campaign) => (
@@ -857,22 +871,22 @@ export default function NodeInspector({
               </select>
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Campaign ID (manual override)</span>
+              <span className="text-xs font-medium text-slate-700">Campaign ID (manual override)</span>
               <input
                 type="text"
                 value={readString(activeNode.config, "campaignId")}
                 onChange={(event) => updateConfig("campaignId", event.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                 placeholder="Open Communications to copy campaign ID"
               />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Schedule send date/time (optional)</span>
+              <span className="text-xs font-medium text-slate-700">Schedule send date/time (optional)</span>
               <input
                 type="datetime-local"
                 value={toDateTimeLocalInput(readString(activeNode.config, "scheduleAt"))}
                 onChange={(event) => updateConfig("scheduleAt", fromDateTimeLocalInput(event.target.value))}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
               />
             </label>
             <div className="rounded-md border border-blue-300/80 bg-white p-2 text-[11px] text-blue-900 space-y-1">
@@ -891,10 +905,25 @@ export default function NodeInspector({
         )}
 
         {activeNode.kind === "logic.if_else" && (
-          <div className="rounded-md border border-sky-200 bg-sky-50 p-2 text-xs text-sky-900">
+          <div className="rounded-xl border border-sky-200 bg-sky-50 p-2 text-xs text-sky-900">
             Branching visuals and execution persistence are active. Configure lane conditions to control route jumps.
           </div>
         )}
+
+        {/* Notes — always visible at the bottom */}
+        <div className="pt-2">
+          <label className="block">
+            <span className="text-xs font-medium text-slate-700">Notes</span>
+            <textarea
+              value={activeNode.note ?? ""}
+              onChange={(event) => onChange({ ...activeNode, note: event.target.value })}
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20 resize-none"
+              rows={3}
+              placeholder="Add internal notes about this step…"
+            />
+          </label>
+          <p className="mt-1 text-[11px] text-slate-400">These notes are only visible to your team.</p>
+        </div>
       </div>
     </aside>
   );

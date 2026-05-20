@@ -82,9 +82,95 @@ import {
   extractVerificationEvidence,
 } from "../steward/agentic.js";
 import { buildRuntimeSystemPrompt, buildRetrievalContext } from "../steward/context-builders.js";
+import { buildThoughtStackAssessment } from "../steward/guide-paths.js";
 
 const router: ExpressRouter = Router();
 const STEWARD_AI_PLUGIN_KEY = "steward_ai";
+const CHAT_CONTEXT_MAX_MESSAGES = 80;
+const CHAT_CONTEXT_MAX_CHARS = 42_000;
+const CHAT_CONTEXT_MESSAGE_MAX_CHARS = 3_500;
+const CHAT_CONTEXT_ANCHOR_LIMIT = 8;
+
+interface StewardChatContextWindow {
+  normalizedMessages: StewardAiChatMessage[];
+  totalInputMessages: number;
+  droppedMessages: number;
+  keptChars: number;
+}
+
+/**
+ * Keeps full-chat continuity via a safe rolling window.
+ * Strategy:
+ * 1) sanitize all messages
+ * 2) keep newest messages first (recency priority)
+ * 3) add sparse older anchors when space allows (long-thread continuity)
+ */
+function buildSafeRollingContextWindow(payloadMessages: StewardAiChatPayload["messages"]): StewardChatContextWindow {
+  const normalizedAll = (payloadMessages ?? [])
+    .filter((message) => message && typeof message.content === "string")
+    .map((message): StewardAiChatMessage => ({
+      role: message.role === "assistant" || message.role === "system" ? message.role : "user",
+      content: message.content.slice(0, CHAT_CONTEXT_MESSAGE_MAX_CHARS),
+    }));
+
+  if (normalizedAll.length === 0) {
+    return {
+      normalizedMessages: [],
+      totalInputMessages: 0,
+      droppedMessages: 0,
+      keptChars: 0,
+    };
+  }
+
+  const indexed = normalizedAll.map((message, index) => ({
+    message,
+    index,
+    chars: message.content.length,
+  }));
+  const selectedIndices = new Set<number>();
+  let keptChars = 0;
+
+  for (let i = indexed.length - 1; i >= 0; i -= 1) {
+    const candidate = indexed[i];
+    const nextCount = selectedIndices.size + 1;
+    const nextChars = keptChars + candidate.chars;
+    if (nextCount > CHAT_CONTEXT_MAX_MESSAGES || nextChars > CHAT_CONTEXT_MAX_CHARS) {
+      continue;
+    }
+    selectedIndices.add(candidate.index);
+    keptChars = nextChars;
+  }
+
+  if (selectedIndices.size < CHAT_CONTEXT_MAX_MESSAGES && keptChars < CHAT_CONTEXT_MAX_CHARS) {
+    const anchorStep = Math.max(1, Math.floor(indexed.length / CHAT_CONTEXT_ANCHOR_LIMIT));
+    for (let i = 0; i < indexed.length; i += anchorStep) {
+      const candidate = indexed[i];
+      if (selectedIndices.has(candidate.index)) continue;
+      const nextCount = selectedIndices.size + 1;
+      const nextChars = keptChars + candidate.chars;
+      if (nextCount > CHAT_CONTEXT_MAX_MESSAGES || nextChars > CHAT_CONTEXT_MAX_CHARS) {
+        continue;
+      }
+      selectedIndices.add(candidate.index);
+      keptChars = nextChars;
+      if (selectedIndices.size >= CHAT_CONTEXT_MAX_MESSAGES || keptChars >= CHAT_CONTEXT_MAX_CHARS) {
+        break;
+      }
+    }
+  }
+
+  const normalizedMessages = indexed
+    .filter((item) => selectedIndices.has(item.index))
+    .sort((a, b) => a.index - b.index)
+    .map((item) => item.message);
+
+  return {
+    normalizedMessages,
+    totalInputMessages: normalizedAll.length,
+    droppedMessages: Math.max(0, normalizedAll.length - normalizedMessages.length),
+    keptChars,
+  };
+}
 
 // Steward AI endpoints require authenticated users.
 router.use(requireAuth);
@@ -150,6 +236,333 @@ interface ReportCardResult {
   reply: string;
   structured: StewardStructuredResponsePayload;
   toolsUsed: string[];
+}
+
+interface ForcedToolContextResult {
+  contextText: string;
+  toolsUsed: string[];
+  recordsUsed: string[];
+  warnings: string[];
+}
+
+function normalizeForcedToolNames(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return [...new Set(
+    input
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter(Boolean)
+      .slice(0, 8)
+  )];
+}
+
+function stringifyForcedToolResult(value: unknown): string {
+  if (value === null || value === undefined) return "(no data)";
+  if (typeof value === "string") return value.slice(0, 2200);
+  try {
+    return JSON.stringify(value, null, 2).slice(0, 2200);
+  } catch {
+    return String(value).slice(0, 2200);
+  }
+}
+
+/** Executes explicit user-selected read tools and folds their output into model context. */
+async function buildForcedToolContext(
+  context: StewardToolExecutionContext,
+  forcedToolNames: string[]
+): Promise<ForcedToolContextResult> {
+  if (forcedToolNames.length === 0) {
+    return { contextText: "", toolsUsed: [], recordsUsed: [], warnings: [] };
+  }
+
+  const tools = await listStewardTools(context);
+  const readToolNames = new Set(
+    tools
+      .filter((tool) => tool.allowed && tool.kind === "read")
+      .map((tool) => tool.name)
+  );
+
+  const contextBlocks: string[] = [];
+  const toolsUsed: string[] = [];
+  const recordsUsed: string[] = [];
+  const warnings: string[] = [];
+
+  for (const toolName of forcedToolNames) {
+    if (!readToolNames.has(toolName as never)) {
+      warnings.push(`Forced tool skipped (not allowed/read-only): ${toolName}`);
+      continue;
+    }
+
+    try {
+      const execution = await executeStewardTool(context, toolName as never, undefined);
+      toolsUsed.push(execution.tool);
+      const serialized = stringifyForcedToolResult(execution.result);
+      contextBlocks.push(`Forced Tool ${execution.tool}:\n${serialized}`);
+      recordsUsed.push(`Forced tool ${execution.tool} executed`);
+    } catch (error) {
+      warnings.push(`Forced tool failed (${toolName}): ${error instanceof Error ? error.message : "unknown error"}`);
+    }
+  }
+
+  return {
+    contextText: contextBlocks.join("\n\n"),
+    toolsUsed,
+    recordsUsed,
+    warnings,
+  };
+}
+
+type ReportGuideTemplateId = "board_pack" | "campaign_pivot" | "retention_risk_plan";
+type ReportLayoutHint = "compact" | "balanced" | "detailed";
+
+interface ReportArtifactRefinePayload {
+  path?: string;
+  title?: string;
+  prompt?: string;
+  guideTemplate?: ReportGuideTemplateId;
+  layoutHint?: ReportLayoutHint;
+  filters?: string[];
+  structured?: StewardStructuredResponsePayload;
+  replyContent?: string;
+}
+
+interface ReportGuideTemplateConfig {
+  id: ReportGuideTemplateId;
+  label: string;
+  description: string;
+  defaultPrompt: string;
+  layoutHint: ReportLayoutHint;
+  defaultFilters: string[];
+}
+
+const REPORT_GUIDE_TEMPLATES: ReportGuideTemplateConfig[] = [
+  {
+    id: "board_pack",
+    label: "Board Pack",
+    description: "Executive-ready summary with governance-focused priorities and supporting evidence.",
+    defaultPrompt: "Build a board-ready executive summary with top KPI drivers, risks, and recommended decisions.",
+    layoutHint: "compact",
+    defaultFilters: ["period:ytd", "audience:board", "scope:organization"],
+  },
+  {
+    id: "campaign_pivot",
+    label: "Campaign Pivot",
+    description: "Operational pivot view focused on campaign velocity, underperformance, and next actions.",
+    defaultPrompt: "Identify campaign pivots for the next 30 days, including segments, channels, and immediate actions.",
+    layoutHint: "balanced",
+    defaultFilters: ["window:90d", "dimension:campaign", "segment:active-donors"],
+  },
+  {
+    id: "retention_risk_plan",
+    label: "Retention Risk Plan",
+    description: "Retention-first analysis of risk indicators, mitigation steps, and follow-up sequencing.",
+    defaultPrompt: "Create a retention risk plan with highest-risk cohorts, mitigation actions, and follow-up sequencing.",
+    layoutHint: "detailed",
+    defaultFilters: ["metric:retention", "cohort:lapsed-risk", "window:12m"],
+  },
+];
+
+/** Picks a deterministic guide template when none is supplied explicitly. */
+function detectGuideTemplate(userPrompt: string, preferred?: ReportGuideTemplateId): ReportGuideTemplateId {
+  if (preferred) return preferred;
+  const prompt = userPrompt.toLowerCase();
+  if (/board|executive|trustee|governance/.test(prompt)) return "board_pack";
+  if (/campaign|pivot|channel|segment/.test(prompt)) return "campaign_pivot";
+  if (/retention|lybunt|lapse|churn|risk/.test(prompt)) return "retention_risk_plan";
+  return "board_pack";
+}
+
+/** Infers report layout style from prompt language. */
+function detectLayoutHint(userPrompt: string, fallback: ReportLayoutHint): ReportLayoutHint {
+  const prompt = userPrompt.toLowerCase();
+  if (/detailed|deep|full|long/.test(prompt)) return "detailed";
+  if (/compact|executive|brief|summary/.test(prompt)) return "compact";
+  if (/balanced|standard/.test(prompt)) return "balanced";
+  return fallback;
+}
+
+/** Adds deterministic filter hints inferred from prompt text. */
+function inferFilterHintsFromPrompt(userPrompt: string): string[] {
+  const prompt = userPrompt.toLowerCase();
+  const hints = new Set<string>();
+  if (/campaign/.test(prompt)) hints.add("dimension:campaign");
+  if (/designation|fund/.test(prompt)) hints.add("dimension:designation");
+  if (/major\s+gift|major\s+donor/.test(prompt)) hints.add("segment:major-gifts");
+  if (/monthly|month/.test(prompt)) hints.add("window:month");
+  if (/weekly|week/.test(prompt)) hints.add("window:week");
+  if (/fiscal|fy/.test(prompt)) hints.add("period:fiscal");
+  if (/calendar\s+year|cy/.test(prompt)) hints.add("period:calendar");
+  if (/retention|lybunt|lapse/.test(prompt)) hints.add("metric:retention");
+  return [...hints];
+}
+
+function normalizeReportFilters(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter(Boolean)
+    .slice(0, 20);
+}
+
+function collectMetricRecord(artifacts: Array<Record<string, unknown>>): Array<{ label: string; value: string; delta?: string; trend?: "up" | "down" | "flat" }> {
+  const reportCard = artifacts.find((artifact) => artifact.type === "report_card") as {
+    metrics?: Array<{ label?: string; value?: string; delta?: string; trend?: "up" | "down" | "flat" }>;
+  } | undefined;
+
+  if (!reportCard?.metrics || reportCard.metrics.length === 0) {
+    return [];
+  }
+
+  return reportCard.metrics
+    .map((metric) => ({
+      label: String(metric.label ?? "").trim(),
+      value: String(metric.value ?? "").trim(),
+      delta: typeof metric.delta === "string" ? metric.delta : undefined,
+      trend: metric.trend,
+    }))
+    .filter((metric) => metric.label.length > 0 && metric.value.length > 0);
+}
+
+/** Prioritizes report metrics by template intent while retaining all original rows. */
+function orderMetricsByGuide(metrics: Array<{ label: string; value: string; delta?: string; trend?: "up" | "down" | "flat" }>, guide: ReportGuideTemplateId) {
+  if (metrics.length === 0) return metrics;
+
+  const priorityByGuide: Record<ReportGuideTemplateId, string[]> = {
+    board_pack: ["YTD Revenue", "Fiscal Total", "Donor Total", "YTD Gifts", "Active Campaigns", "Overdue Tasks"],
+    campaign_pivot: ["Active Campaigns", "Monthly Total", "Weekly Total", "YTD Revenue", "Donor Total"],
+    retention_risk_plan: ["Donor Total", "YTD Gifts", "Monthly Total", "Weekly Total", "Overdue Tasks"],
+  };
+
+  const priorities = priorityByGuide[guide];
+  const rank = (label: string): number => {
+    const idx = priorities.findIndex((item) => item.toLowerCase() === label.toLowerCase());
+    return idx >= 0 ? idx : priorities.length + 1;
+  };
+
+  return [...metrics].sort((a, b) => {
+    const rankDiff = rank(a.label) - rank(b.label);
+    if (rankDiff !== 0) return rankDiff;
+    return a.label.localeCompare(b.label);
+  });
+}
+
+function templateReplyPrefix(guide: ReportGuideTemplateId): string {
+  if (guide === "campaign_pivot") return "Campaign pivot plan generated using deterministic report template.";
+  if (guide === "retention_risk_plan") return "Retention risk plan generated using deterministic report template.";
+  return "Board pack summary generated using deterministic report template.";
+}
+
+/** Produces a deterministic report refinement response from prior structured artifacts plus explicit guide intent. */
+function buildDeterministicReportRefinement(payload: ReportArtifactRefinePayload): {
+  structured: StewardStructuredResponsePayload;
+  reply: string;
+  appliedFilters: string[];
+  layoutHint: ReportLayoutHint;
+  guideTemplate: ReportGuideTemplateId;
+  revisionLabel: string;
+} {
+  const baseStructured = payload.structured ?? {
+    version: 1,
+    replyMarkdown: payload.replyContent ?? "",
+    artifacts: [],
+    suggestedActions: [],
+    evidence: [],
+  };
+
+  const prompt = String(payload.prompt ?? "").trim();
+  const guideTemplate = detectGuideTemplate(prompt, payload.guideTemplate);
+  const guideConfig = REPORT_GUIDE_TEMPLATES.find((template) => template.id === guideTemplate) ?? REPORT_GUIDE_TEMPLATES[0];
+  const layoutHint = detectLayoutHint(prompt, payload.layoutHint ?? guideConfig.layoutHint);
+  const appliedFilters = [
+    ...new Set([
+      ...guideConfig.defaultFilters,
+      ...normalizeReportFilters(payload.filters),
+      ...inferFilterHintsFromPrompt(prompt),
+    ]),
+  ].slice(0, 20);
+
+  const metrics = orderMetricsByGuide(collectMetricRecord(baseStructured.artifacts), guideTemplate);
+  const coreInsights = metrics.slice(0, 5).map((metric) => `${metric.label}: ${metric.value}${metric.delta ? ` (${metric.delta})` : ""}`);
+  const existingEvidence = (baseStructured.evidence ?? []).slice(0, 10);
+
+  const revisionTitle = payload.title || "Refined Report Artifact";
+  const deterministicNotes = [
+    templateReplyPrefix(guideTemplate),
+    `Layout: ${layoutHint}.`,
+    `Filters: ${appliedFilters.join(", ") || "none"}.`,
+    prompt ? `Requested update: ${prompt}` : "Requested update: applied template defaults.",
+  ];
+
+  const nextReportCard = {
+    ...(baseStructured.artifacts.find((artifact) => artifact.type === "report_card") ?? {}),
+    type: "report_card",
+    title: revisionTitle,
+    description: guideConfig.description,
+    metrics,
+    layoutHint,
+    appliedFilters,
+    guideTemplate,
+    deepLink: payload.path ?? "/reports/giving-summary",
+    deepLinkLabel: "View Full Report",
+  } as Record<string, unknown>;
+
+  const existingChart = baseStructured.artifacts.find((artifact) => artifact.type === "chart");
+  const artifacts: Array<Record<string, unknown>> = [nextReportCard];
+  if (existingChart) {
+    artifacts.push({
+      ...(existingChart as Record<string, unknown>),
+      layoutHint,
+      appliedFilters,
+      guideTemplate,
+    });
+  }
+
+  const suggestedActions: StewardSuggestedActionPayload[] = [
+    {
+      label: "Open Refined Report",
+      actionType: "open_report",
+      requiresConfirmation: false,
+      payload: { path: payload.path ?? "/reports/giving-summary", template: guideTemplate, layout: layoutHint },
+    },
+    {
+      label: guideTemplate === "board_pack" ? "Prepare Board Briefing" : guideTemplate === "campaign_pivot" ? "Queue Campaign Pivot Tasks" : "Queue Retention Follow-Ups",
+      actionType: "guidepath.choose",
+      requiresConfirmation: false,
+      payload: { prompt: guideConfig.defaultPrompt },
+    },
+  ];
+
+  const evidence: StewardEvidencePayload[] = [
+    ...existingEvidence,
+    { label: `Template: ${guideConfig.label}` },
+    { label: `Layout: ${layoutHint}` },
+    { label: `Filters applied: ${appliedFilters.join(", ") || "none"}` },
+    ...coreInsights.map((line) => ({ label: line })),
+  ].slice(0, 16);
+
+  const reply = [
+    deterministicNotes.join(" "),
+    "",
+    "Top metric highlights:",
+    ...coreInsights.map((line) => `- ${line}`),
+    "",
+    "Deterministic guide next step:",
+    `- ${guideConfig.defaultPrompt}`,
+  ].join("\n");
+
+  return {
+    reply,
+    structured: {
+      version: 1,
+      replyMarkdown: reply,
+      artifacts,
+      suggestedActions,
+      evidence,
+    },
+    appliedFilters,
+    layoutHint,
+    guideTemplate,
+    revisionLabel: guideConfig.label,
+  };
 }
 
 /** Builds a deterministic report card + chart from live CRM data. */
@@ -406,6 +819,32 @@ function normalizeDraftEmailMergeFields(reply: string): string {
   }
 
   return normalized;
+}
+
+/** Ensures structured responses always include a dedicated Save Draft Letter action for deterministic UI affordance. */
+function withDedicatedSaveDraftLetterAction(
+  structured: StewardStructuredResponsePayload
+): StewardStructuredResponsePayload {
+  if (!structured.replyMarkdown.trim()) return structured;
+
+  const saveDraftAction: StewardSuggestedActionPayload = {
+    label: "Save Draft Letter",
+    actionType: "letters.create_letter_draft",
+    requiresConfirmation: true,
+    payload: {
+      category: "GENERAL",
+    },
+  };
+
+  const nextActions = [
+    saveDraftAction,
+    ...structured.suggestedActions.filter((action) => action.actionType !== saveDraftAction.actionType),
+  ].slice(0, 10);
+
+  return {
+    ...structured,
+    suggestedActions: nextActions,
+  };
 }
 
 interface DraftEmailParts {
@@ -1922,6 +2361,51 @@ router.post("/tools/execute", async (req, res) => {
 });
 
 /** POST /api/steward-ai/chat — Produces a chat response using configured local/remote Ollama. */
+/**
+ * Deterministic report artifact refinement endpoint.
+ * This route transforms report artifacts intentionally (guide template + layout + filters)
+ * instead of re-running broad chat generation.
+ */
+router.post("/report-artifact/refine", async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const payload = req.body as ReportArtifactRefinePayload;
+  const refinement = buildDeterministicReportRefinement(payload);
+
+  await logAudit({
+    action: "STEWARD_REPORT_ARTIFACT_REFINED",
+    entity: "PluginSetting",
+    entityId: STEWARD_AI_PLUGIN_KEY,
+    userId: req.user?.sub,
+    organizationId,
+    metadata: {
+      route: payload.path ?? "/reports/giving-summary",
+      guideTemplate: refinement.guideTemplate,
+      layoutHint: refinement.layoutHint,
+      filters: refinement.appliedFilters,
+      promptPreview: String(payload.prompt ?? "").slice(0, 280),
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({
+    data: {
+      reply: refinement.reply,
+      structured: refinement.structured,
+      guideTemplate: refinement.guideTemplate,
+      layoutHint: refinement.layoutHint,
+      appliedFilters: refinement.appliedFilters,
+      revisionLabel: refinement.revisionLabel,
+      guideTemplates: REPORT_GUIDE_TEMPLATES,
+    },
+  });
+});
+
 router.post("/chat/stream", async (req, res) => {
   const organizationId = await resolveOrgId(req);
   if (!organizationId) {
@@ -1941,13 +2425,8 @@ router.post("/chat/stream", async (req, res) => {
   }
 
   const payload = req.body as StewardAiChatPayload;
-  const normalizedMessages = (payload.messages ?? [])
-    .filter((message) => message && typeof message.content === "string")
-    .map((message): StewardAiChatMessage => ({
-      role: message.role === "assistant" || message.role === "system" ? message.role : "user",
-      content: message.content.slice(0, 3500),
-    }))
-    .slice(-20);
+  const contextWindow = buildSafeRollingContextWindow(payload.messages);
+  const normalizedMessages = contextWindow.normalizedMessages;
 
   if (normalizedMessages.length === 0) {
     res.status(400).json({
@@ -1965,11 +2444,25 @@ router.post("/chat/stream", async (req, res) => {
   const scopePath = payload.scopePath ?? "/";
   const latestUserMessage = [...normalizedMessages].reverse().find((message) => message.role === "user")?.content ?? "";
   const userIntent = detectStewardIntent(latestUserMessage, mode);
-  const responseContract = buildIntentResponseContract(userIntent);
+  const responseContract = [
+    buildIntentResponseContract(userIntent),
+    isReportQuestion(latestUserMessage)
+      ? [
+          "Report format requirement: output as professional markdown.",
+          "Use markdown headings, concise sections, and bullet lists for KPIs.",
+          "Do not output raw HTML.",
+        ].join("\n")
+      : "",
+  ].filter(Boolean).join("\n\n");
   const clientReportingYearMode = payload.reportingYearMode === "fiscal" ? "fiscal" : "calendar";
   const clientFiscalYear = typeof payload.fiscalYear === "number" ? payload.fiscalYear : undefined;
   const clientFiscalYearStart = typeof payload.fiscalYearStart === "number" ? payload.fiscalYearStart : undefined;
   const thoughtStackEnabled = payload.thoughtStackEnabled !== false;
+  const forcedToolNames = normalizeForcedToolNames(payload.forcedTools);
+  const workspaceNoteTitle = asSafeText(payload.workspaceNotes?.title, "Workspace Notepad", 120);
+  const workspaceNoteContent = asSafeText(payload.workspaceNotes?.content, "", 12000);
+  const workspaceNoteVersion = typeof payload.workspaceNotes?.version === "number" ? payload.workspaceNotes.version : 1;
+  const workspaceNoteIsSourceOfTruth = payload.workspaceNotes?.sourceOfTruth !== false;
 
   // Extract constituent IDs from @mentioned donors in the chat composer
   const mentionedConstituentIds = Array.isArray(payload.donorContext)
@@ -2012,6 +2505,12 @@ router.post("/chat/stream", async (req, res) => {
     taggedDonorFocus,
     mentionedConstituentIds,
     messageCount: normalizedMessages.length,
+    contextWindowTotalInputMessages: contextWindow.totalInputMessages,
+    contextWindowDroppedMessages: contextWindow.droppedMessages,
+    contextWindowKeptChars: contextWindow.keptChars,
+    forcedToolNames,
+    workspaceNoteAttached: workspaceNoteContent.length > 0,
+    workspaceNoteChars: workspaceNoteContent.length,
     latestUserMessage,
     donorContext: payload.donorContext,
   }, null, 2));
@@ -2043,12 +2542,49 @@ router.post("/chat/stream", async (req, res) => {
     res.write(`${JSON.stringify({ type: "thinking", delta })}\n`);
   }
 
-  // GuidePath + ThoughtStack gates temporarily disabled — skip directly to execution.
-  const thoughtStack = { state: "Ready to Act", confidence: "high", riskLevel: "low", requiresConfirmation: false, dryRunRecommended: false, selectedWorkflow: "guidepath.disabled", missingDetails: [] as string[], summaryLines: [] as string[] };
+  const thoughtStack = thoughtStackEnabled
+    ? buildThoughtStackAssessment({
+        mode,
+        moduleKey,
+        userIntent,
+        userQuery: latestUserMessage,
+      })
+    : {
+        state: "Ready to Act",
+        confidence: "high",
+        riskLevel: "low",
+        requiresConfirmation: false,
+        dryRunRecommended: false,
+        selectedWorkflow: "thoughtstack.disabled.beta",
+        missingDetails: [] as string[],
+        summaryLines: ["ThoughtStack disabled by user for this chat."],
+        structured: undefined,
+      };
+
+  if (thoughtStackEnabled && thoughtStack.structured) {
+    const structured = thoughtStack.structured;
+    const reply = structured.replyMarkdown || "ThoughtStack requires additional confirmation before continuing.";
+    res.write(`${JSON.stringify({ type: "chunk", delta: reply })}\n`);
+    res.write(`${JSON.stringify({
+      type: "done",
+      reply,
+      structured,
+      model: "thoughtstack",
+      mode,
+      runtimeMode: config.mode,
+      provider: "thoughtstack",
+      toolsUsed: ["thoughtstack.assess", thoughtStack.selectedWorkflow],
+      recordsUsed: [],
+      moduleKey,
+      scopePath,
+    })}\n`);
+    res.end();
+    return;
+  }
 
   try {
-    if (!taggedDonorFocus && mode !== "llm" && moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
-      writeProgress("Looking up top donor records…");
+    if (!taggedDonorFocus && forcedToolNames.length === 0 && mode !== "llm" && moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
+      writeProgress("Looking up top donor records…", "retrieve", 20);
       const topDonorResult = await buildTopDonorResult({
         organizationId,
         userId: req.user?.sub ?? "",
@@ -2085,8 +2621,8 @@ router.post("/chat/stream", async (req, res) => {
       return;
     }
 
-    if (!taggedDonorFocus && mode !== "llm" && moduleKey === "donor" && isReportQuestion(latestUserMessage)) {
-      writeProgress("Running YTD giving report…");
+    if (!taggedDonorFocus && forcedToolNames.length === 0 && mode !== "llm" && moduleKey === "donor" && isReportQuestion(latestUserMessage)) {
+      writeProgress("Running YTD giving report…", "retrieve", 20);
       const reportResult = await buildReportCardResult({
         organizationId,
         userId: req.user?.sub ?? "",
@@ -2131,7 +2667,7 @@ router.post("/chat/stream", async (req, res) => {
             webmaster:  "Reviewing site and content data…",
           };
           const retrievalMsg = retrievalProgressMessages[moduleKey] ?? "Reviewing CRM records…";
-          writeProgress(retrievalMsg);
+          writeProgress(retrievalMsg, "retrieve", 10);
           writeTool("context.retrieve", retrievalMsg, "start");
 
           return buildRetrievalContext({
@@ -2145,17 +2681,54 @@ router.post("/chat/stream", async (req, res) => {
             mentionedConstituentIds: mentionedConstituentIds.length > 0 ? mentionedConstituentIds : undefined,
           });
         })();
-    const modelContextText = buildModelContextForIntent(retrieval.contextText, userIntent);
+
+    const forcedToolContext = mode === "free"
+      ? { contextText: "", toolsUsed: [] as string[], recordsUsed: [] as string[], warnings: [] as string[] }
+      : await buildForcedToolContext({
+          organizationId,
+          userId: req.user?.sub ?? "",
+          role: req.user?.role ?? "readonly",
+          moduleKey,
+          scopePath,
+          requestRoute: req.path,
+        }, forcedToolNames);
+
+    if (forcedToolContext.toolsUsed.length > 0) {
+      writeProgress(`Running ${forcedToolContext.toolsUsed.length} forced tool${forcedToolContext.toolsUsed.length > 1 ? "s" : ""}…`, "retrieve", 36);
+      for (const name of forcedToolContext.toolsUsed) {
+        writeTool(name, `Forced tool: ${name}`, "done");
+      }
+    }
+
+    const mergedContextText = [
+      retrieval.contextText,
+      forcedToolContext.contextText ? `Forced tool context:\n${forcedToolContext.contextText}` : "",
+      forcedToolContext.warnings.length > 0 ? `Forced tool warnings:\n${forcedToolContext.warnings.map((w) => `- ${w}`).join("\n")}` : "",
+      workspaceNoteContent
+        ? [
+            `Workspace note: ${workspaceNoteTitle} (v${workspaceNoteVersion})`,
+            workspaceNoteIsSourceOfTruth
+              ? "Treat this note as the source of truth for in-progress work."
+              : "Use this note as additional context.",
+            workspaceNoteContent,
+            "If the user asks to update this note, prefer suggested actions: workspace.notes.replace / workspace.notes.append / workspace.notes.prepend.",
+          ].join("\n")
+        : "",
+    ].filter(Boolean).join("\n\n");
+
+    const modelContextText = buildModelContextForIntent(mergedContextText, userIntent);
+    const combinedRecordsUsed = [...retrieval.recordsUsed, ...forcedToolContext.recordsUsed];
 
     console.log("[steward-ai/stream] RETRIEVAL", JSON.stringify({
-      toolsUsed: retrieval.toolsUsed,
-      recordsUsed: retrieval.recordsUsed,
-      contextTextLength: retrieval.contextText.length,
-      contextTextPreview: retrieval.contextText.slice(0, 800),
+      toolsUsed: [...retrieval.toolsUsed, ...forcedToolContext.toolsUsed],
+      recordsUsed: combinedRecordsUsed,
+      contextTextLength: mergedContextText.length,
+      contextTextPreview: mergedContextText.slice(0, 800),
+      forcedToolWarnings: forcedToolContext.warnings,
     }, null, 2));
 
     if (mode !== "free" && retrieval.toolsUsed.length > 1) {
-      writeProgress(`Checking ${retrieval.toolsUsed.length} data sources…`);
+      writeProgress(`Checking ${retrieval.toolsUsed.length} data sources…`, "retrieve", 40);
       // Emit each retrieval tool as "done" so the client can display them
       const TOOL_LABELS: Record<string, string> = {
         "context.retrieve":                  "Loading CRM context",
@@ -2191,7 +2764,7 @@ router.post("/chat/stream", async (req, res) => {
 
     // ── Stage 2: Agentic multi-stage reasoning ──────────────────────────────
     if (config.agenticMultiStage && mode !== "free") {
-      writeProgress("Planning how to answer your question…");
+      writeProgress("Planning how to answer your question…", "plan", 50);
       writeTool("agentic.prepare", "Multi-stage reasoning", "start");
     }
 
@@ -2239,7 +2812,7 @@ router.post("/chat/stream", async (req, res) => {
     }, null, 2));
 
     if (agenticPreparation.stageSummaries.length > 0) {
-      writeProgress("Verifying data and checking for gaps…");
+      writeProgress("Verifying data and checking for gaps…", "plan", 62);
       writeTool("agentic.prepare", "Multi-stage reasoning", "done");
     }
 
@@ -2265,6 +2838,7 @@ router.post("/chat/stream", async (req, res) => {
 
     const toolsUsed = [
       ...retrieval.toolsUsed,
+      ...forcedToolContext.toolsUsed,
       ...(thoughtStackEnabled ? ["thoughtstack.assess"] : ["thoughtstack.disabled.beta"]),
       ...agenticToolsUsed,
       ...(explicitSavedMemory ? ["memory.saveExplicit"] : []),
@@ -2288,11 +2862,11 @@ router.post("/chat/stream", async (req, res) => {
       messageCount: normalizedMessages.length,
     }, null, 2));
 
-    writeProgress("Drafting a response…");
+    writeProgress("Drafting a response…", "generate", 72);
     writeTool("model.generate", "Drafting answer", "start");
 
     if (userIntent === "draft_email") {
-      writeProgress("Writing first-pass email draft…");
+      writeProgress("Writing first-pass email draft…", "generate", 74);
       writeTool("model.generate", "Writing email draft", "start");
       const emailPipeline = await runDraftEmailPipeline({
         organizationId,
@@ -2355,7 +2929,7 @@ router.post("/chat/stream", async (req, res) => {
           throw streamError;
         }
 
-        writeProgress("Primary model returned empty output; attempting recovery generation…");
+        writeProgress("Primary model returned empty output; attempting recovery generation…", "generate", 78);
         try {
           completion = await runRescueCompletion({
             config,
@@ -2387,7 +2961,7 @@ router.post("/chat/stream", async (req, res) => {
     }
 
     if (isLikelyTruncatedReply(completion.content)) {
-      writeProgress("Finishing response details…");
+      writeProgress("Finishing response details…", "generate", 90);
       writeTool("model.generate", "Completing response", "start");
       try {
         const continuation = await continueTruncatedReply({
@@ -2425,7 +2999,7 @@ router.post("/chat/stream", async (req, res) => {
       userIntent,
       reply: parsedStructured.replyMarkdown || completion.content,
       toolsUsed,
-      recordsUsed: retrieval.recordsUsed,
+      recordsUsed: combinedRecordsUsed,
     });
     const thoughtStackEvidence: StewardEvidencePayload[] = [
       { label: `ThoughtStack state: ${thoughtStack.state}` },
@@ -2433,7 +3007,7 @@ router.post("/chat/stream", async (req, res) => {
       { label: `ThoughtStack risk: ${thoughtStack.riskLevel}` },
     ];
     const verificationEvidence = extractVerificationEvidence(agenticToolPass.notes);
-    const structured: StewardStructuredResponsePayload = {
+    const structured: StewardStructuredResponsePayload = withDedicatedSaveDraftLetterAction({
       ...parsedStructured,
       replyMarkdown: templatedReply,
       evidence: [
@@ -2441,7 +3015,7 @@ router.post("/chat/stream", async (req, res) => {
         ...verificationEvidence,
         ...parsedStructured.evidence,
       ].slice(0, 16),
-    };
+    });
 
     await logAudit({
       action: "STEWARD_AI_CHAT",
@@ -2486,7 +3060,7 @@ router.post("/chat/stream", async (req, res) => {
       runtimeMode: config.mode,
       provider,
       toolsUsed,
-      recordsUsed: retrieval.recordsUsed,
+      recordsUsed: combinedRecordsUsed,
       moduleKey,
       scopePath,
     })}\n`);
@@ -2521,13 +3095,8 @@ router.post("/chat", async (req, res) => {
   }
 
   const payload = req.body as StewardAiChatPayload;
-  const normalizedMessages = (payload.messages ?? [])
-    .filter((message) => message && typeof message.content === "string")
-    .map((message): StewardAiChatMessage => ({
-      role: message.role === "assistant" || message.role === "system" ? message.role : "user",
-      content: message.content.slice(0, 3500),
-    }))
-    .slice(-20);
+  const contextWindow = buildSafeRollingContextWindow(payload.messages);
+  const normalizedMessages = contextWindow.normalizedMessages;
 
   if (normalizedMessages.length === 0) {
     res.status(400).json({
@@ -2545,11 +3114,25 @@ router.post("/chat", async (req, res) => {
   const scopePath = payload.scopePath ?? "/";
   const latestUserMessage = [...normalizedMessages].reverse().find((message) => message.role === "user")?.content ?? "";
   const userIntent = detectStewardIntent(latestUserMessage, mode);
-  const responseContract = buildIntentResponseContract(userIntent);
+  const responseContract = [
+    buildIntentResponseContract(userIntent),
+    isReportQuestion(latestUserMessage)
+      ? [
+          "Report format requirement: output as professional markdown.",
+          "Use markdown headings, concise sections, and bullet lists for KPIs.",
+          "Do not output raw HTML.",
+        ].join("\n")
+      : "",
+  ].filter(Boolean).join("\n\n");
   const clientReportingYearMode = payload.reportingYearMode === "fiscal" ? "fiscal" : "calendar";
   const clientFiscalYear = typeof payload.fiscalYear === "number" ? payload.fiscalYear : undefined;
   const clientFiscalYearStart = typeof payload.fiscalYearStart === "number" ? payload.fiscalYearStart : undefined;
   const thoughtStackEnabled = payload.thoughtStackEnabled !== false;
+  const forcedToolNames = normalizeForcedToolNames(payload.forcedTools);
+  const workspaceNoteTitle = asSafeText(payload.workspaceNotes?.title, "Workspace Notepad", 120);
+  const workspaceNoteContent = asSafeText(payload.workspaceNotes?.content, "", 12000);
+  const workspaceNoteVersion = typeof payload.workspaceNotes?.version === "number" ? payload.workspaceNotes.version : 1;
+  const workspaceNoteIsSourceOfTruth = payload.workspaceNotes?.sourceOfTruth !== false;
 
   const mentionedConstituentIds = Array.isArray(payload.donorContext)
     ? payload.donorContext
@@ -2577,11 +3160,47 @@ router.post("/chat", async (req, res) => {
     });
   }
 
-  // GuidePath + ThoughtStack gates temporarily disabled — skip directly to execution.
-  const thoughtStack = { state: "Ready to Act", confidence: "high", riskLevel: "low", requiresConfirmation: false, dryRunRecommended: false, selectedWorkflow: "guidepath.disabled", missingDetails: [] as string[], summaryLines: [] as string[] };
+  const thoughtStack = thoughtStackEnabled
+    ? buildThoughtStackAssessment({
+        mode,
+        moduleKey,
+        userIntent,
+        userQuery: latestUserMessage,
+      })
+    : {
+        state: "Ready to Act",
+        confidence: "high",
+        riskLevel: "low",
+        requiresConfirmation: false,
+        dryRunRecommended: false,
+        selectedWorkflow: "thoughtstack.disabled.beta",
+        missingDetails: [] as string[],
+        summaryLines: ["ThoughtStack disabled by user for this chat."],
+        structured: undefined,
+      };
+
+  if (thoughtStackEnabled && thoughtStack.structured) {
+    const structured = thoughtStack.structured;
+    const reply = structured.replyMarkdown || "ThoughtStack requires additional confirmation before continuing.";
+    res.json({
+      data: {
+        reply,
+        structured,
+        model: "thoughtstack",
+        mode,
+        runtimeMode: config.mode,
+        provider: "thoughtstack",
+        toolsUsed: ["thoughtstack.assess", thoughtStack.selectedWorkflow],
+        recordsUsed: [],
+        moduleKey,
+        scopePath,
+      },
+    });
+    return;
+  }
 
   try {
-    if (!taggedDonorFocus && mode !== "llm" && moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
+    if (!taggedDonorFocus && forcedToolNames.length === 0 && mode !== "llm" && moduleKey === "donor" && isTopDonorQuestion(latestUserMessage)) {
       const topDonorResult = await buildTopDonorResult({
         organizationId,
         userId: req.user?.sub ?? "",
@@ -2616,7 +3235,7 @@ router.post("/chat", async (req, res) => {
       return;
     }
 
-    if (!taggedDonorFocus && mode !== "llm" && moduleKey === "donor" && isReportQuestion(latestUserMessage)) {
+    if (!taggedDonorFocus && forcedToolNames.length === 0 && mode !== "llm" && moduleKey === "donor" && isReportQuestion(latestUserMessage)) {
       const reportResult = await buildReportCardResult({
         organizationId,
         userId: req.user?.sub ?? "",
@@ -2659,7 +3278,36 @@ router.post("/chat", async (req, res) => {
           role: req.user?.role ?? "readonly",
           mentionedConstituentIds: mentionedConstituentIds.length > 0 ? mentionedConstituentIds : undefined,
         });
-    const modelContextText = buildModelContextForIntent(retrieval.contextText, userIntent);
+
+    const forcedToolContext = mode === "free"
+      ? { contextText: "", toolsUsed: [] as string[], recordsUsed: [] as string[], warnings: [] as string[] }
+      : await buildForcedToolContext({
+          organizationId,
+          userId: req.user?.sub ?? "",
+          role: req.user?.role ?? "readonly",
+          moduleKey,
+          scopePath,
+          requestRoute: req.path,
+        }, forcedToolNames);
+
+    const mergedContextText = [
+      retrieval.contextText,
+      forcedToolContext.contextText ? `Forced tool context:\n${forcedToolContext.contextText}` : "",
+      forcedToolContext.warnings.length > 0 ? `Forced tool warnings:\n${forcedToolContext.warnings.map((w) => `- ${w}`).join("\n")}` : "",
+      workspaceNoteContent
+        ? [
+            `Workspace note: ${workspaceNoteTitle} (v${workspaceNoteVersion})`,
+            workspaceNoteIsSourceOfTruth
+              ? "Treat this note as the source of truth for in-progress work."
+              : "Use this note as additional context.",
+            workspaceNoteContent,
+            "If the user asks to update this note, prefer suggested actions: workspace.notes.replace / workspace.notes.append / workspace.notes.prepend.",
+          ].join("\n")
+        : "",
+    ].filter(Boolean).join("\n\n");
+
+    const modelContextText = buildModelContextForIntent(mergedContextText, userIntent);
+    const combinedRecordsUsed = [...retrieval.recordsUsed, ...forcedToolContext.recordsUsed];
 
     const agenticPreparation = await buildAgenticPreparation({
       organizationId,
@@ -2696,7 +3344,7 @@ router.post("/chat", async (req, res) => {
     const agenticNotes = [...thoughtStack.summaryLines, ...agenticPreparation.stageSummaries, ...agenticToolPass.notes];
     const agenticToolsUsed = [...agenticPreparation.toolsUsed, ...agenticToolPass.toolsUsed];
 
-    const fyMeta = extractFiscalYearFromContext(retrieval.contextText);
+    const fyMeta = extractFiscalYearFromContext(mergedContextText);
     const resolvedFyLabelSync = fyMeta.fiscalYearLabel
       ?? (clientReportingYearMode === "fiscal" && clientFiscalYear ? `FY${clientFiscalYear}` : undefined);
     const resolvedCalendarYearSync = fyMeta.calendarYear ?? clientFiscalYear ?? new Date().getFullYear();
@@ -2717,6 +3365,7 @@ router.post("/chat", async (req, res) => {
 
     const toolsUsed = [
       ...retrieval.toolsUsed,
+      ...forcedToolContext.toolsUsed,
       ...(thoughtStackEnabled ? ["thoughtstack.assess"] : ["thoughtstack.disabled.beta"]),
       ...agenticToolsUsed,
       ...(explicitSavedMemory ? ["memory.saveExplicit"] : []),
@@ -2829,7 +3478,7 @@ router.post("/chat", async (req, res) => {
       userIntent,
       reply: parsedStructured.replyMarkdown || completion.content,
       toolsUsed,
-      recordsUsed: retrieval.recordsUsed,
+      recordsUsed: combinedRecordsUsed,
     });
     const thoughtStackEvidence: StewardEvidencePayload[] = [
       { label: `ThoughtStack state: ${thoughtStack.state}` },
@@ -2837,7 +3486,7 @@ router.post("/chat", async (req, res) => {
       { label: `ThoughtStack risk: ${thoughtStack.riskLevel}` },
     ];
     const verificationEvidence = extractVerificationEvidence(agenticToolPass.notes);
-    const structured: StewardStructuredResponsePayload = {
+    const structured: StewardStructuredResponsePayload = withDedicatedSaveDraftLetterAction({
       ...parsedStructured,
       replyMarkdown: templatedReply,
       evidence: [
@@ -2845,7 +3494,7 @@ router.post("/chat", async (req, res) => {
         ...verificationEvidence,
         ...parsedStructured.evidence,
       ].slice(0, 16),
-    };
+    });
 
     await logAudit({
       action: "STEWARD_AI_CHAT",
@@ -2890,7 +3539,7 @@ router.post("/chat", async (req, res) => {
         runtimeMode: config.mode,
         provider,
         toolsUsed,
-        recordsUsed: retrieval.recordsUsed,
+        recordsUsed: combinedRecordsUsed,
         moduleKey,
         scopePath,
       },

@@ -6,9 +6,7 @@
  */
 "use client";
 
-import Card from "@/app/components/ui/Card";
 import CircularProgress from "@/app/components/ui/CircularProgress";
-import { useState } from "react";
 
 interface RevenueProgressProps {
   /** Donation-only YTD amount */
@@ -42,8 +40,7 @@ export default function RevenueProgress({
   onToggleGrants,
   loading,
 }: RevenueProgressProps) {
-  const [displayMode, setDisplayMode] = useState<"revenue" | "raised">("revenue");
-  // Total displayed is donations + grants when the toggle is on
+  // Total displayed is donations + grants when the toggle is on.
   const displayedTotal = current + (includeGrants ? grantAmount : 0);
   const rawPercentage = goal > 0 ? Math.round((displayedTotal / goal) * 100) : 0;
   const percentage = Math.max(0, Math.min(100, rawPercentage));
@@ -52,15 +49,10 @@ export default function RevenueProgress({
     ? `${fmtCurrency(current)} donations + ${fmtCurrency(grantAmount)} grants`
     : `${fmtCurrency(current)} donations`;
 
-  const headlineValue = displayMode === "revenue" ? fmtCurrency(displayedTotal) : `${rawPercentage}%`;
-  const headlineSubtext = displayMode === "revenue"
-    ? `of ${fmtCurrency(goal)} goal`
-    : `${fmtCurrency(displayedTotal)} raised`;
-
   return (
-    <Card padding="small">
+    <div className="h-full">
       <div className="flex items-start justify-between mb-2.5">
-        <h3 className="font-semibold text-gray-900">Revenue Progress</h3>
+        <h3 className="font-semibold text-slate-900">Revenue Progress</h3>
 
         {/* "Include Grants" toggle — only shown when grants data is available */}
         {onToggleGrants && (
@@ -70,7 +62,7 @@ export default function RevenueProgress({
             className={`flex items-center gap-1.5 text-[11px] font-medium rounded-full px-2.5 py-1 border transition-colors ${
               includeGrants
                 ? "bg-emerald-50 border-emerald-300 text-emerald-700"
-                : "bg-gray-50 border-gray-200 text-gray-400 hover:text-gray-600"
+                : "bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-700"
             }`}
           >
             {/* Toggle pill icon */}
@@ -88,19 +80,14 @@ export default function RevenueProgress({
 
       <div className="flex flex-col items-center py-2.5">
         {loading ? (
-          <div className="w-36 h-36 rounded-full bg-gray-200 animate-pulse" />
+          <div className="w-36 h-36 rounded-full bg-slate-100 animate-pulse" />
         ) : (
           <div className="relative group">
-            <button
-              type="button"
-              onClick={() => setDisplayMode((mode) => (mode === "revenue" ? "raised" : "revenue"))}
-              className="rounded-full transition-transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-green-300"
-              title="Click to switch between amount and percent views"
-            >
+            <div className="rounded-full transition-transform hover:scale-[1.02]">
               <CircularProgress percentage={percentage} />
-            </button>
+            </div>
             <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 transition-opacity">
-              <div className="bg-gray-900 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap shadow">
+              <div className="bg-slate-900 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap shadow">
                 <div>{breakdown}</div>
                 <div>Goal {fmtCurrency(goal)}</div>
               </div>
@@ -110,11 +97,11 @@ export default function RevenueProgress({
 
         <div className="mt-2.5 text-center">
           {loading ? (
-            <div className="h-8 w-24 bg-gray-200 rounded animate-pulse mx-auto" />
+            <div className="h-8 w-24 bg-slate-100 rounded animate-pulse mx-auto" />
           ) : (
             <>
-              <p className="text-2xl font-bold text-gray-900">
-                {headlineValue}
+              <p className="text-2xl font-bold text-slate-900">
+                {fmtCurrency(displayedTotal)}
               </p>
               {/* Grant breakdown line — visible only when grants are included */}
               {includeGrants && grantAmount > 0 && (
@@ -124,8 +111,8 @@ export default function RevenueProgress({
               )}
             </>
           )}
-          <p className="text-sm text-gray-500 mt-1">
-            {headlineSubtext}
+          <p className="text-sm text-slate-500 mt-1">
+            {rawPercentage}% of {fmtCurrency(goal)} goal
           </p>
           {overGoalAmount > 0 && (
             <p className="text-[11px] text-green-700 font-semibold mt-1">
@@ -134,31 +121,14 @@ export default function RevenueProgress({
           )}
         </div>
 
-        <div className="flex gap-2 mt-2.5">
-          <button
-            type="button"
-            onClick={() => setDisplayMode("revenue")}
-            className={`px-3 py-1 text-xs font-medium rounded border transition-colors ${
-              displayMode === "revenue"
-                ? "border-green-300 bg-green-50 text-green-700"
-                : "border-gray-300 text-gray-700 hover:bg-gray-50"
-            }`}
-          >
-            Revenue
-          </button>
-          <button
-            type="button"
-            onClick={() => setDisplayMode("raised")}
-            className={`px-3 py-1 text-xs font-medium rounded border transition-colors ${
-              displayMode === "raised"
-                ? "border-green-300 bg-green-50 text-green-700"
-                : "border-gray-200 text-gray-500 hover:bg-gray-50"
-            }`}
-          >
-            Raised
-          </button>
+        <div className="mt-3 h-2 w-full overflow-hidden rounded-full border border-slate-200 bg-slate-50">
+          <div className="h-full bg-emerald-600 transition-all" style={{ width: `${percentage}%` }} />
+        </div>
+
+        <div className="mt-2 text-xs text-slate-500 text-center">
+          {breakdown}
         </div>
       </div>
-    </Card>
+    </div>
   );
 }

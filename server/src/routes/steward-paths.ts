@@ -514,12 +514,11 @@ router.post("/templates/:id/duplicate", requirePermission("steward_paths.create"
   res.status(201).json(copy);
 });
 
-/** POST /api/steward-paths/templates/:id/test-run — creates a safe test enrollment without outbound send. */
-router.post("/templates/:id/test-run", requirePermission("steward_paths.enroll"), async (req, res) => {
+/** POST /api/steward-paths/templates/:id/test-run — pure dry-run simulation, no DB writes, no sends. */
+router.post("/templates/:id/test-run", requirePermission("steward_paths.view"), async (req, res) => {
   const organizationId = await requireOrganizationId(req);
-  const userId = req.user?.sub;
-  if (!organizationId || !userId) {
-    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user context are required." } });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "Organization context is required." } });
     return;
   }
 
@@ -531,10 +530,6 @@ router.post("/templates/:id/test-run", requirePermission("steward_paths.enroll")
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Steward Path template not found." } });
     return;
   }
-  if (existing.steps.length === 0) {
-    res.status(400).json({ error: { code: "NO_STEPS", message: "Template requires at least one active step for test run." } });
-    return;
-  }
 
   const constituentId = typeof req.body?.constituentId === "string" ? req.body.constituentId.trim() : "";
   if (!constituentId) {
@@ -542,47 +537,180 @@ router.post("/templates/:id/test-run", requirePermission("steward_paths.enroll")
     return;
   }
 
-  const enrollment = await prisma.stewardPathEnrollment.create({
-    data: {
-      organizationId,
-      pathId: existing.id,
-      targetType: existing.targetType,
-      targetId: constituentId,
-      constituentId,
-      status: "ACTIVE",
-      currentStepId: existing.steps[0]?.id ?? null,
-      ownerUserId: existing.defaultOwnerId ?? userId,
-      startedAt: new Date(),
-      nextStepDueAt: null,
+  // Look up constituent for display info — no writes, read-only
+  const constituent = await prisma.constituent.findFirst({
+    where: { id: constituentId, organizationId },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      donorStatus: true,
+      totalLifetimeGiving: true,
+      lastGiftDate: true,
+      doNotEmail: true,
+      doNotMail: true,
+      doNotContact: true,
     },
   });
+  if (!constituent) {
+    res.status(404).json({ error: { code: "CONSTITUENT_NOT_FOUND", message: "Constituent not found in this organization." } });
+    return;
+  }
 
-  await createTimelineEvent({
-    enrollmentId: enrollment.id,
-    stepId: enrollment.currentStepId ?? undefined,
-    eventType: "PATH_STARTED",
-    message: "Safe test enrollment created from visual builder test run.",
-    createdByUserId: userId,
-    metadataJson: {
-      testRun: true,
-      pathId: existing.id,
-    },
+  // Build the step-by-step simulation result — purely in memory, no DB writes
+  interface DryRunStepPreview {
+    type: string;
+    subject?: string;
+    fromEmail?: string;
+    templateName?: string;
+    taskTitle?: string;
+    taskPriority?: string;
+    waitAmount?: number;
+    waitUnit?: string;
+    description: string;
+  }
+  interface DryRunStep {
+    stepId: string;
+    label: string;
+    stepType: string;
+    orderIndex: number;
+    result: "passed" | "skipped" | "branched" | "blocked";
+    blockReason?: string;
+    preview: DryRunStepPreview;
+  }
+
+  const dryRunSteps: DryRunStep[] = existing.steps.map((step) => {
+    const cfg = (step.configJson ?? {}) as Record<string, unknown>;
+    const str = (key: string, fallback = ""): string =>
+      typeof cfg[key] === "string" ? (cfg[key] as string) : fallback;
+    const num = (key: string, fallback = 0): number =>
+      typeof cfg[key] === "number" ? (cfg[key] as number) : fallback;
+
+    switch (step.stepType) {
+      case "DELAY":
+        return {
+          stepId: step.id,
+          label: step.name ?? "Wait",
+          stepType: "DELAY",
+          orderIndex: step.orderIndex,
+          result: "skipped",
+          preview: {
+            type: "timing",
+            waitAmount: num("amount", 1),
+            waitUnit: str("unit", "days"),
+            description: `Timing step — simulated as instant in dry run. Would wait ${num("amount", 1)} ${str("unit", "days")} in production.`,
+          },
+        };
+
+      case "DRAFT_EMAIL":
+      case "SEND_EMAIL": {
+        const doNotEmail = constituent.doNotEmail || constituent.doNotContact;
+        return {
+          stepId: step.id,
+          label: step.name ?? "Send Email",
+          stepType: step.stepType,
+          orderIndex: step.orderIndex,
+          result: doNotEmail ? "blocked" : "passed",
+          blockReason: doNotEmail ? "Constituent has email opt-out or do-not-contact flag set." : undefined,
+          preview: {
+            type: "email",
+            subject: str("subjectTemplate", "(no subject configured)"),
+            fromEmail: str("fromEmail", "hello@yourorg.org"),
+            templateName: str("templateName", str("emailTemplateId", "default")),
+            description: doNotEmail
+              ? "Would be blocked — constituent has email opt-out."
+              : `Would queue email draft: "${str("subjectTemplate", "(no subject)")}"`,
+          },
+        };
+      }
+
+      case "GENERATE_LETTER": {
+        const doNotMail = constituent.doNotMail || constituent.doNotContact;
+        return {
+          stepId: step.id,
+          label: step.name ?? "Generate Letter",
+          stepType: "GENERATE_LETTER",
+          orderIndex: step.orderIndex,
+          result: doNotMail ? "blocked" : "passed",
+          blockReason: doNotMail ? "Constituent has do-not-mail flag set." : undefined,
+          preview: {
+            type: "letter",
+            templateName: str("templateName", str("templateId", "default")),
+            description: doNotMail
+              ? "Would be blocked — constituent has do-not-mail flag."
+              : `Would generate print letter using template: "${str("templateName", str("templateId", "default"))}"`,
+          },
+        };
+      }
+
+      case "CREATE_TASK":
+        return {
+          stepId: step.id,
+          label: step.name ?? "Create Task",
+          stepType: "CREATE_TASK",
+          orderIndex: step.orderIndex,
+          result: "passed",
+          preview: {
+            type: "task",
+            taskTitle: str("titleTemplate", "(untitled task)"),
+            taskPriority: str("priority", "MEDIUM"),
+            description: `Would create a ${str("priority", "MEDIUM").toLowerCase()}-priority task: "${str("titleTemplate", "(untitled task)")}"`,
+          },
+        };
+
+      case "BRANCH_PLACEHOLDER":
+        return {
+          stepId: step.id,
+          label: step.name ?? "Branch Condition",
+          stepType: "BRANCH_PLACEHOLDER",
+          orderIndex: step.orderIndex,
+          result: "branched",
+          preview: {
+            type: "condition",
+            description: "Branch condition would be evaluated against constituent data. Dry run follows first branch.",
+          },
+        };
+
+      default:
+        return {
+          stepId: step.id,
+          label: step.name ?? step.stepType,
+          stepType: step.stepType,
+          orderIndex: step.orderIndex,
+          result: "passed",
+          preview: {
+            type: "action",
+            description: `${step.stepType} step would execute.`,
+          },
+        };
+    }
   });
 
-  await logAudit({
-    action: "STEWARD_PATH_TEST_RUN_CREATED",
-    entity: "StewardPathEnrollment",
-    entityId: enrollment.id,
-    userId,
-    organizationId,
-    metadata: {
-      pathId: existing.id,
-      constituentId,
-      testRun: true,
-    },
-  });
+  // Summary counts
+  const summary = {
+    totalSteps: dryRunSteps.length,
+    emailsQueued: dryRunSteps.filter((s) => (s.stepType === "DRAFT_EMAIL" || s.stepType === "SEND_EMAIL") && s.result === "passed").length,
+    tasksCreated: dryRunSteps.filter((s) => s.stepType === "CREATE_TASK" && s.result === "passed").length,
+    lettersGenerated: dryRunSteps.filter((s) => s.stepType === "GENERATE_LETTER" && s.result === "passed").length,
+    timingStepsSkipped: dryRunSteps.filter((s) => s.stepType === "DELAY").length,
+    blocked: dryRunSteps.filter((s) => s.result === "blocked").length,
+  };
 
-  res.status(201).json({ success: true, enrollmentId: enrollment.id });
+  res.status(200).json({
+    dryRun: true,
+    pathId: existing.id,
+    pathName: existing.name,
+    constituent: {
+      id: constituent.id,
+      firstName: constituent.firstName,
+      lastName: constituent.lastName,
+      email: constituent.email,
+      donorStatus: constituent.donorStatus,
+    },
+    steps: dryRunSteps,
+    summary,
+  });
 });
 
 /** GET /api/steward-paths/templates/:id/history — returns recent timeline events across enrollments for one path. */

@@ -2,10 +2,13 @@
 @import "./globals-animations.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8faf9;
+  --foreground: #0f172a;
   --accent: #16a34a;
   --accent-light: #f0fdf4;
+  --crm-surface: #ffffff;
+  --crm-border: #e2e8f0;
+  --crm-muted-text: #64748b;
 }
 
 @theme inline {
@@ -29,6 +32,26 @@ body {
   text-size-adjust: 100%;
   -webkit-text-size-adjust: 100%;
   overscroll-behavior-y: contain;
+}
+
+/* Shared CRM visual language primitives for calm, consistent page surfaces. */
+.crm-page-surface {
+  background: var(--background);
+}
+
+.crm-shell-surface {
+  background: var(--crm-surface);
+  border: 1px solid color-mix(in oklab, var(--crm-border) 92%, transparent);
+  border-radius: 1rem;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+}
+
+.crm-soft-divider {
+  border-color: color-mix(in oklab, var(--crm-border) 88%, transparent);
+}
+
+.crm-muted {
+  color: var(--crm-muted-text);
 }
 
 /* Improve touch ergonomics and avoid delayed gestures on mobile browsers. */
@@ -200,9 +223,9 @@ main {
 
   .steward-chroma-sidebar[data-expanded="false"] {
     align-items: center;
-    width: 3rem !important;
-    min-width: 3rem !important;
-    max-width: 3rem !important;
+    width: 3.5rem !important;
+    min-width: 3.5rem !important;
+    max-width: 3.5rem !important;
   }
 
   .steward-chroma-sidebar[data-expanded="false"] .steward-rail-collapsible {

@@ -98,71 +98,82 @@ export default function LoginPage() {
     );
   }
 
-  /* ── Main login UI — split gateway (half white / half secure dark) ─────── */
+  /* ── Main login UI — split layout: clean brand left / form right ─────── */
   return (
-    <div className="h-screen w-screen overflow-hidden bg-slate-100">
-      <div className="grid h-full grid-cols-1 lg:grid-cols-2">
-        <section className="relative hidden lg:flex flex-col justify-between bg-white p-12 xl:p-16">
-          <div aria-hidden="true" className="pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full bg-green-100/70 blur-3xl" />
-          <div aria-hidden="true" className="pointer-events-none absolute -right-16 bottom-10 h-64 w-64 rounded-full bg-slate-100 blur-3xl" />
+    <div className="h-screen w-screen overflow-hidden bg-[#f8faf9]">
+      <div className="grid h-full grid-cols-1 lg:grid-cols-[1fr_480px] xl:grid-cols-[1fr_520px]">
 
-          <div className="relative z-10">
+        {/* ── Left brand panel ── */}
+        <section className="relative hidden lg:flex flex-col items-center justify-center bg-white border-r border-slate-100 p-12 xl:p-16">
+          {/* subtle decorative gradients */}
+          <div aria-hidden="true" className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-green-50 blur-3xl opacity-80" />
+          <div aria-hidden="true" className="pointer-events-none absolute right-0 bottom-0 h-80 w-80 rounded-full bg-slate-50 blur-3xl" />
+
+          <div className="relative z-10 w-full max-w-md">
             <Image
-              src="/branding/oyama-logo-w384.png"
+              src="/branding/oyama-logo.png"
               alt="OyamaCRM"
-              width={280}
+              width={200}
               height={84}
               priority
-              className="h-auto w-[220px] xl:w-[260px] object-contain"
+              className="h-auto w-[160px] xl:w-[190px] object-contain object-left"
             />
-            <h1 className="mt-8 max-w-xl text-4xl font-semibold leading-tight tracking-[-0.03em] text-slate-900 xl:text-5xl">
-              Welcome to your nonprofit growth gateway.
+            <h1 className="mt-10 text-[2.6rem] font-semibold leading-[1.15] tracking-[-0.03em] text-slate-900 xl:text-5xl">
+              Your nonprofit,<br />
+              <span className="text-green-600">fully connected.</span>
             </h1>
-            <p className="mt-4 max-w-lg text-base leading-7 text-slate-600">
-              Stewardship, campaigns, client services, and events in one platform designed for real nonprofit teams.
+            <p className="mt-5 text-[15px] leading-7 text-slate-500">
+              Stewardship, campaigns, client services, and events in one platform built for real nonprofit teams.
             </p>
-          </div>
 
-          <div className="relative z-10 flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
-              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-              DonorCRM
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-              Compassion CRM
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              Events CRM
-            </span>
+            {/* module pills */}
+            <div className="mt-12 space-y-4">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Included modules</p>
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700">
+                  <span className="h-2 w-2 rounded-full bg-green-500" />
+                  DonorCRM
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700">
+                  <span className="h-2 w-2 rounded-full bg-blue-500" />
+                  Compassion CRM
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700">
+                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                  Events CRM
+                </span>
+              </div>
+            </div>
           </div>
         </section>
 
-        <section className="relative flex items-center justify-center bg-[linear-gradient(165deg,#0a1321_0%,#0f172a_55%,#0d1e18_100%)] px-4 py-8 sm:px-8 lg:px-12">
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, rgba(148,163,184,0.22) 1px, transparent 0)", backgroundSize: "30px 30px" }} />
-          <div aria-hidden="true" className="pointer-events-none absolute -top-24 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full blur-[110px]" style={{ background: "radial-gradient(circle, rgba(22,163,74,0.24) 0%, transparent 72%)" }} />
+        {/* ── Right form panel ── */}
+        <section className="relative flex flex-col items-center justify-center bg-[#f8faf9] px-6 py-10 sm:px-10">
+          <div className="w-full max-w-[400px]">
 
-          <div className="relative z-10 w-full max-w-[360px] rounded-2xl border border-white/10 bg-slate-900/72 p-6 shadow-[0_24px_60px_rgba(0,0,0,0.6)] backdrop-blur-xl">
-            <div className="mb-5">
-              <div className="mb-3 lg:hidden">
-                <Image
-                  src="/branding/oyama-logo-w384.png"
-                  alt="OyamaCRM"
-                  width={200}
-                  height={60}
-                  priority
-                  className="h-auto w-[170px] object-contain"
-                />
-              </div>
-              <h2 className="text-base font-semibold text-slate-100">Sign in to your workspace</h2>
-              <p className="mt-0.5 text-xs text-slate-500">Enter your credentials to continue</p>
+            {/* Mobile-only logo */}
+            <div className="mb-8 flex justify-center lg:hidden">
+              <Image
+                src="/branding/oyama-logo.png"
+                alt="OyamaCRM"
+                width={160}
+                height={67}
+                priority
+                className="h-auto w-[140px] object-contain"
+              />
             </div>
 
+            {/* Form card */}
+            <div className="rounded-2xl border border-slate-200 bg-white px-8 py-8 shadow-sm">
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold tracking-tight text-slate-900">Sign in to your workspace</h2>
+                <p className="mt-1 text-sm text-slate-500">Enter your credentials to continue</p>
+              </div>
+
             {!mfaChallenge ? (
-              <form onSubmit={handleSubmit} className="space-y-3.5">
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="mb-1 block text-[11px] font-semibold tracking-wide text-slate-400">Email address</label>
+                  <label className="mb-1.5 block text-xs font-semibold tracking-wide text-slate-600">Email address</label>
                   <input
                     type="email"
                     value={email}
@@ -170,12 +181,12 @@ export default function LoginPage() {
                     required
                     autoComplete="email"
                     placeholder="you@organization.org"
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-500/25 placeholder:text-slate-600"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20 placeholder:text-slate-400"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-[11px] font-semibold tracking-wide text-slate-400">Password</label>
+                  <label className="mb-1.5 block text-xs font-semibold tracking-wide text-slate-600">Password</label>
                   <input
                     type="password"
                     value={password}
@@ -183,15 +194,15 @@ export default function LoginPage() {
                     required
                     autoComplete="current-password"
                     placeholder="••••••••"
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-500/25 placeholder:text-slate-600"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20 placeholder:text-slate-400"
                   />
                 </div>
 
                 {error && (
-                  <div className="flex items-start gap-2 rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2.5 text-xs text-red-300">
+                  <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-700">
                     <svg className="mt-px shrink-0" width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <circle cx="8" cy="8" r="7" stroke="#fca5a5" strokeWidth="1.5" />
-                      <path d="M8 5v3M8 10.5v.5" stroke="#fca5a5" strokeWidth="1.5" strokeLinecap="round" />
+                      <circle cx="8" cy="8" r="7" stroke="#ef4444" strokeWidth="1.5" />
+                      <path d="M8 5v3M8 10.5v.5" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
                     </svg>
                     {error}
                   </div>
@@ -200,7 +211,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-green-700 to-green-500 py-2 text-sm font-semibold text-white shadow-md shadow-green-900/30 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 active:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading ? (
                     <>
@@ -216,18 +227,18 @@ export default function LoginPage() {
                 </button>
 
                 <div className="text-right">
-                  <a href="/login/forgot-password" className="text-[11px] text-green-400/80 hover:text-green-300 transition-colors">
+                  <a href="/login/forgot-password" className="text-xs text-green-600 hover:text-green-700 transition-colors">
                     Forgot password?
                   </a>
                 </div>
               </form>
             ) : (
-              <form onSubmit={handleMfaSubmit} className="space-y-3.5">
-                <p className="text-xs text-slate-400">
-                  Enter the 6-digit code sent to <span className="font-semibold text-slate-200">{mfaChallenge.destinationHint}</span>.
+              <form onSubmit={handleMfaSubmit} className="space-y-4">
+                <p className="text-sm text-slate-600">
+                  Enter the 6-digit code sent to <span className="font-semibold text-slate-900">{mfaChallenge.destinationHint}</span>.
                 </p>
                 <div>
-                  <label className="mb-1 block text-[11px] font-semibold tracking-wide text-slate-400">Verification code</label>
+                  <label className="mb-1.5 block text-xs font-semibold tracking-wide text-slate-600">Verification code</label>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -237,41 +248,46 @@ export default function LoginPage() {
                     onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
                     required
                     placeholder="123456"
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-500/25"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20 placeholder:text-slate-400"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={loading || mfaCode.length !== 6}
-                  className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-green-700 to-green-500 py-2 text-sm font-semibold text-white shadow-md shadow-green-900/30 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading ? "Verifying..." : "Verify and sign in"}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setMfaChallenge(null); setMfaCode(""); setError(null); }}
-                  className="w-full rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 transition-colors"
+                  className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
                 >
                   Back to login
                 </button>
               </form>
             )}
 
-            <div className="mt-5 flex items-center justify-center gap-1.5 border-t border-white/8 pt-4 text-[11px] text-slate-600">
-              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <rect x="3" y="7" width="10" height="8" rx="1.5" stroke="#475569" strokeWidth="1.5" />
-                <path d="M5 7V5a3 3 0 016 0v2" stroke="#475569" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-              Protected with AES-256 encryption
+              <div className="mt-6 flex items-center justify-center gap-1.5 border-t border-slate-100 pt-5 text-[11px] text-slate-400">
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <rect x="3" y="7" width="10" height="8" rx="1.5" stroke="#94a3b8" strokeWidth="1.5" />
+                  <path d="M5 7V5a3 3 0 016 0v2" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                Protected with AES-256 encryption
+              </div>
+
+              {process.env.NODE_ENV !== "production" && (
+                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-800">
+                  <p className="font-semibold">Dev credentials</p>
+                  <p className="mt-1">admin@hopefoundation.org / admin123!</p>
+                  <p>james@hopefoundation.org / staff123!</p>
+                </div>
+              )}
             </div>
 
-            {process.env.NODE_ENV !== "production" && (
-              <div className="mt-3 rounded-lg border border-amber-300/25 bg-amber-400/8 p-3 text-[11px] text-amber-300/90">
-                <p className="font-semibold text-amber-300">Dev credentials</p>
-                <p className="mt-1">admin@hopefoundation.org / admin123!</p>
-                <p>james@hopefoundation.org / staff123!</p>
-              </div>
-            )}
+            <p className="mt-6 text-center text-[11px] text-slate-400">
+              © {new Date().getFullYear()} OyamaCRM · All rights reserved
+            </p>
           </div>
         </section>
       </div>

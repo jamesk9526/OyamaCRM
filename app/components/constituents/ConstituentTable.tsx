@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ConstituentRow,
   formatCurrency,
   formatDate,
-  statusColor,
   statusLabel,
   typeLabel,
   engagementColor,
@@ -14,6 +13,7 @@ import {
 import EmptyStateCard from "@/app/components/ui/EmptyStateCard";
 import ActionButton from "@/app/components/ui/ActionButton";
 import StewardContextButton from "@/app/components/ai/StewardContextButton";
+import CRMStatusBadge from "@/app/components/ui/crm/CRMStatusBadge";
 
 interface Props {
   constituents: ConstituentRow[];
@@ -34,6 +34,76 @@ const COLUMNS = [
 ];
 
 type SortKey = "name" | "type" | "status" | "ytd" | "lifetime" | "lastGift" | "engagement";
+
+type ConstituentTag = ConstituentRow["tags"][number];
+
+function ConstituentRowMoreMenu({ constituent, onDelete }: { constituent: ConstituentRow; onDelete?: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function onDocumentClick(event: MouseEvent) {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(event.target as Node)) setOpen(false);
+    }
+
+    function onDocumentKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    document.addEventListener("mousedown", onDocumentClick);
+    document.addEventListener("keydown", onDocumentKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onDocumentClick);
+      document.removeEventListener("keydown", onDocumentKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Open constituent actions"
+      >
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5h.01M12 12h.01M12 19h.01" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 z-30 mt-1 w-44 rounded-lg border border-gray-200 bg-white p-1.5 text-xs shadow-lg">
+          <Link href={`/constituents/${constituent.id}`} onClick={() => setOpen(false)} className="block rounded px-2.5 py-1.5 text-gray-700 hover:bg-gray-50">
+            View Details
+          </Link>
+          <Link href={`/constituents/${constituent.id}/edit`} onClick={() => setOpen(false)} className="block rounded px-2.5 py-1.5 text-gray-700 hover:bg-gray-50">
+            Edit
+          </Link>
+          <Link href={`/letters-printables/generate?constituentId=${constituent.id}`} onClick={() => setOpen(false)} className="block rounded px-2.5 py-1.5 text-gray-700 hover:bg-gray-50">
+            Draft Letter
+          </Link>
+          {onDelete && (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onDelete(constituent.id);
+              }}
+              className="block w-full rounded px-2.5 py-1.5 text-left text-red-600 hover:bg-red-50"
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ConstituentTable({ constituents, loading, onDelete }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("name");
@@ -104,7 +174,7 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div className="overflow-hidden bg-white">
       <div className="md:hidden divide-y divide-gray-100">
         {sorted.map((c) => (
           <article key={c.id} className="p-3">
@@ -115,9 +185,7 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
                 </Link>
                 {c.email && <p className="text-xs text-gray-500 mt-0.5 truncate">{c.email}</p>}
               </div>
-              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(c.donorStatus)}`}>
-                {statusLabel(c.donorStatus)}
-              </span>
+              <ConstituentStatusBadge status={c.donorStatus} />
             </div>
 
             <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
@@ -148,34 +216,18 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
 
             {c.tags.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
-                {c.tags.slice(0, 3).map((t) => (
-                  <span
-                    key={t.tagId}
-                    className="inline-flex px-1.5 py-0.5 rounded text-[11px] font-medium text-white"
-                    style={{ backgroundColor: t.tag.color }}
-                  >
-                    {t.tag.name}
-                  </span>
-                ))}
-                {c.tags.length > 3 && <span className="text-[11px] text-gray-400">+{c.tags.length - 3}</span>}
+                <ConstituentTags tags={c.tags} />
               </div>
             )}
 
-            <div className="mt-3 flex items-center gap-2">
+            <div className="mt-3 flex items-center justify-between gap-2">
               <Link
                 href={`/constituents/${c.id}/edit`}
                 className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50"
               >
                 Edit
               </Link>
-              {onDelete && (
-                <button
-                  onClick={() => onDelete(c.id)}
-                  className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50"
-                >
-                  Delete
-                </button>
-              )}
+              <ConstituentRowMoreMenu constituent={c} onDelete={onDelete} />
             </div>
           </article>
         ))}
@@ -184,11 +236,11 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
       <div className="hidden md:block overflow-x-auto">
       <table className="w-full min-w-[1100px] border-separate border-spacing-0 text-sm">
         <thead>
-          <tr className="border-b border-gray-300 bg-gray-100">
+          <tr className="border-b border-slate-200 bg-slate-50">
             {COLUMNS.map((col) => (
               <th
                 key={col.key}
-                className={`sticky top-0 z-10 border-b border-r border-gray-200 bg-gray-100 px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap ${
+                className={`sticky top-0 z-10 border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap ${
                   col.sortable ? "cursor-pointer hover:text-gray-900 select-none" : ""
                 }`}
                 onClick={() => col.sortable && handleSort(col.key)}
@@ -205,37 +257,35 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
         </thead>
         <tbody>
           {sorted.map((c) => (
-            <tr key={c.id} className="border-b border-gray-100 odd:bg-white even:bg-gray-50/60 hover:bg-emerald-50/40 transition-colors">
+            <tr key={c.id} className="border-b border-slate-100 bg-white hover:bg-emerald-50/30 transition-colors">
               {/* Name */}
-              <td className="sticky left-0 z-[1] border-r border-gray-100 bg-inherit px-3 py-2 align-top">
+              <td className="sticky left-0 z-[1] bg-inherit px-4 py-4 align-top">
                 <Link href={`/constituents/${c.id}`} className="font-medium text-gray-900 hover:text-green-600 transition-colors">
                   {c.firstName} {c.lastName}
                 </Link>
                 {c.email && <p className="text-xs text-gray-400 mt-0.5">{c.email}</p>}
               </td>
               {/* Type */}
-              <td className="border-r border-gray-100 px-3 py-2 text-gray-600 whitespace-nowrap align-top">
+              <td className="px-4 py-4 text-gray-600 whitespace-nowrap align-top">
                 {typeLabel(c.type)}
               </td>
               {/* Status */}
-              <td className="border-r border-gray-100 px-3 py-2 align-top">
-                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(c.donorStatus)}`}>
-                  {statusLabel(c.donorStatus)}
-                </span>
+              <td className="px-4 py-4 align-top">
+                <ConstituentStatusBadge status={c.donorStatus} />
               </td>
               {/* YTD */}
-              <td className="border-r border-gray-100 px-3 py-2 text-right font-medium tabular-nums text-gray-900 whitespace-nowrap align-top">
+              <td className="px-4 py-4 text-right font-medium tabular-nums text-gray-900 whitespace-nowrap align-top">
                 {formatCurrency(c.totalYtdGiving)}
               </td>
               {/* Lifetime */}
-              <td className="border-r border-gray-100 px-3 py-2 text-right tabular-nums text-gray-600 whitespace-nowrap align-top">
+              <td className="px-4 py-4 text-right tabular-nums text-gray-600 whitespace-nowrap align-top">
                 {formatCurrency(c.totalLifetimeGiving)}
                 {c.giftCount > 0 && (
                   <span className="text-xs text-gray-400 ml-1">({c.giftCount} gifts)</span>
                 )}
               </td>
               {/* Last Gift */}
-              <td className="border-r border-gray-100 px-3 py-2 text-right tabular-nums text-gray-600 whitespace-nowrap align-top">
+              <td className="px-4 py-4 text-right tabular-nums text-gray-600 whitespace-nowrap align-top">
                 {c.lastGiftAmount ? (
                   <>
                     <span className="font-medium text-gray-800">{formatCurrency(c.lastGiftAmount)}</span>
@@ -246,7 +296,7 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
                 )}
               </td>
               {/* Engagement */}
-              <td className="border-r border-gray-100 px-3 py-2 align-top">
+              <td className="px-4 py-4 align-top">
                 <div className="flex items-center justify-end gap-2">
                   <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                     <div
@@ -260,24 +310,11 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
                 </div>
               </td>
               {/* Tags */}
-              <td className="border-r border-gray-100 px-3 py-2 align-top">
-                <div className="flex flex-wrap gap-1 justify-end">
-                  {c.tags.slice(0, 3).map((t) => (
-                    <span
-                      key={t.tagId}
-                      className="inline-flex px-1.5 py-0.5 rounded text-xs font-medium text-white"
-                      style={{ backgroundColor: t.tag.color }}
-                    >
-                      {t.tag.name}
-                    </span>
-                  ))}
-                  {c.tags.length > 3 && (
-                    <span className="text-xs text-gray-400">+{c.tags.length - 3}</span>
-                  )}
-                </div>
+              <td className="px-4 py-4 align-top">
+                <ConstituentTags tags={c.tags} align="end" />
               </td>
               {/* Actions */}
-              <td className="px-3 py-2 align-top">
+              <td className="px-4 py-4 align-top">
                 <div className="flex items-center gap-1 justify-end">
                   <Link
                     href={`/constituents/${c.id}/edit`}
@@ -288,17 +325,7 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
                     </svg>
                     Edit
                   </Link>
-                  {onDelete && (
-                    <button
-                      onClick={() => onDelete(c.id)}
-                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 transition-colors"
-                      title="Delete constituent"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  )}
+                  <ConstituentRowMoreMenu constituent={c} onDelete={onDelete} />
                 </div>
               </td>
             </tr>
@@ -308,4 +335,42 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
       </div>
     </div>
   );
+}
+
+function ConstituentStatusBadge({ status }: { status: string }) {
+  const tone = status === "MAJOR_DONOR" || status === "ACTIVE"
+    ? "green"
+    : status === "LAPSED"
+      ? "orange"
+      : status === "NEW"
+        ? "purple"
+        : "gray";
+  return <CRMStatusBadge tone={tone}>{statusLabel(status)}</CRMStatusBadge>;
+}
+
+function ConstituentTags({ tags, align = "start" }: { tags: ConstituentTag[]; align?: "start" | "end" }) {
+  if (tags.length === 0) return null;
+  const visible = tags.slice(0, 2);
+  const hiddenCount = tags.length - visible.length;
+
+  return (
+    <div className={`flex flex-wrap gap-1 ${align === "end" ? "justify-end" : ""}`}>
+      {visible.map((item) => (
+        <CRMStatusBadge key={item.tagId} tone={getTagTone(item.tag.name)}>
+          {item.tag.name}
+        </CRMStatusBadge>
+      ))}
+      {hiddenCount > 0 ? <CRMStatusBadge tone="gray">+{hiddenCount} more</CRMStatusBadge> : null}
+    </div>
+  );
+}
+
+function getTagTone(name: string): "green" | "yellow" | "orange" | "red" | "purple" | "gray" | "blue" {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("major")) return "green";
+  if (normalized.includes("opportunity")) return "blue";
+  if (normalized.includes("lapsed") || normalized.includes("risk")) return "orange";
+  if (normalized.includes("prospect")) return "purple";
+  if (normalized.includes("demo")) return "gray";
+  return "gray";
 }

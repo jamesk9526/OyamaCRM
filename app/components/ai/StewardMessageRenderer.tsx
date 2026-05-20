@@ -62,14 +62,14 @@ export default function StewardMessageRenderer({ content, tone = "dark", renderM
   }
 
   return (
-    <div className={`max-w-none text-sm leading-relaxed ${textClass}`}>
+    <div className={`max-w-none text-sm leading-7 tracking-[0.01em] ${textClass}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ children }) => <h1 className={`text-base font-semibold mt-2 mb-2 ${headingClass}`}>{children}</h1>,
-          h2: ({ children }) => <h2 className={`text-sm font-semibold mt-2 mb-1.5 ${headingClass}`}>{children}</h2>,
-          h3: ({ children }) => <h3 className={`text-sm font-semibold mt-2 mb-1.5 ${headingClass}`}>{children}</h3>,
-          p: ({ children }) => <p className={`my-1.5 ${textClass}`}>{children}</p>,
+          h1: ({ children }) => <h1 className={`text-lg font-semibold mt-4 mb-2 ${headingClass}`}>{children}</h1>,
+          h2: ({ children }) => <h2 className={`text-base font-semibold mt-4 mb-2 ${headingClass}`}>{children}</h2>,
+          h3: ({ children }) => <h3 className={`text-sm font-semibold mt-3 mb-1.5 ${headingClass}`}>{children}</h3>,
+          p: ({ children }) => <p className={`my-2 ${textClass}`}>{children}</p>,
           a: ({ href, children }) => {
             const internalHref = resolveInternalHref(href);
 
@@ -90,24 +90,24 @@ export default function StewardMessageRenderer({ content, tone = "dark", renderM
           strong: ({ children }) => <strong className={`font-semibold ${headingClass}`}>{children}</strong>,
           em: ({ children }) => <em className={subtleClass}>{children}</em>,
           ul: ({ children }) => (
-            <ul className={`list-disc pl-5 my-1.5 ${isLight ? "marker:text-slate-500" : "marker:text-[#8b949e]"}`}>
+            <ul className={`list-disc pl-5 my-2 space-y-1 ${isLight ? "marker:text-slate-500" : "marker:text-[#8b949e]"}`}>
               {children}
             </ul>
           ),
           ol: ({ children }) => (
-            <ol className={`list-decimal pl-5 my-1.5 ${isLight ? "marker:text-slate-500" : "marker:text-[#8b949e]"}`}>
+            <ol className={`list-decimal pl-5 my-2 space-y-1 ${isLight ? "marker:text-slate-500" : "marker:text-[#8b949e]"}`}>
               {children}
             </ol>
           ),
-          li: ({ children }) => <li className="my-0.5">{children}</li>,
+          li: ({ children }) => <li className="my-0.5 leading-6">{children}</li>,
           blockquote: ({ children }) => (
-            <blockquote className={`border-l-2 pl-3 italic my-2 ${subtleClass} ${borderClass}`}>
+            <blockquote className={`border-l-2 pl-3 italic my-3 ${subtleClass} ${borderClass}`}>
               {children}
             </blockquote>
           ),
           hr: () => <hr className={`my-3 ${borderClass}`} />,
           table: ({ children }) => (
-            <div className={`overflow-x-auto chat-scroll-smooth my-2 rounded-md border ${borderClass}`}>
+            <div className={`overflow-x-auto chat-scroll-smooth my-3 rounded-lg border ${borderClass}`}>
               <table className="w-full text-xs">{children}</table>
             </div>
           ),
@@ -128,13 +128,13 @@ export default function StewardMessageRenderer({ content, tone = "dark", renderM
             }
 
             return (
-              <div className={`rounded-md border overflow-hidden my-2 ${borderClass} ${surfaceClass}`}>
+              <div className={`rounded-lg border overflow-hidden my-3 shadow-sm ${borderClass} ${surfaceClass}`}>
                 {languageMatch && (
                   <div className={`px-2.5 py-1 text-[11px] uppercase tracking-wide border-b ${subtleClass} ${borderClass} ${surfaceDeepClass}`}>
                     {languageMatch[1]}
                   </div>
                 )}
-                <pre className={`px-3 py-2 text-xs overflow-x-auto chat-scroll-smooth ${textClass}`}>
+                <pre className={`px-3 py-2.5 text-xs overflow-x-auto chat-scroll-smooth leading-6 ${textClass}`}>
                   <code>{raw}</code>
                 </pre>
               </div>

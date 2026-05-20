@@ -67,6 +67,10 @@ interface UiMessage {
   runtimeMode?: "local" | "remote" | "unknown";
   /** Human-readable pipeline progress steps. */
   progressSteps?: string[];
+  /** Estimated completion percentage (0–100) from the server pipeline. */
+  progressPercent?: number;
+  /** Current pipeline stage: "retrieve" | "plan" | "generate". */
+  progressStage?: string;
   /** Reasoning tokens from DeepSeek or other thinking-capable models. */
   thinkingContent?: string;
 }
@@ -95,7 +99,7 @@ interface StewardChatStreamError {
   message: string;
 }
 /** Progress update sent during pipeline stages (retrieval, planning, drafting). */
-interface StewardChatStreamProgress { type: "progress"; message: string; }
+interface StewardChatStreamProgress { type: "progress"; message: string; stage?: string; percent?: number; }
 /** Reasoning token from DeepSeek or other thinking-capable models. */
 interface StewardChatStreamThinking { type: "thinking"; delta: string; }
 
@@ -1023,7 +1027,12 @@ export default function StewardChatPanel({
           if (event.type === "progress") {
             setMessages((current) => current.map((message) => (
               message.id === assistantMessageId
-                ? { ...message, progressSteps: [...(message.progressSteps ?? []), event.message] }
+                ? {
+                    ...message,
+                    progressSteps: [...(message.progressSteps ?? []), event.message],
+                    ...(typeof event.percent === "number" ? { progressPercent: event.percent } : {}),
+                    ...(event.stage ? { progressStage: event.stage } : {}),
+                  }
                 : message
             )));
             continue;
@@ -1386,6 +1395,8 @@ export default function StewardChatPanel({
                               thinkingContent={message.thinkingContent ?? ""}
                               isActive={sending && activeAssistantMessageId === message.id}
                               compact={true}
+                              progressPercent={message.progressPercent}
+                              progressStage={message.progressStage}
                             />
                           )}
                           {sending && activeAssistantMessageId === message.id && !message.content.trim() ? (

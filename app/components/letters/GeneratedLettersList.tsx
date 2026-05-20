@@ -97,6 +97,26 @@ export default function GeneratedLettersList({ embedded = false }: GeneratedLett
     }
   }
 
+  /** Creates one Communications draft from a generated letter and opens it in Communications. */
+  async function createEmailDraft(letterId: string) {
+    setWorkingId(letterId);
+    setError(null);
+    try {
+      const result = await apiFetch<{ emailCampaign?: { id: string } }>(`/api/letters/generated/${letterId}/create-email-draft`, {
+        method: "POST",
+      });
+      if (result?.emailCampaign?.id) {
+        window.location.href = `/communications/${result.emailCampaign.id}`;
+        return;
+      }
+      throw new Error("Email draft created without an id.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to create email draft.");
+    } finally {
+      setWorkingId(null);
+    }
+  }
+
   /** Opens browser print fallback using merged print HTML when server PDF is unavailable. */
   function openBrowserPrint(letter: GeneratedLetterSummary) {
     const printHtml = letter.mergedPrintBody;
@@ -235,6 +255,22 @@ export default function GeneratedLettersList({ embedded = false }: GeneratedLett
                   >
                     Export PDF
                   </button>
+                  {letter.emailCampaignId ? (
+                    <Link
+                      href={`/communications/${letter.emailCampaignId}`}
+                      className="px-3 py-1.5 text-xs rounded border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    >
+                      Open Email Draft
+                    </Link>
+                  ) : (
+                    <button
+                      onClick={() => void createEmailDraft(letter.id)}
+                      disabled={workingId === letter.id}
+                      className="px-3 py-1.5 text-xs rounded border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+                    >
+                      Create Email Draft
+                    </button>
+                  )}
                   <button
                     onClick={() => openBrowserPrint(letter)}
                     disabled={workingId === letter.id}

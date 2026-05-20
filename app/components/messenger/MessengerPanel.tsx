@@ -284,6 +284,7 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
   // ── Derived: active thread object ─────────────────────────────────────────
 
   const activeThread = threads.find((t) => t.id === activeThreadId) ?? null;
+  const activeOtherUser = activeThread?.otherParticipants[0] ?? null;
 
   const filteredUsers = orgUsers.filter((u) => {
     const q = userSearch.toLowerCase();
@@ -294,6 +295,8 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
     );
   });
 
+  const totalUnread = threads.reduce((s, t) => s + t.unreadCount, 0);
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   if (!open) return null;
@@ -301,107 +304,153 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
   return (
     <>
       {/* Backdrop (mobile) */}
-      <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm lg:hidden" onClick={onClose} />
+      <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden" onClick={onClose} />
 
       {/* Panel */}
       <div
         ref={panelRef}
-        className="fixed right-2 top-[3.75rem] z-50 flex h-[calc(100vh-4.25rem)] w-[calc(100vw-1rem)] max-w-[380px] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
+        className="fixed right-2 top-[3.75rem] z-50 flex h-[calc(100dvh-4.25rem)] w-[calc(100vw-1rem)] max-w-[420px] flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_24px_60px_rgba(2,6,23,0.18)]"
+        style={{ animation: "msgPanelIn 0.18s cubic-bezier(0.22,1,0.36,1)" }}
       >
         {/* ── Header ───────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3">
-          {activeThreadId ? (
+        {activeThreadId ? (
+          /* Thread view header */
+          <div className="flex items-center gap-3 border-b border-slate-100 bg-white px-3 py-3">
             <button
               type="button"
               onClick={() => { setActiveThreadId(null); setMessages([]); setComposing(""); }}
-              className="flex items-center gap-1.5 text-sm font-semibold text-gray-800 hover:text-gray-950"
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
             >
-              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
-              {activeThread
-                ? activeThread.otherParticipants.map((p) => `${p.firstName} ${p.lastName}`).join(", ") || activeThread.name || "Thread"
-                : "Back"}
             </button>
-          ) : (
-            <span className="text-sm font-semibold text-gray-900">Messages</span>
-          )}
-          <div className="flex items-center gap-1">
-            {!activeThreadId && (
-              <button
-                type="button"
-                title="New message"
-                onClick={() => void openNewDm()}
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
-                </svg>
-              </button>
+            {activeOtherUser && (
+              <div className="relative flex-shrink-0">
+                <UserAvatar user={activeOtherUser} size={36} />
+                <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
+              </div>
             )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-slate-900">
+                {activeThread?.otherParticipants.map((p) => `${p.firstName} ${p.lastName}`).join(", ") || activeThread?.name || "Thread"}
+              </p>
+              <p className="text-[11px] font-medium text-emerald-500">Active now</p>
+            </div>
             <button
               type="button"
               title="Close"
               onClick={onClose}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
-        </div>
+        ) : (
+          /* Thread list header */
+          <div className="flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3.5">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-600 text-white">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
+                </svg>
+              </div>
+              <span className="text-[15px] font-bold text-slate-900">Messages</span>
+              {totalUnread > 0 && (
+                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-violet-600 px-1.5 text-[11px] font-bold text-white">
+                  {Math.min(totalUnread, 99)}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                title="New message"
+                onClick={() => void openNewDm()}
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                title="Close"
+                onClick={onClose}
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── Plugin disabled notice ─────────────────────────────────── */}
         {enabled === false && (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-sm text-gray-500">
-            <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
-            </svg>
-            <p className="font-medium text-gray-700">Messenger is disabled</p>
-            <p className="text-xs text-gray-400">An admin can enable it in Settings → Integrations.</p>
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
+              <svg className="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </div>
+            <div>
+              <p className="font-semibold text-slate-800">Messenger is disabled</p>
+              <p className="mt-1 text-xs text-slate-500">An admin can enable it in Settings → Integrations.</p>
+            </div>
           </div>
         )}
 
         {/* ── New DM picker ───────────────────────────────────────────── */}
         {enabled !== false && showNewDm && !activeThreadId && (
           <div className="flex flex-1 flex-col overflow-hidden">
-            <div className="border-b border-gray-100 px-4 py-2.5">
-              <input
-                autoFocus
-                type="text"
-                placeholder="Search people…"
-                value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200"
-              />
+            <div className="border-b border-slate-100 px-4 py-2.5">
+              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-100 transition-all">
+                <svg className="w-4 h-4 flex-shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                </svg>
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Search people…"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder-slate-400"
+                />
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto">
               {filteredUsers.length === 0 && (
-                <p className="px-4 py-6 text-center text-sm text-gray-400">No users found.</p>
+                <p className="px-4 py-8 text-center text-sm text-slate-400">No people found.</p>
               )}
               {filteredUsers.map((u) => (
                 <button
                   key={u.id}
                   type="button"
                   onClick={() => void startDm(u.id)}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 active:bg-slate-100"
                 >
-                  <UserAvatar user={u} size={36} />
+                  <div className="relative flex-shrink-0">
+                    <UserAvatar user={u} size={40} />
+                    <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
+                  </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-gray-900">{u.firstName} {u.lastName}</p>
-                    <p className="truncate text-xs text-gray-400">{u.email}</p>
+                    <p className="truncate text-sm font-semibold text-slate-900">{u.firstName} {u.lastName}</p>
+                    <p className="truncate text-xs text-slate-400">{u.email}</p>
                   </div>
                 </button>
               ))}
             </div>
-            <div className="border-t border-gray-100 px-4 py-2.5">
+            <div className="border-t border-slate-100 px-4 py-2.5">
               <button
                 type="button"
                 onClick={() => { setShowNewDm(false); setUserSearch(""); }}
-                className="text-xs font-medium text-gray-500 hover:text-gray-800"
+                className="text-xs font-medium text-slate-500 hover:text-slate-800"
               >
-                Cancel
+                ← Back to messages
               </button>
             </div>
           </div>
@@ -411,17 +460,22 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
         {enabled !== false && !showNewDm && !activeThreadId && (
           <div className="flex-1 overflow-y-auto">
             {threads.length === 0 && (
-              <div className="flex flex-col items-center justify-center gap-2 py-12 px-6 text-center">
-                <svg className="w-9 h-9 text-gray-200" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
-                </svg>
-                <p className="text-sm font-medium text-gray-500">No conversations yet</p>
+              <div className="flex flex-col items-center justify-center gap-3 px-6 py-14 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-50">
+                  <svg className="w-8 h-8 text-violet-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">No conversations yet</p>
+                  <p className="mt-1 text-xs text-slate-500">Start messaging your teammates</p>
+                </div>
                 <button
                   type="button"
                   onClick={() => void openNewDm()}
-                  className="mt-1 rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+                  className="mt-1 rounded-xl bg-violet-600 px-5 py-2 text-xs font-semibold text-white transition-colors hover:bg-violet-700"
                 >
-                  Start a conversation
+                  New Message
                 </button>
               </div>
             )}
@@ -430,37 +484,39 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
               const displayName = thread.name
                 ?? thread.otherParticipants.map((p) => `${p.firstName} ${p.lastName}`).join(", ")
                 ?? "Thread";
+              const hasUnread = thread.unreadCount > 0;
               return (
                 <button
                   key={thread.id}
                   type="button"
                   onClick={() => setActiveThreadId(thread.id)}
-                  className="flex w-full items-center gap-3 border-b border-gray-50 px-4 py-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
+                  className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-slate-50 active:bg-slate-100 ${hasUnread ? "bg-violet-50/40" : ""}`}
                 >
-                  {otherUser ? (
-                    <UserAvatar user={otherUser} size={40} />
-                  ) : (
-                    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 text-sm font-semibold text-gray-500">
-                      G
-                    </span>
-                  )}
+                  <div className="relative flex-shrink-0">
+                    {otherUser ? (
+                      <UserAvatar user={otherUser} size={44} />
+                    ) : (
+                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-600">G</span>
+                    )}
+                    <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
+                  </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className={`truncate text-sm ${thread.unreadCount > 0 ? "font-semibold text-gray-900" : "font-medium text-gray-700"}`}>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className={`truncate text-sm ${hasUnread ? "font-bold text-slate-900" : "font-medium text-slate-700"}`}>
                         {displayName}
                       </p>
-                      <span className="shrink-0 text-[11px] text-gray-400">
+                      <span className="flex-shrink-0 text-[11px] text-slate-400">
                         {thread.lastMessage ? relativeTime(thread.lastMessage.createdAt) : ""}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between gap-2 mt-0.5">
-                      <p className="truncate text-xs text-gray-400">
+                    <div className="mt-0.5 flex items-center justify-between gap-2">
+                      <p className={`truncate text-xs ${hasUnread ? "font-medium text-slate-700" : "text-slate-400"}`}>
                         {thread.lastMessage
                           ? `${thread.lastMessage.senderId === user?.id ? "You: " : ""}${thread.lastMessage.body}`
                           : "No messages yet"}
                       </p>
-                      {thread.unreadCount > 0 && (
-                        <span className="flex h-4 min-w-[16px] shrink-0 items-center justify-center rounded-full bg-slate-800 px-1 text-[10px] font-bold text-white">
+                      {hasUnread && (
+                        <span className="flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-violet-600 px-1.5 text-[10px] font-bold text-white">
                           {Math.min(thread.unreadCount, 99)}
                         </span>
                       )}
@@ -475,33 +531,49 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
         {/* ── Active thread: messages + compose ───────────────────────── */}
         {enabled !== false && activeThreadId && (
           <>
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+            <div className="flex-1 overflow-y-auto bg-slate-50/50 px-4 py-4 space-y-1">
               {messagesLoading && (
-                <p className="text-center text-xs text-gray-400 py-4">Loading messages…</p>
+                <div className="flex items-center justify-center py-8">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
+                </div>
               )}
               {!messagesLoading && messages.length === 0 && (
-                <p className="text-center text-xs text-gray-400 py-4">No messages yet. Say hello!</p>
+                <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+                  {activeOtherUser && <UserAvatar user={activeOtherUser} size={48} />}
+                  <p className="text-sm font-semibold text-slate-800">
+                    {activeOtherUser ? `${activeOtherUser.firstName} ${activeOtherUser.lastName}` : ""}
+                  </p>
+                  <p className="text-xs text-slate-400">No messages yet — say hello!</p>
+                </div>
               )}
-              {messages.map((msg) => {
+              {messages.map((msg, idx) => {
                 const isMe = msg.senderId === user?.id;
+                const prevMsg = messages[idx - 1];
+                const showAvatar = !isMe && (!prevMsg || prevMsg.senderId !== msg.senderId);
+                const showTimestamp = !messages[idx + 1] || new Date(messages[idx + 1].createdAt).getTime() - new Date(msg.createdAt).getTime() > 60000 * 5;
                 return (
                   <div key={msg.id} className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+                    {/* Avatar placeholder to maintain alignment for grouped messages */}
                     {!isMe && (
-                      <UserAvatar user={msg.sender} size={26} />
+                      showAvatar
+                        ? <div className="flex-shrink-0 self-end"><UserAvatar user={msg.sender} size={28} /></div>
+                        : <div className="w-7 flex-shrink-0" />
                     )}
-                    <div className={`group max-w-[75%]`}>
+                    <div className={`flex flex-col max-w-[72%] ${isMe ? "items-end" : "items-start"}`}>
                       <div
-                        className={`rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words ${
+                        className={`px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words ${
                           isMe
-                            ? "rounded-br-sm bg-slate-900 text-white"
-                            : "rounded-bl-sm bg-gray-100 text-gray-900"
+                            ? "rounded-2xl rounded-br-sm bg-blue-600 text-white shadow-sm"
+                            : "rounded-2xl rounded-bl-sm bg-white text-slate-900 shadow-sm border border-slate-200/80"
                         }`}
                       >
                         {msg.body}
                       </div>
-                      <p className={`mt-0.5 text-[10px] text-gray-400 ${isMe ? "text-right" : "text-left"}`}>
-                        {relativeTime(msg.createdAt)}
-                      </p>
+                      {showTimestamp && (
+                        <p className={`mt-1 text-[10px] text-slate-400 ${isMe ? "text-right" : "text-left"}`}>
+                          {relativeTime(msg.createdAt)}
+                        </p>
+                      )}
                     </div>
                   </div>
                 );
@@ -510,39 +582,43 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
             </div>
 
             {/* Compose bar */}
-            <div className="border-t border-gray-100 bg-white px-3 py-2.5">
-              <div className="flex items-end gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 focus-within:border-slate-400 focus-within:ring-1 focus-within:ring-slate-200 transition-all">
-                <textarea
-                  ref={composeRef}
-                  rows={1}
-                  value={composing}
-                  onChange={(e) => setComposing(e.target.value)}
-                  onKeyDown={handleComposeKeyDown}
-                  placeholder="Message… (Enter to send)"
-                  className="flex-1 resize-none bg-transparent text-sm text-gray-900 placeholder-gray-400 outline-none"
-                  style={{ maxHeight: 120 }}
-                  onInput={(e) => {
-                    const el = e.currentTarget;
-                    el.style.height = "auto";
-                    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
-                  }}
-                />
+            <div className="border-t border-slate-100 bg-white px-3 py-3">
+              <div className="flex items-end gap-2">
+                <div className="flex flex-1 items-end gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                  <textarea
+                    ref={composeRef}
+                    rows={1}
+                    value={composing}
+                    onChange={(e) => setComposing(e.target.value)}
+                    onKeyDown={handleComposeKeyDown}
+                    placeholder="Aa"
+                    className="flex-1 resize-none bg-transparent text-sm text-slate-900 placeholder-slate-400 outline-none"
+                    style={{ maxHeight: 120 }}
+                    onInput={(e) => {
+                      const el = e.currentTarget;
+                      el.style.height = "auto";
+                      el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+                    }}
+                  />
+                </div>
                 <button
                   type="button"
                   disabled={!composing.trim() || sending}
                   onClick={() => void sendMessage()}
-                  className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white transition-opacity disabled:opacity-40 hover:bg-slate-700"
+                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm transition-all hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
                 >
-                  <svg className="w-3.5 h-3.5 rotate-90" fill="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 translate-x-px" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" />
                   </svg>
                 </button>
               </div>
-              <p className="mt-1.5 text-right text-[10px] text-gray-400">Shift+Enter for new line</p>
             </div>
           </>
         )}
       </div>
+
+      {/* Panel slide-in keyframe (inline style tag scoped to this component) */}
+      <style>{`@keyframes msgPanelIn { from { opacity: 0; transform: translateY(6px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }`}</style>
     </>
   );
 }

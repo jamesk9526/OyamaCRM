@@ -115,6 +115,16 @@ export interface StewardAiChatPayload {
   fiscalYearStart?: number;
   /** Beta toggle: when false, bypass ThoughtStack clarification/confirmation layer for this request. */
   thoughtStackEnabled?: boolean;
+  /** Optional tool names selected via slash-command picker (forced read-tool execution for this prompt). */
+  forcedTools?: string[];
+  /** Workspace notepad context attached from Steward AI split-pane notes. */
+  workspaceNotes?: {
+    title?: string;
+    content?: string;
+    version?: number;
+    sourceOfTruth?: boolean;
+    liveEditable?: boolean;
+  };
 }
 
 export interface StewardToolListQuery {
@@ -276,10 +286,15 @@ export const ALLOWED_SUGGESTED_ACTION_TYPES = new Set<string>([
   "communications.build_full_email_workspace",
   "tasks.create_follow_up_task",
   "letters.create_letter_draft",
+  "letters.create_html_css_letter_draft",
   "letters.build_full_letter_draft",
   "guidepath.choose",
   "thoughtstack.continue",
   "thoughtstack.review_first",
   "thoughtstack.provide_details",
   "thoughtstack.cancel",
+  "workspace.notes.replace",
+  "workspace.notes.append",
+  "workspace.notes.prepend",
+  "workspace.notes.clear",
 ]);

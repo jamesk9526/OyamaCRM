@@ -54,8 +54,8 @@ export function statusCopy(status: StewardAiRuntimeStatus): {
   if (status === "connected") {
     return {
       label: "Steward: Connected",
-      pillTone: "border-emerald-300/60 bg-emerald-500/20 text-emerald-50",
-      dotTone: "bg-emerald-300",
+      pillTone: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      dotTone: "bg-emerald-500",
       dotPulse: false,
       spinner: false,
       helper: "Local AI connected and idle.",
@@ -65,8 +65,8 @@ export function statusCopy(status: StewardAiRuntimeStatus): {
   if (status === "thinking") {
     return {
       label: "Steward: Thinking",
-      pillTone: "border-blue-300/70 bg-blue-500/20 text-blue-50",
-      dotTone: "bg-blue-300",
+      pillTone: "border-blue-200 bg-blue-50 text-blue-700",
+      dotTone: "bg-blue-500",
       dotPulse: true,
       spinner: false,
       helper: "Steward is analyzing donor opportunities.",
@@ -76,8 +76,8 @@ export function statusCopy(status: StewardAiRuntimeStatus): {
   if (status === "running_task") {
     return {
       label: "Steward: Running Task",
-      pillTone: "border-cyan-300/70 bg-cyan-500/20 text-cyan-50",
-      dotTone: "bg-cyan-300",
+      pillTone: "border-cyan-200 bg-cyan-50 text-cyan-700",
+      dotTone: "bg-cyan-500",
       dotPulse: false,
       spinner: true,
       helper: "Generating donor engagement recommendations.",
@@ -87,8 +87,8 @@ export function statusCopy(status: StewardAiRuntimeStatus): {
   if (status === "connecting") {
     return {
       label: "Steward: Connecting",
-      pillTone: "border-indigo-300/70 bg-indigo-500/20 text-indigo-50",
-      dotTone: "bg-indigo-300",
+      pillTone: "border-indigo-200 bg-indigo-50 text-indigo-700",
+      dotTone: "bg-indigo-500",
       dotPulse: true,
       spinner: false,
       helper: "Checking runtime connectivity.",
@@ -98,8 +98,8 @@ export function statusCopy(status: StewardAiRuntimeStatus): {
   if (status === "fallback") {
     return {
       label: "Steward: Offline",
-      pillTone: "border-amber-300/70 bg-amber-500/20 text-amber-50",
-      dotTone: "bg-amber-300",
+      pillTone: "border-amber-200 bg-amber-50 text-amber-700",
+      dotTone: "bg-amber-500",
       dotPulse: false,
       spinner: false,
       helper: "AI unavailable. Deterministic Steward rules remain active.",
@@ -109,8 +109,8 @@ export function statusCopy(status: StewardAiRuntimeStatus): {
   if (status === "error") {
     return {
       label: "Steward: Error",
-      pillTone: "border-rose-300/70 bg-rose-500/20 text-rose-50",
-      dotTone: "bg-rose-300",
+      pillTone: "border-rose-200 bg-rose-50 text-rose-700",
+      dotTone: "bg-rose-500",
       dotPulse: false,
       spinner: false,
       helper: "Last AI task failed. Check runtime details.",
@@ -120,8 +120,8 @@ export function statusCopy(status: StewardAiRuntimeStatus): {
   if (status === "not_configured") {
     return {
       label: "Steward: Not Configured",
-      pillTone: "border-slate-300/60 bg-slate-500/20 text-slate-100",
-      dotTone: "bg-slate-300",
+      pillTone: "border-slate-200 bg-slate-50 text-slate-700",
+      dotTone: "bg-slate-500",
       dotPulse: false,
       spinner: false,
       helper: "AI is enabled but runtime settings are incomplete.",
@@ -130,8 +130,8 @@ export function statusCopy(status: StewardAiRuntimeStatus): {
 
   return {
     label: "Steward: Disabled",
-    pillTone: "border-slate-300/60 bg-slate-500/20 text-slate-100",
-    dotTone: "bg-slate-300",
+    pillTone: "border-slate-200 bg-slate-50 text-slate-600",
+    dotTone: "bg-slate-400",
     dotPulse: false,
     spinner: false,
     helper: "Steward AI is currently disabled.",

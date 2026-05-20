@@ -20,18 +20,18 @@ export default function BranchGroup({ branchNode, renderLaneContent, onAddToLane
   const field = typeof branchNode.config.field === "string" ? branchNode.config.field : "field";
 
   return (
-    <div className="mt-3 rounded-xl border border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white p-3">
+    <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold text-emerald-900">Branch lanes</span>
-        <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[11px] font-medium text-emerald-700">
-          Condition field: {field}
+        <span className="text-xs font-semibold text-slate-700">Branch</span>
+        <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600">
+          on {field}
         </span>
-        <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] text-gray-600">
+        <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-500">
           {branchNode.lanes.length} lane{branchNode.lanes.length === 1 ? "" : "s"}
         </span>
       </div>
 
-      <div className="mb-3 h-px w-full bg-gradient-to-r from-emerald-200 via-emerald-300 to-emerald-200" />
+      <div className="mb-3 h-px w-full bg-slate-200" />
 
       <div className="grid gap-3 overflow-x-auto pb-1 lg:grid-cols-2">
         {branchNode.lanes.map((lane) => (

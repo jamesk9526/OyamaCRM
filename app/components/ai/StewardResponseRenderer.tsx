@@ -24,6 +24,7 @@ import type {
 
 // ─── Human-readable tool name map ─────────────────────────────────────────────
 const TOOL_LABELS: Record<string, string> = {
+  "branding.getOrganizationBrandKit": "Organization brand kit",
   "donor.getDailyBrief": "Daily donor brief",
   "donor.getThankYousNeeded": "Thank-you queue",
   "donor.getLapseRisks": "Lapse risk analysis",
@@ -59,6 +60,7 @@ const TOOL_LABELS: Record<string, string> = {
   "thoughtstack.assess": "ThoughtStack reliability assessment",
   "fiscal.context": "Fiscal year context",
   "tasks.createFollowUpTask": "Create follow-up task",
+  "letters.createHtmlCssLetterDraft": "Create styled HTML/CSS letter draft",
   "communications.createEmailDraft": "Create email draft",
 };
 
@@ -103,6 +105,7 @@ interface StewardResponseRendererProps {
   onCopy?: () => void;
   onRegenerate?: () => void;
   onSaveTemplate?: () => void;
+  onSaveLetterDraft?: () => void;
 }
 
 // ─── Artifact card dispatcher ─────────────────────────────────────────────────
@@ -245,6 +248,8 @@ function ActionBar({
   onCopy,
   onRegenerate,
   onSaveTemplate,
+  onSaveLetterDraft,
+  tone,
   onAbout,
   aboutOpen,
   compact,
@@ -252,6 +257,8 @@ function ActionBar({
   onCopy?: () => void;
   onRegenerate?: () => void;
   onSaveTemplate?: () => void;
+  onSaveLetterDraft?: () => void;
+  tone?: "dark" | "light";
   onAbout: () => void;
   aboutOpen: boolean;
   compact?: boolean;
@@ -264,9 +271,14 @@ function ActionBar({
     setTimeout(() => setCopied(false), 1500);
   }
 
+  const isLight = tone === "light";
   const btnClass = compact
-    ? "flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-    : "flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition-colors";
+    ? isLight
+      ? "flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+      : "flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/10 hover:text-slate-200 transition-colors"
+    : isLight
+      ? "flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition-colors"
+      : "flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-slate-400 hover:bg-white/10 hover:text-slate-200 transition-colors";
 
   return (
     <div className={`flex items-center gap-0.5 ${compact ? "mt-1" : "mt-2"}`}>
@@ -305,6 +317,16 @@ function ActionBar({
         </button>
       )}
 
+      {onSaveLetterDraft && (
+        <button type="button" onClick={onSaveLetterDraft} className={btnClass} title="Save as draft letter">
+          <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 21H5a2 2 0 01-2-2V7a2 2 0 012-2h3l2-2h4l2 2h3a2 2 0 012 2v12a2 2 0 01-2 2z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 11h8M8 15h6" />
+          </svg>
+          Save Draft Letter
+        </button>
+      )}
+
       <button
         type="button"
         onClick={onAbout}
@@ -339,6 +361,7 @@ export default function StewardResponseRenderer({
   onCopy,
   onRegenerate,
   onSaveTemplate,
+  onSaveLetterDraft,
 }: StewardResponseRendererProps) {
   const [aboutOpen, setAboutOpen] = useState(false);
 
@@ -380,11 +403,13 @@ export default function StewardResponseRenderer({
       )}
 
       {/* Action bar */}
-      {(onCopy || onRegenerate || onSaveTemplate || hasMetadata) && (
+      {(onCopy || onRegenerate || onSaveTemplate || onSaveLetterDraft || hasMetadata) && (
         <ActionBar
           onCopy={onCopy}
           onRegenerate={onRegenerate}
           onSaveTemplate={onSaveTemplate}
+          onSaveLetterDraft={onSaveLetterDraft}
+          tone={tone}
           onAbout={handleAbout}
           aboutOpen={aboutOpen}
           compact={compact}

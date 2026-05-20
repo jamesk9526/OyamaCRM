@@ -4,9 +4,6 @@
  */
 "use client";
 
-import Card from "@/app/components/ui/Card";
-import CircularProgress from "@/app/components/ui/CircularProgress";
-import { useState } from "react";
 
 interface DonorRetentionProps {
   retained: number;
@@ -17,109 +14,89 @@ interface DonorRetentionProps {
 }
 
 export default function DonorRetention({ retained, total, rate, loading }: DonorRetentionProps) {
-  const [displayMode, setDisplayMode] = useState<"rate" | "counts">("rate");
-  const [hoverSegment, setHoverSegment] = useState<"retained" | "lapsed" | null>(null);
   const percentage = rate ?? (total > 0 ? Math.round((retained / total) * 100) : 0);
   const retainedPct = Math.max(0, Math.min(100, percentage));
   const lapsed = Math.max(total - retained, 0);
   const lapsedPct = Math.max(0, 100 - retainedPct);
+  const radius = 56;
+  const strokeWidth = 14;
+  const ringLength = 2 * Math.PI * radius;
+  const retainedArc = (retainedPct / 100) * ringLength;
+  const lapsedArc = (lapsedPct / 100) * ringLength;
 
-  const summaryText = displayMode === "counts"
-    ? `${retained} retained • ${lapsed} lapsed`
-    : `${retained} out of ${total} donors retained`;
+  const summaryText = `${retained} out of ${total} donors retained`;
 
   return (
-    <Card padding="small">
-      <div className="flex items-start justify-between mb-3">
-        <h3 className="font-semibold text-gray-900">Donor Retention</h3>
-        <div className="flex items-center gap-1 rounded-md border border-gray-200 p-1">
-          <button
-            type="button"
-            onClick={() => setDisplayMode("rate")}
-            className={`px-2 py-0.5 text-[11px] font-medium rounded transition-colors ${
-              displayMode === "rate"
-                ? "bg-green-50 text-green-700"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            Rate
-          </button>
-          <button
-            type="button"
-            onClick={() => setDisplayMode("counts")}
-            className={`px-2 py-0.5 text-[11px] font-medium rounded transition-colors ${
-              displayMode === "counts"
-                ? "bg-green-50 text-green-700"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            Counts
-          </button>
-        </div>
-      </div>
-
-      <div className="flex flex-col items-center py-3">
-        {loading ? (
-          <div className="w-44 h-44 rounded-full bg-gray-200 animate-pulse" />
-        ) : (
-          <div className="relative group">
-            <button
-              type="button"
-              onClick={() => setDisplayMode((mode) => (mode === "rate" ? "counts" : "rate"))}
-              className="rounded-full transition-transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-green-300"
-              title="Click to toggle retention views"
-            >
-              <CircularProgress percentage={retainedPct} size={180} strokeWidth={14} />
-            </button>
-            <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 transition-opacity">
-              <div className="bg-gray-900 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap shadow">
-                <div>{retainedPct}% retained</div>
-                <div>{lapsedPct}% lapsed</div>
+    <div className="h-full">
+      <div className="grid h-full grid-cols-1 items-center gap-4 md:grid-cols-[180px_1fr]">
+        <div className="flex items-center justify-center">
+          {loading ? (
+            <div className="h-40 w-40 animate-pulse rounded-full bg-slate-100" />
+          ) : (
+            <div className="relative">
+              <svg width="160" height="160" viewBox="0 0 160 160" className="-rotate-90">
+                <circle cx="80" cy="80" r={radius} fill="none" stroke="#e2e8f0" strokeWidth={strokeWidth} />
+                <circle
+                  cx="80"
+                  cy="80"
+                  r={radius}
+                  fill="none"
+                  stroke="#16a34a"
+                  strokeWidth={strokeWidth}
+                  strokeLinecap="round"
+                  strokeDasharray={`${retainedArc} ${ringLength}`}
+                  strokeDashoffset="0"
+                />
+                <circle
+                  cx="80"
+                  cy="80"
+                  r={radius}
+                  fill="none"
+                  stroke="#f59e0b"
+                  strokeWidth={strokeWidth}
+                  strokeLinecap="butt"
+                  strokeDasharray={`${lapsedArc} ${ringLength}`}
+                  strokeDashoffset={-retainedArc}
+                />
+              </svg>
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                <p className="text-4xl font-semibold tracking-tight text-slate-900">{retainedPct}%</p>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Retained</p>
               </div>
             </div>
-          </div>
-        )}
-        
-        <p className="text-xs text-gray-500 mt-1 uppercase tracking-wide">Year-over-Year</p>
-        
-        <div className="mt-3 text-center">
-          {loading ? (
-            <div className="h-4 w-40 bg-gray-200 rounded animate-pulse" />
-          ) : (
-            <p className="text-sm text-gray-600">
-              {summaryText}
-            </p>
           )}
         </div>
 
-        {!loading && total > 0 && (
-          <div className="mt-3 w-full max-w-xs">
-            <div className="h-2 w-full rounded-full overflow-hidden border border-gray-200 flex">
-              <button
-                type="button"
-                onMouseEnter={() => setHoverSegment("retained")}
-                onMouseLeave={() => setHoverSegment(null)}
-                className="bg-green-500 transition-opacity hover:opacity-90"
-                style={{ width: `${retainedPct}%` }}
-                title={`Retained: ${retained} (${retainedPct}%)`}
-              />
-              <button
-                type="button"
-                onMouseEnter={() => setHoverSegment("lapsed")}
-                onMouseLeave={() => setHoverSegment(null)}
-                className="bg-gray-300 transition-opacity hover:opacity-90"
-                style={{ width: `${lapsedPct}%` }}
-                title={`Lapsed: ${lapsed} (${lapsedPct}%)`}
-              />
-            </div>
-            <p className="mt-2 text-center text-[11px] text-gray-500">
-              {hoverSegment === "retained" && `Retained: ${retained} donors (${retainedPct}%)`}
-              {hoverSegment === "lapsed" && `Lapsed: ${lapsed} donors (${lapsedPct}%)`}
-              {!hoverSegment && "Hover the bar to inspect retention split"}
-            </p>
-          </div>
-        )}
+        <div className="space-y-3">
+          {loading ? (
+            <>
+              <div className="h-4 w-48 animate-pulse rounded bg-slate-100" />
+              <div className="h-10 w-full animate-pulse rounded-lg bg-slate-100" />
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-slate-600">{summaryText}</p>
+
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-[12px_1fr_auto] items-center gap-2 text-sm">
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
+                  <span className="text-slate-600">Retained</span>
+                  <span className="font-semibold text-slate-800">{retainedPct}% ({retained.toLocaleString()})</span>
+                </div>
+                <div className="grid grid-cols-[12px_1fr_auto] items-center gap-2 text-sm">
+                  <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                  <span className="text-slate-600">Lapsed</span>
+                  <span className="font-semibold text-slate-800">{lapsedPct}% ({lapsed.toLocaleString()})</span>
+                </div>
+              </div>
+
+              <div className="h-2 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
+                <div className="h-full bg-emerald-600" style={{ width: `${retainedPct}%` }} />
+              </div>
+            </>
+          )}
+        </div>
       </div>
-    </Card>
+    </div>
   );
 }

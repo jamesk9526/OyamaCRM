@@ -25,6 +25,8 @@ interface WorkflowMapProps {
     | { kind: "root" }
     | { kind: "branch-lane"; branchNodeId: string; laneId: string };
   compact?: boolean;
+  /** Passed from WorkflowCanvas to reveal drop zones while dragging. */
+  isDragging?: boolean;
 }
 
 /** Recursive map renderer for top-level workflow nodes and nested lane nodes. */
@@ -40,6 +42,7 @@ export default function WorkflowMap({
   onDropPaletteKind,
   container,
   compact = false,
+  isDragging = false,
 }: WorkflowMapProps) {
   const containerRef: WorkflowContainerRef = container.kind === "root"
     ? { kind: "root" }
@@ -85,23 +88,21 @@ export default function WorkflowMap({
   }
 
   return (
-    <div className={compact ? "space-y-2" : "space-y-3"}>
-      <div
-        className="flex h-6 items-center justify-center rounded-md border border-dashed border-emerald-200 bg-emerald-50/60 text-[11px] font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
-        onDragOver={(event) => {
-          event.preventDefault();
-        }}
-        onDrop={(event) => handleDrop(event, 0)}
-      >
-        Drop or add step at top
-      </div>
+    <div className={compact ? "space-y-2" : "space-y-1"}>
+      {/* Top drop zone — only visible when dragging */}
+      <WorkflowConnector
+        showLine={false}
+        isDragging={isDragging}
+        onDrop={(e) => handleDrop(e, 0)}
+      />
+
       {nodeIds.map((nodeId, index) => {
         const node = doc.nodesById[nodeId];
         if (!node) return null;
 
         return (
           <div key={node.id} className="flex flex-col items-center">
-            <div className={compact ? "w-full" : "w-full max-w-4xl"}>
+            <div className={compact ? "w-full" : "w-full"}>
               <WorkflowNodeCard
                 node={node}
                 index={index}
@@ -115,7 +116,6 @@ export default function WorkflowMap({
                 canMoveDown={index < nodeIds.length - 1}
                 compact={compact}
                 onDragStartNode={() => {
-                  // selection follows drag source to keep inspector in sync
                   onSelectNode(node.id);
                 }}
               />
@@ -141,27 +141,21 @@ export default function WorkflowMap({
                       onDropPaletteKind={onDropPaletteKind}
                       container={{ kind: "branch-lane", branchNodeId: node.id, laneId: lane.id }}
                       compact
+                      isDragging={isDragging}
                     />
                   )}
                 />
               )}
             </div>
 
+            {/* Connector between nodes — becomes drop zone while dragging */}
             <WorkflowConnector
               showLine={index < nodeIds.length - 1}
               onAdd={() => onInsertTarget({ kind: "after-node", nodeId: node.id })}
               addLabel="Add step after this node"
+              isDragging={isDragging}
+              onDrop={(e) => handleDrop(e, index + 1)}
             />
-
-            <div
-              className="flex h-6 w-full max-w-4xl items-center justify-center rounded-md border border-dashed border-emerald-200 bg-white/80 text-[11px] font-medium text-emerald-700 transition-colors hover:bg-emerald-50"
-              onDragOver={(event) => {
-                event.preventDefault();
-              }}
-              onDrop={(event) => handleDrop(event, index + 1)}
-            >
-              Insert after step {index + 1}
-            </div>
           </div>
         );
       })}
@@ -181,9 +175,7 @@ export default function WorkflowMap({
       {nodeIds.length === 0 && container.kind === "branch-lane" && (
         <div
           className="rounded-lg border border-dashed border-emerald-300 bg-emerald-50/70 p-3 text-center text-xs text-emerald-800"
-          onDragOver={(event) => {
-            event.preventDefault();
-          }}
+          onDragOver={(event) => { event.preventDefault(); }}
           onDrop={(event) => handleDrop(event, 0)}
         >
           Drop first step in this lane

@@ -176,7 +176,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Loading splash — prevent flash of unauthenticated content
   if (loading || !user) {
     return (
-      <div className="min-h-[100dvh] bg-gray-50 flex items-center justify-center">
+      <div className="min-h-[100dvh] crm-page-surface flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -187,7 +187,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="flex h-[100dvh] min-h-[100svh] flex-col bg-white transition-[padding] duration-300"
+      className="flex h-[100dvh] min-h-[100svh] flex-col crm-page-surface transition-[padding] duration-300"
       style={dockInsetPx > 0 ? { paddingRight: `${dockInsetPx}px` } : undefined}
     >
       <TopBar />
@@ -209,7 +209,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         ) : null}
 
         {/* ErrorBoundary catches page-level render errors without crashing the whole shell */}
-        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-gray-50 p-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] lg:p-4 lg:pb-4 min-[1440px]:p-5 2xl:p-6">
+        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto crm-page-surface p-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] lg:p-4 lg:pb-4 min-[1440px]:p-5 2xl:p-6">
 
           <ErrorBoundary>
             <div className="min-w-0 max-w-full">{children}</div>

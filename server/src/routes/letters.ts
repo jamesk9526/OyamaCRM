@@ -1743,6 +1743,86 @@ router.patch("/generated/:id/status", requirePermission("letters.generate"), asy
   res.json(updated);
 });
 
+/** POST /api/letters/templates/:id/create-email-draft — Creates a Communications draft directly from a letter template. */
+router.post("/templates/:id/create-email-draft", requirePermission("letters.create_email_draft"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const template = await prisma.letterTemplate.findFirst({
+    where: { id: getRouteId(req), organizationId },
+    select: {
+      id: true,
+      name: true,
+      category: true,
+      printSubject: true,
+      printBody: true,
+      emailSubject: true,
+      emailBody: true,
+    },
+  });
+
+  if (!template) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Letter template not found." } });
+    return;
+  }
+
+  const settings = await prisma.organizationSettings.findUnique({
+    where: { organizationId },
+    select: { smtpFromName: true, smtpFromEmail: true },
+  });
+
+  const htmlBody = (template.emailBody || template.printBody || "").trim();
+  const bodyText = htmlToPlainText(htmlBody || `<p>${template.name}</p>`);
+  const audienceFilter = JSON.stringify({
+    type: "manual_selection",
+    _sharing: {
+      ownerId: userId,
+      sharedWithOrganization: false,
+    },
+    _workflow: {
+      preparationStatus: "DRAFT",
+      source: "letters_template",
+      sourceTemplateId: template.id,
+    },
+  });
+
+  const campaign = await prisma.emailCampaign.create({
+    data: {
+      organizationId,
+      name: `Letter Template Draft: ${template.name}`,
+      subject: (template.emailSubject || template.printSubject || template.name).trim(),
+      previewText: bodyText.slice(0, 120),
+      fromName: settings?.smtpFromName || "OyamaCRM",
+      fromEmail: settings?.smtpFromEmail || "noreply@oyamacrm.org",
+      bodyText,
+      bodyHtml: htmlBody || `<p>${textToHtml(bodyText)}</p>`,
+      audienceFilter,
+      status: "DRAFT",
+    },
+  });
+
+  await logAudit({
+    action: "LETTER_TEMPLATE_EMAIL_DRAFT_CREATED",
+    entity: "LetterTemplate",
+    entityId: template.id,
+    organizationId,
+    userId,
+    metadata: {
+      emailCampaignId: campaign.id,
+      category: template.category,
+    },
+  });
+
+  res.json({
+    emailCampaign: campaign,
+    redirectTo: `/communications/${campaign.id}`,
+  });
+});
+
 /** POST /api/letters/generated/:id/create-email-draft — Creates a linked communications draft campaign. */
 router.post("/generated/:id/create-email-draft", requirePermission("letters.create_email_draft"), async (req, res) => {
   const organizationId = await requireOrganizationId(req);

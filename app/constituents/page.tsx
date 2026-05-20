@@ -10,9 +10,12 @@ import {
 } from "@/app/components/constituents/constituent-utils";
 import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
-import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
-import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
+import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
+import CRMDataTable from "@/app/components/ui/crm/CRMDataTable";
+import CRMFilterBar from "@/app/components/ui/crm/CRMFilterBar";
+import CRMMetricCard from "@/app/components/ui/crm/CRMMetricCard";
+import CRMStatusBadge from "@/app/components/ui/crm/CRMStatusBadge";
 import { apiFetch } from "@/app/lib/auth-client";
 
 type ConstituentsPageResponse = {
@@ -128,66 +131,51 @@ export default function ConstituentsPage() {
             metadata={`${loading ? "Loading records" : `${stats.total.toLocaleString()} total · ${stats.active.toLocaleString()} active donors · ${stats.prospects.toLocaleString()} prospects`}`}
             primaryAction={<WorkspaceRibbonButton label="Add Constituent" href="/constituents/new" variant="primary" />}
           />
-
-          <WorkspaceRibbon>
-            <WorkspaceRibbonGroup label="Create">
-              <WorkspaceRibbonButton label="Add Constituent" href="/constituents/new" variant="primary" />
-            </WorkspaceRibbonGroup>
-
-            <WorkspaceRibbonGroup label="View">
-              <WorkspaceRibbonButton
-                label="All Constituents"
-                onClick={() => {
-                  setTypeFilter("");
-                  setStatusFilter("");
-                  setPage(1);
-                }}
-                variant={!typeFilter && !statusFilter ? "primary" : "secondary"}
-              />
-              <WorkspaceRibbonButton
-                label="Active Donors"
-                onClick={() => {
-                  setTypeFilter("");
-                  setStatusFilter("ACTIVE");
-                  setPage(1);
-                }}
-                variant={statusFilter === "ACTIVE" ? "primary" : "secondary"}
-              />
-              <WorkspaceRibbonButton
-                label="Prospects"
-                onClick={() => {
-                  setTypeFilter("PROSPECT");
-                  setStatusFilter("");
-                  setPage(1);
-                }}
-                variant={typeFilter === "PROSPECT" ? "primary" : "secondary"}
-              />
-            </WorkspaceRibbonGroup>
-
-            <WorkspaceRibbonGroup label="Filter">
-              <WorkspaceRibbonButton label="Clear Filters" onClick={() => { setSearch(""); setTypeFilter(""); setStatusFilter(""); setPage(1); }} disabled={!search && !typeFilter && !statusFilter} />
-            </WorkspaceRibbonGroup>
-          </WorkspaceRibbon>
         </div>
       )}
     >
       <div className="space-y-5">
+      <CRMActionBar>
+        <WorkspaceRibbonButton label="Add Constituent" href="/constituents/new" variant="primary" />
+        <WorkspaceRibbonButton
+          label="All Constituents"
+          onClick={() => {
+            setTypeFilter("");
+            setStatusFilter("");
+            setPage(1);
+          }}
+          variant={!typeFilter && !statusFilter ? "primary" : "secondary"}
+        />
+        <WorkspaceRibbonButton
+          label="Active Donors"
+          onClick={() => {
+            setTypeFilter("");
+            setStatusFilter("ACTIVE");
+            setPage(1);
+          }}
+          variant={statusFilter === "ACTIVE" ? "primary" : "secondary"}
+        />
+        <WorkspaceRibbonButton
+          label="Prospects"
+          onClick={() => {
+            setTypeFilter("PROSPECT");
+            setStatusFilter("");
+            setPage(1);
+          }}
+          variant={typeFilter === "PROSPECT" ? "primary" : "secondary"}
+        />
+        <WorkspaceRibbonButton label="Clear Filters" onClick={() => { setSearch(""); setTypeFilter(""); setStatusFilter(""); setPage(1); }} disabled={!search && !typeFilter && !statusFilter} />
+      </CRMActionBar>
+
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { label: "Total", value: stats.total, color: "text-gray-900" },
-          { label: "Active Donors", value: stats.active, color: "text-blue-700" },
-          { label: "Lapsed", value: stats.lapsed, color: "text-amber-700" },
-          { label: "Prospects", value: stats.prospects, color: "text-purple-700" },
-        ].map((s) => (
-          <div key={s.label} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{s.label}</p>
-            <p className={`text-2xl font-bold mt-1 ${s.color}`}>{loading ? "—" : s.value}</p>
-          </div>
-        ))}
+        <CRMMetricCard label="Total Constituents" value={loading ? "—" : stats.total.toLocaleString()} tone="green" icon={<PeopleIcon />} helper="All constituent records" />
+        <CRMMetricCard label="Active Donors" value={loading ? "—" : stats.active.toLocaleString()} tone="blue" icon={<PersonIcon />} helper="Currently engaged donors" />
+        <CRMMetricCard label="Lapsed" value={loading ? "—" : stats.lapsed.toLocaleString()} tone="orange" icon={<ClockIcon />} helper="Needs reactivation" />
+        <CRMMetricCard label="Prospects" value={loading ? "—" : stats.prospects.toLocaleString()} tone="purple" icon={<FlagIcon />} helper="Potential supporters" />
       </div>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px_170px_auto] lg:items-center">
+      <CRMFilterBar>
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px_170px_auto] lg:items-center">
         <input
           type="search"
           placeholder="Search name, email, phone..."
@@ -196,7 +184,7 @@ export default function ConstituentsPage() {
             setSearch(e.target.value);
             setPage(1);
           }}
-          className="min-w-0 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+          className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
         />
         <select
           value={typeFilter}
@@ -204,7 +192,7 @@ export default function ConstituentsPage() {
             setTypeFilter(e.target.value);
             setPage(1);
           }}
-          className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
         >
           <option value="">All Types</option>
           {CONSTITUENT_TYPES.map((t) => (
@@ -217,7 +205,7 @@ export default function ConstituentsPage() {
             setStatusFilter(e.target.value);
             setPage(1);
           }}
-          className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
         >
           <option value="">All Statuses</option>
           {DONOR_STATUSES.map((s) => (
@@ -230,7 +218,7 @@ export default function ConstituentsPage() {
             setPageSize(Number.parseInt(e.target.value, 10) || 100);
             setPage(1);
           }}
-          className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
           aria-label="Rows per page"
         >
           {PAGE_SIZE_OPTIONS.map((size) => (
@@ -240,13 +228,13 @@ export default function ConstituentsPage() {
         {hasFilters && (
           <button
             onClick={() => { setSearch(""); setTypeFilter(""); setStatusFilter(""); setPage(1); }}
-            className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700"
           >
             Clear filters
           </button>
         )}
         </div>
-      </section>
+      </CRMFilterBar>
 
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
@@ -254,14 +242,15 @@ export default function ConstituentsPage() {
         </div>
       )}
 
-      <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+      <CRMDataTable>
         <ConstituentTable constituents={constituents} loading={loading && !error} onDelete={handleDelete} />
-      </section>
+      </CRMDataTable>
 
       {!loading && !error && total > 0 && (
-        <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-600 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-600 shadow-[0_8px_24px_rgba(15,23,42,0.035)] sm:flex-row sm:items-center sm:justify-between">
           <p>
             Showing <span className="font-semibold text-gray-900">{rangeStart.toLocaleString()}-{rangeEnd.toLocaleString()}</span> of <span className="font-semibold text-gray-900">{total.toLocaleString()}</span>
+            {hasFilters ? <CRMStatusBadge tone="green" className="ml-2">Filtered</CRMStatusBadge> : null}
           </p>
           <div className="flex items-center gap-2">
             <button
@@ -288,5 +277,43 @@ export default function ConstituentsPage() {
       )}
       </div>
     </EnterprisePageShell>
+  );
+}
+
+function PeopleIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
+      <circle cx="9.5" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+function PersonIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M5 21a7 7 0 0 1 14 0" />
+    </svg>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+
+function FlagIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 21V4" />
+      <path d="M5 4h12l-2 5 2 5H5" />
+    </svg>
   );
 }

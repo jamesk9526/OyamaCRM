@@ -9,9 +9,12 @@ import EmailFromTemplateModal from "@/app/components/donations/EmailFromTemplate
 import LetterFromTemplateModal from "@/app/components/donations/LetterFromTemplateModal";
 import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
-import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
-import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
+import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
+import CRMDataTable from "@/app/components/ui/crm/CRMDataTable";
+import CRMFilterBar from "@/app/components/ui/crm/CRMFilterBar";
+import CRMMetricCard from "@/app/components/ui/crm/CRMMetricCard";
+import CRMStatusBadge from "@/app/components/ui/crm/CRMStatusBadge";
 import { apiFetch } from "@/app/lib/auth-client";
 import { getStoredReportingYearMode, type ReportingYearMode } from "@/app/lib/fiscal-year";
 
@@ -282,45 +285,33 @@ export default function DonationsPage() {
             metadata={`${total.toLocaleString()} records · ${formatCurrency(stats.totalRaised)} raised${campaignNameFilter ? ` · ${campaignNameFilter}` : ""}`}
             primaryAction={<WorkspaceRibbonButton label="Record Gift" href={recordGiftHref} variant="primary" />}
           />
-
-          <WorkspaceRibbon>
-            <WorkspaceRibbonGroup label="Create">
-              <WorkspaceRibbonButton label="Record Gift" href={recordGiftHref} variant="primary" />
-            </WorkspaceRibbonGroup>
-
-            <WorkspaceRibbonGroup label="Status">
-              <WorkspaceRibbonButton label="All" onClick={() => setStatus("")} active={!status} />
-              <WorkspaceRibbonButton label="Completed" onClick={() => setStatus("COMPLETED")} active={status === "COMPLETED"} />
-              <WorkspaceRibbonButton label="Pending" onClick={() => setStatus("PENDING")} active={status === "PENDING"} />
-            </WorkspaceRibbonGroup>
-
-            <WorkspaceRibbonGroup label="Scope">
-              <WorkspaceRibbonButton label="YTD" onClick={() => setAllYears(false)} active={!allYears} />
-              <WorkspaceRibbonButton label="All Years" onClick={() => setAllYears(true)} active={allYears} />
-              <WorkspaceRibbonButton label="Refresh" onClick={() => void load()} />
-            </WorkspaceRibbonGroup>
-
-            <WorkspaceRibbonGroup label="Filter">
-              <WorkspaceRibbonButton
-                label="Clear"
-                onClick={() => {
-                  setSearch("");
-                  setStatus("");
-                  setAllYears(false);
-                  setFrom(defaultRange.from);
-                  setTo(defaultRange.to);
-                }}
-                disabled={!search && !status && !allYears && from === defaultRange.from && to === defaultRange.to}
-              />
-            </WorkspaceRibbonGroup>
-          </WorkspaceRibbon>
         </div>
       )}
     >
     <div className="space-y-5">
+      <CRMActionBar>
+        <WorkspaceRibbonButton label="Record Gift" href={recordGiftHref} variant="primary" />
+        <WorkspaceRibbonButton label="All" onClick={() => setStatus("")} active={!status} />
+        <WorkspaceRibbonButton label="Completed" onClick={() => setStatus("COMPLETED")} active={status === "COMPLETED"} />
+        <WorkspaceRibbonButton label="Pending" onClick={() => setStatus("PENDING")} active={status === "PENDING"} />
+        <WorkspaceRibbonButton label="YTD" onClick={() => setAllYears(false)} active={!allYears} />
+        <WorkspaceRibbonButton label="All Years" onClick={() => setAllYears(true)} active={allYears} />
+        <WorkspaceRibbonButton label="Refresh" onClick={() => void load()} />
+        <WorkspaceRibbonButton
+          label="Clear"
+          onClick={() => {
+            setSearch("");
+            setStatus("");
+            setAllYears(false);
+            setFrom(defaultRange.from);
+            setTo(defaultRange.to);
+          }}
+          disabled={!search && !status && !allYears && from === defaultRange.from && to === defaultRange.to}
+        />
+      </CRMActionBar>
 
       {campaignIdFilter && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 flex items-center justify-between gap-3">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 flex items-center justify-between gap-3">
           <p>
             Campaign filter active: <span className="font-semibold">{campaignNameFilter || campaignIdFilter}</span>
           </p>
@@ -331,7 +322,7 @@ export default function DonationsPage() {
       )}
 
       {apiDown && (
-        <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700 flex items-center gap-2">
+        <div className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700 flex items-center gap-2">
           <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
           </svg>
@@ -339,37 +330,32 @@ export default function DonationsPage() {
         </div>
       )}
 
-      {/* Stats */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { label: "Total Raised",  value: formatCurrency(stats.totalRaised), color: "text-green-600" },
-          { label: "Total Gifts",   value: stats.totalGifts.toString(),        color: "text-gray-800"  },
-          { label: "Completed",     value: stats.completed.toString(),         color: "text-gray-800"  },
-          { label: "Recurring",     value: stats.recurring.toString(),         color: "text-blue-600"  },
-        ].map(s => (
-          <div key={s.label} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
-            <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
-          </div>
-        ))}
+        <CRMMetricCard label="Total Raised" value={formatCurrency(stats.totalRaised)} tone="green" icon={<DollarIcon />} helper={allYears ? "All years" : "Current year scope"} loading={loading} />
+        <CRMMetricCard label="Total Gifts" value={stats.totalGifts.toLocaleString()} tone="slate" icon={<ReceiptIcon />} helper={`${total.toLocaleString()} records in view`} loading={loading} />
+        <CRMMetricCard label="Completed" value={stats.completed.toLocaleString()} tone="green" icon={<CheckIcon />} helper="Completed gifts" loading={loading} />
+        <CRMMetricCard label="Recurring" value={stats.recurring.toLocaleString()} tone="blue" icon={<RepeatIcon />} helper="Recurring gifts" loading={loading} />
       </div>
 
-      <section className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Donation Acknowledgment Workflow</p>
-        <p className="mt-1 text-sm text-emerald-900">
-          Use Complete Loop for one-click stewardship orchestration (email draft, follow-up task, and steward path),
-          or run individual quick actions for letter generation and acknowledgment tracking.
-        </p>
+      <section className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.035)]">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Donation Acknowledgment Workflow</p>
+            <p className="mt-1 text-sm text-slate-700">
+              Use Complete Loop for one-click stewardship orchestration, or use the row three-dot menu for individual quick actions.
+            </p>
+          </div>
+          <CRMStatusBadge tone="green">Stewardship loop ready</CRMStatusBadge>
+        </div>
       </section>
 
-      {/* Filters */}
-      <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_180px_260px]">
+      <CRMFilterBar>
+        <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_180px_260px]">
           <input type="text" placeholder="Search donor name or email…" value={search}
             onChange={e => setSearch(e.target.value)}
-            className="min-w-0 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
           <select value={status} onChange={e => setStatus(e.target.value)}
-            className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500">
             <option value="">All Statuses</option>
             <option value="COMPLETED">Completed</option>
             <option value="PENDING">Pending</option>
@@ -379,10 +365,10 @@ export default function DonationsPage() {
           <div className="flex gap-2">
             <input type="date" value={from} onChange={e => setFrom(e.target.value)} title="From date"
               disabled={allYears}
-              className="flex-1 rounded-lg border border-gray-200 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="flex-1 rounded-xl border border-slate-200 px-2 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
             <input type="date" value={to} onChange={e => setTo(e.target.value)} title="To date"
               disabled={allYears}
-              className="flex-1 rounded-lg border border-gray-200 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="flex-1 rounded-xl border border-slate-200 px-2 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
           </div>
         </div>
         <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
@@ -399,10 +385,9 @@ export default function DonationsPage() {
             <span>Default scope: Jan 1 to today (YTD)</span>
           )}
         </div>
-      </section>
+      </CRMFilterBar>
 
-      {/* Table */}
-      <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+      <CRMDataTable>
         {loading ? (
           <div className="py-16 text-center text-gray-400 text-sm animate-pulse">Loading donations…</div>
         ) : (
@@ -420,9 +405,9 @@ export default function DonationsPage() {
             actionBusyDonationId={actionBusyDonationId}
           />
         )}
-      </section>
+      </CRMDataTable>
 
-      <div className="flex items-center justify-between text-sm text-gray-500">
+      <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-3 text-sm text-gray-500 shadow-[0_8px_24px_rgba(15,23,42,0.035)]">
         <p>
           Showing {rangeStart.toLocaleString()}-{rangeEnd.toLocaleString()} of {total.toLocaleString()} donations
         </p>
@@ -478,5 +463,44 @@ export default function DonationsPage() {
       />
     )}
     </>
+  );
+}
+
+function DollarIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 3v18" />
+      <path d="M17 7.5c0-1.4-1.8-2.5-4-2.5s-4 1.1-4 2.5 1.8 2.5 4 2.5 4 1.1 4 2.5-1.8 2.5-4 2.5-4-1.1-4-2.5" />
+    </svg>
+  );
+}
+
+function ReceiptIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M7 3h10v18l-2-1-2 1-2-1-2 1-2-1-2 1V5a2 2 0 0 1 2-2Z" />
+      <path d="M9 8h6" />
+      <path d="M9 12h6" />
+      <path d="M9 16h4" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="m5 12 4 4L19 6" />
+    </svg>
+  );
+}
+
+function RepeatIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="m17 2 4 4-4 4" />
+      <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+      <path d="m7 22-4-4 4-4" />
+      <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+    </svg>
   );
 }
