@@ -786,7 +786,8 @@ export default function TopBar() {
 
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
   const donorAccentTheme = getDonorAccentTheme(workspaceSettings.donorAccentTone);
-  const chromeButtonBase = `${scrolled ? "w-8 h-8 md:w-7 md:h-7" : "w-10 h-10 md:w-9 md:h-9"} rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0`;
+  const moduleSwitcherMinWidthClass = "hidden min-[420px]:flex";
+  const chromeButtonBase = `${scrolled ? "h-8 w-8 md:h-7 md:w-7" : "h-9 w-9 sm:h-10 sm:w-10 md:h-9 md:w-9"} rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0`;
   const darkIconButtonBase = `${scrolled ? "w-6 h-6" : "w-8 h-8"} rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0 active:scale-95`;
   const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] z-50 overflow-hidden lg:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
   const moduleAccentClass = moduleKey === "compassion"
@@ -1163,7 +1164,7 @@ export default function TopBar() {
               <div
                 role="alert"
                 aria-live="polite"
-                className="fixed bottom-5 right-5 z-[60] flex max-w-[340px] cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 shadow-[0_16px_48px_rgba(2,6,23,0.18)]"
+                className="fixed bottom-3 left-3 right-3 z-[60] flex max-w-none cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 shadow-[0_16px_48px_rgba(2,6,23,0.18)] sm:bottom-5 sm:left-auto sm:right-5 sm:max-w-[340px]"
                 style={{ animation: "msgPanelIn 0.2s cubic-bezier(0.22,1,0.36,1)" }}
                 onClick={() => {
                   setMessengerOpen(true);
@@ -1217,7 +1218,7 @@ export default function TopBar() {
           </div>
         </>
       )}
-      <header data-topbar-root="true" className={`fixed top-0 left-0 right-0 isolate z-20 flex w-full shrink-0 items-center gap-1.5 border-b border-slate-200/80 bg-white/95 px-1.5 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-md transition-[height] duration-200 sm:gap-2 sm:px-2 lg:gap-3 lg:px-3 min-[1440px]:gap-4 min-[1440px]:px-4 ${scrolled ? "h-10" : "h-14"}`} style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
+      <header data-topbar-root="true" className={`fixed top-0 left-0 right-0 isolate z-20 flex w-full shrink-0 items-center gap-1.5 border-b border-slate-200/80 bg-white/95 px-1.5 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-md transition-[height] duration-200 max-[380px]:gap-1 max-[380px]:px-1 sm:gap-2 sm:px-2 lg:gap-3 lg:px-3 min-[1440px]:gap-4 min-[1440px]:px-4 ${scrolled ? "h-10" : "h-14"}`} style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
         <div
           aria-hidden="true"
           className="pointer-events-none absolute left-0 top-0 hidden h-full w-[25vw] min-w-[340px] max-w-[520px] bg-[linear-gradient(90deg,#020617,#0f172a)] lg:block"
@@ -1260,18 +1261,18 @@ export default function TopBar() {
           <div className={`w-px ${scrolled ? "h-4" : "h-6"} shrink-0 bg-slate-200 transition-all duration-200 lg:bg-white/15`} />
 
           {/* ── Module switcher (left anchor) ── */}
-          {workspaceSettings.showModuleSwitcher && (
-            <>
-              <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled={scrolled} />
-              {/* ── Divider ── */}
-              <div className={`w-px ${scrolled ? "h-4" : "h-6"} shrink-0 bg-slate-200 transition-all duration-200 lg:bg-white/15`} />
-            </>
-          )}
+           {workspaceSettings.showModuleSwitcher && (
+             <div className={`${moduleSwitcherMinWidthClass} min-w-0 items-center gap-1.5 sm:gap-2`}>
+               <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled={scrolled} />
+               {/* ── Divider ── */}
+               <div className={`w-px ${scrolled ? "h-4" : "h-6"} shrink-0 bg-slate-200 transition-all duration-200 lg:bg-white/15`} />
+             </div>
+           )}
 
           </div>
 
           {/* Mobile top-right priority controls */}
-          <div className="flex items-center gap-1 shrink-0 lg:hidden">
+          <div className="flex items-center gap-1 max-[380px]:gap-0.5 shrink-0 lg:hidden">
             {/* Search icon — opens full-screen overlay */}
             <button
               type="button"

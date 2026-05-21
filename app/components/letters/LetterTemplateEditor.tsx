@@ -257,6 +257,8 @@ export default function LetterTemplateEditor({ templateId, fullScreen = false, i
   const [selectedFontFamily, setSelectedFontFamily] = useState(FONT_FAMILY_OPTIONS[0].value);
   const [selectedFontSize, setSelectedFontSize] = useState("11");
   const [selectedLineHeight, setSelectedLineHeight] = useState("1.6");
+  const [mobileInsertPanelOpen, setMobileInsertPanelOpen] = useState(false);
+  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
 
   const isEdit = Boolean(templateId);
   const selectedHeader = useMemo(() => headerPresets.find((item) => item.id === form.headerPresetId), [form.headerPresetId, headerPresets]);
@@ -666,6 +668,197 @@ export default function LetterTemplateEditor({ templateId, fullScreen = false, i
     editorCommands?.setLineHeight(value);
   }
 
+  const mobilePanelTopInsetClass = "top-[5.5rem]";
+  const leftInsertPanel = (
+    <>
+      <PanelSection title="Content">
+        <InsertBlockButton icon="heading" label="Heading" onClick={() => insertBlock("heading")} />
+        <InsertBlockButton icon="text" label="Text" onClick={() => insertBlock("text")} />
+        <InsertBlockButton icon="list" label="List" onClick={() => insertBlock("list")} />
+        <InsertBlockButton icon="quote" label="Quote" onClick={() => insertBlock("quote")} />
+        <InsertBlockButton icon="image" label="Image" onClick={() => insertBlock("image")} />
+        <InsertBlockButton icon="table" label="Table" onClick={() => insertBlock("table")} />
+        <InsertBlockButton icon="divider" label="Divider" onClick={() => insertBlock("divider")} />
+        <InsertBlockButton icon="variable" label="Variable" onClick={() => insertBlock("variable")} testId="letter-variable-insert" />
+      </PanelSection>
+      <PanelSection title="Blocks">
+        <InsertBlockButton icon="header" label="Header" onClick={() => insertBlock("header")} />
+        <InsertBlockButton icon="footer" label="Footer" onClick={() => insertBlock("footer")} />
+        <InsertBlockButton icon="signature" label="Signature" onClick={() => insertBlock("signature")} />
+        <InsertBlockButton icon="social" label="Social Links" onClick={() => insertBlock("social")} />
+        <InsertBlockButton icon="callout" label="Callout" onClick={() => insertBlock("callout")} />
+      </PanelSection>
+      <PanelSection title="Advanced">
+        <InsertBlockButton icon="donation" label="Donation Summary" onClick={() => insertBlock("donationSummary")} />
+        <InsertBlockButton icon="receipt" label="Receipt Block" onClick={() => insertBlock("receipt")} />
+        <InsertBlockButton icon="organization" label="Organization Info" onClick={() => insertBlock("organization")} />
+        <InsertBlockButton icon="campaign" label="Campaign Info" onClick={() => insertBlock("campaign")} />
+        <InsertBlockButton icon="event" label="Event Info" onClick={() => insertBlock("event")} />
+      </PanelSection>
+      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-500">
+        Type / for commands or {"{{"} for variables.
+      </div>
+    </>
+  );
+
+  const inspectorPanel = (
+    <>
+      <div className="flex border-b border-gray-200 px-3 pt-3">
+        <RightPanelTabButton active={rightTab === "insert"} label="Insert" onClick={() => setRightTab("insert")} />
+        <RightPanelTabButton active={rightTab === "format"} label="Format" onClick={() => setRightTab("format")} testId="letter-format-tab" />
+        <RightPanelTabButton active={rightTab === "page"} label="Page" onClick={() => setRightTab("page")} />
+        <RightPanelTabButton active={rightTab === "settings"} label="Settings" onClick={() => setRightTab("settings")} />
+      </div>
+      <div className="space-y-4 p-4">
+        {rightTab === "insert" && (
+          <>
+            <PanelSection title="Variables">
+              <div className="max-h-72 space-y-2 overflow-auto pr-1">
+                {mergeSections.map((section) => (
+                  <details key={section.key} className="rounded-lg border border-gray-200 p-2" open={section.key === "donor"}>
+                    <summary className="cursor-pointer text-[11px] font-semibold uppercase text-gray-600">{section.label}</summary>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {section.fields.map((field) => (
+                        <button key={field} type="button" onClick={() => insertField(field)} className="rounded border border-gray-200 px-2 py-1 font-mono text-[10px] text-gray-700 hover:bg-gray-50">
+                          {field}
+                        </button>
+                      ))}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </PanelSection>
+            <PanelSection title="Quick Blocks">
+              {quickInsertTokens.map((token) => (
+                <button key={token} type="button" onClick={() => insertField(token)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-left font-mono text-xs text-gray-700 hover:bg-gray-50">
+                  {token}
+                </button>
+              ))}
+            </PanelSection>
+          </>
+        )}
+
+        {rightTab === "format" && (
+          <>
+            <PanelSection title="Text">
+              <div className="grid grid-cols-[1fr_80px] gap-2">
+                <select data-testid="letter-font-family-select" value={selectedFontFamily} onChange={(event) => applyFontFamily(event.target.value)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                  {FONT_FAMILY_OPTIONS.map((option) => <option key={option.label} value={option.value}>{option.label}</option>)}
+                </select>
+                <select data-testid="letter-font-size-select" value={selectedFontSize} onChange={(event) => applyFontSize(event.target.value)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                  {FONT_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-5 gap-1">
+                <MiniFormatButton icon="bold" label="B" onClick={() => editorCommands?.toggleBold()} strong />
+                <MiniFormatButton icon="italic" label="I" onClick={() => editorCommands?.toggleItalic()} italic />
+                <MiniFormatButton icon="underline" label="U" onClick={() => editorCommands?.toggleUnderline()} underline />
+                <MiniFormatButton icon="strike" label="S" onClick={() => editorCommands?.toggleStrike()} />
+                <MiniFormatButton icon="code" label="Code" onClick={() => editorCommands?.toggleCode()} />
+              </div>
+              <label className="block text-xs font-semibold text-gray-600">
+                <span className="mb-1 flex items-center gap-1.5"><LetterBuilderIcon name="color" className="h-3.5 w-3.5" />Text color</span>
+                <input type="color" defaultValue="#111827" onChange={(event) => editorCommands?.setColor(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-2" />
+              </label>
+            </PanelSection>
+            <PanelSection title="Alignment">
+              <div className="grid grid-cols-4 gap-1">
+                {([
+                  ["left", "alignLeft"],
+                  ["center", "alignCenter"],
+                  ["right", "alignRight"],
+                  ["justify", "alignJustify"],
+                ] as const).map(([alignment, icon]) => (
+                  <button key={alignment} type="button" onClick={() => editorCommands?.setAlignment(alignment)} className="flex items-center justify-center rounded-lg border border-gray-200 px-2 py-2 text-xs capitalize hover:bg-gray-50" title={alignment}>
+                    <LetterBuilderIcon name={icon} className="h-4 w-4" />
+                  </button>
+                ))}
+              </div>
+            </PanelSection>
+            <PanelSection title="Spacing">
+              <label className="block text-xs font-semibold text-gray-600">
+                <span className="mb-1 flex items-center gap-1.5"><LetterBuilderIcon name="lineHeight" className="h-3.5 w-3.5" />Line height</span>
+                <select value={selectedLineHeight} onChange={(event) => applyLineHeight(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                  {["1.2", "1.4", "1.5", "1.6", "1.8", "2"].map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <input aria-label="Space before" value="0 pt" readOnly className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500" />
+                <input aria-label="Space after" value="12 pt" readOnly className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500" />
+              </div>
+            </PanelSection>
+          </>
+        )}
+
+        {rightTab === "page" && (
+          <>
+            <PanelSection title="Page">
+              <select className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"><option>Letter (8.5 x 11 in)</option></select>
+              <select className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"><option>Margins: Normal</option><option>Narrow</option><option>Wide</option></select>
+              <select value={form.headerPresetId} onChange={(event) => update("headerPresetId", event.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                <option value="">Header: organization default</option>
+                {headerPresets.map((item) => <option key={item.id} value={item.id}>Header: {item.name}</option>)}
+              </select>
+              <select value={form.footerPresetId} onChange={(event) => update("footerPresetId", event.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                <option value="">Footer: organization default</option>
+                {footerPresets.map((item) => <option key={item.id} value={item.id}>Footer: {item.name}</option>)}
+              </select>
+              <select value={form.signatureBlockId} onChange={(event) => update("signatureBlockId", event.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                <option value="">Signature: none</option>
+                {signatures.map((item) => <option key={item.id} value={item.id}>Signature: {item.name}</option>)}
+              </select>
+            </PanelSection>
+            <PanelSection title="Branding Source">
+              <div className="flex items-start gap-3">
+                <BrandSourceLogo branding={branding} />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-gray-900">{branding.organizationDisplayName || branding.legalOrganizationName || "Organization"}</p>
+                  <p className="text-xs text-gray-500">{formatBrandingAddress(branding) || "No organization address configured."}</p>
+                </div>
+              </div>
+            </PanelSection>
+          </>
+        )}
+
+        {rightTab === "settings" && (
+          <>
+            <PanelSection title="Template">
+              <label className="block text-xs font-semibold text-gray-600">Subject<input value={form.printSubject} onChange={(event) => update("printSubject", event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" /></label>
+              <label className="block text-xs font-semibold text-gray-600">Category<select value={form.category} onChange={(event) => update("category", event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">{CATEGORY_OPTIONS.map((option) => <option key={option} value={option}>{option.replaceAll("_", " ")}</option>)}</select></label>
+              <label className="block text-xs font-semibold text-gray-600">Status<select value={form.status} onChange={(event) => update("status", event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">{["DRAFT", "ACTIVE", "ARCHIVED"].map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+              <label className="block text-xs font-semibold text-gray-600">Internal notes<textarea value={form.description} onChange={(event) => update("description", event.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" /></label>
+            </PanelSection>
+            <PanelSection title="Test Preview">
+              <SearchBox label="Constituent" value={constituentQuery} onChange={setConstituentQuery} placeholder="Search name, email, or phone" />
+              {constituentResults.length > 0 && <ResultList>{constituentResults.map((row) => <button key={row.id} type="button" onClick={() => chooseConstituent(row)} className="block w-full rounded px-2 py-1.5 text-left text-xs hover:bg-gray-50"><span className="font-semibold text-gray-900">{formatConstituentName(row)}</span><span className="block truncate text-gray-500">{row.email || row.phone || row.donorStatus || row.id}</span></button>)}</ResultList>}
+              <SearchBox label="Donation/Gift" value={donationQuery} onChange={setDonationQuery} placeholder="Search gift, donor, campaign" />
+              {donationResults.length > 0 && <ResultList>{donationResults.map((row) => <button key={row.id} type="button" onClick={() => chooseDonation(row)} className="block w-full rounded px-2 py-1.5 text-left text-xs hover:bg-gray-50"><span className="font-semibold text-gray-900">{formatDonationLabel(row)}</span><span className="block truncate text-gray-500">{row.campaign?.name || row.designation?.name || row.status}</span></button>)}</ResultList>}
+              <SearchBox label="Year" value={previewYear} onChange={setPreviewYear} placeholder="Year" />
+              <button type="button" onClick={() => void runPreview()} className="w-full rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700">Run Preview</button>
+              {previewResult && <p className="rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700">Preview ready. Missing fields: 0. Unsupported fields: {previewResult.unsupportedFields.length}.</p>}
+            </PanelSection>
+          </>
+        )}
+
+        <PanelSection title="Merge Health">
+          <div data-testid="letter-merge-health" className="grid grid-cols-2 gap-2 text-xs">
+            <MetricBox label="Words" value={String(mergeHealth.words)} />
+            <MetricBox label="Fields" value={String(mergeHealth.usedTokens.length)} />
+          </div>
+          {mergeHealth.unsupportedTokens.length > 0 ? (
+            <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-2">
+              <p className="text-[11px] font-semibold text-amber-800">Unsupported merge fields detected</p>
+              {mergeHealth.unsupportedTokens.map((token) => <p key={token} className="truncate rounded bg-white px-2 py-1 font-mono text-[10px] text-amber-800">{token}</p>)}
+              <button type="button" onClick={normalizeTokens} className="w-full rounded-md border border-amber-300 bg-white px-2 py-1.5 text-[11px] font-semibold text-amber-800 hover:bg-amber-100">Normalize Legacy Tokens</button>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-green-200 bg-green-50 px-2 py-1.5 text-[11px] text-green-700">All good</div>
+          )}
+        </PanelSection>
+      </div>
+    </>
+  );
+
   if (loading) {
     return <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-500">Loading printable studio...</div>;
   }
@@ -692,24 +885,38 @@ export default function LetterTemplateEditor({ templateId, fullScreen = false, i
             <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${isDirty ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"}`}>{isDirty ? "Unsaved" : "Saved"}</span>
           </div>
         </div>
-        <div className="flex min-h-9 min-w-0 items-center justify-between gap-3 border-t border-gray-100 px-3 py-1">
+        <div className="flex min-h-9 min-w-0 flex-col items-stretch gap-2 border-t border-gray-100 px-3 py-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:py-1">
           <nav className="flex min-w-0 items-center gap-1 overflow-x-auto">
             <BuilderTab active={activePanel === "document"} label="Compose" onClick={() => setActivePanel("document")} />
             <BuilderTab active={activePanel === "preview"} label="Test Recipients" onClick={() => setActivePanel("preview")} />
             <BuilderTab active={activePanel === "publish"} label="History" onClick={() => setActivePanel("publish")} />
           </nav>
-          <div className="flex shrink-0 items-center gap-1.5 border-l border-gray-200 pl-3">
-            <button data-testid="letter-preview" type="button" onClick={() => void openPrintPreviewModal()} className="h-8 rounded-md border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50">
+          <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto pb-0.5 sm:shrink-0 sm:border-l sm:border-gray-200 sm:pl-3 sm:pb-0">
+            <button
+              type="button"
+              onClick={() => setMobileInsertPanelOpen(true)}
+              className="h-8 shrink-0 rounded-md border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 lg:hidden"
+            >
+              Insert
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileInspectorOpen(true)}
+              className="h-8 shrink-0 rounded-md border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 xl:hidden"
+            >
+              Inspector
+            </button>
+            <button data-testid="letter-preview" type="button" onClick={() => void openPrintPreviewModal()} className="h-8 shrink-0 rounded-md border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50">
               Preview
             </button>
-            <button data-testid="letter-save-draft" type="button" onClick={() => void saveTemplate()} disabled={saving} className="h-8 rounded-md border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-60">
+            <button data-testid="letter-save-draft" type="button" onClick={() => void saveTemplate()} disabled={saving} className="h-8 shrink-0 rounded-md border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-60">
               {saving ? "Saving..." : "Save Draft"}
             </button>
-            <button data-testid="letter-publish" type="button" onClick={() => setIsPublishConfirmOpen(true)} className="h-8 rounded-md bg-green-600 px-3 text-xs font-semibold text-white shadow-sm hover:bg-green-700">
+            <button data-testid="letter-publish" type="button" onClick={() => setIsPublishConfirmOpen(true)} className="h-8 shrink-0 rounded-md bg-green-600 px-3 text-xs font-semibold text-white shadow-sm hover:bg-green-700">
               Publish
             </button>
-            <div className="relative">
-              <button type="button" onClick={() => setIsMoreMenuOpen((prev) => !prev)} className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-sm font-semibold text-gray-600 shadow-sm hover:bg-gray-50" aria-label="More Options">
+            <div className="relative shrink-0">
+              <button type="button" onClick={() => setIsMoreMenuOpen((prev) => !prev)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white text-sm font-semibold text-gray-600 shadow-sm hover:bg-gray-50" aria-label="More Options">
                 ...
               </button>
               {isMoreMenuOpen && (
@@ -731,37 +938,11 @@ export default function LetterTemplateEditor({ templateId, fullScreen = false, i
       {notice && <div className="mx-5 mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{notice}</div>}
 
       <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-0 overflow-hidden lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_320px]">
-        <aside data-testid="letter-left-insert-panel" className="min-h-0 border-r border-gray-200 bg-white p-4 pb-12 lg:h-full lg:overflow-auto">
-          <PanelSection title="Content">
-            <InsertBlockButton icon="heading" label="Heading" onClick={() => insertBlock("heading")} />
-            <InsertBlockButton icon="text" label="Text" onClick={() => insertBlock("text")} />
-            <InsertBlockButton icon="list" label="List" onClick={() => insertBlock("list")} />
-            <InsertBlockButton icon="quote" label="Quote" onClick={() => insertBlock("quote")} />
-            <InsertBlockButton icon="image" label="Image" onClick={() => insertBlock("image")} />
-            <InsertBlockButton icon="table" label="Table" onClick={() => insertBlock("table")} />
-            <InsertBlockButton icon="divider" label="Divider" onClick={() => insertBlock("divider")} />
-            <InsertBlockButton icon="variable" label="Variable" onClick={() => insertBlock("variable")} testId="letter-variable-insert" />
-          </PanelSection>
-          <PanelSection title="Blocks">
-            <InsertBlockButton icon="header" label="Header" onClick={() => insertBlock("header")} />
-            <InsertBlockButton icon="footer" label="Footer" onClick={() => insertBlock("footer")} />
-            <InsertBlockButton icon="signature" label="Signature" onClick={() => insertBlock("signature")} />
-            <InsertBlockButton icon="social" label="Social Links" onClick={() => insertBlock("social")} />
-            <InsertBlockButton icon="callout" label="Callout" onClick={() => insertBlock("callout")} />
-          </PanelSection>
-          <PanelSection title="Advanced">
-            <InsertBlockButton icon="donation" label="Donation Summary" onClick={() => insertBlock("donationSummary")} />
-            <InsertBlockButton icon="receipt" label="Receipt Block" onClick={() => insertBlock("receipt")} />
-            <InsertBlockButton icon="organization" label="Organization Info" onClick={() => insertBlock("organization")} />
-            <InsertBlockButton icon="campaign" label="Campaign Info" onClick={() => insertBlock("campaign")} />
-            <InsertBlockButton icon="event" label="Event Info" onClick={() => insertBlock("event")} />
-          </PanelSection>
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-500">
-            Type / for commands or {"{{"} for variables.
-          </div>
+        <aside data-testid="letter-left-insert-panel" className="hidden min-h-0 border-r border-gray-200 bg-white p-4 pb-12 lg:block lg:h-full lg:overflow-auto">
+          {leftInsertPanel}
         </aside>
 
-        <main className="min-h-0 min-w-0 overflow-auto bg-gray-100 px-4 pb-20 pt-6">
+        <main className="min-h-0 min-w-0 overflow-auto bg-gray-100 px-2 pb-24 pt-3 sm:px-4 sm:pb-20 sm:pt-6">
           {activePanel === "document" && (
             <div className="mx-auto w-full max-w-[940px]">
               <PrintablePageShell branding={branding} header={selectedHeader} footer={selectedFooter} signature={selectedSignature}>
@@ -813,164 +994,42 @@ export default function LetterTemplateEditor({ templateId, fullScreen = false, i
           )}
         </main>
 
-        <aside data-testid="letter-right-sidebar" className="min-h-0 border-l border-gray-200 bg-white pb-12 xl:h-full xl:overflow-auto">
-          <div className="flex border-b border-gray-200 px-3 pt-3">
-            <RightPanelTabButton active={rightTab === "insert"} label="Insert" onClick={() => setRightTab("insert")} />
-            <RightPanelTabButton active={rightTab === "format"} label="Format" onClick={() => setRightTab("format")} testId="letter-format-tab" />
-            <RightPanelTabButton active={rightTab === "page"} label="Page" onClick={() => setRightTab("page")} />
-            <RightPanelTabButton active={rightTab === "settings"} label="Settings" onClick={() => setRightTab("settings")} />
-          </div>
-          <div className="space-y-4 p-4">
-            {rightTab === "insert" && (
-              <>
-                <PanelSection title="Variables">
-                  <div className="max-h-72 space-y-2 overflow-auto pr-1">
-                    {mergeSections.map((section) => (
-                      <details key={section.key} className="rounded-lg border border-gray-200 p-2" open={section.key === "donor"}>
-                        <summary className="cursor-pointer text-[11px] font-semibold uppercase text-gray-600">{section.label}</summary>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {section.fields.map((field) => (
-                            <button key={field} type="button" onClick={() => insertField(field)} className="rounded border border-gray-200 px-2 py-1 font-mono text-[10px] text-gray-700 hover:bg-gray-50">
-                              {field}
-                            </button>
-                          ))}
-                        </div>
-                      </details>
-                    ))}
-                  </div>
-                </PanelSection>
-                <PanelSection title="Quick Blocks">
-                  {["donor.firstName", "gift.amount", "gift.date", "organization.name"].map((token) => (
-                    <button key={token} type="button" onClick={() => insertField(`{{${token}}}`)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-left font-mono text-xs text-gray-700 hover:bg-gray-50">
-                      {`{{${token}}}`}
-                    </button>
-                  ))}
-                </PanelSection>
-              </>
-            )}
-
-            {rightTab === "format" && (
-              <>
-                <PanelSection title="Text">
-                  <div className="grid grid-cols-[1fr_80px] gap-2">
-                    <select data-testid="letter-font-family-select" value={selectedFontFamily} onChange={(event) => applyFontFamily(event.target.value)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
-                      {FONT_FAMILY_OPTIONS.map((option) => <option key={option.label} value={option.value}>{option.label}</option>)}
-                    </select>
-                    <select data-testid="letter-font-size-select" value={selectedFontSize} onChange={(event) => applyFontSize(event.target.value)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
-                      {FONT_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-5 gap-1">
-                    <MiniFormatButton icon="bold" label="B" onClick={() => editorCommands?.toggleBold()} strong />
-                    <MiniFormatButton icon="italic" label="I" onClick={() => editorCommands?.toggleItalic()} italic />
-                    <MiniFormatButton icon="underline" label="U" onClick={() => editorCommands?.toggleUnderline()} underline />
-                    <MiniFormatButton icon="strike" label="S" onClick={() => editorCommands?.toggleStrike()} />
-                    <MiniFormatButton icon="code" label="Code" onClick={() => editorCommands?.toggleCode()} />
-                  </div>
-                  <label className="block text-xs font-semibold text-gray-600">
-                    <span className="mb-1 flex items-center gap-1.5"><LetterBuilderIcon name="color" className="h-3.5 w-3.5" />Text color</span>
-                    <input type="color" defaultValue="#111827" onChange={(event) => editorCommands?.setColor(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-2" />
-                  </label>
-                </PanelSection>
-                <PanelSection title="Alignment">
-                  <div className="grid grid-cols-4 gap-1">
-                    {([
-                      ["left", "alignLeft"],
-                      ["center", "alignCenter"],
-                      ["right", "alignRight"],
-                      ["justify", "alignJustify"],
-                    ] as const).map(([alignment, icon]) => (
-                      <button key={alignment} type="button" onClick={() => editorCommands?.setAlignment(alignment)} className="flex items-center justify-center rounded-lg border border-gray-200 px-2 py-2 text-xs capitalize hover:bg-gray-50" title={alignment}>
-                        <LetterBuilderIcon name={icon} className="h-4 w-4" />
-                      </button>
-                    ))}
-                  </div>
-                </PanelSection>
-                <PanelSection title="Spacing">
-                  <label className="block text-xs font-semibold text-gray-600">
-                    <span className="mb-1 flex items-center gap-1.5"><LetterBuilderIcon name="lineHeight" className="h-3.5 w-3.5" />Line height</span>
-                    <select value={selectedLineHeight} onChange={(event) => applyLineHeight(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
-                      {["1.2", "1.4", "1.5", "1.6", "1.8", "2"].map((value) => <option key={value} value={value}>{value}</option>)}
-                    </select>
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input aria-label="Space before" value="0 pt" readOnly className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500" />
-                    <input aria-label="Space after" value="12 pt" readOnly className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500" />
-                  </div>
-                </PanelSection>
-              </>
-            )}
-
-            {rightTab === "page" && (
-              <>
-                <PanelSection title="Page">
-                  <select className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"><option>Letter (8.5 x 11 in)</option></select>
-                  <select className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"><option>Margins: Normal</option><option>Narrow</option><option>Wide</option></select>
-                  <select value={form.headerPresetId} onChange={(event) => update("headerPresetId", event.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
-                    <option value="">Header: organization default</option>
-                    {headerPresets.map((item) => <option key={item.id} value={item.id}>Header: {item.name}</option>)}
-                  </select>
-                  <select value={form.footerPresetId} onChange={(event) => update("footerPresetId", event.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
-                    <option value="">Footer: organization default</option>
-                    {footerPresets.map((item) => <option key={item.id} value={item.id}>Footer: {item.name}</option>)}
-                  </select>
-                  <select value={form.signatureBlockId} onChange={(event) => update("signatureBlockId", event.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
-                    <option value="">Signature: none</option>
-                    {signatures.map((item) => <option key={item.id} value={item.id}>Signature: {item.name}</option>)}
-                  </select>
-                </PanelSection>
-                <PanelSection title="Branding Source">
-                  <div className="flex items-start gap-3">
-                    <BrandSourceLogo branding={branding} />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-gray-900">{branding.organizationDisplayName || branding.legalOrganizationName || "Organization"}</p>
-                      <p className="text-xs text-gray-500">{formatBrandingAddress(branding) || "No organization address configured."}</p>
-                    </div>
-                  </div>
-                </PanelSection>
-              </>
-            )}
-
-            {rightTab === "settings" && (
-              <>
-                <PanelSection title="Template">
-                  <label className="block text-xs font-semibold text-gray-600">Subject<input value={form.printSubject} onChange={(event) => update("printSubject", event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" /></label>
-                  <label className="block text-xs font-semibold text-gray-600">Category<select value={form.category} onChange={(event) => update("category", event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">{CATEGORY_OPTIONS.map((option) => <option key={option} value={option}>{option.replaceAll("_", " ")}</option>)}</select></label>
-                  <label className="block text-xs font-semibold text-gray-600">Status<select value={form.status} onChange={(event) => update("status", event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">{["DRAFT", "ACTIVE", "ARCHIVED"].map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-                  <label className="block text-xs font-semibold text-gray-600">Internal notes<textarea value={form.description} onChange={(event) => update("description", event.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" /></label>
-                </PanelSection>
-                <PanelSection title="Test Preview">
-                  <SearchBox label="Constituent" value={constituentQuery} onChange={setConstituentQuery} placeholder="Search name, email, or phone" />
-                  {constituentResults.length > 0 && <ResultList>{constituentResults.map((row) => <button key={row.id} type="button" onClick={() => chooseConstituent(row)} className="block w-full rounded px-2 py-1.5 text-left text-xs hover:bg-gray-50"><span className="font-semibold text-gray-900">{formatConstituentName(row)}</span><span className="block truncate text-gray-500">{row.email || row.phone || row.donorStatus || row.id}</span></button>)}</ResultList>}
-                  <SearchBox label="Donation/Gift" value={donationQuery} onChange={setDonationQuery} placeholder="Search gift, donor, campaign" />
-                  {donationResults.length > 0 && <ResultList>{donationResults.map((row) => <button key={row.id} type="button" onClick={() => chooseDonation(row)} className="block w-full rounded px-2 py-1.5 text-left text-xs hover:bg-gray-50"><span className="font-semibold text-gray-900">{formatDonationLabel(row)}</span><span className="block truncate text-gray-500">{row.campaign?.name || row.designation?.name || row.status}</span></button>)}</ResultList>}
-                  <SearchBox label="Year" value={previewYear} onChange={setPreviewYear} placeholder="Year" />
-                  <button type="button" onClick={() => void runPreview()} className="w-full rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700">Run Preview</button>
-                  {previewResult && <p className="rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700">Preview ready. Missing fields: 0. Unsupported fields: {previewResult.unsupportedFields.length}.</p>}
-                </PanelSection>
-              </>
-            )}
-
-            <PanelSection title="Merge Health">
-              <div data-testid="letter-merge-health" className="grid grid-cols-2 gap-2 text-xs">
-                <MetricBox label="Words" value={String(mergeHealth.words)} />
-                <MetricBox label="Fields" value={String(mergeHealth.usedTokens.length)} />
-              </div>
-              {mergeHealth.unsupportedTokens.length > 0 ? (
-                <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-2">
-                  <p className="text-[11px] font-semibold text-amber-800">Unsupported merge fields detected</p>
-                  {mergeHealth.unsupportedTokens.map((token) => <p key={token} className="truncate rounded bg-white px-2 py-1 font-mono text-[10px] text-amber-800">{token}</p>)}
-                  <button type="button" onClick={normalizeTokens} className="w-full rounded-md border border-amber-300 bg-white px-2 py-1.5 text-[11px] font-semibold text-amber-800 hover:bg-amber-100">Normalize Legacy Tokens</button>
-                </div>
-              ) : (
-                <div className="rounded-lg border border-green-200 bg-green-50 px-2 py-1.5 text-[11px] text-green-700">All good</div>
-              )}
-            </PanelSection>
-          </div>
+        <aside data-testid="letter-right-sidebar" className="hidden min-h-0 border-l border-gray-200 bg-white pb-12 xl:block xl:h-full xl:overflow-auto">
+          {inspectorPanel}
         </aside>
       </div>
 
-      <div data-testid="letter-bottom-status" className="absolute bottom-0 left-0 right-0 z-30 border-t border-gray-200 bg-white/95 px-5 py-2 text-xs text-gray-500 backdrop-blur">
+      {mobileInsertPanelOpen && (
+        <>
+          <button type="button" aria-label="Close insert panel" onClick={() => setMobileInsertPanelOpen(false)} className="fixed inset-0 z-30 bg-slate-950/35 lg:hidden" />
+          <aside className={`fixed inset-x-2 bottom-2 ${mobilePanelTopInsetClass} z-40 flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl lg:hidden`}>
+            <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2">
+              <p className="text-sm font-semibold text-gray-900">Insert Content</p>
+              <button type="button" onClick={() => setMobileInsertPanelOpen(false)} className="rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700">Close</button>
+            </div>
+            <div className="min-h-0 flex-1 space-y-4 overflow-auto p-4 pb-8">
+              {leftInsertPanel}
+            </div>
+          </aside>
+        </>
+      )}
+
+      {mobileInspectorOpen && (
+        <>
+          <button type="button" aria-label="Close inspector panel" onClick={() => setMobileInspectorOpen(false)} className="fixed inset-0 z-30 bg-slate-950/35 xl:hidden" />
+          <aside className={`fixed inset-x-2 bottom-2 ${mobilePanelTopInsetClass} z-40 flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl xl:hidden`}>
+            <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2">
+              <p className="text-sm font-semibold text-gray-900">Inspector</p>
+              <button type="button" onClick={() => setMobileInspectorOpen(false)} className="rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700">Close</button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto">
+              {inspectorPanel}
+            </div>
+          </aside>
+        </>
+      )}
+
+      <div data-testid="letter-bottom-status" className="relative z-30 border-t border-gray-200 bg-white/95 px-3 py-2 text-xs text-gray-500 backdrop-blur sm:px-5 lg:absolute lg:bottom-0 lg:left-0 lg:right-0">
         Words: {mergeHealth.words} | Characters: {mergeHealth.characters} | Read time: {Math.max(1, Math.ceil(mergeHealth.words / 180))} min | {isDirty ? "Unsaved changes" : "Saved a few seconds ago"} | {mergeHealth.unsupportedTokens.length === 0 ? "All good" : `${mergeHealth.unsupportedTokens.length} unsupported fields`}
       </div>
 
@@ -1257,7 +1316,7 @@ function PrintablePageShell({
   const footerCustomHtml = footer?.customHtml?.trim();
 
   return (
-    <div className="mx-auto flex min-h-[1056px] w-full max-w-[816px] flex-col rounded-sm border border-gray-300 bg-white px-12 py-10 shadow-sm">
+    <div className="mx-auto flex min-h-[1056px] w-full max-w-[816px] flex-col rounded-sm border border-gray-300 bg-white px-4 py-6 shadow-sm sm:px-8 sm:py-8 lg:px-12 lg:py-10">
       <header className={`${getPrintableHeaderClassName(alignment)} mb-8 border-b pb-5`} style={{ borderColor }}>
         {headerCustomHtml ? (
           <div

@@ -89,7 +89,7 @@ export default function WorkspaceBreadcrumbBar({
         </div>
 
         {(primaryAction || overflowActions) ? (
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
             {primaryAction}
             {overflowActions}
           </div>
