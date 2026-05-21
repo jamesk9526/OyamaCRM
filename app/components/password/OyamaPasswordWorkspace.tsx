@@ -737,9 +737,10 @@ export default function OyamaPasswordWorkspace() {
   const selectedTags = selectedEntry ? (entryTags[selectedEntry.id] ?? []) : [];
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#0d0f1a] text-slate-100">
+    <div className="min-h-screen w-full bg-[radial-gradient(circle_at_20%_0%,#0a1e4f_0%,#070d21_45%,#060914_100%)] p-3 text-slate-100">
+      <div className="flex h-[calc(100vh-1.5rem)] w-full overflow-hidden rounded-[18px] border border-white/[0.08] bg-[#0d0f1a] shadow-[0_24px_80px_rgba(2,6,23,0.65)]">
       {/* ── LEFT SIDEBAR ────────────────────────────────────────────────── */}
-      <aside className="hidden w-[220px] shrink-0 flex-col border-r border-white/[0.07] bg-[#100c24] lg:flex">
+      <aside className="hidden w-[220px] shrink-0 flex-col border-r border-white/[0.07] bg-[#0c132f] lg:flex">
           {/* Logo */}
           <div className="flex items-center gap-3 px-5 py-5">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 via-violet-600 to-indigo-600 text-lg font-black text-white shadow-[0_0_24px_rgba(139,92,246,0.55)]">O</div>
@@ -850,7 +851,7 @@ export default function OyamaPasswordWorkspace() {
         {/* ── RIGHT AREA (top bar + content) ──────────────────────────── */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {/* TOP BAR */}
-          <header className="flex h-[58px] shrink-0 items-center gap-3 border-b border-white/[0.07] bg-[#0d0f1a] px-4">
+          <header className="flex h-[58px] shrink-0 items-center gap-3 border-b border-white/[0.07] bg-[#0d0f1a] px-5">
             {/* Search */}
             <div className="relative flex-1">
               <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
@@ -912,9 +913,9 @@ export default function OyamaPasswordWorkspace() {
           )}
 
           {/* MAIN CONTENT: list column + detail pane */}
-          <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div className="flex min-h-0 flex-1 gap-3 overflow-hidden px-3 pb-3 pt-2">
             {/* ── MIDDLE LIST ──────────────────────────────────────────── */}
-            <div className="flex w-[300px] shrink-0 flex-col border-r border-white/[0.07] bg-[#0f1220]">
+            <div className="flex w-[330px] shrink-0 flex-col overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0f1220]/95">
               {/* List header */}
               <div className="flex shrink-0 items-center justify-between px-4 py-3.5">
                 <div>
@@ -1022,7 +1023,7 @@ export default function OyamaPasswordWorkspace() {
             </div>
 
             {/* ── DETAIL PANE ──────────────────────────────────────────── */}
-            <div className="flex min-w-0 flex-1 flex-col overflow-y-auto bg-[#0d0f1c] px-6 py-5">
+            <div className="flex min-w-0 flex-1 flex-col overflow-y-auto rounded-2xl border border-white/[0.08] bg-[#0d0f1c] px-6 py-5">
               {!selectedEntry ? (
                 <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-white/10 text-slate-500">
                   <p className="text-center text-sm">Select an item from the list to view details.</p>
@@ -1573,5 +1574,6 @@ export default function OyamaPasswordWorkspace() {
           </div>
         ) : null}
       </div>
+    </div>
   );
 }
