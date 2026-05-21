@@ -17,8 +17,14 @@ export default function AppsHomePage() {
       </header>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-slate-800">Available app</h2>
-        <div className="mt-3">
+        <h2 className="text-sm font-semibold text-slate-800">Available apps</h2>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link
+            href="/apps/password-vault"
+            className="inline-flex items-center rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-700 hover:bg-sky-100"
+          >
+            Open Password Vault
+          </Link>
           <Link
             href="/apps/trivia"
             className="inline-flex items-center rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100"

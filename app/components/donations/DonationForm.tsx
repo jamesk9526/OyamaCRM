@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PAYMENT_METHODS, DONATION_STATUSES, methodLabel } from "./donation-utils";
 import { apiFetch } from "@/app/lib/auth-client";
@@ -10,10 +10,66 @@ type Props = {
   mode?: "create" | "edit";
   donationId?: string;
   defaultValues?: Partial<FormData>;
-  constituents: { id: string; firstName: string; lastName: string }[];
+  constituents: { id: string; firstName: string; lastName: string; email?: string }[];
   campaigns:    { id: string; name: string }[];
   designations: { id: string; name: string }[];
+  onCancel?: () => void;
+  onSaved?: (donationId?: string) => void | Promise<void>;
 };
+
+type ConstituentOption = { id: string; firstName: string; lastName: string; email?: string };
+
+function normalizeText(value: string | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function buildDisplayName(option: ConstituentOption): string {
+  return `${option.firstName} ${option.lastName}`.trim();
+}
+
+function rankConstituent(option: ConstituentOption, query: string): number {
+  const q = normalizeText(query);
+  const first = normalizeText(option.firstName);
+  const last = normalizeText(option.lastName);
+  const full = normalizeText(buildDisplayName(option));
+  const email = normalizeText(option.email);
+
+  if (!q) return 999;
+  if (first.startsWith(q)) return 0;
+  if (last.startsWith(q)) return 1;
+  if (full.startsWith(q)) return 2;
+  if (first.includes(q)) return 3;
+  if (last.includes(q)) return 4;
+  if (email.startsWith(q)) return 5;
+  if (email.includes(q)) return 6;
+  return 999;
+}
+
+function orderConstituentResults(results: ConstituentOption[], query: string): ConstituentOption[] {
+  const q = normalizeText(query);
+  if (!q) return results;
+
+  const withRank = results.map((option) => ({ option, rank: rankConstituent(option, q) }));
+  const nameMatched = withRank.filter((entry) => entry.rank <= 4);
+  const otherMatched = withRank.filter((entry) => entry.rank > 4);
+
+  const sortedByRelevance = (list: typeof withRank) =>
+    list
+      .sort((a, b) => {
+        if (a.rank !== b.rank) return a.rank - b.rank;
+        const aName = buildDisplayName(a.option).toLowerCase();
+        const bName = buildDisplayName(b.option).toLowerCase();
+        return aName.localeCompare(bName);
+      })
+      .map((entry) => entry.option);
+
+  // For very short queries, avoid noisy matches from email domains unless needed.
+  if (q.length <= 2 && nameMatched.length > 0) {
+    return sortedByRelevance(nameMatched);
+  }
+
+  return [...sortedByRelevance(nameMatched), ...sortedByRelevance(otherMatched)];
+}
 
 type FormData = {
   constituentId: string;
@@ -36,13 +92,89 @@ const EMPTY: FormData = {
   status: "COMPLETED", isRecurring: false, frequency: "", taxDeductible: true, notes: "",
 };
 
-export default function DonationForm({ mode = "create", donationId, defaultValues, constituents, campaigns, designations }: Props) {
+export default function DonationForm({ mode = "create", donationId, defaultValues, constituents, campaigns, designations, onCancel, onSaved }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [form, setForm] = useState<FormData>({ ...EMPTY, ...defaultValues });
   const [error, setError] = useState<string | null>(null);
   const [addToQB, setAddToQB] = useState(false);
+  const [constituentQuery, setConstituentQuery] = useState("");
+  const [constituentResults, setConstituentResults] = useState<ConstituentOption[]>([]);
+  const [constituentSearchOpen, setConstituentSearchOpen] = useState(false);
+  const [constituentSearching, setConstituentSearching] = useState(false);
+  const [constituentSearchError, setConstituentSearchError] = useState<string | null>(null);
+  const constituentSearchRef = useRef<HTMLDivElement | null>(null);
+  const searchRequestRef = useRef(0);
   const { qbEnabled } = usePlugins();
+
+  const seedConstituentOptions = useMemo(() => {
+    const selected = constituents.find((c) => c.id === form.constituentId);
+    if (!selected) return constituents.slice(0, 12);
+    return [selected, ...constituents.filter((c) => c.id !== selected.id)].slice(0, 12);
+  }, [constituents, form.constituentId]);
+
+  useEffect(() => {
+    const selected = constituents.find((c) => c.id === form.constituentId);
+    if (selected) {
+      setConstituentQuery(`${selected.firstName} ${selected.lastName}`.trim());
+      setConstituentResults([selected, ...constituents.filter((c) => c.id !== selected.id)].slice(0, 12));
+      return;
+    }
+    setConstituentResults(seedConstituentOptions);
+  }, [constituents, form.constituentId, seedConstituentOptions]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (!constituentSearchRef.current) return;
+      if (constituentSearchRef.current.contains(event.target as Node)) return;
+      setConstituentSearchOpen(false);
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!constituentSearchOpen) return;
+
+    const trimmed = constituentQuery.trim();
+    if (!trimmed) {
+      setConstituentResults(seedConstituentOptions);
+      setConstituentSearching(false);
+      setConstituentSearchError(null);
+      return;
+    }
+
+    const requestId = ++searchRequestRef.current;
+    setConstituentSearching(true);
+    setConstituentSearchError(null);
+
+    const timeout = window.setTimeout(async () => {
+      try {
+        const data = await apiFetch<ConstituentOption[] | { items?: ConstituentOption[] }>(`/api/constituents?search=${encodeURIComponent(trimmed)}&limit=25`);
+        if (requestId !== searchRequestRef.current) return;
+        const results = Array.isArray(data) ? data : (data.items ?? []);
+        setConstituentResults(orderConstituentResults(results, trimmed));
+      } catch (err) {
+        if (requestId !== searchRequestRef.current) return;
+        setConstituentSearchError(err instanceof Error ? err.message : "Unable to search constituents.");
+      } finally {
+        if (requestId === searchRequestRef.current) {
+          setConstituentSearching(false);
+        }
+      }
+    }, 180);
+
+    return () => window.clearTimeout(timeout);
+  }, [constituentQuery, constituentSearchOpen, seedConstituentOptions]);
+
+  function pickConstituent(option: ConstituentOption) {
+    update("constituentId", option.id);
+    setConstituentQuery(`${option.firstName} ${option.lastName}`.trim());
+    setConstituentSearchOpen(false);
+    setConstituentSearchError(null);
+    setConstituentResults([option, ...constituentResults.filter((row) => row.id !== option.id)].slice(0, 12));
+  }
 
   function update(field: keyof FormData, value: string | boolean) {
     setForm(p => ({ ...p, [field]: value }));
@@ -83,8 +215,12 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
           }
         }
 
-        router.push("/donations");
-        router.refresh();
+        if (onSaved) {
+          await onSaved(savedRes?.id);
+        } else {
+          router.push("/donations");
+          router.refresh();
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to save donation.");
       }
@@ -104,14 +240,49 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
       {/* Donor */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
         <h3 className="font-semibold text-gray-800">Donor</h3>
-        <div>
+        <div ref={constituentSearchRef} className="relative">
           <label className={labelCls}>Constituent *</label>
-          <select className={selectCls} value={form.constituentId} onChange={e => update("constituentId", e.target.value)} required>
-            <option value="">— Select Constituent —</option>
-            {constituents.map(c => (
-              <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
-            ))}
-          </select>
+          <input
+            type="text"
+            className={inputCls}
+            placeholder="Search donors by name, email, or phone..."
+            value={constituentQuery}
+            onFocus={() => setConstituentSearchOpen(true)}
+            onChange={(e) => {
+              setConstituentQuery(e.target.value);
+              update("constituentId", "");
+              setConstituentSearchOpen(true);
+            }}
+            autoComplete="off"
+            required
+          />
+
+          {constituentSearchOpen ? (
+            <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+              {constituentSearching ? (
+                <p className="px-3 py-2 text-xs text-gray-500">Searching...</p>
+              ) : constituentSearchError ? (
+                <p className="px-3 py-2 text-xs text-red-600">{constituentSearchError}</p>
+              ) : constituentResults.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-gray-500">No matching constituents.</p>
+              ) : (
+                constituentResults.map((option) => {
+                  const selected = form.constituentId === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => pickConstituent(option)}
+                      className={`block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 ${selected ? "bg-green-50" : "hover:bg-gray-50"}`}
+                    >
+                      <p className="text-sm font-medium text-gray-900">{option.firstName} {option.lastName}</p>
+                      <p className="text-xs text-gray-500">{option.email || "No email"}</p>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -212,7 +383,7 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
           className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg disabled:opacity-60 transition-colors">
           {isPending ? "Saving…" : mode === "edit" ? "Update Donation" : "Record Donation"}
         </button>
-        <button type="button" onClick={() => router.back()}
+        <button type="button" onClick={() => onCancel ? onCancel() : router.back()}
           className="px-6 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
           Cancel
         </button>

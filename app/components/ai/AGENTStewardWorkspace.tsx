@@ -2680,6 +2680,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
 
       {/* ── Left sidebar — hidden entirely in dock mode ───────────────────── */}
       {!dockMode && <aside
+        id="steward-sidebar"
         data-expanded={sidebarOpen ? "true" : "false"}
         className={`
           steward-chroma-sidebar
@@ -2923,7 +2924,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         {/* Top bar inside the workspace — full mode vs compact dock mode */}
         {dockMode ? (
           /* ── Dock-mode header: close + identity + expand ─── */
-          <div className="steward-chroma-header flex shrink-0 items-center gap-2 border-b border-slate-100 bg-white px-3 py-2 min-h-[52px]">
+          <div className="steward-chroma-header flex shrink-0 items-center gap-2 border-b border-slate-100 bg-white px-3 py-2 min-h-[60px]">
             {/* Close dock */}
             <button
               type="button"
@@ -2936,7 +2937,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
             </button>
 
             <div className="flex min-w-0 items-center gap-2">
-              <StewardAvatarIcon size={22} alt="Steward" className="ring-cyan-300/60" />
+              <StewardAvatarIcon size={36} alt="Steward" className="ring-cyan-300/60" />
               <span className="truncate text-xs font-semibold text-slate-900">Steward</span>
               <span className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.8)]" />
             </div>
@@ -2948,7 +2949,27 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
             </a>
           </div>
-        ) : null}
+        ) : (
+          <div className="steward-chroma-header flex min-h-[60px] shrink-0 items-center gap-2 border-b border-slate-100 bg-white px-3 py-2 sm:hidden">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen((value) => !value)}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+              title={sidebarOpen ? "Close menu" : "Open menu"}
+              aria-label={sidebarOpen ? "Close menu" : "Open menu"}
+              aria-expanded={sidebarOpen}
+              aria-controls="steward-sidebar"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d={sidebarOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
+              </svg>
+            </button>
+            <div className="flex min-w-0 items-center gap-2">
+              <StewardAvatarIcon size={36} alt="Steward" className="ring-cyan-300/60" />
+              <span className="truncate text-xs font-semibold text-slate-900">Steward Workspace</span>
+            </div>
+          </div>
+        )}
         {/* end dockMode ? dock-header : full-header */}
 
         {/* ── Conversation ────────────────────────────────────────────────── */}
@@ -2956,14 +2977,14 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-gradient-to-b from-black/72 via-black/28 to-transparent" />
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-10 bg-gradient-to-t from-black/70 to-transparent" />
           <div className="steward-chroma-scroll chat-scroll-smooth h-full overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
-            <div className="mx-auto max-w-3xl px-3 py-4 sm:px-4 sm:py-6">
+            <div className="mx-auto w-full max-w-4xl px-2 py-4 sm:px-4 sm:py-6">
 
             {/* Empty state with starter prompts */}
             {isEmptyChat ? (
               <div className="steward-empty-state flex min-h-[62vh] flex-col items-center justify-center gap-7 px-2 text-center">
                 <h2 className="text-xl font-semibold text-slate-900 sm:text-2xl">Ready when you are.</h2>
 
-                <div ref={composerRef} className="steward-hero-composer relative w-full max-w-[740px] rounded-full border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <div ref={composerRef} className="steward-hero-composer relative w-full max-w-[820px] rounded-3xl border border-slate-200 bg-white px-2 py-2 shadow-sm sm:rounded-full sm:px-3">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -3048,12 +3069,12 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     </div>
                   )}
 
-                  <div className="flex min-h-10 items-center gap-2">
+                  <div className="flex min-h-10 flex-wrap items-center gap-1.5 sm:flex-nowrap sm:gap-2">
                     <div className="relative shrink-0" data-composer-dropdown>
                       <button
                         type="button"
                         onClick={() => { setAddOpen((v) => !v); setToolsOpen(false); setScopeOpen(false); }}
-                        className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-100"
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-100 sm:h-9 sm:w-9"
                         title="Add context or files"
                         aria-expanded={addOpen}
                       >
@@ -3085,11 +3106,11 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                       placeholder="Ask anything (type @ to mention a donor)"
                       rows={1}
                       disabled={sending}
-                      className="steward-chroma-textarea min-h-8 flex-1 resize-none bg-transparent py-1 text-base text-slate-900 placeholder-slate-400 outline-none sm:text-sm"
+                      className="steward-chroma-textarea min-h-8 min-w-[120px] flex-1 resize-none bg-transparent py-1 text-sm text-slate-900 placeholder-slate-400 outline-none sm:min-w-0"
                       style={{ maxHeight: "120px" }}
                     />
 
-                    <div className="relative hidden sm:block">
+                    <div className={`relative ${dockMode ? "hidden" : "hidden sm:block"}`}>
                       <select
                         value={mode}
                         onChange={(event) => setMode(event.target.value as ChatMode)}
@@ -3120,7 +3141,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     <button
                       type="button"
                       onClick={() => setThoughtStackEnabled((value) => !value)}
-                      className={`hidden sm:inline-flex h-7 items-center gap-1 rounded-full border px-2 text-[10px] font-semibold transition-colors ${
+                      className={`${dockMode ? "hidden" : "hidden sm:inline-flex"} h-7 items-center gap-1 rounded-full border px-2 text-[10px] font-semibold transition-colors ${
                         thoughtStackEnabled
                           ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25"
                           : "border-slate-600 bg-slate-800 text-slate-300 hover:border-slate-500 hover:bg-slate-700"
@@ -3151,7 +3172,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                         };
                         recog.start();
                       }}
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-100 disabled:opacity-40"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-100 disabled:opacity-40 sm:h-9 sm:w-9"
                       title="Voice input"
                     >
                       <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" /></svg>
@@ -3161,7 +3182,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                       <button
                         type="button"
                         onClick={stopGeneration}
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-950 transition-transform active:scale-95"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-950 transition-transform active:scale-95 sm:h-10 sm:w-10"
                         title="Stop generation"
                       >
                         <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg>
@@ -3171,13 +3192,59 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                         type="button"
                         onClick={() => void send()}
                         disabled={!canSend}
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1388d8] text-white transition-all hover:bg-[#1d9bf0] active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1388d8] text-white transition-all hover:bg-[#1d9bf0] active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 sm:h-10 sm:w-10"
                         title="Send"
                       >
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.4} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5M5 12l7-7 7 7" /></svg>
                       </button>
                     )}
                   </div>
+
+                  {dockMode && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 border-t border-white/10 pt-1.5">
+                      <div className="relative shrink-0">
+                        <select
+                          value={mode}
+                          onChange={(event) => setMode(event.target.value as ChatMode)}
+                          className="h-6 max-w-[170px] appearance-none rounded-full border border-slate-700/80 bg-slate-900/80 py-0 pl-2 pr-6 text-[10px] font-semibold text-slate-100 outline-none transition-colors hover:border-slate-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-500/20"
+                          title="Chat mode"
+                        >
+                          <option value="ask" className="bg-slate-900 text-slate-100">Ask & Retrieve</option>
+                          <option value="analyze" className="bg-slate-900 text-slate-100">Analyze Trends</option>
+                          <option value="draft" className="bg-slate-900 text-slate-100">Draft Outreach</option>
+                          <option value="free" className="bg-slate-900 text-slate-100">Pure Mode</option>
+                          <option value="agentic" className="bg-slate-900 text-slate-100">Agentic Mode</option>
+                          <option value="llm" className="bg-slate-900 text-slate-100">LLM Deep Reasoning</option>
+                          <option value="action" className="bg-slate-900 text-slate-100">Action Planner</option>
+                          <option value="help" className="bg-slate-900 text-slate-100">Workflow Help</option>
+                        </select>
+                        <svg
+                          className="pointer-events-none absolute right-1.5 top-1/2 h-2 w-2 -translate-y-1/2 text-slate-300"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2.25}
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setThoughtStackEnabled((value) => !value)}
+                        className={`inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[10px] font-semibold transition-colors ${
+                          thoughtStackEnabled
+                            ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25"
+                            : "border-slate-600 bg-slate-800 text-slate-300 hover:border-slate-500 hover:bg-slate-700"
+                        }`}
+                        title={thoughtStackEnabled ? "ThoughtStack beta is enabled. Click to disable for direct chat responses." : "ThoughtStack beta is disabled. Click to enable reliability gating."}
+                      >
+                        <span className="rounded bg-black/30 px-1 py-[1px] text-[8px] font-bold uppercase tracking-wide">BETA</span>
+                        {thoughtStackEnabled ? "ThoughtStack On" : "ThoughtStack Off"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -3240,7 +3307,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         {(!isEmptyChat || dockMode) && (
         <div className="steward-chroma-composer-wrap shrink-0 bg-white px-3 pt-3 sm:px-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
           <div className="mx-auto max-w-3xl">
-            <div ref={composerRef} className="steward-hero-composer relative w-full rounded-2xl border border-slate-200 bg-white px-3 pt-2 pb-1 shadow-sm">
+            <div ref={composerRef} className="steward-hero-composer relative w-full rounded-2xl border border-slate-200 bg-white px-2 pt-2 pb-1.5 shadow-sm sm:px-3">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -3325,12 +3392,12 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                 </div>
               )}
 
-              <div className="flex min-h-10 items-center gap-2">
+              <div className="flex min-h-10 flex-wrap items-center gap-1.5 sm:flex-nowrap sm:gap-2">
                 <div className="relative shrink-0" data-composer-dropdown>
                   <button
                     type="button"
                     onClick={() => { setAddOpen((v) => !v); setToolsOpen(false); setScopeOpen(false); }}
-                    className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-100"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-100 sm:h-9 sm:w-9"
                     title="Add context or files"
                     aria-expanded={addOpen}
                   >
@@ -3362,7 +3429,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                   placeholder="Ask anything (type @ to mention a donor)"
                   rows={1}
                   disabled={sending}
-                  className="steward-chroma-textarea min-h-8 flex-1 resize-none bg-transparent py-1 text-base text-slate-900 placeholder-slate-400 outline-none sm:text-sm"
+                  className="steward-chroma-textarea min-h-8 min-w-[120px] flex-1 resize-none bg-transparent py-1 text-sm text-slate-900 placeholder-slate-400 outline-none sm:min-w-0"
                   style={{ maxHeight: "120px" }}
                 />
 
@@ -3386,7 +3453,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     };
                     recog.start();
                   }}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-100 disabled:opacity-40"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-100 disabled:opacity-40 sm:h-9 sm:w-9"
                   title="Voice input"
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" /></svg>
@@ -3396,7 +3463,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                   <button
                     type="button"
                     onClick={stopGeneration}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-950 transition-transform active:scale-95"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-950 transition-transform active:scale-95 sm:h-10 sm:w-10"
                     title="Stop generation"
                   >
                     <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg>
@@ -3406,7 +3473,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     type="button"
                     onClick={() => void send()}
                     disabled={!canSend}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1388d8] text-white transition-all hover:bg-[#1d9bf0] active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1388d8] text-white transition-all hover:bg-[#1d9bf0] active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 sm:h-10 sm:w-10"
                     title="Send"
                   >
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.4} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5M5 12l7-7 7 7" /></svg>
@@ -3415,12 +3482,12 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
               </div>
 
               {/* ── Mode & ThoughtStack controls row ── */}
-              <div className="flex items-center gap-2 border-t border-white/10 mt-0.5 pt-1.5 pb-0.5">
+              <div className="mt-0.5 flex flex-wrap items-center gap-1.5 border-t border-white/10 pt-1.5 pb-0.5 sm:gap-2">
                 <div className="relative shrink-0">
                   <select
                     value={mode}
                     onChange={(event) => setMode(event.target.value as ChatMode)}
-                    className="h-6 appearance-none rounded-full border border-slate-700/80 bg-slate-900/80 py-0 pl-2.5 pr-6 text-[10px] font-semibold text-slate-100 outline-none transition-colors hover:border-slate-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-500/20"
+                    className="h-6 max-w-[190px] appearance-none rounded-full border border-slate-700/80 bg-slate-900/80 py-0 pl-2.5 pr-6 text-[10px] font-semibold text-slate-100 outline-none transition-colors hover:border-slate-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-500/20"
                     title="Chat mode"
                   >
                     <option value="ask" className="bg-slate-900 text-slate-100">Ask & Retrieve</option>

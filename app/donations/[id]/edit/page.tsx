@@ -14,7 +14,7 @@ import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbB
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import { apiFetch } from "@/app/lib/auth-client";
 
-interface Constituent { id: string; firstName: string; lastName: string }
+interface Constituent { id: string; firstName: string; lastName: string; email?: string }
 interface Campaign    { id: string; name: string }
 interface Designation { id: string; name: string }
 
@@ -67,12 +67,32 @@ export default function EditDonationPage() {
       try {
         const [donationData, constData, campData, desigData] = await Promise.all([
           apiFetch<Record<string, unknown>>(`/api/donations/${id}`),
-          apiFetch<Constituent[] | { items?: Constituent[] }>("/api/constituents?limit=500"),
+          apiFetch<Constituent[] | { items?: Constituent[] }>("/api/constituents?limit=40"),
           apiFetch<Campaign[]    | { items?: Campaign[]    }>("/api/campaigns?limit=100"),
           apiFetch<Designation[] | { items?: Designation[] }>("/api/designations?limit=100"),
         ]);
         setDonation(donationData);
-        setConstituents(Array.isArray(constData) ? constData : ((constData as { items?: Constituent[] }).items ?? []));
+        const baseConstituents = Array.isArray(constData) ? constData : ((constData as { items?: Constituent[] }).items ?? []);
+        const selectedConstituentId = typeof donationData.constituentId === "string" ? donationData.constituentId : "";
+        const selectedConstituent = donationData.constituent as { firstName?: string; lastName?: string; email?: string } | undefined;
+
+        if (
+          selectedConstituentId &&
+          selectedConstituent &&
+          !baseConstituents.some((c) => c.id === selectedConstituentId)
+        ) {
+          setConstituents([
+            {
+              id: selectedConstituentId,
+              firstName: selectedConstituent.firstName ?? "",
+              lastName: selectedConstituent.lastName ?? "",
+              email: selectedConstituent.email,
+            },
+            ...baseConstituents,
+          ]);
+        } else {
+          setConstituents(baseConstituents);
+        }
         setCampaigns(   Array.isArray(campData)  ? campData  : ((campData  as { items?: Campaign[]    }).items ?? []));
         setDesignations(Array.isArray(desigData) ? desigData : ((desigData as { items?: Designation[] }).items ?? []));
       } catch {

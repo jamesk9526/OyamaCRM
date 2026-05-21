@@ -464,6 +464,19 @@ const PERMISSION_GROUPS: { label: string; keys: string[] }[] = [
       "watchdog:manage",
     ],
   },
+  {
+    label: "OyamaPASSWORD",
+    keys: [
+      "oyama_password.view",
+      "oyama_password.create",
+      "oyama_password.edit",
+      "oyama_password.delete",
+      "oyama_password.reveal",
+      "oyama_password.share",
+      "oyama_password.backup",
+      "oyama_password.restore",
+    ],
+  },
 ];
 
 /** Human-readable labels for individual permission keys. */
@@ -522,6 +535,14 @@ const PERM_LABELS: Record<string, string> = {
   "watchdog:incident:escalate": "Watchdog: Escalate Incidents",
   "watchdog:incident:resolve": "Watchdog: Resolve Incidents",
   "watchdog:manage": "Watchdog: Full Manage Scope",
+  "oyama_password.view": "OyamaPASSWORD: View Vault Entries",
+  "oyama_password.create": "OyamaPASSWORD: Create Entries",
+  "oyama_password.edit": "OyamaPASSWORD: Edit Entries",
+  "oyama_password.delete": "OyamaPASSWORD: Delete Entries",
+  "oyama_password.reveal": "OyamaPASSWORD: Reveal Secrets",
+  "oyama_password.share": "OyamaPASSWORD: Manage Shares",
+  "oyama_password.backup": "OyamaPASSWORD: Create Locked Backup",
+  "oyama_password.restore": "OyamaPASSWORD: Restore Locked Backup",
 };
 
 interface PermRecord { permission: string; granted: boolean }

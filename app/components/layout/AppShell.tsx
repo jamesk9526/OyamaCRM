@@ -32,6 +32,7 @@ const RESERVED_ROOT_PUBLIC_EVENT_SEGMENTS = new Set([
   "contacts-manager",
   "custom-fields",
   "data-tools",
+  "designations",
   "donations",
   "email-builder",
   "events",

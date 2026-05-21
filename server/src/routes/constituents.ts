@@ -108,6 +108,66 @@ const normalizeTagColor = (value: unknown, fallback = "#16a34a"): string => {
   return /^#[0-9a-fA-F]{6}$/.test(color) ? color : fallback;
 };
 
+type ConstituentSearchSortable = {
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  phone: string | null;
+};
+
+function normalizeSearchText(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function constituentSearchRank(row: ConstituentSearchSortable, query: string): number {
+  const q = normalizeSearchText(query);
+  const first = normalizeSearchText(row.firstName);
+  const last = normalizeSearchText(row.lastName);
+  const full = `${first} ${last}`.trim();
+  const email = normalizeSearchText(row.email);
+  const phone = normalizeSearchText(row.phone);
+
+  if (!q) return 999;
+  if (first.startsWith(q)) return 0;
+  if (last.startsWith(q)) return 1;
+  if (full.startsWith(q)) return 2;
+  if (first.includes(q)) return 3;
+  if (last.includes(q)) return 4;
+  if (email.startsWith(q)) return 5;
+  if (phone.startsWith(q)) return 6;
+  if (email.includes(q)) return 7;
+  if (phone.includes(q)) return 8;
+  return 999;
+}
+
+function sortConstituentsBySearchRelevance<T extends ConstituentSearchSortable>(rows: T[], query: string): T[] {
+  const q = normalizeSearchText(query);
+  if (!q) return rows;
+
+  const withRank = rows.map((row) => ({
+    row,
+    rank: constituentSearchRank(row, q),
+    name: `${normalizeSearchText(row.firstName)} ${normalizeSearchText(row.lastName)}`.trim(),
+  }));
+
+  const nameMatched = withRank.filter((entry) => entry.rank <= 4);
+  const otherMatched = withRank.filter((entry) => entry.rank > 4);
+  const rankThenName = (a: (typeof withRank)[number], b: (typeof withRank)[number]) => {
+    if (a.rank !== b.rank) return a.rank - b.rank;
+    return a.name.localeCompare(b.name);
+  };
+
+  // Single/short queries should prioritize actual name matches over email-domain noise.
+  if (q.length <= 2 && nameMatched.length > 0) {
+    return nameMatched.sort(rankThenName).map((entry) => entry.row);
+  }
+
+  return [
+    ...nameMatched.sort(rankThenName),
+    ...otherMatched.sort(rankThenName),
+  ].map((entry) => entry.row);
+}
+
 const CONSTITUENT_IMPORT_ROLLBACK_WINDOW_HOURS = 72;
 const CONSTITUENT_IMPORT_MAX_UPDATED_SNAPSHOTS = 1000;
 const CONSTITUENT_IMPORT_ROLLBACK_CONFIRM_PREFIX = "ROLLBACK-CONSTITUENT-IMPORT";
@@ -580,6 +640,22 @@ router.get("/", async (req, res) => {
   }
 
   const normalizedLimit = limit.toLowerCase() === "all" ? undefined : Math.min(Number.parseInt(limit, 10) || 50, 2000);
+
+  if (search?.trim()) {
+    const effectiveLimit = normalizedLimit ?? 2000;
+    const searchWindow = Math.min(Math.max(effectiveLimit * 6, 150), 1200);
+
+    const searchCandidates = await prisma.constituent.findMany({
+      where,
+      take: searchWindow,
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      select: CONSTITUENT_SELECT,
+    });
+
+    const ranked = sortConstituentsBySearchRelevance(searchCandidates, search).slice(0, effectiveLimit);
+    res.json(ranked);
+    return;
+  }
 
   const items = await prisma.constituent.findMany({
     where,

@@ -233,14 +233,18 @@ export async function apiFetchResponse(path: string, init: RequestInit = {}): Pr
 
   const makeRequest = async (activeToken: string | null) => {
     try {
+      const requestHeaders = new Headers(init.headers ?? {});
+      if (!requestHeaders.has("Content-Type")) {
+        requestHeaders.set("Content-Type", "application/json");
+      }
+      if (activeToken) {
+        requestHeaders.set("Authorization", `Bearer ${activeToken}`);
+      }
+
       return await fetch(`${API_BASE}${path}`, {
         ...init,
         credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          ...(init.headers as Record<string, string> ?? {}),
-          ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
-        },
+        headers: requestHeaders,
       });
     } catch (error) {
       if (isAbortError(error)) {

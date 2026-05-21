@@ -40,6 +40,8 @@ Goal: create reusable primitives without changing page behavior.
 - [x] Add quick-action cards that match the target dashboard pattern.
 - [x] Second pass: rebuild the dashboard command center into a calmer reference-style header, KPI row, revenue pace card, priority action card, and compact quick actions.
 - [x] Fix Giving Trends fiscal-year comparison so fiscal mode requests the configured fiscal year and orders months from the fiscal start month.
+- [x] Third pass: rebuild the default DonorCRM landing dashboard into the screenshot-inspired SaaS grid with KPI cards, giving overview, recent activity, top campaigns, retention, due-soon tasks, and quick actions backed by live APIs.
+- [x] Add a "Who Gave This Month" dashboard widget with a donor-list modal, per-donor task creation, bulk donor-list task saving, saved email audience lists, and email template draft starters.
 - [ ] Verify dashboard at 1366x768 and 1280x720.
 
 ### Phase 3: Constituents Page
@@ -90,6 +92,8 @@ Done:
 - [x] Shared CRM UI primitive components created.
 - [x] Dashboard metric card styling refreshed through existing `StatCard` props.
 - [x] Dashboard command center visual weight reduced.
+- [x] Dashboard default landing composition refreshed to match the latest reference mockup while preserving live summary, campaigns, tasks, retention, and recent gift data.
+- [x] Dashboard this-month donor workflow added with quick stewardship tasks, audience-list saving, and email campaign draft starters.
 - [x] Constituents page first pass completed with shared metrics/filter/table shells and calmer tags.
 - [x] Constituents row three-dot menu restored/preserved.
 - [x] Donations page first pass completed with shared metrics/action/filter/table shells while keeping the existing row three-dot quick-actions menu.

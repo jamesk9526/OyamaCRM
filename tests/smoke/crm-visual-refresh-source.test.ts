@@ -27,19 +27,23 @@ describe("Donor CRM visual refresh foundation", () => {
 
   it("keeps the dashboard refresh non-breaking by preserving existing dashboard entry points", () => {
     const page = read("app/page.tsx");
-    const commandCenter = read("app/components/dashboard/DashboardCommandCenter.tsx");
+    const visualDashboard = read("app/components/dashboard/DonorDashboardVisualRefresh.tsx");
+    const monthlyDonations = read("app/components/dashboard/MonthlyDonationsWidget.tsx");
     const statCard = read("app/components/dashboard/StatCard.tsx");
     const quickActionCard = read("app/components/ui/crm/CRMQuickActionCard.tsx");
 
-    expect(page).toContain("DashboardCommandCenter");
+    expect(page).toContain("DonorDashboardVisualRefresh");
     expect(page).toContain("/api/reports/summary");
-    expect(page).toContain("CRMActionBar");
+    expect(page).toContain("DashboardLayoutModal");
     expect(page).not.toContain("WorkspaceRibbonGroup");
     expect(page).toContain("CRMQuickActionCard");
-    expect(commandCenter).toContain("apiFetch<NextMoveDraftResponse>");
-    expect(commandCenter).toContain("KpiCard");
-    expect(commandCenter).toContain("Revenue pace");
-    expect(commandCenter).toContain("Quick actions");
+    expect(visualDashboard).toContain("Giving Overview");
+    expect(visualDashboard).toContain("Who Gave This Month");
+    expect(visualDashboard).toContain("MonthlyDonationsWidget");
+    expect(visualDashboard).toContain("Quick Actions");
+    expect(monthlyDonations).toContain("/api/reports/donors-this-month");
+    expect(monthlyDonations).toContain("/api/email-campaigns/lists");
+    expect(monthlyDonations).toContain("Save task with selected donors");
     expect(statCard).toContain("CRMMetricCard");
     expect(quickActionCard).toContain("actionLabel");
   });
@@ -51,7 +55,7 @@ describe("Donor CRM visual refresh foundation", () => {
 
     expect(topBar).toContain("bg-white/95");
     expect(topBar).toContain("w-[25vw]");
-    expect(topBar).toContain("polygon(0 0, 86% 0, 74% 100%, 0 100%)");
+    expect(topBar).toContain("polygon(0 0, 88% 0, 100% 100%, 0 100%)");
     expect(topBar).toContain("/branding/oyama-darklogocrm.png");
     expect(topBar).toContain("Switch Workspace");
     expect(topBar).toContain("bg-slate-950");
@@ -60,7 +64,8 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(topBar).toContain("Command Search");
     expect(topBar).toContain("autoFocus wide");
     expect(megaMenu).toContain("bg-slate-950");
-    expect(megaMenu).toContain("text-emerald-200");
+    expect(megaMenu).toContain("getDonorAccentTheme");
+    expect(megaMenu).toContain("accentTheme.navActive");
     expect(sidebar).toContain('label: "Core CRM"');
     expect(sidebar).toContain('label: "Home"');
     expect(sidebar).toContain('label: "Constituents"');

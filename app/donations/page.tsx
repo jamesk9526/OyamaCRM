@@ -7,6 +7,7 @@ import DonationTable from "@/app/components/donations/DonationTable";
 import { DonationRow, formatCurrency } from "@/app/components/donations/donation-utils";
 import EmailFromTemplateModal from "@/app/components/donations/EmailFromTemplateModal";
 import LetterFromTemplateModal from "@/app/components/donations/LetterFromTemplateModal";
+import RecordGiftModal from "@/app/components/donations/RecordGiftModal";
 import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
@@ -60,7 +61,12 @@ export default function DonationsPage() {
   const searchParams = useSearchParams();
   const campaignIdFilter = searchParams.get("campaignId") ?? "";
   const campaignNameFilter = searchParams.get("campaignName") ?? "";
-  const defaultRange = getCurrentYearDateInputs();
+  const recordGiftOpen = searchParams.get("recordGift") === "1";
+  const recordGiftSource = searchParams.get("source") ?? "";
+  const recordGiftGrantTitle = searchParams.get("grantTitle") ?? "";
+  const recordGiftFunderName = searchParams.get("funderName") ?? "";
+  const recordGiftSuggestedAmount = searchParams.get("suggestedAmount") ?? "";
+  const [defaultRange] = useState(getCurrentYearDateInputs);
   const [donations, setDonations] = useState<DonationRow[]>([]);
   const [total, setTotal] = useState(0);
   const [stats, setStats] = useState<DonationStats>({ totalRaised: 0, totalGifts: 0, completed: 0, recurring: 0 });
@@ -81,9 +87,14 @@ export default function DonationsPage() {
   const [from,   setFrom]   = useState(defaultRange.from);
   const [to,     setTo]     = useState(defaultRange.to);
 
-  const recordGiftHref = campaignIdFilter
-    ? `/donations/new?source=campaign&campaignId=${campaignIdFilter}&campaignName=${encodeURIComponent(campaignNameFilter)}`
-    : "/donations/new";
+  const recordGiftParams = new URLSearchParams(searchParams.toString());
+  recordGiftParams.set("recordGift", "1");
+  if (campaignIdFilter) {
+    recordGiftParams.set("source", "campaign");
+    recordGiftParams.set("campaignId", campaignIdFilter);
+    if (campaignNameFilter) recordGiftParams.set("campaignName", campaignNameFilter);
+  }
+  const recordGiftHref = `/donations?${recordGiftParams.toString()}`;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -129,7 +140,7 @@ export default function DonationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [allYears, campaignIdFilter, defaultRange.from, defaultRange.to, from, page, reportingYearMode, search, status, to]);
+  }, [allYears, campaignIdFilter, defaultRange.from, defaultRange.to, from, page, reportingYearMode, search, setApiDown, setApiError, setDonations, setLoading, setStats, setTotal, status, to]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -270,6 +281,18 @@ export default function DonationsPage() {
   function handleOpenLetterFromTemplate(id: string) {
     const d = donations.find((x) => x.id === id) ?? null;
     setLetterTemplateDonation(d);
+  }
+
+  /** Closes the Record Gift modal while preserving ledger filters such as campaign scope. */
+  function closeRecordGiftModal() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("recordGift");
+    params.delete("source");
+    params.delete("grantTitle");
+    params.delete("funderName");
+    params.delete("suggestedAmount");
+    const next = params.toString();
+    router.replace(next ? `/donations?${next}` : "/donations");
   }
 
   return (
@@ -468,6 +491,19 @@ export default function DonationsPage() {
         onClose={() => setLetterTemplateDonation(null)}
       />
     )}
+
+    {recordGiftOpen ? (
+      <RecordGiftModal
+        source={recordGiftSource}
+        campaignId={campaignIdFilter}
+        campaignName={campaignNameFilter}
+        grantTitle={recordGiftGrantTitle}
+        funderName={recordGiftFunderName}
+        suggestedAmount={recordGiftSuggestedAmount}
+        onClose={closeRecordGiftModal}
+        onSaved={load}
+      />
+    ) : null}
     </>
   );
 }

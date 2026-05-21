@@ -15,6 +15,7 @@ interface DrawerApp {
   tone: "green" | "blue" | "slate" | "indigo";
   helper: string;
   adminOnly?: boolean;
+  openInNewTab?: boolean;
 }
 
 /** Hidden module-apps and standalone apps currently available from the launcher. */
@@ -39,9 +40,10 @@ const AVAILABLE_APPS: DrawerApp[] = [
     id: "oyama-password",
     label: "OyamaPASSWORD",
     description: "Shared credential vault app with encrypted password workflows.",
-    href: "/password",
+    href: "/apps/password-vault",
     tone: "blue",
     helper: "Vault",
+    openInNewTab: true,
   },
   {
     id: "trivia-software",
@@ -150,6 +152,8 @@ export default function AppsDrawer({ open, onClose }: AppsDrawerProps) {
                 key={app.id}
                 href={app.href}
                 onClick={onClose}
+                target={app.openInNewTab ? "_blank" : undefined}
+                rel={app.openInNewTab ? "noopener noreferrer" : undefined}
                 className="block rounded-xl border border-slate-200 bg-white px-3 py-2.5 hover:border-slate-300 hover:bg-slate-50 transition-all"
               >
                 <div className="flex items-center justify-between gap-2">

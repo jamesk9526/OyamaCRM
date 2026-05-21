@@ -8,6 +8,7 @@ import AppProductShell from "@/app/components/layout/AppProductShell";
 
 const APP_NAV_ITEMS = [
   { label: "App Home", href: "/apps" },
+  { label: "Password Vault", href: "/apps/password-vault" },
   { label: "Trivia Software", href: "/apps/trivia" },
 ];
 
@@ -34,8 +35,8 @@ export default function AppsLayout({ children }: { children: React.ReactNode }) 
     );
   }
 
-  // Trivia uses its own dark shell; bypass the generic /apps shell wrapper for these routes.
-  if (pathname.startsWith("/apps/trivia")) {
+  // Some standalone apps ship their own shell and bypass the generic /apps wrapper.
+  if (pathname.startsWith("/apps/trivia") || pathname.startsWith("/apps/password-vault")) {
     return <>{children}</>;
   }
 

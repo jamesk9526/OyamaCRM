@@ -287,6 +287,52 @@ Important:
 - Do not run `pnpm db:push` on production to bypass drift warnings.
 - Use deploy migrations only (`pnpm prisma migrate deploy`) so migration history remains consistent.
 
+### 6.8 Prisma P3018 table already exists (`20260519120000_add_crm_messenger`)
+
+Symptom:
+
+		Error: P3018
+		Migration name: 20260519120000_add_crm_messenger
+		Database error code: 1050
+		Table 'crmthread' already exists
+
+Cause:
+
+- The DB already contains one or more messenger tables (`CrmThread`, `CrmThreadParticipant`, `CrmMessage`) from a prior partial run/manual apply.
+- Prisma migration history does not mark `20260519120000_add_crm_messenger` as applied yet.
+
+Production-safe recovery (no reset):
+
+		cd ~/htdocs/<APP_DIRECTORY>
+		git fetch origin
+		git checkout main
+		git pull --ff-only
+		pnpm install --frozen-lockfile
+		pnpm prisma migrate status
+
+		# Verify all messenger tables exist before resolving
+		mysql -e "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('CrmThread','CrmThreadParticipant','CrmMessage');"
+
+		# If all three tables exist, mark migration as applied
+		pnpm prisma migrate resolve --applied 20260519120000_add_crm_messenger
+		pnpm prisma migrate deploy
+		pnpm prisma generate
+		pnpm build
+		pnpm build:server
+
+If one or more messenger tables are missing:
+
+- Do not mark the migration applied yet.
+- Manually reconcile the missing tables using `prisma/migrations/20260519120000_add_crm_messenger/migration.sql`, then run:
+
+		pnpm prisma migrate resolve --applied 20260519120000_add_crm_messenger
+		pnpm prisma migrate deploy
+
+Notes:
+
+- Do not run `pnpm prisma migrate dev` on production.
+- Do not drop existing messenger tables to force re-run unless you have a tested backup/restore plan.
+
 ### 6.5 pnpm fetch 404 for caniuse-lite
 
 Symptom:

@@ -71,7 +71,7 @@ const QUICK_TOOLS: QuickTool[] = [
   {
     title: "Log a gift",
     description: "Capture a donation and keep revenue current.",
-    href: "/donations/new",
+    href: "/donations?recordGift=1",
   },
   {
     title: "Review tasks",

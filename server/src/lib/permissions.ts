@@ -99,6 +99,14 @@ export const PERMISSION_KEYS = [
   "letters.export_pdf",
   "letters.view_sensitive_merge_data",
   "letters.manage_all",
+  "oyama_password.view",
+  "oyama_password.create",
+  "oyama_password.edit",
+  "oyama_password.delete",
+  "oyama_password.reveal",
+  "oyama_password.share",
+  "oyama_password.backup",
+  "oyama_password.restore",
 ] as const;
 
 /** Union type for one permission key. */
@@ -212,6 +220,14 @@ const PERMISSION_DEFAULTS: Record<PermissionKey, PermissionDefault> = {
   "letters.export_pdf": { minRole: "staff" },
   "letters.view_sensitive_merge_data": { minRole: "manager" },
   "letters.manage_all": { minRole: "admin" },
+  "oyama_password.view": { minRole: "readonly" },
+  "oyama_password.create": { minRole: "staff" },
+  "oyama_password.edit": { minRole: "staff" },
+  "oyama_password.delete": { minRole: "manager" },
+  "oyama_password.reveal": { minRole: "staff" },
+  "oyama_password.share": { minRole: "manager" },
+  "oyama_password.backup": { minRole: "admin" },
+  "oyama_password.restore": { minRole: "admin" },
 };
 
 /**

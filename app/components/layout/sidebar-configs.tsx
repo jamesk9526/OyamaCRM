@@ -33,6 +33,7 @@ const DONOR_ICONS = {
   donations: <Ico d="M12 2v20m7-15H9a3 3 0 100 6h6a3 3 0 110 6H5" />,
   campaigns: <Ico d="M12 3l2.8 5.7L21 9.6l-4.5 4.4 1 6.2L12 17l-5.5 3.2 1-6.2L3 9.6l6.2-.9L12 3z" />,
   grants: <Ico d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.6a1 1 0 01.7.3l5.4 5.4a1 1 0 01.3.7V19a2 2 0 01-2 2z" />,
+  designations: <Ico d="M4 7h16M4 12h16M4 17h16M7 5v14" />,
   payments: <Ico><rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line x1="1" y1="10" x2="23" y2="10" /></Ico>,
   reports: <Ico d="M4 19h16M7 15V9m5 6V5m5 10v-3" />,
   tasks: <Ico d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />,
@@ -80,6 +81,14 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
       icon: DONOR_ICONS.payments,
       kind: "core_record" as const,
       description: "Review payment records and transaction activity.",
+    },
+    {
+      id: "designations",
+      label: "Designations",
+      href: "/designations",
+      icon: DONOR_ICONS.designations,
+      kind: "core_record" as const,
+      description: "Create and manage fund/designation options used when recording donations.",
     },
   ];
 

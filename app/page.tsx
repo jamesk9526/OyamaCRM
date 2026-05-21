@@ -3,12 +3,8 @@
  * Displays a real-time snapshot of org health: revenue, retention, tasks, giving trends,
  * recent donations, and top donors.
  *
- * Widget layout is customizable via Edit Mode:
- *   - Edit button (pencil) in header enters edit mode.
- *   - In edit mode each card shows ↑↓ buttons and a drag handle.
- *   - "Customize Layout" opens a modal with a full drag-and-drop reorder list.
- *   - Layout lock prevents accidental changes.
- * Order is persisted to localStorage.
+ * The default view uses a fixed visual-refresh layout. Legacy widget layout settings
+ * remain persisted so the customization modal can continue reading existing preferences.
  */
 "use client";
 
@@ -35,16 +31,13 @@ import FollowUpCapacityWidget from "./components/dashboard/FollowUpCapacityWidge
 import AiInsightsWidget from "./components/dashboard/AiInsightsWidget";
 import AiOpportunityWidget from "./components/dashboard/AiOpportunityWidget";
 import AiChatWidget from "./components/dashboard/AiChatWidget";
-import DashboardCommandCenter from "./components/dashboard/DashboardCommandCenter";
+import DonorDashboardVisualRefresh from "./components/dashboard/DonorDashboardVisualRefresh";
 import EnterprisePageShell from "./components/layout/EnterprisePageShell";
-import WorkspaceBreadcrumbBar from "./components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceHelpTip from "./components/ui/WorkspaceHelpTip";
-import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
 import CRMQuickActionCard from "@/app/components/ui/crm/CRMQuickActionCard";
 import DashboardLayoutModal, { type RevenueGoalMode, type RevenueProgressSource } from "./components/dashboard/DashboardLayoutModal";
 import { apiFetch } from "@/app/lib/auth-client";
 import { getStoredReportingYearMode, type ReportingYearMode } from "@/app/lib/fiscal-year";
-import StewardContextButton from "@/app/components/ai/StewardContextButton";
 import MonthlyDonationsWidget from "./components/dashboard/MonthlyDonationsWidget";
 
 /** Shape returned by /api/reports/summary (extended) */
@@ -466,13 +459,11 @@ export default function DashboardPage() {
   const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(loadOrder);
   const [hiddenWidgets, setHiddenWidgets] = useState<WidgetId[]>(loadHiddenWidgets);
   const [editMode, setEditMode] = useState(false);
-  const [locked, setLocked] = useState(loadLocked);
+  const [locked] = useState(loadLocked);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
-  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
-  const layoutMenuRef = useRef<HTMLDivElement>(null);
   const [aiWidgetsEnabled, setAiWidgetsEnabled] = useState(loadAiWidgetsEnabled);
-  const [layoutMode, setLayoutMode] = useState<DashboardLayoutMode>(loadLayoutMode);
-  const [autoArrangePreset, setAutoArrangePreset] = useState<AutoArrangePreset>(loadAutoArrangePreset);
+  const [layoutMode] = useState<DashboardLayoutMode>(loadLayoutMode);
+  const [autoArrangePreset] = useState<AutoArrangePreset>(loadAutoArrangePreset);
   const [widgetSizes, setWidgetSizes] = useState<Record<WidgetId, DashboardWidgetSize>>(loadWidgetSizes);
   const [reportingYearMode, setReportingYearMode] = useState<ReportingYearMode>(getStoredReportingYearMode);
   const enableAiWidgets = () => setAiWidgetsEnabled(true);
@@ -587,18 +578,6 @@ export default function DashboardPage() {
   useEffect(() => {
     localStorage.setItem(LS_WIDGET_SIZES_KEY, JSON.stringify(widgetSizes));
   }, [widgetSizes]);
-
-  // Close the layout/widgets 3-dot dropdown when the user clicks outside it.
-  useEffect(() => {
-    if (!showLayoutMenu) return;
-    function handleOutsideClick(e: MouseEvent) {
-      if (layoutMenuRef.current && !layoutMenuRef.current.contains(e.target as Node)) {
-        setShowLayoutMenu(false);
-      }
-    }
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [showLayoutMenu]);
 
   const autoGoal = summary?.activeGoalTotal ?? 0;
   const dynamicFallbackGoal = Math.max(autoGoal, summary?.ytdAmount ?? 0, 1000);
@@ -718,10 +697,6 @@ export default function DashboardPage() {
   const visibleStewardshipWidgets = visibleSectionWidgets(stewardshipWidgets);
   const visibleIntelligenceWidgets = visibleSectionWidgets(intelligenceWidgets);
   const visibleOtherWidgets = visibleSectionWidgets(otherWidgets);
-
-  function scrollToDashboardSection(id: string) {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
 
   function visibleSectionWidgets(ids: WidgetId[]) {
     return ids.filter((id) => visibleWidgetOrder.includes(id));
@@ -988,209 +963,33 @@ export default function DashboardPage() {
     }
   }
 
-  const actionButtonClass = "inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50";
-  const activeActionButtonClass = "border-emerald-200 bg-emerald-50 text-emerald-700";
-  const primaryActionButtonClass = "inline-flex h-8 items-center justify-center rounded-lg border border-emerald-600 bg-emerald-600 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:border-emerald-700 hover:bg-emerald-700";
-  const actionGroupClass = "flex flex-wrap items-center gap-2 pr-2";
-  const actionGroupLabelClass = "mr-0.5 hidden text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 min-[1440px]:inline";
-
   return (
-    <EnterprisePageShell
-      ribbon={(
-        <div className="space-y-3">
-          <WorkspaceBreadcrumbBar
-            items={[
-              { label: "DonorCRM", href: "/" },
-              { label: "Dashboard" },
-            ]}
-            statusLabel={locked ? "Layout locked" : editMode ? "Editing layout" : reportingYearMode === "fiscal" ? "Fiscal year mode" : "Calendar year mode"}
-            metadata={`Refreshed ${lastRefreshed.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`}
-            primaryAction={<Link href="/constituents/new" className={primaryActionButtonClass}>New Constituent</Link>}
-          />
-          <CRMActionBar>
-            <div className={actionGroupClass}>
-              <span className={actionGroupLabelClass}>View</span>
-              <button
-                type="button"
-                className={`${actionButtonClass} ${layoutMode === "GRID" ? activeActionButtonClass : ""}`}
-                onClick={() => scrollToDashboardSection("dashboard-overview")}
-                disabled={layoutMode !== "GRID"}
-                title={layoutMode !== "GRID" ? "Section jump is available in Structured layout" : undefined}
-              >
-                Overview
-              </button>
-              <button type="button" className={actionButtonClass} onClick={() => scrollToDashboardSection("dashboard-weekly")} disabled={layoutMode !== "GRID"}>This Week</button>
-              <button type="button" className={actionButtonClass} onClick={() => scrollToDashboardSection("dashboard-monthly")} disabled={layoutMode !== "GRID"}>This Month</button>
-              <button type="button" className={actionButtonClass} onClick={() => scrollToDashboardSection("dashboard-stewardship")} disabled={layoutMode !== "GRID"}>Stewardship</button>
-              <button type="button" className={actionButtonClass} onClick={() => scrollToDashboardSection("dashboard-other")} disabled={layoutMode !== "GRID"}>Other</button>
-            </div>
-            <div className={actionGroupClass}>
-              <span className={actionGroupLabelClass}>Create</span>
-              <Link href="/donations/new" className={primaryActionButtonClass}>Record Gift</Link>
-              <Link href="/tasks" className={actionButtonClass}>New Task</Link>
-              <Link href="/campaigns" className={actionButtonClass}>Campaign</Link>
-              <Link href="/letters-printables/generate" className={actionButtonClass}>Letter</Link>
-            </div>
-            <div className={actionGroupClass}>
-              <span className={actionGroupLabelClass}>Steward</span>
-              <StewardContextButton
-                label="Summarize dashboard"
-                prompt={`Summarize the current state of our fundraising dashboard. Key stats: YTD Revenue $${(summary?.ytdAmount ?? 0).toLocaleString()}, ${summary?.totalConstituents ?? 0} total constituents, ${summary?.pendingTasks ?? 0} open tasks, ${summary?.activeCampaigns ?? 0} active campaigns. What is the overall fundraising health and what should I focus on today?`}
-                moduleKey="donor"
-                mode="ask"
-                variant="mini"
-                className="py-1"
-              />
-              <StewardContextButton
-                label="Identify risks"
-                prompt={`Analyze our fundraising dashboard and identify key risks. YTD: $${(summary?.ytdAmount ?? 0).toLocaleString()}, Retention: ${retention?.rate ?? "?"}%, Overdue tasks: ${summary?.overdueTasks ?? 0}. What specific risks should we address this week?`}
-                moduleKey="donor"
-                mode="analyze"
-                variant="mini"
-                className="py-1"
-              />
-            </div>
-            <div ref={layoutMenuRef} className="relative">
-              {/* 3-dot layout/widgets menu button */}
-              <button
-                type="button"
-                title="Layout & Widgets"
-                onClick={() => setShowLayoutMenu((v) => !v)}
-                className={`${actionButtonClass} gap-1.5 px-2.5 ${showLayoutMenu ? activeActionButtonClass : ""}`}
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" />
-                </svg>
-                <span className="hidden min-[1280px]:inline">Layout</span>
-              </button>
-
-              {/* Dropdown */}
-              {showLayoutMenu && (
-                <div className="absolute right-0 top-full z-40 mt-1.5 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1.5 shadow-xl">
-
-                  {/* Layout section */}
-                  <p className="px-3 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Layout</p>
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
-                    onClick={() => { void load(); setShowLayoutMenu(false); }}
-                  >
-                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                    Refresh
-                  </button>
-                  {!editMode ? (
-                    <button
-                      type="button"
-                      disabled={locked}
-                      className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
-                      onClick={() => { if (!locked) setEditMode(true); setShowLayoutMenu(false); }}
-                    >
-                      <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                      Edit Layout
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-50"
-                      onClick={() => { setEditMode(false); setShowLayoutMenu(false); }}
-                    >
-                      <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                      Done Editing
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
-                    onClick={() => { setLocked((v) => !v); setShowLayoutMenu(false); }}
-                  >
-                    {locked ? (
-                      <><svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>Unlock Layout</>
-                    ) : (
-                      <><svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>Lock Layout</>
-                    )}
-                  </button>
-
-                  <div className="my-1.5 border-t border-slate-100" />
-
-                  {/* Widgets section */}
-                  <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Widgets</p>
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
-                    onClick={() => { setShowCustomizeModal(true); setShowLayoutMenu(false); }}
-                  >
-                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
-                    Customize
-                  </button>
-                  <button
-                    type="button"
-                    disabled={editMode}
-                    className="flex w-full items-center justify-between gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
-                    onClick={() => { setLayoutMode((c) => (c === "MASONRY" ? "GRID" : "MASONRY")); }}
-                  >
-                    <span className="flex items-center gap-2.5">
-                      <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h4a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM14 5a1 1 0 011-1h4a1 1 0 011 1v14a1 1 0 01-1 1h-4a1 1 0 01-1-1V5z" /></svg>
-                      Auto Arrange
-                    </span>
-                    {layoutMode === "MASONRY" && <span className="h-2 w-2 rounded-full bg-emerald-500" />}
-                  </button>
-
-                  {/* Auto arrange presets — only shown when active */}
-                  {layoutMode === "MASONRY" && (
-                    <>
-                      {(["BALANCED", "ALTERNATING_WIDE", "FEATURE_FIRST", "COMPACT"] as const).map((preset) => {
-                        const labels: Record<string, string> = { BALANCED: "Balanced", ALTERNATING_WIDE: "Alternating Wide", FEATURE_FIRST: "Feature First", COMPACT: "Compact" };
-                        return (
-                          <button
-                            key={preset}
-                            type="button"
-                            disabled={editMode}
-                            className={`flex w-full items-center gap-3 pl-9 pr-3 py-1.5 text-sm transition-colors hover:bg-slate-50 disabled:opacity-40 ${autoArrangePreset === preset ? "font-semibold text-emerald-700" : "text-slate-600"}`}
-                            onClick={() => { setAutoArrangePreset(preset); setShowLayoutMenu(false); }}
-                          >
-                            {autoArrangePreset === preset && <span className="absolute ml-[-1.25rem] h-1.5 w-1.5 rounded-full bg-emerald-500" />}
-                            {labels[preset]}
-                          </button>
-                        );
-                      })}
-                    </>
-                  )}
-
-                  <div className="my-1.5 border-t border-slate-100" />
-                  <button
-                    type="button"
-                    disabled={locked}
-                    className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
-                    onClick={() => { setWidgetSizes({ ...DEFAULT_WIDGET_SIZES }); setShowLayoutMenu(false); }}
-                  >
-                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                    Reset Sizes
-                  </button>
-                </div>
-              )}
-            </div>
-          </CRMActionBar>
-        </div>
-      )}
-    >
+    <EnterprisePageShell maxWidthClassName="max-w-[1560px]">
       <div className="space-y-5">
-        <DashboardCommandCenter
+        <DonorDashboardVisualRefresh
           greeting={greeting}
           name={name}
           loading={loading}
           dataThroughLabel={dataThroughLabel}
+          totalConstituents={summary?.totalConstituents ?? 0}
           ytdAmount={summary?.ytdAmount ?? 0}
+          ytdCount={summary?.ytdCount ?? 0}
           weekAmount={summary?.weekAmount ?? 0}
           weekCount={summary?.weekCount ?? 0}
           monthAmount={summary?.monthAmount ?? 0}
+          monthTrend={summary?.momTrend ?? null}
           revenueGoal={revenueGoal}
           retentionRate={retention?.rate ?? 0}
+          retentionRetained={retention?.retained ?? 0}
+          retentionTotal={retention?.total ?? 0}
           pendingTasks={summary?.pendingTasks ?? 0}
           overdueTasks={summary?.overdueTasks ?? 0}
           activeCampaigns={summary?.activeCampaigns ?? 0}
           newDonorsThisMonth={summary?.newDonorsThisMonth ?? 0}
-          monthTrend={summary?.momTrend ?? null}
           reportingYearMode={reportingYearMode}
+          includeGrants={includeGrants}
+          onRefresh={() => void load()}
+          onCustomize={() => setShowCustomizeModal(true)}
         />
 
       {loadError && (
@@ -1265,7 +1064,7 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {layoutMode === "MASONRY" ? (
+      {editMode ? (layoutMode === "MASONRY" ? (
         <section id="dashboard-overview" className="scroll-mt-28 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Auto Arrange Canvas</h2>
@@ -1351,7 +1150,7 @@ export default function DashboardPage() {
             </section>
           ) : null}
         </>
-      )}
+      )) : null}
 
       {/* ── Customize Layout modal ── */}
       {showCustomizeModal && (

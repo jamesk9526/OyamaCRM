@@ -1,7 +1,7 @@
-// OyamaPASSWORD workspace route entry.
-import OyamaPasswordWorkspace from "@/app/components/password/OyamaPasswordWorkspace";
+// Legacy password route compatibility wrapper.
+import { redirect } from "next/navigation";
 
-/** Renders OyamaPASSWORD encrypted credential workspace. */
+/** Redirects legacy /password links to the standalone app launcher route. */
 export default function OyamaPasswordPage() {
-  return <OyamaPasswordWorkspace />;
+  redirect("/apps/password-vault");
 }

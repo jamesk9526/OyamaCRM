@@ -19,7 +19,9 @@ Date: May 19, 2026
 - Dashboard ribbon controls replaced with a single `CRMActionBar` while preserving existing section jumps, create routes, Steward prompts, refresh, edit layout, lock, and widget controls.
 - Dashboard quick action cards now use the shared `CRMQuickActionCard` pattern.
 - Dashboard command center received a second polish pass with a reference-style greeting, KPI row, revenue pace card, priority action card, and compact quick actions.
+- DonorCRM dashboard default landing view now uses the latest mockup-inspired SaaS grid with live KPI cards, giving overview, recent gifts, top campaigns, retention, due-soon tasks, and quick actions.
 - Giving Trends fiscal-year mode now requests the configured fiscal year, compares against the prior fiscal year, and orders months from the fiscal start month.
+- DonorCRM dashboard now includes a "Who Gave This Month" widget with a modal donor list, per-donor task creation, bulk follow-up task saving, saved email audience-list creation, and email template draft starters.
 - Top bar refreshed with a light SaaS-style surface and a dark diagonal brand block using `oyama-darklogocrm.png`; Steward runtime status tokens remain readable.
 - Workspace selector and DonorCRM mega menu now use dark surfaces with green active states.
 - Donor sidebar grouping/style refreshed with a separate Home group and Core CRM group while preserving existing destinations.

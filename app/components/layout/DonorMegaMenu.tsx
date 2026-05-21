@@ -97,6 +97,12 @@ const BASE_NAV_SECTIONS: NavSection[] = [
           href: "/payments",
           description: "Payment records and transactions",
         },
+        {
+          id: "designations",
+          label: "Designations",
+          href: "/designations",
+          description: "Fund options used in donation entry",
+        },
       ],
     ],
   },
