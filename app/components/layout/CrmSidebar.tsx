@@ -92,47 +92,47 @@ const DONOR_ACCENT_OVERRIDES: Record<DonorAccentTone, { iconActive: string; acce
     iconActive: "text-emerald-400",
     accent: "bg-emerald-500",
     focusRing: "focus-visible:ring-emerald-500",
-    buttonTone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:border-emerald-400/45 hover:bg-emerald-500/15",
+    buttonTone: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100",
   },
   blue: {
     iconActive: "text-blue-400",
     accent: "bg-blue-500",
     focusRing: "focus-visible:ring-blue-500",
-    buttonTone: "border-blue-500/30 bg-blue-500/10 text-blue-200 hover:border-blue-400/45 hover:bg-blue-500/15",
+    buttonTone: "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 hover:bg-blue-100",
   },
   teal: {
     iconActive: "text-teal-400",
     accent: "bg-teal-500",
     focusRing: "focus-visible:ring-teal-500",
-    buttonTone: "border-teal-500/30 bg-teal-500/10 text-teal-200 hover:border-teal-400/45 hover:bg-teal-500/15",
+    buttonTone: "border-teal-200 bg-teal-50 text-teal-700 hover:border-teal-300 hover:bg-teal-100",
   },
   amber: {
     iconActive: "text-amber-400",
     accent: "bg-amber-500",
     focusRing: "focus-visible:ring-amber-500",
-    buttonTone: "border-amber-500/35 bg-amber-500/10 text-amber-200 hover:border-amber-400/50 hover:bg-amber-500/15",
+    buttonTone: "border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300 hover:bg-amber-100",
   },
 };
 
 const VARIANT_STYLES: Record<CrmSidebarVariant, SidebarVariantStyles> = {
   donor: {
-    aside: "bg-slate-800 border-r border-slate-700/80",
+    aside: "bg-white border-r border-slate-200",
     navSurface: "",
     heading: "text-slate-500",
-    headingMuted: "hover:text-slate-300",
-    itemActive: "text-white bg-slate-800 font-semibold",
-    itemInactive: "text-slate-300 hover:bg-slate-900 hover:text-white",
+    headingMuted: "hover:text-slate-700",
+    itemActive: "text-slate-900 bg-slate-100 font-semibold",
+    itemInactive: "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
     iconActive: "text-emerald-400",
-    iconInactive: "text-slate-500 group-hover:text-slate-300",
-    badge: "bg-slate-700 text-slate-200",
-    sectionBorder: "border-slate-800/80",
-    sectionHover: "hover:border-slate-700/80",
-    footer: "border-t border-slate-700/80 bg-slate-800",
-    footerText: "text-slate-400",
-    collapseButton: "border-slate-700 bg-slate-900 text-slate-300 hover:text-white hover:bg-slate-800",
-    tooltip: "border-slate-700 bg-slate-900 text-slate-100 shadow-xl",
-    tooltipSubtitle: "text-slate-400",
-    divider: "bg-slate-700",
+    iconInactive: "text-slate-400 group-hover:text-slate-600",
+    badge: "bg-slate-100 text-slate-600",
+    sectionBorder: "border-transparent",
+    sectionHover: "",
+    footer: "border-t border-slate-200 bg-white",
+    footerText: "text-slate-500",
+    collapseButton: "border-slate-300 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50",
+    tooltip: "border-slate-200 bg-white text-slate-900 shadow-xl",
+    tooltipSubtitle: "text-slate-600",
+    divider: "bg-slate-200",
     accent: "bg-emerald-500",
   },
   compassion: {
@@ -287,7 +287,7 @@ export default function CrmSidebar({
       accent: donorAccent.accent,
     }
     : VARIANT_STYLES[variant];
-  const isDonorDarkTest = variant === "donor";
+  const isDonorDarkTest = false;
   const focusRingClass = variant === "donor" ? donorAccent.focusRing : "focus-visible:ring-green-500";
   const [hash, setHash] = useState("");
   const [collapsed, setCollapsed] = useState(false);
