@@ -1230,7 +1230,7 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
     if (!dirty) return;
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
-      event.returnValue = '';
+      event.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);

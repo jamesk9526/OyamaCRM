@@ -899,9 +899,11 @@ export default function TopBar() {
   }, []);
 
   useEffect(() => {
+    const hasOpenPanel = appsOpen || feedbackOpen || notificationsOpen || mobileQuickOpen || mobileSearchOpen || compactActionsOpen || messengerOpen;
+
     function handleEscape(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
-      if (!(appsOpen || feedbackOpen || notificationsOpen || mobileQuickOpen || mobileSearchOpen || compactActionsOpen || messengerOpen)) {
+      if (!hasOpenPanel) {
         return;
       }
       setAppsOpen(false);
@@ -915,7 +917,7 @@ export default function TopBar() {
 
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [appsOpen, feedbackOpen, notificationsOpen, mobileQuickOpen, mobileSearchOpen, compactActionsOpen, messengerOpen]);
+  }, [appsOpen, compactActionsOpen, feedbackOpen, messengerOpen, mobileQuickOpen, mobileSearchOpen, notificationsOpen]);
 
   function toggleReportingYearMode() {
     const nextMode: ReportingYearMode = reportingYearMode === "fiscal" ? "calendar" : "fiscal";
