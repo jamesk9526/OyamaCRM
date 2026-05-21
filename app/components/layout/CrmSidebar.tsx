@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type React from "react";
+import type { DonorAccentTone } from "@/app/lib/workspace-settings";
 
 export type SidebarItemKind =
   | "workspace"
@@ -78,7 +79,40 @@ interface CrmSidebarProps {
   expandedWidthClass?: string;
   collapsedWidthClass?: string;
   organizationLabel?: string;
+  donorAccentTone?: DonorAccentTone;
+  footerAction?: {
+    label: string;
+    ariaLabel?: string;
+    onClick: () => void;
+  };
 }
+
+const DONOR_ACCENT_OVERRIDES: Record<DonorAccentTone, { iconActive: string; accent: string; focusRing: string; buttonTone: string }> = {
+  green: {
+    iconActive: "text-emerald-400",
+    accent: "bg-emerald-500",
+    focusRing: "focus-visible:ring-emerald-500",
+    buttonTone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:border-emerald-400/45 hover:bg-emerald-500/15",
+  },
+  blue: {
+    iconActive: "text-blue-400",
+    accent: "bg-blue-500",
+    focusRing: "focus-visible:ring-blue-500",
+    buttonTone: "border-blue-500/30 bg-blue-500/10 text-blue-200 hover:border-blue-400/45 hover:bg-blue-500/15",
+  },
+  teal: {
+    iconActive: "text-teal-400",
+    accent: "bg-teal-500",
+    focusRing: "focus-visible:ring-teal-500",
+    buttonTone: "border-teal-500/30 bg-teal-500/10 text-teal-200 hover:border-teal-400/45 hover:bg-teal-500/15",
+  },
+  amber: {
+    iconActive: "text-amber-400",
+    accent: "bg-amber-500",
+    focusRing: "focus-visible:ring-amber-500",
+    buttonTone: "border-amber-500/35 bg-amber-500/10 text-amber-200 hover:border-amber-400/50 hover:bg-amber-500/15",
+  },
+};
 
 const VARIANT_STYLES: Record<CrmSidebarVariant, SidebarVariantStyles> = {
   donor: {
@@ -241,10 +275,20 @@ export default function CrmSidebar({
   expandedWidthClass = "w-64",
   collapsedWidthClass = "w-20",
   organizationLabel = "Oyama Organization",
+  donorAccentTone = "green",
+  footerAction,
 }: CrmSidebarProps) {
   const pathname = usePathname();
-  const styles = VARIANT_STYLES[variant];
+  const donorAccent = DONOR_ACCENT_OVERRIDES[donorAccentTone];
+  const styles = variant === "donor"
+    ? {
+      ...VARIANT_STYLES.donor,
+      iconActive: donorAccent.iconActive,
+      accent: donorAccent.accent,
+    }
+    : VARIANT_STYLES[variant];
   const isDonorDarkTest = variant === "donor";
+  const focusRingClass = variant === "donor" ? donorAccent.focusRing : "focus-visible:ring-green-500";
   const [hash, setHash] = useState("");
   const [collapsed, setCollapsed] = useState(false);
   const [compactDesktop, setCompactDesktop] = useState(false);
@@ -468,7 +512,7 @@ export default function CrmSidebar({
                         href={item.href}
                         aria-current={active ? "page" : undefined}
                         aria-label={isCollapsed ? item.label : undefined}
-                        className={`group relative mx-0.5 flex items-center ${isCollapsed ? "min-h-10 justify-center rounded-xl px-1.5 py-2" : "min-h-9 justify-start rounded-lg px-2.5 py-2"} gap-2 text-[12.5px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-green-500 ${active ? styles.itemActive : styles.itemInactive} ${isCollapsed ? "hover:shadow-sm" : ""}`}
+                        className={`group relative mx-0.5 flex items-center ${isCollapsed ? "min-h-10 justify-center rounded-xl px-1.5 py-2" : "min-h-9 justify-start rounded-lg px-2.5 py-2"} gap-2 text-[12.5px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${focusRingClass} ${active ? styles.itemActive : styles.itemInactive} ${isCollapsed ? "hover:shadow-sm" : ""}`}
                         title={isCollapsed ? item.label : undefined}
                       >
                         {active ? (
@@ -538,6 +582,20 @@ export default function CrmSidebar({
       </div>
 
       <div className={`px-4 py-3 ${styles.footer}`}>
+        {footerAction ? (
+          <button
+            type="button"
+            onClick={footerAction.onClick}
+            aria-label={footerAction.ariaLabel ?? footerAction.label}
+            className={`mb-2.5 flex w-full items-center justify-center rounded-lg border px-2.5 py-2 text-xs font-semibold transition-colors ${variant === "donor" ? donorAccent.buttonTone : "border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+          >
+            {!isCollapsed ? footerAction.label : (
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            )}
+          </button>
+        ) : null}
         <div className={`flex items-center gap-2 text-xs ${styles.footerText}`}>
           <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path

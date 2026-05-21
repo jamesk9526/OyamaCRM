@@ -6,13 +6,16 @@ import { useAuth } from "@/app/components/auth/AuthProvider";
 import { usePlugins } from "@/app/components/plugins/PluginProvider";
 import CrmSidebar from "@/app/components/layout/CrmSidebar";
 import { buildDonorSidebarGroups } from "@/app/components/layout/sidebar-configs";
+import type { DonorAccentTone } from "@/app/lib/workspace-settings";
 
 interface SidebarProps {
   forceExpanded?: boolean;
+  donorAccentTone?: DonorAccentTone;
+  onSwitchToMegaMenu?: () => void;
 }
 
 /** Renders Donor CRM sidebar with grouped navigation, badges, and persisted collapse state. */
-export default function Sidebar({ forceExpanded = false }: SidebarProps) {
+export default function Sidebar({ forceExpanded = false, donorAccentTone = "green", onSwitchToMegaMenu }: SidebarProps) {
   const { qbEnabled } = usePlugins();
   const { user } = useAuth();
 
@@ -25,6 +28,12 @@ export default function Sidebar({ forceExpanded = false }: SidebarProps) {
       storageKey="oyamacrm.sidebar.donor.collapsed"
       userRole={user?.role}
       forceExpanded={forceExpanded}
+      donorAccentTone={donorAccentTone}
+      footerAction={!forceExpanded && onSwitchToMegaMenu ? {
+        label: "Switch To Mega Menu",
+        ariaLabel: "Switch navigation to mega menu",
+        onClick: onSwitchToMegaMenu,
+      } : undefined}
       expandedWidthClass="w-64"
       collapsedWidthClass="w-20"
       organizationLabel="Oyama Organization"

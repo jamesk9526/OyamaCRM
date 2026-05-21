@@ -2,13 +2,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiFetch } from "@/app/lib/auth-client";
 import {
   DEFAULT_WORKSPACE_SETTINGS,
+  getDonorAccentTheme,
   normalizeWorkspaceSettings,
+  saveWorkspaceSettings,
   type WorkspaceSettings,
+  type DonorAccentTone,
+  type DonorNavigationLayout,
   type WorkspaceKey,
 } from "@/app/lib/workspace-settings";
+import { apiFetch } from "@/app/lib/auth-client";
 
 /** WorkspacesSettingsPage provides a complete workspace-controls surface for admins. */
 export default function WorkspacesSettingsPage() {
@@ -48,15 +52,12 @@ export default function WorkspacesSettingsPage() {
   }
 
   /** Persists workspace settings for the whole organization through the backend API. */
-  async function saveWorkspaceSettings() {
+  async function handleSaveWorkspaceSettings() {
     setSaving(true);
     setError(null);
     try {
-      const payload = await apiFetch<WorkspaceSettings>("/api/settings/workspaces", {
-        method: "PUT",
-        body: JSON.stringify(settings),
-      });
-      setSettings(normalizeWorkspaceSettings(payload));
+      const savedSettings = await saveWorkspaceSettings(settings);
+      setSettings(savedSettings);
       setSaved(true);
       setTimeout(() => setSaved(false), 3650);
     } catch (err) {
@@ -82,7 +83,7 @@ export default function WorkspacesSettingsPage() {
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-xl font-semibold text-gray-900">Workspaces</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Control module availability and startup behavior for DonorCRM and Compassion CRM.</p>
+        <p className="text-sm text-gray-500 mt-0.5">Control module availability, startup behavior, and donor shell style for DonorCRM and Compassion CRM.</p>
       </div>
 
       <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
@@ -156,10 +157,48 @@ export default function WorkspacesSettingsPage() {
         </label>
       </section>
 
+      <section className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
+        <h2 className="text-sm font-semibold text-gray-900">DonorCRM Shell</h2>
+
+        <label className="text-sm text-gray-700 block">
+          Desktop navigation layout
+          <select
+            value={settings.donorNavigationLayout}
+            onChange={(e) => setField("donorNavigationLayout", e.target.value as DonorNavigationLayout)}
+            className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            <option value="mega">Mega menu bar</option>
+            <option value="sidebar">Sidebar navigation</option>
+          </select>
+        </label>
+
+        <label className="text-sm text-gray-700 block">
+          Accent color
+          <select
+            value={settings.donorAccentTone}
+            onChange={(e) => setField("donorAccentTone", e.target.value as DonorAccentTone)}
+            className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            <option value="green">Green</option>
+            <option value="blue">Blue</option>
+            <option value="teal">Teal</option>
+            <option value="amber">Amber</option>
+          </select>
+        </label>
+
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+          <p className="font-semibold text-slate-800">Preview</p>
+          <div className="mt-2 flex items-center gap-2">
+            <span className={`inline-flex h-2.5 w-8 rounded-full ${getDonorAccentTheme(settings.donorAccentTone).topBarAccentLine}`} />
+            <span>Current layout: {settings.donorNavigationLayout === "mega" ? "Mega menu" : "Sidebar"}</span>
+          </div>
+        </div>
+      </section>
+
       <div className="flex justify-end">
         <button
           type="button"
-          onClick={saveWorkspaceSettings}
+          onClick={handleSaveWorkspaceSettings}
           disabled={blockedState || saving}
           className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
         >

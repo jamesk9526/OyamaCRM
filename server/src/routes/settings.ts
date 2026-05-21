@@ -61,12 +61,16 @@ interface SettingsPayload {
 }
 
 type WorkspaceDefault = "donor" | "compassion";
+type DonorNavigationLayout = "mega" | "sidebar";
+type DonorAccentTone = "green" | "blue" | "teal" | "amber";
 
 interface WorkspaceSettingsPayload {
   donorEnabled?: boolean;
   compassionEnabled?: boolean;
   showModuleSwitcher?: boolean;
   defaultWorkspace?: WorkspaceDefault;
+  donorNavigationLayout?: DonorNavigationLayout;
+  donorAccentTone?: DonorAccentTone;
 }
 
 interface AuthSecurityPayload {
@@ -180,6 +184,7 @@ function valueOrEnv(value: string | null | undefined, envValue: string): string 
 }
 
 const BRANDING_PLUGIN_KEY = "organization-branding";
+const CRM_SHELL_PLUGIN_KEY = "crm-shell-preferences";
 const EMAIL_PROVIDER_PLUGIN_KEY = "email-provider";
 const EMAIL_PROVIDER_MS_GRAPH_STATE_PREFIX = "email-provider-ms-graph-oauth-state:";
 
@@ -554,6 +559,13 @@ function normalizeWorkspacePayload(input: WorkspaceSettingsPayload) {
   const compassionEnabled = input.compassionEnabled ?? true;
   const showModuleSwitcher = input.showModuleSwitcher ?? true;
   const requestedDefault: WorkspaceDefault = input.defaultWorkspace === "compassion" ? "compassion" : "donor";
+  const donorNavigationLayout: DonorNavigationLayout = input.donorNavigationLayout === "sidebar" ? "sidebar" : "mega";
+  const donorAccentTone: DonorAccentTone = input.donorAccentTone === "blue"
+    || input.donorAccentTone === "teal"
+    || input.donorAccentTone === "amber"
+    || input.donorAccentTone === "green"
+    ? input.donorAccentTone
+    : "green";
 
   if (!donorEnabled && !compassionEnabled) {
     return {
@@ -573,6 +585,8 @@ function normalizeWorkspacePayload(input: WorkspaceSettingsPayload) {
       compassionEnabled,
       showModuleSwitcher,
       defaultWorkspace,
+      donorNavigationLayout,
+      donorAccentTone,
     },
   };
 }
@@ -586,21 +600,45 @@ router.get("/workspaces", requireAuth, async (req: Request, res: Response) => {
       return res.json(defaults.ok ? defaults.value : {});
     }
 
-    const settings = await prisma.organizationSettings.findUnique({
-      where: { organizationId },
-      select: {
-        donorWorkspaceEnabled: true,
-        compassionWorkspaceEnabled: true,
-        showModuleSwitcher: true,
-        defaultWorkspace: true,
-      },
-    });
+    const [settings, shellPreference] = await Promise.all([
+      prisma.organizationSettings.findUnique({
+        where: { organizationId },
+        select: {
+          donorWorkspaceEnabled: true,
+          compassionWorkspaceEnabled: true,
+          showModuleSwitcher: true,
+          defaultWorkspace: true,
+        },
+      }),
+      prisma.pluginSetting.findUnique({
+        where: {
+          organizationId_pluginKey: {
+            organizationId,
+            pluginKey: CRM_SHELL_PLUGIN_KEY,
+          },
+        },
+        select: {
+          config: true,
+        },
+      }),
+    ]);
+
+    const shellConfig = shellPreference?.config && typeof shellPreference.config === "object" && !Array.isArray(shellPreference.config)
+      ? (shellPreference.config as Record<string, unknown>)
+      : {};
 
     const normalized = normalizeWorkspacePayload({
       donorEnabled: settings?.donorWorkspaceEnabled,
       compassionEnabled: settings?.compassionWorkspaceEnabled,
       showModuleSwitcher: settings?.showModuleSwitcher,
       defaultWorkspace: settings?.defaultWorkspace === "compassion" ? "compassion" : "donor",
+      donorNavigationLayout: shellConfig.donorNavigationLayout === "sidebar" ? "sidebar" : "mega",
+      donorAccentTone: shellConfig.donorAccentTone === "blue"
+        || shellConfig.donorAccentTone === "teal"
+        || shellConfig.donorAccentTone === "amber"
+        || shellConfig.donorAccentTone === "green"
+        ? (shellConfig.donorAccentTone as DonorAccentTone)
+        : "green",
     });
 
     return res.json(normalized.ok ? normalized.value : {});
@@ -646,6 +684,31 @@ router.put("/workspaces", requireAuth, requireRole("admin"), async (req: Request
       },
     });
 
+    await prisma.pluginSetting.upsert({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: CRM_SHELL_PLUGIN_KEY,
+        },
+      },
+      create: {
+        organizationId,
+        pluginKey: CRM_SHELL_PLUGIN_KEY,
+        enabled: true,
+        config: {
+          donorNavigationLayout: normalized.value.donorNavigationLayout,
+          donorAccentTone: normalized.value.donorAccentTone,
+        },
+      },
+      update: {
+        enabled: true,
+        config: {
+          donorNavigationLayout: normalized.value.donorNavigationLayout,
+          donorAccentTone: normalized.value.donorAccentTone,
+        },
+      },
+    });
+
     logAudit({
       action: "WORKSPACE_SETTINGS_UPDATED",
       entity: "OrganizationSettings",
@@ -662,6 +725,8 @@ router.put("/workspaces", requireAuth, requireRole("admin"), async (req: Request
       compassionEnabled: saved.compassionWorkspaceEnabled,
       showModuleSwitcher: saved.showModuleSwitcher,
       defaultWorkspace: saved.defaultWorkspace === "compassion" ? "compassion" : "donor",
+      donorNavigationLayout: normalized.value.donorNavigationLayout,
+      donorAccentTone: normalized.value.donorAccentTone,
     });
   } catch {
     return res.status(500).json({ error: { code: "WORKSPACE_SETTINGS_WRITE_FAILED", message: "Failed to save workspace settings" } });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import TopBar from "./TopBar";
 import Sidebar from "./Sidebar";
@@ -8,7 +8,13 @@ import DonorMegaMenu from "./DonorMegaMenu";
 import MobileSidebarDrawer from "./MobileSidebarDrawer";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
-import { DEFAULT_WORKSPACE_SETTINGS, fetchWorkspaceSettings, type WorkspaceSettings } from "@/app/lib/workspace-settings";
+import {
+  DEFAULT_WORKSPACE_SETTINGS,
+  patchWorkspaceSettings,
+  fetchWorkspaceSettings,
+  type WorkspaceSettings,
+  type DonorNavigationLayout,
+} from "@/app/lib/workspace-settings";
 
 // Module routes render their own shells — bypass AppShell wrapper.
 // /steward-ai-workspace uses its own standalone PWA layout.
@@ -81,6 +87,16 @@ function isRootPublicEventSlugPath(pathname: string): boolean {
 
 // Routes that board-report roles may access (board dashboard + its own sub-routes)
 const BOARD_PATHS = ["/board"];
+const DONOR_LAYOUT_STORAGE_KEY = "oyamacrm.shell.donor.layout";
+
+function readStoredDonorLayout(): DonorNavigationLayout | null {
+  if (typeof window === "undefined") return null;
+  const stored = window.localStorage.getItem(DONOR_LAYOUT_STORAGE_KEY);
+  if (stored === "mega" || stored === "sidebar") {
+    return stored;
+  }
+  return null;
+}
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -92,6 +108,26 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isBoard = BOARD_PATHS.some((p) => pathname.startsWith(p));
   const isOShareview = pathname.startsWith("/reports") && !pathname.startsWith("/reports/donor-crm");
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
+  const canPersistOrgShellSettings = user?.role === "admin" || user?.role === "super_admin";
+  const updateDonorLayout = useCallback(async (layout: DonorNavigationLayout) => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(DONOR_LAYOUT_STORAGE_KEY, layout);
+    }
+
+    setWorkspaceSettings((current) => ({ ...current, donorNavigationLayout: layout }));
+
+    if (!canPersistOrgShellSettings) {
+      return;
+    }
+
+    try {
+      const saved = await patchWorkspaceSettings({ donorNavigationLayout: layout });
+      setWorkspaceSettings((current) => ({ ...saved, donorNavigationLayout: layout, donorAccentTone: current.donorAccentTone || saved.donorAccentTone }));
+    } catch {
+      // Keep local preference even when organization-level persistence fails.
+    }
+  }, [canPersistOrgShellSettings]);
+
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [dockInsetPx, setDockInsetPx] = useState(0);
 
@@ -102,7 +138,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     async function loadWorkspaceSettings() {
       const settings = await fetchWorkspaceSettings();
       if (!active) return;
-      setWorkspaceSettings(settings);
+      const localLayout = readStoredDonorLayout();
+      setWorkspaceSettings(localLayout ? { ...settings, donorNavigationLayout: localLayout } : settings);
     }
 
     void loadWorkspaceSettings();
@@ -157,6 +194,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    function handleLayoutSwitch(event: Event) {
+      const detail = (event as CustomEvent<{ layout?: DonorNavigationLayout }>).detail;
+      if (!detail?.layout) return;
+      void updateDonorLayout(detail.layout);
+    }
+
+    window.addEventListener("crm:set-donor-shell-layout", handleLayoutSwitch);
+    return () => window.removeEventListener("crm:set-donor-shell-layout", handleLayoutSwitch);
+  }, [updateDonorLayout]);
+
+  useEffect(() => {
     function handleDockState(event: Event) {
       const detail = (event as CustomEvent<{ pushLayout?: boolean; panelWidth?: number }>).detail;
       if (!detail?.pushLayout) {
@@ -186,15 +234,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Module routes that render their own shell (Events CRM, etc.)
   if (isShellBypass) return <>{children}</>;
 
+  const donorShellVisible = !isOShareview && !isBoard;
+  const donorMegaMenuEnabled = donorShellVisible && workspaceSettings.donorNavigationLayout === "mega";
+  const donorSidebarDesktopEnabled = donorShellVisible && workspaceSettings.donorNavigationLayout === "sidebar";
+  const contentTopPaddingClass = donorMegaMenuEnabled ? "pt-[6.5rem]" : "pt-14";
+
   return (
     <div
       className="flex h-[100dvh] min-h-[100svh] flex-col crm-page-surface transition-[padding] duration-300"
       style={dockInsetPx > 0 ? { paddingRight: `${dockInsetPx}px` } : undefined}
     >
       <TopBar />
-      {/* DonorMegaMenu replaces the left sidebar for DonorCRM pages. */}
-      {!isOShareview && !isBoard && <DonorMegaMenu />}
-      <div className={`relative flex min-w-0 flex-1 overflow-hidden ${!isOShareview && !isBoard ? "pt-14 md:pt-[6.5rem]" : "pt-14"}`}>
+      {donorMegaMenuEnabled ? <DonorMegaMenu donorAccentTone={workspaceSettings.donorAccentTone} /> : null}
+      <div className={`relative flex min-w-0 flex-1 overflow-hidden ${contentTopPaddingClass}`}>
+        {donorSidebarDesktopEnabled ? (
+          <div className="hidden md:flex h-full">
+            <Sidebar
+              donorAccentTone={workspaceSettings.donorAccentTone}
+              onSwitchToMegaMenu={() => void updateDonorLayout("mega")}
+            />
+          </div>
+        ) : null}
         {/* Mobile sidebar drawer kept for small-screen access */}
         {!isOShareview ? (
           <MobileSidebarDrawer
@@ -202,7 +262,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             title="DonorCRM navigation"
             onClose={() => setMobileNavOpen(false)}
           >
-            <Sidebar forceExpanded />
+            <Sidebar forceExpanded donorAccentTone={workspaceSettings.donorAccentTone} />
           </MobileSidebarDrawer>
         ) : null}
 
