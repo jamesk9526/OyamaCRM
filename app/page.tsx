@@ -30,6 +30,8 @@ import StewardshipAttentionWidget from "./components/dashboard/StewardshipAttent
 import DonationVelocityWidget from "./components/dashboard/DonationVelocityWidget";
 import WorkflowPressureWidget from "./components/dashboard/WorkflowPressureWidget";
 import ActionableInsightsWidget from "./components/dashboard/ActionableInsightsWidget";
+import FundraisingForecastWidget from "./components/dashboard/FundraisingForecastWidget";
+import FollowUpCapacityWidget from "./components/dashboard/FollowUpCapacityWidget";
 import AiInsightsWidget from "./components/dashboard/AiInsightsWidget";
 import AiOpportunityWidget from "./components/dashboard/AiOpportunityWidget";
 import AiChatWidget from "./components/dashboard/AiChatWidget";
@@ -116,9 +118,11 @@ const DEFAULT_WIDGET_ORDER = [
   "revenue",
   "goal-health",
   "donation-velocity",
+  "fundraising-forecast",
   "retention",
   "engagement-pulse",
   "workflow-pressure",
+  "follow-up-capacity",
   "stewardship-attention",
   "top-donors",
   "weekly-stats",
@@ -144,9 +148,11 @@ const WIDGET_META = [
   { id: "revenue", label: "Revenue Progress", description: "Active campaign goal tracking" },
   { id: "goal-health", label: "Campaign Goal Health", description: "Goal gap and campaign attainment" },
   { id: "donation-velocity", label: "Donation Velocity", description: "Short-horizon gift speed and average trend" },
+  { id: "fundraising-forecast", label: "Fundraising Forecast", description: "Projected year-end pacing toward goal" },
   { id: "retention", label: "Donor Retention", description: "Year-over-year retention rate" },
   { id: "engagement-pulse", label: "Engagement Pulse", description: "Stewardship workload and activity" },
   { id: "workflow-pressure", label: "Workflow Pressure", description: "Follow-up urgency and workload mix" },
+  { id: "follow-up-capacity", label: "Follow-Up Capacity", description: "Demand-to-capacity pressure for stewardship work" },
   { id: "stewardship-attention", label: "Stewardship Attention", description: "Who needs follow-up today" },
   { id: "top-donors", label: "Top Donors", description: "By lifetime giving amount" },
   { id: "weekly-stats", label: "This Week", description: "Weekly donation activity summary" },
@@ -354,9 +360,11 @@ const DEFAULT_WIDGET_SIZES: Record<WidgetId, DashboardWidgetSize> = {
   revenue: "standard",
   "goal-health": "standard",
   "donation-velocity": "standard",
+  "fundraising-forecast": "standard",
   retention: "standard",
   "engagement-pulse": "standard",
   "workflow-pressure": "standard",
+  "follow-up-capacity": "standard",
   "stewardship-attention": "wide",
   "top-donors": "standard",
   "weekly-stats": "standard",
@@ -437,9 +445,9 @@ function getAutoArrangeWidgetLayoutClass(id: WidgetId, idx: number, preset: Auto
 /** Shared section container class for grid or masonry flow. */
 function getSectionLayoutClass(layoutMode: DashboardLayoutMode): string {
   if (layoutMode === "MASONRY") {
-    return "grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6";
+    return "grid grid-cols-1 gap-4 grid-flow-row-dense md:grid-cols-2 xl:grid-cols-6";
   }
-  return "grid grid-cols-1 gap-4 xl:grid-cols-12";
+  return "grid grid-cols-1 gap-4 grid-flow-row-dense xl:grid-cols-12";
 }
 
 function formatUsd(value: number): string {
@@ -697,12 +705,19 @@ export default function DashboardPage() {
     };
   }
 
-  const topKpiWidgets: WidgetId[] = ["revenue", "goal-health", "donation-velocity", "retention", "engagement-pulse", "workflow-pressure"];
+  const topKpiWidgets: WidgetId[] = ["revenue", "goal-health", "donation-velocity", "fundraising-forecast", "retention", "engagement-pulse", "workflow-pressure", "follow-up-capacity"];
   const stewardshipWidgets: WidgetId[] = ["start-here", "todays-focus", "actionable-insights", "stewardship-attention"];
   const intelligenceWidgets: WidgetId[] = ["ai-insights", "ai-opportunities", "ai-chat"];
   const weeklyWidgets: WidgetId[] = ["weekly-stats", "recent-donations"];
   const monthlyWidgets: WidgetId[] = ["monthly-donors", "giving-trend"];
   const otherWidgets: WidgetId[] = ["top-donors", "tasks", "meetings"];
+
+  const visibleTopKpiWidgets = visibleSectionWidgets(topKpiWidgets);
+  const visibleWeeklyWidgets = visibleSectionWidgets(weeklyWidgets);
+  const visibleMonthlyWidgets = visibleSectionWidgets(monthlyWidgets);
+  const visibleStewardshipWidgets = visibleSectionWidgets(stewardshipWidgets);
+  const visibleIntelligenceWidgets = visibleSectionWidgets(intelligenceWidgets);
+  const visibleOtherWidgets = visibleSectionWidgets(otherWidgets);
 
   function scrollToDashboardSection(id: string) {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -875,6 +890,17 @@ export default function DashboardPage() {
             />
           </DashboardWidget>
         );
+      case "fundraising-forecast":
+        return (
+          <DashboardWidget key={id} id={id} title="Fundraising Forecast" subtitle="Projected year-end pace" {...editProps}>
+            <FundraisingForecastWidget
+              ytdAmount={summary?.ytdAmount ?? 0}
+              monthAmount={summary?.monthAmount ?? 0}
+              revenueGoal={revenueGoal}
+              loading={loading}
+            />
+          </DashboardWidget>
+        );
       case "retention":
         return (
           <DashboardWidget key={id} id={id} title="Donor Retention" subtitle="Year-over-year" {...editProps}>
@@ -912,6 +938,18 @@ export default function DashboardPage() {
               overdueTasks={summary?.overdueTasks ?? 0}
               newDonorsThisMonth={summary?.newDonorsThisMonth ?? 0}
               retentionRate={retention?.rate ?? 0}
+              loading={loading}
+            />
+          </DashboardWidget>
+        );
+      case "follow-up-capacity":
+        return (
+          <DashboardWidget key={id} id={id} title="Follow-Up Capacity" subtitle="Demand vs team throughput" {...editProps}>
+            <FollowUpCapacityWidget
+              pendingTasks={summary?.pendingTasks ?? 0}
+              overdueTasks={summary?.overdueTasks ?? 0}
+              newDonorsThisMonth={summary?.newDonorsThisMonth ?? 0}
+              monthCount={summary?.monthCount ?? 0}
               loading={loading}
             />
           </DashboardWidget>
@@ -1244,64 +1282,74 @@ export default function DashboardPage() {
         </section>
       ) : (
         <>
-          <section id="dashboard-overview" className="scroll-mt-28 space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Overview</h2>
-            <div className={sectionLayoutClassName}>
-              {visibleSectionWidgets(topKpiWidgets).map(renderWidgetById)}
-            </div>
-          </section>
-
-          <section id="dashboard-weekly" className="scroll-mt-28 space-y-3">
-            <div className="flex items-center gap-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">This Week</h2>
-              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-500">
-                {loading ? "—" : `${formatUsd(summary?.weekAmount ?? 0)} · ${summary?.weekCount ?? 0} gift${(summary?.weekCount ?? 0) === 1 ? "" : "s"}`}
-              </span>
-            </div>
-            <div className={sectionLayoutClassName}>
-              {visibleSectionWidgets(weeklyWidgets).map(renderWidgetById)}
-            </div>
-          </section>
-
-          <section id="dashboard-monthly" className="scroll-mt-28 space-y-3">
-            <div className="flex items-center gap-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">This Month</h2>
-              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-500">
-                {loading ? "—" : formatUsd(summary?.monthAmount ?? 0)}
-              </span>
-              {!loading && (summary?.momTrend ?? null) !== null && (
-                <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${(summary?.momTrend ?? 0) >= 0 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}>
-                  {(summary?.momTrend ?? 0) >= 0 ? "▲" : "▼"} {Math.abs(Math.round(summary?.momTrend ?? 0))}% vs last month
-                </span>
-              )}
-            </div>
-            <div className={sectionLayoutClassName}>
-              {visibleSectionWidgets(monthlyWidgets).map(renderWidgetById)}
-            </div>
-          </section>
-
-          <section id="dashboard-stewardship" className="scroll-mt-28 space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Stewardship And Actions</h2>
-            <div className={sectionLayoutClassName}>
-              {visibleSectionWidgets(stewardshipWidgets).map(renderWidgetById)}
-            </div>
-          </section>
-
-          {visibleSectionWidgets(intelligenceWidgets).length > 0 ? (
-            <section className="space-y-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Steward Intelligence</h2>
+          {visibleTopKpiWidgets.length > 0 ? (
+            <section id="dashboard-overview" className="scroll-mt-28 space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Overview</h2>
               <div className={sectionLayoutClassName}>
-                {visibleSectionWidgets(intelligenceWidgets).map(renderWidgetById)}
+                {visibleTopKpiWidgets.map(renderWidgetById)}
               </div>
             </section>
           ) : null}
 
-          <section id="dashboard-other" className="scroll-mt-28 space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Other</h2>
-            <div className={sectionLayoutClassName}>
-              {visibleSectionWidgets(otherWidgets).map(renderWidgetById)}
-            </div>
-          </section>
+          {visibleWeeklyWidgets.length > 0 ? (
+            <section id="dashboard-weekly" className="scroll-mt-28 space-y-3">
+              <div className="flex items-center gap-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">This Week</h2>
+                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-500">
+                  {loading ? "—" : `${formatUsd(summary?.weekAmount ?? 0)} · ${summary?.weekCount ?? 0} gift${(summary?.weekCount ?? 0) === 1 ? "" : "s"}`}
+                </span>
+              </div>
+              <div className={sectionLayoutClassName}>
+                {visibleWeeklyWidgets.map(renderWidgetById)}
+              </div>
+            </section>
+          ) : null}
+
+          {visibleMonthlyWidgets.length > 0 ? (
+            <section id="dashboard-monthly" className="scroll-mt-28 space-y-3">
+              <div className="flex items-center gap-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">This Month</h2>
+                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-500">
+                  {loading ? "—" : formatUsd(summary?.monthAmount ?? 0)}
+                </span>
+                {!loading && (summary?.momTrend ?? null) !== null && (
+                  <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${(summary?.momTrend ?? 0) >= 0 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}>
+                    {(summary?.momTrend ?? 0) >= 0 ? "▲" : "▼"} {Math.abs(Math.round(summary?.momTrend ?? 0))}% vs last month
+                  </span>
+                )}
+              </div>
+              <div className={sectionLayoutClassName}>
+                {visibleMonthlyWidgets.map(renderWidgetById)}
+              </div>
+            </section>
+          ) : null}
+
+          {visibleStewardshipWidgets.length > 0 ? (
+            <section id="dashboard-stewardship" className="scroll-mt-28 space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Stewardship And Actions</h2>
+              <div className={sectionLayoutClassName}>
+                {visibleStewardshipWidgets.map(renderWidgetById)}
+              </div>
+            </section>
+          ) : null}
+
+          {visibleIntelligenceWidgets.length > 0 ? (
+            <section className="space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Steward Intelligence</h2>
+              <div className={sectionLayoutClassName}>
+                {visibleIntelligenceWidgets.map(renderWidgetById)}
+              </div>
+            </section>
+          ) : null}
+
+          {visibleOtherWidgets.length > 0 ? (
+            <section id="dashboard-other" className="scroll-mt-28 space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Other</h2>
+              <div className={sectionLayoutClassName}>
+                {visibleOtherWidgets.map(renderWidgetById)}
+              </div>
+            </section>
+          ) : null}
         </>
       )}
 

@@ -227,7 +227,7 @@ function KpiCard({
 }) {
   const toneClass = kpiToneClassName[tone];
   return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.035)]">
+    <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.035)] transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-[0_14px_34px_rgba(5,150,105,0.08)]">
       <div className="flex items-start gap-3">
         <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ring-1 ${toneClass.bubble}`}>
           <MiniIcon kind={icon} />
@@ -311,7 +311,7 @@ export default function DashboardCommandCenter({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.035)]">
+        <div className="rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.035)] transition-all duration-200 hover:border-emerald-200">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Data snapshot</p>
           <p className="mt-1 max-w-[220px] truncate text-xs font-medium text-slate-600" title={dataThroughLabel}>
             {loading ? "Updating..." : dataThroughLabel.replace("Data through ", "").replace("Refreshed ", "")}
@@ -363,7 +363,7 @@ export default function DashboardCommandCenter({
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.035)]">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.035)] transition-all duration-200 hover:border-emerald-200 hover:shadow-[0_14px_34px_rgba(5,150,105,0.08)]">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-slate-950">Revenue pace</p>
@@ -404,7 +404,7 @@ export default function DashboardCommandCenter({
           </div>
         </div>
 
-        <aside className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.035)]">
+        <aside className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.035)] transition-all duration-200 hover:border-emerald-200 hover:shadow-[0_14px_34px_rgba(5,150,105,0.08)]">
           <div className={`rounded-2xl border px-4 py-4 ${priorityAction.toneClassName}`}>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] opacity-80">{priorityAction.eyebrow}</p>
             <h2 className="mt-2 text-xl font-semibold tracking-tight">{priorityAction.title}</h2>
@@ -477,7 +477,7 @@ export default function DashboardCommandCenter({
                 <Link
                   key={tool.title}
                   href={tool.href}
-                  className="group flex min-h-16 items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition-colors hover:border-emerald-200 hover:bg-emerald-50/50"
+                  className="group flex min-h-16 items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-emerald-50/50 hover:shadow-[0_10px_24px_rgba(5,150,105,0.08)]"
                 >
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-500 ring-1 ring-slate-100 group-hover:bg-white group-hover:text-emerald-700">
                     <MiniIcon kind="action" />
@@ -496,7 +496,7 @@ export default function DashboardCommandCenter({
                   <Link
                     key={tool.title}
                     href={tool.href}
-                    className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+                    className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
                   >
                     {tool.title}
                   </Link>

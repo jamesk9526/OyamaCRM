@@ -99,16 +99,16 @@ export default function DashboardWidget({
       onDrop={editMode ? onDrop : undefined}
       onDragEnd={editMode ? onDragEnd : undefined}
       className={`
-        bg-white rounded-xl border border-slate-200/80 flex flex-col transition-all duration-150
+        bg-white/95 rounded-2xl border border-slate-200/85 flex flex-col transition-all duration-200 shadow-[0_10px_30px_rgba(15,23,42,0.04)]
         ${editMode && isDragging ? "opacity-40 scale-[0.98] shadow-none" : ""}
         ${editMode && isDragOver ? "ring-2 ring-green-400 ring-offset-1 border-transparent" : ""}
-        ${editMode ? "ring-1 ring-green-200" : "hover:border-slate-300"}
+        ${editMode ? "ring-1 ring-green-200" : "hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-[0_14px_36px_rgba(5,150,105,0.09)]"}
         ${layoutClassName}
         ${className}
       `}
     >
       {/* ── Card header ── */}
-      <div className="flex min-h-14 items-center gap-2 px-4 py-3 border-b border-slate-100/90 select-none">
+      <div className="flex min-h-14 items-center gap-2 px-4 py-3 border-b border-slate-100/90 bg-gradient-to-r from-white to-slate-50/40 select-none">
 
         {/* Six-dot drag handle — visible only in edit mode */}
         {editMode && (
