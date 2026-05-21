@@ -784,9 +784,9 @@ export default function TopBar() {
   const desktopNotificationsRef = useRef<HTMLDivElement | null>(null);
 
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
-  const chromeButtonBase = `${scrolled ? "w-8 h-8 md:w-7 md:h-7" : "w-10 h-10 md:w-9 md:h-9"} rounded-xl border border-slate-700 bg-slate-900 text-slate-300 shadow-[0_10px_24px_rgba(2,6,23,0.5)] flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:border-emerald-400/70 hover:bg-slate-800 hover:text-emerald-300 active:translate-y-0`;
-  const darkIconButtonBase = `${scrolled ? "w-6 h-6" : "w-8 h-8"} rounded-xl border border-slate-700 bg-slate-900 text-slate-300 shadow-[0_10px_24px_rgba(2,6,23,0.5)] flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:border-emerald-400/70 hover:bg-slate-800 hover:text-emerald-300 active:translate-y-0 active:scale-95`;
-  const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-700 bg-slate-900 shadow-[0_16px_40px_rgba(2,6,23,0.7)] z-50 overflow-hidden md:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
+  const chromeButtonBase = `${scrolled ? "w-8 h-8 md:w-7 md:h-7" : "w-10 h-10 md:w-9 md:h-9"} rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0`;
+  const darkIconButtonBase = `${scrolled ? "w-6 h-6" : "w-8 h-8"} rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0 active:scale-95`;
+  const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] z-50 overflow-hidden md:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
   const moduleAccentClass = moduleKey === "compassion"
     ? "bg-blue-600"
     : moduleKey === "events"
@@ -1209,15 +1209,20 @@ export default function TopBar() {
           </div>
         </>
       )}
-      <header data-topbar-root="true" className={`fixed top-0 left-0 right-0 isolate z-20 flex w-full shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-950/95 px-2 shadow-[0_12px_34px_rgba(2,6,23,0.55)] backdrop-blur-md transition-[height] duration-200 lg:gap-3 lg:px-3 min-[1440px]:gap-4 min-[1440px]:px-4 ${scrolled ? "h-10" : "h-14"}`} style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
+      <header data-topbar-root="true" className={`fixed top-0 left-0 right-0 isolate z-20 flex w-full shrink-0 items-center gap-2 border-b border-slate-200/80 bg-white/95 px-2 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-md transition-[height] duration-200 lg:gap-3 lg:px-3 min-[1440px]:gap-4 min-[1440px]:px-4 ${scrolled ? "h-10" : "h-14"}`} style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute left-0 top-0 hidden h-full w-[400px] bg-white lg:block min-[1440px]:w-[440px]"
+          className="pointer-events-none absolute left-0 top-0 hidden h-full w-[25vw] min-w-[360px] max-w-[520px] bg-slate-950 lg:block"
           style={{ clipPath: "polygon(0 0, 86% 0, 74% 100%, 0 100%)" }}
         />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-slate-800/80"
+          className="pointer-events-none absolute left-0 top-0 hidden h-full w-[25vw] min-w-[360px] max-w-[520px] bg-[radial-gradient(circle_at_22%_30%,rgba(22,163,74,0.18),transparent_34%),linear-gradient(90deg,#020617,#0f172a)] lg:block"
+          style={{ clipPath: "polygon(0 0, 86% 0, 74% 100%, 0 100%)" }}
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white"
         />
         <div
           aria-hidden="true"
@@ -1229,7 +1234,7 @@ export default function TopBar() {
         />
         <div
           aria-hidden="true"
-          className={`absolute inset-x-0 bottom-0 h-px pointer-events-none transition-opacity duration-300 ${moduleAccentClass} ${topBarReactiveGlow ? "opacity-90" : "opacity-45"}`}
+          className={`absolute inset-x-0 bottom-0 h-px pointer-events-none transition-opacity duration-300 ${moduleAccentClass} ${topBarReactiveGlow ? "opacity-90" : "opacity-55"}`}
         />
         <div
           aria-hidden="true"
@@ -1244,32 +1249,32 @@ export default function TopBar() {
             type="button"
             aria-label="Open navigation menu"
             onClick={() => window.dispatchEvent(new CustomEvent("crm:open-mobile-nav"))}
-            className="flex lg:hidden h-10 w-10 items-center justify-center rounded-xl text-slate-300 hover:bg-slate-800 transition-colors active:bg-slate-700 shrink-0"
+            className="flex lg:hidden h-10 w-10 items-center justify-center rounded-xl text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors active:bg-emerald-100 shrink-0"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
           {/* ── TopBar Brand ── */}
-          <Link href={homeHref} className="flex shrink-0 items-center rounded-xl border border-transparent px-1 py-0.5 transition-all hover:border-slate-700 hover:bg-slate-900" aria-label="Go to workspace home">
+          <Link href={homeHref} className="flex shrink-0 items-center rounded-xl border border-transparent px-1 py-0.5 transition-all hover:border-white/10 hover:bg-white/5" aria-label="Go to workspace home">
             <Image
-              src="/branding/oyama-logo.png"
+              src="/branding/oyama-darklogocrm.png"
               alt="OyamaCRM"
-              width={68}
-              height={28}
-              className={`block ${scrolled ? "h-5 w-[56px]" : "h-7 w-[68px]"} object-contain object-left transition-all duration-200`}
+              width={128}
+              height={42}
+              className={`block overflow-hidden rounded-md ${scrolled ? "h-6 w-[82px]" : "h-9 w-[118px]"} object-cover object-center transition-all duration-200`}
               priority
             />
           </Link>
 
-          <div className={`w-px ${scrolled ? "h-4" : "h-6"} bg-slate-700 shrink-0 transition-all duration-200`} />
+          <div className={`w-px ${scrolled ? "h-4" : "h-6"} bg-white/15 shrink-0 transition-all duration-200`} />
 
           {/* ── Module switcher (left anchor) ── */}
           {workspaceSettings.showModuleSwitcher && (
             <>
               <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled={scrolled} />
               {/* ── Divider ── */}
-              <div className={`w-px ${scrolled ? "h-4" : "h-6"} bg-slate-700 shrink-0 transition-all duration-200`} />
+              <div className={`w-px ${scrolled ? "h-4" : "h-6"} bg-white/15 shrink-0 transition-all duration-200`} />
             </>
           )}
 
@@ -1425,11 +1430,19 @@ export default function TopBar() {
               aria-label="Open global search"
               title="Search OyamaCRM"
               onClick={() => setMobileSearchOpen(true)}
-              className={`flex ${scrolled ? "h-7 w-7" : "h-10 w-10"} items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-300 shadow-[0_10px_24px_rgba(2,6,23,0.5)] transition-all duration-200 hover:-translate-y-px hover:border-emerald-400/70 hover:bg-slate-800 hover:text-emerald-300`}
+              className={`flex ${scrolled ? "h-7 max-w-[420px]" : "h-10 max-w-[560px]"} w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-3 text-slate-500 shadow-inner transition-all duration-200 hover:border-emerald-200 hover:bg-white hover:text-slate-700`}
             >
-              <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-              </svg>
+              <span className="flex min-w-0 items-center gap-2">
+                <svg className="h-[17px] w-[17px] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                </svg>
+                <span className={`truncate text-sm ${scrolled ? "hidden min-[1180px]:inline" : ""}`}>
+                  Search constituents, donations, campaigns, tools...
+                </span>
+              </span>
+              <span className="hidden rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 min-[1280px]:inline">
+                Ctrl K
+              </span>
             </button>
           </div>
 
@@ -1810,20 +1823,7 @@ function ModuleSwitcher({
   if (modules.length === 0) return null;
 
   const current = modules.find((m) => m.active) ?? modules[0];
-  const switcherButtonTone = "border-slate-200 bg-white";
-  const switcherTone = current.key === "compassion"
-    ? "from-blue-50 to-sky-50 border-blue-200/80"
-    : current.key === "events"
-      ? "from-violet-50 to-fuchsia-50 border-violet-200/80"
-      : current.key === "watchdog"
-        ? "from-red-50 to-rose-50 border-red-200/80"
-        : current.key === "webmaster"
-          ? "from-indigo-50 to-violet-50 border-indigo-200/80"
-          : current.key === "hrm"
-            ? "from-teal-50 to-cyan-50 border-teal-200/80"
-          : current.key === "oshareview"
-            ? "from-cyan-50 to-sky-50 border-cyan-200/80"
-            : "from-green-50 to-emerald-50 border-green-200/80";
+  const switcherButtonTone = "border-white/10 bg-white/5";
 
   function switchTo(href: string) {
     setOpen(false);
@@ -1836,16 +1836,16 @@ function ModuleSwitcher({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`group flex items-center rounded-xl border ${switcherButtonTone} text-slate-900 shadow-sm transition-all duration-200 hover:border-emerald-300 hover:bg-white ${scrolled ? "gap-1.5 px-1.5 py-1" : "gap-2.5 px-2.5 py-1.5"}`}
+        className={`group flex items-center rounded-xl border ${switcherButtonTone} text-white shadow-sm transition-all duration-200 hover:border-emerald-400/40 hover:bg-white/10 ${scrolled ? "gap-1.5 px-1.5 py-1" : "gap-2.5 px-2.5 py-1.5"}`}
       >
-        <span className={`flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 transition-all duration-200 ${scrolled ? "h-6 w-6" : "h-8 w-8"}`}>
+        <span className={`flex items-center justify-center rounded-lg border border-emerald-400/20 bg-emerald-400/10 text-emerald-200 transition-all duration-200 ${scrolled ? "h-6 w-6" : "h-8 w-8"}`}>
           {current.icon}
         </span>
         <div className="hidden sm:block text-left leading-tight min-w-0">
-          <p className="text-[9px] uppercase tracking-[0.22em] text-slate-500">Workspace</p>
-          <p className="text-xs font-semibold text-slate-900 truncate">{current.label}</p>
+          <p className="text-[9px] uppercase tracking-[0.22em] text-slate-400">Workspace</p>
+          <p className="text-xs font-semibold text-white truncate">{current.label}</p>
         </div>
-        <svg className={`w-3.5 h-3.5 ml-0.5 text-slate-500 group-hover:text-slate-700 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className={`w-3.5 h-3.5 ml-0.5 text-slate-400 group-hover:text-emerald-200 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -1853,28 +1853,28 @@ function ModuleSwitcher({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full mt-2 w-[320px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg z-50">
-            <div className={`px-4 pt-3 pb-2 border-b border-slate-100 bg-gradient-to-r ${switcherTone}`}>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.22em]">Switch Workspace</p>
-              <p className="text-[11px] text-slate-600 mt-0.5">Open another module without leaving your current session.</p>
+          <div className="absolute left-0 top-full mt-2 w-[320px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-slate-700/80 bg-slate-950 shadow-[0_24px_70px_rgba(2,6,23,0.38)] z-50">
+            <div className={`px-4 pt-3 pb-2 border-b border-slate-800 bg-[radial-gradient(circle_at_15%_0%,rgba(16,185,129,0.18),transparent_34%),linear-gradient(90deg,#020617,#0f172a)]`}>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.22em]">Switch Workspace</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Open another module without leaving your current session.</p>
             </div>
             <div className="p-2.5 space-y-2">
               {modules.map((m) => (
                 <button
                   key={m.key}
                   onClick={() => switchTo(m.href)}
-                  className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${m.active ? "border-slate-300 bg-slate-100" : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"}`}
+                  className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${m.active ? "border-emerald-400/30 bg-emerald-500/15" : "border-transparent bg-transparent hover:border-slate-700 hover:bg-white/8"}`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-700 flex items-center justify-center shrink-0">
+                    <span className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${m.active ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-200" : "border-slate-700 bg-white/5 text-slate-300"}`}>
                       {m.icon}
                     </span>
                     <div className="min-w-0 flex-1 px-2">
-                      <p className="text-[13px] font-semibold text-slate-900 truncate">{m.label}</p>
-                      <p className="text-[11px] text-slate-600 mt-0.5 truncate">{m.helper}</p>
+                      <p className="text-[13px] font-semibold text-white truncate">{m.label}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5 truncate">{m.helper}</p>
                     </div>
                     {m.active && (
-                      <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 text-emerald-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                       </svg>
                     )}

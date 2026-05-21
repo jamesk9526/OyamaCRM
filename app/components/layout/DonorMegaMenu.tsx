@@ -1,7 +1,6 @@
 /**
- * DonorMegaMenu — fixed horizontal mega-navigation bar for DonorCRM.
- * Replaces the left sidebar with a top-mounted nav strip at top-14 (below TopBar).
- * Each section header opens a wide dropdown panel with organized columns.
+ * DonorMegaMenu — compact DonorCRM workspace navigation below the global TopBar.
+ * Each section opens a light mega panel with canonical donor workflows grouped by intent.
  */
 "use client";
 
@@ -239,6 +238,24 @@ function ChevronDown({ open }: { open: boolean }) {
   );
 }
 
+/** Minimal line icon used to keep the navigation compact without extra dependencies. */
+function NavGlyph({ id }: { id: string }) {
+  const pathById: Record<string, string> = {
+    dashboard: "M4 13h6V5H4v8Zm10 6h6V5h-6v14ZM4 19h6v-4H4v4Z",
+    "core-crm": "M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8 1a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM4 20a5 5 0 0 1 10 0M12 20a5 5 0 0 1 8-4",
+    fundraising: "M12 3v18M7 7.5h7a3 3 0 0 1 0 6h-4a3 3 0 0 0 0 6h7",
+    outreach: "M4 6h16v12H4V6Zm0 0 8 7 8-7",
+    insights: "M5 19V5m0 14h14M9 15l3-4 3 2 4-6",
+    admin: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0-5v3m0 12v3M4.9 4.9 7 7m10 10 2.1 2.1M3 12h3m12 0h3M4.9 19.1 7 17m10-10 2.1-2.1",
+  };
+  const path = pathById[id] ?? "M5 12h14M12 5l7 7-7 7";
+  return (
+    <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d={path} />
+    </svg>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function DonorMegaMenu() {
@@ -300,7 +317,7 @@ export default function DonorMegaMenu() {
   // Compute portal position for open dropdown.
   const activeSectionForPortal = openSection ? navSections.find((s) => s.id === openSection) : null;
   const portalColCount = activeSectionForPortal?.columns?.length ?? 1;
-  const portalMinWidth = portalColCount > 1 ? 480 : 260;
+  const portalMinWidth = portalColCount > 1 ? 560 : 320;
   const portalLeft = dropdownAnchor
     ? Math.max(8, Math.min(dropdownAnchor.left, window.innerWidth - portalMinWidth - 8))
     : 0;
@@ -309,7 +326,7 @@ export default function DonorMegaMenu() {
     <>
     <nav
       aria-label="DonorCRM primary navigation"
-      className={`fixed left-0 right-0 z-[19] hidden md:flex h-10 items-stretch gap-0.5 border-b border-slate-700/60 bg-slate-900/98 px-2 backdrop-blur-sm transition-[top] duration-200 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${scrolled ? "top-10" : "top-14"}`}
+      className={`fixed left-0 right-0 z-[19] hidden h-12 items-center gap-1 border-b border-slate-800/80 bg-slate-950/96 px-3 shadow-[0_12px_30px_rgba(2,6,23,0.28)] backdrop-blur-md transition-[top] duration-200 md:flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${scrolled ? "top-10" : "top-14"}`}
     >
       {navSections.map((section) => {
         const active = isSectionActive(section);
@@ -321,21 +338,19 @@ export default function DonorMegaMenu() {
             <Link
               key={section.id}
               href={section.href}
-              className={`relative flex shrink-0 items-center px-3.5 text-sm font-medium transition-colors duration-150 ${
+              className={`relative flex h-9 shrink-0 items-center gap-2 rounded-xl px-3.5 text-sm font-semibold transition-colors duration-150 ${
                 active
-                  ? "text-white after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-emerald-400"
-                  : "text-slate-300 hover:text-white"
+                  ? "bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/25"
+                  : "text-slate-300 hover:bg-white/8 hover:text-white"
               }`}
             >
+              <NavGlyph id={section.id} />
               {section.label}
             </Link>
           );
         }
 
         /* ── Dropdown section ── */
-        const colCount = section.columns?.length ?? 1;
-        const dropdownWidth = colCount === 1 ? "min-w-[260px]" : "min-w-[480px]";
-
         return (
           <div key={section.id} className="relative flex h-full shrink-0 items-stretch">
             <button
@@ -351,12 +366,13 @@ export default function DonorMegaMenu() {
               }}
               aria-expanded={open}
               aria-haspopup="true"
-              className={`relative flex h-full shrink-0 items-center gap-1 px-3.5 text-sm font-medium transition-colors duration-150 ${
+              className={`relative my-1.5 flex h-9 shrink-0 items-center gap-2 rounded-xl px-3.5 text-sm font-semibold transition-colors duration-150 ${
                 active || open
-                  ? "text-white after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-emerald-400"
-                  : "text-slate-300 hover:text-white"
+                  ? "bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/25"
+                  : "text-slate-300 hover:bg-white/8 hover:text-white"
               }`}
             >
+              <NavGlyph id={section.id} />
               {section.label}
               <ChevronDown open={open} />
             </button>
@@ -379,24 +395,30 @@ export default function DonorMegaMenu() {
         <div
           style={{
             position: "fixed",
-            top: dropdownAnchor.bottom + 2,
+            top: dropdownAnchor.bottom + 8,
             left: portalLeft,
             minWidth: portalMinWidth,
             maxWidth: "calc(100vw - 16px)",
             zIndex: 49,
           }}
-          className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
+          className="overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-950 shadow-[0_28px_80px_rgba(2,6,23,0.42)]"
         >
           {/* Panel header */}
-          <div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-              {activeSectionForPortal.label}
-            </p>
+          <div className="border-b border-slate-800 bg-[radial-gradient(circle_at_15%_0%,rgba(16,185,129,0.18),transparent_34%),linear-gradient(90deg,#020617,#0f172a)] px-4 py-3">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-400/10 text-emerald-200 shadow-sm">
+                <NavGlyph id={activeSectionForPortal.id} />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-white">{activeSectionForPortal.label}</p>
+                <p className="text-xs text-slate-400">Open the canonical donor workspace or workflow.</p>
+              </div>
+            </div>
           </div>
           {/* Item columns */}
-          <div className={`grid gap-1 p-2.5 ${portalColCount > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+          <div className={`grid gap-2 p-3 ${portalColCount > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
             {activeSectionForPortal.columns.map((col, colIdx) => (
-              <div key={colIdx} className="flex flex-col gap-0.5">
+              <div key={colIdx} className="flex flex-col gap-1">
                 {col.map((item) => {
                   const itemActive =
                     pathname === item.href ||
@@ -406,19 +428,22 @@ export default function DonorMegaMenu() {
                       key={item.id}
                       href={item.href}
                       onClick={() => { setOpenSection(null); setDropdownAnchor(null); }}
-                      className={`group flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors ${
+                      className={`group flex items-start gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
                         itemActive
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                          ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-200"
+                          : "border-transparent text-slate-300 hover:border-slate-700 hover:bg-white/8 hover:text-white"
                       }`}
                     >
+                      <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${itemActive ? "bg-emerald-400/15 text-emerald-200" : "bg-white/8 text-slate-400 group-hover:bg-white/10 group-hover:text-emerald-200"}`}>
+                        <NavGlyph id={activeSectionForPortal.id} />
+                      </span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className={`text-sm font-medium leading-tight ${itemActive ? "text-emerald-700" : ""}`}>
+                          <span className={`text-sm font-medium leading-tight ${itemActive ? "text-emerald-100" : ""}`}>
                             {item.label}
                           </span>
                           {item.badge && (
-                            <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                            <span className="rounded-full bg-emerald-400/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-200">
                               {item.badge}
                             </span>
                           )}

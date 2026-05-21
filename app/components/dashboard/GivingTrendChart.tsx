@@ -1,13 +1,14 @@
 "use client";
 /**
- * GivingTrendChart — CSS bar chart showing monthly donation totals for the current year.
- * Fetches /api/reports/giving-by-month?year=YYYY.
+ * GivingTrendChart — SVG line chart showing monthly donation totals for the active reporting year.
+ * Fetches /api/reports/giving-by-month and reorders fiscal-year months by org settings.
  * When includeGrants=true, stacks awarded grant amounts on top of each bar in a lighter shade.
  * Renders 12 bars with hover tooltips and month labels.
  */
 
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import { getFiscalYearForDate, normalizeFiscalYearStart } from "@/app/lib/fiscal-year";
 
 interface MonthData {
   month: number;       // 1-12
@@ -20,6 +21,10 @@ interface TrendPoint {
   label: string;
   current: number;
   previous: number;
+}
+
+interface FiscalSettingsResponse {
+  fiscalYearStart?: number;
 }
 
 interface GivingTrendChartProps {
@@ -47,11 +52,13 @@ function formatCurrencyExact(n: number): string {
 export default function GivingTrendChart({ includeGrants = false, dateBasis = "calendar" }: GivingTrendChartProps) {
   const [currentData, setCurrentData] = useState<MonthData[]>([]);
   const [previousData, setPreviousData] = useState<MonthData[]>([]);
+  const [fiscalYearStart, setFiscalYearStart] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hoveredMonth, setHoveredMonth] = useState<number | null>(null);
 
   const year = new Date().getFullYear();
+  const currentFiscalYear = getFiscalYearForDate(new Date(), fiscalYearStart);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,17 +67,25 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
 
     async function loadTrend() {
       try {
-        const currentQuery = dateBasis === "fiscal" ? "dateBasis=fiscal" : `year=${year}`;
-        const previousQuery = `year=${year - 1}`;
+        const settings = dateBasis === "fiscal"
+          ? await apiFetch<FiscalSettingsResponse>("/api/settings").catch(() => null)
+          : null;
+        const resolvedFiscalYearStart = normalizeFiscalYearStart(settings?.fiscalYearStart);
+        const resolvedFiscalYear = getFiscalYearForDate(new Date(), resolvedFiscalYearStart);
+        const currentQuery = dateBasis === "fiscal"
+          ? `dateBasis=fiscal&year=${resolvedFiscalYear}`
+          : `year=${year}`;
+        const previousQuery = dateBasis === "fiscal"
+          ? `dateBasis=fiscal&year=${resolvedFiscalYear - 1}`
+          : `year=${year - 1}`;
 
         const [rows, prevRows] = await Promise.all([
           apiFetch<MonthData[]>(`/api/reports/giving-by-month?${currentQuery}`),
-          dateBasis === "calendar"
-            ? apiFetch<MonthData[]>(`/api/reports/giving-by-month?${previousQuery}`)
-            : Promise.resolve<MonthData[]>([]),
+          apiFetch<MonthData[]>(`/api/reports/giving-by-month?${previousQuery}`),
         ]);
 
         if (cancelled) return;
+        setFiscalYearStart(resolvedFiscalYearStart);
 
         const source = Array.isArray(rows) ? rows : [];
         // Ensure all 12 months are present (fill zeros), pick up the new grantAmount field.
@@ -117,19 +132,24 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
   const monthTotal = (d: MonthData) => d.amount + (includeGrants ? d.grantAmount : 0);
 
   const points: TrendPoint[] = useMemo(() => {
-    return Array.from({ length: 12 }, (_, i) => ({
-      month: i + 1,
-      label: MONTH_LABELS[i],
-      current: monthTotal(currentData[i] ?? { month: i + 1, amount: 0, grantAmount: 0 }),
-      previous: monthTotal(previousData[i] ?? { month: i + 1, amount: 0, grantAmount: 0 }),
+    const monthSequence = Array.from({ length: 12 }, (_, i) => (
+      dateBasis === "fiscal"
+        ? ((fiscalYearStart - 1 + i) % 12) + 1
+        : i + 1
+    ));
+    return monthSequence.map((month) => ({
+      month,
+      label: MONTH_LABELS[month - 1],
+      current: monthTotal(currentData.find((row) => row.month === month) ?? { month, amount: 0, grantAmount: 0 }),
+      previous: monthTotal(previousData.find((row) => row.month === month) ?? { month, amount: 0, grantAmount: 0 }),
     }));
-  }, [currentData, previousData, includeGrants]);
+  }, [currentData, previousData, includeGrants, dateBasis, fiscalYearStart]);
 
   const totalYTD = points.reduce((sum, p) => sum + p.current, 0);
   const maxValue = Math.max(
     1,
     ...points.map((p) => p.current),
-    ...(dateBasis === "calendar" ? points.map((p) => p.previous) : [0]),
+    ...points.map((p) => p.previous),
   );
 
   const roundedMax = Math.ceil(maxValue / 50000) * 50000 || 50000;
@@ -156,7 +176,7 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
     .join(" ");
 
   const hovered = hoveredMonth != null ? points[hoveredMonth - 1] : null;
-  const isFlatZero = points.every((p) => p.current === 0 && (dateBasis !== "calendar" || p.previous === 0));
+  const isFlatZero = points.every((p) => p.current === 0 && p.previous === 0);
 
   const yTicks = [1, 0.75, 0.5, 0.25, 0].map((t) => Math.round(roundedMax * t));
 
@@ -183,7 +203,7 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
               + Grants
             </span>
           )}
-          <span className="text-xs font-medium text-gray-400">{dateBasis === "fiscal" ? "Fiscal year" : year}</span>
+          <span className="text-xs font-medium text-gray-400">{dateBasis === "fiscal" ? `FY ${currentFiscalYear}` : year}</span>
         </div>
       </div>
 
@@ -208,7 +228,7 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
             <div className="absolute left-3 top-2 z-10 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] shadow-sm">
               <p className="font-semibold text-slate-800">{hovered.label}</p>
               <p className="text-emerald-700">This year: {formatCurrencyExact(hovered.current)}</p>
-              {dateBasis === "calendar" ? <p className="text-slate-500">Last year: {formatCurrencyExact(hovered.previous)}</p> : null}
+              <p className="text-slate-500">Prior year: {formatCurrencyExact(hovered.previous)}</p>
             </div>
           ) : null}
 
@@ -233,10 +253,8 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
               </text>
             ))}
 
-            {/* Last year line */}
-            {dateBasis === "calendar" ? (
-              <path d={previousPath} fill="none" stroke="#94a3b8" strokeWidth="2" strokeDasharray="5 4" />
-            ) : null}
+            {/* Prior reporting year line */}
+            <path d={previousPath} fill="none" stroke="#94a3b8" strokeWidth="2" strokeDasharray="5 4" />
 
             {/* This year line */}
             <path d={currentPath} fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -281,14 +299,12 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
       <div className="mt-2 flex items-center gap-3 text-[10px] text-slate-500">
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-emerald-600" />
-          This year
+          {dateBasis === "fiscal" ? "This fiscal year" : "This year"}
         </span>
-        {dateBasis === "calendar" ? (
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-0 w-4 border-t-2 border-dashed border-slate-400" />
-            Last year
-          </span>
-        ) : null}
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-0 w-4 border-t-2 border-dashed border-slate-400" />
+          Prior year
+        </span>
       </div>
     </div>
   );

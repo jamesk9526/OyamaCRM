@@ -38,6 +38,8 @@ Goal: create reusable primitives without changing page behavior.
 - [x] First pass: soften dashboard command center and metric cards without changing data loading or widget customization.
 - [x] Replace heavy ribbon controls with a cleaner action strip where safe.
 - [x] Add quick-action cards that match the target dashboard pattern.
+- [x] Second pass: rebuild the dashboard command center into a calmer reference-style header, KPI row, revenue pace card, priority action card, and compact quick actions.
+- [x] Fix Giving Trends fiscal-year comparison so fiscal mode requests the configured fiscal year and orders months from the fiscal start month.
 - [ ] Verify dashboard at 1366x768 and 1280x720.
 
 ### Phase 3: Constituents Page
@@ -95,12 +97,16 @@ Done:
 - [x] Dashboard heavy ribbon controls replaced with `CRMActionBar` while preserving routes and handlers.
 - [x] Dashboard quick-action cards updated to the shared target card pattern.
 - [x] Top bar refreshed to a light surface with dark text/icons, including Steward runtime status contrast.
+- [x] Top bar updated with a dark diagonal brand block using `public/branding/oyama-darklogocrm.png`.
+- [x] Workspace selector and DonorCRM mega menu updated to dark surfaces with green active states.
 - [x] Sidebar grouping/style refreshed with Home and Core CRM grouping.
 - [x] Shared data table adoption extended to Tasks after Constituents and Donations.
 - [x] Letter builder scroll containment fixed after page-scroll QA.
+- [x] Messenger panel refreshed with its own top bar, image attachment support, optional 2-day image expiry, and sender message editing.
 - [x] AGENTS visual refresh guidance added.
 - [x] Focused source smoke test added for shared primitives.
 - [x] `pnpm typecheck:web` passed.
+- [x] `pnpm typecheck:server` passed after messenger route updates.
 
 Not Done:
 

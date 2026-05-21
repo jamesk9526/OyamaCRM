@@ -6,8 +6,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import StatCard from "@/app/components/dashboard/StatCard";
-import CRMQuickActionCard from "@/app/components/ui/crm/CRMQuickActionCard";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface DashboardCommandCenterProps {
@@ -186,8 +184,66 @@ function getPaceLabel(revenuePercent: number): string {
   return "Needs lift";
 }
 
-function QuickToolLink({ tool }: { tool: QuickTool }) {
-  return <CRMQuickActionCard href={tool.href} title={tool.title} description={tool.description} />;
+type KpiTone = "green" | "blue" | "purple" | "orange" | "slate";
+
+const kpiToneClassName: Record<KpiTone, { bubble: string; trend: string }> = {
+  green: { bubble: "bg-emerald-50 text-emerald-700 ring-emerald-100", trend: "text-emerald-600" },
+  blue: { bubble: "bg-sky-50 text-sky-700 ring-sky-100", trend: "text-sky-600" },
+  purple: { bubble: "bg-violet-50 text-violet-700 ring-violet-100", trend: "text-violet-600" },
+  orange: { bubble: "bg-orange-50 text-orange-700 ring-orange-100", trend: "text-orange-600" },
+  slate: { bubble: "bg-slate-50 text-slate-700 ring-slate-100", trend: "text-slate-600" },
+};
+
+function MiniIcon({ kind }: { kind: "gift" | "month" | "retention" | "tasks" | "campaign" | "action" }) {
+  const pathByKind = {
+    gift: "M12 3v18M7 7.5h7a3 3 0 0 1 0 6h-4a3 3 0 0 0 0 6h7",
+    month: "M4.5 6.5h15v12h-15v-12ZM8 4v4M16 4v4M4.5 10.5h15",
+    retention: "M5 12a7 7 0 0 1 12-4.9M19 12a7 7 0 0 1-12 4.9M17 7h1V4M7 17H6v3",
+    tasks: "M9 11l2 2 4-4M5 5h14v14H5V5Z",
+    campaign: "M5 19V5m0 14h14M9 15l3-4 3 2 4-6",
+    action: "M13 5l7 7-7 7M5 12h14",
+  };
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d={pathByKind[kind]} />
+    </svg>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  helper,
+  tone,
+  icon,
+  loading,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+  tone: KpiTone;
+  icon: "gift" | "month" | "retention" | "tasks" | "campaign";
+  loading: boolean;
+}) {
+  const toneClass = kpiToneClassName[tone];
+  return (
+    <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.035)]">
+      <div className="flex items-start gap-3">
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ring-1 ${toneClass.bubble}`}>
+          <MiniIcon kind={icon} />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-xs font-medium text-slate-600">{label}</p>
+          {loading ? (
+            <div className="mt-2 h-7 w-24 animate-pulse rounded bg-slate-100" />
+          ) : (
+            <p className="mt-1 truncate text-2xl font-semibold tracking-tight text-slate-950">{value}</p>
+          )}
+          <p className={`mt-2 text-xs font-medium ${toneClass.trend}`}>{loading ? "Updating..." : helper}</p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -244,159 +300,111 @@ export default function DashboardCommandCenter({
   }
 
   return (
-    <section className="px-0 py-0">
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.95fr)]">
-        <div className="space-y-4">
+    <section className="space-y-4 px-0 py-0">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="mt-0 text-3xl font-semibold tracking-tight text-slate-950 sm:text-[2rem]">
+            {greeting}, {name}.
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 sm:text-[15px]">
+            Here&apos;s what&apos;s happening with your ministry today.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.035)]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Data snapshot</p>
+          <p className="mt-1 max-w-[220px] truncate text-xs font-medium text-slate-600" title={dataThroughLabel}>
+            {loading ? "Updating..." : dataThroughLabel.replace("Data through ", "").replace("Refreshed ", "")}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <KpiCard
+          label="Total Giving (YTD)"
+          value={formatCurrency(ytdAmount)}
+          helper={`${revenuePercent}% of goal`}
+          tone="green"
+          icon="gift"
+          loading={loading}
+        />
+        <KpiCard
+          label="This Month"
+          value={formatCurrency(monthAmount)}
+          helper={monthTrend != null ? `${monthTrend >= 0 ? "Up" : "Down"} ${Math.abs(Math.round(monthTrend))}% vs last month` : "No prior month yet"}
+          tone="blue"
+          icon="month"
+          loading={loading}
+        />
+        <KpiCard
+          label="New Donors"
+          value={newDonorsThisMonth.toLocaleString()}
+          helper="This reporting window"
+          tone="purple"
+          icon="campaign"
+          loading={loading}
+        />
+        <KpiCard
+          label="Open Tasks"
+          value={pendingTasks.toLocaleString()}
+          helper={overdueTasks > 0 ? `${overdueTasks} due today or overdue` : "Queue is current"}
+          tone={overdueTasks > 0 ? "orange" : "slate"}
+          icon="tasks"
+          loading={loading}
+        />
+        <KpiCard
+          label="Retention Rate"
+          value={`${retentionRate}%`}
+          helper="Donor repeat rate"
+          tone="green"
+          icon="retention"
+          loading={loading}
+        />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.035)]">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h1 className="mt-0 text-3xl font-semibold tracking-tight text-slate-900 sm:text-[2rem]">
-                {greeting}, {name}.
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 sm:text-[15px]">
-                Here's what's happening with your ministry today.
+              <p className="text-sm font-semibold text-slate-950">Revenue pace</p>
+              <p className="mt-1 text-xs text-slate-500">
+                {loading ? "Loading revenue snapshot" : `${formatCurrency(ytdAmount)} of ${formatCurrency(revenueGoal)} goal`}
               </p>
             </div>
-
-            <div className="min-w-[220px] rounded-xl border border-slate-200/80 bg-white px-4 py-3">
-              <div className="flex items-center justify-between gap-2 mb-2.5">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Data snapshot</p>
-                <span className="text-[10px] text-slate-400 truncate max-w-[120px]" title={dataThroughLabel}>
-                  {loading ? "Updating…" : dataThroughLabel.replace("Data through ", "").replace("Refreshed ", "")}
-                </span>
-              </div>
-              <div className="grid grid-cols-3 divide-x divide-slate-100">
-                <div className="pr-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">This Week</p>
-                  <p className="mt-1 text-base font-bold text-slate-900">{loading ? "—" : formatCurrency(weekAmount)}</p>
-                  <p className="text-[11px] text-slate-500">{loading ? "—" : `${weekCount} gift${weekCount === 1 ? "" : "s"}`}</p>
-                </div>
-                <div className="px-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">This Month</p>
-                  <p className="mt-1 text-base font-bold text-slate-900">{loading ? "—" : formatCurrency(monthAmount)}</p>
-                  {!loading && monthTrend !== null ? (
-                    <p className={`text-[11px] font-medium ${monthTrend >= 0 ? "text-emerald-600" : "text-red-500"}`}>
-                      {monthTrend >= 0 ? "▲" : "▼"} {Math.abs(Math.round(monthTrend))}% vs last mo
-                    </p>
-                  ) : (
-                    <p className="text-[11px] text-slate-500">vs last month</p>
-                  )}
-                </div>
-                <div className="pl-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Campaigns</p>
-                  <p className="mt-1 text-base font-bold text-slate-900">{loading ? "—" : activeCampaigns}</p>
-                  <p className="text-[11px] text-slate-500">{loading ? "—" : `${newDonorsThisMonth} new donor${newDonorsThisMonth === 1 ? "" : "s"}`}</p>
-                </div>
-              </div>
-            </div>
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+              {paceLabel}
+            </span>
           </div>
-
-          <div className="rounded-xl border border-slate-200/80 bg-white p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Revenue pace</p>
-                <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1">
-                  <p className="text-3xl font-semibold tracking-tight text-slate-950">{loading ? "..." : `${revenuePercent}%`}</p>
-                  <p className="text-sm text-slate-600">
-                    {loading ? "Loading revenue snapshot" : `${formatCurrency(ytdAmount)} of ${formatCurrency(revenueGoal)} goal`}
-                  </p>
-                </div>
-              </div>
-              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                {paceLabel}
-              </span>
-            </div>
-            <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-emerald-100">
-              <div
-                className="h-full rounded-full bg-[linear-gradient(90deg,_#16a34a_0%,_#22c55e_70%,_#86efac_100%)] transition-all duration-500"
-                style={{ width: `${revenuePercent}%` }}
-              />
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
-              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{pendingTasks} open task{pendingTasks === 1 ? "" : "s"}</span>
-              <span className={`rounded-full border px-2.5 py-1 ${overdueTasks > 0 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-                {overdueTasks > 0 ? `${overdueTasks} overdue` : "No overdue follow-ups"}
-              </span>
-              <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-sky-700">{newDonorsThisMonth} new donor{newDonorsThisMonth === 1 ? "" : "s"} this month</span>
-            </div>
+          <div className="mt-4 flex items-end gap-3">
+            <p className="text-4xl font-semibold tracking-tight text-slate-950">{loading ? "..." : `${revenuePercent}%`}</p>
+            <p className="pb-1 text-xs font-medium text-slate-500">funded</p>
           </div>
-
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <StatCard
-              label="YTD Raised"
-              value={ytdAmount}
-              format="currency"
-              loading={loading}
-              note={`${revenuePercent}% of goal`}
-              accent="border-green-500"
-            />
-            <StatCard
-              label="This Month"
-              value={monthAmount}
-              format="currency"
-              loading={loading}
-              trend={monthTrend != null ? { value: monthTrend, label: "vs last month" } : undefined}
-              accent="border-sky-500"
-            />
-            <StatCard
-              label="Retention"
-              value={retentionRate}
-              format="percent"
-              loading={loading}
-              note="Donor repeat rate"
-              accent="border-emerald-500"
-            />
-            <StatCard
-              label="Open Work"
-              value={pendingTasks}
-              format="number"
-              loading={loading}
-              alert={overdueTasks > 0 ? `${overdueTasks} overdue today` : undefined}
-              note={overdueTasks === 0 ? "Queue is current" : undefined}
-              accent={overdueTasks > 0 ? "border-amber-500" : "border-slate-400"}
+          <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-[linear-gradient(90deg,#059669_0%,#16a34a_65%,#86efac_100%)] transition-all duration-500"
+              style={{ width: `${revenuePercent}%` }}
             />
           </div>
-
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div className="rounded-xl border border-slate-200/80 bg-white p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Execution pressure</p>
-                <span className={`text-xs font-semibold ${overdueTasks > 0 ? "text-amber-700" : "text-emerald-700"}`}>
-                  {pendingTasks > 0 ? Math.round((overdueTasks / pendingTasks) * 100) : 0}% overdue
-                </span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className={overdueTasks > 0 ? "h-full bg-amber-500" : "h-full bg-emerald-500"}
-                  style={{ width: `${Math.min(100, Math.max(6, pendingTasks > 0 ? Math.round((overdueTasks / pendingTasks) * 100) : 0))}%` }}
-                />
-              </div>
-              <p className="mt-2 text-xs text-slate-500">
-                {pendingTasks.toLocaleString()} open tasks, {overdueTasks.toLocaleString()} overdue follow-ups.
-              </p>
+          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">This week</p>
+              <p className="mt-1 text-sm font-semibold text-slate-950">{loading ? "--" : formatCurrency(weekAmount)}</p>
+              <p className="text-[11px] text-slate-500">{loading ? "--" : `${weekCount} gift${weekCount === 1 ? "" : "s"}`}</p>
             </div>
-
-            <div className="rounded-xl border border-slate-200/80 bg-white p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Giving velocity</p>
-                <span className="text-xs font-semibold text-slate-700">
-                  {weekCount} gifts this week
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
-                  <p className="text-[10px] text-slate-500">Week Avg Gift</p>
-                  <p className="text-sm font-semibold text-slate-900">{weekCount > 0 ? formatCurrency(weekAmount / weekCount) : "$0"}</p>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
-                  <p className="text-[10px] text-slate-500">Retention</p>
-                  <p className="text-sm font-semibold text-slate-900">{retentionRate}%</p>
-                </div>
-              </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Week avg gift</p>
+              <p className="mt-1 text-sm font-semibold text-slate-950">{weekCount > 0 ? formatCurrency(weekAmount / weekCount) : "$0"}</p>
+              <p className="text-[11px] text-slate-500">Completed donations</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Campaigns</p>
+              <p className="mt-1 text-sm font-semibold text-slate-950">{loading ? "--" : activeCampaigns}</p>
+              <p className="text-[11px] text-slate-500">Active fundraising work</p>
             </div>
           </div>
         </div>
 
-        <aside className="rounded-xl border border-slate-200/80 bg-white p-4 sm:p-5">
+        <aside className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.035)]">
           <div className={`rounded-2xl border px-4 py-4 ${priorityAction.toneClassName}`}>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] opacity-80">{priorityAction.eyebrow}</p>
             <h2 className="mt-2 text-xl font-semibold tracking-tight">{priorityAction.title}</h2>
@@ -459,17 +467,26 @@ export default function DashboardCommandCenter({
           <div className="mt-4 space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-slate-900">Quick tools</p>
-                <p className="text-xs text-slate-500">Jump directly into the workspaces you are most likely to need today.</p>
+                <p className="text-sm font-semibold text-slate-950">Quick actions</p>
+                <p className="text-xs text-slate-500">Open the workspaces you are most likely to need today.</p>
               </div>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                At a glance
-              </span>
             </div>
 
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {PRIMARY_QUICK_TOOLS.map((tool) => (
-                <QuickToolLink key={tool.title} tool={tool} />
+                <Link
+                  key={tool.title}
+                  href={tool.href}
+                  className="group flex min-h-16 items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition-colors hover:border-emerald-200 hover:bg-emerald-50/50"
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-500 ring-1 ring-slate-100 group-hover:bg-white group-hover:text-emerald-700">
+                    <MiniIcon kind="action" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-xs font-semibold text-slate-900">{tool.title}</span>
+                    <span className="mt-0.5 block line-clamp-1 text-[11px] text-slate-500">{tool.description}</span>
+                  </span>
+                </Link>
               ))}
             </div>
 

@@ -36,6 +36,7 @@ interface MsgMessage {
   senderId: string;
   sender: { id: string; firstName: string; lastName: string; avatarUrl?: string | null };
   createdAt: string;
+  updatedAt: string;
 }
 
 interface MsgThread {
@@ -51,9 +52,66 @@ interface MsgThread {
     senderId: string;
     senderName: string;
     createdAt: string;
+    updatedAt?: string;
   } | null;
   lastReadAt: string | null;
   unreadCount: number;
+}
+
+interface MessengerAttachment {
+  kind: "image";
+  url: string;
+  name: string;
+  mimeType: string;
+  expiresAt: string | null;
+  autoDelete: boolean;
+}
+
+interface ParsedMessageContent {
+  text: string;
+  attachment: MessengerAttachment | null;
+}
+
+const MESSAGE_ENVELOPE_PREFIX = "__OYAMA_MSG_V1__";
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+function parseMessageContent(body: string): ParsedMessageContent {
+  if (!body.startsWith(MESSAGE_ENVELOPE_PREFIX)) return { text: body, attachment: null };
+  try {
+    const parsed = JSON.parse(body.slice(MESSAGE_ENVELOPE_PREFIX.length)) as Partial<ParsedMessageContent>;
+    const attachment = parsed.attachment?.kind === "image" && typeof parsed.attachment.url === "string"
+      ? {
+          kind: "image" as const,
+          url: parsed.attachment.url,
+          name: String(parsed.attachment.name ?? "Image"),
+          mimeType: String(parsed.attachment.mimeType ?? "image"),
+          expiresAt: typeof parsed.attachment.expiresAt === "string" ? parsed.attachment.expiresAt : null,
+          autoDelete: Boolean(parsed.attachment.autoDelete),
+        }
+      : null;
+    return { text: String(parsed.text ?? ""), attachment };
+  } catch {
+    return { text: body, attachment: null };
+  }
+}
+
+function serializeMessageContent(content: ParsedMessageContent): string {
+  if (!content.attachment) return content.text.trim();
+  return `${MESSAGE_ENVELOPE_PREFIX}${JSON.stringify({
+    text: content.text.trim(),
+    attachment: content.attachment,
+  })}`;
+}
+
+function previewMessageBody(body: string): string {
+  const content = parseMessageContent(body);
+  if (content.text.trim()) return content.text.trim();
+  if (content.attachment) return "Image attachment";
+  return "Message";
+}
+
+function isEdited(message: MsgMessage): boolean {
+  return new Date(message.updatedAt).getTime() - new Date(message.createdAt).getTime() > 1500;
 }
 
 // ─── Avatar helper ────────────────────────────────────────────────────────────
@@ -94,6 +152,24 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+function expiresInLabel(iso: string): string {
+  const diff = new Date(iso).getTime() - Date.now();
+  if (diff <= 0) return "now";
+  const hrs = Math.ceil(diff / 3600000);
+  if (hrs < 24) return `in ${hrs}h`;
+  const days = Math.ceil(hrs / 24);
+  return `in ${days}d`;
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("Could not read selected image."));
+    reader.readAsDataURL(file);
+  });
+}
+
 // ─── MessengerPanel ───────────────────────────────────────────────────────────
 
 export interface MessengerPanelProps {
@@ -110,12 +186,19 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [composing, setComposing] = useState("");
   const [sending, setSending] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [selectedImagePreview, setSelectedImagePreview] = useState<string | null>(null);
+  const [autoDeleteImage, setAutoDeleteImage] = useState(true);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
   const [showNewDm, setShowNewDm] = useState(false);
   const [orgUsers, setOrgUsers] = useState<MsgUser[]>([]);
   const [userSearch, setUserSearch] = useState("");
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const composeRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const sseRef = useRef<EventSource | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -175,6 +258,16 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
       }
     });
 
+    es.addEventListener("message:update", (ev: MessageEvent) => {
+      try {
+        const payload = JSON.parse(ev.data as string) as { threadId: string; message: MsgMessage };
+        setMessages((prev) => prev.map((message) => (message.id === payload.message.id ? payload.message : message)));
+        void loadThreads();
+      } catch {
+        // ignore malformed events
+      }
+    });
+
     return () => {
       es.close();
       sseRef.current = null;
@@ -212,6 +305,12 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
     }
   }, [activeThreadId]);
 
+  useEffect(() => {
+    return () => {
+      if (selectedImagePreview) URL.revokeObjectURL(selectedImagePreview);
+    };
+  }, [selectedImagePreview]);
+
   // ── Close on outside click ────────────────────────────────────────────────
 
   useEffect(() => {
@@ -228,23 +327,46 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
   // ── Send message ──────────────────────────────────────────────────────────
 
   const sendMessage = useCallback(async () => {
-    if (!composing.trim() || !activeThreadId || sending) return;
-    const body = composing.trim();
+    if ((!composing.trim() && !selectedImage) || !activeThreadId || sending) return;
+    const draftText = composing.trim();
+    const imageToSend = selectedImage;
+    const imagePreviewToRestore = selectedImagePreview;
     setComposing("");
+    setSelectedImage(null);
+    setSelectedImagePreview(null);
+    setUploadError(null);
     setSending(true);
     try {
+      let attachment: MessengerAttachment | null = null;
+      if (imageToSend) {
+        const dataUrl = await readFileAsDataUrl(imageToSend);
+        const upload = await apiFetch<{ attachment: MessengerAttachment }>("/api/messenger/attachments", {
+          method: "POST",
+          body: JSON.stringify({
+            dataUrl,
+            fileName: imageToSend.name,
+            mimeType: imageToSend.type,
+            autoDelete: autoDeleteImage,
+          }),
+        });
+        attachment = upload.attachment;
+      }
+      const body = serializeMessageContent({ text: draftText, attachment });
       const { message } = await apiFetch<{ message: MsgMessage }>(
         `/api/messenger/threads/${activeThreadId}/messages`,
         { method: "POST", body: JSON.stringify({ body }) }
       );
       setMessages((prev) => [...prev, message]);
       void loadThreads();
-    } catch {
-      setComposing(body); // restore on failure
+    } catch (error) {
+      setComposing(draftText);
+      setSelectedImage(imageToSend);
+      setSelectedImagePreview(imagePreviewToRestore);
+      setUploadError(error instanceof Error ? error.message : "Failed to send message.");
     } finally {
       setSending(false);
     }
-  }, [composing, activeThreadId, sending, loadThreads]);
+  }, [composing, selectedImage, selectedImagePreview, activeThreadId, sending, autoDeleteImage, loadThreads]);
 
   const handleComposeKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -252,6 +374,53 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
       void sendMessage();
     }
   };
+
+  function handleImageSelected(file: File | undefined) {
+    setUploadError(null);
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setUploadError("Choose an image file.");
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setUploadError("Images must be 5 MB or smaller.");
+      return;
+    }
+    setSelectedImage(file);
+    setSelectedImagePreview(URL.createObjectURL(file));
+  }
+
+  function clearSelectedImage() {
+    if (selectedImagePreview) URL.revokeObjectURL(selectedImagePreview);
+    setSelectedImage(null);
+    setSelectedImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function startEditingMessage(message: MsgMessage) {
+    const parsed = parseMessageContent(message.body);
+    setEditingMessageId(message.id);
+    setEditingText(parsed.text);
+  }
+
+  async function saveEditedMessage(message: MsgMessage) {
+    if (!activeThreadId || !editingMessageId) return;
+    const parsed = parseMessageContent(message.body);
+    const nextBody = serializeMessageContent({ text: editingText, attachment: parsed.attachment });
+    if (!nextBody.trim()) return;
+    try {
+      const { message: updated } = await apiFetch<{ message: MsgMessage }>(
+        `/api/messenger/threads/${activeThreadId}/messages/${editingMessageId}`,
+        { method: "PATCH", body: JSON.stringify({ body: nextBody }) }
+      );
+      setMessages((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setEditingMessageId(null);
+      setEditingText("");
+      void loadThreads();
+    } catch {
+      // Keep edit mode open so the sender can retry.
+    }
+  }
 
   // ── Start new DM ──────────────────────────────────────────────────────────
 
@@ -309,16 +478,61 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
       {/* Panel */}
       <div
         ref={panelRef}
-        className="fixed right-2 top-[3.75rem] z-50 flex h-[calc(100dvh-4.25rem)] w-[calc(100vw-1rem)] max-w-[420px] flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_24px_60px_rgba(2,6,23,0.18)]"
+        className="fixed right-2 top-[3.75rem] z-50 flex h-[calc(100dvh-4.25rem)] w-[calc(100vw-1rem)] max-w-[760px] flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_24px_60px_rgba(2,6,23,0.18)]"
         style={{ animation: "msgPanelIn 0.18s cubic-bezier(0.22,1,0.36,1)" }}
       >
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-950 px-4 py-3 text-white">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-emerald-300 ring-1 ring-white/10">
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
+              </svg>
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">Oyama Messenger</p>
+              <p className="truncate text-[11px] text-slate-300">
+                {activeThreadId ? "Staff conversation" : `${threads.length} conversation${threads.length === 1 ? "" : "s"} · ${totalUnread} unread`}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              title="New message"
+              onClick={() => void openNewDm()}
+              className="flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition-colors hover:bg-white/10"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+              </svg>
+              <span className="hidden sm:inline">Message</span>
+            </button>
+            <button
+              type="button"
+              title="Close"
+              onClick={onClose}
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
         {/* ── Header ───────────────────────────────────────────────────── */}
         {activeThreadId ? (
           /* Thread view header */
           <div className="flex items-center gap-3 border-b border-slate-100 bg-white px-3 py-3">
             <button
               type="button"
-              onClick={() => { setActiveThreadId(null); setMessages([]); setComposing(""); }}
+              onClick={() => {
+                setActiveThreadId(null);
+                setMessages([]);
+                setComposing("");
+                clearSelectedImage();
+                setEditingMessageId(null);
+                setEditingText("");
+              }}
               className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
@@ -512,7 +726,7 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
                     <div className="mt-0.5 flex items-center justify-between gap-2">
                       <p className={`truncate text-xs ${hasUnread ? "font-medium text-slate-700" : "text-slate-400"}`}>
                         {thread.lastMessage
-                          ? `${thread.lastMessage.senderId === user?.id ? "You: " : ""}${thread.lastMessage.body}`
+                          ? `${thread.lastMessage.senderId === user?.id ? "You: " : ""}${previewMessageBody(thread.lastMessage.body)}`
                           : "No messages yet"}
                       </p>
                       {hasUnread && (
@@ -548,9 +762,12 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
               )}
               {messages.map((msg, idx) => {
                 const isMe = msg.senderId === user?.id;
+                const parsed = parseMessageContent(msg.body);
                 const prevMsg = messages[idx - 1];
                 const showAvatar = !isMe && (!prevMsg || prevMsg.senderId !== msg.senderId);
                 const showTimestamp = !messages[idx + 1] || new Date(messages[idx + 1].createdAt).getTime() - new Date(msg.createdAt).getTime() > 60000 * 5;
+                const attachmentExpired = parsed.attachment?.expiresAt ? new Date(parsed.attachment.expiresAt).getTime() <= Date.now() : false;
+                const editingThis = editingMessageId === msg.id;
                 return (
                   <div key={msg.id} className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
                     {/* Avatar placeholder to maintain alignment for grouped messages */}
@@ -560,18 +777,69 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
                         : <div className="w-7 flex-shrink-0" />
                     )}
                     <div className={`flex flex-col max-w-[72%] ${isMe ? "items-end" : "items-start"}`}>
-                      <div
-                        className={`px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words ${
-                          isMe
-                            ? "rounded-2xl rounded-br-sm bg-blue-600 text-white shadow-sm"
-                            : "rounded-2xl rounded-bl-sm bg-white text-slate-900 shadow-sm border border-slate-200/80"
-                        }`}
-                      >
-                        {msg.body}
-                      </div>
+                      {editingThis ? (
+                        <div className="w-[min(22rem,70vw)] rounded-2xl border border-blue-200 bg-white p-2 shadow-sm">
+                          <textarea
+                            value={editingText}
+                            onChange={(event) => setEditingText(event.target.value)}
+                            className="min-h-20 w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                            autoFocus
+                          />
+                          <div className="mt-2 flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => { setEditingMessageId(null); setEditingText(""); }}
+                              className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void saveEditedMessage(msg)}
+                              className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className={`group relative overflow-hidden px-3.5 py-2.5 text-sm leading-relaxed break-words ${
+                            isMe
+                              ? "rounded-2xl rounded-br-sm bg-blue-600 text-white shadow-sm"
+                              : "rounded-2xl rounded-bl-sm bg-white text-slate-900 shadow-sm border border-slate-200/80"
+                          }`}
+                        >
+                          {parsed.attachment ? (
+                            <div className="mb-2 overflow-hidden rounded-xl border border-black/5 bg-black/5">
+                              {attachmentExpired ? (
+                                <div className={`px-3 py-8 text-center text-xs ${isMe ? "text-blue-100" : "text-slate-500"}`}>
+                                  Image expired
+                                </div>
+                              ) : (
+                                <img src={parsed.attachment.url} alt={parsed.attachment.name} className="max-h-56 w-full object-cover" />
+                              )}
+                            </div>
+                          ) : null}
+                          {parsed.text ? <p className="whitespace-pre-wrap">{parsed.text}</p> : null}
+                          {parsed.attachment?.autoDelete && parsed.attachment.expiresAt ? (
+                            <p className={`mt-1 text-[10px] ${isMe ? "text-blue-100" : "text-slate-400"}`}>
+                              Auto-deletes {expiresInLabel(parsed.attachment.expiresAt)}
+                            </p>
+                          ) : null}
+                          {isMe ? (
+                            <button
+                              type="button"
+                              onClick={() => startEditingMessage(msg)}
+                              className="absolute right-1.5 top-1.5 hidden rounded-md bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 shadow-sm group-hover:block"
+                            >
+                              Edit
+                            </button>
+                          ) : null}
+                        </div>
+                      )}
                       {showTimestamp && (
                         <p className={`mt-1 text-[10px] text-slate-400 ${isMe ? "text-right" : "text-left"}`}>
-                          {relativeTime(msg.createdAt)}
+                          {relativeTime(msg.createdAt)}{isEdited(msg) ? " · edited" : ""}
                         </p>
                       )}
                     </div>
@@ -583,8 +851,57 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
 
             {/* Compose bar */}
             <div className="border-t border-slate-100 bg-white px-3 py-3">
+              {selectedImagePreview ? (
+                <div className="mb-2 rounded-2xl border border-slate-200 bg-slate-50 p-2">
+                  <div className="flex items-start gap-3">
+                    <img src={selectedImagePreview} alt={selectedImage?.name ?? "Selected image"} className="h-20 w-24 rounded-xl object-cover" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-semibold text-slate-800">{selectedImage?.name ?? "Image"}</p>
+                      <label className="mt-2 flex items-center gap-2 text-xs font-medium text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={autoDeleteImage}
+                          onChange={(event) => setAutoDeleteImage(event.target.checked)}
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                        />
+                        Auto-delete image after 2 days
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearSelectedImage}
+                      className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 hover:bg-white hover:text-slate-700"
+                      aria-label="Remove selected image"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              {uploadError ? (
+                <p className="mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{uploadError}</p>
+              ) : null}
               <div className="flex items-end gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  className="hidden"
+                  onChange={(event) => handleImageSelected(event.target.files?.[0])}
+                />
                 <div className="flex flex-1 items-end gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                  <button
+                    type="button"
+                    title="Attach image"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="mb-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white hover:text-blue-600"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7 8.586 13.586a2 2 0 1 0 2.828 2.828L18 9.828a4 4 0 0 0-5.657-5.656L5.757 10.757a6 6 0 1 0 8.486 8.486L20 13.485" />
+                    </svg>
+                  </button>
                   <textarea
                     ref={composeRef}
                     rows={1}
@@ -603,7 +920,7 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
                 </div>
                 <button
                   type="button"
-                  disabled={!composing.trim() || sending}
+                  disabled={(!composing.trim() && !selectedImage) || sending}
                   onClick={() => void sendMessage()}
                   className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm transition-all hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
                 >

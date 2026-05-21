@@ -14,7 +14,6 @@
  *       See app/events/layout.tsx for the placeholder comment.
  * TODO: Replace the native <select> event switcher with a custom Combobox/Popover component
  *       (shadcn Command or Headless UI Combobox) for better UX and keyboard navigation.
- * TODO: Add a "Recently viewed events" section to the selector dialog using localStorage.
  * TODO: Wire up a real-time event status indicator in the top bar (e.g. "Check-In Live" badge
  *       when the event's check-in is active). Requires a lightweight /api/events/[id]/status endpoint.
  */
@@ -63,6 +62,15 @@ function SidebarStageHeader({ stage }: { stage: EventStage }) {
   );
 }
 
+function SidebarStageHeaderCompact({ stage }: { stage: EventStage }) {
+  const meta = STAGE_META[stage];
+  return (
+    <div className="px-2 pt-3 pb-1 text-center" title={meta.label}>
+      <p className="text-xs leading-none text-slate-400" aria-hidden>{meta.icon}</p>
+    </div>
+  );
+}
+
 /**
  * Status dot shown next to each sidebar tool.
  * Green = Working, amber = Partially Working, hidden when fully working to reduce noise.
@@ -98,10 +106,12 @@ function SidebarToolLink({
   tool,
   eventId,
   isActive,
+  collapsed,
 }: {
   tool: (typeof EVENT_WORKSPACE_TOOLS)[number];
   eventId: string;
   isActive: boolean;
+  collapsed: boolean;
 }) {
   const href = getEventToolHref(tool, eventId);
 
@@ -112,12 +122,15 @@ function SidebarToolLink({
     // Route segment missing — tool is not yet routed
     return (
       <div
-        title={tool.notes}
-        className="mx-2 flex cursor-not-allowed select-none items-center gap-2.5 rounded-md px-3 py-1.5 text-sm opacity-50"
+        title={tool.notes || tool.label}
+        className={[
+          "mx-2 flex cursor-not-allowed select-none items-center rounded-md py-1.5 text-sm opacity-50",
+          collapsed ? "justify-center px-2" : "gap-2.5 px-3",
+        ].join(" ")}
       >
         <span className="shrink-0 text-sm leading-none">{tool.icon}</span>
-        <span className="truncate font-medium text-slate-400">{tool.label}</span>
-        <StatusDot status={tool.status} />
+        {!collapsed && <span className="truncate font-medium text-slate-400">{tool.label}</span>}
+        {!collapsed && <StatusDot status={tool.status} />}
       </div>
     );
   }
@@ -125,16 +138,18 @@ function SidebarToolLink({
   return (
     <Link
       href={href}
+      title={collapsed ? `${tool.label} (${tool.status})` : tool.notes}
       className={[
-        "mx-2 flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+        "mx-2 flex items-center rounded-md py-1.5 text-sm font-medium transition-colors",
+        collapsed ? "justify-center px-2" : "gap-2.5 px-3",
         isActive
           ? "bg-violet-50 text-violet-900 font-semibold"
           : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
       ].join(" ")}
     >
       <span className="shrink-0 text-sm leading-none">{tool.icon}</span>
-      <span className="truncate">{tool.label}</span>
-      <StatusDot status={tool.status} />
+      {!collapsed && <span className="truncate">{tool.label}</span>}
+      {!collapsed && <StatusDot status={tool.status} />}
     </Link>
   );
 }
@@ -152,6 +167,10 @@ const GLOBAL_EVENT_SEGMENTS = new Set([
   "page-builder",
 ]);
 
+const EVENTS_SIDEBAR_COLLAPSED_KEY = "events-shell-sidebar-collapsed";
+const EVENTS_RECENT_IDS_KEY = "events-shell-recent-ids";
+const EVENTS_RECENT_LIMIT = 6;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main shell
 // ─────────────────────────────────────────────────────────────────────────────
@@ -165,8 +184,59 @@ export default function EventsShell({ children, selectedEventId, selectedTool }:
   const [events, setEvents] = useState<EventItem[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [recentEventIds, setRecentEventIds] = useState<string[]>([]);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [hasManualSidebarPreference, setHasManualSidebarPreference] = useState(false);
   /** Pending selection in the no-event-selected dialog before the user confirms. */
   const [pendingEventId, setPendingEventId] = useState("");
+
+  // Restore persisted sidebar state. If no preference exists, auto-collapse on compact desktop widths.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const persisted = window.localStorage.getItem(EVENTS_SIDEBAR_COLLAPSED_KEY);
+    if (persisted === "1" || persisted === "0") {
+      setIsSidebarCollapsed(persisted === "1");
+      setHasManualSidebarPreference(true);
+      return;
+    }
+    setIsSidebarCollapsed(window.innerWidth < 1280);
+  }, []);
+
+  // Keep sidebar adaptive on small laptops until user explicitly chooses a preference.
+  useEffect(() => {
+    if (typeof window === "undefined" || hasManualSidebarPreference) return;
+    const onResize = () => setIsSidebarCollapsed(window.innerWidth < 1280);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [hasManualSidebarPreference]);
+
+  // Persist user-selected sidebar preference.
+  useEffect(() => {
+    if (typeof window === "undefined" || !hasManualSidebarPreference) return;
+    window.localStorage.setItem(EVENTS_SIDEBAR_COLLAPSED_KEY, isSidebarCollapsed ? "1" : "0");
+  }, [hasManualSidebarPreference, isSidebarCollapsed]);
+
+  // Load recent events list for quick re-entry in the selector dialog.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(EVENTS_RECENT_IDS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return;
+      setRecentEventIds(parsed.filter((id): id is string => typeof id === "string"));
+    } catch {
+      // Ignore malformed localStorage payloads.
+    }
+  }, []);
+
+  const recentEvents = useMemo(() => {
+    if (recentEventIds.length === 0 || events.length === 0) return [];
+    const eventMap = new Map(events.map((event) => [event.id, event]));
+    return recentEventIds
+      .map((id) => eventMap.get(id))
+      .filter((event): event is EventItem => Boolean(event));
+  }, [events, recentEventIds]);
 
   /**
    * Detect whether this pathname requires a selected event.
@@ -238,16 +308,33 @@ export default function EventsShell({ children, selectedEventId, selectedTool }:
   );
 
   /** Switch to a different event and navigate to its overview. */
+  function rememberRecentEvent(eventIdValue: string) {
+    if (!eventIdValue || typeof window === "undefined") return;
+    setRecentEventIds((prev) => {
+      const next = [eventIdValue, ...prev.filter((id) => id !== eventIdValue)].slice(0, EVENTS_RECENT_LIMIT);
+      window.localStorage.setItem(EVENTS_RECENT_IDS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }
+
   function handleEventChange(newId: string) {
     if (!newId) return;
+    rememberRecentEvent(newId);
     router.push(`/events/${newId}/overview`);
   }
 
   /** Confirm the pending event selection from the selector dialog. */
   function handleOpenEvent() {
     if (!pendingEventId) return;
+    rememberRecentEvent(pendingEventId);
     router.push(`/events/${pendingEventId}/overview`);
   }
+
+  useEffect(() => {
+    if (selectedEvent?.id) {
+      rememberRecentEvent(selectedEvent.id);
+    }
+  }, [selectedEvent?.id]);
 
   // ── Global routes: minimal header only, no sidebar ────────────────────────
   if (!isEventRoute) {
@@ -357,6 +444,27 @@ export default function EventsShell({ children, selectedEventId, selectedTool }:
               >
                 Open Event Workspace
               </button>
+
+              {recentEvents.length > 0 && (
+                <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Recently Viewed</p>
+                  <div className="space-y-1">
+                    {recentEvents.map((event) => (
+                      <button
+                        key={event.id}
+                        type="button"
+                        onClick={() => {
+                          setPendingEventId(event.id);
+                          handleEventChange(event.id);
+                        }}
+                        className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-left text-xs font-medium text-slate-700 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700 transition-colors"
+                      >
+                        {event.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Footer links */}
@@ -432,6 +540,18 @@ export default function EventsShell({ children, selectedEventId, selectedTool }:
 
           {/* Quick nav links */}
           <div className="flex items-center gap-0.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setHasManualSidebarPreference(true);
+                setIsSidebarCollapsed((prev) => !prev);
+              }}
+              className="rounded px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+              title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {isSidebarCollapsed ? "Expand Nav" : "Collapse Nav"}
+            </button>
+            <div className="h-4 w-px bg-slate-200 mx-1" />
             <Link
               href="/events/events"
               className="rounded px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
@@ -460,12 +580,10 @@ export default function EventsShell({ children, selectedEventId, selectedTool }:
       <div className="flex flex-1 overflow-hidden">
 
         {/* ── Sidebar ───────────────────────────────────────────────────── */}
-        {/*
-         * TODO: Collapse sidebar to icon-only mode on small laptop widths (< 1280px)
-         *       to reclaim horizontal space. Show tool icons with tooltips when collapsed.
-         * TODO: Persist sidebar collapse state in localStorage.
-         */}
-        <aside className="flex w-52 shrink-0 flex-col border-r border-slate-200 bg-white overflow-y-auto [scrollbar-width:thin] [scrollbar-color:theme(colors.slate.200)_transparent]">
+        <aside className={[
+          "flex shrink-0 flex-col border-r border-slate-200 bg-white overflow-y-auto [scrollbar-width:thin] [scrollbar-color:theme(colors.slate.200)_transparent]",
+          isSidebarCollapsed ? "w-16" : "w-52",
+        ].join(" ")}>
           <nav className="flex-1 py-2" aria-label="Event workspace navigation">
 
             {/* ── Overview (pinned, outside stages) ── */}
@@ -474,13 +592,15 @@ export default function EventsShell({ children, selectedEventId, selectedTool }:
                 href={`/events/${eventId}/overview`}
                 className={[
                   "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm font-semibold transition-colors",
+                  isSidebarCollapsed ? "justify-center px-2" : "",
                   currentTool?.id === "overview" || (!currentTool && pathname.endsWith("/overview"))
                     ? "bg-violet-100 text-violet-900"
                     : "text-slate-700 hover:bg-slate-50 hover:text-slate-900",
                 ].join(" ")}
+                title={isSidebarCollapsed ? "Overview" : undefined}
               >
                 <span className="shrink-0 text-sm leading-none">📊</span>
-                <span>Overview</span>
+                {!isSidebarCollapsed && <span>Overview</span>}
               </Link>
             </div>
 
@@ -495,7 +615,7 @@ export default function EventsShell({ children, selectedEventId, selectedTool }:
 
               return (
                 <div key={stage}>
-                  <SidebarStageHeader stage={stage} />
+                  {isSidebarCollapsed ? <SidebarStageHeaderCompact stage={stage} /> : <SidebarStageHeader stage={stage} />}
                   <div className="space-y-0.5 mb-1">
                     {visibleTools.map((tool) => (
                       <SidebarToolLink
@@ -503,6 +623,7 @@ export default function EventsShell({ children, selectedEventId, selectedTool }:
                         tool={tool}
                         eventId={eventId}
                         isActive={currentTool?.id === tool.id}
+                        collapsed={isSidebarCollapsed}
                       />
                     ))}
                   </div>
@@ -513,9 +634,12 @@ export default function EventsShell({ children, selectedEventId, selectedTool }:
             {/* ── Studio Tools (global) ── */}
             <div className="mx-4 my-2 border-t border-slate-100" />
             <div className="px-3 pt-2 pb-1">
-              <p className="flex items-center gap-1.5 px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              <p className={[
+                "flex items-center px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400",
+                isSidebarCollapsed ? "justify-center" : "gap-1.5",
+              ].join(" ")}>
                 <span className="text-xs leading-none">🛠️</span>
-                Studio Tools
+                {!isSidebarCollapsed && "Studio Tools"}
               </p>
             </div>
             <div className="space-y-0.5 mb-2">
@@ -524,10 +648,13 @@ export default function EventsShell({ children, selectedEventId, selectedTool }:
                   key={tool.href}
                   href={tool.href}
                   title={tool.description}
-                  className="mx-2 flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                  className={[
+                    "mx-2 flex items-center rounded-md py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors",
+                    isSidebarCollapsed ? "justify-center px-2" : "gap-2.5 px-3",
+                  ].join(" ")}
                 >
                   <span className="shrink-0 text-sm leading-none">{tool.icon}</span>
-                  <span className="truncate">{tool.label}</span>
+                  {!isSidebarCollapsed && <span className="truncate">{tool.label}</span>}
                 </Link>
               ))}
             </div>

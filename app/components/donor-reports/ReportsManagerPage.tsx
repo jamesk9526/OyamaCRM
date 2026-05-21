@@ -7,6 +7,11 @@ import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbB
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
+import ReportEditorModal, {
+  type EditableReportValues,
+  type ReportFrequency,
+  type ReportStatus,
+} from "@/app/components/donor-reports/ReportEditorModal";
 
 interface SavedReport {
   id: string;
@@ -30,6 +35,7 @@ export default function ReportsManagerPage() {
   const [activeTab, setActiveTab] = useState<TabType>("saved-reports");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "draft" | "active" | "archived">("all");
+  const [editorState, setEditorState] = useState<{ mode: "create" | "edit"; reportId?: string } | null>(null);
   const [savedReports, setSavedReports] = useState<SavedReport[]>([
     {
       id: "sr-001",
@@ -71,12 +77,83 @@ export default function ReportsManagerPage() {
     });
   }, [savedReports, searchQuery, filterStatus]);
 
+  const editingReport = useMemo(
+    () => (editorState?.mode === "edit" ? savedReports.find((report) => report.id === editorState.reportId) ?? null : null),
+    [editorState, savedReports],
+  );
+
   function handleCreateReport() {
-    // TODO: Open report creation dialog
+    setEditorState({ mode: "create" });
   }
 
   function handleEditReport(reportId: string) {
-    // TODO: Open report edit dialog
+    setEditorState({ mode: "edit", reportId });
+  }
+
+  function mapReportToEditorValues(report: SavedReport): EditableReportValues {
+    return {
+      name: report.name,
+      template: report.template,
+      owner: report.owner,
+      status: report.status,
+      frequency: report.schedule?.frequency ?? "monthly",
+      time: report.schedule?.time ?? "09:00",
+      recipientsText: (report.schedule?.recipients ?? []).join(", "),
+      emailOnCompletion: report.schedule?.emailOnCompletion ?? true,
+    };
+  }
+
+  function buildSchedule(values: EditableReportValues): SavedReport["schedule"] | undefined {
+    const recipients = values.recipientsText
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    return {
+      frequency: values.frequency,
+      time: values.time || "09:00",
+      recipients,
+      emailOnCompletion: values.emailOnCompletion,
+    };
+  }
+
+  function handleSaveReport(values: EditableReportValues) {
+    const schedule = buildSchedule(values);
+
+    if (editorState?.mode === "edit" && editorState.reportId) {
+      setSavedReports((prev) =>
+        prev.map((report) =>
+          report.id === editorState.reportId
+            ? {
+                ...report,
+                name: values.name,
+                template: values.template,
+                owner: values.owner,
+                status: values.status as ReportStatus,
+                schedule,
+              }
+            : report,
+        ),
+      );
+      setEditorState(null);
+      return;
+    }
+
+    const nextId = `sr-${String(savedReports.length + 1).padStart(3, "0")}`;
+    const nextReport: SavedReport = {
+      id: nextId,
+      name: values.name,
+      template: values.template,
+      owner: values.owner,
+      status: values.status as ReportStatus,
+      createdAt: new Date(),
+      lastRun: null,
+      schedule: values.status === "archived" ? undefined : schedule,
+    };
+
+    setSavedReports((prev) => [nextReport, ...prev]);
+    setActiveTab("saved-reports");
+    setEditorState(null);
   }
 
   function handleDeleteReport(reportId: string) {
@@ -158,6 +235,15 @@ export default function ReportsManagerPage() {
       {activeTab === "templates" && <TemplatesTab />}
 
       {activeTab === "history" && <HistoryTab />}
+
+      {editorState && (
+        <ReportEditorModal
+          mode={editorState.mode}
+          initial={editingReport ? mapReportToEditorValues(editingReport) : undefined}
+          onClose={() => setEditorState(null)}
+          onSave={handleSaveReport}
+        />
+      )}
     </EnterprisePageShell>
   );
 }

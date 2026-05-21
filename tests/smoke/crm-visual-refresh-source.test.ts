@@ -25,7 +25,7 @@ describe("Donor CRM visual refresh foundation", () => {
     }
   });
 
-  it("keeps the dashboard first pass non-breaking by preserving existing dashboard entry points", () => {
+  it("keeps the dashboard refresh non-breaking by preserving existing dashboard entry points", () => {
     const page = read("app/page.tsx");
     const commandCenter = read("app/components/dashboard/DashboardCommandCenter.tsx");
     const statCard = read("app/components/dashboard/StatCard.tsx");
@@ -37,21 +37,30 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(page).not.toContain("WorkspaceRibbonGroup");
     expect(page).toContain("CRMQuickActionCard");
     expect(commandCenter).toContain("apiFetch<NextMoveDraftResponse>");
-    expect(commandCenter).toContain("CRMQuickActionCard");
+    expect(commandCenter).toContain("KpiCard");
+    expect(commandCenter).toContain("Revenue pace");
+    expect(commandCenter).toContain("Quick actions");
     expect(statCard).toContain("CRMMetricCard");
     expect(quickActionCard).toContain("actionLabel");
   });
 
   it("applies the visual refresh to the shared shell without changing navigation ownership", () => {
     const topBar = read("app/components/layout/TopBar.tsx");
+    const megaMenu = read("app/components/layout/DonorMegaMenu.tsx");
     const sidebar = read("app/components/layout/sidebar-configs.tsx");
 
     expect(topBar).toContain("bg-white/95");
+    expect(topBar).toContain("w-[25vw]");
+    expect(topBar).toContain("polygon(0 0, 86% 0, 74% 100%, 0 100%)");
+    expect(topBar).toContain("/branding/oyama-darklogocrm.png");
+    expect(topBar).toContain("Switch Workspace");
+    expect(topBar).toContain("bg-slate-950");
     expect(topBar).toContain("Search constituents, campaigns, tools");
     expect(topBar).toContain('aria-label="Open global search"');
     expect(topBar).toContain("Command Search");
     expect(topBar).toContain("autoFocus wide");
-    expect(topBar).not.toContain("max-w-[520px]");
+    expect(megaMenu).toContain("bg-slate-950");
+    expect(megaMenu).toContain("text-emerald-200");
     expect(sidebar).toContain('label: "Core CRM"');
     expect(sidebar).toContain('label: "Home"');
     expect(sidebar).toContain('label: "Constituents"');

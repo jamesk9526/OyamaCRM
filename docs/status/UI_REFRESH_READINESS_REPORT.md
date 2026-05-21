@@ -15,11 +15,16 @@ Date: May 19, 2026
 - Meetings page first pass completed with shared action, metric, filter, badge, and empty-state primitives.
 - Dashboard ribbon controls replaced with a single `CRMActionBar` while preserving existing section jumps, create routes, Steward prompts, refresh, edit layout, lock, and widget controls.
 - Dashboard quick action cards now use the shared `CRMQuickActionCard` pattern.
-- Top bar refreshed to a light SaaS-style surface with dark controls; Steward runtime status tokens were updated for readable light-background contrast.
+- Dashboard command center received a second polish pass with a reference-style greeting, KPI row, revenue pace card, priority action card, and compact quick actions.
+- Giving Trends fiscal-year mode now requests the configured fiscal year, compares against the prior fiscal year, and orders months from the fiscal start month.
+- Top bar refreshed with a light SaaS-style surface and a dark diagonal brand block using `oyama-darklogocrm.png`; Steward runtime status tokens remain readable.
+- Workspace selector and DonorCRM mega menu now use dark surfaces with green active states.
 - Donor sidebar grouping/style refreshed with a separate Home group and Core CRM group while preserving existing destinations.
 - Tasks page now uses the shared action strip and `CRMDataTable` shell without replacing task complete/delete behavior.
 - Letter builder scroll containment fixed so the builder header, side panels, floating command bar, canvas, and bottom status stay inside the document workspace instead of sliding under the global top bar.
 - Letter builder insert/format bars received icons.
+- Messenger panel refreshed with its own top bar, denser conversation surface, sender message editing, image attachments, and optional 2-day image auto-delete metadata.
+- Messenger runtime uploads are ignored at `/public/uploads/messenger/`.
 - Plan/checklist and component-system docs created.
 
 ## Not Yet Complete
@@ -35,6 +40,7 @@ Last known focused checks from this pass:
 
 ```bash
 pnpm typecheck:web
+pnpm typecheck:server
 pnpm exec vitest run tests/smoke/crm-visual-refresh-source.test.ts tests/smoke/letter-builder-ui-source.test.ts
 ```
 

@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import { apiFetch } from "@/app/lib/auth-client";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -148,7 +149,7 @@ function MergeEditor({
 }: {
   pair: DuplicatePair;
   onSkip: () => void;
-  onMerge: (merged: MergeConstituent) => void;
+  onMerge: (merged: MergeConstituent) => Promise<void>;
 }) {
   // selections[fieldKey] = "a" | "b"
   const [selections, setSelections] = useState<Record<string, "a" | "b">>(() => {
@@ -164,6 +165,8 @@ function MergeEditor({
 
   const [preview, setPreview] = useState(false);
   const [merged, setMerged] = useState(false);
+  const [mergeError, setMergeError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   /** Build the merged record from current radio selections */
   function buildMerged(): MergeConstituent {
@@ -178,11 +181,8 @@ function MergeEditor({
   if (merged) {
     return (
       <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-6 text-center text-sm text-green-700 space-y-2">
-        <p className="font-semibold">✓ Merge recorded (preview only)</p>
-        <p className="text-xs text-gray-500">
-          {/* TODO: POST to /api/constituents/merge endpoint — not yet implemented */}
-          Backend merge endpoint not yet implemented. The merged preview was shown but no data was changed.
-        </p>
+        <p className="font-semibold">✓ Merge completed</p>
+        <p className="text-xs text-gray-500">The duplicate record was merged and related records were re-linked.</p>
         <button onClick={onSkip} className="mt-2 px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-white">
           Continue to next pair
         </button>
@@ -208,12 +208,26 @@ function MergeEditor({
         <div className="flex gap-2">
           <button onClick={() => setPreview(false)} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">← Edit</button>
           <button
-            onClick={() => { onMerge(result); setMerged(true); }}
+            onClick={() => {
+              setSaving(true);
+              setMergeError(null);
+              void onMerge(result)
+                .then(() => setMerged(true))
+                .catch((error: unknown) => {
+                  const message = error instanceof Error ? error.message : "Merge failed. Please try again.";
+                  setMergeError(message);
+                })
+                .finally(() => setSaving(false));
+            }}
+            disabled={saving}
             className="px-4 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-500"
           >
-            Confirm Merge
+            {saving ? "Merging…" : "Confirm Merge"}
           </button>
         </div>
+        {mergeError && (
+          <p className="text-xs text-red-600">{mergeError}</p>
+        )}
       </div>
     );
   }
@@ -290,7 +304,6 @@ function MergeEditor({
 /**
  * MergeWorkflow: detects potential duplicate constituent records and provides
  * a side-by-side UI for picking which field values to keep before merging.
- * Backend merge endpoint not yet implemented — shows preview only.
  */
 export default function MergeWorkflow({ constituents }: MergeWorkflowProps) {
   const [pairs, setPairs]         = useState<DuplicatePair[] | null>(null);
@@ -315,10 +328,16 @@ export default function MergeWorkflow({ constituents }: MergeWorkflowProps) {
     setSelected(null);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  function handleMerge(_merged: MergeConstituent) {
-    // TODO: POST to /api/constituents/merge endpoint — not yet implemented
-    // After backend is wired, remove the pair from the list and refresh data quality
+  async function handleMerge(merged: MergeConstituent) {
+    await apiFetch("/api/constituents/merge", {
+      method: "POST",
+      body: JSON.stringify({
+        keepId: merged.id,
+        mergeId: merged.id === selected?.a.id ? selected?.b.id : selected?.a.id,
+      }),
+    });
+
+    // After a successful merge, remove this pair from the review queue.
     const key = `${selected!.a.id}|${selected!.b.id}`;
     setSkipped((s) => new Set([...s, key]));
   }

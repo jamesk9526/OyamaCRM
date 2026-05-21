@@ -19,6 +19,7 @@
 
 # production
 /build
+/public/uploads/messenger/
 
 # misc
 .DS_Store

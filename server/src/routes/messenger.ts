@@ -13,6 +13,9 @@
  *   GET  /api/messenger/sse                 — SSE stream; pushes "message" events in real time
  */
 import { Router, type Request, type Response } from "express";
+import { randomUUID } from "node:crypto";
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { resolveOrganizationId } from "../lib/organization.js";
@@ -59,6 +62,70 @@ function getAuthUserId(req: Request): string {
   const subject = req.user?.sub;
   if (Array.isArray(subject)) return String(subject[0] || "");
   return String(subject || "");
+}
+
+interface MessengerImageUploadPayload {
+  dataUrl?: string;
+  fileName?: string;
+  mimeType?: string;
+  autoDelete?: boolean;
+}
+
+interface MessengerAttachmentMeta {
+  url: string;
+  filePath: string;
+  expiresAt: string | null;
+}
+
+const MESSENGER_UPLOAD_ROOT = path.join(process.cwd(), "public", "uploads", "messenger");
+const MESSENGER_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+function sanitizeUploadName(name: string | undefined): string {
+  const base = String(name || "image").replace(/\.[^.]+$/, "");
+  return base.replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "image";
+}
+
+function extensionForMime(mimeType: string): string | null {
+  if (mimeType === "image/png") return "png";
+  if (mimeType === "image/jpeg") return "jpg";
+  if (mimeType === "image/webp") return "webp";
+  if (mimeType === "image/gif") return "gif";
+  return null;
+}
+
+function parseImageDataUrl(dataUrl: string, claimedMimeType?: string): { buffer: Buffer; mimeType: string; extension: string } | null {
+  const match = /^data:(image\/(?:png|jpeg|webp|gif));base64,([a-z0-9+/=]+)$/i.exec(dataUrl.trim());
+  if (!match) return null;
+  const mimeType = claimedMimeType?.startsWith("image/") ? claimedMimeType : match[1];
+  const extension = extensionForMime(mimeType);
+  if (!extension) return null;
+  const buffer = Buffer.from(match[2], "base64");
+  if (buffer.byteLength <= 0 || buffer.byteLength > MESSENGER_MAX_IMAGE_BYTES) return null;
+  return { buffer, mimeType, extension };
+}
+
+async function cleanupExpiredMessengerUploads() {
+  async function walk(dir: string): Promise<string[]> {
+    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+    const files = await Promise.all(entries.map(async (entry) => {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) return walk(fullPath);
+      return [fullPath];
+    }));
+    return files.flat();
+  }
+
+  const metaFiles = (await walk(MESSENGER_UPLOAD_ROOT)).filter((file) => file.endsWith(".meta.json"));
+  await Promise.all(metaFiles.map(async (metaPath) => {
+    try {
+      const meta = JSON.parse(await fs.readFile(metaPath, "utf8")) as MessengerAttachmentMeta;
+      if (!meta.expiresAt || new Date(meta.expiresAt).getTime() > Date.now()) return;
+      await fs.rm(meta.filePath, { force: true });
+      await fs.rm(metaPath, { force: true });
+    } catch {
+      // Ignore malformed cleanup metadata; upload delivery should not fail because cleanup did.
+    }
+  }));
 }
 
 // ─── Helper: check if messenger plugin is enabled for the org ────────────────
@@ -115,6 +182,59 @@ router.get("/enabled", requireAuth, async (req: Request, res: Response) => {
       return res.status(500).json({ error: "Internal server error" });
     }
   });
+  }
+});
+
+// ─── POST /attachments ───────────────────────────────────────────────────────
+// Stores one image attachment for a message. Optional 2-day expiry is enforced
+// by cleanup metadata and removed on future uploads.
+
+router.post("/attachments", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const orgId = await resolveOrganizationId({ req });
+    if (!orgId) return res.status(400).json({ error: "Organization not found" });
+    if (!(await isMessengerEnabled(orgId))) {
+      return res.status(403).json({ error: "Messenger is disabled for this organization." });
+    }
+
+    const payload = req.body as MessengerImageUploadPayload;
+    if (!payload.dataUrl) return res.status(400).json({ error: "dataUrl is required" });
+
+    const parsed = parseImageDataUrl(payload.dataUrl, payload.mimeType);
+    if (!parsed) {
+      return res.status(400).json({ error: "Only PNG, JPEG, WebP, or GIF images up to 5 MB are supported." });
+    }
+
+    void cleanupExpiredMessengerUploads();
+
+    const safeOrgId = orgId.replace(/[^a-z0-9_-]+/gi, "_");
+    const uploadDir = path.join(MESSENGER_UPLOAD_ROOT, safeOrgId);
+    await fs.mkdir(uploadDir, { recursive: true });
+
+    const id = randomUUID();
+    const safeBase = sanitizeUploadName(payload.fileName);
+    const filename = `${Date.now()}-${id}-${safeBase}.${parsed.extension}`;
+    const filePath = path.join(uploadDir, filename);
+    await fs.writeFile(filePath, parsed.buffer);
+
+    const expiresAt = payload.autoDelete ? new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString() : null;
+    const url = `/uploads/messenger/${safeOrgId}/${filename}`;
+    const meta: MessengerAttachmentMeta = { url, filePath, expiresAt };
+    await fs.writeFile(`${filePath}.meta.json`, JSON.stringify(meta, null, 2));
+
+    return res.status(201).json({
+      attachment: {
+        kind: "image",
+        url,
+        name: payload.fileName || filename,
+        mimeType: parsed.mimeType,
+        expiresAt,
+        autoDelete: Boolean(payload.autoDelete),
+      },
+    });
+  } catch (err) {
+    console.error("[messenger] POST /attachments error", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -203,6 +323,7 @@ router.get("/threads", requireAuth, async (req: Request, res: Response) => {
               senderId: lastMessage.senderId,
               senderName: `${lastMessage.sender.firstName} ${lastMessage.sender.lastName}`,
               createdAt: lastMessage.createdAt,
+              updatedAt: lastMessage.updatedAt,
             }
           : null,
         lastReadAt,
@@ -370,7 +491,7 @@ router.post("/threads/:threadId/messages", requireAuth, async (req: Request, res
     const { body } = req.body as { body?: string };
 
     if (!body?.trim()) return res.status(400).json({ error: "Message body is required" });
-    if (body.length > 4000) return res.status(400).json({ error: "Message too long (max 4000 chars)" });
+    if (body.length > 8000) return res.status(400).json({ error: "Message too long (max 8000 chars)" });
 
     // Verify caller is a participant.
     const participant = await prisma.crmThreadParticipant.findUnique({
@@ -406,12 +527,76 @@ router.post("/threads/:threadId/messages", requireAuth, async (req: Request, res
         senderId: message.senderId,
         sender: message.sender,
         createdAt: message.createdAt,
+        updatedAt: message.updatedAt,
       },
     });
 
     return res.status(201).json({ message });
   } catch (err) {
     console.error("[messenger] POST /threads/:threadId/messages error", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── PATCH /threads/:threadId/messages/:messageId ───────────────────────────
+// Allows the sender to edit their own message body while preserving the same row.
+
+router.patch("/threads/:threadId/messages/:messageId", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const orgId = await resolveOrganizationId({ req });
+    if (!orgId) return res.status(400).json({ error: "Organization not found" });
+
+    const threadId = Array.isArray(req.params.threadId)
+      ? String(req.params.threadId[0] || "")
+      : String(req.params.threadId || "");
+    const messageId = Array.isArray(req.params.messageId)
+      ? String(req.params.messageId[0] || "")
+      : String(req.params.messageId || "");
+    const { body } = req.body as { body?: string };
+
+    if (!body?.trim()) return res.status(400).json({ error: "Message body is required" });
+    if (body.length > 8000) return res.status(400).json({ error: "Message too long (max 8000 chars)" });
+
+    const participant = await prisma.crmThreadParticipant.findUnique({
+      where: { threadId_userId: { threadId, userId: getAuthUserId(req) } },
+    });
+    if (!participant) return res.status(403).json({ error: "Not a participant of this thread" });
+
+    const existing = await prisma.crmMessage.findFirst({
+      where: { id: messageId, threadId, deletedAt: null },
+      select: { id: true, senderId: true },
+    });
+    if (!existing) return res.status(404).json({ error: "Message not found" });
+    if (existing.senderId !== getAuthUserId(req)) return res.status(403).json({ error: "Only the sender can edit this message" });
+
+    const message = await prisma.crmMessage.update({
+      where: { id: messageId },
+      data: { body: body.trim() },
+      include: {
+        sender: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
+      },
+    });
+
+    await prisma.crmThread.update({
+      where: { id: threadId },
+      data: { updatedAt: new Date() },
+    });
+
+    broadcastToOrg(orgId, "message:update", {
+      threadId,
+      message: {
+        id: message.id,
+        body: message.body,
+        senderId: message.senderId,
+        sender: message.sender,
+        createdAt: message.createdAt,
+        updatedAt: message.updatedAt,
+      },
+    });
+
+    return res.json({ message });
+  } catch (err) {
+    console.error("[messenger] PATCH /threads/:threadId/messages/:messageId error", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 });

@@ -20,7 +20,7 @@ describe("letter builder UI redesign source contract", () => {
     expect(editor).toContain("border-l border-gray-200 pl-3");
     expect(editor).toContain("overflow-hidden bg-gray-50");
     expect(editor).toContain("absolute bottom-0 left-0 right-0");
-    expect(editor).toContain('floatingToolbarTopClassName="top-3"');
+    expect(editor).toContain('floatingToolbarTopClassName="top-0"');
     expect(editor).toContain("Confirm Publish");
     expect(richEditor).toContain('data-testid="letter-floating-command-bar"');
     expect(richEditor).toContain("floatingToolbarTopClassName");
