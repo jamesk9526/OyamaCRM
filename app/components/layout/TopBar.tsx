@@ -76,6 +76,15 @@ interface StewardSignalsRebuildResult {
   };
 }
 
+/** Returns true when a keyboard event originates from an editable control. */
+function isEditableEventTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tag = target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  return Boolean(target.closest('[contenteditable="true"],[role="textbox"]'));
+}
+
 /** Generic help-circle icon used for help control in topbar controls. */
 function HelpCircleIcon({ className = "w-5 h-5" }: { className?: string }) {
   return (
@@ -873,7 +882,14 @@ export default function TopBar() {
   useEffect(() => {
     function openSearchFromKeyboard(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        if (isEditableEventTarget(event.target)) return;
         event.preventDefault();
+        setAppsOpen(false);
+        setFeedbackOpen(false);
+        setNotificationsOpen(false);
+        setMobileQuickOpen(false);
+        setCompactActionsOpen(false);
+        setMessengerOpen(false);
         setMobileSearchOpen(true);
       }
     }
@@ -881,6 +897,25 @@ export default function TopBar() {
     window.addEventListener("keydown", openSearchFromKeyboard);
     return () => window.removeEventListener("keydown", openSearchFromKeyboard);
   }, []);
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      if (!(appsOpen || feedbackOpen || notificationsOpen || mobileQuickOpen || mobileSearchOpen || compactActionsOpen || messengerOpen)) {
+        return;
+      }
+      setAppsOpen(false);
+      setFeedbackOpen(false);
+      setNotificationsOpen(false);
+      setMobileQuickOpen(false);
+      setMobileSearchOpen(false);
+      setCompactActionsOpen(false);
+      setMessengerOpen(false);
+    }
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [appsOpen, feedbackOpen, notificationsOpen, mobileQuickOpen, mobileSearchOpen, compactActionsOpen, messengerOpen]);
 
   function toggleReportingYearMode() {
     const nextMode: ReportingYearMode = reportingYearMode === "fiscal" ? "calendar" : "fiscal";
@@ -1277,7 +1312,13 @@ export default function TopBar() {
             <button
               type="button"
               title="Search"
-              onClick={() => setMobileSearchOpen(true)}
+              onClick={() => {
+                setNotificationsOpen(false);
+                setMobileQuickOpen(false);
+                setCompactActionsOpen(false);
+                setMessengerOpen(false);
+                setMobileSearchOpen(true);
+              }}
               className={chromeButtonBase}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
@@ -1288,7 +1329,17 @@ export default function TopBar() {
             <div className="relative">
               <button
                 title="Notifications"
-                onClick={() => setNotificationsOpen((v) => !v)}
+                onClick={() =>
+                  setNotificationsOpen((current) => {
+                    const nextOpen = !current;
+                    if (nextOpen) {
+                      setMobileQuickOpen(false);
+                      setCompactActionsOpen(false);
+                      setMessengerOpen(false);
+                      setMobileSearchOpen(false);
+                    }
+                    return nextOpen;
+                  })}
                 className={`${chromeButtonBase} relative`}
               >
                 <BellIcon className="w-5 h-5" />
@@ -1386,6 +1437,9 @@ export default function TopBar() {
               onClick={() => {
                 setMobileQuickOpen((current) => !current);
                 setNotificationsOpen(false);
+                setMobileSearchOpen(false);
+                setCompactActionsOpen(false);
+                setMessengerOpen(false);
               }}
               className={`${chromeButtonBase} relative`}
             >
@@ -1408,7 +1462,13 @@ export default function TopBar() {
               type="button"
               aria-label="Open global search"
               title="Search OyamaCRM"
-              onClick={() => setMobileSearchOpen(true)}
+              onClick={() => {
+                setNotificationsOpen(false);
+                setMobileQuickOpen(false);
+                setCompactActionsOpen(false);
+                setMessengerOpen(false);
+                setMobileSearchOpen(true);
+              }}
               className={`flex ${scrolled ? "h-7 max-w-[420px]" : "h-10 max-w-[560px]"} w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-3 text-slate-500 shadow-inner transition-all duration-200 hover:border-emerald-200 hover:bg-white hover:text-slate-700`}
             >
               <span className="flex min-w-0 items-center gap-2">
@@ -1449,7 +1509,18 @@ export default function TopBar() {
             <button
               type="button"
               title="More workspace tools"
-              onClick={() => setCompactActionsOpen((current) => !current)}
+              onClick={() => {
+                setCompactActionsOpen((current) => {
+                  const nextOpen = !current;
+                  if (nextOpen) {
+                    setNotificationsOpen(false);
+                    setMessengerOpen(false);
+                    setMobileQuickOpen(false);
+                    setMobileSearchOpen(false);
+                  }
+                  return nextOpen;
+                });
+              }}
               className={darkIconButtonBase}
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
@@ -1574,7 +1645,17 @@ export default function TopBar() {
         <div ref={desktopNotificationsRef} className="relative">
           <button
             title="Notifications"
-            onClick={() => setNotificationsOpen((v) => !v)}
+            onClick={() =>
+              setNotificationsOpen((current) => {
+                const nextOpen = !current;
+                if (nextOpen) {
+                  setCompactActionsOpen(false);
+                  setMessengerOpen(false);
+                  setMobileQuickOpen(false);
+                  setMobileSearchOpen(false);
+                }
+                return nextOpen;
+              })}
             className={`${darkIconButtonBase} relative`}
           >
             <BellIcon className="w-4 h-4" />

@@ -3,6 +3,27 @@
 Generated: 2026-05-17T04:23:31.777Z
 Base URL: http://localhost:3000
 
+## 2026-05-21 Targeted Top Bar + Email Builder Pass
+
+### Scope
+
+- Top bar mobile/desktop interaction reliability and usability.
+- Donor CRM Email Builder desktop clarity and data-loss protection.
+
+### Completed
+
+- Added keyboard-safe `Ctrl/Cmd+K` behavior in TopBar so search does not hijack typing focus in editable controls.
+- Added global Escape close behavior for top-bar overlays (search, notifications, quick tools, messenger, apps, feedback).
+- Added panel coordination so opening one top-bar panel closes competing panels to reduce overlap/confusion on small screens and desktop.
+- Added Email Builder unsaved-changes browser guard (`beforeunload`) when draft edits exist.
+- Stabilized Email Builder save callback to reduce keybinding effect churn and improve save reliability.
+- Added direct “Review Checklist” action in Email Builder desktop header for clearer send-readiness workflow.
+
+### Remaining Follow-up
+
+- Full browser screenshot verification at `1366x768` and `1280x720` after this interaction pass.
+- Keep reducing “sidebar-not-collapsed” warnings in compact desktop layouts where route workflows still need tighter defaults.
+
 ## Totals
 
 - Pass: 61

@@ -1179,7 +1179,7 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
     }
   }, []);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!campaignId) {
       setSaveError('No campaign ID — open this editor with ?campaign=ID');
       return;
@@ -1215,7 +1215,26 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
     } finally {
       setSaving(false);
     }
-  };
+  }, [
+    branding,
+    campaignId,
+    campaignName,
+    campaignPurpose,
+    onSaved,
+    previewText,
+    subjectLine,
+    template,
+  ]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [dirty]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1621,6 +1640,14 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
                 className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
               >
                 Preview
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSidebarTab('review')}
+                className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                title="Open readiness checklist"
+              >
+                Review Checklist
               </button>
 
               <button

@@ -2,6 +2,13 @@
 
 _Last deep audit: 2026-05-18 (v1.1.0)_
 
+## 2026-05-21 Top Bar + Donor Email Builder Usability Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Top bar overlay coordination and keyboard reliability | Working | `app/components/layout/TopBar.tsx` | Added editable-field-safe `Ctrl/Cmd+K`, Escape-based overlay close behavior, and panel coordination to reduce overlap/confusion across mobile and desktop. |
+| Donor Email Builder save safety and review clarity | Working | `app/components/email-builder/EmailBuilderApp.tsx` | Added unsaved-change browser guard, stabilized save callback wiring, and added desktop “Review Checklist” quick action for clearer pre-send workflow. |
+
 ## 2026-05-18 EventSTUDIO Production Polish Pass
 
 | Area | Status | Evidence | Notes |

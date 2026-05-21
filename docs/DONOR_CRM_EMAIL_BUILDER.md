@@ -1,6 +1,6 @@
 # DonorCRM Email Builder
 
-Last updated: 2026-05-16
+Last updated: 2026-05-21
 
 ## Purpose
 
@@ -86,6 +86,8 @@ Document the current Email Builder implementation, workflow relationship to Comm
 | Campaign workspace embedded builder | Working | `/communications/[campaignId]?mode=build` embeds EmailBuilderApp alongside Preview, Send, and Activity tabs. |
 | Email project preview cards | Working | Communications campaign library supports rendered thumbnails, card view, small-card view, and list view. |
 | Branding settings enforcement | Working | New campaigns seed sender identity from CRM Branding Settings; builder save applies current CRM branding to template-level settings and brandable block accents. |
+| Unsaved-change protection | Working | Builder now warns on browser/tab close when unsaved edits exist (`beforeunload` guard). |
+| Desktop review navigation clarity | Working | Builder header now includes a direct “Review Checklist” action to reduce route/tool confusion before send-stage handoff. |
 
 ## Safety Constraints
 
