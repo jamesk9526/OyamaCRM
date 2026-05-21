@@ -7,6 +7,7 @@ _Last deep audit: 2026-05-18 (v1.1.0)_
 | Area | Status | Evidence | Notes |
 |---|---|---|---|
 | Top bar overlay coordination and keyboard reliability | Working | `app/components/layout/TopBar.tsx` | Added editable-field-safe `Ctrl/Cmd+K`, Escape-based overlay close behavior, and panel coordination to reduce overlap/confusion across mobile and desktop. |
+| Donor shell compact-desktop navigation fallback | Working | `app/components/layout/AppShell.tsx`, `app/components/layout/CrmSidebar.tsx` | Widths `1024-1439px` now use sidebar navigation flow even when donor layout preference is mega menu, improving small-laptop density and reducing shell confusion. |
 | Donor Email Builder save safety and review clarity | Working | `app/components/email-builder/EmailBuilderApp.tsx` | Added unsaved-change browser guard, stabilized save callback wiring, and added desktop “Review Checklist” quick action for clearer pre-send workflow. |
 
 ## 2026-05-18 EventSTUDIO Production Polish Pass

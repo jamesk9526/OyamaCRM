@@ -130,6 +130,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [dockInsetPx, setDockInsetPx] = useState(0);
+  const [compactDesktop, setCompactDesktop] = useState(false);
 
   useEffect(() => {
     if (loading || !user) return;
@@ -219,6 +220,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("steward-dock-state", handleDockState);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const mediaQuery = window.matchMedia("(min-width: 1024px) and (max-width: 1439px)");
+    const updateCompactDesktop = () => setCompactDesktop(mediaQuery.matches);
+    updateCompactDesktop();
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", updateCompactDesktop);
+      return () => mediaQuery.removeEventListener("change", updateCompactDesktop);
+    }
+
+    mediaQuery.addListener(updateCompactDesktop);
+    return () => mediaQuery.removeListener(updateCompactDesktop);
+  }, []);
+
   // Public pages — no shell
   if (isPublic) return <>{children}</>;
 
@@ -235,8 +252,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   if (isShellBypass) return <>{children}</>;
 
   const donorShellVisible = !isOShareview && !isBoard;
-  const donorMegaMenuEnabled = donorShellVisible && workspaceSettings.donorNavigationLayout === "mega";
-  const donorSidebarDesktopEnabled = donorShellVisible && workspaceSettings.donorNavigationLayout === "sidebar";
+  const effectiveDonorLayout: DonorNavigationLayout =
+    compactDesktop && workspaceSettings.donorNavigationLayout === "mega"
+      ? "sidebar"
+      : workspaceSettings.donorNavigationLayout;
+  const donorMegaMenuEnabled = donorShellVisible && effectiveDonorLayout === "mega";
+  const donorSidebarDesktopEnabled = donorShellVisible && effectiveDonorLayout === "sidebar";
   const contentTopPaddingClass = donorMegaMenuEnabled ? "pt-[6.5rem]" : "pt-14";
 
   return (

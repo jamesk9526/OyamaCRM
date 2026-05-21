@@ -15,6 +15,7 @@ Base URL: http://localhost:3000
 - Added keyboard-safe `Ctrl/Cmd+K` behavior in TopBar so search does not hijack typing focus in editable controls.
 - Added global Escape close behavior for top-bar overlays (search, notifications, quick tools, messenger, apps, feedback).
 - Added panel coordination so opening one top-bar panel closes competing panels to reduce overlap/confusion on small screens and desktop.
+- Added compact-desktop donor-shell fallback so widths `1024-1439px` use sidebar navigation (collapsed behavior) instead of mega-menu chrome.
 - Added Email Builder unsaved-changes browser guard (`beforeunload`) when draft edits exist.
 - Stabilized Email Builder save callback to reduce keybinding effect churn and improve save reliability.
 - Added direct “Review Checklist” action in Email Builder desktop header for clearer send-readiness workflow.

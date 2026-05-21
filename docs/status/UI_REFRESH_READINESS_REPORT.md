@@ -5,6 +5,7 @@ Date: May 19, 2026
 ## Completed
 
 - Top bar interaction reliability pass completed: search keyboard handling now avoids editable fields, Escape closes active overlays, and top-bar panels now coordinate so overlapping tool sheets are reduced on mobile and desktop.
+- Donor shell compact-desktop pass completed: at `1024-1439px`, donor shell now falls back from mega menu to sidebar navigation for clearer, denser small-laptop workflows.
 - Donor Email Builder reliability pass completed: stable save callback wiring, unsaved-change guard before browser/tab close, and a direct desktop Review Checklist action to reduce workflow confusion.
 - Shared CRM UI primitives created.
 - Dashboard metric card surface refreshed through existing `StatCard`.
