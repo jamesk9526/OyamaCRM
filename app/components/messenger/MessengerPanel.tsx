@@ -8,6 +8,7 @@
  *  - Real-time updates via SSE (/api/messenger/sse)
  *  - Polled unread count badge on the TopBar icon
  */
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import {
@@ -142,14 +143,30 @@ function UserAvatar({ user, size = 32 }: { user: { firstName: string; lastName: 
 
 // ─── Relative time ────────────────────────────────────────────────────────────
 
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+function formatClockTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatThreadTimestamp(iso: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  const isSameDay = date.toDateString() === now.toDateString();
+  return isSameDay
+    ? formatClockTime(iso)
+    : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function formatDayDivider(iso: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(now.getDate() - 1);
+  if (date.toDateString() === now.toDateString()) return "Today";
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function expiresInLabel(iso: string): string {
@@ -180,6 +197,7 @@ export interface MessengerPanelProps {
 
 export default function MessengerPanel({ open, onClose, onUnreadChange }: MessengerPanelProps) {
   const { user } = useAuth();
+  const [threadView, setThreadView] = useState<"inbox" | "unread" | "mentions">("inbox");
   const [threads, setThreads] = useState<MsgThread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MsgMessage[]>([]);
@@ -195,12 +213,14 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
   const [showNewDm, setShowNewDm] = useState(false);
   const [orgUsers, setOrgUsers] = useState<MsgUser[]>([]);
   const [userSearch, setUserSearch] = useState("");
+  const [conversationSearch, setConversationSearch] = useState("");
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const composeRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sseRef = useRef<EventSource | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const conversationSearchRef = useRef<HTMLInputElement>(null);
 
   // ── Check plugin enabled ──────────────────────────────────────────────────
 
@@ -228,6 +248,17 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
       void loadThreads();
     }
   }, [open, enabled, loadThreads]);
+
+  useEffect(() => {
+    if (!threads.length) {
+      setActiveThreadId(null);
+      return;
+    }
+    setActiveThreadId((current) => {
+      if (current && threads.some((thread) => thread.id === current)) return current;
+      return threads[0].id;
+    });
+  }, [threads]);
 
   // ── SSE connection ────────────────────────────────────────────────────────
 
@@ -455,6 +486,21 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
   const activeThread = threads.find((t) => t.id === activeThreadId) ?? null;
   const activeOtherUser = activeThread?.otherParticipants[0] ?? null;
 
+  const visibleThreads = threads.filter((thread) => {
+    const query = conversationSearch.trim().toLowerCase();
+    const displayName = (thread.name
+      ?? thread.otherParticipants.map((participant) => `${participant.firstName} ${participant.lastName}`).join(", ")
+      ?? "Thread").toLowerCase();
+    const preview = previewMessageBody(thread.lastMessage?.body ?? "").toLowerCase();
+    const matchesQuery = !query || displayName.includes(query) || preview.includes(query);
+    const matchesTab = threadView === "inbox"
+      ? true
+      : threadView === "unread"
+        ? thread.unreadCount > 0
+        : preview.includes("@");
+    return matchesQuery && matchesTab;
+  });
+
   const filteredUsers = orgUsers.filter((u) => {
     const q = userSearch.toLowerCase();
     return (
@@ -478,130 +524,49 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
       {/* Panel */}
       <div
         ref={panelRef}
-        className="fixed right-2 top-[3.75rem] z-50 flex h-[calc(100dvh-4.25rem)] w-[calc(100vw-1rem)] max-w-[760px] flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_24px_60px_rgba(2,6,23,0.18)]"
+        className="fixed right-2 top-[3.75rem] z-50 flex h-[calc(100dvh-4.25rem)] w-[min(860px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_30px_80px_rgba(2,6,23,0.22)]"
         style={{ animation: "msgPanelIn 0.18s cubic-bezier(0.22,1,0.36,1)" }}
       >
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-950 px-4 py-3 text-white">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-emerald-300 ring-1 ring-white/10">
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
-              </svg>
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">Oyama Messenger</p>
-              <p className="truncate text-[11px] text-slate-300">
-                {activeThreadId ? "Staff conversation" : `${threads.length} conversation${threads.length === 1 ? "" : "s"} · ${totalUnread} unread`}
-              </p>
+        <div className="border-b border-slate-200 px-6 pb-4 pt-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-[20px] font-bold tracking-[-0.02em] text-slate-900">Messenger</h2>
+              <p className="mt-1 text-xs text-slate-400">{threads.length} conversations · {totalUnread} unread</p>
             </div>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              title="New message"
-              onClick={() => void openNewDm()}
-              className="flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition-colors hover:bg-white/10"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
-              </svg>
-              <span className="hidden sm:inline">Message</span>
-            </button>
-            <button
-              type="button"
-              title="Close"
-              onClick={onClose}
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-        {/* ── Header ───────────────────────────────────────────────────── */}
-        {activeThreadId ? (
-          /* Thread view header */
-          <div className="flex items-center gap-3 border-b border-slate-100 bg-white px-3 py-3">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveThreadId(null);
-                setMessages([]);
-                setComposing("");
-                clearSelectedImage();
-                setEditingMessageId(null);
-                setEditingText("");
-              }}
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            {activeOtherUser && (
-              <div className="relative flex-shrink-0">
-                <UserAvatar user={activeOtherUser} size={36} />
-                <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-slate-900">
-                {activeThread?.otherParticipants.map((p) => `${p.firstName} ${p.lastName}`).join(", ") || activeThread?.name || "Thread"}
-              </p>
-              <p className="text-[11px] font-medium text-emerald-500">Active now</p>
-            </div>
-            <button
-              type="button"
-              title="Close"
-              onClick={onClose}
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        ) : (
-          /* Thread list header */
-          <div className="flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3.5">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-600 text-white">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
+            <div className="flex items-center gap-1.5 text-slate-500">
+              <button
+                type="button"
+                title="Search conversations"
+                onClick={() => conversationSearchRef.current?.focus()}
+                className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-slate-100 hover:text-slate-900"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
                 </svg>
-              </div>
-              <span className="text-[15px] font-bold text-slate-900">Messages</span>
-              {totalUnread > 0 && (
-                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-violet-600 px-1.5 text-[11px] font-bold text-white">
-                  {Math.min(totalUnread, 99)}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-1">
+              </button>
               <button
                 type="button"
                 title="New message"
                 onClick={() => void openNewDm()}
-                className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-slate-100 hover:text-slate-900"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
               </button>
               <button
                 type="button"
                 title="Close"
                 onClick={onClose}
-                className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-slate-100 hover:text-slate-900"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
           </div>
-        )}
+        </div>
 
         {/* ── Plugin disabled notice ─────────────────────────────────── */}
         {enabled === false && (
@@ -619,9 +584,24 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
         )}
 
         {/* ── New DM picker ───────────────────────────────────────────── */}
-        {enabled !== false && showNewDm && !activeThreadId && (
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <div className="border-b border-slate-100 px-4 py-2.5">
+        {enabled !== false && showNewDm && (
+          <div className="absolute inset-0 z-10 flex flex-col overflow-hidden bg-white">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">New Message</p>
+                  <p className="text-xs text-slate-400">Start a direct message with a teammate.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setShowNewDm(false); setUserSearch(""); }}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
               <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-100 transition-all">
                 <svg className="w-4 h-4 flex-shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
@@ -658,199 +638,246 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
                 </button>
               ))}
             </div>
-            <div className="border-t border-slate-100 px-4 py-2.5">
-              <button
-                type="button"
-                onClick={() => { setShowNewDm(false); setUserSearch(""); }}
-                className="text-xs font-medium text-slate-500 hover:text-slate-800"
-              >
-                ← Back to messages
-              </button>
-            </div>
           </div>
         )}
 
         {/* ── Thread list ─────────────────────────────────────────────── */}
-        {enabled !== false && !showNewDm && !activeThreadId && (
-          <div className="flex-1 overflow-y-auto">
-            {threads.length === 0 && (
-              <div className="flex flex-col items-center justify-center gap-3 px-6 py-14 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-50">
-                  <svg className="w-8 h-8 text-violet-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">No conversations yet</p>
-                  <p className="mt-1 text-xs text-slate-500">Start messaging your teammates</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void openNewDm()}
-                  className="mt-1 rounded-xl bg-violet-600 px-5 py-2 text-xs font-semibold text-white transition-colors hover:bg-violet-700"
-                >
-                  New Message
-                </button>
-              </div>
-            )}
-            {threads.map((thread) => {
-              const otherUser = thread.otherParticipants[0];
-              const displayName = thread.name
-                ?? thread.otherParticipants.map((p) => `${p.firstName} ${p.lastName}`).join(", ")
-                ?? "Thread";
-              const hasUnread = thread.unreadCount > 0;
-              return (
-                <button
-                  key={thread.id}
-                  type="button"
-                  onClick={() => setActiveThreadId(thread.id)}
-                  className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-slate-50 active:bg-slate-100 ${hasUnread ? "bg-violet-50/40" : ""}`}
-                >
-                  <div className="relative flex-shrink-0">
-                    {otherUser ? (
-                      <UserAvatar user={otherUser} size={44} />
-                    ) : (
-                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-600">G</span>
-                    )}
-                    <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <p className={`truncate text-sm ${hasUnread ? "font-bold text-slate-900" : "font-medium text-slate-700"}`}>
-                        {displayName}
-                      </p>
-                      <span className="flex-shrink-0 text-[11px] text-slate-400">
-                        {thread.lastMessage ? relativeTime(thread.lastMessage.createdAt) : ""}
-                      </span>
-                    </div>
-                    <div className="mt-0.5 flex items-center justify-between gap-2">
-                      <p className={`truncate text-xs ${hasUnread ? "font-medium text-slate-700" : "text-slate-400"}`}>
-                        {thread.lastMessage
-                          ? `${thread.lastMessage.senderId === user?.id ? "You: " : ""}${previewMessageBody(thread.lastMessage.body)}`
-                          : "No messages yet"}
-                      </p>
-                      {hasUnread && (
-                        <span className="flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-violet-600 px-1.5 text-[10px] font-bold text-white">
-                          {Math.min(thread.unreadCount, 99)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ── Active thread: messages + compose ───────────────────────── */}
-        {enabled !== false && activeThreadId && (
+        {enabled !== false && !showNewDm && (
           <>
-            <div className="flex-1 overflow-y-auto bg-slate-50/50 px-4 py-4 space-y-1">
-              {messagesLoading && (
-                <div className="flex items-center justify-center py-8">
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
+            <div className="flex min-h-0 flex-1 bg-white">
+              <aside className="flex w-[290px] shrink-0 flex-col border-r border-slate-200/80 bg-slate-50/60">
+                <div className="border-b border-slate-200/80 px-4 pb-3 pt-4">
+                  <div className="flex items-center gap-6 text-sm">
+                    {[
+                      { key: "inbox", label: "Inbox" },
+                      { key: "unread", label: "Unread" },
+                      { key: "mentions", label: "Mentions" },
+                    ].map((tab) => (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => setThreadView(tab.key as "inbox" | "unread" | "mentions")}
+                        className={`relative pb-3 font-medium transition-colors ${threadView === tab.key ? "text-emerald-600" : "text-slate-500 hover:text-slate-800"}`}
+                      >
+                        {tab.label}
+                        {threadView === tab.key ? <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-emerald-500" /> : null}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+                    <svg className="h-4 w-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                    </svg>
+                    <input
+                      ref={conversationSearchRef}
+                      type="text"
+                      value={conversationSearch}
+                      onChange={(event) => setConversationSearch(event.target.value)}
+                      placeholder="Search conversations..."
+                      className="flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                    />
+                  </div>
                 </div>
-              )}
-              {!messagesLoading && messages.length === 0 && (
-                <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-                  {activeOtherUser && <UserAvatar user={activeOtherUser} size={48} />}
-                  <p className="text-sm font-semibold text-slate-800">
-                    {activeOtherUser ? `${activeOtherUser.firstName} ${activeOtherUser.lastName}` : ""}
-                  </p>
-                  <p className="text-xs text-slate-400">No messages yet — say hello!</p>
-                </div>
-              )}
-              {messages.map((msg, idx) => {
-                const isMe = msg.senderId === user?.id;
-                const parsed = parseMessageContent(msg.body);
-                const prevMsg = messages[idx - 1];
-                const showAvatar = !isMe && (!prevMsg || prevMsg.senderId !== msg.senderId);
-                const showTimestamp = !messages[idx + 1] || new Date(messages[idx + 1].createdAt).getTime() - new Date(msg.createdAt).getTime() > 60000 * 5;
-                const attachmentExpired = parsed.attachment?.expiresAt ? new Date(parsed.attachment.expiresAt).getTime() <= Date.now() : false;
-                const editingThis = editingMessageId === msg.id;
-                return (
-                  <div key={msg.id} className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
-                    {/* Avatar placeholder to maintain alignment for grouped messages */}
-                    {!isMe && (
-                      showAvatar
-                        ? <div className="flex-shrink-0 self-end"><UserAvatar user={msg.sender} size={28} /></div>
-                        : <div className="w-7 flex-shrink-0" />
-                    )}
-                    <div className={`flex flex-col max-w-[72%] ${isMe ? "items-end" : "items-start"}`}>
-                      {editingThis ? (
-                        <div className="w-[min(22rem,70vw)] rounded-2xl border border-blue-200 bg-white p-2 shadow-sm">
-                          <textarea
-                            value={editingText}
-                            onChange={(event) => setEditingText(event.target.value)}
-                            className="min-h-20 w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                            autoFocus
-                          />
-                          <div className="mt-2 flex justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() => { setEditingMessageId(null); setEditingText(""); }}
-                              className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void saveEditedMessage(msg)}
-                              className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
-                            >
-                              Save
-                            </button>
+
+                <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+                  {visibleThreads.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-center">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50">
+                        <svg className="w-7 h-7 text-violet-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">No conversations yet</p>
+                        <p className="mt-1 text-xs text-slate-500">Start messaging your teammates</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void openNewDm()}
+                        className="mt-1 rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-violet-700"
+                      >
+                        New Message
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {visibleThreads.map((thread) => {
+                    const otherUser = thread.otherParticipants[0];
+                    const displayName = thread.name
+                      ?? thread.otherParticipants.map((participant) => `${participant.firstName} ${participant.lastName}`).join(", ")
+                      ?? "Thread";
+                    const hasUnread = thread.unreadCount > 0;
+                    const isSelected = thread.id === activeThreadId;
+                    return (
+                      <button
+                        key={thread.id}
+                        type="button"
+                        onClick={() => setActiveThreadId(thread.id)}
+                        className={`mb-1 flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors ${isSelected ? "bg-emerald-50/70 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.12)]" : "hover:bg-white active:bg-slate-100"}`}
+                      >
+                        <div className="relative flex-shrink-0">
+                          {otherUser ? (
+                            <UserAvatar user={otherUser} size={42} />
+                          ) : (
+                            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-600">G</span>
+                          )}
+                          <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <p className={`truncate text-sm ${hasUnread ? "font-bold text-slate-900" : "font-medium text-slate-700"}`}>
+                              {displayName}
+                            </p>
+                            <span className="flex-shrink-0 text-[11px] text-slate-400">
+                              {thread.lastMessage ? formatThreadTimestamp(thread.lastMessage.createdAt) : ""}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 flex items-center justify-between gap-2">
+                            <p className={`truncate text-xs ${hasUnread ? "font-medium text-slate-700" : "text-slate-400"}`}>
+                              {thread.lastMessage
+                                ? `${thread.lastMessage.senderId === user?.id ? "You: " : ""}${previewMessageBody(thread.lastMessage.body)}`
+                                : "No messages yet"}
+                            </p>
+                            {hasUnread ? (
+                              <span className="flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-violet-600 px-1.5 text-[10px] font-bold text-white">
+                                {Math.min(thread.unreadCount, 99)}
+                              </span>
+                            ) : null}
                           </div>
                         </div>
-                      ) : (
-                        <div className={`group relative overflow-hidden px-3.5 py-2.5 text-sm leading-relaxed break-words ${
-                            isMe
-                              ? "rounded-2xl rounded-br-sm bg-blue-600 text-white shadow-sm"
-                              : "rounded-2xl rounded-bl-sm bg-white text-slate-900 shadow-sm border border-slate-200/80"
-                          }`}
-                        >
-                          {parsed.attachment ? (
-                            <div className="mb-2 overflow-hidden rounded-xl border border-black/5 bg-black/5">
-                              {attachmentExpired ? (
-                                <div className={`px-3 py-8 text-center text-xs ${isMe ? "text-blue-100" : "text-slate-500"}`}>
-                                  Image expired
-                                </div>
-                              ) : (
-                                <img src={parsed.attachment.url} alt={parsed.attachment.name} className="max-h-56 w-full object-cover" />
-                              )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </aside>
+
+              {/* ── Active thread: messages + compose ───────────────────────── */}
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-white">
+              <div className="flex items-center gap-3 px-5 py-2.5">
+                {activeOtherUser ? <UserAvatar user={activeOtherUser} size={34} /> : null}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-900">
+                    {activeThread?.otherParticipants.map((participant) => `${participant.firstName} ${participant.lastName}`).join(", ") || activeThread?.name || "Conversation"}
+                  </p>
+                  <p className="text-[11px] text-emerald-500">Active now</p>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-5 py-3 space-y-1">
+                {messagesLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
+                  </div>
+                ) : null}
+                {!messagesLoading && messages.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+                    {activeOtherUser ? <UserAvatar user={activeOtherUser} size={48} /> : null}
+                    <p className="text-sm font-semibold text-slate-800">
+                      {activeOtherUser ? `${activeOtherUser.firstName} ${activeOtherUser.lastName}` : "Conversation"}
+                    </p>
+                    <p className="text-xs text-slate-400">No messages yet — say hello!</p>
+                  </div>
+                ) : null}
+                {messages.map((msg, idx) => {
+                  const isMe = msg.senderId === user?.id;
+                  const parsed = parseMessageContent(msg.body);
+                  const prevMsg = messages[idx - 1];
+                  const showAvatar = !isMe && (!prevMsg || prevMsg.senderId !== msg.senderId);
+                  const showTimestamp = !messages[idx + 1] || new Date(messages[idx + 1].createdAt).getTime() - new Date(msg.createdAt).getTime() > 60000 * 5;
+                  const showDayDivider = !prevMsg || new Date(prevMsg.createdAt).toDateString() !== new Date(msg.createdAt).toDateString();
+                  const attachmentExpired = parsed.attachment?.expiresAt ? new Date(parsed.attachment.expiresAt).getTime() <= Date.now() : false;
+                  const editingThis = editingMessageId === msg.id;
+                  return (
+                    <div key={msg.id}>
+                      {showDayDivider ? (
+                        <div className="flex items-center gap-3 py-4 text-[11px] text-slate-400">
+                          <div className="h-px flex-1 bg-slate-200" />
+                          <span>{formatDayDivider(msg.createdAt)}</span>
+                          <div className="h-px flex-1 bg-slate-200" />
+                        </div>
+                      ) : null}
+                      <div className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+                        {!isMe ? (
+                          showAvatar
+                            ? <div className="flex-shrink-0 self-end"><UserAvatar user={msg.sender} size={28} /></div>
+                            : <div className="w-7 flex-shrink-0" />
+                        ) : null}
+                        <div className={`flex flex-col max-w-[82%] ${isMe ? "items-end" : "items-start"}`}>
+                          {editingThis ? (
+                            <div className="w-[min(22rem,70vw)] rounded-2xl border border-blue-200 bg-white p-2 shadow-sm">
+                              <textarea
+                                value={editingText}
+                                onChange={(event) => setEditingText(event.target.value)}
+                                className="min-h-20 w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                                autoFocus
+                              />
+                              <div className="mt-2 flex justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => { setEditingMessageId(null); setEditingText(""); }}
+                                  className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void saveEditedMessage(msg)}
+                                  className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                                >
+                                  Save
+                                </button>
+                              </div>
                             </div>
-                          ) : null}
-                          {parsed.text ? <p className="whitespace-pre-wrap">{parsed.text}</p> : null}
-                          {parsed.attachment?.autoDelete && parsed.attachment.expiresAt ? (
-                            <p className={`mt-1 text-[10px] ${isMe ? "text-blue-100" : "text-slate-400"}`}>
-                              Auto-deletes {expiresInLabel(parsed.attachment.expiresAt)}
+                          ) : (
+                            <div className={`group relative overflow-hidden px-3.5 py-2.5 text-sm leading-relaxed break-words ${
+                              isMe
+                                ? "rounded-[18px] rounded-br-md bg-emerald-50 text-emerald-900 shadow-sm ring-1 ring-emerald-100"
+                                : "rounded-[18px] rounded-bl-md bg-slate-50 text-slate-900 shadow-sm ring-1 ring-slate-100"
+                            }`}
+                            >
+                              {parsed.attachment ? (
+                                <div className="mb-2 overflow-hidden rounded-xl border border-black/5 bg-black/5">
+                                  {attachmentExpired ? (
+                                    <div className={`px-3 py-8 text-center text-xs ${isMe ? "text-emerald-700" : "text-slate-500"}`}>
+                                      Image expired
+                                    </div>
+                                  ) : (
+                                    <img src={parsed.attachment.url} alt={parsed.attachment.name} className="max-h-56 w-full object-cover" />
+                                  )}
+                                </div>
+                              ) : null}
+                              {parsed.text ? <p className="whitespace-pre-wrap">{parsed.text}</p> : null}
+                              {parsed.attachment?.autoDelete && parsed.attachment.expiresAt ? (
+                                <p className={`mt-1 text-[10px] ${isMe ? "text-emerald-700" : "text-slate-400"}`}>
+                                  Auto-deletes {expiresInLabel(parsed.attachment.expiresAt)}
+                                </p>
+                              ) : null}
+                              {isMe ? (
+                                <button
+                                  type="button"
+                                  onClick={() => startEditingMessage(msg)}
+                                  className="absolute right-1.5 top-1.5 hidden rounded-md bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 shadow-sm group-hover:block"
+                                >
+                                  Edit
+                                </button>
+                              ) : null}
+                            </div>
+                          )}
+                          {showTimestamp ? (
+                            <p className={`mt-1 text-[10px] text-slate-400 ${isMe ? "text-right" : "text-left"}`}>
+                              {formatClockTime(msg.createdAt)}{isEdited(msg) ? " · edited" : ""}
                             </p>
                           ) : null}
-                          {isMe ? (
-                            <button
-                              type="button"
-                              onClick={() => startEditingMessage(msg)}
-                              className="absolute right-1.5 top-1.5 hidden rounded-md bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 shadow-sm group-hover:block"
-                            >
-                              Edit
-                            </button>
-                          ) : null}
                         </div>
-                      )}
-                      {showTimestamp && (
-                        <p className={`mt-1 text-[10px] text-slate-400 ${isMe ? "text-right" : "text-left"}`}>
-                          {relativeTime(msg.createdAt)}{isEdited(msg) ? " · edited" : ""}
-                        </p>
-                      )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
+                  );
+                })}
+                <div ref={messagesEndRef} />
+              </div>
 
             {/* Compose bar */}
-            <div className="border-t border-slate-100 bg-white px-3 py-3">
+            <div className="border-t border-slate-100 bg-white px-5 py-4">
               {selectedImagePreview ? (
                 <div className="mb-2 rounded-2xl border border-slate-200 bg-slate-50 p-2">
                   <div className="flex items-start gap-3">
@@ -883,7 +910,7 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
               {uploadError ? (
                 <p className="mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{uploadError}</p>
               ) : null}
-              <div className="flex items-end gap-2">
+              <div className="flex items-end gap-3">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -891,12 +918,22 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
                   className="hidden"
                   onChange={(event) => handleImageSelected(event.target.files?.[0])}
                 />
-                <div className="flex flex-1 items-end gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                <button
+                  type="button"
+                  title="Attach image"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="mb-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm transition-colors hover:bg-emerald-600"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+                <div className="flex flex-1 items-end gap-2 rounded-[20px] border border-slate-200 px-3.5 py-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100 transition-all">
                   <button
                     type="button"
                     title="Attach image"
                     onClick={() => fileInputRef.current?.click()}
-                    className="mb-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white hover:text-blue-600"
+                    className="mb-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-emerald-600"
                   >
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7 8.586 13.586a2 2 0 1 0 2.828 2.828L18 9.828a4 4 0 0 0-5.657-5.656L5.757 10.757a6 6 0 1 0 8.486 8.486L20 13.485" />
@@ -908,7 +945,7 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
                     value={composing}
                     onChange={(e) => setComposing(e.target.value)}
                     onKeyDown={handleComposeKeyDown}
-                    placeholder="Aa"
+                    placeholder="Type a message..."
                     className="flex-1 resize-none bg-transparent text-sm text-slate-900 placeholder-slate-400 outline-none"
                     style={{ maxHeight: 120 }}
                     onInput={(e) => {
@@ -922,12 +959,14 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
                   type="button"
                   disabled={(!composing.trim() && !selectedImage) || sending}
                   onClick={() => void sendMessage()}
-                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm transition-all hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm transition-all hover:bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
                 >
                   <svg className="w-4 h-4 translate-x-px" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" />
                   </svg>
                 </button>
+              </div>
+            </div>
               </div>
             </div>
           </>

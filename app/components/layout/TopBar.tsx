@@ -796,8 +796,8 @@ export default function TopBar() {
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
   const donorAccentTheme = getDonorAccentTheme(workspaceSettings.donorAccentTone);
   const moduleSwitcherMinWidthClass = "hidden min-[420px]:flex";
-  const chromeButtonBase = `${scrolled ? "h-8 w-8 md:h-7 md:w-7" : "h-9 w-9 sm:h-10 sm:w-10 md:h-9 md:w-9"} rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0`;
-  const darkIconButtonBase = `${scrolled ? "w-6 h-6" : "w-8 h-8"} rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0 active:scale-95`;
+  const chromeButtonBase = `${scrolled ? "h-8 w-8 md:h-7 md:w-7" : "h-9 w-9 sm:h-10 sm:w-10 md:h-9 md:w-9"} rounded-xl border border-slate-200/90 bg-white/95 text-slate-600 shadow-[0_6px_18px_rgba(15,23,42,0.06)] flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0`;
+  const darkIconButtonBase = `${scrolled ? "w-7 h-7" : "w-8 h-8"} rounded-xl border border-transparent bg-transparent text-slate-600 flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0 active:scale-95`;
   const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] z-50 overflow-hidden lg:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
   const moduleAccentClass = moduleKey === "compassion"
     ? "bg-blue-600"
@@ -1255,12 +1255,14 @@ export default function TopBar() {
           </div>
         </>
       )}
-      <header data-topbar-root="true" className={`fixed top-0 left-0 right-0 isolate z-20 flex w-full shrink-0 items-center gap-1.5 border-b border-slate-200/80 bg-white/95 px-1.5 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-md transition-[height] duration-200 max-[380px]:gap-1 max-[380px]:px-1 sm:gap-2 sm:px-2 lg:gap-3 lg:px-3 min-[1440px]:gap-4 min-[1440px]:px-4 ${scrolled ? "h-10" : "h-14"}`} style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
+      <header data-topbar-root="true" className={`fixed top-0 left-0 right-0 isolate z-20 flex w-full shrink-0 items-center gap-1.5 border-b border-slate-200/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.94)_100%)] px-1.5 shadow-[0_14px_38px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-[height] duration-200 max-[380px]:gap-1 max-[380px]:px-1 sm:gap-2 sm:px-2 lg:gap-3 lg:px-3 min-[1440px]:gap-4 min-[1440px]:px-4 ${scrolled ? "h-10" : "h-14"}`} style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute left-0 top-0 hidden h-full w-[25vw] min-w-[340px] max-w-[520px] bg-[linear-gradient(90deg,#020617,#0f172a)] lg:block"
-          style={{ clipPath: "polygon(0 0, 88% 0, 100% 100%, 0 100%)" }}
-        />
+          className="pointer-events-none absolute left-0 top-0 hidden h-full w-[25vw] min-w-[340px] max-w-[520px] overflow-hidden lg:block"
+        >
+          <div className="absolute inset-0 rounded-tr-[42px] border-r border-white/10 bg-[linear-gradient(90deg,#020617_0%,#0b1324_58%,#0f172a_100%)] shadow-[14px_0_30px_rgba(15,23,42,0.18)]" />
+          <div className="absolute inset-x-0 top-0 h-px bg-white/10" />
+        </div>
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white"
@@ -1471,24 +1473,26 @@ export default function TopBar() {
                 setMessengerOpen(false);
                 setMobileSearchOpen(true);
               }}
-              className={`flex ${scrolled ? "h-7 max-w-[420px]" : "h-10 max-w-[560px]"} w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-3 text-slate-500 shadow-inner transition-all duration-200 hover:border-emerald-200 hover:bg-white hover:text-slate-700`}
+              className={`group flex ${scrolled ? "h-8 max-w-[460px]" : "h-11 max-w-[620px]"} w-full items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-white px-3.5 text-slate-500 shadow-[0_10px_24px_rgba(15,23,42,0.05)] transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:shadow-[0_14px_30px_rgba(15,23,42,0.08)] hover:text-slate-700`}
             >
               <span className="flex min-w-0 items-center gap-2">
-                <svg className="h-[17px] w-[17px] shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-                </svg>
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors group-hover:bg-emerald-50 group-hover:text-emerald-700">
+                  <svg className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                  </svg>
+                </span>
                 <span className={`truncate text-sm ${scrolled ? "hidden min-[1180px]:inline" : ""}`}>
                   Search constituents, donations, campaigns, tools...
                 </span>
               </span>
-              <span className="hidden rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 min-[1280px]:inline">
+              <span className="hidden rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 min-[1280px]:inline">
                 Ctrl K
               </span>
             </button>
           </div>
 
           {/* ── Right-side icon controls ── */}
-          <div className="hidden lg:flex items-center gap-1.5 shrink-0">
+          <div className="hidden lg:flex items-center gap-1.5 shrink-0 rounded-2xl border border-slate-200/85 bg-white/92 px-2 py-1 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-sm">
 
           {isStewardSignalsWorkspace && (
             <button
@@ -1754,7 +1758,7 @@ export default function TopBar() {
           )}
         </div>
 
-            <div className="w-px h-5 bg-slate-200 mx-1 shrink-0" />
+            <div className="mx-1 h-5 w-px shrink-0 bg-slate-200/80" />
 
             {/* User avatar */}
             <UserMenu moduleKey={moduleKey} />
