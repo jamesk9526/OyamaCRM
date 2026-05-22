@@ -12,7 +12,16 @@ interface PageProps {
   searchParams: Promise<{ campaign?: string; returnTo?: string }>;
 }
 
+/** Demo campaign ids are synthetic and should not be passed to the regular builder as editable context. */
+function sanitizeCampaignId(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.toLowerCase().startsWith('demo_')) return undefined;
+  return trimmed;
+}
+
 export default async function EmailBuilderPage({ searchParams }: PageProps) {
   const { campaign, returnTo } = await searchParams;
-  return <EmailBuilderApp campaignId={campaign} returnTo={returnTo} />;
+  return <EmailBuilderApp campaignId={sanitizeCampaignId(campaign)} returnTo={returnTo} />;
 }

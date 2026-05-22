@@ -15,6 +15,8 @@ import {
   insertNodeAtTarget,
   relocateNode,
   removeBranchLane,
+  resetCanvasLayout,
+  setNodeCanvasOffset,
   updateNodeConfig,
 } from "@/app/components/steward-paths/workflow-utils";
 import { getReadinessBadge, isBranchNode } from "@/app/components/steward-paths/workflow-types";
@@ -123,6 +125,27 @@ describe("workflow-utils", () => {
     expect(doc.nodesById[task.id]?.config.priority).toBe("HIGH");
   });
 
+  it("stores and resets free-drag canvas offsets without changing node order", () => {
+    const idFactory = createTestIdFactory();
+    let doc = createWorkflowDocument(idFactory);
+
+    const trigger = createNodeFromPalette(palette("trigger.new_donation"), idFactory);
+    const task = createNodeFromPalette(palette("task.create"), idFactory);
+
+    doc = insertNodeAtTarget(doc, { kind: "root-end" }, trigger);
+    doc = insertNodeAtTarget(doc, { kind: "after-node", nodeId: trigger.id }, task);
+
+    doc = setNodeCanvasOffset(doc, task.id, { x: 48.4, y: -24.2 });
+
+    expect(doc.rootNodeIds).toEqual([trigger.id, task.id]);
+    expect(doc.canvasLayout.nodeOffsets[task.id]).toEqual({ x: 48, y: -24 });
+
+    doc = resetCanvasLayout(doc);
+
+    expect(doc.rootNodeIds).toEqual([trigger.id, task.id]);
+    expect(doc.canvasLayout.nodeOffsets).toEqual({});
+  });
+
   it("relocates a node between root and branch lane containers", () => {
     const idFactory = createTestIdFactory();
     let doc = createWorkflowDocument(idFactory);
@@ -194,6 +217,24 @@ describe("workflow-transformers", () => {
     expect(support.canActivate).toBe(true);
     expect(support.canSaveLinear).toBe(true);
     expect(exported.steps.some((step) => step.stepType === "BRANCH_PLACEHOLDER")).toBe(true);
+  });
+
+  it("exports every non-trigger palette node kind from a simple workflow", () => {
+    const nonTriggerItems = PALETTE_ITEMS.filter((item) => !item.kind.startsWith("trigger."));
+
+    for (const item of nonTriggerItems) {
+      const idFactory = createTestIdFactory();
+      let doc = createWorkflowDocument(idFactory);
+      const trigger = createNodeFromPalette(palette("trigger.manual_enrollment"), idFactory);
+      const node = createNodeFromPalette(item, idFactory);
+
+      doc = insertNodeAtTarget(doc, { kind: "root-end" }, trigger);
+      doc = insertNodeAtTarget(doc, { kind: "after-node", nodeId: trigger.id }, node);
+
+      const exported = toLinearWorkflowExport(doc);
+      expect(exported.report.canSaveLinear, item.kind).toBe(true);
+      expect(exported.steps.length, item.kind).toBeGreaterThan(0);
+    }
   });
 });
 

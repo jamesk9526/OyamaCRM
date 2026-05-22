@@ -389,8 +389,10 @@ router.get("/", async (req, res) => {
   } = req.query as Record<string, string>;
 
   const parsedPage = Math.max(Number.parseInt(page, 10) || 1, 1);
-  const parsedLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 50, 1), 500);
-  const skip = (parsedPage - 1) * parsedLimit;
+  const parsedLimit = limit.toLowerCase() === "all"
+    ? undefined
+    : Math.min(Math.max(Number.parseInt(limit, 10) || 50, 1), 500);
+  const skip = parsedLimit ? (parsedPage - 1) * parsedLimit : 0;
 
   const where = await buildDonationWhere(organizationId, {
     constituentId,
@@ -406,11 +408,16 @@ router.get("/", async (req, res) => {
 
   // Run the list query and count in parallel to avoid two sequential round-trips
   const [items, total] = await Promise.all([
-    prisma.donation.findMany({ where, skip, take: parsedLimit, orderBy: { date: "desc" }, include: INCLUDE }),
+    prisma.donation.findMany({
+      where,
+      ...(parsedLimit ? { skip, take: parsedLimit } : {}),
+      orderBy: { date: "desc" },
+      include: INCLUDE,
+    }),
     prisma.donation.count({ where }),
   ]);
 
-  res.json({ items, total, page: parsedPage, limit: parsedLimit });
+  res.json({ items, total, page: parsedLimit ? parsedPage : 1, limit: parsedLimit ?? total });
 });
 
 /**

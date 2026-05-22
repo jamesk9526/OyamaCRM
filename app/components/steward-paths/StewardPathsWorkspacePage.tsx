@@ -72,6 +72,7 @@ export default function StewardPathsWorkspacePage() {
   const [message, setMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | StewardPathTemplate["status"]>("all");
+  const [sortMode, setSortMode] = useState<"updated" | "name" | "steps" | "enrollments">("updated");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -93,9 +94,14 @@ export default function StewardPathsWorkspacePage() {
 
   const activeCount = useMemo(() => items.filter((item) => item.status === "ACTIVE").length, [items]);
   const pausedCount = useMemo(() => items.filter((item) => item.status === "PAUSED").length, [items]);
-  const archivedCount = useMemo(() => items.filter((item) => item.status === "ARCHIVED").length, [items]);
+  const draftCount = useMemo(() => items.filter((item) => item.status === "DRAFT").length, [items]);
+  const enrollmentCount = useMemo(
+    () => items.reduce((total, item) => total + (item._count?.enrollments ?? 0), 0),
+    [items],
+  );
   const visibleItems = useMemo(
-    () => items
+    () => {
+      const filtered = items
       .filter((item) => {
         if (statusFilter !== "all" && item.status !== statusFilter) return false;
 
@@ -107,9 +113,16 @@ export default function StewardPathsWorkspacePage() {
           || item.triggerType.toLowerCase().includes(needle)
           || item.targetType.toLowerCase().includes(needle)
           || item.crmScope.toLowerCase().includes(needle);
-      })
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
-    [items, searchQuery, statusFilter],
+      });
+
+      return filtered.sort((a, b) => {
+        if (sortMode === "name") return a.name.localeCompare(b.name);
+        if (sortMode === "steps") return b.steps.length - a.steps.length;
+        if (sortMode === "enrollments") return (b._count?.enrollments ?? 0) - (a._count?.enrollments ?? 0);
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      });
+    },
+    [items, searchQuery, sortMode, statusFilter],
   );
 
   async function toggleStatus(item: StewardPathTemplate): Promise<void> {
@@ -255,13 +268,16 @@ export default function StewardPathsWorkspacePage() {
         </WorkspaceRibbonGroup>
       </WorkspaceRibbon>
 
-      <section className="grid gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(300px,0.7fr)]">
-        <div className="rounded-xl border border-gray-200 bg-white p-3">
+      <section className="grid gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-gray-900">Path library filters</p>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Project library</p>
+              <p className="text-xs text-gray-500">Search, sort, and manage saved workflow projects.</p>
+            </div>
             <span className="text-xs text-gray-500">Sorted by most recently updated</span>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1.4fr)_180px_180px]">
             <label className="block">
               <span className="text-xs font-medium text-gray-700">Search</span>
               <input
@@ -286,38 +302,62 @@ export default function StewardPathsWorkspacePage() {
                 <option value="ARCHIVED">Archived</option>
               </select>
             </label>
+            <label className="block">
+              <span className="text-xs font-medium text-gray-700">Sort</span>
+              <select
+                value={sortMode}
+                onChange={(event) => setSortMode(event.target.value as typeof sortMode)}
+                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              >
+                <option value="updated">Recently updated</option>
+                <option value="name">Name</option>
+                <option value="steps">Most steps</option>
+                <option value="enrollments">Most enrollments</option>
+              </select>
+            </label>
           </div>
         </div>
 
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
           <p className="text-sm font-semibold text-emerald-900">New from template quick-start</p>
           <p className="mt-1 text-xs text-emerald-800">Open the builder with a pre-wired starter flow.</p>
-          <div className="mt-2 grid gap-2">
-            <Link href="/steward-paths/builder?quickStart=donor-welcome" className="rounded-md border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50">
-              Donor Welcome Journey
+          <div className="mt-3 grid gap-2">
+            <Link href="/steward-paths/builder?quickStart=donor-welcome" className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-50">
+              <span className="block">Donor Welcome Journey</span>
+              <span className="mt-0.5 block font-normal text-emerald-700">Gift trigger, delay, email draft, welcome task</span>
             </Link>
-            <Link href="/steward-paths/builder?quickStart=lapsed-reengagement" className="rounded-md border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50">
-              Lapsed Reengagement Journey
+            <Link href="/steward-paths/builder?quickStart=lapsed-reengagement" className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-50">
+              <span className="block">Lapsed Reengagement Journey</span>
+              <span className="mt-0.5 block font-normal text-emerald-700">Lapsed trigger, amount branch, review task</span>
             </Link>
-            <Link href="/steward-paths/builder?quickStart=event-follow-up" className="rounded-md border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50">
-              Event Follow-up Journey
+            <Link href="/steward-paths/builder?quickStart=event-follow-up" className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-50">
+              <span className="block">Event Follow-up Journey</span>
+              <span className="mt-0.5 block font-normal text-emerald-700">Attendance trigger, email, letter follow-up</span>
             </Link>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+      <section className="grid gap-3 sm:grid-cols-5">
+        <button type="button" onClick={() => setStatusFilter("all")} className={`rounded-lg border px-3 py-2 text-left ${statusFilter === "all" ? "border-green-300 bg-green-50" : "border-gray-200 bg-white"}`}>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Total</p>
+          <p className="mt-1 text-lg font-semibold text-gray-900">{items.length}</p>
+        </button>
+        <button type="button" onClick={() => setStatusFilter("ACTIVE")} className={`rounded-lg border px-3 py-2 text-left ${statusFilter === "ACTIVE" ? "border-green-300 bg-green-50" : "border-gray-200 bg-white"}`}>
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Active</p>
           <p className="mt-1 text-lg font-semibold text-gray-900">{activeCount}</p>
-        </div>
-        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+        </button>
+        <button type="button" onClick={() => setStatusFilter("DRAFT")} className={`rounded-lg border px-3 py-2 text-left ${statusFilter === "DRAFT" ? "border-green-300 bg-green-50" : "border-gray-200 bg-white"}`}>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Draft</p>
+          <p className="mt-1 text-lg font-semibold text-gray-900">{draftCount}</p>
+        </button>
+        <button type="button" onClick={() => setStatusFilter("PAUSED")} className={`rounded-lg border px-3 py-2 text-left ${statusFilter === "PAUSED" ? "border-green-300 bg-green-50" : "border-gray-200 bg-white"}`}>
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Paused</p>
           <p className="mt-1 text-lg font-semibold text-gray-900">{pausedCount}</p>
-        </div>
+        </button>
         <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Archived</p>
-          <p className="mt-1 text-lg font-semibold text-gray-900">{archivedCount}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Enrollments</p>
+          <p className="mt-1 text-lg font-semibold text-gray-900">{enrollmentCount}</p>
         </div>
       </section>
 
@@ -329,52 +369,53 @@ export default function StewardPathsWorkspacePage() {
       ) : visibleItems.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-500">No saved visual paths found.</div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="min-w-[1010px]">
+          <div className="grid grid-cols-[minmax(260px,1.5fr)_110px_110px_110px_160px_260px] gap-3 border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <span>Workflow</span>
+            <span>Status</span>
+            <span>Steps</span>
+            <span>Enrollments</span>
+            <span>Updated</span>
+            <span>Actions</span>
+          </div>
           {visibleItems.map((item) => {
             const shareState = parseShareSettings(item.triggerConfig);
             const unsupportedStepCount = item.steps.filter((step) => step.stepType === "MANUAL_ACTION").length;
             return (
-              <article key={item.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h2 className="text-base font-semibold text-gray-900">{item.name}</h2>
-                    <p className="mt-1 text-xs text-gray-600">{item.description || "No description"}</p>
+              <article key={item.id} className="grid grid-cols-[minmax(260px,1.5fr)_110px_110px_110px_160px_260px] gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0">
+                <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <h2 className="truncate text-sm font-semibold text-gray-900">{item.name}</h2>
+                    <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">{shareState.visibility}</span>
                   </div>
+                  <p className="mt-1 line-clamp-1 text-xs text-gray-600">{item.description || "No description"}</p>
+                  <p className="mt-1 text-[11px] text-gray-500">Trigger: {item.triggerType || "MANUAL"} · Target: {item.targetType} · CRM: {item.crmScope}</p>
+                  {unsupportedStepCount > 0 && (
+                    <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900">
+                      {unsupportedStepCount} manual/safety step{unsupportedStepCount > 1 ? "s" : ""}
+                    </div>
+                  )}
+                </div>
+
+                <div>
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusTone(item.status)}`}>
                     {item.status}
                   </span>
                 </div>
-
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-600">
-                  <div>Trigger: {item.triggerType || "MANUAL"}</div>
-                  <div>CRM: {item.crmScope}</div>
-                  <div>Target: {item.targetType}</div>
-                  <div>Steps: {item.steps.length}</div>
-                  <div>Enrollments: {item._count?.enrollments ?? 0}</div>
-                  <div>Last edited: {formatDate(item.updatedAt)}</div>
-                  <div>Last run: Unavailable</div>
-                  <div>Share: {shareState.visibility}</div>
-                </div>
-
-                {unsupportedStepCount > 0 && (
-                  <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900">
-                    Contains {unsupportedStepCount} manual/safety step(s). Activation and run behavior may be partially working.
-                  </div>
-                )}
-
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="text-sm font-semibold text-gray-900">{item.steps.length}</div>
+                <div className="text-sm font-semibold text-gray-900">{item._count?.enrollments ?? 0}</div>
+                <div className="text-xs text-gray-600">{formatDate(item.updatedAt)}</div>
+                <div className="flex flex-wrap gap-2">
                   <Link href={`/steward-paths/builder/${encodeURIComponent(item.id)}`} className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700">
-                    Edit workflow
+                    Edit
                   </Link>
                   <button type="button" disabled={busyId === item.id} onClick={() => void runTest(item)} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-                    Test run
+                    Test
                   </button>
                   <button type="button" disabled={busyId === item.id} onClick={() => void toggleStatus(item)} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
                     {item.status === "ACTIVE" ? "Disable" : "Enable"}
                   </button>
-                </div>
-
-                <div className="mt-2 flex flex-wrap gap-2">
                   <button type="button" disabled={busyId === item.id} onClick={() => void share(item)} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50">
                     Share
                   </button>
@@ -385,12 +426,13 @@ export default function StewardPathsWorkspacePage() {
                     Archive
                   </button>
                   <Link href={`/steward-paths/${encodeURIComponent(item.id)}/history`} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
-                    View run history
+                    History
                   </Link>
                 </div>
               </article>
             );
           })}
+          </div>
         </div>
       )}
     </div>

@@ -150,38 +150,38 @@ router.get("/enabled", requireAuth, async (req: Request, res: Response) => {
   } catch (err) {
     console.error("[messenger] GET /enabled error", err);
     return res.status(500).json({ error: "Internal server error" });
+  }
+});
 
-  // ─── PUT /plugin ──────────────────────────────────────────────────────────────
-  // Admin endpoint to enable or disable the messenger integration.
+// ─── PUT /plugin ──────────────────────────────────────────────────────────────
+// Admin endpoint to enable or disable the messenger integration.
 
-  router.put("/plugin", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const orgId = await resolveOrganizationId({ req });
-      if (!orgId) return res.status(400).json({ error: "Organization not found" });
+router.put("/plugin", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const orgId = await resolveOrganizationId({ req });
+    if (!orgId) return res.status(400).json({ error: "Organization not found" });
 
-      // Require admin or manager role.
-      const userRole = req.user?.role ?? "";
-      if (!["admin", "manager", "super_admin"].includes(userRole)) {
-        return res.status(403).json({ error: "Admin role required to change Messenger settings." });
-      }
-
-      const { enabled } = req.body as { enabled?: boolean };
-      if (typeof enabled !== "boolean") {
-        return res.status(400).json({ error: "enabled (boolean) is required" });
-      }
-
-      await prisma.pluginSetting.upsert({
-        where: { organizationId_pluginKey: { organizationId: orgId, pluginKey: "messenger" } },
-        create: { organizationId: orgId, pluginKey: "messenger", enabled },
-        update: { enabled },
-      });
-
-      return res.json({ enabled });
-    } catch (err) {
-      console.error("[messenger] PUT /plugin error", err);
-      return res.status(500).json({ error: "Internal server error" });
+    // Require admin or manager role.
+    const userRole = req.user?.role ?? "";
+    if (!["admin", "manager", "super_admin"].includes(userRole)) {
+      return res.status(403).json({ error: "Admin role required to change Messenger settings." });
     }
-  });
+
+    const { enabled } = req.body as { enabled?: boolean };
+    if (typeof enabled !== "boolean") {
+      return res.status(400).json({ error: "enabled (boolean) is required" });
+    }
+
+    await prisma.pluginSetting.upsert({
+      where: { organizationId_pluginKey: { organizationId: orgId, pluginKey: "messenger" } },
+      create: { organizationId: orgId, pluginKey: "messenger", enabled },
+      update: { enabled },
+    });
+
+    return res.json({ enabled });
+  } catch (err) {
+    console.error("[messenger] PUT /plugin error", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 

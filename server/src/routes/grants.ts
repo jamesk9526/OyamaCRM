@@ -38,6 +38,7 @@ import { Router } from "express";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
+import { createNotification } from "../services/notifications.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 import { requireRole } from "../middleware/requireRole.js";
@@ -124,6 +125,32 @@ function toOptionalDate(value: unknown): Date | null {
   if (!value) return null;
   const parsed = new Date(String(value));
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+async function notifyGrantAssignee(args: {
+  organizationId: string;
+  assigneeId: string;
+  grantId: string;
+  grantTitle: string;
+  assignedByLabel?: string;
+}) {
+  await createNotification({
+    organizationId: args.organizationId,
+    userId: args.assigneeId,
+    module: "donor",
+    sourceType: "grant-assigned",
+    sourceId: args.grantId,
+    title: `Grant assigned: ${args.grantTitle}`,
+    message: args.assignedByLabel ? `Assigned by ${args.assignedByLabel}` : "A grant was assigned to you.",
+    href: `/grants?grantId=${args.grantId}`,
+    severity: "HIGH",
+    actionLabel: "Open grant",
+    metadata: {
+      source: "grants",
+      grantId: args.grantId,
+      grantTitle: args.grantTitle,
+    },
+  });
 }
 
 /** Type guard for JSON metadata objects. */
@@ -372,6 +399,8 @@ router.get("/", requirePermission("grants.view"), async (req, res) => {
 router.post("/", requirePermission("grants.create"), requireRole("manager"), async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) { res.status(400).json({ error: { message: "No organization found" } }); return; }
+  const actor = req.user as { firstName?: string; lastName?: string; email?: string } | undefined;
+  const actorLabel = [actor?.firstName, actor?.lastName].filter(Boolean).join(" ") || actor?.email || "Staff";
 
   const { funderId, title, programArea, status, amountRequested, requiresLOI,
           loiDeadline, applicationDeadline, assigneeId, notes, internalNotes } = req.body;
@@ -430,6 +459,18 @@ router.post("/", requirePermission("grants.create"), requireRole("manager"), asy
       description: `Grant created with status: ${grant.status}`,
     },
   });
+
+  if (grant.assigneeId) {
+    notifyGrantAssignee({
+      organizationId,
+      assigneeId: grant.assigneeId,
+      grantId: grant.id,
+      grantTitle: grant.title,
+      assignedByLabel: actorLabel,
+    }).catch((error) => {
+      console.warn("[grants] failed to create assignee notification for new grant:", error);
+    });
+  }
 
   await logAudit({ action: "CREATE", entity: "Grant", entityId: grant.id, userId: (req as { user?: { sub?: string } }).user?.sub });
   res.status(201).json(grant);
@@ -769,9 +810,11 @@ router.get("/:id", requirePermission("grants.view"), async (req, res) => {
 router.patch("/:id", requirePermission("grants.edit"), async (req, res) => {
   const id = String(req.params.id);
   const organizationId = await resolveOrganizationId({ req });
+  const actor = req.user as { firstName?: string; lastName?: string; email?: string } | undefined;
+  const actorLabel = [actor?.firstName, actor?.lastName].filter(Boolean).join(" ") || actor?.email || "Staff";
   const existing = await prisma.grant.findFirst({
     where: { id, organizationId: organizationId ?? "" },
-    select: { status: true },
+    select: { status: true, assigneeId: true, title: true },
   });
   if (!existing) { res.status(404).json({ error: { message: "Grant not found" } }); return; }
 
@@ -845,6 +888,18 @@ router.patch("/:id", requirePermission("grants.edit"), async (req, res) => {
         description: `Status changed from ${existing.status} to ${nextStatus}`,
         metadata: { from: existing.status, to: nextStatus },
       },
+    });
+  }
+
+  if (organizationId && updated.assigneeId && updated.assigneeId !== existing.assigneeId) {
+    notifyGrantAssignee({
+      organizationId,
+      assigneeId: updated.assigneeId,
+      grantId: updated.id,
+      grantTitle: updated.title,
+      assignedByLabel: actorLabel,
+    }).catch((error) => {
+      console.warn("[grants] failed to create assignee notification for updated grant:", error);
     });
   }
 

@@ -178,6 +178,7 @@ _Last deep audit: 2026-05-18 (v1.1.0)_
 | Area | Status | Evidence | Notes |
 |---|---|---|---|
 | Durable notifications API with state actions | Working | `prisma/schema.prisma`, `server/src/routes/notifications.ts`, `server/src/services/notifications.ts` | Replaced ephemeral notifications feed with durable records and user actions (`read`, `dismiss`, `snooze`, `mark-all-read`, unread-count endpoint). |
+| Grants assignment notification producer | Working | `server/src/routes/grants.ts`, `server/src/services/notifications.ts` | Creating or reassigning grants now writes durable donor-module notifications for assignees with deep links to grant context. |
 | Task lifecycle API expansion | Working | `prisma/schema.prisma`, `server/src/routes/tasks.ts` | Added lifecycle fields (reminder/snooze/archive/outcome/source metadata) and dedicated lifecycle endpoints (`start`, `complete`, `snooze`, `archive`) with compatibility-preserving CRUD. |
 | TopBar notification action controls | Partially Working | `app/components/layout/TopBar.tsx` | Added unread polling and inline read/snooze/dismiss actions. Additional module-specific event producers still need migration to durable notification writes. |
 | Tasks workspace deep-link refresh bridge | Partially Working | `app/tasks/page.tsx` | Task create/complete/delete/reassign now emits workspace update events used by TopBar badge refresh; full command-center board/calendar redesign remains in progress. |
@@ -536,14 +537,14 @@ This document treats a feature as complete only when it uses real data, saves co
 | Donor CRM | Campaign management | Working | Real API Data | `app/campaigns/page.tsx` now links to `app/campaigns/[id]/page.tsx` for campaign info, full edit, recent donations, and delete workflows backed by `/api/campaigns` CRUD. | Add campaign attribution reporting from events + communications and multi-campaign comparison analytics. |
 | Donor CRM | Grants research workspace | Partially Working | Real API Data | Grants route/module now supports case-file reminders/tasks/resources/requirements and donation handoff separation from grant records. | Add dedicated grant calendar view and expanded cross-grant workload/reporting surfaces. |
 | Donor CRM | Tasks | Working | Real API Data | `app/tasks/page.tsx` is backed by `/api/tasks` CRUD. | Add task templates and bulk assignment from segment results. |
-| Donor CRM | Communications campaign CRUD | Partially Working | Mixed Real/Demo Data | Email campaign records are persisted via `/api/email-campaigns`; delivery analytics are simulated in current flow. | Add provider webhook ingestion for delivery/open/click metrics and unsubscribe events. |
-| Donor CRM | Letters & Printables workspace | Partially Working | Real API Data | `/api/letters` plus `/letters-printables` now support template CRUD, rich letter authoring, merge preview, single-letter generation, batch generation, unified queue workspace routing at `/letters-printables/queues`, print queue actions, mail queue actions, timeline logging, email draft creation, and persisted workflow policy settings via `/api/letters/workflow-settings`. | Wire true server-side PDF rendering/export and enforce workflow policy settings in queue execution lanes. |
-| Donor CRM | Steward Paths (automation + sequence workflows) | Partially Working | Real API Data | Legacy `/api/automations` trigger/action rules remain active, and new sequence APIs at `/api/steward-paths` now support template steps, enrollments, timeline, draft email review, and due-step processing in the worker. | Add full sequence builder UI, branch/status-change execution, and retry/backoff operations tooling. |
-| Donor CRM | Email/newsletter builder | Partially Working | Mixed Real/Demo Data | Builder stores structure/content in DB and now includes strict review checks for unknown/malformed merge tokens; advanced saved sections/history and provider validation lanes remain incomplete. | Add reusable sections, revision history, and delivery/timeline writeback per recipient. |
+| Donor CRM | Communications campaign CRUD | Partially Working | Mixed Real/Demo Data | Email campaign records are persisted via `/api/email-campaigns`; provider webhook ingestion now writes delivery/open/click/bounce events and campaign activity diagnostics are surfaced in the communications workspace. | Extend webhook mapping and preference propagation for unsubscribe-specific provider events. |
+| Donor CRM | Letters & Printables workspace | Partially Working | Real API Data | `/api/letters` plus `/letters-printables` now support template CRUD, rich letter authoring, merge preview, single-letter generation, server-side PDF export (single and batch), unified queue workspace routing at `/letters-printables/queues`, print queue actions, mail queue actions, timeline logging, email draft creation, and enforced workflow policy settings via `/api/letters/workflow-settings` in execution lanes. | Improve PDF rendering fidelity/storage delivery metadata and expand print-vendor handoff automation. |
+| Donor CRM | Steward Paths (automation + sequence workflows) | Partially Working | Real API Data | Legacy `/api/automations` trigger/action rules remain active, and sequence APIs at `/api/steward-paths` support template steps, enrollments, timeline, draft email review, branch/status-change execution, and due-step processing with adaptive worker retry backoff diagnostics. | Expand long-window failure trend dashboards and complete remaining advanced node-type execution coverage. |
+| Donor CRM | Email/newsletter builder | Partially Working | Mixed Real/Demo Data | Builder stores structure/content in DB, includes strict review checks for unknown/malformed merge tokens, now supports reusable section snippets in the campaign editor, and surfaces revision history via campaign audit/send log events. Recipient delivery/timeline writeback remains active through email campaign send flows. | Expand reusable sections from per-user local snippets to organization-shared section libraries with governance controls. |
 | Donor CRM | Reports | Working | Real API Data | `app/reports/page.tsx` now includes compact scope/tool switching, expanded module tools, filter controls, and admin operational reporting backed by `/api/reports/admin-summary`. | Add scheduled report delivery and server-side export jobs. |
 | Donor CRM | Import wizard (constituents + donations) | Working | Real API Data | Import wizard posts to `/api/constituents/import`; donation wizard posts to `/api/donations/import`. | Add import history and rollback tooling. |
-| Donor CRM | Merge workflow | Demo Only | Static Demo UI | `app/data-tools/merge/MergeWorkflow.tsx` is preview-first and not yet wired to merge endpoint writes. | Implement backend merge endpoint and explicit conflict resolution. |
-| Donor CRM | Volunteers page | Partially Working | Real API Data | `app/volunteers/page.tsx` uses direct `fetch` to `/api/constituents?type=VOLUNTEER`; behavior differs from `apiFetch` helper pattern. | Switch to `apiFetch` and validate auth/session consistency. |
+| Donor CRM | Merge workflow | Working | `app/data-tools/merge/MergeWorkflow.tsx`, `server/src/routes/constituents.ts` | Preview-first merge review now writes selected field values, preserves the chosen kept record, and re-links related donor records through the merge endpoint. | Expand duplicate detection inputs and add richer merge provenance reporting if staff need deeper review evidence. |
+| Donor CRM | Volunteers page | Partially Working | Real API Data | `app/volunteers/page.tsx` now uses the shared `apiFetch` auth helper for `/api/constituents?type=VOLUNTEER`, aligning session/token behavior with other Donor CRM workspaces. | Expand volunteer-hour tracking and assignment/reporting depth beyond list/search. |
 | Compassion CRM | Dashboard | Demo Only | Hardcoded Placeholder | `app/compassion/dashboard/page.tsx` uses static arrays and TODO markers for live API replacement. | Create Compassion API + schema and wire dashboard cards/charts. |
 | Compassion CRM | Clients, cases, appointments, services, reports | Demo Only | Static Demo UI | Most `/app/compassion/*` routes render placeholder shells/coming soon pages only. | Build models and API routes, then replace placeholders incrementally. |
 | Compassion CRM | Search/filtering + intake/import tools | Not Implemented | Unknown / Needs Verification | No Compassion-specific search endpoints or import routes found. | Add Compassion data tools and scoped filters after client/case schema launch. |
@@ -571,8 +572,8 @@ This document treats a feature as complete only when it uses real data, saves co
 ### Donor CRM
 
 - **Real data confirmed:** dashboard summaries/reports (`app/page.tsx` + `server/src/routes/reports.ts`), constituent CRUD and profile timeline (`app/constituents/*`, `server/src/routes/constituents.ts`), donation CRUD/import (`app/donations/page.tsx`, `server/src/routes/donations.ts`), campaign CRUD (`server/src/routes/campaigns.ts`), tasks (`server/src/routes/tasks.ts`), audit/users/settings routes.
-- **Mixed/partial:** email campaigns are persisted but runtime delivery telemetry is incomplete; Steward Paths now includes both legacy automations and new sequence processing (`server/src/routes/automations.ts`, `server/src/routes/steward-paths.ts`, `server/src/services/stewardPathsEngine.ts`, `server/src/services/steward-paths-sequence-engine.ts`, `server/src/services/steward-paths-worker.ts`) and still needs retry/backoff and deeper operations tooling.
-- **UI/demo-only:** merge workflow actions are still preview-focused without backend merge write (`app/data-tools/merge/MergeWorkflow.tsx`).
+- **Mixed/partial:** email campaigns are persisted but runtime delivery telemetry is incomplete; Steward Paths now includes both legacy automations and new sequence processing (`server/src/routes/automations.ts`, `server/src/routes/steward-paths.ts`, `server/src/services/stewardPathsEngine.ts`, `server/src/services/steward-paths-sequence-engine.ts`, `server/src/services/steward-paths-worker.ts`) and still needs deeper long-window operations dashboards and advanced node-type coverage.
+- **Follow-up depth:** deeper centralized data-quality reporting is still limited even though merge writes are now live (`app/data-tools/merge/MergeWorkflow.tsx`).
 
 ### Compassion CRM
 
@@ -623,13 +624,13 @@ This document treats a feature as complete only when it uses real data, saves co
 | donor.tasks | Working | `app/tasks/page.tsx` + `/api/tasks` | Task CRUD and bulk assignment live. |
 | donor.meetings | Working | `app/meetings/page.tsx` + `/api/meetings` | Scheduling and completion flows are live. |
 | donor.communications | Partially Working | `app/communications/*` + `/api/email-campaigns` | Core persistence is live; delivery telemetry depth varies by provider setup. |
-| donor.lettersPrintables | Partially Working | `app/letters-printables/*` + `/api/letters` | Single and batch generation plus unified production/print/mail queue workflows are functional; server-side PDF export remains partial. |
+| donor.lettersPrintables | Partially Working | `app/letters-printables/*` + `/api/letters` | Single and batch generation plus unified production/print/mail queue workflows are functional, with server-side PDF export and queue policy enforcement now active; print-vendor integration/fidelity depth remains. |
 | donor.livecom | Working | `app/livecom/page.tsx` + `/api/livecom` | Interaction capture writes to timeline activity. |
-| donor.stewardPaths | Partially Working | `app/automations/page.tsx`, `/api/automations`, `/api/steward-paths` | Legacy and sequence workflows run together; builder depth still growing. |
+| donor.stewardPaths | Partially Working | `app/automations/page.tsx`, `/api/automations`, `/api/steward-paths` | Legacy and sequence workflows run together with live builder + branch/status execution and adaptive worker retry backoff; long-window diagnostics and remaining advanced node types are still in progress. |
 | donor.stewardSignals | Partially Working | `app/steward-signals/page.tsx` + `/api/steward-signals` | Dashboard-first donor intelligence command center is live (Today Focus, KPI row, research/cohort workspace, card-first opportunities) and now requires live Steward AI for signal data; segment/export automation remains in development and write actions stay confirmation-gated. |
-| donor.volunteers | Partially Working | `app/volunteers/page.tsx` | Real data list with auth-helper consistency gap. |
+| donor.volunteers | Partially Working | `app/volunteers/page.tsx` | Real data list with auth-helper consistency now aligned via `apiFetch`; deeper volunteer workflow/reporting depth remains. |
 | donor.reports | Working | `app/reports/page.tsx` + `/api/reports/*` | Broad report coverage, admin operations summaries, and PDF packet print exports are available. |
-| donor.dataTools | Partially Working | `app/data-tools/*` | Import/export/data-quality tooling is live; merge depth still in progress. |
+| donor.dataTools | Working | `app/data-tools/*` | Import/export/data-quality tooling is live; merge writes, rollback history, recent import runs, and broader CSV exports are wired on the main workspace. |
 | donor.customFields | Working | `app/custom-fields/page.tsx` + `/api/custom-fields` | Full CRUD for custom donor schema extensions. |
 
 This plan targets donor-side partial features in delivery order and keeps campaign improvements as the first completed step.
@@ -644,8 +645,12 @@ This plan targets donor-side partial features in delivery order and keeps campai
 ### Step 1 (Next)
 
 - Communications telemetry hardening:
-	- Persist provider send lifecycle webhooks (delivered/open/click/bounce/unsubscribe).
-	- Show campaign-level delivery diagnostics in communications workspace.
+	- Expand provider webhook mapping and compliance propagation for unsubscribe-specific events.
+
+### Step 1A (Completed)
+
+- Letters execution-lane policy enforcement:
+	- Applied persisted workflow policy settings during print/mail queue actions and batch queueing in `/api/letters`.
 
 ### Step 2
 
@@ -668,7 +673,7 @@ This plan targets donor-side partial features in delivery order and keeps campai
 ### Step 5
 
 - Volunteer/auth consistency cleanup:
-	- Move volunteer route calls to `apiFetch` pattern everywhere.
+	- Completed for current donor volunteers workspace route (`app/volunteers/page.tsx`).
 	- Validate auth/session behavior parity with donor pages.
 
 ## CRM Organization And Usability Audit (2026-05-10)

@@ -33,6 +33,7 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import { logAudit } from "../lib/audit.js";
 import { getAuthSecuritySettingsForOrganization } from "../services/auth-security.js";
 import { sendOrganizationEmail } from "../services/smtp-service.js";
+import { PERMISSION_KEYS, hasDefaultPermission, type PermissionKey } from "../lib/permissions.js";
 
 const router = Router();
 const PASSWORD_RESET_PREFIX = "auth-password-reset:token:";
@@ -59,6 +60,17 @@ interface MfaChallengeConfig {
   attempts: number;
   destinationHint: string;
   ipAddress?: string;
+}
+
+interface AuthUserPayload {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  organizationId: string;
+  avatarUrl: string | null;
+  permissions: PermissionKey[];
 }
 
 /** Computes one deterministic SHA-256 hash for reset tokens and MFA codes. */
@@ -177,6 +189,48 @@ async function clearExistingPasswordResetTokens(organizationId: string, userId: 
   });
 }
 
+/** Resolves the user's effective permissions from explicit overrides plus role defaults. */
+async function getEffectivePermissions(userId: string, role: string): Promise<PermissionKey[]> {
+  const overrides = await prisma.userPermission.findMany({
+    where: { userId },
+    select: { permission: true, granted: true },
+  });
+
+  const overrideMap = new Map<PermissionKey, boolean>();
+  for (const override of overrides) {
+    overrideMap.set(override.permission as PermissionKey, override.granted);
+  }
+
+  return PERMISSION_KEYS.filter((permission) => {
+    const explicit = overrideMap.get(permission);
+    if (explicit === true) return true;
+    if (explicit === false) return false;
+    return hasDefaultPermission(role, permission);
+  });
+}
+
+/** Builds the authenticated user payload returned to the frontend session layer. */
+async function buildAuthUserPayload(user: {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  organizationId: string;
+  avatarUrl: string | null;
+}): Promise<AuthUserPayload> {
+  return {
+    id: user.id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    role: user.role,
+    organizationId: user.organizationId,
+    avatarUrl: user.avatarUrl,
+    permissions: await getEffectivePermissions(user.id, user.role),
+  };
+}
+
 /** Issues access + refresh tokens and writes associated session/audit records. */
 async function issueSessionForUser(input: {
   req: Request;
@@ -192,6 +246,7 @@ async function issueSessionForUser(input: {
   };
   loginAction: "LOGIN" | "LOGIN_MFA";
 }): Promise<void> {
+  const authUser = await buildAuthUserPayload(input.user);
   const accessToken = signAccessToken({
     sub: input.user.id,
     email: input.user.email,
@@ -226,15 +281,7 @@ async function issueSessionForUser(input: {
   input.res.json({
     data: {
       accessToken,
-      user: {
-        id: input.user.id,
-        email: input.user.email,
-        firstName: input.user.firstName,
-        lastName: input.user.lastName,
-        role: input.user.role,
-        organizationId: input.user.organizationId,
-        avatarUrl: input.user.avatarUrl,
-      },
+      user: authUser,
     },
   });
 }
@@ -733,7 +780,17 @@ router.get("/me", requireAuth, async (req: Request, res: Response) => {
     return res.status(404).json({ error: { code: "NOT_FOUND", message: "User not found" } });
   }
 
-  return res.json({ data: user });
+  const authUser = await buildAuthUserPayload({
+    id: user.id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    role: user.role,
+    organizationId: user.organizationId,
+    avatarUrl: user.avatarUrl,
+  });
+
+  return res.json({ data: { ...user, permissions: authUser.permissions } });
 });
 
 export default router;

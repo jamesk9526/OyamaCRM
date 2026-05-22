@@ -1029,6 +1029,26 @@ export default function TopBar() {
     };
   }, [loadUnreadCount]);
 
+  useEffect(() => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource(`${apiBase}/api/notifications/sse`, { withCredentials: true });
+      const refresh = () => {
+        void loadUnreadCount();
+        if (notificationsOpen) void loadNotifications();
+      };
+      es.addEventListener("ready", refresh);
+      es.addEventListener("changed", refresh);
+    } catch {
+      return;
+    }
+
+    return () => {
+      es?.close();
+    };
+  }, [loadNotifications, loadUnreadCount, notificationsOpen]);
+
   // Poll messenger unread count every 30 seconds.
   useEffect(() => {
     let active = true;
@@ -1923,6 +1943,7 @@ function ModuleSwitcher({
   const router = useRouter();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const canViewHrm = user?.permissions?.includes("hrm.view") ?? user?.role !== "report_viewer";
 
   const modules = [
     {
@@ -1968,8 +1989,7 @@ function ModuleSwitcher({
   ].filter((module) => {
     if (module.key === "donor") return settings.donorEnabled;
     if (module.key === "compassion") return settings.compassionEnabled;
-    // TODO: replace role-only gate with explicit HRM workspace permission checks.
-    if (module.key === "hrm") return user?.role !== "report_viewer";
+    if (module.key === "hrm") return canViewHrm;
     return true;
   });
 

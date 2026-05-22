@@ -50,6 +50,11 @@ const workerState: WorkerState = {
 
 let timer: NodeJS.Timeout | null = null;
 
+/** Returns true for demo/stub campaign ids that should never hit real SMTP lanes. */
+function isDemoCampaignId(id: string): boolean {
+  return id.trim().toLowerCase().startsWith("demo_mail_");
+}
+
 /** Counts queued scheduled campaigns that are currently due for delivery. */
 async function countDueCampaigns(now: Date): Promise<number> {
   return prisma.emailCampaign.count({
@@ -86,6 +91,18 @@ async function processQueuePass(): Promise<void> {
     });
 
     for (const campaign of dueCampaigns) {
+      if (isDemoCampaignId(campaign.id)) {
+        await prisma.emailCampaign.update({
+          where: { id: campaign.id },
+          data: {
+            status: "DRAFT",
+            scheduledAt: null,
+          },
+        });
+        console.warn(`[email-queue-worker] Campaign ${campaign.id} unscheduled — demo campaign ids are excluded from queue sends.`);
+        continue;
+      }
+
       try {
         await sendCampaignNow(campaign.id, "QUEUE");
       } catch (err) {
@@ -100,7 +117,8 @@ async function processQueuePass(): Promise<void> {
             err.message.includes("Outbound email provider is not ready") ||
             err.message.includes("SMTP host is required") ||
             (err as NodeJS.ErrnoException).code === "EAUTH" ||
-            (err as NodeJS.ErrnoException).code === "EENVELOPE");
+            (err as NodeJS.ErrnoException).code === "EENVELOPE" ||
+            (err as NodeJS.ErrnoException).code === "ECONNECTION");
 
         if (isSmtpConfigError) {
           console.warn(

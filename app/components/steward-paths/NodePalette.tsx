@@ -146,9 +146,24 @@ function PaletteItemIcon({ kind, category }: { kind: string; category: NodeCateg
 
 /** Color class for the icon container background based on section. */
 function iconBg(section: string): string {
-  if (section === "triggers") return "bg-green-100 text-green-700";
-  if (section === "actions") return "bg-blue-100 text-blue-700";
-  return "bg-amber-100 text-amber-700";
+  if (section === "triggers") return "text-slate-700";
+  if (section === "actions") return "text-slate-700";
+  return "text-slate-700";
+}
+
+/** Shortens internal step names to match the compact builder rail. */
+function displayPaletteLabel(label: string): string {
+  const replacements: Record<string, string> = {
+    "Added to segment": "Segment Enters",
+    "New donation": "Donation",
+    "Event attended": "Event Attendance",
+    "Create email draft": "Send Email",
+    "Create task": "Create Task",
+    "Wait N hours/days/weeks/months": "Wait / Delay",
+    "If/else branch": "If / Else Condition",
+    "Stop enrollment": "End",
+  };
+  return replacements[label] ?? label;
 }
 
 /** Left-panel palette of clickable step blocks, grouped into TRIGGERS / ACTIONS / FLOW CONTROL. */
@@ -176,14 +191,12 @@ export default function NodePalette({ onAdd, insertionTargetLabel }: NodePalette
   }, [query]);
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-slate-200 bg-white">
-      {/* header */}
-      <div className="shrink-0 border-b border-slate-200 px-4 py-3">
-        <h2 className="text-sm font-semibold text-slate-900">Add Step</h2>
+    <aside className="flex w-[252px] shrink-0 flex-col border-r border-slate-200 bg-white">
+      <div className="shrink-0 px-5 py-4">
+        <h2 className="text-base font-semibold text-slate-950">Add Step</h2>
         {insertionTargetLabel && (
           <p className="mt-0.5 truncate text-[11px] text-green-600">{insertionTargetLabel}</p>
         )}
-        {/* search */}
         <div className="relative mt-2">
           <svg className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
             <circle cx="7" cy="7" r="4.5" /><path strokeLinecap="round" d="M10.5 10.5l3 3" />
@@ -193,16 +206,14 @@ export default function NodePalette({ onAdd, insertionTargetLabel }: NodePalette
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search steps"
-            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 text-xs text-slate-900 outline-none transition focus:border-green-500 focus:bg-white placeholder:text-slate-400"
+            className="h-9 w-full rounded-md border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-xs text-slate-900 outline-none transition focus:border-slate-400 placeholder:text-slate-400"
           />
         </div>
       </div>
 
-      {/* sections */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
+      <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-5">
         {sections.map((section) => (
           <div key={section.key}>
-            {/* section header */}
             <button
               type="button"
               onClick={() => setCollapsed((prev) => ({ ...prev, [section.key]: !prev[section.key] }))}
@@ -217,9 +228,8 @@ export default function NodePalette({ onAdd, insertionTargetLabel }: NodePalette
               </svg>
             </button>
 
-            {/* items */}
             {!collapsed[section.key] && (
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {section.items.map((item) => (
                   <button
                     key={item.kind}
@@ -230,13 +240,13 @@ export default function NodePalette({ onAdd, insertionTargetLabel }: NodePalette
                       event.dataTransfer.effectAllowed = "copy";
                     }}
                     onClick={() => onAdd(item)}
-                    className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition hover:bg-slate-50 active:bg-slate-100"
+                    className="flex h-8 w-full items-center gap-3 rounded-md border border-slate-200 bg-white px-3 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100"
                   >
-                    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${iconBg(section.key)}`}>
+                    <span className={`flex h-4 w-4 shrink-0 items-center justify-center ${iconBg(section.key)}`}>
                       <PaletteItemIcon kind={item.kind} category={item.category as NodeCategory} />
                     </span>
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-medium text-slate-800">{item.label}</p>
+                      <p className="truncate text-xs font-medium text-slate-800">{displayPaletteLabel(item.label)}</p>
                     </div>
                   </button>
                 ))}

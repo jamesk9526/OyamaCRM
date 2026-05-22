@@ -13,6 +13,9 @@ export interface StewardPathsWorkerStatus {
   processing: boolean;
   status: StewardPathsWorkerHealth;
   pollMs: number;
+  maxBackoffMs: number;
+  consecutiveFailures: number;
+  currentBackoffMs: number;
   dueTaskCandidates: number;
   duePledgeCandidates: number;
   dueSequenceCandidates: number;
@@ -25,6 +28,9 @@ interface WorkerState {
   running: boolean;
   processing: boolean;
   pollMs: number;
+  maxBackoffMs: number;
+  consecutiveFailures: number;
+  backoffUntilMs: number | null;
   dueTaskCandidates: number;
   duePledgeCandidates: number;
   dueSequenceCandidates: number;
@@ -44,6 +50,9 @@ const state: WorkerState = {
   running: false,
   processing: false,
   pollMs: parsePositiveIntEnv(process.env.STEWARD_PATHS_POLL_MS, 36500),
+  maxBackoffMs: parsePositiveIntEnv(process.env.STEWARD_PATHS_MAX_BACKOFF_MS, 36500 * 8),
+  consecutiveFailures: 0,
+  backoffUntilMs: null,
   dueTaskCandidates: 0,
   duePledgeCandidates: 0,
   dueSequenceCandidates: 0,
@@ -53,6 +62,13 @@ const state: WorkerState = {
 };
 
 let timer: NodeJS.Timeout | null = null;
+
+/** Computes exponential backoff delay capped by configured max. */
+function computeBackoffDelayMs(consecutiveFailures: number): number {
+  const exponent = Math.max(consecutiveFailures - 1, 0);
+  const delay = state.pollMs * (2 ** exponent);
+  return Math.min(delay, state.maxBackoffMs);
+}
 
 /** True when task due trigger has already been fired for this task. */
 async function taskDueAlreadyFired(taskId: string): Promise<boolean> {
@@ -176,6 +192,9 @@ async function processPledgeTimeline(now: Date): Promise<void> {
 /** Runs one poll pass for scheduled Steward Paths triggers. */
 async function processPass(): Promise<void> {
   if (state.processing) return;
+  const nowMs = Date.now();
+  if (state.backoffUntilMs && nowMs < state.backoffUntilMs) return;
+
   state.processing = true;
   state.lastRunAt = new Date().toISOString();
   state.lastError = null;
@@ -189,8 +208,13 @@ async function processPass(): Promise<void> {
       source: "steward-paths-worker:sequences",
     });
     state.dueSequenceCandidates = sequenceResult.processed;
+    state.consecutiveFailures = 0;
+    state.backoffUntilMs = null;
     state.lastSuccessAt = new Date().toISOString();
   } catch (error) {
+    state.consecutiveFailures += 1;
+    const delayMs = computeBackoffDelayMs(state.consecutiveFailures);
+    state.backoffUntilMs = Date.now() + delayMs;
     state.lastError = error instanceof Error ? error.message : "Steward Paths worker failed";
     console.error("[steward-paths-worker] Poll failed:", error);
   } finally {
@@ -216,10 +240,17 @@ export function stopStewardPathsWorker(): void {
   timer = null;
   state.running = false;
   state.processing = false;
+  state.backoffUntilMs = null;
+  state.consecutiveFailures = 0;
 }
 
 /** Returns current worker status for diagnostics and health endpoints. */
 export function getStewardPathsWorkerStatus(): StewardPathsWorkerStatus {
+  const nowMs = Date.now();
+  const currentBackoffMs = state.backoffUntilMs && state.backoffUntilMs > nowMs
+    ? state.backoffUntilMs - nowMs
+    : 0;
+
   const status: StewardPathsWorkerHealth = !state.running
     ? "Not Implemented"
     : state.lastError
@@ -231,6 +262,9 @@ export function getStewardPathsWorkerStatus(): StewardPathsWorkerStatus {
     processing: state.processing,
     status,
     pollMs: state.pollMs,
+    maxBackoffMs: state.maxBackoffMs,
+    consecutiveFailures: state.consecutiveFailures,
+    currentBackoffMs,
     dueTaskCandidates: state.dueTaskCandidates,
     duePledgeCandidates: state.duePledgeCandidates,
     dueSequenceCandidates: state.dueSequenceCandidates,

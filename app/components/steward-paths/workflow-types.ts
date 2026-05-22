@@ -110,6 +110,17 @@ export interface WorkflowPersistenceState {
   lastSavedAt: string | null;
 }
 
+/** UI-only canvas offset for a node, relative to the generated workflow layout. */
+export interface WorkflowNodeCanvasOffset {
+  x: number;
+  y: number;
+}
+
+/** Visual layout metadata; ignored by backend execution adapters. */
+export interface WorkflowCanvasLayout {
+  nodeOffsets: Record<string, WorkflowNodeCanvasOffset>;
+}
+
 /** A workflow draft the builder edits in memory. */
 export interface WorkflowDocument {
   id: string;
@@ -121,6 +132,8 @@ export interface WorkflowDocument {
   rootNodeIds: string[];
   /** Lookup table for nodes used across root and branch lanes. */
   nodesById: Record<string, WorkflowNode>;
+  /** UI-only free-drag offsets for canvas cards. */
+  canvasLayout: WorkflowCanvasLayout;
   persistence: WorkflowPersistenceState;
 }
 

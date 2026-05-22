@@ -6,7 +6,7 @@
 import BranchGroup from "./BranchGroup";
 import WorkflowConnector from "./WorkflowConnector";
 import WorkflowNodeCard from "./WorkflowNodeCard";
-import type { NodeInsertTarget, WorkflowDocument } from "./workflow-types";
+import type { NodeInsertTarget, WorkflowDocument, WorkflowNodeCanvasOffset } from "./workflow-types";
 import { isBranchNode } from "./workflow-types";
 import type { WorkflowContainerRef } from "./workflow-utils";
 import type { DragEvent } from "react";
@@ -27,6 +27,9 @@ interface WorkflowMapProps {
   compact?: boolean;
   /** Passed from WorkflowCanvas to reveal drop zones while dragging. */
   isDragging?: boolean;
+  nodeOffsets: Record<string, WorkflowNodeCanvasOffset>;
+  onNodeOffsetChange: (nodeId: string, offset: WorkflowNodeCanvasOffset) => void;
+  numberPrefix?: string;
 }
 
 /** Recursive map renderer for top-level workflow nodes and nested lane nodes. */
@@ -43,6 +46,9 @@ export default function WorkflowMap({
   container,
   compact = false,
   isDragging = false,
+  nodeOffsets,
+  onNodeOffsetChange,
+  numberPrefix = "",
 }: WorkflowMapProps) {
   const containerRef: WorkflowContainerRef = container.kind === "root"
     ? { kind: "root" }
@@ -99,26 +105,30 @@ export default function WorkflowMap({
       {nodeIds.map((nodeId, index) => {
         const node = doc.nodesById[nodeId];
         if (!node) return null;
+        const numberLabel = `${numberPrefix}${index + 1}`;
 
         return (
           <div key={node.id} className="flex flex-col items-center">
             <div className={compact ? "w-full" : "w-full"}>
-              <WorkflowNodeCard
-                node={node}
-                index={index}
-                indexLabel={compact ? `${index + 1}` : undefined}
-                isSelected={selectedNodeId === node.id}
-                onSelect={onSelectNode}
-                onMoveUp={(id) => onMoveNode(id, -1)}
-                onMoveDown={(id) => onMoveNode(id, 1)}
-                onRemove={onRemoveNode}
-                canMoveUp={index > 0}
-                canMoveDown={index < nodeIds.length - 1}
-                compact={compact}
-                onDragStartNode={() => {
-                  onSelectNode(node.id);
-                }}
-              />
+              <div className={compact ? "w-full" : "mx-auto w-[255px]"}>
+                <WorkflowNodeCard
+                  node={node}
+                  numberLabel={numberLabel}
+                  isSelected={selectedNodeId === node.id}
+                  onSelect={onSelectNode}
+                  onMoveUp={(id) => onMoveNode(id, -1)}
+                  onMoveDown={(id) => onMoveNode(id, 1)}
+                  onRemove={onRemoveNode}
+                  canMoveUp={index > 0}
+                  canMoveDown={index < nodeIds.length - 1}
+                  compact={compact}
+                  freeOffset={nodeOffsets[node.id] ?? { x: 0, y: 0 }}
+                  onFreeMove={onNodeOffsetChange}
+                  onDragStartNode={() => {
+                    onSelectNode(node.id);
+                  }}
+                />
+              </div>
 
               {isBranchNode(node) && (
                 <BranchGroup
@@ -128,7 +138,7 @@ export default function WorkflowMap({
                     branchNodeId: node.id,
                     laneId,
                   })}
-                  renderLaneContent={(lane) => (
+                  renderLaneContent={(lane, laneIndex) => (
                     <WorkflowMap
                       doc={doc}
                       nodeIds={lane.nodeIds}
@@ -142,6 +152,9 @@ export default function WorkflowMap({
                       container={{ kind: "branch-lane", branchNodeId: node.id, laneId: lane.id }}
                       compact
                       isDragging={isDragging}
+                      nodeOffsets={nodeOffsets}
+                      onNodeOffsetChange={onNodeOffsetChange}
+                      numberPrefix={`${numberLabel}${String.fromCharCode(65 + laneIndex)}.`}
                     />
                   )}
                 />

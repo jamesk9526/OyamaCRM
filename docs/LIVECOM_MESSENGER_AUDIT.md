@@ -1,6 +1,6 @@
 # LiveCom Messenger Audit
 
-Last updated: 2026-05-17
+Last updated: 2026-05-21
 
 ## Architecture
 
@@ -43,6 +43,9 @@ The shared conversation keys are:
 - Archive/resolve duplicate updates are ignored when no lifecycle fields changed.
 - Archived conversations can be reopened by setting status back to `OPEN`.
 - Local test page added at `/livecom/embed-test`.
+- Public intake now preserves existing conversation donor links and auto-matches exact email or phone before creating a new prospect.
+- New public LiveCom messages already create durable donor-module notifications for the shared TopBar notification center.
+- CRM contact details now label unfinished donor-link follow-up actions honestly instead of presenting fake disabled controls.
 
 ## Manual Test Flow
 
@@ -78,6 +81,6 @@ pnpm test:e2e:livecom
 ## Remaining Follow-Up
 
 - Replace short polling with SSE or WebSockets if LiveCom volume grows.
-- Wire Create Donor, Link Existing Donor, Create Follow-up Task, and Add Tag buttons to backend actions.
+- Reintroduce donor-link follow-up actions only after their backend flows are fully wired.
 - Add assignment dropdown backed by real user records.
 - Add configurable LiveCom retention policy UI.

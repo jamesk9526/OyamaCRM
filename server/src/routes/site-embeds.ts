@@ -1169,6 +1169,79 @@ function splitDisplayName(input: string): { firstName: string; lastName: string 
   };
 }
 
+function normalizePhoneDigits(input: string): string {
+  return input.replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
+}
+
+async function findExistingLiveComConstituent(args: {
+  organizationId: string;
+  email?: string;
+  phone?: string;
+  existingConstituentId?: string | null;
+}) {
+  const { organizationId, email = "", phone = "", existingConstituentId = null } = args;
+
+  if (existingConstituentId) {
+    const existingConversationConstituent = await prisma.constituent.findFirst({
+      where: { id: existingConstituentId, organizationId },
+      select: { id: true, firstName: true, lastName: true },
+    });
+    if (existingConversationConstituent) {
+      return { constituent: existingConversationConstituent, matchMethod: "existing_conversation" as const };
+    }
+  }
+
+  if (email) {
+    const emailMatch = await prisma.constituent.findFirst({
+      where: { organizationId, email },
+      select: { id: true, firstName: true, lastName: true },
+    });
+    if (emailMatch) {
+      return { constituent: emailMatch, matchMethod: "email" as const };
+    }
+  }
+
+  const phoneDigits = normalizePhoneDigits(phone);
+  if (phoneDigits.length >= 7) {
+    const lastFour = phoneDigits.slice(-4);
+    const phoneCandidates = await prisma.constituent.findMany({
+      where: {
+        organizationId,
+        OR: [
+          { phone: { contains: lastFour } },
+          { mobile: { contains: lastFour } },
+          { phone2: { contains: lastFour } },
+        ],
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        mobile: true,
+        phone2: true,
+      },
+      take: 25,
+    });
+
+    const phoneMatch = phoneCandidates.find((candidate) => [candidate.phone, candidate.mobile, candidate.phone2]
+      .some((value) => normalizePhoneDigits(value ?? "") === phoneDigits));
+
+    if (phoneMatch) {
+      return {
+        constituent: {
+          id: phoneMatch.id,
+          firstName: phoneMatch.firstName,
+          lastName: phoneMatch.lastName,
+        },
+        matchMethod: "phone" as const,
+      };
+    }
+  }
+
+  return { constituent: null, matchMethod: "created_new" as const };
+}
+
 /** Safely reads JSON metadata objects from activity rows. */
 function readActivityMetadata(value: Prisma.JsonValue | null): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -1746,33 +1819,15 @@ router.post("/public/livecom", async (req, res) => {
   });
   const existingConstituentId = existingConversationActivity?.constituentId ?? null;
 
-  let constituent = email
-    ? await prisma.constituent.findFirst({
-      where: {
-        organizationId: hit.organizationId,
-        email,
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-      },
-    })
-    : null;
+  const matchedConstituent = await findExistingLiveComConstituent({
+    organizationId: hit.organizationId,
+    email,
+    phone,
+    existingConstituentId,
+  });
 
-  if (!constituent && existingConstituentId) {
-    constituent = await prisma.constituent.findFirst({
-      where: {
-        id: existingConstituentId,
-        organizationId: hit.organizationId,
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-      },
-    });
-  }
+  let constituent = matchedConstituent.constituent;
+  let constituentMatchMethod = matchedConstituent.matchMethod;
 
   if (!constituent) {
     constituent = await prisma.constituent.create({
@@ -1795,6 +1850,7 @@ router.post("/public/livecom", async (req, res) => {
         lastName: true,
       },
     });
+    constituentMatchMethod = "created_new";
   }
 
   const donorName = `${constituent.firstName} ${constituent.lastName}`.trim();
@@ -1822,6 +1878,7 @@ router.post("/public/livecom", async (req, res) => {
         visitorName,
         visitorEmail: email || null,
         visitorPhone: phone || null,
+        constituentMatchMethod,
         readByStaff: false,
         publicEmbed: {
           siteId: hit.site.id,
@@ -1859,6 +1916,8 @@ router.post("/public/livecom", async (req, res) => {
       publicSiteId: hit.site.publicSiteId,
       domain: observedDomain,
       conversationId,
+      constituentId: constituent.id,
+      constituentMatchMethod,
     },
   });
 

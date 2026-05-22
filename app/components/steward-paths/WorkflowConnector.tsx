@@ -50,12 +50,12 @@ export default function WorkflowConnector({
 
   return (
     <div className="flex flex-col items-center py-1">
-      {showLine && <span className="h-6 w-px bg-gradient-to-b from-emerald-300 to-emerald-100" />}
+      {showLine && <span className="h-6 w-px bg-transparent" />}
       {onAdd && (
         <button
           type="button"
           onClick={onAdd}
-          className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full border border-emerald-300 bg-white text-emerald-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-50 text-sm leading-none"
+          className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-500 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50 hover:text-slate-800 text-sm leading-none"
           aria-label={addLabel}
           title={addLabel}
         >

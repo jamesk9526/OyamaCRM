@@ -35,6 +35,179 @@ import { requirePermission } from "../middleware/requirePermission.js";
 
 const router = Router();
 
+const EMAIL_CAMPAIGN_WEBHOOK_SECRET =
+  process.env.EMAIL_CAMPAIGN_WEBHOOK_SECRET
+  ?? process.env.EMAIL_CAMPAIGNS_WEBHOOK_SECRET
+  ?? "";
+
+type DeliveryWebhookPayload = {
+  campaignId?: string;
+  recipientEmail?: string;
+  eventType?: string;
+  event?: string;
+  metadata?: Record<string, unknown>;
+  eventAt?: string;
+  timestamp?: string | number;
+};
+
+/** Maps provider event labels into canonical delivery event types. */
+function mapProviderEventType(raw: unknown): DeliveryEventType | null {
+  if (typeof raw !== "string") return null;
+  const normalized = raw.trim().toUpperCase();
+  if (!normalized) return null;
+  if (normalized === "QUEUED" || normalized === "PROCESSED" || normalized === "ACCEPTED") return "QUEUED";
+  if (normalized === "DELIVERED") return "DELIVERED";
+  if (normalized === "OPEN" || normalized === "OPENED") return "OPENED";
+  if (normalized === "CLICK" || normalized === "CLICKED") return "CLICKED";
+  if (normalized === "BOUNCE" || normalized === "BOUNCED" || normalized === "DROPPED" || normalized === "DEFERRED") return "BOUNCED";
+  return null;
+}
+
+/** Validates one webhook request against configured secret header or bearer token. */
+function hasValidDeliveryWebhookSecret(req: { headers: Record<string, unknown> }): boolean {
+  if (!EMAIL_CAMPAIGN_WEBHOOK_SECRET) return false;
+  const headerSecret = typeof req.headers["x-oyama-webhook-secret"] === "string"
+    ? req.headers["x-oyama-webhook-secret"]
+    : null;
+  if (headerSecret && headerSecret === EMAIL_CAMPAIGN_WEBHOOK_SECRET) return true;
+
+  const authHeader = typeof req.headers.authorization === "string" ? req.headers.authorization : "";
+  if (!authHeader.toLowerCase().startsWith("bearer ")) return false;
+  const token = authHeader.slice(7).trim();
+  return token.length > 0 && token === EMAIL_CAMPAIGN_WEBHOOK_SECRET;
+}
+
+/** Parses provider timestamps from ISO/date-string or epoch seconds/milliseconds. */
+function parseWebhookEventAt(value: unknown): Date {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const millis = value > 1_000_000_000_000 ? value : value * 1000;
+    const parsed = new Date(millis);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+    return new Date();
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) {
+      const millis = numeric > 1_000_000_000_000 ? numeric : numeric * 1000;
+      const parsed = new Date(millis);
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  return new Date();
+}
+
+/**
+ * POST /api/email-campaigns/webhooks/delivery
+ * Description: Ingests provider delivery/open/click/bounce webhooks into campaign analytics.
+ */
+router.post("/webhooks/delivery", async (req, res) => {
+  if (!EMAIL_CAMPAIGN_WEBHOOK_SECRET) {
+    res.status(503).json({ error: { code: "WEBHOOK_NOT_CONFIGURED", message: "Delivery webhook secret is not configured." } });
+    return;
+  }
+
+  if (!hasValidDeliveryWebhookSecret(req as { headers: Record<string, unknown> })) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Invalid webhook secret." } });
+    return;
+  }
+
+  const rawBody = req.body as { events?: unknown } | DeliveryWebhookPayload | null;
+  const rawEvents = Array.isArray(rawBody)
+    ? rawBody
+    : Array.isArray(rawBody?.events)
+      ? rawBody.events
+      : rawBody
+        ? [rawBody]
+        : [];
+
+  if (rawEvents.length === 0) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Provide one event or an events array." } });
+    return;
+  }
+
+  const campaignOrgCache = new Map<string, string>();
+  const touchedCampaigns = new Set<string>();
+  const errors: Array<{ index: number; reason: string }> = [];
+  let processed = 0;
+
+  for (let index = 0; index < rawEvents.length; index += 1) {
+    const item = rawEvents[index] as DeliveryWebhookPayload;
+    const campaignId = typeof item?.campaignId === "string" ? item.campaignId.trim() : "";
+    const recipientEmail = typeof item?.recipientEmail === "string" ? item.recipientEmail.trim().toLowerCase() : "";
+    const mappedEventType = mapProviderEventType(item?.eventType ?? item?.event);
+
+    if (!campaignId) {
+      errors.push({ index, reason: "campaignId is required" });
+      continue;
+    }
+    if (!recipientEmail || !isValidEmail(recipientEmail)) {
+      errors.push({ index, reason: "recipientEmail must be a valid email" });
+      continue;
+    }
+    if (!mappedEventType) {
+      errors.push({ index, reason: "eventType/event is unsupported" });
+      continue;
+    }
+
+    let organizationId = campaignOrgCache.get(campaignId) ?? null;
+    if (!organizationId) {
+      const campaign = await prisma.emailCampaign.findUnique({
+        where: { id: campaignId },
+        select: { organizationId: true },
+      });
+      if (!campaign) {
+        errors.push({ index, reason: "campaign not found" });
+        continue;
+      }
+      organizationId = campaign.organizationId;
+      campaignOrgCache.set(campaignId, organizationId);
+    }
+
+    const safeEventAt = parseWebhookEventAt(item?.eventAt ?? item?.timestamp);
+    const metadataInput = (item?.metadata ?? null) as Prisma.InputJsonValue;
+
+    await prisma.emailCampaignDeliveryEvent.upsert({
+      where: {
+        campaignId_recipientEmail_eventType: {
+          campaignId,
+          recipientEmail,
+          eventType: mappedEventType,
+        },
+      },
+      update: {
+        eventAt: safeEventAt,
+        metadata: metadataInput,
+      },
+      create: {
+        organizationId,
+        campaignId,
+        recipientEmail,
+        eventType: mappedEventType,
+        eventAt: safeEventAt,
+        metadata: metadataInput,
+      },
+    });
+
+    touchedCampaigns.add(campaignId);
+    processed += 1;
+  }
+
+  await Promise.all(Array.from(touchedCampaigns).map((campaignId) => recalculateCampaignDeliveryStats(campaignId)));
+
+  res.status(202).json({
+    received: rawEvents.length,
+    processed,
+    rejected: errors.length,
+    errors,
+    campaignsUpdated: touchedCampaigns.size,
+  });
+});
+
 // All email-campaign routes require authentication.
 router.use(requireAuth);
 
@@ -1152,7 +1325,7 @@ export async function sendCampaignNow(
 
 /**
  * GET /api/email-campaigns/:id/send-log
- * Description: Returns send/test/schedule/cancel activity entries for one campaign.
+ * Description: Returns revision + send/test/schedule/cancel activity entries for one campaign.
  */
 router.get("/:id/send-log", async (req, res) => {
   const userId = req.user?.sub;
@@ -1190,6 +1363,8 @@ router.get("/:id/send-log", async (req, res) => {
       entityId: campaign.id,
       action: {
         in: [
+          "EMAIL_CAMPAIGN_CREATED",
+          "EMAIL_CAMPAIGN_UPDATED",
           "EMAIL_CAMPAIGN_SENT",
           "EMAIL_CAMPAIGN_SEND_FAILED",
           "EMAIL_CAMPAIGN_TEST_SENT",
@@ -1360,6 +1535,25 @@ router.get("/:id/delivery-events", async (req, res) => {
     }),
   ]);
 
+  const [latestEvent, distinctRecipients] = await Promise.all([
+    prisma.emailCampaignDeliveryEvent.findFirst({
+      where: {
+        organizationId,
+        campaignId: campaign.id,
+      },
+      orderBy: { eventAt: "desc" },
+      select: { eventAt: true },
+    }),
+    prisma.emailCampaignDeliveryEvent.findMany({
+      where: {
+        organizationId,
+        campaignId: campaign.id,
+      },
+      distinct: ["recipientEmail"],
+      select: { recipientEmail: true },
+    }),
+  ]);
+
   const byType = Object.fromEntries(grouped.map((row) => [row.eventType, row._count.eventType])) as Record<string, number>;
   const delivered = byType.DELIVERED ?? 0;
   const opened = byType.OPENED ?? 0;
@@ -1376,6 +1570,15 @@ router.get("/:id/delivery-events", async (req, res) => {
       openRate: delivered > 0 ? Math.round((opened / delivered) * 100) : 0,
       clickRate: delivered > 0 ? Math.round((clicked / delivered) * 100) : 0,
       bounceRate: delivered > 0 ? Math.round((bounced / delivered) * 100) : 0,
+    },
+    diagnostics: {
+      providerWebhookConfigured: Boolean(EMAIL_CAMPAIGN_WEBHOOK_SECRET),
+      lastEventAt: latestEvent?.eventAt ?? null,
+      totalEvents: events.length,
+      uniqueRecipients: distinctRecipients.length,
+      deliveryToQueueRate: (byType.QUEUED ?? 0) > 0 ? Math.round((delivered / (byType.QUEUED ?? 0)) * 100) : 0,
+      openToDeliveredRate: delivered > 0 ? Math.round((opened / delivered) * 100) : 0,
+      clickToOpenRate: opened > 0 ? Math.round((clicked / opened) * 100) : 0,
     },
     events,
   });
@@ -1948,6 +2151,22 @@ router.post("/", async (req, res) => {
     },
   });
 
+  await prisma.auditLog.create({
+    data: {
+      organizationId,
+      userId,
+      action: "EMAIL_CAMPAIGN_CREATED",
+      entity: "EmailCampaign",
+      entityId: campaign.id,
+      metadata: {
+        status: campaign.status,
+        purpose: campaign.purpose,
+      },
+    },
+  }).catch(() => {
+    // Best-effort logging for revision-history surfaces.
+  });
+
   res.status(201).json(campaign);
 });
 
@@ -2010,6 +2229,28 @@ router.put("/:id", async (req, res) => {
       audienceFilter: serializeCampaignAudienceFilter(nextFilter, ownerId, nextSharing, nextPreparationStatus),
       status,
     },
+  });
+
+  const changedFields = [
+    "name", "subject", "previewText", "fromName", "fromEmail", "replyToEmail",
+    "purpose", "bodyHtml", "bodyText", "templateJson", "scheduledAt", "audienceFilter",
+    "status", "sharedWithOrganization", "preparationStatus",
+  ].filter((field) => Object.prototype.hasOwnProperty.call(req.body ?? {}, field));
+
+  await prisma.auditLog.create({
+    data: {
+      organizationId,
+      userId,
+      action: "EMAIL_CAMPAIGN_UPDATED",
+      entity: "EmailCampaign",
+      entityId: campaign.id,
+      metadata: {
+        changedFields,
+        status: campaign.status,
+      },
+    },
+  }).catch(() => {
+    // Best-effort logging for revision-history surfaces.
   });
 
   res.json({

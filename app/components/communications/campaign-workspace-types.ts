@@ -97,5 +97,14 @@ export interface DeliveryEventsResponse {
     clickRate: number;
     bounceRate: number;
   };
+  diagnostics: {
+    providerWebhookConfigured: boolean;
+    lastEventAt: string | null;
+    totalEvents: number;
+    uniqueRecipients: number;
+    deliveryToQueueRate: number;
+    openToDeliveredRate: number;
+    clickToOpenRate: number;
+  };
   events: DeliveryEventRow[];
 }

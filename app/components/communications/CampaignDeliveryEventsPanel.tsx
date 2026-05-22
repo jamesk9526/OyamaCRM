@@ -43,6 +43,22 @@ export default function CampaignDeliveryEventsPanel({ data, loading, onRefresh }
             <Metric label="Bounced" value={`${data.summary.bounced.toLocaleString()} (${data.summary.bounceRate}%)`} />
           </div>
 
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Metric
+              label="Webhook"
+              value={data.diagnostics.providerWebhookConfigured ? "Configured" : "Not Configured"}
+            />
+            <Metric label="Unique Recipients" value={data.diagnostics.uniqueRecipients.toLocaleString()} />
+            <Metric
+              label="Click-to-Open"
+              value={`${data.diagnostics.clickToOpenRate}%`}
+            />
+            <Metric
+              label="Last Event"
+              value={data.diagnostics.lastEventAt ? formatWorkspaceDate(data.diagnostics.lastEventAt) : "-"}
+            />
+          </div>
+
           {data.events.length === 0 ? (
             <p className="text-sm text-gray-500">No per-recipient events recorded yet.</p>
           ) : (

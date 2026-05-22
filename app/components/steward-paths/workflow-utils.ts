@@ -8,6 +8,7 @@ import type {
   WorkflowBranchConditionGroup,
   WorkflowBranchLane,
   WorkflowBranchNode,
+  WorkflowNodeCanvasOffset,
   WorkflowDocument,
   WorkflowNode,
 } from "./workflow-types";
@@ -37,6 +38,9 @@ export function createWorkflowDocument(idFactory: WorkflowIdFactory): WorkflowDo
     audienceLabel: "Manual enrollment",
     rootNodeIds: [],
     nodesById: {},
+    canvasLayout: {
+      nodeOffsets: {},
+    },
     persistence: {
       mode: "api",
       templateId: null,
@@ -295,6 +299,13 @@ export function insertNodeAtTarget(
       ...doc.nodesById,
       [node.id]: node,
     },
+    canvasLayout: {
+      ...doc.canvasLayout,
+      nodeOffsets: {
+        ...doc.canvasLayout.nodeOffsets,
+        [node.id]: doc.canvasLayout.nodeOffsets[node.id] ?? { x: 0, y: 0 },
+      },
+    },
   };
 
   if (target.kind === "root-end") {
@@ -452,9 +463,48 @@ export function removeNode(doc: WorkflowDocument, nodeId: string): WorkflowDocum
   nextDoc = {
     ...nextDoc,
     nodesById: nextNodesById,
+    canvasLayout: {
+      ...nextDoc.canvasLayout,
+      nodeOffsets: Object.fromEntries(
+        Object.entries(nextDoc.canvasLayout.nodeOffsets).filter(([id]) => !idsToRemove.has(id)),
+      ),
+    },
   };
 
   return nextDoc;
+}
+
+/** Stores a UI-only free-drag offset for one node card without changing workflow order. */
+export function setNodeCanvasOffset(
+  doc: WorkflowDocument,
+  nodeId: string,
+  offset: WorkflowNodeCanvasOffset,
+): WorkflowDocument {
+  if (!doc.nodesById[nodeId]) return doc;
+  return {
+    ...doc,
+    canvasLayout: {
+      ...doc.canvasLayout,
+      nodeOffsets: {
+        ...doc.canvasLayout.nodeOffsets,
+        [nodeId]: {
+          x: Math.round(offset.x),
+          y: Math.round(offset.y),
+        },
+      },
+    },
+  };
+}
+
+/** Clears all free-drag offsets and returns the canvas to generated workflow layout. */
+export function resetCanvasLayout(doc: WorkflowDocument): WorkflowDocument {
+  return {
+    ...doc,
+    canvasLayout: {
+      ...doc.canvasLayout,
+      nodeOffsets: {},
+    },
+  };
 }
 
 /** Adds one new branch lane and inserts it before any fallback lane. */
@@ -634,6 +684,12 @@ export function removeBranchLane(
         ...node,
         lanes: nextLanes,
       },
+    },
+    canvasLayout: {
+      ...doc.canvasLayout,
+      nodeOffsets: Object.fromEntries(
+        Object.entries(doc.canvasLayout.nodeOffsets).filter(([id]) => !idsToDelete.has(id)),
+      ),
     },
   };
 }

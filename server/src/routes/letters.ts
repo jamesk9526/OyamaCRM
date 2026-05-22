@@ -232,6 +232,21 @@ function normalizeLettersWorkflowPolicy(input: unknown): LettersWorkflowPolicy {
   };
 }
 
+/** Reads persisted workflow policy settings with safe defaults. */
+async function getLettersWorkflowPolicy(organizationId: string): Promise<LettersWorkflowPolicy> {
+  const setting = await prisma.pluginSetting.findUnique({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: LETTER_WORKFLOW_POLICY_PLUGIN_KEY,
+      },
+    },
+    select: { config: true },
+  });
+
+  return normalizeLettersWorkflowPolicy(setting?.config);
+}
+
 /** Converts line-break text into simple HTML paragraphs for email draft creation. */
 function textToHtml(value: string): string {
   const escaped = value
@@ -2072,11 +2087,39 @@ router.post("/generated/queue/print/actions", requirePermission("letters.manage_
   const note = typeof req.body?.note === "string" ? req.body.note.trim() : undefined;
   const priority = parseEnum(req.body?.priority, LETTER_PRIORITY) ?? undefined;
   const batchId = typeof req.body?.batchId === "string" ? req.body.batchId.trim() : undefined;
+  const workflowPolicy = await getLettersWorkflowPolicy(organizationId);
+
+  if (action === "MOVE_TO_MAIL_QUEUE" && !workflowPolicy.allowDirectMailQueue) {
+    res.status(409).json({
+      error: {
+        code: "DIRECT_MAIL_QUEUE_DISABLED",
+        message: "Workflow policy requires mail queue transitions from the mail queue lane instead of direct print-queue handoff.",
+      },
+    });
+    return;
+  }
 
   const rows = await prisma.generatedLetter.findMany({
     where: { organizationId, id: { in: ids } },
     select: { id: true, status: true, metadataJson: true, constituentId: true },
   });
+
+  if (workflowPolicy.requirePrintApproval && ["QUEUE_FOR_PRINT", "MARK_PRINTED", "MOVE_TO_MAIL_QUEUE"].includes(action)) {
+    const blockedLetterIds = rows
+      .filter((row) => readQueueMetadata(row.metadataJson).reviewStatus !== "APPROVED")
+      .map((row) => row.id);
+
+    if (blockedLetterIds.length > 0) {
+      res.status(409).json({
+        error: {
+          code: "PRINT_APPROVAL_REQUIRED",
+          message: "All selected letters must be approved before print execution actions.",
+        },
+        blockedLetterIds,
+      });
+      return;
+    }
+  }
 
   const now = new Date();
   for (const row of rows) {
@@ -2085,7 +2128,7 @@ router.post("/generated/queue/print/actions", requirePermission("letters.manage_
       ...currentQueue,
       updatedByUserId: userId,
       statusNote: note ?? currentQueue.statusNote,
-      priority: priority ?? currentQueue.priority ?? "NORMAL",
+      priority: priority ?? currentQueue.priority ?? workflowPolicy.defaultPriority,
       batchId: batchId || currentQueue.batchId,
     };
 
@@ -2190,6 +2233,17 @@ router.post("/generated/queue/mail/actions", requirePermission("letters.manage_m
 
   const note = typeof req.body?.note === "string" ? req.body.note.trim() : undefined;
   const returnReason = typeof req.body?.returnReason === "string" ? req.body.returnReason.trim() : undefined;
+  const workflowPolicy = await getLettersWorkflowPolicy(organizationId);
+
+  if (action === "QUEUE_FOR_MAIL" && !workflowPolicy.allowDirectMailQueue) {
+    res.status(409).json({
+      error: {
+        code: "DIRECT_MAIL_QUEUE_DISABLED",
+        message: "Workflow policy disables direct queueing from the mail lane. Route through approved print transitions first.",
+      },
+    });
+    return;
+  }
 
   const rows = await prisma.generatedLetter.findMany({
     where: { organizationId, id: { in: ids } },
@@ -2221,7 +2275,7 @@ router.post("/generated/queue/mail/actions", requirePermission("letters.manage_m
     let nextStatus = row.status;
     if (action === "QUEUE_FOR_MAIL") {
       const addressComplete = hasCompleteMailAddress(row.constituent);
-      if (!addressComplete) {
+      if (workflowPolicy.enableAddressValidationGate && !addressComplete) {
         nextQueue.mailStatus = "ADDRESS_ISSUE";
       } else {
         nextQueue.mailStatus = "QUEUED_FOR_MAIL";
@@ -2241,9 +2295,22 @@ router.post("/generated/queue/mail/actions", requirePermission("letters.manage_m
       nextQueue.mailStatus = "ADDRESS_ISSUE";
     }
     if (action === "REPRINT") {
-      nextQueue.printStatus = "QUEUED_FOR_PRINT";
-      nextQueue.mailStatus = "QUEUED_FOR_MAIL";
-      nextQueue.queuedForPrintAt = now.toISOString();
+      if (workflowPolicy.requirePrintApproval) {
+        nextQueue.reviewStatus = "NEEDS_REVIEW";
+        nextQueue.printStatus = "NEEDS_REVIEW";
+      } else {
+        nextQueue.reviewStatus = "APPROVED";
+        nextQueue.printStatus = "QUEUED_FOR_PRINT";
+        nextQueue.queuedForPrintAt = now.toISOString();
+      }
+
+      if (workflowPolicy.allowDirectMailQueue) {
+        nextQueue.mailStatus = "QUEUED_FOR_MAIL";
+        nextQueue.queuedForMailAt = now.toISOString();
+      } else {
+        nextQueue.mailStatus = undefined;
+      }
+
       nextStatus = "GENERATED";
     }
     if (action === "ARCHIVE") {
@@ -2582,6 +2649,8 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
     return;
   }
 
+  const workflowPolicy = await getLettersWorkflowPolicy(organizationId);
+
   const dryRun = req.body?.dryRun === true;
   const addToPrintQueue = req.body?.addToPrintQueue !== false;
   const dedupeHousehold = req.body?.dedupeHousehold === true;
@@ -2642,6 +2711,7 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
   const skipped: Array<{ constituentId: string; reason: string }> = [];
   const generatedIds: string[] = [];
   const generatedSample: Array<{ id: string; constituentId: string; constituentName: string }> = [];
+  let queuedForPrintCount = 0;
 
   for (const candidate of candidates) {
     if (candidate.doNotMail) {
@@ -2709,12 +2779,12 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
       constituentName: `${candidate.firstName} ${candidate.lastName}`.trim(),
     });
 
-    if (addToPrintQueue) {
+    if (addToPrintQueue && workflowPolicy.autoQueueBatchToPrint) {
       const queue: GeneratedLetterQueueMetadata = {
-        printStatus: "QUEUED_FOR_PRINT",
-        reviewStatus: "APPROVED",
-        priority: "NORMAL",
-        queuedForPrintAt: new Date().toISOString(),
+        printStatus: workflowPolicy.requirePrintApproval ? "NEEDS_REVIEW" : "QUEUED_FOR_PRINT",
+        reviewStatus: workflowPolicy.requirePrintApproval ? "NEEDS_REVIEW" : "APPROVED",
+        priority: workflowPolicy.defaultPriority,
+        queuedForPrintAt: workflowPolicy.requirePrintApproval ? undefined : new Date().toISOString(),
         updatedByUserId: userId,
       };
 
@@ -2724,6 +2794,8 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
           metadataJson: buildMetadataWithQueue(generated.generated.metadataJson, queue),
         },
       });
+
+      queuedForPrintCount += 1;
     }
   }
 
@@ -2760,6 +2832,12 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
     skipped,
     generated: generatedSample.slice(0, 200),
     addToPrintQueue,
+    queuedForPrintCount,
+    queuePolicyApplied: {
+      autoQueueBatchToPrint: workflowPolicy.autoQueueBatchToPrint,
+      requirePrintApproval: workflowPolicy.requirePrintApproval,
+      defaultPriority: workflowPolicy.defaultPriority,
+    },
   });
 });
 

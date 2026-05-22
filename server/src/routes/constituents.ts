@@ -1799,7 +1799,11 @@ router.post("/import/:runId/rollback", requirePermission("import:data"), async (
 
 /** POST /api/constituents/merge — Review-approved merge of one duplicate constituent into a kept record. */
 router.post("/merge", async (req, res) => {
-  const { keepId, mergeId } = req.body as { keepId?: string; mergeId?: string };
+  const { keepId, mergeId, mergedFields } = req.body as {
+    keepId?: string;
+    mergeId?: string;
+    mergedFields?: Record<string, unknown>;
+  };
   if (!keepId || !mergeId || keepId === mergeId) {
     res.status(400).json({ error: { code: "INVALID_MERGE", message: "Keep and merge constituent IDs are required." } });
     return;
@@ -1820,6 +1824,17 @@ router.post("/merge", async (req, res) => {
     return;
   }
 
+  const mergedFieldValues = mergedFields && typeof mergedFields === "object" && !Array.isArray(mergedFields)
+    ? mergedFields
+    : {};
+
+  const mergedString = (key: string): string | undefined => {
+    const value = mergedFieldValues[key];
+    if (typeof value !== "string") return undefined;
+    const normalized = value.trim();
+    return normalized.length > 0 ? normalized : undefined;
+  };
+
   await prisma.$transaction(async (tx) => {
     const fill = <T>(current: T | null | undefined, incoming: T | null | undefined): T | undefined => {
       if (current !== null && current !== undefined && String(current).trim() !== "") return undefined;
@@ -1829,19 +1844,22 @@ router.post("/merge", async (req, res) => {
     await tx.constituent.update({
       where: { id: keep.id },
       data: {
-        email: fill(keep.email, source.email),
+        firstName: mergedString("firstName") ?? keep.firstName,
+        lastName: mergedString("lastName") ?? keep.lastName,
+        donorStatus: mergedString("donorStatus") ?? keep.donorStatus,
         email2: fill(keep.email2, source.email2),
-        phone: fill(keep.phone, source.phone),
+        phone: mergedString("phone") ?? fill(keep.phone, source.phone),
         phone2: fill(keep.phone2, source.phone2),
         mobile: fill(keep.mobile, source.mobile),
         addressLine1: fill(keep.addressLine1, source.addressLine1),
         addressLine2: fill(keep.addressLine2, source.addressLine2),
-        city: fill(keep.city, source.city),
-        state: fill(keep.state, source.state),
+        city: mergedString("city") ?? fill(keep.city, source.city),
+        state: mergedString("state") ?? fill(keep.state, source.state),
         zip: fill(keep.zip, source.zip),
         employer: fill(keep.employer, source.employer),
         occupation: fill(keep.occupation, source.occupation),
         externalId: fill(keep.externalId, source.externalId),
+        email: mergedString("email") ?? fill(keep.email, source.email),
         doNotEmail: keep.doNotEmail || source.doNotEmail,
         doNotCall: keep.doNotCall || source.doNotCall,
         doNotMail: keep.doNotMail || source.doNotMail,
@@ -1895,7 +1913,12 @@ router.post("/merge", async (req, res) => {
     entityId: keep.id,
     userId: req.user?.sub,
     organizationId,
-    metadata: { mergedConstituentId: source.id, keptName: `${keep.firstName} ${keep.lastName}`, mergedName: `${source.firstName} ${source.lastName}` },
+    metadata: {
+      mergedConstituentId: source.id,
+      keptName: `${keep.firstName} ${keep.lastName}`,
+      mergedName: `${source.firstName} ${source.lastName}`,
+      mergedFieldKeys: Object.keys(mergedFieldValues),
+    },
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
   });

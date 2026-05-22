@@ -16,6 +16,7 @@ export interface AuthUser {
   role: string;
   organizationId: string;
   avatarUrl?: string | null;
+  permissions?: string[];
 }
 
 export interface LoginMfaChallenge {
@@ -232,24 +233,40 @@ export async function apiFetchResponse(path: string, init: RequestInit = {}): Pr
   };
 
   const makeRequest = async (activeToken: string | null) => {
-    try {
-      const requestHeaders = new Headers(init.headers ?? {});
-      if (!requestHeaders.has("Content-Type")) {
-        requestHeaders.set("Content-Type", "application/json");
-      }
-      if (activeToken) {
-        requestHeaders.set("Authorization", `Bearer ${activeToken}`);
-      }
+    const requestHeaders = new Headers(init.headers ?? {});
+    if (!requestHeaders.has("Content-Type")) {
+      requestHeaders.set("Content-Type", "application/json");
+    }
+    if (activeToken) {
+      requestHeaders.set("Authorization", `Bearer ${activeToken}`);
+    }
 
-      return await fetch(`${API_BASE}${path}`, {
-        ...init,
-        credentials: "include",
-        headers: requestHeaders,
-      });
+    const requestInit: RequestInit = {
+      ...init,
+      credentials: "include",
+      headers: requestHeaders,
+    };
+
+    try {
+      return await fetch(`${API_BASE}${path}`, requestInit);
     } catch (error) {
       if (isAbortError(error)) {
         throw error;
       }
+
+      // Fallback for embedded/dev contexts where API is reverse-proxied on the same origin.
+      if (path.startsWith("/api/")) {
+        try {
+          return await fetch(path, requestInit);
+        } catch (fallbackError) {
+          if (isAbortError(fallbackError)) {
+            throw fallbackError;
+          }
+          const reason = fallbackError instanceof Error ? fallbackError.message : "Network request failed";
+          throw new Error(`Unable to reach API at ${API_BASE}. ${reason}`);
+        }
+      }
+
       const reason = error instanceof Error ? error.message : "Network request failed";
       throw new Error(`Unable to reach API at ${API_BASE}. ${reason}`);
     }

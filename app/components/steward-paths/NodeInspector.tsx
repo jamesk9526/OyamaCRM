@@ -11,10 +11,10 @@ import {
   type StewardPathEmailCampaignOption,
   type StewardPathLetterTemplateOption,
 } from "./workflow-api";
+import EmailDraftBuilderModal from "./EmailDraftBuilderModal";
 import { PALETTE_ITEMS } from "./palette-catalog";
 import {
   BRANCH_OPERATOR_OPTIONS,
-  getReadinessBadge,
   isBranchNode,
   type WorkflowBranchConditionGroup,
   type WorkflowNode,
@@ -35,6 +35,7 @@ interface NodeInspectorProps {
     conditionGroupId: string,
     partial: Partial<WorkflowBranchConditionGroup>,
   ) => void;
+  onClose?: () => void;
 }
 
 type BranchFieldInputKind = "text" | "number" | "boolean";
@@ -59,6 +60,42 @@ const BRANCH_FIELD_OPTIONS: BranchFieldOption[] = [
   { value: "city", label: "City", hint: "Constituent city field", inputKind: "text" },
   { value: "state", label: "State/region", hint: "Constituent state field", inputKind: "text" },
 ];
+
+const EMAIL_UTILITY_NODE_KINDS = new Set([
+  "email.send_review_request",
+  "email.add_to_sequence",
+  "email.wait_for_open",
+  "email.mark_failed",
+]);
+
+const PRINT_OPERATION_NODE_KINDS = new Set([
+  "print.add_to_print_queue",
+  "print.require_print_approval",
+  "print.mark_printed",
+  "print.add_to_mail_queue",
+  "print.mark_mailed",
+]);
+
+const TASK_OPERATION_NODE_KINDS = new Set([
+  "task.assign_staff",
+  "task.wait_for_completion",
+  "task.escalate_overdue",
+]);
+
+const DONOR_DATA_NODE_KINDS = new Set([
+  "donor.add_tag",
+  "donor.remove_tag",
+  "donor.update_status",
+  "donor.adjust_engagement_score",
+  "donor.add_note",
+]);
+
+const SAFETY_NODE_KINDS = new Set([
+  "safety.require_human_approval",
+  "safety.pause_path",
+  "safety.notify_staff",
+  "safety.stop_enrollment",
+]);
 
 /** Resolves branch field metadata used by the condition builder. */
 function getBranchFieldOption(field: string): BranchFieldOption | null {
@@ -135,6 +172,7 @@ export default function NodeInspector({
   onAddConditionGroup,
   onRemoveConditionGroup,
   onUpdateConditionGroup,
+  onClose,
 }: NodeInspectorProps) {
   const [templateSearch, setTemplateSearch] = useState("");
   const [campaignSearch, setCampaignSearch] = useState("");
@@ -144,15 +182,16 @@ export default function NodeInspector({
   const [campaignsLoading, setCampaignsLoading] = useState(false);
   const [templateError, setTemplateError] = useState<string | null>(null);
   const [campaignError, setCampaignError] = useState<string | null>(null);
+  const [emailBuilderOpen, setEmailBuilderOpen] = useState(false);
 
   const palette = PALETTE_ITEMS.find((item) => item.kind === node?.kind);
-  const badge = getReadinessBadge(palette?.readiness ?? "not-implemented");
 
   useEffect(() => {
     setTemplateSearch("");
     setCampaignSearch("");
     setTemplateError(null);
     setCampaignError(null);
+    setEmailBuilderOpen(false);
   }, [node?.id]);
 
   useEffect(() => {
@@ -203,13 +242,12 @@ export default function NodeInspector({
 
   if (!node) {
     return (
-      <aside className="w-[360px] shrink-0 border-l border-slate-200 bg-white">
-        {/* Empty state header */}
-        <div className="border-b border-slate-200 px-4 py-3">
-          <h2 className="text-sm font-semibold text-slate-900">Step Config</h2>
+      <aside className="w-[420px] shrink-0 border-l border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-5 py-5">
+          <h2 className="text-base font-semibold text-slate-950">Step Config</h2>
           <p className="mt-0.5 text-xs text-slate-500">Select a step on the canvas to edit settings.</p>
         </div>
-        <div className="p-4">
+        <div className="p-5">
           <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 py-10 text-center">
             <svg className="h-8 w-8 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
               <rect x="3" y="3" width="18" height="18" rx="3" /><path strokeLinecap="round" d="M8 12h8M12 8v8" />
@@ -231,6 +269,12 @@ export default function NodeInspector({
     onChange({ ...activeNode, config: { ...activeNode.config, ...partial } });
   }
 
+  const draftSavedAt = readString(activeNode.config, "emailBuilderSavedAt");
+  const configuredCampaignId = readString(activeNode.config, "campaignId");
+  const isDemoCampaignLinked = configuredCampaignId.trim().toLowerCase().startsWith("demo_");
+  const builderCampaignId = isDemoCampaignLinked ? "" : configuredCampaignId;
+  const createDraftCampaignOptions = emailCampaigns.filter((campaign) => !campaign.id.trim().toLowerCase().startsWith("demo_"));
+
   const configuredBranchField = isBranchNode(activeNode)
     ? (readString(activeNode.config, "field") || (activeNode.kind === "logic.segment_condition" ? "segmentMembership" : "lastGiftAmount"))
     : "lastGiftAmount";
@@ -238,39 +282,39 @@ export default function NodeInspector({
   const usingCustomBranchField = isBranchNode(activeNode) && selectedBranchField === null;
 
   return (
-    <aside className="w-[360px] shrink-0 overflow-y-auto border-l border-slate-200 bg-white">
-      {/* Clean white node header */}
-      <div className="border-b border-slate-200 px-4 py-3">
+    <aside className="w-[420px] shrink-0 overflow-y-auto border-l border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-5 py-5">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-700">
               <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
                 <rect x="2" y="2" width="12" height="12" rx="1.5" /><path strokeLinecap="round" strokeLinejoin="round" d="M5.5 8l2 2 3-3" />
               </svg>
             </span>
             <div className="min-w-0">
-              <h2 className="truncate text-sm font-semibold text-slate-900">{palette?.label ?? activeNode.kind}</h2>
+              <h2 className="truncate text-base font-semibold text-slate-950">{palette?.label ?? activeNode.kind}</h2>
               {palette?.summary && (
                 <p className="truncate text-[11px] text-slate-500">{palette.summary}</p>
               )}
             </div>
           </div>
-          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${badge.toneClass}`}>
-            {badge.label}
-          </span>
+          <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100" aria-label="Close inspector selection">
+            <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4 12 12M12 4 4 12" />
+            </svg>
+          </button>
         </div>
-        {/* Config / Preview tabs */}
-        <div className="mt-3 flex gap-4 border-b border-slate-200">
-          <button type="button" className="pb-2 text-xs font-semibold text-green-600 border-b-2 border-green-600 -mb-px">
+        <div className="mt-5 flex gap-6 border-b border-slate-200">
+          <button type="button" className="-mb-px border-b-2 border-slate-950 pb-3 text-sm font-semibold text-slate-950">
             Config
           </button>
-          <button type="button" className="pb-2 text-xs font-medium text-slate-500 border-b-2 border-transparent -mb-px hover:text-slate-700">
+          <button type="button" className="-mb-px border-b-2 border-transparent pb-3 text-sm font-medium text-slate-500 hover:text-slate-700">
             Preview
           </button>
         </div>
       </div>
 
-      <div className="space-y-4 p-4">
+      <div className="space-y-5 p-5">
         <label className="block">
           <span className="text-xs font-medium text-slate-700">Step label</span>
           <input
@@ -512,6 +556,104 @@ export default function NodeInspector({
           </div>
         )}
 
+        {activeNode.kind.startsWith("trigger.") && activeNode.kind !== "trigger.added_to_segment" && (
+          <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+            <div>
+              <p className="text-xs font-semibold text-emerald-900">Trigger setup</p>
+              <p className="mt-0.5 text-[11px] text-emerald-800">Define when constituents should enter this path.</p>
+            </div>
+
+            {activeNode.kind === "trigger.new_donation" && (
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-700">Minimum gift</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={readNumber(activeNode.config, "minimumAmount", 0)}
+                    onChange={(event) => updateConfig("minimumAmount", Number(event.target.value))}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-700">Designation</span>
+                  <input
+                    type="text"
+                    value={readString(activeNode.config, "designation")}
+                    onChange={(event) => updateConfig("designation", event.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                    placeholder="Any fund"
+                  />
+                </label>
+              </div>
+            )}
+
+            {activeNode.kind === "trigger.donor_lapsed" && (
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700">Days since last donation</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={readNumber(activeNode.config, "daysSinceLastGift", 365)}
+                  onChange={(event) => updateConfig("daysSinceLastGift", Number(event.target.value))}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                />
+              </label>
+            )}
+
+            {activeNode.kind === "trigger.pledge_due" && (
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-700">Due window</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={readNumber(activeNode.config, "dueWithinDays", 14)}
+                    onChange={(event) => updateConfig("dueWithinDays", Number(event.target.value))}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-700">Minimum pledge</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={readNumber(activeNode.config, "minimumPledgeAmount", 0)}
+                    onChange={(event) => updateConfig("minimumPledgeAmount", Number(event.target.value))}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                  />
+                </label>
+              </div>
+            )}
+
+            {activeNode.kind === "trigger.event_attended" && (
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700">Event name or type</span>
+                <input
+                  type="text"
+                  value={readString(activeNode.config, "eventFilter")}
+                  onChange={(event) => updateConfig("eventFilter", event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                  placeholder="Any event"
+                />
+              </label>
+            )}
+
+            {activeNode.kind === "trigger.manual_enrollment" && (
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700">Enrollment note</span>
+                <input
+                  type="text"
+                  value={readString(activeNode.config, "enrollmentNote")}
+                  onChange={(event) => updateConfig("enrollmentNote", event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                  placeholder="Staff manually enrolls a constituent"
+                />
+              </label>
+            )}
+          </div>
+        )}
+
         {activeNode.kind === "timing.until_date" && (
           <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
             <p className="text-xs font-semibold text-slate-700">Wait until date</p>
@@ -687,12 +829,12 @@ export default function NodeInspector({
             <div className="rounded-md border border-gray-200 bg-white p-2 text-[11px] text-gray-700 space-y-1">
               <p><span className="font-semibold">Linked template:</span> {readString(activeNode.config, "templateName") || "Not linked"}</p>
               <p><span className="font-semibold">Template status:</span> {readString(activeNode.config, "templateStatus") || "Unknown"}</p>
-              <a
+              <Link
                 href="/letters-printables"
                 className="inline-flex rounded-md border border-gray-300 px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
               >
                 Open Letters & Printables
-              </a>
+              </Link>
             </div>
             {templatesLoading ? <p className="text-[11px] text-gray-600">Loading templates...</p> : null}
             {templateError ? <p className="text-[11px] text-rose-700">{templateError}</p> : null}
@@ -701,10 +843,41 @@ export default function NodeInspector({
 
         {activeNode.kind === "email.create_draft" && (
           <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
-            <p className="text-xs font-semibold text-amber-900">Email draft safety</p>
-            <p className="text-xs text-amber-800">
-              Outbound email stays draft-first and review-first by default. Select templates and reviewer routing in Communications before final send.
-            </p>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold text-amber-900">Email draft safety</p>
+                <p className="text-xs text-amber-800">
+                  Outbound email stays draft-first and review-first by default. Open the builder to edit, save, preview, and test this draft.
+                </p>
+              </div>
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${draftSavedAt ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                {draftSavedAt ? "Saved" : "Draft"}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (isDemoCampaignLinked) {
+                    updateConfigEntries({
+                      campaignId: "",
+                      campaignName: "",
+                      campaignStatus: "DRAFT",
+                    });
+                  }
+                  setEmailBuilderOpen(true);
+                }}
+                className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+              >
+                Open Builder
+              </button>
+              <Link
+                href={builderCampaignId ? `/email-builder?campaign=${encodeURIComponent(builderCampaignId)}` : "/email-builder"}
+                className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-center text-xs font-semibold text-amber-900 hover:bg-amber-100"
+              >
+                Full Builder
+              </Link>
+            </div>
             <label className="block">
               <span className="text-xs font-medium text-slate-700">Search campaign</span>
               <input
@@ -731,7 +904,7 @@ export default function NodeInspector({
                 className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
               >
                 <option value="">Not linked</option>
-                {emailCampaigns.map((campaign) => (
+                {createDraftCampaignOptions.map((campaign) => (
                   <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
                 ))}
               </select>
@@ -754,6 +927,16 @@ export default function NodeInspector({
                 onChange={(event) => updateConfig("subjectTemplate", event.target.value)}
                 className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
                 placeholder="Thanks for your support, {{firstName}}"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium text-slate-700">Review assignee</span>
+              <input
+                type="text"
+                value={readString(activeNode.config, "reviewAssignee")}
+                onChange={(event) => updateConfig("reviewAssignee", event.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20"
+                placeholder="Development Director"
               />
             </label>
             <label className="block">
@@ -824,6 +1007,15 @@ export default function NodeInspector({
             <div className="rounded-md border border-amber-300/80 bg-white p-2 text-[11px] text-amber-900 space-y-1">
               <p><span className="font-semibold">Linked campaign:</span> {readString(activeNode.config, "campaignName") || "Not linked"}</p>
               <p><span className="font-semibold">Campaign status:</span> {readString(activeNode.config, "campaignStatus") || "Unknown"}</p>
+              <p><span className="font-semibold">Review assignee:</span> {readString(activeNode.config, "reviewAssignee") || "Not assigned"}</p>
+              <p><span className="font-semibold">Last saved:</span> {draftSavedAt ? new Date(draftSavedAt).toLocaleString() : "Not saved from builder yet"}</p>
+              <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-slate-700">
+                <p className="font-semibold text-slate-900">Preview</p>
+                <p className="mt-1 truncate"><span className="font-semibold">Subject:</span> {readString(activeNode.config, "subjectTemplate") || activeNode.title}</p>
+                <p className="mt-1 line-clamp-3 whitespace-pre-line text-slate-600">
+                  {readString(activeNode.config, "bodyTemplate") || "Open the builder to compose this review-required email draft."}
+                </p>
+              </div>
               <Link
                 href="/communications"
                 className="inline-flex rounded-md border border-amber-300 px-2 py-1 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
@@ -904,6 +1096,247 @@ export default function NodeInspector({
           </div>
         )}
 
+        {EMAIL_UTILITY_NODE_KINDS.has(activeNode.kind) && (
+          <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50 p-3">
+            <div>
+              <p className="text-xs font-semibold text-blue-900">Email workflow controls</p>
+              <p className="mt-0.5 text-[11px] text-blue-800">Configure how this email-related step should behave.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700">Reviewer or owner</span>
+                <input
+                  type="text"
+                  value={readString(activeNode.config, "owner")}
+                  onChange={(event) => updateConfig("owner", event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                  placeholder="Development Director"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700">Due / wait days</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={readNumber(activeNode.config, "waitDays", activeNode.kind === "email.wait_for_open" ? 7 : 1)}
+                  onChange={(event) => updateConfig("waitDays", Number(event.target.value))}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                />
+              </label>
+            </div>
+            <label className="block">
+              <span className="text-xs font-medium text-slate-700">Email sequence or campaign name</span>
+              <input
+                type="text"
+                value={readString(activeNode.config, "sequenceName") || readString(activeNode.config, "campaignName")}
+                onChange={(event) => updateConfigEntries({ sequenceName: event.target.value, campaignName: event.target.value })}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                placeholder="Welcome Series"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium text-slate-700">Instruction</span>
+              <textarea
+                value={readString(activeNode.config, "instruction")}
+                onChange={(event) => updateConfig("instruction", event.target.value)}
+                rows={3}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                placeholder="Describe what staff should review, wait for, or record."
+              />
+            </label>
+          </div>
+        )}
+
+        {PRINT_OPERATION_NODE_KINDS.has(activeNode.kind) && (
+          <div className="space-y-3 rounded-xl border border-cyan-200 bg-cyan-50 p-3">
+            <div>
+              <p className="text-xs font-semibold text-cyan-900">Print and mail controls</p>
+              <p className="mt-0.5 text-[11px] text-cyan-800">Set queue, approval, and mailing details for this print step.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700">Queue</span>
+                <select
+                  value={readString(activeNode.config, "queue") || "standard"}
+                  onChange={(event) => updateConfig("queue", event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                >
+                  <option value="standard">Standard</option>
+                  <option value="major-gifts">Major gifts</option>
+                  <option value="receipts">Receipts</option>
+                  <option value="board-review">Board review</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700">Owner</span>
+                <input
+                  type="text"
+                  value={readString(activeNode.config, "owner")}
+                  onChange={(event) => updateConfig("owner", event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                  placeholder="Stewardship team"
+                />
+              </label>
+            </div>
+            <label className="block">
+              <span className="text-xs font-medium text-slate-700">Print instruction</span>
+              <textarea
+                value={readString(activeNode.config, "instruction")}
+                onChange={(event) => updateConfig("instruction", event.target.value)}
+                rows={3}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                placeholder="Describe print, approval, or mailing requirements."
+              />
+            </label>
+          </div>
+        )}
+
+        {TASK_OPERATION_NODE_KINDS.has(activeNode.kind) && (
+          <div className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50 p-3">
+            <div>
+              <p className="text-xs font-semibold text-indigo-900">Task workflow controls</p>
+              <p className="mt-0.5 text-[11px] text-indigo-800">Configure assignment, completion wait, or escalation behavior.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700">Assignee</span>
+                <input
+                  type="text"
+                  value={readString(activeNode.config, "assignee")}
+                  onChange={(event) => updateConfig("assignee", event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                  placeholder="Team member or role"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700">SLA days</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={readNumber(activeNode.config, "slaDays", 3)}
+                  onChange={(event) => updateConfig("slaDays", Number(event.target.value))}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                />
+              </label>
+            </div>
+            <label className="block">
+              <span className="text-xs font-medium text-slate-700">Escalation / wait instruction</span>
+              <textarea
+                value={readString(activeNode.config, "instruction")}
+                onChange={(event) => updateConfig("instruction", event.target.value)}
+                rows={3}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                placeholder="Example: wait until welcome call is completed, then continue."
+              />
+            </label>
+          </div>
+        )}
+
+        {DONOR_DATA_NODE_KINDS.has(activeNode.kind) && (
+          <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+            <div>
+              <p className="text-xs font-semibold text-emerald-900">Donor data controls</p>
+              <p className="mt-0.5 text-[11px] text-emerald-800">Choose exactly what should be written to the donor record.</p>
+            </div>
+            {(activeNode.kind === "donor.add_tag" || activeNode.kind === "donor.remove_tag") && (
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700">Tag name</span>
+                <input
+                  type="text"
+                  value={readString(activeNode.config, "tag")}
+                  onChange={(event) => updateConfig("tag", event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                  placeholder="Engaged Donor"
+                />
+              </label>
+            )}
+            {activeNode.kind === "donor.update_status" && (
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700">New donor status</span>
+                <select
+                  value={readString(activeNode.config, "value") || "ACTIVE"}
+                  onChange={(event) => updateConfig("value", event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                >
+                  <option value="NEW">New</option>
+                  <option value="ACTIVE">Active</option>
+                  <option value="MAJOR">Major donor</option>
+                  <option value="LAPSED">Lapsed</option>
+                  <option value="PROSPECT">Prospect</option>
+                </select>
+              </label>
+            )}
+            {activeNode.kind === "donor.adjust_engagement_score" && (
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700">Engagement score</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={readNumber(activeNode.config, "value", 50)}
+                  onChange={(event) => updateConfig("value", Number(event.target.value))}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                />
+              </label>
+            )}
+            {activeNode.kind === "donor.add_note" && (
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700">Note template</span>
+                <textarea
+                  value={readString(activeNode.config, "noteTemplate")}
+                  onChange={(event) => updateConfig("noteTemplate", event.target.value)}
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                  placeholder="Donor completed this stewardship path step."
+                />
+              </label>
+            )}
+          </div>
+        )}
+
+        {SAFETY_NODE_KINDS.has(activeNode.kind) && (
+          <div className="space-y-3 rounded-xl border border-rose-200 bg-rose-50 p-3">
+            <div>
+              <p className="text-xs font-semibold text-rose-900">Safety and review controls</p>
+              <p className="mt-0.5 text-[11px] text-rose-800">Use these guardrails before sensitive or high-touch actions continue.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700">Approver / notify</span>
+                <input
+                  type="text"
+                  value={readString(activeNode.config, "approver") || readString(activeNode.config, "notify")}
+                  onChange={(event) => updateConfigEntries({ approver: event.target.value, notify: event.target.value })}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                  placeholder="Manager or team"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700">Priority</span>
+                <select
+                  value={readString(activeNode.config, "priority") || "MEDIUM"}
+                  onChange={(event) => updateConfig("priority", event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                >
+                  <option value="LOW">Low</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="HIGH">High</option>
+                </select>
+              </label>
+            </div>
+            <label className="block">
+              <span className="text-xs font-medium text-slate-700">Instruction</span>
+              <textarea
+                value={readString(activeNode.config, "instruction")}
+                onChange={(event) => updateConfig("instruction", event.target.value)}
+                rows={3}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                placeholder="Explain the approval, pause, notification, or stop condition."
+              />
+            </label>
+          </div>
+        )}
+
         {activeNode.kind === "logic.if_else" && (
           <div className="rounded-xl border border-sky-200 bg-sky-50 p-2 text-xs text-sky-900">
             Branching visuals and execution persistence are active. Configure lane conditions to control route jumps.
@@ -925,6 +1358,13 @@ export default function NodeInspector({
           <p className="mt-1 text-[11px] text-slate-400">These notes are only visible to your team.</p>
         </div>
       </div>
+      {emailBuilderOpen && activeNode.kind === "email.create_draft" ? (
+        <EmailDraftBuilderModal
+          node={activeNode}
+          onChange={onChange}
+          onClose={() => setEmailBuilderOpen(false)}
+        />
+      ) : null}
     </aside>
   );
 }

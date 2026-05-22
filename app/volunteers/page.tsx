@@ -11,8 +11,7 @@ import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbB
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { apiFetch } from "@/app/lib/auth-client";
 
 /** Constituent record (volunteer) as returned from the API */
 interface Volunteer {
@@ -63,9 +62,7 @@ export default function VolunteersPage() {
       try {
         const params = new URLSearchParams({ type: "VOLUNTEER", limit: "100" });
         if (search) params.set("search", search);
-        const res = await fetch(`${API}/api/constituents?${params}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        const data = await apiFetch<Volunteer[]>(`/api/constituents?${params.toString()}`);
         setVolunteers(Array.isArray(data) ? data : []);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load");

@@ -67,6 +67,47 @@ function toApiItem(item: {
   };
 }
 
+async function buildNotificationStreamSignature(args: { organizationId: string; userId: string }) {
+  const now = new Date();
+  const [latestActive, unreadCount, activeCount] = await Promise.all([
+    prisma.notification.findFirst({
+      where: {
+        organizationId: args.organizationId,
+        userId: args.userId,
+        archivedAt: null,
+        OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: now } }],
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, createdAt: true, status: true },
+    }),
+    prisma.notification.count({
+      where: {
+        organizationId: args.organizationId,
+        userId: args.userId,
+        status: "UNREAD",
+        archivedAt: null,
+        OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: now } }],
+      },
+    }),
+    prisma.notification.count({
+      where: {
+        organizationId: args.organizationId,
+        userId: args.userId,
+        archivedAt: null,
+        OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: now } }],
+      },
+    }),
+  ]);
+
+  return JSON.stringify({
+    latestId: latestActive?.id ?? null,
+    latestCreatedAt: latestActive?.createdAt.toISOString() ?? null,
+    latestStatus: latestActive?.status ?? null,
+    unreadCount,
+    activeCount,
+  });
+}
+
 /** GET /api/notifications?module=donor&status=active|all|unread */
 router.get("/", async (req, res) => {
   try {
@@ -191,6 +232,54 @@ router.get("/unread-count", async (req, res) => {
     console.error("[notifications] GET /unread-count error:", err);
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load unread count" } });
   }
+});
+
+/** GET /api/notifications/sse — lightweight change stream for TopBar notification refreshes. */
+router.get("/sse", async (req, res) => {
+  const userId = req.user?.sub;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+
+  let closed = false;
+  let lastSignature = await buildNotificationStreamSignature({ organizationId, userId });
+  res.write(`event: ready\ndata: ${JSON.stringify({ ok: true })}\n\n`);
+
+  const poll = async () => {
+    if (closed) return;
+    try {
+      const nextSignature = await buildNotificationStreamSignature({ organizationId, userId });
+      if (nextSignature !== lastSignature) {
+        lastSignature = nextSignature;
+        res.write(`event: changed\ndata: ${nextSignature}\n\n`);
+      } else {
+        res.write(`event: ping\ndata: {}\n\n`);
+      }
+    } catch (err) {
+      res.write(`event: error\ndata: ${JSON.stringify({ message: err instanceof Error ? err.message : "Notification stream failed" })}\n\n`);
+    }
+  };
+
+  const interval = setInterval(() => {
+    void poll();
+  }, 15000);
+
+  req.on("close", () => {
+    closed = true;
+    clearInterval(interval);
+    res.end();
+  });
 });
 
 /** POST /api/notifications/mark-all-read */

@@ -111,6 +111,12 @@ function canonicalizeMergeToken(token: string): string {
   return `{{${token.replace(/\{\{|\}\}/g, "").trim()}}}`;
 }
 
+/** Returns true for synthetic/demo campaign ids that should not be used as editable campaign context. */
+function isDemoCampaignId(value: string | undefined): boolean {
+  if (!value) return false;
+  return value.trim().toLowerCase().startsWith("demo_");
+}
+
 /** Recursively collects string values from one object so merge token scans include nested block data. */
 function collectStringValues(value: unknown, acc: string[]): void {
   if (typeof value === "string") {
@@ -165,8 +171,23 @@ interface Props {
   returnTo?: string;
   /** Renders the builder inside a larger campaign workspace instead of as a full-screen route. */
   embedded?: boolean;
+  /** Starter template used when an embedded campaign cannot be loaded yet. */
+  initialTemplate?: EmailTemplate;
+  /** Starter campaign metadata used before the API payload returns. */
+  initialCampaignName?: string;
+  initialSubject?: string;
+  initialPreviewText?: string;
   /** Optional callback fired after a successful draft save. */
   onSaved?: () => void | Promise<void>;
+  /** Optional callback for embedded hosts that need a live, unsaved preview. */
+  onDraftChange?: (draft: {
+    template: EmailTemplate;
+    subject: string;
+    previewText: string;
+    bodyHtml: string;
+    bodyText: string;
+    dirty: boolean;
+  }) => void;
 }
 
 interface CommunicationsAiTemplateResponse {
@@ -185,7 +206,21 @@ interface CommunicationsAiBlockResponse {
 }
 
 interface CampaignSendLogEvent {
+  id: string;
   action: string;
+  createdAt: string;
+  metadata?: Record<string, unknown> | null;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+}
+
+interface SavedReusableSection {
+  id: string;
+  name: string;
+  block: EmailBlock;
   createdAt: string;
 }
 
@@ -233,6 +268,19 @@ const COMPLIANCE_REQUIRED_PURPOSES = new Set<CampaignPurpose>(['MARKETING', 'FUN
 const BLOCK_LIBRARY_MIN_WIDTH = 240;
 const BLOCK_LIBRARY_MAX_WIDTH = 460;
 const BLOCK_LIBRARY_DEFAULT_WIDTH = 304;
+const REUSABLE_SECTION_STORAGE_KEY = 'emailBuilder.reusableSections.v1';
+
+/** Converts audit action tokens into human-readable revision labels. */
+function formatRevisionAction(action: string): string {
+  if (action === 'EMAIL_CAMPAIGN_CREATED') return 'Campaign created';
+  if (action === 'EMAIL_CAMPAIGN_UPDATED') return 'Draft updated';
+  if (action === 'EMAIL_CAMPAIGN_TEST_SENT') return 'Test sent';
+  if (action === 'EMAIL_CAMPAIGN_SCHEDULED') return 'Campaign scheduled';
+  if (action === 'EMAIL_CAMPAIGN_CANCELLED') return 'Schedule cancelled';
+  if (action === 'EMAIL_CAMPAIGN_SENT') return 'Campaign sent';
+  if (action === 'EMAIL_CAMPAIGN_SEND_FAILED') return 'Send failed';
+  return action.replace(/^EMAIL_CAMPAIGN_/, '').replace(/_/g, ' ').toLowerCase();
+}
 
 /** Safely converts unknown values to bounded numbers used in block hydration. */
 function toBoundedNumber(value: unknown, fallback: number, min: number, max: number): number {
@@ -628,11 +676,53 @@ function enforceBrandingOnTemplate(template: EmailTemplate, branding: BrandingSe
   }, branding);
 }
 
+/** Ensures persisted/generated templates have unique ids before sortable rendering. */
+function normalizeTemplateBlockIds(template: EmailTemplate): EmailTemplate {
+  const seen = new Set<string>();
+
+  const normalizeBlock = (block: EmailBlock): EmailBlock => {
+    const rawId = typeof block.id === 'string' ? block.id.trim() : '';
+    const id = rawId && !seen.has(rawId)
+      ? rawId
+      : createDefaultBlock(block.type).id;
+    seen.add(id);
+
+    if (block.type !== 'columns') {
+      return { ...block, id } as EmailBlock;
+    }
+
+    return {
+      ...block,
+      id,
+      columns: block.columns.map((column) => column.map((child) => normalizeBlock(child))),
+    } as EmailBlock;
+  };
+
+  return {
+    ...template,
+    blocks: Array.isArray(template.blocks) ? template.blocks.map((block) => normalizeBlock(block)) : [],
+  };
+}
+
 // ─── EmailBuilderApp ──────────────────────────────────────────────────────────
 
-export default function EmailBuilderApp({ campaignId, returnTo, embedded = false, onSaved }: Props) {
+export default function EmailBuilderApp({
+  campaignId: requestedCampaignId,
+  returnTo,
+  embedded = false,
+  initialTemplate,
+  initialCampaignName,
+  initialSubject,
+  initialPreviewText,
+  onSaved,
+  onDraftChange,
+}: Props) {
+  const normalizedRequestedCampaignId = typeof requestedCampaignId === "string" ? requestedCampaignId.trim() : "";
+  const ignoredDemoCampaignId = isDemoCampaignId(normalizedRequestedCampaignId);
+  const campaignId = normalizedRequestedCampaignId && !ignoredDemoCampaignId ? normalizedRequestedCampaignId : undefined;
+
   // ── Template state ─────────────────────────────────────────────────────────
-  const [template, setTemplate] = useState<EmailTemplate>(createDefaultTemplate);
+  const [template, setTemplate] = useState<EmailTemplate>(() => normalizeTemplateBlockIds(initialTemplate ?? createDefaultTemplate()));
 
   // ── UI state ───────────────────────────────────────────────────────────────
   const [selectedId,     setSelectedId]     = useState<string | null>(null);
@@ -640,9 +730,9 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
   const [saving,         setSaving]          = useState(false);
   const [saveError,      setSaveError]       = useState<string | null>(null);
   const [saveSuccess,    setSaveSuccess]     = useState(false);
-  const [campaignName,   setCampaignName]    = useState('Email Campaign');
-  const [subjectLine,    setSubjectLine]     = useState('');
-  const [previewText,    setPreviewText]     = useState('');
+  const [campaignName,   setCampaignName]    = useState(initialCampaignName || 'Email Campaign');
+  const [subjectLine,    setSubjectLine]     = useState(initialSubject || '');
+  const [previewText,    setPreviewText]     = useState(initialPreviewText || '');
   const [campaignPurpose, setCampaignPurpose] = useState<CampaignPurpose>('MARKETING');
   const [preset,         setPreset]          = useState<TemplatePreset>('blank');
   const [dirty,          setDirty]           = useState(false);
@@ -661,6 +751,8 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
   const [testStatus, setTestStatus] = useState<string | null>(null);
   const [hasPersistedTestSend, setHasPersistedTestSend] = useState(false);
   const [lastPersistedTestSentAt, setLastPersistedTestSentAt] = useState<string | null>(null);
+  const [revisionEvents, setRevisionEvents] = useState<CampaignSendLogEvent[]>([]);
+  const [reusableSections, setReusableSections] = useState<SavedReusableSection[]>([]);
   const [activeSidebarTab, setActiveSidebarTab] = useState<SidebarTab>('block');
   const [blockLibraryWidth, setBlockLibraryWidth] = useState(BLOCK_LIBRARY_DEFAULT_WIDTH);
   const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
@@ -681,7 +773,21 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
   const [loadError, setLoadError] = useState<string | null>(null);
   /* Start in loading state when a campaignId is present so the first render
      shows the spinner without a synchronous setState call in the effect. */
-  const [loading,   setLoading]   = useState(Boolean(campaignId));
+  const [loading,   setLoading]   = useState(Boolean(campaignId) && !embedded);
+
+  /** Publishes live local builder state to embedded hosts before the draft is saved. */
+  useEffect(() => {
+    if (!onDraftChange) return;
+    const brandedTemplate = enforceBrandingOnTemplate(template, branding);
+    onDraftChange({
+      template: brandedTemplate,
+      subject: subjectLine.trim() || campaignName.trim() || "Email Campaign",
+      previewText: previewText.trim(),
+      bodyHtml: generateEmailHtml(brandedTemplate),
+      bodyText: generatePlainText(brandedTemplate),
+      dirty,
+    });
+  }, [branding, campaignName, dirty, onDraftChange, previewText, subjectLine, template]);
 
   /** Loads organization branding defaults once auth is ready so builder defaults stay consistent. */
   useEffect(() => {
@@ -711,8 +817,10 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
   useEffect(() => {
     if (!campaignId) return;
     if (authLoading) return; // token not ready yet
+    if (!embedded) setLoading(true);
     apiFetch<{ name?: string; subject?: string; previewText?: string; purpose?: CampaignPurpose; templateJson?: string }>(`/api/email-campaigns/${campaignId}`)
       .then((data) => {
+        setLoadError(null);
         if (data.name)     setCampaignName(data.name);
         setSubjectLine(data.subject ?? '');
         setPreviewText(data.previewText ?? '');
@@ -720,7 +828,7 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
         // Avoid clobbering in-progress local edits if the initial load resolves late.
         if (!dirtyRef.current && data.templateJson) {
           try {
-            setTemplate(JSON.parse(data.templateJson) as EmailTemplate);
+            setTemplate(normalizeTemplateBlockIds(JSON.parse(data.templateJson) as EmailTemplate));
             setPreset('blank');
           } catch {
             /* ignore parse errors */
@@ -735,7 +843,7 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
         setLoadError(`Failed to load campaign: ${msg}`);
       })
       .finally(() => setLoading(false));
-  }, [campaignId, authLoading]);
+  }, [campaignId, authLoading, embedded]);
 
   /** Loads persisted test-send evidence so readiness survives page reloads. */
   useEffect(() => {
@@ -747,12 +855,14 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
       .then((rows) => {
         if (cancelled) return;
         const sendLogs = Array.isArray(rows) ? rows : [];
+        setRevisionEvents(sendLogs);
         const latestTestSend = sendLogs.find((entry) => entry.action === 'EMAIL_CAMPAIGN_TEST_SENT') ?? null;
         setHasPersistedTestSend(Boolean(latestTestSend));
         setLastPersistedTestSentAt(latestTestSend?.createdAt ?? null);
       })
       .catch(() => {
         if (cancelled) return;
+        setRevisionEvents([]);
         setHasPersistedTestSend(false);
         setLastPersistedTestSentAt(null);
       });
@@ -790,6 +900,29 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
     if (typeof window === 'undefined') return;
     window.localStorage.setItem('emailBuilder.blockLibraryWidth', String(blockLibraryWidth));
   }, [blockLibraryWidth]);
+
+  /** Loads reusable section snippets saved from prior editing sessions. */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(REUSABLE_SECTION_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as SavedReusableSection[];
+      if (!Array.isArray(parsed)) return;
+      const normalized = parsed
+        .filter((item) => item && typeof item === 'object' && typeof item.id === 'string' && typeof item.name === 'string' && item.block)
+        .slice(0, 20);
+      setReusableSections(normalized);
+    } catch {
+      // Ignore malformed local storage payloads.
+    }
+  }, []);
+
+  /** Persists reusable section snippets so staff can reinsert them later. */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(REUSABLE_SECTION_STORAGE_KEY, JSON.stringify(reusableSections));
+  }, [reusableSections]);
 
   // ── Block helpers ──────────────────────────────────────────────────────────
 
@@ -919,6 +1052,44 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
     duplicateBlockById(selectedId);
   };
 
+  /** Saves the currently selected block as a reusable section snippet for future campaigns. */
+  const saveSelectedAsReusableSection = useCallback(() => {
+    if (!selectedId) return;
+    const selectedBlock = template.blocks.find((block) => block.id === selectedId);
+    if (!selectedBlock) return;
+
+    const nowIso = new Date().toISOString();
+    const fallbackName = `${selectedBlock.type} section`;
+    const nextSection: SavedReusableSection = {
+      id: globalThis.crypto?.randomUUID?.() ?? `section-${Date.now()}`,
+      name: fallbackName,
+      block: JSON.parse(JSON.stringify(selectedBlock)) as EmailBlock,
+      createdAt: nowIso,
+    };
+
+    setReusableSections((prev) => [nextSection, ...prev].slice(0, 20));
+  }, [selectedId, template.blocks]);
+
+  /** Inserts one reusable section snippet into the canvas with a fresh block id. */
+  const insertReusableSection = useCallback((sectionId: string) => {
+    const section = reusableSections.find((item) => item.id === sectionId);
+    if (!section) return;
+    const freshId = createDefaultBlock(section.block.type).id;
+    const nextBlock = {
+      ...(JSON.parse(JSON.stringify(section.block)) as EmailBlock),
+      id: freshId,
+    } as EmailBlock;
+
+    setTemplate((prev) => ({ ...prev, blocks: [...prev.blocks, nextBlock] }));
+    setSelectedId(nextBlock.id);
+    markDirty();
+  }, [markDirty, reusableSections]);
+
+  /** Removes one reusable section snippet from local library storage. */
+  const deleteReusableSection = useCallback((sectionId: string) => {
+    setReusableSections((prev) => prev.filter((item) => item.id !== sectionId));
+  }, []);
+
   /** Moves a block up or down by one position in the canvas. */
   const moveBlock = useCallback((targetId: string, direction: 'up' | 'down') => {
     setTemplate((prev) => {
@@ -1014,7 +1185,7 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
 
   /** Replaces the current canvas with a starter preset template. */
   const applyPreset = () => {
-    const next = enforceBrandingOnTemplate(createTemplateFromPreset(preset), branding);
+    const next = normalizeTemplateBlockIds(enforceBrandingOnTemplate(createTemplateFromPreset(preset), branding));
     setTemplate(next);
     setSelectedId(next.blocks[0]?.id ?? null);
     markDirty();
@@ -1054,12 +1225,12 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
         throw new Error("AI returned no blocks. Try a more specific brief.");
       }
 
-      const nextTemplate = enforceBrandingOnTemplate({
+      const nextTemplate = normalizeTemplateBlockIds(enforceBrandingOnTemplate({
         backgroundColor: String(draftTemplate.backgroundColor ?? "#f5f5f5"),
         contentWidth: toBoundedNumber(draftTemplate.contentWidth, 600, 420, 760),
         fontFamily: String(draftTemplate.fontFamily ?? "Arial, Helvetica, sans-serif"),
         blocks: generatedBlocks,
-      }, branding);
+      }, branding));
 
       setTemplate(nextTemplate);
       setSelectedId(generatedBlocks[0]?.id ?? null);
@@ -1465,7 +1636,7 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
     );
   }
 
-  if (loadError) {
+  if (loadError && !embedded) {
     return (
       <div className={`${embedded ? "h-[620px] rounded-xl border border-gray-200" : "h-screen"} flex items-center justify-center bg-gray-50`}>
         <div className="bg-white rounded-xl border border-red-200 shadow p-8 max-w-md text-center space-y-4">
@@ -1504,6 +1675,11 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
       >
 
         {/* ── Top Bar ── */}
+        {loadError && embedded ? (
+          <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+            <span className="font-semibold">Campaign load issue:</span> {loadError} The editor is using the local draft blocks until the API reconnects.
+          </div>
+        ) : null}
         <header className="z-30 shrink-0 border-b border-gray-200 bg-white px-4 shadow-sm" style={{ paddingTop: embedded ? '8px' : '12px', paddingBottom: embedded ? '8px' : '12px' }}>
           {/* Compact single-row header in embedded mode */}
           {embedded ? (
@@ -1668,7 +1844,9 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
 
           {!hasRouteContext && (
             <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              Route context missing: this builder was opened without a campaign id, so draft saves and test sends are disabled.
+              {ignoredDemoCampaignId
+                ? "Route context missing: this builder was opened with a demo campaign id. Select or create a real campaign to save drafts and send tests."
+                : "Route context missing: this builder was opened without a campaign id, so draft saves and test sends are disabled."}
             </div>
           )}
 
@@ -1946,6 +2124,49 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
                 </div>
 
                 <div className="space-y-2 rounded-lg border border-gray-200 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Reusable Sections</p>
+                    <button
+                      type="button"
+                      onClick={saveSelectedAsReusableSection}
+                      disabled={!selectedId}
+                      className="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                    >
+                      Save selected
+                    </button>
+                  </div>
+
+                  {reusableSections.length === 0 ? (
+                    <p className="text-xs text-gray-500">Save a selected block to build your reusable section library.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {reusableSections.slice(0, 6).map((section) => (
+                        <div key={section.id} className="rounded-md border border-gray-200 bg-gray-50 p-2">
+                          <p className="text-xs font-semibold text-gray-700">{section.name}</p>
+                          <p className="mt-0.5 text-[11px] text-gray-500">{section.block.type} · {new Date(section.createdAt).toLocaleDateString()}</p>
+                          <div className="mt-2 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => insertReusableSection(section.id)}
+                              className="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-semibold text-gray-700 hover:bg-gray-50"
+                            >
+                              Insert
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteReusableSection(section.id)}
+                              className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-500 hover:bg-gray-50"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2 rounded-lg border border-gray-200 p-3">
                   <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Branding Defaults</p>
                   <p className="text-sm font-semibold text-gray-800">{branding.organizationDisplayName || 'Organization branding not configured'}</p>
                   {branding.tagline && <p className="text-xs text-gray-600">{branding.tagline}</p>}
@@ -2097,6 +2318,27 @@ export default function EmailBuilderApp({ campaignId, returnTo, embedded = false
                   </div>
                   {!hasRouteContext && (
                     <p className="text-xs text-amber-700">Route context is missing. Open this workspace from a campaign page.</p>
+                  )}
+                </div>
+
+                <div className="space-y-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Revision History</p>
+                  {revisionEvents.length === 0 ? (
+                    <p className="text-xs text-gray-500">No recorded campaign revisions yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {revisionEvents.slice(0, 8).map((event) => (
+                        <div key={event.id} className="rounded-md border border-gray-100 bg-gray-50 px-2 py-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-semibold text-gray-700">{formatRevisionAction(event.action)}</p>
+                            <p className="text-[11px] text-gray-500">{new Date(event.createdAt).toLocaleString()}</p>
+                          </div>
+                          {event.user?.name && (
+                            <p className="mt-0.5 text-[11px] text-gray-500">By {event.user.name}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
 

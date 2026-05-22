@@ -577,13 +577,13 @@ export default function LiveComInboxTool() {
                     Open Linked Donor
                   </Link>
                 ) : (
-                  <>
-                    <button type="button" disabled className="min-h-10 cursor-not-allowed rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-400">Create Donor Record</button>
-                    <button type="button" disabled className="min-h-10 cursor-not-allowed rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-400">Link Existing Donor</button>
-                  </>
+                  <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">
+                    <p className="font-semibold">Donor linking is still in progress.</p>
+                    <p className="mt-1 text-xs text-amber-800">
+                      This conversation is not linked to a donor yet. Use the conversation context for replies today; donor-link, follow-up task, and tag actions are being finished before they return here.
+                    </p>
+                  </div>
                 )}
-                <button type="button" disabled className="min-h-10 cursor-not-allowed rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-400">Create Follow-up Task</button>
-                <button type="button" disabled className="min-h-10 cursor-not-allowed rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-400">Add Tag</button>
               </div>
               <label className="block text-xs font-medium text-gray-600">
                 Assigned to

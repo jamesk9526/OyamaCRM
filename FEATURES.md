@@ -91,7 +91,9 @@
 | Campaign draft / needs-review / scheduled / sent lifecycle | Working | Explicit status labels; review-first default |
 | Send-test before full send | Working | Test send to admin address |
 | Compliance footer in campaigns | Working | Required compliance token validation before broad sends |
-| Email open/click tracking | Partially Working | Tracking infrastructure in place; analytics UI in progress |
+| Email open/click tracking | Working | Provider webhook ingestion plus campaign delivery diagnostics are live in the activity workspace |
+| Email builder reusable sections | Working | Save selected blocks as reusable snippets and reinsert them in campaign editor flows |
+| Email builder revision history | Working | Campaign review tab now surfaces create/update/send audit history from campaign activity logs |
 | Communication preference enforcement | Working | Suppresses doNotEmail, emailOptOut, unsubscribed recipients |
 | Microsoft 365 SMTP provider | Working | Full SMTP config + test send |
 | Microsoft Graph OAuth provider | Working | OAuth connect flow, Mail.Send permission, test send |
@@ -106,11 +108,11 @@
 
 | Feature | Status | Notes |
 |---|---|---|
-| Letter generation from templates | Partially Working | Generate from template; PDF backend in progress |
-| Print queue (Needs Review → Approved → Printed → Mailed) | Partially Working | Queue state machine implemented; bulk print actions in progress |
-| Mail queue advancement | Partially Working | Status transitions implemented; mail carrier integration not yet done |
-| Letter-to-email handoff | Partially Working | Bridge to email draft in progress |
-| Print permission controls | Partially Working | `letters.manage_print_queue` / `letters.manage_mail_queue` permissions defined |
+| Letter generation from templates | Working | Generate from templates with server-side single and batch PDF export endpoints |
+| Print queue (Needs Review → Approved → Printed → Mailed) | Partially Working | Queue actions are live and now enforce workflow policy approval/direct-mail gates |
+| Mail queue advancement | Partially Working | Status transitions and address validation policy enforcement are live; carrier integration remains pending |
+| Letter-to-email handoff | Working | Generated letters can create linked email drafts |
+| Print permission controls | Working | `letters.manage_print_queue` / `letters.manage_mail_queue` permissions are enforced on queue action APIs |
 
 ### Tasks & Workflow
 
@@ -158,6 +160,7 @@
 | Awarded amount → donation handoff | Working | Explicit handoff flow; no auto-donation creation |
 | Deadline reminders | Working | Task-based reminders for grant deadlines |
 | Grant resource notes | Working | Notes and file links (no secret storage) |
+| Grant assignment notifications | Working | Durable notifications are created for grant assignment/reassignment and surface in TopBar |
 
 ### Contacts Manager
 
@@ -320,10 +323,10 @@
 
 | Feature | Status | Notes |
 |---|---|---|
-| LiveCom inbox (website conversation tracking) | Partially Working | Inbox view; real-time WebSocket in progress |
+| LiveCom inbox (website conversation tracking) | Working | Inbox, assignment, lifecycle updates, and shared notification-center delivery are live; short polling remains the current runtime model |
 | Website chat launcher (via site embed) | Working | Launcher button injected via embed snippet |
-| Conversation → constituent link | Partially Working | Manual link; auto-match in progress |
-| Notification on new message | Partially Working | Notification panel update; push notification not yet done |
+| Conversation → constituent link | Working | Public intake preserves existing conversation links and auto-matches by exact email or phone before creating a new prospect |
+| Notification on new message | Working | Durable donor-module notifications are created for new public LiveCom messages and surface in the shared TopBar notification center |
 
 ---
 

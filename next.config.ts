@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 import path from "path";
 
+const apiProxyTarget = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["www.crm.partnertpcc.com"],
   turbopack: {
@@ -18,6 +20,16 @@ const nextConfig: NextConfig = {
         ],
       },
     ];
+  },
+  async rewrites() {
+    return {
+      fallback: [
+        {
+          source: "/api/:path*",
+          destination: `${apiProxyTarget}/api/:path*`,
+        },
+      ],
+    };
   },
 };
 

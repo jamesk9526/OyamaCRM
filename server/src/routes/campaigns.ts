@@ -59,7 +59,9 @@ router.get("/", async (req, res) => {
 
   const searchText = (search ?? q ?? "").trim();
 
-  const parsedLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 100, 1), 500);
+  const parsedLimit = limit.toLowerCase() === "all"
+    ? undefined
+    : Math.min(Math.max(Number.parseInt(limit, 10) || 100, 1), 500);
   const parsedYear = Number.parseInt(year ?? `${new Date().getFullYear()}`, 10);
   const useAllYears = scope?.toUpperCase() === "ALL_YEARS";
 
@@ -84,7 +86,7 @@ router.get("/", async (req, res) => {
 
   const items = await prisma.campaign.findMany({
     where,
-    take: parsedLimit,
+    ...(parsedLimit ? { take: parsedLimit } : {}),
     orderBy: { createdAt: "desc" },
     include: {
       _count: {

@@ -1,6 +1,7 @@
 // Data Tools page: CSV export, data-quality metrics, CSV import wizard, and merge workflow.
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import MergeWorkflow from "./merge/MergeWorkflow";
 import { apiFetch } from "@/app/lib/auth-client";
@@ -30,11 +31,57 @@ interface Donation {
   constituent?: { firstName: string; lastName: string; email?: string };
 }
 
+interface Campaign {
+  id: string;
+  name: string;
+  active: boolean;
+  category?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  goal?: string | number | null;
+  totalRaised?: string | number | null;
+  _count?: {
+    donations?: number;
+    pledges?: number;
+  };
+}
+
+interface Designation {
+  id: string;
+  name: string;
+  description?: string | null;
+  active?: boolean;
+  _count?: {
+    donations?: number;
+  };
+}
+
+interface ImportHistoryItem {
+  runId: string;
+  mode: string;
+  recordCount: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: number;
+  rollbackSupported: boolean;
+  rolledBackAt: string | null;
+  createdAt: string;
+  startedBy: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+}
+
 /** Data tools page with real CSV exports and live data-quality metrics. */
 export default function DataToolsPage() {
   const [constituents, setConstituents] = useState<Constituent[]>([]);
   const [donations, setDonations] = useState<Donation[]>([]);
+  const [importHistory, setImportHistory] = useState<ImportHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [exporting, setExporting] = useState<"constituents" | "donations" | "campaigns" | "designations" | null>(null);
 
   // Steward Paths CSV import state
   const [spImportStatus, setSpImportStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
@@ -49,16 +96,20 @@ export default function DataToolsPage() {
   useEffect(() => {
     async function load() {
       setLoading(true);
+      setHistoryLoading(true);
       try {
-        const [constData, donationData] = await Promise.all([
+        const [constData, donationData, importHistoryData] = await Promise.all([
           apiFetch<Constituent[]>("/api/constituents?limit=500"),
           apiFetch<{ items?: Donation[] } | Donation[]>("/api/donations?limit=500"),
+          apiFetch<{ items?: ImportHistoryItem[] }>("/api/constituents/import/history?limit=5"),
         ]);
         setConstituents(Array.isArray(constData) ? constData : []);
         const d = donationData as { items?: Donation[] };
         setDonations(Array.isArray(donationData) ? donationData : (d.items ?? []));
+        setImportHistory(Array.isArray(importHistoryData.items) ? importHistoryData.items : []);
       } finally {
         setLoading(false);
+        setHistoryLoading(false);
       }
     }
     load();
@@ -98,35 +149,91 @@ export default function DataToolsPage() {
     URL.revokeObjectURL(url);
   }
 
-  function exportConstituents() {
-    const csv = toCsv(
-      constituents.map((c) => ({
-        id: c.id,
-        firstName: c.firstName,
-        lastName: c.lastName,
-        email: c.email ?? "",
-        phone: c.phone ?? "",
-        city: c.city ?? "",
-        state: c.state ?? "",
-        donorStatus: c.donorStatus,
-      }))
-    );
-    downloadCsv("oyamacrm-constituents.csv", csv);
+  async function exportConstituents() {
+    setExporting("constituents");
+    try {
+      const rows = await apiFetch<Constituent[]>("/api/constituents?limit=all");
+      const csv = toCsv(
+        (Array.isArray(rows) ? rows : []).map((c) => ({
+          id: c.id,
+          firstName: c.firstName,
+          lastName: c.lastName,
+          email: c.email ?? "",
+          phone: c.phone ?? "",
+          city: c.city ?? "",
+          state: c.state ?? "",
+          donorStatus: c.donorStatus,
+        }))
+      );
+      downloadCsv("oyamacrm-constituents.csv", csv);
+    } finally {
+      setExporting(null);
+    }
   }
 
-  function exportDonations() {
-    const csv = toCsv(
-      donations.map((d) => ({
-        id: d.id,
-        amount: d.amount,
-        date: d.date,
-        status: d.status,
-        paymentMethod: d.paymentMethod,
-        donor: d.constituent ? `${d.constituent.firstName} ${d.constituent.lastName}` : "",
-        donorEmail: d.constituent?.email ?? "",
-      }))
-    );
-    downloadCsv("oyamacrm-donations.csv", csv);
+  async function exportDonations() {
+    setExporting("donations");
+    try {
+      const response = await apiFetch<{ items?: Donation[] } | Donation[]>("/api/donations?limit=all");
+      const rows = Array.isArray(response) ? response : (response.items ?? []);
+      const csv = toCsv(
+        rows.map((d) => ({
+          id: d.id,
+          amount: d.amount,
+          date: d.date,
+          status: d.status,
+          paymentMethod: d.paymentMethod,
+          donor: d.constituent ? `${d.constituent.firstName} ${d.constituent.lastName}` : "",
+          donorEmail: d.constituent?.email ?? "",
+        }))
+      );
+      downloadCsv("oyamacrm-donations.csv", csv);
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  async function exportCampaigns() {
+    setExporting("campaigns");
+    try {
+      const rows = await apiFetch<Campaign[]>("/api/campaigns?limit=all&scope=ALL_YEARS");
+      const csv = toCsv(
+        (Array.isArray(rows) ? rows : []).map((campaign) => ({
+          id: campaign.id,
+          name: campaign.name,
+          active: campaign.active,
+          category: campaign.category ?? "",
+          startDate: campaign.startDate ?? "",
+          endDate: campaign.endDate ?? "",
+          goal: campaign.goal ?? "",
+          totalRaised: campaign.totalRaised ?? "",
+          donationsCount: campaign._count?.donations ?? 0,
+          pledgesCount: campaign._count?.pledges ?? 0,
+        }))
+      );
+      downloadCsv("oyamacrm-campaigns.csv", csv);
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  async function exportDesignations() {
+    setExporting("designations");
+    try {
+      const rows = await apiFetch<Designation[]>("/api/designations");
+      const csv = toCsv(
+        (Array.isArray(rows) ? rows : []).map((designation) => ({
+          id: designation.id,
+          name: designation.name,
+          description: designation.description ?? "",
+          active: designation.active ?? true,
+          donationsCount: designation._count?.donations ?? 0,
+        }))
+      );
+      downloadCsv("oyamacrm-designations.csv", csv);
+    } finally {
+      setExporting(null);
+    }
   }
 
   function scrollToSection(id: string) {
@@ -173,12 +280,15 @@ export default function DataToolsPage() {
         </WorkspaceRibbonGroup>
 
         <WorkspaceRibbonGroup label="Export">
-          <WorkspaceRibbonButton label="Export Constituents" onClick={exportConstituents} disabled={loading} />
-          <WorkspaceRibbonButton label="Export Donations" onClick={exportDonations} disabled={loading} />
+          <WorkspaceRibbonButton label={exporting === "constituents" ? "Exporting Constituents..." : "Export Constituents"} onClick={() => void exportConstituents()} disabled={loading || exporting !== null} />
+          <WorkspaceRibbonButton label={exporting === "donations" ? "Exporting Donations..." : "Export Donations"} onClick={() => void exportDonations()} disabled={loading || exporting !== null} />
+          <WorkspaceRibbonButton label={exporting === "campaigns" ? "Exporting Campaigns..." : "Export Campaigns"} onClick={() => void exportCampaigns()} disabled={loading || exporting !== null} />
+          <WorkspaceRibbonButton label={exporting === "designations" ? "Exporting Designations..." : "Export Designations"} onClick={() => void exportDesignations()} disabled={loading || exporting !== null} />
         </WorkspaceRibbonGroup>
 
         <WorkspaceRibbonGroup label="Quality">
           <WorkspaceRibbonButton label="Import Area" onClick={() => scrollToSection("data-tools-import")} />
+          <WorkspaceRibbonButton label="Import History" onClick={() => scrollToSection("data-tools-history")} />
           <WorkspaceRibbonButton label="Quality Metrics" onClick={() => scrollToSection("data-tools-quality")} />
           <WorkspaceRibbonButton label="Merge Records" onClick={() => scrollToSection("data-tools-merge")} />
           <WorkspaceRibbonButton label="Steward Paths" onClick={() => scrollToSection("data-tools-steward-paths")} />
@@ -191,18 +301,74 @@ export default function DataToolsPage() {
         Use Guided Import for contacts, audience lists, donations, and Compassion client files. The wizard routes each file to the correct importer and keeps client data out of Donor CRM.
       </div>
 
+      <div id="data-tools-history" className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Recent Import Runs</h2>
+            <p className="text-sm text-gray-500">See recent donor import runs, who started them, and whether rollback is still supported.</p>
+          </div>
+          <Link href="/data-tools/import" className="text-xs font-semibold text-green-700 hover:text-green-900">
+            Open full import workspace
+          </Link>
+        </div>
+        {historyLoading ? (
+          <p className="text-sm text-gray-500">Loading recent imports...</p>
+        ) : importHistory.length === 0 ? (
+          <p className="text-sm text-gray-500">No recent donor import runs found.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="px-4 py-2.5">Started</th>
+                  <th className="px-4 py-2.5">Mode</th>
+                  <th className="px-4 py-2.5">Results</th>
+                  <th className="px-4 py-2.5">Rollback</th>
+                  <th className="px-4 py-2.5">Started By</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white">
+                {importHistory.map((item) => (
+                  <tr key={item.runId}>
+                    <td className="px-4 py-3 text-gray-600">{new Date(item.createdAt).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-gray-900">{item.mode.replace(/_/g, " ")}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {item.recordCount} rows · {item.created} created · {item.updated} updated · {item.skipped} skipped · {item.errors} errors
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${item.rolledBackAt ? "bg-slate-100 text-slate-700" : item.rollbackSupported ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+                        {item.rolledBackAt ? "Rolled back" : item.rollbackSupported ? "Rollback available" : "Rollback unavailable"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">{item.startedBy?.name || item.startedBy?.email || "Unknown"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {/* ── Export Data ── */}
       <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
         <h2 className="text-sm font-semibold text-gray-900">Export Data</h2>
-        <p className="text-sm text-gray-500">Download live CRM records as CSV.</p>
+        <p className="text-sm text-gray-500">Download full live CRM datasets as CSV without relying on the page's 500-row snapshot.</p>
         <div className="flex flex-wrap gap-3">
-          <button onClick={exportConstituents} disabled={loading}
+          <button onClick={() => void exportConstituents()} disabled={loading || exporting !== null}
             className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50">
-            Export Constituents (CSV)
+            {exporting === "constituents" ? "Exporting Constituents..." : "Export Constituents (CSV)"}
           </button>
-          <button onClick={exportDonations} disabled={loading}
+          <button onClick={() => void exportDonations()} disabled={loading || exporting !== null}
             className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50">
-            Export Donations (CSV)
+            {exporting === "donations" ? "Exporting Donations..." : "Export Donations (CSV)"}
+          </button>
+          <button onClick={() => void exportCampaigns()} disabled={loading || exporting !== null}
+            className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50">
+            {exporting === "campaigns" ? "Exporting Campaigns..." : "Export Campaigns (CSV)"}
+          </button>
+          <button onClick={() => void exportDesignations()} disabled={loading || exporting !== null}
+            className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50">
+            {exporting === "designations" ? "Exporting Designations..." : "Export Designations (CSV)"}
           </button>
         </div>
       </div>
@@ -325,12 +491,12 @@ export default function DataToolsPage() {
                         <p className="text-sm font-medium text-gray-900">{item.name}</p>
                         <p className="text-xs text-gray-400">{item.stepCount} step{item.stepCount !== 1 ? "s" : ""} · Draft</p>
                       </div>
-                      <a
+                      <Link
                         href="/steward-paths"
                         className="text-xs font-medium text-green-700 hover:text-green-900"
                       >
                         Open Steward Paths →
-                      </a>
+                      </Link>
                     </li>
                   ))}
                 </ul>

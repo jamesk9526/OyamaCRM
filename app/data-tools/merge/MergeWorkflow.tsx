@@ -31,6 +31,12 @@ interface MergeWorkflowProps {
   constituents: MergeConstituent[];
 }
 
+interface MergeRequestPayload {
+  keepId: string;
+  mergeId: string;
+  mergedFields: Partial<MergeConstituent>;
+}
+
 // ─── Fields shown in the side-by-side comparison ──────────────────────────────
 
 /** Display labels for the comparison table */
@@ -149,7 +155,7 @@ function MergeEditor({
 }: {
   pair: DuplicatePair;
   onSkip: () => void;
-  onMerge: (merged: MergeConstituent) => Promise<void>;
+  onMerge: (payload: MergeRequestPayload) => Promise<void>;
 }) {
   // selections[fieldKey] = "a" | "b"
   const [selections, setSelections] = useState<Record<string, "a" | "b">>(() => {
@@ -167,15 +173,23 @@ function MergeEditor({
   const [merged, setMerged] = useState(false);
   const [mergeError, setMergeError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [primaryRecord, setPrimaryRecord] = useState<"a" | "b">("a");
 
-  /** Build the merged record from current radio selections */
-  function buildMerged(): MergeConstituent {
-    const result: Partial<MergeConstituent> = { id: pair.a.id };
+  /** Build merged field values from the current radio selections. */
+  function buildMergedFields(): Partial<MergeConstituent> {
+    const result: Partial<MergeConstituent> = {};
     for (const { key } of COMPARE_FIELDS) {
-      // Dynamic key assignment into a Partial — safe since key comes from COMPARE_FIELDS
       result[key] = selections[key] === "a" ? pair.a[key] : pair.b[key];
     }
-    return result as MergeConstituent;
+    return result;
+  }
+
+  function buildMergePayload(): MergeRequestPayload {
+    return {
+      keepId: primaryRecord === "a" ? pair.a.id : pair.b.id,
+      mergeId: primaryRecord === "a" ? pair.b.id : pair.a.id,
+      mergedFields: buildMergedFields(),
+    };
   }
 
   if (merged) {
@@ -191,16 +205,19 @@ function MergeEditor({
   }
 
   if (preview) {
-    const result = buildMerged();
+    const payload = buildMergePayload();
     return (
       <div className="space-y-4">
         <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-4">
           <p className="text-sm font-semibold text-blue-800 mb-3">Merged Record Preview</p>
+          <p className="mb-3 text-xs text-blue-700">
+            Keeping record ID ending in <span className="font-semibold">{payload.keepId.slice(-6)}</span> and merging record ID ending in <span className="font-semibold">{payload.mergeId.slice(-6)}</span>.
+          </p>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
             {COMPARE_FIELDS.map(({ key, label }) => (
               <div key={key}>
                 <dt className="text-xs text-gray-400">{label}</dt>
-                <dd className="text-gray-900 font-medium">{String(result[key] ?? "—")}</dd>
+                <dd className="text-gray-900 font-medium">{String(payload.mergedFields[key] ?? "—")}</dd>
               </div>
             ))}
           </dl>
@@ -211,7 +228,7 @@ function MergeEditor({
             onClick={() => {
               setSaving(true);
               setMergeError(null);
-              void onMerge(result)
+              void onMerge(payload)
                 .then(() => setMerged(true))
                 .catch((error: unknown) => {
                   const message = error instanceof Error ? error.message : "Merge failed. Please try again.";
@@ -234,6 +251,37 @@ function MergeEditor({
 
   return (
     <div className="space-y-4">
+      <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-blue-800">Primary Record To Keep</p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <label className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 ${primaryRecord === "a" ? "border-blue-300 bg-white" : "border-blue-100 bg-blue-50/40"}`}>
+            <input
+              type="radio"
+              name="merge_primary_record"
+              checked={primaryRecord === "a"}
+              onChange={() => setPrimaryRecord("a")}
+              className="mt-0.5 accent-blue-600"
+            />
+            <span>
+              <span className="block text-sm font-semibold text-gray-900">Keep Record A</span>
+              <span className="block text-xs text-gray-600">ID ending in {pair.a.id.slice(-6)}</span>
+            </span>
+          </label>
+          <label className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 ${primaryRecord === "b" ? "border-blue-300 bg-white" : "border-blue-100 bg-blue-50/40"}`}>
+            <input
+              type="radio"
+              name="merge_primary_record"
+              checked={primaryRecord === "b"}
+              onChange={() => setPrimaryRecord("b")}
+              className="mt-0.5 accent-blue-600"
+            />
+            <span>
+              <span className="block text-sm font-semibold text-gray-900">Keep Record B</span>
+              <span className="block text-xs text-gray-600">ID ending in {pair.b.id.slice(-6)}</span>
+            </span>
+          </label>
+        </div>
+      </div>
       <div className="overflow-x-auto rounded-lg border border-gray-200">
         <table className="text-sm min-w-full">
           <thead className="bg-gray-50">
@@ -328,13 +376,10 @@ export default function MergeWorkflow({ constituents }: MergeWorkflowProps) {
     setSelected(null);
   }
 
-  async function handleMerge(merged: MergeConstituent) {
+  async function handleMerge(payload: MergeRequestPayload) {
     await apiFetch("/api/constituents/merge", {
       method: "POST",
-      body: JSON.stringify({
-        keepId: merged.id,
-        mergeId: merged.id === selected?.a.id ? selected?.b.id : selected?.a.id,
-      }),
+      body: JSON.stringify(payload),
     });
 
     // After a successful merge, remove this pair from the review queue.

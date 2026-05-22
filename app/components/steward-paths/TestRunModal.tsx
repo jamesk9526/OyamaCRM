@@ -2,7 +2,7 @@
  * TestRunModal — wide two-panel dry-run simulation for a Steward Path workflow.
  * Left panel: animated step-by-step simulation list.
  * Right panel: rich "what would happen" preview cards from the server dry-run API.
- * Pure simulation — no DB records created, no outbound sends, no emails triggered.
+ * Default mode is pure simulation; optional test sends can target one explicit staff email.
  */
 "use client";
 
@@ -23,6 +23,7 @@ interface SimulatedStep {
   kind: string;
   description: string;
   status: StepStatus;
+  campaignId?: string;
 }
 
 /** Shape returned by POST /api/steward-paths/templates/:id/test-run */
@@ -132,21 +133,35 @@ function resolveStepResult(kind: string): StepStatus {
   return "passed";
 }
 
-/** Flattens the workflow into a top-level ordered step list for the simulation. */
-function flattenSteps(doc: WorkflowDocument): SimulatedStep[] {
-  return doc.rootNodeIds
-    .map((id) => doc.nodesById[id])
-    .filter((node): node is WorkflowNode => Boolean(node))
-    .map((node) => {
-      const palette = PALETTE_ITEMS.find((item) => item.kind === node.kind);
-      return {
-        nodeId: node.id,
-        label: node.title || palette?.label || node.kind,
-        kind: node.kind,
-        description: describeAction(node),
-        status: "pending" as StepStatus,
-      };
+/** Flattens one ordered node chain, including branch lane children, for end-to-end simulation. */
+function flattenNodeChain(doc: WorkflowDocument, nodeIds: string[], prefix = ""): SimulatedStep[] {
+  return nodeIds.flatMap((id) => {
+    const node = doc.nodesById[id];
+    if (!node) return [];
+    const palette = PALETTE_ITEMS.find((item) => item.kind === node.kind);
+    const campaignId = typeof node.config.campaignId === "string" ? node.config.campaignId : undefined;
+    const base: SimulatedStep = {
+      nodeId: node.id,
+      label: `${prefix}${node.title || palette?.label || node.kind}`,
+      kind: node.kind,
+      description: describeAction(node),
+      status: "pending",
+      campaignId,
+    };
+
+    if (node.nodeType !== "branch") return [base];
+
+    const laneSteps = node.lanes.flatMap((lane, laneIndex) => {
+      const laneLetter = String.fromCharCode(65 + laneIndex);
+      return flattenNodeChain(doc, lane.nodeIds, `${laneLetter}: `);
     });
+    return [base, ...laneSteps];
+  });
+}
+
+/** Flattens the workflow into an ordered step list for the simulation. */
+function flattenSteps(doc: WorkflowDocument): SimulatedStep[] {
+  return flattenNodeChain(doc, doc.rootNodeIds);
 }
 
 /** Builds a client-side preview for a step when server data is unavailable. */
@@ -378,41 +393,95 @@ function StepPreviewCard({
 // Main component
 // ---------------------------------------------------------------------------
 
-type LoadPhase = "loading" | "simulating" | "done" | "error";
+type LoadPhase = "ready" | "loading" | "simulating" | "done" | "error";
+
+interface TestSendResult {
+  campaignId: string;
+  status: "sent" | "skipped" | "failed";
+  message: string;
+}
 
 export default function TestRunModal({ doc, constituentId, donorName, onClose }: TestRunModalProps) {
   const [steps, setSteps] = useState<SimulatedStep[]>(() => flattenSteps(doc));
   const [serverSteps, setServerSteps] = useState<DryRunStep[] | null>(null);
   const [serverSummary, setServerSummary] = useState<DryRunSummary | null>(null);
-  const [loadPhase, setLoadPhase] = useState<LoadPhase>("loading");
+  const [loadPhase, setLoadPhase] = useState<LoadPhase>("ready");
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [skipDelays, setSkipDelays] = useState(true);
+  const [sendTestEmails, setSendTestEmails] = useState(false);
+  const [testEmail, setTestEmail] = useState("");
+  const [testSendResults, setTestSendResults] = useState<TestSendResult[]>([]);
   const cancelledRef = useRef(false);
 
   // ── Step 1: Fetch validation from server (or fall back to client-only) ───
-  useEffect(() => {
+  async function startTestRun() {
+    const initialSteps = flattenSteps(doc).map((step) => ({ ...step, status: "pending" as StepStatus }));
+    setSteps(initialSteps);
+    setServerSteps(null);
+    setServerSummary(null);
+    setCurrentIndex(-1);
+    setErrorMessage(null);
+    setTestSendResults([]);
+    setLoadPhase("loading");
+
     const templateId = doc.persistence?.templateId;
     if (!templateId) {
-      setServerSteps(steps.map(buildClientPreview));
+      setServerSteps(initialSteps.map(buildClientPreview));
       setLoadPhase("simulating");
       return;
     }
-    apiFetch<DryRunResponse>(`/api/steward-paths/templates/${templateId}/test-run`, {
-      method: "POST",
-      body: JSON.stringify({ constituentId }),
-    })
-      .then((data) => {
-        setServerSteps(data.steps);
-        setServerSummary(data.summary);
-        setLoadPhase("simulating");
-      })
-      .catch((err: unknown) => {
-        setServerSteps(steps.map(buildClientPreview));
-        console.warn("[TestRunModal] Server dry-run fallback:", err instanceof Error ? err.message : err);
-        setLoadPhase("simulating");
+
+    try {
+      const data = await apiFetch<DryRunResponse>(`/api/steward-paths/templates/${templateId}/test-run`, {
+        method: "POST",
+        body: JSON.stringify({
+          constituentId,
+          options: {
+            skipDelays,
+            sendTestEmails,
+            testEmail: testEmail.trim().toLowerCase() || undefined,
+          },
+        }),
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      setServerSteps(data.steps.length >= initialSteps.length ? data.steps : initialSteps.map(buildClientPreview));
+      setServerSummary(data.summary);
+      setLoadPhase("simulating");
+    } catch (err: unknown) {
+      setServerSteps(initialSteps.map(buildClientPreview));
+      console.warn("[TestRunModal] Server dry-run fallback:", err instanceof Error ? err.message : err);
+      setLoadPhase("simulating");
+    }
+  }
+
+  /** Sends linked campaign drafts to the explicit test inbox after the dry-run succeeds. */
+  async function sendLinkedCampaignTests() {
+    const toEmail = testEmail.trim().toLowerCase();
+    if (!sendTestEmails || !toEmail) return;
+    const uniqueCampaignIds = Array.from(new Set(steps.map((step) => step.campaignId).filter(Boolean))) as string[];
+    if (uniqueCampaignIds.length === 0) {
+      setTestSendResults([{ campaignId: "none", status: "skipped", message: "No linked email draft campaigns were found in this path." }]);
+      return;
+    }
+
+    const results: TestSendResult[] = [];
+    for (const campaignId of uniqueCampaignIds) {
+      try {
+        await apiFetch(`/api/email-campaigns/${campaignId}/send-test`, {
+          method: "POST",
+          body: JSON.stringify({ toEmail }),
+        });
+        results.push({ campaignId, status: "sent", message: `Sent test email to ${toEmail}.` });
+      } catch (err) {
+        results.push({
+          campaignId,
+          status: "failed",
+          message: err instanceof Error ? err.message : "Test send failed.",
+        });
+      }
+    }
+    setTestSendResults(results);
+  }
 
   // ── Step 2: Run the animation once server data is ready ──────────────────
   useEffect(() => {
@@ -439,15 +508,18 @@ export default function TestRunModal({ doc, constituentId, donorName, onClose }:
       setTimeout(() => {
         if (cancelledRef.current) return;
         const srv = serverSteps?.[idx];
-        const result: StepStatus = srv
+        const baseResult: StepStatus = srv
           ? (srv.result as StepStatus)
           : resolveStepResult(steps[idx].kind);
+        const result: StepStatus = !skipDelays && steps[idx].kind.startsWith("timing.")
+          ? "passed"
+          : baseResult;
         setSteps((prev) =>
           prev.map((s, i) => (i === idx ? { ...s, status: result } : s)),
         );
         idx += 1;
-        setTimeout(runNext, 250);
-      }, 600);
+        setTimeout(runNext, skipDelays ? 250 : 450);
+      }, skipDelays || !steps[idx].kind.startsWith("timing.") ? 600 : 1100);
     }
 
     const init = setTimeout(runNext, 400);
@@ -455,6 +527,12 @@ export default function TestRunModal({ doc, constituentId, donorName, onClose }:
       cancelledRef.current = true;
       clearTimeout(init);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadPhase]);
+
+  useEffect(() => {
+    if (loadPhase !== "done") return;
+    void sendLinkedCampaignTests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadPhase]);
 
@@ -510,6 +588,75 @@ export default function TestRunModal({ doc, constituentId, donorName, onClose }:
             </svg>
           </button>
         </div>
+
+        {/* Setup */}
+        {loadPhase === "ready" && (
+          <div className="grid gap-4 p-6 md:grid-cols-[1fr_320px]">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <p className="text-sm font-semibold text-slate-900">Test path settings</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Validate the path, preview each action, and optionally send linked email drafts to one test inbox.
+              </p>
+              <div className="mt-4 space-y-3">
+                <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                  <input
+                    type="checkbox"
+                    checked={skipDelays}
+                    onChange={(event) => setSkipDelays(event.target.checked)}
+                    className="mt-0.5 rounded border-slate-300"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-slate-800">Skip delays</span>
+                    <span className="block text-xs text-slate-500">Wait steps run instantly but still appear in the path audit.</span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                  <input
+                    type="checkbox"
+                    checked={sendTestEmails}
+                    onChange={(event) => setSendTestEmails(event.target.checked)}
+                    className="mt-0.5 rounded border-slate-300"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-slate-800">Send linked drafts to a test email</span>
+                    <span className="block text-xs text-slate-500">Only campaigns linked to email draft nodes are sent, and only to the address below.</span>
+                  </span>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-700">Test email address</span>
+                  <input
+                    type="email"
+                    value={testEmail}
+                    onChange={(event) => setTestEmail(event.target.value)}
+                    disabled={!sendTestEmails}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 disabled:bg-slate-100"
+                    placeholder="staff@example.org"
+                  />
+                </label>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Path Coverage</p>
+              <div className="mt-3 space-y-2 text-sm text-slate-700">
+                <p><span className="font-semibold text-slate-950">{steps.length}</span> total steps including branch lanes</p>
+                <p><span className="font-semibold text-slate-950">{steps.filter((step) => step.kind.startsWith("email.")).length}</span> email steps</p>
+                <p><span className="font-semibold text-slate-950">{steps.filter((step) => step.kind.startsWith("timing.")).length}</span> delay steps</p>
+                <p><span className="font-semibold text-slate-950">{steps.filter((step) => step.campaignId).length}</span> linked draft campaigns</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void startTestRun()}
+                disabled={sendTestEmails && !testEmail.trim()}
+                className="mt-5 w-full rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Start Test Run
+              </button>
+              {sendTestEmails && !testEmail.trim() ? (
+                <p className="mt-2 text-xs text-amber-700">Enter a test email address before starting.</p>
+              ) : null}
+            </div>
+          </div>
+        )}
 
         {/* Loading */}
         {loadPhase === "loading" && (
@@ -633,14 +780,26 @@ export default function TestRunModal({ doc, constituentId, donorName, onClose }:
                 {isDone && serverSummary && (
                   <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5">
                     <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-600">
-                      Nothing was sent or saved
+                      {sendTestEmails ? "Dry run complete" : "Nothing was sent or saved"}
                     </p>
                     <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-emerald-800">
-                      {serverSummary.emailsQueued > 0 && <span>📧 {serverSummary.emailsQueued} email draft{serverSummary.emailsQueued > 1 ? "s" : ""} would be queued</span>}
-                      {serverSummary.lettersGenerated > 0 && <span>📄 {serverSummary.lettersGenerated} letter{serverSummary.lettersGenerated > 1 ? "s" : ""} would be generated</span>}
-                      {serverSummary.tasksCreated > 0 && <span>✅ {serverSummary.tasksCreated} task{serverSummary.tasksCreated > 1 ? "s" : ""} would be created</span>}
-                      {serverSummary.timingStepsSkipped > 0 && <span>⏱ {serverSummary.timingStepsSkipped} wait step{serverSummary.timingStepsSkipped > 1 ? "s" : ""} (simulated as instant)</span>}
-                      {serverSummary.blocked > 0 && <span className="text-orange-700">⚠ {serverSummary.blocked} step{serverSummary.blocked > 1 ? "s" : ""} blocked by opt-out flags</span>}
+                      {serverSummary.emailsQueued > 0 && <span>{serverSummary.emailsQueued} email draft{serverSummary.emailsQueued > 1 ? "s" : ""} would be queued</span>}
+                      {serverSummary.lettersGenerated > 0 && <span>{serverSummary.lettersGenerated} letter{serverSummary.lettersGenerated > 1 ? "s" : ""} would be generated</span>}
+                      {serverSummary.tasksCreated > 0 && <span>{serverSummary.tasksCreated} task{serverSummary.tasksCreated > 1 ? "s" : ""} would be created</span>}
+                      {serverSummary.timingStepsSkipped > 0 && <span>{serverSummary.timingStepsSkipped} wait step{serverSummary.timingStepsSkipped > 1 ? "s" : ""} ({skipDelays ? "instant" : "simulated wait"})</span>}
+                      {serverSummary.blocked > 0 && <span className="text-orange-700">{serverSummary.blocked} step{serverSummary.blocked > 1 ? "s" : ""} blocked by opt-out flags</span>}
+                    </div>
+                  </div>
+                )}
+                {isDone && testSendResults.length > 0 && (
+                  <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5">
+                    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700">Test Email Results</p>
+                    <div className="space-y-1">
+                      {testSendResults.map((result) => (
+                        <p key={result.campaignId} className={`text-[11px] ${result.status === "failed" ? "text-rose-700" : "text-blue-800"}`}>
+                          <span className="font-semibold">{result.campaignId}:</span> {result.message}
+                        </p>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -656,7 +815,7 @@ export default function TestRunModal({ doc, constituentId, donorName, onClose }:
               <circle cx="8" cy="8" r="6" />
               <path strokeLinecap="round" d="M8 6v2.5M8 11v.5" />
             </svg>
-            No data written · No emails or letters sent
+            {sendTestEmails ? "Dry run writes no donor records · test sends only go to the explicit test inbox" : "No data written · No emails or letters sent"}
           </span>
           <div className="flex items-center gap-2">
             {loadPhase === "simulating" && (
