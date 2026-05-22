@@ -10,6 +10,13 @@ This is a custom source-available license. It is not an OSI-approved open source
 
 "Licensor" means the copyright holder(s) for this repository.
 
+##Licensor Information:
+James Knox 
+contact@jamesnox.com
+4172792929
+www.jamesnox.com
+
+
 "Qualified Nonprofit" means an organization that:
 
 - is organized and operated as a nonprofit, charity, church, ministry, foundation, school, or similar not-for-profit entity under applicable law; and
