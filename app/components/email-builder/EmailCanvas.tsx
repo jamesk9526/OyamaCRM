@@ -90,7 +90,7 @@ function SortableBlock({
         className={[
           'absolute top-0 inset-x-0 z-20 flex items-center justify-center h-6',
           'cursor-grab opacity-0 group-hover:opacity-100 transition-opacity',
-          'bg-white/80 border-b border-gray-200',
+          'bg-white/80 border-b border-slate-200',
         ].join(' ')}
       >
         <svg
@@ -112,8 +112,8 @@ function SortableBlock({
         className={[
           'relative cursor-pointer pt-6 transition-all',
           isSelected
-            ? 'outline outline-2 outline-green-600 outline-offset-0'
-            : 'hover:outline hover:outline-1 hover:outline-gray-300',
+            ? 'outline outline-2 outline-blue-600 outline-offset-0'
+            : 'hover:outline hover:outline-1 hover:outline-slate-300',
         ].join(' ')}
       >
         <BlockRenderer
@@ -125,8 +125,8 @@ function SortableBlock({
 
         {/* ── Toolbar shown when selected ── */}
         {isSelected && (
-          <div className="absolute top-7 right-2 z-30 flex items-center gap-1 rounded-md border border-gray-200 bg-white/95 px-1 py-1 shadow-sm">
-            <span className="text-[11px] bg-green-600 text-white px-1.5 py-0.5 rounded select-none font-semibold">
+          <div className="absolute top-7 right-2 z-30 flex items-center gap-1 rounded-md border border-slate-200 bg-white/95 px-1 py-1 shadow-sm">
+            <span className="select-none rounded bg-blue-600 px-1.5 py-0.5 text-[11px] font-semibold text-white">
               {block.type}
             </span>
             <button
@@ -134,7 +134,7 @@ function SortableBlock({
                 e.stopPropagation();
                 onMoveUp?.();
               }}
-              className="text-xs rounded border border-gray-200 bg-white px-1.5 py-0.5 text-gray-600 hover:bg-gray-50"
+              className="text-xs rounded border border-slate-200 bg-white px-1.5 py-0.5 text-slate-600 hover:bg-slate-50"
               title="Move block up"
             >
               ↑
@@ -144,7 +144,7 @@ function SortableBlock({
                 e.stopPropagation();
                 onMoveDown?.();
               }}
-              className="text-xs rounded border border-gray-200 bg-white px-1.5 py-0.5 text-gray-600 hover:bg-gray-50"
+              className="text-xs rounded border border-slate-200 bg-white px-1.5 py-0.5 text-slate-600 hover:bg-slate-50"
               title="Move block down"
             >
               ↓
@@ -154,7 +154,7 @@ function SortableBlock({
                 e.stopPropagation();
                 onDuplicate?.();
               }}
-              className="text-xs rounded border border-gray-200 bg-white px-1.5 py-0.5 text-gray-600 hover:bg-gray-50"
+              className="text-xs rounded border border-slate-200 bg-white px-1.5 py-0.5 text-slate-600 hover:bg-slate-50"
               title="Duplicate block"
             >
               Duplicate
@@ -215,20 +215,20 @@ export default function EmailCanvas({
 
   return (
     <div
-      className="flex-1 overflow-auto bg-gray-700"
-      style={{ padding: '32px 24px' }}
+      className="flex-1 overflow-auto bg-[radial-gradient(circle_at_top,rgba(37,99,255,0.05),transparent_35%)]"
+      style={{ padding: '22px 28px' }}
       /* Deselect when clicking the raw canvas background */
       onClick={() => onSelectBlock(null)}
     >
-      <div className="mx-auto mb-3 flex max-w-[980px] items-center justify-between rounded-lg border border-gray-500/40 bg-gray-800/60 px-3 py-2 text-xs text-gray-200">
+      <div className="mx-auto mb-3 flex max-w-[980px] items-center justify-between rounded-lg border border-slate-300/50 bg-slate-800/60 px-3 py-2 text-xs text-slate-200">
         <span>Email width: {viewport === 'mobile' ? 380 : template.contentWidth}px · {viewport === 'mobile' ? 'Mobile Preview' : 'Desktop Preview'}</span>
-        <div className="inline-flex rounded-md border border-gray-500/50 bg-gray-900/50 p-0.5">
+        <div className="inline-flex rounded-md border border-slate-400/50 bg-slate-900/50 p-0.5">
           <button
             type="button"
             onClick={() => setViewport('desktop')}
             className={[
               'rounded px-2 py-1 font-semibold',
-              viewport === 'desktop' ? 'bg-white text-gray-800' : 'text-gray-300',
+              viewport === 'desktop' ? 'bg-white text-slate-800' : 'text-slate-300',
             ].join(' ')}
           >
             Desktop
@@ -238,7 +238,7 @@ export default function EmailCanvas({
             onClick={() => setViewport('mobile')}
             className={[
               'rounded px-2 py-1 font-semibold',
-              viewport === 'mobile' ? 'bg-white text-gray-800' : 'text-gray-300',
+              viewport === 'mobile' ? 'bg-white text-slate-800' : 'text-slate-300',
             ].join(' ')}
           >
             Mobile
@@ -253,7 +253,10 @@ export default function EmailCanvas({
           margin:          '0 auto',
           backgroundColor: '#ffffff',
           fontFamily:      template.fontFamily,
-          boxShadow:       '0 4px 24px rgba(0,0,0,0.18)',
+          boxShadow:       '0 16px 40px rgba(17,24,39,0.08)',
+          borderRadius:    '14px',
+          overflow:        'hidden',
+          border:          '1px solid #e6e9f2',
         }}
         /* Stop click propagation so the canvas deselect above doesn't fire */
         onClick={(e) => e.stopPropagation()}
@@ -279,8 +282,8 @@ export default function EmailCanvas({
                   'flex flex-col items-center justify-center h-80 text-center',
                   'border-2 border-dashed rounded transition-colors',
                   isCanvasOver
-                    ? 'border-green-400 bg-green-50 text-green-600'
-                    : 'border-gray-300 text-gray-400',
+                    ? 'border-blue-400 bg-blue-50 text-blue-600'
+                    : 'border-slate-300 text-slate-400',
                 ].join(' ')}
               >
                 <svg
@@ -296,7 +299,7 @@ export default function EmailCanvas({
                   <path d="M12 8v8M8 12h8" />
                 </svg>
                 <p className="text-sm font-medium">Drag blocks here to start building</p>
-                <p className="text-xs mt-1 opacity-70">
+                <p className="mt-1 text-xs opacity-70">
                   Select a block type from the left panel
                 </p>
               </div>

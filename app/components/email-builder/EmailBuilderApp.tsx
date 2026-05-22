@@ -98,6 +98,7 @@ const EMAIL_BUILDER_MERGE_TOKEN_CATALOG = new Set<string>([
   "{{currentDate}}",
   "{{donationUrl}}",
   "{{donationAmount}}",
+  "{{taxDeductibleAmount}}",
   "{{organizationAddress}}",
 ]);
 
@@ -541,24 +542,34 @@ function hydrateGeneratedBlock(raw: Record<string, unknown>): EmailBlock {
           url: String((link as { url?: unknown })?.url ?? "").trim(),
         }))
         .filter((link) =>
-          ["facebook", "twitter", "instagram", "linkedin", "youtube"].includes(link.platform)
+          ["facebook", "twitter", "instagram", "linkedin", "youtube", "tiktok"].includes(link.platform)
           && link.url,
         )
       : [];
     return {
       ...base,
       type,
+      title: String(raw.title ?? (base.type === 'social' ? base.title : 'Stay connected')),
+      intro: String(raw.intro ?? (base.type === 'social' ? base.intro : 'Follow along for stories, campaign progress, and ministry updates.')),
       links: links.length > 0
-        ? links.map((link) => ({ platform: link.platform as "facebook" | "twitter" | "instagram" | "linkedin" | "youtube", url: link.url }))
+        ? links.map((link) => ({ platform: link.platform as "facebook" | "twitter" | "instagram" | "linkedin" | "youtube" | "tiktok", url: link.url }))
         : base.type === "social"
           ? base.links
           : [
             { platform: "facebook", url: "https://facebook.com" },
             { platform: "instagram", url: "https://instagram.com" },
             { platform: "linkedin", url: "https://linkedin.com" },
+            { platform: "tiktok", url: "https://tiktok.com/@yourorg" },
           ],
+      variant: raw.variant === 'pill' || raw.variant === 'minimal' ? raw.variant : base.type === 'social' && base.variant ? base.variant : 'card',
+      colorMode: raw.colorMode === 'accent' || raw.colorMode === 'neutral' ? raw.colorMode : base.type === 'social' && base.colorMode ? base.colorMode : 'brand',
+      backgroundColor: String(raw.backgroundColor ?? (base.type === 'social' ? base.backgroundColor : '#ffffff')),
+      textColor: String(raw.textColor ?? (base.type === 'social' ? base.textColor : '#0f172a')),
+      accentColor: String(raw.accentColor ?? (base.type === 'social' ? base.accentColor : '#2563ff')),
+      borderColor: String(raw.borderColor ?? (base.type === 'social' ? base.borderColor : '#e6e9f2')),
+      showLabels: typeof raw.showLabels === 'boolean' ? raw.showLabels : base.type === 'social' ? base.showLabels !== false : true,
       align: raw.align === "left" || raw.align === "right" ? raw.align : "center",
-      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+      padding: toBoundedNumber(raw.padding, base.type === 'social' ? base.padding : 20, 0, 100),
     } as EmailBlock;
   }
 
@@ -657,7 +668,12 @@ function applyBrandingToBlock(block: EmailBlock, branding: BrandingSettings): Em
         const idx = links.findIndex((link) => link.platform === 'youtube');
         if (idx >= 0) links[idx] = { ...links[idx], url: branding.socialYoutube };
       }
-      return { ...block, links };
+      return {
+        ...block,
+        links,
+        accentColor: branding.primaryColor || block.accentColor,
+        borderColor: branding.accentColor || block.borderColor,
+      };
     }
     case 'image':
       if (block.src.trim()) return block;
@@ -1668,9 +1684,9 @@ export default function EmailBuilderApp({
       <div
         className={[
           embedded
-            ? "h-[calc(100vh-130px)] min-h-[600px] rounded-xl border border-gray-200"
+            ? "h-[calc(100vh-130px)] min-h-[600px] rounded-xl border border-slate-200"
             : "h-screen",
-          "min-w-0 flex flex-col bg-white overflow-hidden",
+          "min-w-0 flex flex-col overflow-hidden bg-[linear-gradient(180deg,#f7f8fc_0%,#f4f6fb_100%)]",
         ].join(" ")}
       >
 
@@ -1680,34 +1696,34 @@ export default function EmailBuilderApp({
             <span className="font-semibold">Campaign load issue:</span> {loadError} The editor is using the local draft blocks until the API reconnects.
           </div>
         ) : null}
-        <header className="z-30 shrink-0 border-b border-gray-200 bg-white px-4 shadow-sm" style={{ paddingTop: embedded ? '8px' : '12px', paddingBottom: embedded ? '8px' : '12px' }}>
+        <header className="z-30 shrink-0 border-b border-slate-200 bg-white px-4 shadow-sm" style={{ paddingTop: embedded ? '8px' : '12px', paddingBottom: embedded ? '8px' : '12px' }}>
           {/* Compact single-row header in embedded mode */}
           {embedded ? (
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-2 text-xs text-gray-600">
+              <div className="flex min-w-0 items-center gap-2 text-xs text-slate-600">
                 <span
                   className={[
                     'rounded-md px-2 py-0.5 text-[11px] font-semibold',
                     readinessLabel === 'Ready to Send'
-                      ? 'border border-green-200 bg-green-50 text-green-700'
+                      ? 'border border-blue-200 bg-blue-50 text-blue-700'
                       : readinessLabel === 'Needs Review'
                         ? 'border border-amber-200 bg-amber-50 text-amber-700'
-                        : 'border border-gray-200 bg-gray-100 text-gray-600',
+                        : 'border border-slate-200 bg-slate-100 text-slate-600',
                   ].join(' ')}
                 >
                   {readinessLabel}
                 </span>
-                <span className="text-gray-400">{template.blocks.length} block{template.blocks.length !== 1 ? 's' : ''}</span>
-                <span className={dirty ? 'font-medium text-amber-700' : 'text-gray-400'}>{dirty ? 'Unsaved' : 'Saved'}</span>
+                <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-500">{template.blocks.length} block{template.blocks.length !== 1 ? 's' : ''}</span>
+                <span className={dirty ? 'font-medium text-amber-700' : 'text-slate-400'}>{dirty ? 'Unsaved' : 'Saved'}</span>
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                <a href={fullScreenBuilderHref} target="_self" className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">Fullscreen</a>
-                <a href={fullScreenBuilderHref} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">New Tab</a>
-                <button type="button" onClick={openBuilderPopout} className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">Popout</button>
+                <a href={fullScreenBuilderHref} target="_self" className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">Fullscreen</a>
+                <a href={fullScreenBuilderHref} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">New Tab</a>
+                <button type="button" onClick={openBuilderPopout} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">Popout</button>
                 <button
                   onClick={handleSave}
                   disabled={!canSaveDraftAction}
-                  className={['rounded-lg px-3 py-1 text-xs font-semibold transition-colors', saving ? 'bg-green-400 text-white cursor-wait' : 'bg-green-600 hover:bg-green-700 text-white'].join(' ')}
+                  className={['rounded-lg px-3 py-1 text-xs font-semibold transition-colors', saving ? 'bg-blue-400 text-white cursor-wait' : 'bg-blue-600 hover:bg-blue-700 text-white'].join(' ')}
                   title={canSaveDraftAction ? 'Save draft (Ctrl/Cmd+S)' : 'Open this builder from a campaign route to save'}
                 >
                   {saving ? 'Saving…' : 'Save Draft'}
@@ -1718,11 +1734,11 @@ export default function EmailBuilderApp({
           <>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1 space-y-1">
-              <div className="flex flex-wrap items-center gap-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                 <a
                   href={safeReturnHref}
                   target="_self"
-                  className="text-gray-500 hover:text-green-600 transition-colors flex items-center gap-1"
+                  className="text-slate-500 hover:text-blue-600 transition-colors flex items-center gap-1"
                   title={`Back to ${returnLabel}`}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1730,36 +1746,36 @@ export default function EmailBuilderApp({
                   </svg>
                   {returnLabel}
                 </a>
-                <span className="text-gray-300">/</span>
-                <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 font-semibold text-gray-600">
+                <span className="text-slate-300">/</span>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-semibold text-slate-600">
                   Email Builder
                 </span>
               </div>
 
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <h2 className="truncate text-sm font-semibold text-gray-800 sm:text-base">
+                <h2 className="truncate text-sm font-semibold text-slate-800 sm:text-base">
                   {campaignName}
                 </h2>
                 {campaignId && (
-                  <span className="rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[11px] font-mono text-gray-500">
+                  <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[11px] font-mono text-slate-500">
                     #{campaignId}
                   </span>
                 )}
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                 <span>
                   {template.blocks.length} block{template.blocks.length !== 1 ? 's' : ''}
                 </span>
-                <span className="text-gray-300">•</span>
-                <span className={dirty ? 'font-medium text-amber-700' : 'text-gray-500'}>
+                <span className="text-slate-300">•</span>
+                <span className={dirty ? 'font-medium text-amber-700' : 'text-slate-500'}>
                   {dirty ? 'Unsaved changes' : 'Saved'}
                 </span>
                 {campaignId && (
                   <a
                     href={campaignWorkspaceHref}
                     target="_self"
-                    className="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50"
+                    className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
                   >
                     Open Campaign Workspace
                   </a>
@@ -1768,17 +1784,17 @@ export default function EmailBuilderApp({
             </div>
 
             <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
-              <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
+              <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700">
                 Status: Draft-first
               </span>
               <span
                 className={[
                   'rounded-md px-2 py-1 text-[11px] font-semibold',
                   readinessLabel === 'Ready to Send'
-                    ? 'border border-green-200 bg-green-50 text-green-700'
+                    ? 'border border-blue-200 bg-blue-50 text-blue-700'
                     : readinessLabel === 'Needs Review'
                       ? 'border border-amber-200 bg-amber-50 text-amber-700'
-                      : 'border border-gray-200 bg-gray-100 text-gray-600',
+                      : 'border border-slate-200 bg-slate-100 text-slate-600',
                 ].join(' ')}
               >
                 {readinessLabel}
@@ -1789,7 +1805,7 @@ export default function EmailBuilderApp({
                   <a
                     href={fullScreenBuilderHref}
                     target="_self"
-                    className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
                   >
                     Fullscreen
                   </a>
@@ -1797,14 +1813,14 @@ export default function EmailBuilderApp({
                     href={fullScreenBuilderHref}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
                   >
                     New Tab
                   </a>
                   <button
                     type="button"
                     onClick={openBuilderPopout}
-                    className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
                   >
                     Popout
                   </button>
@@ -1813,14 +1829,14 @@ export default function EmailBuilderApp({
 
               <button
                 onClick={() => setShowPreview(true)}
-                className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
               >
                 Preview
               </button>
               <button
                 type="button"
                 onClick={() => setActiveSidebarTab('review')}
-                className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
                 title="Open readiness checklist"
               >
                 Review Checklist
@@ -1832,8 +1848,8 @@ export default function EmailBuilderApp({
                 className={[
                   'rounded-lg px-3 py-1 text-xs font-semibold transition-colors',
                   saving
-                    ? 'bg-green-400 text-white cursor-wait'
-                    : 'bg-green-600 hover:bg-green-700 text-white',
+                    ? 'bg-blue-400 text-white cursor-wait'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white',
                 ].join(' ')}
                 title={canSaveDraftAction ? 'Save draft (Ctrl/Cmd+S)' : 'Open this builder from a campaign route to save'}
               >
@@ -1850,8 +1866,8 @@ export default function EmailBuilderApp({
             </div>
           )}
 
-          <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-2 py-2">
-            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2">
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               Current stage: {BUILDER_JOURNEY_STEPS.find((step) => step.key === currentJourneyStep)?.label}
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
@@ -1861,10 +1877,10 @@ export default function EmailBuilderApp({
                 const stepClassName = [
                   "inline-flex items-center rounded px-2 py-1 text-[11px] font-semibold transition-colors",
                   isCurrent
-                    ? "border border-green-300 bg-green-100 text-green-800"
+                    ? "border border-blue-300 bg-blue-100 text-blue-800"
                     : isComplete
-                      ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100",
+                      ? "border border-blue-200 bg-blue-50 text-blue-700"
+                      : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-100",
                 ].join(" ");
 
                 let stageAction: React.ReactNode;
@@ -1899,7 +1915,7 @@ export default function EmailBuilderApp({
                 return (
                   <div key={step.key} className="inline-flex items-center gap-1.5">
                     {stageAction}
-                    {index < BUILDER_JOURNEY_STEPS.length - 1 && <span className="text-gray-300">→</span>}
+                    {index < BUILDER_JOURNEY_STEPS.length - 1 && <span className="text-slate-300">→</span>}
                   </div>
                 );
               })}
@@ -1909,22 +1925,22 @@ export default function EmailBuilderApp({
           {(saveSuccess || saveError || testStatus || mediaError) && (
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
               {saveSuccess && (
-                <span className="rounded border border-green-200 bg-green-50 px-2 py-0.5 font-medium text-green-700">
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700 shadow-sm">
                   Saved to Draft
                 </span>
               )}
               {saveError && (
-                <span className="max-w-full rounded border border-red-200 bg-red-50 px-2 py-0.5 text-red-600" title={saveError}>
+                <span className="max-w-full rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-red-600 shadow-sm" title={saveError}>
                   Save issue: {saveError}
                 </span>
               )}
               {testStatus && (
-                <span className="max-w-full rounded border border-green-200 bg-green-50 px-2 py-0.5 text-green-700" title={testStatus}>
+                <span className="max-w-full rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-700 shadow-sm" title={testStatus}>
                   {testStatus}
                 </span>
               )}
               {mediaError && (
-                <span className="max-w-full rounded border border-red-200 bg-red-50 px-2 py-0.5 text-red-600" title={mediaError}>
+                <span className="max-w-full rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-red-600 shadow-sm" title={mediaError}>
                   Media issue: {mediaError}
                 </span>
               )}
@@ -1948,9 +1964,9 @@ export default function EmailBuilderApp({
             title="Drag to resize block library. Double-click to reset."
             onMouseDown={handleBlockLibraryResizeStart}
             onDoubleClick={() => setBlockLibraryWidth(BLOCK_LIBRARY_DEFAULT_WIDTH)}
-            className="group relative w-2 shrink-0 cursor-col-resize bg-gray-50 hover:bg-green-50 active:bg-green-100"
+            className="group relative w-2 shrink-0 cursor-col-resize bg-slate-50 hover:bg-blue-50 active:bg-blue-100"
           >
-            <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-200 group-hover:bg-green-400 group-active:bg-green-600" />
+            <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-slate-200 group-hover:bg-blue-400 group-active:bg-blue-600" />
           </div>
 
           {/* Center: email canvas */}
@@ -1965,10 +1981,10 @@ export default function EmailBuilderApp({
           />
 
           {/* Right: tabbed sidebar */}
-          <aside className="w-[360px] shrink-0 border-l border-gray-200 bg-white flex flex-col overflow-hidden">
-            <div className="border-b border-gray-200 bg-gradient-to-b from-gray-50 to-white px-3 py-2">
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-500">Builder Controls</p>
-              <div className="grid grid-cols-5 gap-1 rounded-lg border border-gray-200 bg-gray-100/80 p-1">
+          <aside className="w-[340px] shrink-0 border-l border-slate-200 bg-white flex flex-col overflow-hidden">
+            <div className="border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white px-3 py-2">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Builder Controls</p>
+              <div className="grid grid-cols-5 gap-1 rounded-lg border border-slate-200 bg-slate-100/80 p-1">
                 {SIDEBAR_TABS.map((tab) => (
                   <button
                     key={tab.key}
@@ -1977,11 +1993,11 @@ export default function EmailBuilderApp({
                     className={[
                       'rounded-md px-1.5 py-1.5 text-[11px] font-semibold transition-colors',
                       activeSidebarTab === tab.key
-                        ? 'bg-white text-green-700 shadow-sm ring-1 ring-green-200'
-                        : 'text-gray-600 hover:bg-white hover:text-gray-800',
+                        ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-200'
+                        : 'text-slate-600 hover:bg-white hover:text-slate-800',
                     ].join(' ')}
                   >
-                    <span className="mx-auto mb-1 block w-fit rounded-sm border border-gray-200 bg-gray-50 px-1 text-[9px] leading-4 text-gray-500">
+                    <span className="mx-auto mb-1 block w-fit rounded-sm border border-slate-200 bg-slate-50 px-1 text-[9px] leading-4 text-slate-500">
                       {tab.short}
                     </span>
                     <span className="block truncate">{tab.label}</span>
@@ -2435,6 +2451,8 @@ export default function EmailBuilderApp({
       {showPreview && (
         <EmailPreview
           template={template}
+          campaignId={campaignId}
+          isDirty={dirty}
           onClose={() => setShowPreview(false)}
         />
       )}

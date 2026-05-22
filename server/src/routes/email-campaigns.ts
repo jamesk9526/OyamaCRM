@@ -370,6 +370,328 @@ function buildCampaignDeliveryBodies(campaign: { bodyHtml: string | null; bodyTe
   };
 }
 
+const CAMPAIGN_MERGE_TOKEN_PATTERN = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
+
+const CAMPAIGN_MERGE_TOKEN_ALIASES: Record<string, string> = {
+  "gift.taxDeductibleAmount": "taxDeductibleAmount",
+  "donation.taxDeductibleAmount": "taxDeductibleAmount",
+  "gift.amount": "donationAmount",
+  "donation.amount": "donationAmount",
+  "gift.receiptNumber": "receiptNumber",
+  "donation.receiptNumber": "receiptNumber",
+  "organization.address": "addressBlock",
+  "organization.taxId": "organizationTaxId",
+};
+
+type CampaignPreviewMode = "audience-sample" | "manual-email" | "template-only";
+
+type CampaignPreviewRecipient = {
+  email: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+};
+
+type CampaignMergeContext = {
+  recipient: CampaignPreviewRecipient | null;
+  vars: Record<string, string>;
+};
+
+function canonicalizeCampaignMergeToken(token: string): string {
+  const normalized = token.trim();
+  return CAMPAIGN_MERGE_TOKEN_ALIASES[normalized] ?? normalized;
+}
+
+function renderCampaignMergeTokens(content: string, vars: Record<string, string>): string {
+  return content.replace(CAMPAIGN_MERGE_TOKEN_PATTERN, (_match, rawToken: string) => {
+    const token = canonicalizeCampaignMergeToken(rawToken);
+    if (Object.prototype.hasOwnProperty.call(vars, token)) {
+      return vars[token] ?? "";
+    }
+    return "";
+  });
+}
+
+function formatCampaignCurrency(value: Prisma.Decimal | number | null | undefined): string {
+  const numeric = Number(value ?? Number.NaN);
+  if (!Number.isFinite(numeric)) return "";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(numeric);
+}
+
+function formatCampaignDate(value: Date | null | undefined): string {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(value);
+}
+
+function buildCampaignAddressBlock(parts: Array<string | null | undefined>): string {
+  return parts
+    .map((part) => String(part ?? "").trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+async function buildCampaignMergeContext(params: {
+  organizationId: string;
+  recipientEmail: string;
+  constituentId?: string | null;
+  campaign: {
+    id: string;
+    name: string;
+    fromName: string;
+    fromEmail: string;
+  };
+}): Promise<CampaignMergeContext> {
+  const recipientEmail = params.recipientEmail.trim().toLowerCase();
+  const [organization, organizationSettings, constituent] = await Promise.all([
+    prisma.organization.findUnique({
+      where: { id: params.organizationId },
+      select: { name: true },
+    }),
+    prisma.organizationSettings.findUnique({
+      where: { organizationId: params.organizationId },
+      select: {
+        smtpFromEmail: true,
+        smtpFromName: true,
+      },
+    }),
+    prisma.constituent.findFirst({
+      where: {
+        organizationId: params.organizationId,
+        ...(params.constituentId ? { id: params.constituentId } : { email: recipientEmail }),
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        totalLifetimeGiving: true,
+        totalYtdGiving: true,
+        giftCount: true,
+        firstGiftDate: true,
+        lastGiftDate: true,
+        lastGiftAmount: true,
+      },
+    }),
+  ]);
+
+  const latestDonation = constituent
+    ? await prisma.donation.findFirst({
+        where: {
+          constituentId: constituent.id,
+        },
+        orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+        select: {
+          amount: true,
+          date: true,
+          receiptNumber: true,
+          taxDeductible: true,
+          campaignId: true,
+          campaign: {
+            select: {
+              id: true,
+              name: true,
+              goal: true,
+            },
+          },
+        },
+      })
+    : null;
+
+  const campaignRaised = latestDonation?.campaignId
+    ? await prisma.donation.aggregate({
+        where: { campaignId: latestDonation.campaignId },
+        _sum: { amount: true },
+      })
+    : null;
+
+  const firstName = constituent?.firstName?.trim() || "";
+  const lastName = constituent?.lastName?.trim() || "";
+  const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+  const organizationName = organization?.name?.trim() || params.campaign.fromName.trim() || "Your organization";
+  const staffName = params.campaign.fromName.trim() || organizationSettings?.smtpFromName?.trim() || organizationName;
+  const staffEmail = params.campaign.fromEmail.trim() || organizationSettings?.smtpFromEmail?.trim() || "";
+  const donationCampaignName = latestDonation?.campaign?.name?.trim() || "";
+  const donationCampaignGoal = formatCampaignCurrency(latestDonation?.campaign?.goal ?? null);
+  const donationCampaignRaised = formatCampaignCurrency(campaignRaised?._sum.amount ?? null);
+  const campaignGoalAmount = Number(latestDonation?.campaign?.goal ?? Number.NaN);
+  const campaignRaisedAmount = Number(campaignRaised?._sum.amount ?? Number.NaN);
+  const progressPercent = Number.isFinite(campaignGoalAmount) && campaignGoalAmount > 0 && Number.isFinite(campaignRaisedAmount)
+    ? `${Math.round((campaignRaisedAmount / campaignGoalAmount) * 100)}%`
+    : "";
+  const addressBlock = buildCampaignAddressBlock([]);
+  const donationAmount = formatCampaignCurrency(latestDonation?.amount ?? constituent?.lastGiftAmount ?? null);
+  const taxDeductibleAmount = latestDonation?.taxDeductible ? donationAmount : donationAmount ? "$0.00" : "";
+  const previewRecipient = recipientEmail
+    ? {
+        email: constituent?.email?.trim() || recipientEmail,
+        firstName,
+        lastName,
+        fullName,
+      }
+    : null;
+
+  return {
+    recipient: previewRecipient,
+    vars: {
+      firstName,
+      lastName,
+      fullName,
+      preferredName: firstName || fullName || "Friend",
+      householdGreeting: fullName || firstName || "Friend",
+      email: constituent?.email?.trim() || recipientEmail,
+      lastGiftAmount: formatCampaignCurrency(constituent?.lastGiftAmount ?? null),
+      lastGiftDate: formatCampaignDate(constituent?.lastGiftDate ?? null),
+      totalYtdGiving: formatCampaignCurrency(constituent?.totalYtdGiving ?? null),
+      totalLifetimeGiving: formatCampaignCurrency(constituent?.totalLifetimeGiving ?? null),
+      giftCount: constituent?.giftCount != null ? String(constituent.giftCount) : "",
+      firstGiftDate: formatCampaignDate(constituent?.firstGiftDate ?? null),
+      campaignName: donationCampaignName || params.campaign.name,
+      campaignGoal: donationCampaignGoal,
+      campaignRaised: donationCampaignRaised,
+      campaignProgressPercent: progressPercent,
+      campaignsSupported: donationCampaignName,
+      organizationName,
+      organizationPhone: "",
+      organizationWebsite: "",
+      addressBlock,
+      organizationTaxId: "",
+      staffName,
+      staffTitle: "",
+      staffEmail,
+      signatureName: staffName,
+      unsubscribeUrl: "{{unsubscribeUrl}}",
+      managePreferencesUrl: "{{managePreferencesUrl}}",
+      receiptNumber: latestDonation?.receiptNumber?.trim() || "",
+      currentYear: String(new Date().getFullYear()),
+      currentDate: formatCampaignDate(new Date()),
+      donationUrl: "",
+      donationAmount,
+      taxDeductibleAmount,
+      organizationAddress: addressBlock,
+    },
+  };
+}
+
+async function personalizeCampaignContent(params: {
+  organizationId: string;
+  category: EmailCategory;
+  purpose: EmailPurpose;
+  campaign: {
+    id: string;
+    name: string;
+    subject: string;
+    previewText: string | null;
+    fromName: string;
+    fromEmail: string;
+  };
+  deliveryBodies: {
+    html: string;
+    text: string;
+  };
+  mergeRecipientEmail: string;
+  deliveryEmail?: string;
+  constituentId?: string | null;
+}): Promise<{
+  recipient: CampaignPreviewRecipient | null;
+  subject: string;
+  previewText: string;
+  html: string;
+  text: string;
+}> {
+  const mergeContext = await buildCampaignMergeContext({
+    organizationId: params.organizationId,
+    recipientEmail: params.mergeRecipientEmail,
+    constituentId: params.constituentId,
+    campaign: params.campaign,
+  });
+
+  let subject = renderCampaignMergeTokens(params.campaign.subject || params.campaign.name, mergeContext.vars);
+  const previewText = renderCampaignMergeTokens(params.campaign.previewText?.trim() || "", mergeContext.vars);
+  let html = renderCampaignMergeTokens(params.deliveryBodies.html, mergeContext.vars);
+  let text = renderCampaignMergeTokens(params.deliveryBodies.text, mergeContext.vars);
+
+  const shouldIssueLinks =
+    requiresPreferenceCompliance(params.purpose)
+    || COMPLIANCE_TOKEN_PATTERN.test(params.deliveryBodies.html)
+    || COMPLIANCE_TOKEN_PATTERN.test(params.deliveryBodies.text);
+
+  if (shouldIssueLinks) {
+    const links = await issueRecipientComplianceLinks({
+      organizationId: params.organizationId,
+      campaignId: params.campaign.id,
+      email: (params.deliveryEmail ?? params.mergeRecipientEmail).trim().toLowerCase(),
+      category: params.category,
+    });
+    html = applyComplianceLinkTokens(html, links);
+    text = applyComplianceLinkTokens(text, links);
+  }
+
+  if (!subject.trim()) {
+    subject = params.campaign.name;
+  }
+
+  return {
+    recipient: mergeContext.recipient,
+    subject,
+    previewText,
+    html,
+    text,
+  };
+}
+
+async function resolveCampaignPreviewTarget(params: {
+  organizationId: string;
+  purpose: EmailPurpose;
+  audienceFilter: string | null;
+  recipientEmail?: string | null;
+}): Promise<{
+  mode: CampaignPreviewMode;
+  recipientEmail: string | null;
+  constituentId: string | null;
+}> {
+  const requestedEmail = params.recipientEmail?.trim().toLowerCase() || "";
+  if (requestedEmail) {
+    const matchingConstituent = await prisma.constituent.findFirst({
+      where: {
+        organizationId: params.organizationId,
+        email: requestedEmail,
+      },
+      select: { id: true },
+    });
+
+    return {
+      mode: "manual-email",
+      recipientEmail: requestedEmail,
+      constituentId: matchingConstituent?.id ?? null,
+    };
+  }
+
+  const recipientPlan = await resolveRecipientPlan({
+    organizationId: params.organizationId,
+    audienceFilter: params.audienceFilter,
+    purpose: params.purpose,
+  });
+  const sampleEmail = recipientPlan.recipients[0] ?? null;
+  const sampleDecision = sampleEmail
+    ? recipientPlan.decisions.find((decision) => decision.email === sampleEmail)
+    : null;
+
+  return {
+    mode: sampleEmail ? "audience-sample" : "template-only",
+    recipientEmail: sampleEmail,
+    constituentId: sampleDecision?.constituentId ?? null,
+  };
+}
+
 /** Resolves audience filters into a Prisma where clause for constituents. */
 function audienceWhere(filter: AudienceFilter) {
   const type = filter?.type ?? "all";
@@ -1201,19 +1523,32 @@ export async function sendCampaignNow(
       },
     });
 
+    const recipientDecisions = new Map(recipientPlan.decisions.map((decision) => [decision.email, decision]));
+
     for (const recipientEmail of to) {
-      const links = await issueRecipientComplianceLinks({
+      const recipientDecision = recipientDecisions.get(recipientEmail);
+      const personalizedContent = await personalizeCampaignContent({
         organizationId: campaign.organizationId,
-        campaignId: campaign.id,
-        email: recipientEmail,
         category: recipientPlan.category,
+        purpose,
+        campaign: {
+          id: campaign.id,
+          name: campaign.name,
+          subject: campaign.subject || campaign.name,
+          previewText: campaign.previewText,
+          fromName: campaign.fromName,
+          fromEmail: campaign.fromEmail,
+        },
+        deliveryBodies,
+        mergeRecipientEmail: recipientEmail,
+        constituentId: recipientDecision?.constituentId ?? null,
       });
 
       await sender.send({
         to: recipientEmail,
-        subject: campaign.subject || campaign.name,
-        text: applyComplianceLinkTokens(deliveryBodies.text, links),
-        html: applyComplianceLinkTokens(deliveryBodies.html, links),
+        subject: personalizedContent.subject,
+        text: personalizedContent.text,
+        html: personalizedContent.html,
         fromNameOverride: campaign.fromName,
       });
     }
@@ -2264,8 +2599,8 @@ router.put("/:id", async (req, res) => {
 /**
  * POST /api/email-campaigns/:id/preview
  * Description: Returns an HTML/text preview payload for review tooling without sending.
- * Request: {}
- * Response: { id, subject, previewText, fromName, fromEmail, bodyHtml, bodyText }
+ * Request: { recipientEmail?: string }
+ * Response: { id, subject, previewText, fromName, fromEmail, bodyHtml, bodyText, previewMode, previewRecipient }
  */
 router.post("/:id/preview", async (req, res) => {
   const userId = req.user?.sub;
@@ -2292,16 +2627,72 @@ router.post("/:id/preview", async (req, res) => {
     return;
   }
 
+  const { recipientEmail } = req.body as { recipientEmail?: string };
+  if (recipientEmail && !isValidEmail(recipientEmail)) {
+    res.status(400).json({ error: { code: "INVALID_RECIPIENT", message: "recipientEmail must be a valid email address." } });
+    return;
+  }
+
+  const purpose = parseEmailPurpose((campaign as { purpose?: unknown }).purpose);
+  const deliveryBodies = buildCampaignDeliveryBodies(campaign, purpose);
+  let previewTarget: Awaited<ReturnType<typeof resolveCampaignPreviewTarget>>;
+  try {
+    previewTarget = await resolveCampaignPreviewTarget({
+      organizationId,
+      purpose,
+      audienceFilter: campaign.audienceFilter,
+      recipientEmail: recipientEmail ?? null,
+    });
+  } catch {
+    previewTarget = {
+      mode: "template-only",
+      recipientEmail: recipientEmail?.trim().toLowerCase() || null,
+      constituentId: null,
+    };
+  }
+
+  let subject = campaign.subject;
+  let previewText = campaign.previewText;
+  let bodyHtml = deliveryBodies.html;
+  let bodyText = deliveryBodies.text;
+  let previewRecipient: CampaignPreviewRecipient | null = null;
+
+  if (previewTarget.recipientEmail) {
+    const personalizedContent = await personalizeCampaignContent({
+      organizationId,
+      category: categoryForPurpose(purpose),
+      purpose,
+      campaign: {
+        id: campaign.id,
+        name: campaign.name,
+        subject: campaign.subject || campaign.name,
+        previewText: campaign.previewText,
+        fromName: campaign.fromName,
+        fromEmail: campaign.fromEmail,
+      },
+      deliveryBodies,
+      mergeRecipientEmail: previewTarget.recipientEmail,
+      constituentId: previewTarget.constituentId,
+    });
+    subject = personalizedContent.subject;
+    previewText = personalizedContent.previewText;
+    bodyHtml = personalizedContent.html;
+    bodyText = personalizedContent.text;
+    previewRecipient = personalizedContent.recipient;
+  }
+
   res.json({
     id: campaign.id,
-    subject: campaign.subject,
-    previewText: campaign.previewText,
+    subject,
+    previewText,
     fromName: campaign.fromName,
     fromEmail: campaign.fromEmail,
-    bodyHtml: campaign.bodyHtml,
-    bodyText: campaign.bodyText,
+    bodyHtml,
+    bodyText,
     status: campaign.status,
     scheduledAt: campaign.scheduledAt,
+    previewMode: previewTarget.mode,
+    previewRecipient,
   });
 });
 
@@ -2346,29 +2737,45 @@ router.post("/:id/send-test", async (req, res) => {
     const sender = await createOrganizationEmailSender(campaign.organizationId);
     const purpose = parseEmailPurpose((campaign as { purpose?: unknown }).purpose);
     const deliveryBodies = buildCampaignDeliveryBodies(campaign, purpose);
-    const shouldIssueLinks =
-      requiresPreferenceCompliance(purpose)
-      || COMPLIANCE_TOKEN_PATTERN.test(deliveryBodies.html)
-      || COMPLIANCE_TOKEN_PATTERN.test(deliveryBodies.text);
-
-    let htmlContent = deliveryBodies.html;
-    let textContent = deliveryBodies.text;
-    if (shouldIssueLinks) {
-      const links = await issueRecipientComplianceLinks({
-        organizationId: campaign.organizationId,
-        campaignId: campaign.id,
-        email: toEmail.trim().toLowerCase(),
-        category: categoryForPurpose(purpose),
+    let previewTarget: Awaited<ReturnType<typeof resolveCampaignPreviewTarget>>;
+    try {
+      previewTarget = await resolveCampaignPreviewTarget({
+        organizationId,
+        purpose,
+        audienceFilter: campaign.audienceFilter,
       });
-      htmlContent = applyComplianceLinkTokens(htmlContent, links);
-      textContent = applyComplianceLinkTokens(textContent, links);
+    } catch {
+      previewTarget = {
+        mode: "template-only",
+        recipientEmail: null,
+        constituentId: null,
+      };
     }
+
+    const mergeRecipientEmail = previewTarget.recipientEmail ?? toEmail.trim().toLowerCase();
+    const personalizedContent = await personalizeCampaignContent({
+      organizationId: campaign.organizationId,
+      category: categoryForPurpose(purpose),
+      purpose,
+      campaign: {
+        id: campaign.id,
+        name: campaign.name,
+        subject: campaign.subject || campaign.name,
+        previewText: campaign.previewText,
+        fromName: campaign.fromName,
+        fromEmail: campaign.fromEmail,
+      },
+      deliveryBodies,
+      mergeRecipientEmail,
+      deliveryEmail: toEmail.trim().toLowerCase(),
+      constituentId: previewTarget.constituentId,
+    });
 
     await sender.send({
       to: toEmail.trim().toLowerCase(),
-      subject: `[TEST] ${campaign.subject || campaign.name}`,
-      text: textContent,
-      html: htmlContent,
+      subject: `[TEST] ${personalizedContent.subject}`,
+      text: personalizedContent.text,
+      html: personalizedContent.html,
       fromNameOverride: campaign.fromName,
     });
   } catch (error) {

@@ -394,7 +394,8 @@ export type SocialPlatform =
   | 'twitter'
   | 'instagram'
   | 'linkedin'
-  | 'youtube';
+  | 'youtube'
+  | 'tiktok';
 
 export interface SocialLink {
   platform: SocialPlatform;
@@ -404,6 +405,15 @@ export interface SocialLink {
 export interface SocialBlock extends BaseBlock {
   type: 'social';
   links: SocialLink[];
+  title?: string;
+  intro?: string;
+  variant?: 'pill' | 'card' | 'minimal';
+  colorMode?: 'brand' | 'accent' | 'neutral';
+  backgroundColor?: string;
+  textColor?: string;
+  accentColor?: string;
+  borderColor?: string;
+  showLabels?: boolean;
   align: 'left' | 'center' | 'right';
   padding: number;
 }

@@ -467,13 +467,23 @@ export function createDefaultBlock(type: BlockType): EmailBlock {
       return {
         id,
         type: 'social',
+        title: 'Stay connected',
+        intro: 'Follow along for field stories, campaign progress, and ministry updates.',
         links: [
           { platform: 'facebook',  url: 'https://facebook.com' },
-          { platform: 'twitter',   url: 'https://twitter.com'  },
           { platform: 'instagram', url: 'https://instagram.com' },
+          { platform: 'linkedin',  url: 'https://linkedin.com' },
+          { platform: 'tiktok',    url: 'https://tiktok.com/@yourorg' },
         ],
+        variant: 'card',
+        colorMode: 'brand',
+        backgroundColor: '#ffffff',
+        textColor: '#0f172a',
+        accentColor: '#2563ff',
+        borderColor: '#e6e9f2',
+        showLabels: true,
         align: 'center',
-        padding: 16,
+        padding: 20,
       } satisfies SocialBlock;
 
     case 'columns':
@@ -937,21 +947,73 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
 </tr>`;
 
     case 'social': {
+      const escapeText = (value: string) => value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
       const platformLabels: Record<string, string> = {
         facebook: 'Facebook', twitter: 'Twitter', instagram: 'Instagram',
-        linkedin: 'LinkedIn', youtube: 'YouTube',
+        linkedin: 'LinkedIn', youtube: 'YouTube', tiktok: 'TikTok',
+      };
+      const platformBadges: Record<string, string> = {
+        facebook: 'f', twitter: 'X', instagram: 'IG',
+        linkedin: 'in', youtube: 'YT', tiktok: 'TT',
       };
       const platformColors: Record<string, string> = {
         facebook: '#1877f2', twitter: '#1da1f2', instagram: '#e1306c',
-        linkedin: '#0a66c2', youtube: '#ff0000',
+        linkedin: '#0a66c2', youtube: '#ff0000', tiktok: '#111111',
       };
+      const variant = block.variant ?? 'card';
+      const colorMode = block.colorMode ?? 'brand';
+      const showLabels = block.showLabels !== false;
+      const title = block.title?.trim();
+      const intro = block.intro?.trim();
+      const textColor = block.textColor ?? '#0f172a';
+      const borderColor = block.borderColor ?? '#e6e9f2';
+      const backgroundColor = block.backgroundColor ?? '#ffffff';
+      const accentColor = block.accentColor ?? '#2563ff';
       const links = block.links.map(
-        (l) =>
-          `<a href="${l.url}" style="display:inline-block;margin:0 4px;background-color:${platformColors[l.platform]};color:#fff;font-family:${fontFamily};font-size:12px;text-decoration:none;padding:6px 12px;border-radius:4px;">${platformLabels[l.platform]}</a>`
+        (l) => {
+          const brandColor = platformColors[l.platform] ?? accentColor;
+          const badgeColor = colorMode === 'brand' ? brandColor : colorMode === 'accent' ? accentColor : textColor;
+          const pillBackground = colorMode === 'neutral' ? backgroundColor : badgeColor;
+          const pillText = colorMode === 'neutral' ? textColor : '#ffffff';
+
+          if (variant === 'minimal') {
+            return `<a href="${l.url}" style="display:inline-block;margin:0 6px 8px 0;color:${textColor};font-family:${fontFamily};font-size:13px;text-decoration:none;">
+  <span style="display:inline-block;min-width:34px;height:34px;line-height:34px;border-radius:17px;background:${badgeColor};color:#ffffff;font-weight:700;text-align:center;vertical-align:middle;">${platformBadges[l.platform] ?? '?'}</span>
+  ${showLabels ? `<span style="display:inline-block;margin-left:8px;vertical-align:middle;">${escapeText(platformLabels[l.platform] ?? l.platform)}</span>` : ''}
+</a>`;
+          }
+
+          if (variant === 'pill') {
+            return `<a href="${l.url}" style="display:inline-block;margin:0 6px 8px 0;background:${pillBackground};color:${pillText};font-family:${fontFamily};font-size:13px;font-weight:600;text-decoration:none;padding:10px 14px;border-radius:999px;border:${colorMode === 'neutral' ? `1px solid ${borderColor}` : 'none'};">
+  <span style="display:inline-block;min-width:22px;height:22px;line-height:22px;border-radius:11px;background:${colorMode === 'neutral' ? badgeColor : 'rgba(255,255,255,0.18)'};color:${colorMode === 'neutral' ? '#ffffff' : pillText};font-size:11px;font-weight:700;text-align:center;vertical-align:middle;">${platformBadges[l.platform] ?? '?'}</span>
+  ${showLabels ? `<span style="display:inline-block;margin-left:8px;vertical-align:middle;">${escapeText(platformLabels[l.platform] ?? l.platform)}</span>` : ''}
+</a>`;
+          }
+
+          return `<a href="${l.url}" style="display:inline-block;vertical-align:top;width:170px;margin:0 8px 10px 0;background:${backgroundColor};color:${textColor};font-family:${fontFamily};text-decoration:none;padding:12px 14px;border-radius:12px;border:1px solid ${borderColor};box-shadow:0 8px 20px rgba(15,23,42,0.06);">
+  <span style="display:inline-block;min-width:32px;height:32px;line-height:32px;border-radius:10px;background:${badgeColor};color:#ffffff;font-size:12px;font-weight:700;text-align:center;vertical-align:middle;">${platformBadges[l.platform] ?? '?'}</span>
+  <span style="display:inline-block;vertical-align:middle;margin-left:10px;">
+    ${showLabels ? `<span style="display:block;font-size:13px;font-weight:700;color:${textColor};">${escapeText(platformLabels[l.platform] ?? l.platform)}</span>` : ''}
+    <span style="display:block;font-size:11px;color:#64748b;">Follow for updates</span>
+  </span>
+</a>`;
+        }
       ).join('');
+      const headingHtml = title
+        ? `<div style="font-family:${fontFamily};font-size:20px;line-height:28px;font-weight:700;color:${textColor};margin-bottom:${intro ? 6 : 12}px;">${escapeText(title)}</div>`
+        : '';
+      const introHtml = intro
+        ? `<div style="font-family:${fontFamily};font-size:13px;line-height:20px;color:${textColor};opacity:0.82;margin-bottom:14px;">${escapeText(intro)}</div>`
+        : '';
       return `<tr>
   <td style="padding:${block.padding}px;text-align:${block.align};">
-    ${links}
+    ${headingHtml}
+    ${introHtml}
+    ${links || `<span style="font-family:${fontFamily};font-size:13px;color:#94a3b8;">No social links added</span>`}
   </td>
 </tr>`;
     }

@@ -11,6 +11,15 @@
 
 ---
 
+## License
+
+OyamaCRM is distributed under a custom source-available license in [LICENSE.md](LICENSE.md).
+
+- Qualified nonprofits under USD 1,000,000 in annual gross revenue may use it for free.
+- Nonprofits at or above that threshold require a separate donation-based 3-year license approved by the Licensor.
+
+---
+
 ## What is OyamaCRM?
 
 OyamaCRM is an integrated nonprofit management platform built for teams that manage donors, clients, and events in one place.

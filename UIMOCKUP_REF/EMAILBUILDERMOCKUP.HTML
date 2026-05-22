@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Email Builder Mockup</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+	<style>
+		:root {
+			--bg: #f4f6fb;
+			--surface: #ffffff;
+			--line: #e6e9f2;
+			--text: #0f172a;
+			--muted: #64748b;
+			--brand: #2563ff;
+			--brand-2: #1f4fd7;
+			--soft: #eef3ff;
+			--chip: #eaf0ff;
+			--shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
+			--radius: 12px;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			font-family: Inter, "Segoe UI", Tahoma, sans-serif;
+			color: var(--text);
+			background: linear-gradient(180deg, #f7f8fc 0%, var(--bg) 100%);
+		}
+
+		.app {
+			min-height: 100vh;
+			display: grid;
+			grid-template-rows: 64px 1fr;
+		}
+
+		.topbar {
+			border-bottom: 1px solid var(--line);
+			background: var(--surface);
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			padding: 0 16px;
+			gap: 12px;
+		}
+
+		.topbar-left,
+		.topbar-right {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+		}
+
+		.topbar-left {
+			gap: 14px;
+		}
+
+		.topbar-right {
+			gap: 12px;
+		}
+
+		.divider-v {
+			width: 1px;
+			height: 28px;
+			background: var(--line);
+		}
+
+		.back {
+			font-size: 22px;
+			line-height: 1;
+			color: #475569;
+		}
+
+		.title-main {
+			font-weight: 600;
+			color: #334155;
+			margin-right: 10px;
+			white-space: nowrap;
+		}
+
+		.campaign {
+			font-weight: 600;
+			white-space: nowrap;
+		}
+
+		.pill {
+			border: 1px solid var(--line);
+			border-radius: 6px;
+			padding: 2px 8px;
+			font-size: 12px;
+			color: #94a3b8;
+			background: #f8fafc;
+		}
+
+		.btn {
+			border: 1px solid var(--line);
+			background: var(--surface);
+			color: #334155;
+			border-radius: 8px;
+			padding: 9px 14px;
+			font-weight: 600;
+			cursor: default;
+			box-shadow: 0 1px 1px rgba(15, 23, 42, 0.02);
+		}
+
+		.btn-primary {
+			background: var(--brand);
+			border-color: var(--brand);
+			color: #fff;
+			padding: 9px 18px;
+		}
+
+		.btn-icon {
+			width: 36px;
+			height: 36px;
+			padding: 0;
+			display: grid;
+			place-items: center;
+		}
+
+		.workspace {
+			display: grid;
+			grid-template-columns: 300px 1fr 340px;
+			gap: 0;
+			min-height: 0;
+		}
+
+		.panel {
+			border-right: 1px solid var(--line);
+			background: #fdfdff;
+			padding: 18px 14px;
+			overflow: auto;
+		}
+
+		.panel h2 {
+			font-size: 22px;
+			margin: 0;
+			letter-spacing: -0.02em;
+		}
+
+		.tabs {
+			margin-top: 14px;
+			display: flex;
+			gap: 20px;
+			border-bottom: 1px solid var(--line);
+			padding-bottom: 10px;
+		}
+
+		.tab {
+			color: #64748b;
+			font-weight: 600;
+			font-size: 14px;
+			padding-bottom: 8px;
+		}
+
+		.tab.active {
+			color: var(--brand);
+			border-bottom: 2px solid var(--brand);
+		}
+
+		.section-title {
+			margin-top: 18px;
+			margin-bottom: 10px;
+			font-size: 13px;
+			color: #475569;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.05em;
+		}
+
+		.component-grid {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 10px;
+		}
+
+		.comp {
+			background: #fff;
+			border: 1px solid var(--line);
+			border-radius: 10px;
+			padding: 16px 10px;
+			text-align: center;
+			font-size: 13px;
+			color: #334155;
+			min-height: 72px;
+			display: grid;
+			place-content: center;
+			gap: 6px;
+		}
+
+		.comp-icon {
+			font-size: 16px;
+			color: #475569;
+		}
+
+		.canvas-wrap {
+			padding: 22px 28px;
+			overflow: auto;
+			display: grid;
+			place-items: start center;
+			background: radial-gradient(circle at top, rgba(37, 99, 255, 0.05), transparent 35%);
+		}
+
+		.canvas {
+			width: min(780px, 100%);
+			border: 1px solid var(--line);
+			border-radius: 14px;
+			background: #fdfefe;
+			box-shadow: 0 16px 40px rgba(17, 24, 39, 0.08);
+			overflow: hidden;
+		}
+
+		.email {
+			margin: 0 auto;
+			width: min(600px, calc(100% - 44px));
+			padding: 22px 0 26px;
+			text-align: center;
+		}
+
+		.brand {
+			color: var(--brand);
+			font-weight: 800;
+			font-size: 28px;
+			letter-spacing: -0.05em;
+		}
+
+		.chip {
+			display: inline-block;
+			margin-top: 18px;
+			background: var(--chip);
+			color: var(--brand-2);
+			padding: 8px 16px;
+			border-radius: 10px;
+			font-weight: 700;
+			font-size: 13px;
+		}
+
+		.selected-heading {
+			margin: 18px auto 10px;
+			width: calc(100% - 8px);
+			border: 2px solid #3b82f6;
+			border-radius: 2px;
+			padding: 6px 14px 10px;
+			font-size: clamp(34px, 4.5vw, 38px);
+			line-height: 1.07;
+			font-weight: 800;
+			color: #081a48;
+			position: relative;
+			letter-spacing: -0.03em;
+		}
+
+		.selected-heading::before,
+		.selected-heading::after,
+		.handle-left,
+		.handle-right {
+			content: "";
+			position: absolute;
+			width: 7px;
+			height: 7px;
+			background: #3b82f6;
+			border-radius: 1px;
+		}
+
+		.selected-heading::before {
+			left: -4px;
+			top: -4px;
+		}
+
+		.selected-heading::after {
+			right: -4px;
+			top: -4px;
+		}
+
+		.handle-left {
+			left: -4px;
+			bottom: -4px;
+		}
+
+		.handle-right {
+			right: -4px;
+			bottom: -4px;
+		}
+
+		.toolbar {
+			position: absolute;
+			top: -24px;
+			left: 8px;
+			background: #2163ff;
+			color: #fff;
+			border-radius: 8px;
+			font-size: 12px;
+			padding: 7px 9px;
+			display: flex;
+			gap: 8px;
+			box-shadow: 0 8px 20px rgba(37, 99, 255, 0.35);
+		}
+
+		.copy {
+			width: 86%;
+			margin: 10px auto;
+			color: #667085;
+			line-height: 1.55;
+			font-size: 15px;
+		}
+
+		.cta {
+			margin-top: 10px;
+			border: none;
+			background: var(--brand);
+			color: #fff;
+			border-radius: 8px;
+			font-weight: 600;
+			font-size: 14px;
+			padding: 12px 24px;
+			box-shadow: 0 8px 18px rgba(37, 99, 255, 0.2);
+		}
+
+		.hero {
+			margin: 22px auto 0;
+			width: 100%;
+			background: linear-gradient(180deg, #eaf0ff 0%, #f2f5ff 100%);
+			border-radius: 16px;
+			border: 1px solid #dce5ff;
+			height: 176px;
+			position: relative;
+			overflow: hidden;
+		}
+
+		.hero-window {
+			position: absolute;
+			left: 120px;
+			top: 18px;
+			width: 250px;
+			height: 118px;
+			border-radius: 12px;
+			background: #ffffff;
+			border: 1px solid #c9d8ff;
+			box-shadow: 0 12px 30px rgba(37, 99, 255, 0.12);
+		}
+
+		.hero-topbar {
+			height: 16px;
+			background: linear-gradient(90deg, #1f63ff, #3a7bff);
+			border-radius: 12px 12px 0 0;
+		}
+
+		.hero-side,
+		.hero-main,
+		.hero-card,
+		.hero-tag,
+		.hero-plane,
+		.hero-dash {
+			position: absolute;
+		}
+
+		.hero-side {
+			left: 12px;
+			top: 28px;
+			width: 44px;
+			height: 74px;
+			border-right: 1px solid #edf1ff;
+		}
+
+		.hero-side::before,
+		.hero-side::after {
+			content: "";
+			display: block;
+			width: 28px;
+			height: 10px;
+			background: #eef3ff;
+			border-radius: 4px;
+			margin: 8px auto;
+		}
+
+		.hero-main {
+			left: 72px;
+			top: 32px;
+			width: 86px;
+			height: 54px;
+			border: 2px dashed #9cb8ff;
+			border-radius: 8px;
+		}
+
+		.hero-card {
+			left: 84px;
+			top: 44px;
+			width: 50px;
+			height: 28px;
+			background: linear-gradient(180deg, #dce7ff, #bdd2ff);
+			clip-path: polygon(0 100%, 28% 44%, 48% 66%, 66% 28%, 100% 100%);
+		}
+
+		.hero-tag {
+			left: -52px;
+			top: 46px;
+			width: 54px;
+			height: 40px;
+			background: #ffffff;
+			border: 1px solid #d9e4ff;
+			border-radius: 8px;
+			display: grid;
+			place-items: center;
+			font-weight: 700;
+			color: #334155;
+		}
+
+		.hero-dash {
+			right: 50px;
+			top: 48px;
+			width: 60px;
+			height: 40px;
+			border-top: 2px dashed #94aef6;
+			border-right: 2px dashed #94aef6;
+			border-radius: 0 24px 0 0;
+			transform: rotate(18deg);
+		}
+
+		.hero-plane {
+			right: 26px;
+			top: 26px;
+			width: 0;
+			height: 0;
+			border-left: 22px solid #66a1ff;
+			border-top: 10px solid transparent;
+			border-bottom: 10px solid transparent;
+			transform: rotate(-18deg);
+		}
+
+		.footer {
+			margin-top: 22px;
+			padding-top: 16px;
+			color: #7c8799;
+			font-size: 11px;
+		}
+
+		.socials {
+			margin: 0 auto 14px;
+			display: flex;
+			justify-content: center;
+			gap: 10px;
+		}
+
+		.dot {
+			width: 20px;
+			height: 20px;
+			border-radius: 999px;
+			background: #1f2937;
+			color: #fff;
+			display: grid;
+			place-items: center;
+			font-size: 8px;
+			font-weight: 700;
+		}
+
+		.links {
+			margin-top: 12px;
+			display: flex;
+			justify-content: center;
+			gap: 18px;
+			color: var(--brand);
+			font-size: 11px;
+			font-weight: 500;
+		}
+
+		.right-panel {
+			border-left: 1px solid var(--line);
+			background: #fff;
+			padding: 14px 16px 20px;
+			overflow: auto;
+		}
+
+		.rp-tabs {
+			display: flex;
+			gap: 24px;
+			border-bottom: 1px solid var(--line);
+			margin-bottom: 14px;
+		}
+
+		.rp-tab {
+			padding: 8px 0 12px;
+			font-weight: 600;
+			color: #64748b;
+			font-size: 14px;
+		}
+
+		.rp-tab.active {
+			color: var(--brand);
+			border-bottom: 2px solid var(--brand);
+		}
+
+		.field {
+			margin-bottom: 12px;
+		}
+
+		.editor-toolbar {
+			display: flex;
+			gap: 12px;
+			align-items: center;
+			border: 1px solid var(--line);
+			border-bottom: none;
+			border-radius: 8px 8px 0 0;
+			padding: 8px 10px;
+			font-size: 13px;
+			color: #475569;
+		}
+
+		.label {
+			font-size: 13px;
+			color: #475569;
+			font-weight: 600;
+			margin-bottom: 6px;
+		}
+
+		.input,
+		.textarea {
+			width: 100%;
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			padding: 10px 11px;
+			font-size: 14px;
+			color: #0f172a;
+			background: #fff;
+		}
+
+		.textarea {
+			min-height: 104px;
+			resize: none;
+			line-height: 1.4;
+			border-radius: 0 0 8px 8px;
+		}
+
+		.select {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+		}
+
+		.size-row {
+			display: flex;
+			gap: 8px;
+			align-items: center;
+		}
+
+		.size-box {
+			width: 70px;
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			padding: 8px 10px;
+			text-align: center;
+			font-weight: 600;
+		}
+
+		.align {
+			display: grid;
+			grid-template-columns: repeat(4, 1fr);
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			overflow: hidden;
+		}
+
+		.align div {
+			text-align: center;
+			padding: 10px 0;
+			background: #fff;
+			color: #64748b;
+			border-right: 1px solid var(--line);
+			font-size: 14px;
+			font-weight: 600;
+		}
+
+		.align div:last-child {
+			border-right: none;
+		}
+
+		.align .active {
+			background: var(--soft);
+			color: var(--brand);
+		}
+
+		.notice {
+			background: #eef3ff;
+			border: 1px solid #dfe7ff;
+			border-radius: 10px;
+			padding: 10px 12px;
+			font-size: 13px;
+			color: #5470b7;
+			margin-top: 10px;
+		}
+
+		@media (max-width: 1400px) {
+			.workspace {
+				grid-template-columns: 272px 1fr 312px;
+			}
+
+			.copy {
+				font-size: 18px;
+			}
+
+			.cta {
+				font-size: 14px;
+			}
+		}
+
+		@media (max-width: 1120px) {
+			.workspace {
+				grid-template-columns: 1fr;
+			}
+
+			.right-panel,
+			.panel {
+				display: none;
+			}
+
+			.canvas {
+				width: min(860px, 100%);
+			}
+		}
+
+		@media (max-width: 860px) {
+			.topbar {
+				padding: 10px 12px;
+				height: auto;
+				flex-wrap: wrap;
+			}
+
+			.title-main,
+			.divider-v {
+				display: none;
+			}
+
+			.selected-heading {
+				font-size: 30px;
+			}
+		}
+	</style>
+</head>
+<body>
+	<div class="app">
+		<header class="topbar">
+			<div class="topbar-left">
+				<div class="title-main">Email Builder</div>
+				<div class="divider-v"></div>
+				<div class="back">&#8592;</div>
+				<div class="campaign">Welcome Email Campaign</div>
+				<div class="pill">Draft</div>
+			</div>
+			<div class="topbar-right">
+				<button class="btn btn-icon">&#8630;</button>
+				<button class="btn btn-icon">&#8631;</button>
+				<button class="btn">Preview</button>
+				<button class="btn">Test Email</button>
+				<button class="btn btn-icon">&#8942;</button>
+				<button class="btn btn-primary">Save &amp; Exit &#9662;</button>
+			</div>
+		</header>
+
+		<main class="workspace">
+			<section class="panel">
+				<h2>Add Components</h2>
+				<div class="tabs">
+					<div class="tab active">Content</div>
+					<div class="tab">Layouts</div>
+				</div>
+
+				<div class="section-title">Basic</div>
+				<div class="component-grid">
+					<div class="comp"><span class="comp-icon">T</span>Text</div>
+					<div class="comp"><span class="comp-icon">&#128247;</span>Image</div>
+					<div class="comp"><span class="comp-icon">&#9634;</span>Button</div>
+					<div class="comp"><span class="comp-icon">&#8213;</span>Divider</div>
+					<div class="comp"><span class="comp-icon">&#8597;</span>Spacer</div>
+					<div class="comp"><span class="comp-icon">&#9698;</span>Social</div>
+					<div class="comp"><span class="comp-icon">&lt;/&gt;</span>HTML</div>
+					<div class="comp"><span class="comp-icon">&#9655;</span>Video</div>
+				</div>
+
+				<div class="section-title">Ecommerce</div>
+				<div class="component-grid">
+					<div class="comp"><span class="comp-icon">&#128717;</span>Product</div>
+					<div class="comp"><span class="comp-icon">&#8863;</span>Product Grid</div>
+					<div class="comp"><span class="comp-icon">&#128179;</span>Checkout Button</div>
+					<div class="comp"><span class="comp-icon">&#128196;</span>Order Summary</div>
+				</div>
+			</section>
+
+			<section class="canvas-wrap">
+				<div class="canvas">
+					<div class="email">
+						<div class="brand">oyama</div>
+						<div class="chip">Welcome!</div>
+
+						<div class="selected-heading">
+							<div class="toolbar">&#10022; &#9998; &#10697; &#128465;</div>
+							<span class="handle-left"></span>
+							<span class="handle-right"></span>
+							Thanks for joining<br>Oyama! &#127881;
+						</div>
+
+						<div class="copy">
+							We're excited to have you on board. Oyama helps you create
+							beautiful emails, automate campaigns, and grow your audience.
+						</div>
+
+						<button class="cta">Get Started</button>
+						<div class="hero">
+							<div class="hero-window">
+								<div class="hero-topbar"></div>
+								<div class="hero-side"></div>
+								<div class="hero-main"></div>
+								<div class="hero-card"></div>
+								<div class="hero-tag">T</div>
+							</div>
+							<div class="hero-dash"></div>
+							<div class="hero-plane"></div>
+						</div>
+
+						<div class="footer">
+							<div class="socials">
+								<div class="dot">f</div>
+								<div class="dot">x</div>
+								<div class="dot">ig</div>
+								<div class="dot">in</div>
+							</div>
+							<div>&copy; 2024 Oyama. All rights reserved.</div>
+							<div>123 Innovation Drive, San Francisco, CA 94107</div>
+							<div class="links">
+								<span>Unsubscribe</span>
+								<span>Manage Preferences</span>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<aside class="right-panel">
+				<div class="rp-tabs">
+					<div class="rp-tab active">Content</div>
+					<div class="rp-tab">Style</div>
+					<div class="rp-tab">Settings</div>
+				</div>
+
+				<div class="field">
+					<div class="label">Text</div>
+					<div class="input select"><span>Heading 1</span><span>&#9662;</span></div>
+				</div>
+
+				<div class="field">
+					<div class="label">Text Content</div>
+					<div class="editor-toolbar"><span>Heading 1</span><strong>B</strong><em>I</em><span>U</span><span>&#128279;</span><span>...</span></div>
+					<textarea class="textarea">Thanks for joining
+Oyama!</textarea>
+				</div>
+
+				<div class="field">
+					<div class="label">Font</div>
+					<div class="input select"><span>Inter</span><span>&#9662;</span></div>
+				</div>
+
+				<div class="field">
+					<div class="label">Size</div>
+					<div class="size-row">
+						<div class="size-box">40</div>
+						<div>px</div>
+					</div>
+				</div>
+
+				<div class="field">
+					<div class="label">Color</div>
+					<div class="input">#0B1D3A</div>
+				</div>
+
+				<div class="field">
+					<div class="label">Align</div>
+					<div class="align">
+						<div>L</div>
+						<div class="active">C</div>
+						<div>R</div>
+						<div>J</div>
+					</div>
+				</div>
+
+				<div class="field">
+					<div class="label">Line Height</div>
+					<div class="input">1.2</div>
+				</div>
+
+				<div class="field">
+					<div class="label">Mobile Font Size</div>
+					<div class="input">28 px</div>
+				</div>
+
+				<div class="notice">This setting will only apply on mobile devices.</div>
+			</aside>
+		</main>
+	</div>
+</body>
+</html>

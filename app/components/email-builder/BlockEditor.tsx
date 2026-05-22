@@ -60,18 +60,352 @@ interface FieldProps {
 function Field({ label, children, hint }: FieldProps) {
   return (
     <div className="space-y-1">
-      <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide">
+      <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
         {label}
       </label>
       {children}
-      {hint && <p className="text-xs text-gray-400">{hint}</p>}
+      {hint && <p className="text-xs text-slate-400">{hint}</p>}
     </div>
   );
 }
 
 const inputCls =
-  'block w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent';
+  'block w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
 const selectCls = inputCls;
+
+type InspectorTab = 'content' | 'style' | 'settings';
+
+interface TemplatePanelProps {
+  template: EmailTemplate;
+  onUpdateTemplate: (partial: Partial<EmailTemplate>) => void;
+}
+
+interface QuickColorFieldProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}
+
+function QuickColorField({ label, value, onChange }: QuickColorFieldProps) {
+  return (
+    <Field label={label}>
+      <div className="flex gap-2">
+        <input
+          type="color"
+          className="h-9 w-11 rounded border border-slate-200 cursor-pointer p-0.5"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <input
+          type="text"
+          className={`${inputCls} flex-1`}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </div>
+    </Field>
+  );
+}
+
+function EmptyInspectorState({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+      <p className="font-semibold text-slate-700">{title}</p>
+      <p className="mt-1 leading-6">{body}</p>
+    </div>
+  );
+}
+
+function InspectorSection({
+  title,
+  body,
+  children,
+}: {
+  title: string;
+  body?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-3">
+      <div className="mb-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</p>
+        {body ? <p className="mt-1 text-xs leading-5 text-slate-500">{body}</p> : null}
+      </div>
+      <div className="space-y-4">{children}</div>
+    </section>
+  );
+}
+
+function AlignmentSegmentedControl({
+  value,
+  onChange,
+}: {
+  value: 'left' | 'center' | 'right';
+  onChange: (value: 'left' | 'center' | 'right') => void;
+}) {
+  return (
+    <div className="grid grid-cols-3 overflow-hidden rounded-lg border border-slate-200 bg-white text-sm font-semibold">
+      {([
+        ['left', 'Left'],
+        ['center', 'Center'],
+        ['right', 'Right'],
+      ] as const).map(([option, label]) => (
+        <button
+          key={option}
+          type="button"
+          onClick={() => onChange(option)}
+          className={[
+            'border-r border-slate-200 px-2 py-2 last:border-r-0 transition-colors',
+            value === option ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-slate-50',
+          ].join(' ')}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function BlockStyleQuickPanel({
+  block,
+  onUpdate,
+}: {
+  block: EmailBlock;
+  onUpdate: (partial: Partial<EmailBlock>) => void;
+}) {
+  const hasStyleFields =
+    'align' in block
+    || 'fontSize' in block
+    || 'color' in block
+    || 'textColor' in block
+    || 'bgColor' in block
+    || 'accentColor' in block
+    || 'borderColor' in block
+    || 'buttonColor' in block
+    || 'buttonTextColor' in block
+    || 'barColor' in block
+    || 'trackColor' in block;
+
+  return (
+    <div className="space-y-4">
+      {'align' in block && (
+        <Field label="Alignment">
+          <AlignmentSegmentedControl
+            value={block.align}
+            onChange={(value) => onUpdate({ align: value } as Partial<EmailBlock>)}
+          />
+        </Field>
+      )}
+      {'fontSize' in block && (
+        <Field label="Font Size (px)">
+          <input
+            type="number"
+            className={inputCls}
+            min={8}
+            max={72}
+            value={block.fontSize}
+            onChange={(event) => onUpdate({ fontSize: Number(event.target.value) } as Partial<EmailBlock>)}
+          />
+        </Field>
+      )}
+      {'color' in block && (
+        <QuickColorField
+          label="Text Color"
+          value={block.color}
+          onChange={(value) => onUpdate({ color: value } as Partial<EmailBlock>)}
+        />
+      )}
+      {'textColor' in block && (
+        <QuickColorField
+          label="Text Color"
+          value={block.textColor}
+          onChange={(value) => onUpdate({ textColor: value } as Partial<EmailBlock>)}
+        />
+      )}
+      {'bgColor' in block && (
+        <QuickColorField
+          label="Surface Color"
+          value={block.bgColor}
+          onChange={(value) => onUpdate({ bgColor: value } as Partial<EmailBlock>)}
+        />
+      )}
+      {'accentColor' in block && (
+        <QuickColorField
+          label="Accent Color"
+          value={block.accentColor}
+          onChange={(value) => onUpdate({ accentColor: value } as Partial<EmailBlock>)}
+        />
+      )}
+      {'borderColor' in block && (
+        <QuickColorField
+          label="Border Color"
+          value={block.borderColor}
+          onChange={(value) => onUpdate({ borderColor: value } as Partial<EmailBlock>)}
+        />
+      )}
+      {'buttonColor' in block && (
+        <QuickColorField
+          label="Button Color"
+          value={block.buttonColor}
+          onChange={(value) => onUpdate({ buttonColor: value } as Partial<EmailBlock>)}
+        />
+      )}
+      {'buttonTextColor' in block && (
+        <QuickColorField
+          label="Button Text Color"
+          value={block.buttonTextColor}
+          onChange={(value) => onUpdate({ buttonTextColor: value } as Partial<EmailBlock>)}
+        />
+      )}
+      {'barColor' in block && (
+        <QuickColorField
+          label="Bar Color"
+          value={block.barColor}
+          onChange={(value) => onUpdate({ barColor: value } as Partial<EmailBlock>)}
+        />
+      )}
+      {'trackColor' in block && (
+        <QuickColorField
+          label="Track Color"
+          value={block.trackColor}
+          onChange={(value) => onUpdate({ trackColor: value } as Partial<EmailBlock>)}
+        />
+      )}
+      {!hasStyleFields && (
+        <EmptyInspectorState
+          title="No quick style controls"
+          body="This block uses its content editor for most visual settings. Use the Content tab for deeper customization."
+        />
+      )}
+    </div>
+  );
+}
+
+function BlockSettingsQuickPanel({
+  block,
+  onUpdate,
+}: {
+  block: EmailBlock;
+  onUpdate: (partial: Partial<EmailBlock>) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      {'padding' in block && (
+        <Field label="Padding (px)">
+          <input
+            type="number"
+            className={inputCls}
+            min={0}
+            max={120}
+            value={block.padding}
+            onChange={(event) => onUpdate({ padding: Number(event.target.value) } as Partial<EmailBlock>)}
+          />
+        </Field>
+      )}
+      {'height' in block && (
+        <Field label="Height (px)">
+          <input
+            type="number"
+            className={inputCls}
+            min={4}
+            max={200}
+            value={block.height}
+            onChange={(event) => onUpdate({ height: Number(event.target.value) } as Partial<EmailBlock>)}
+          />
+        </Field>
+      )}
+      {'thickness' in block && (
+        <Field label="Divider Thickness (px)">
+          <input
+            type="number"
+            className={inputCls}
+            min={1}
+            max={12}
+            value={block.thickness}
+            onChange={(event) => onUpdate({ thickness: Number(event.target.value) } as Partial<EmailBlock>)}
+          />
+        </Field>
+      )}
+      {'columnCount' in block && (
+        <Field label="Columns">
+          <select
+            className={selectCls}
+            value={block.columnCount ?? 2}
+            onChange={(event) => onUpdate({ columnCount: Number(event.target.value) as 2 | 3 } as Partial<EmailBlock>)}
+          >
+            <option value={2}>2 columns</option>
+            <option value={3}>3 columns</option>
+          </select>
+        </Field>
+      )}
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-2">
+          <span className="font-semibold text-slate-700">Block Type</span>
+          <span className="rounded bg-white px-2 py-1 font-medium text-slate-600">{block.type}</span>
+        </div>
+        <div className="mt-2 break-all text-xs text-slate-400">
+          Block ID: {block.id}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmailWideStylePanel({ template, onUpdateTemplate }: TemplatePanelProps) {
+  return (
+    <InspectorSection
+      title="Email-Wide Style"
+      body="These controls apply to the current builder session and affect the full email canvas."
+    >
+      <QuickColorField
+        label="Background Color"
+        value={template.backgroundColor}
+        onChange={(value) => onUpdateTemplate({ backgroundColor: value })}
+      />
+      <Field label="Font Family">
+        <select
+          className={selectCls}
+          value={template.fontFamily}
+          onChange={(e) => onUpdateTemplate({ fontFamily: e.target.value })}
+        >
+          {FONT_OPTIONS.map((f) => (
+            <option key={f} value={f}>
+              {f.split(',')[0].replace(/'/g, '')}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-700">
+        Changing the font here updates the whole email preview for this builder session.
+      </div>
+    </InspectorSection>
+  );
+}
+
+function EmailWideSettingsPanel({ template, onUpdateTemplate }: TemplatePanelProps) {
+  return (
+    <InspectorSection
+      title="Email-Wide Settings"
+      body="Use these layout controls to keep the overall email compact and consistent."
+    >
+      <Field label="Content Width (px)">
+        <input
+          type="number"
+          className={inputCls}
+          min={320}
+          max={900}
+          step={20}
+          value={template.contentWidth}
+          onChange={(e) => onUpdateTemplate({ contentWidth: Number(e.target.value) })}
+        />
+      </Field>
+      <EmptyInspectorState
+        title="Builder session settings"
+        body="These settings stay with the template state while you work, so you can change email-wide typography and width without deselecting blocks."
+      />
+    </InspectorSection>
+  );
+}
 
 // ─── Per-type editors ─────────────────────────────────────────────────────────
 
@@ -1638,8 +1972,17 @@ function SpacerEditor({
 }
 
 const ALL_PLATFORMS: SocialPlatform[] = [
-  'facebook', 'twitter', 'instagram', 'linkedin', 'youtube',
+  'facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'tiktok',
 ];
+
+const DEFAULT_SOCIAL_URLS: Record<SocialPlatform, string> = {
+  facebook: 'https://facebook.com',
+  twitter: 'https://x.com',
+  instagram: 'https://instagram.com',
+  linkedin: 'https://linkedin.com/company/',
+  youtube: 'https://youtube.com/@',
+  tiktok: 'https://tiktok.com/@',
+};
 
 function SocialEditor({
   block,
@@ -1663,7 +2006,7 @@ function SocialEditor({
 
   const togglePlatform = (platform: SocialPlatform, enabled: boolean) => {
     if (enabled) {
-      onUpdate({ links: [...block.links, { platform, url: `https://${platform}.com` }] });
+      onUpdate({ links: [...block.links, { platform, url: DEFAULT_SOCIAL_URLS[platform] }] });
     } else {
       onUpdate({ links: block.links.filter((l) => l.platform !== platform) });
     }
@@ -1671,60 +2014,180 @@ function SocialEditor({
 
   return (
     <>
-      <div className="space-y-3">
-        {ALL_PLATFORMS.map((platform) => {
-          const link = block.links.find((l) => l.platform === platform);
-          return (
-            <div key={platform} className="space-y-1">
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id={`social-${platform}`}
-                  checked={!!link}
-                  className="accent-green-600"
-                  onChange={(e) => togglePlatform(platform, e.target.checked)}
-                />
-                <label
-                  htmlFor={`social-${platform}`}
-                  className="text-xs font-semibold text-gray-700 capitalize"
-                >
-                  {platform}
-                </label>
-              </div>
-              {link && (
-                <input
-                  type="url"
-                  className={inputCls}
-                  placeholder={`https://${platform}.com/...`}
-                  value={link.url}
-                  onChange={(e) => updateLink(platform, e.target.value)}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <Field label="Alignment">
-        <select
-          className={selectCls}
-          value={block.align}
-          onChange={(e) => onUpdate({ align: e.target.value as SocialBlock['align'] })}
-        >
-          <option value="left">Left</option>
-          <option value="center">Center</option>
-          <option value="right">Right</option>
-        </select>
-      </Field>
-      <Field label="Padding (px)">
+      <Field label="Section Title">
         <input
-          type="number"
+          type="text"
           className={inputCls}
-          min={0}
-          max={100}
-          value={block.padding}
-          onChange={(e) => onUpdate({ padding: Number(e.target.value) })}
+          placeholder="Stay connected"
+          value={block.title ?? ''}
+          onChange={(e) => onUpdate({ title: e.target.value })}
         />
       </Field>
+      <Field label="Intro Text">
+        <textarea
+          className={`${inputCls} min-h-[84px] resize-y`}
+          placeholder="Invite donors to follow your updates and campaign milestones."
+          value={block.intro ?? ''}
+          onChange={(e) => onUpdate({ intro: e.target.value })}
+        />
+      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Style Preset">
+          <select
+            className={selectCls}
+            value={block.variant ?? 'card'}
+            onChange={(e) => onUpdate({ variant: e.target.value as SocialBlock['variant'] })}
+          >
+            <option value="card">Card Grid</option>
+            <option value="pill">Premium Pills</option>
+            <option value="minimal">Minimal Icons</option>
+          </select>
+        </Field>
+        <Field label="Color Mode">
+          <select
+            className={selectCls}
+            value={block.colorMode ?? 'brand'}
+            onChange={(e) => onUpdate({ colorMode: e.target.value as SocialBlock['colorMode'] })}
+          >
+            <option value="brand">Platform Brand</option>
+            <option value="accent">Campaign Accent</option>
+            <option value="neutral">Neutral Surface</option>
+          </select>
+        </Field>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Accent Color">
+          <div className="flex gap-2">
+            <input
+              type="color"
+              className="h-9 w-11 rounded border border-slate-200 cursor-pointer p-0.5"
+              value={block.accentColor ?? '#2563ff'}
+              onChange={(e) => onUpdate({ accentColor: e.target.value })}
+            />
+            <input
+              type="text"
+              className={`${inputCls} flex-1`}
+              value={block.accentColor ?? '#2563ff'}
+              onChange={(e) => onUpdate({ accentColor: e.target.value })}
+            />
+          </div>
+        </Field>
+        <Field label="Text Color">
+          <div className="flex gap-2">
+            <input
+              type="color"
+              className="h-9 w-11 rounded border border-slate-200 cursor-pointer p-0.5"
+              value={block.textColor ?? '#0f172a'}
+              onChange={(e) => onUpdate({ textColor: e.target.value })}
+            />
+            <input
+              type="text"
+              className={`${inputCls} flex-1`}
+              value={block.textColor ?? '#0f172a'}
+              onChange={(e) => onUpdate({ textColor: e.target.value })}
+            />
+          </div>
+        </Field>
+        <Field label="Surface Color">
+          <div className="flex gap-2">
+            <input
+              type="color"
+              className="h-9 w-11 rounded border border-slate-200 cursor-pointer p-0.5"
+              value={block.backgroundColor ?? '#ffffff'}
+              onChange={(e) => onUpdate({ backgroundColor: e.target.value })}
+            />
+            <input
+              type="text"
+              className={`${inputCls} flex-1`}
+              value={block.backgroundColor ?? '#ffffff'}
+              onChange={(e) => onUpdate({ backgroundColor: e.target.value })}
+            />
+          </div>
+        </Field>
+        <Field label="Border Color">
+          <div className="flex gap-2">
+            <input
+              type="color"
+              className="h-9 w-11 rounded border border-slate-200 cursor-pointer p-0.5"
+              value={block.borderColor ?? '#e6e9f2'}
+              onChange={(e) => onUpdate({ borderColor: e.target.value })}
+            />
+            <input
+              type="text"
+              className={`${inputCls} flex-1`}
+              value={block.borderColor ?? '#e6e9f2'}
+              onChange={(e) => onUpdate({ borderColor: e.target.value })}
+            />
+          </div>
+        </Field>
+      </div>
+      <Field label="Platforms">
+        <div className="space-y-2">
+          {ALL_PLATFORMS.map((platform) => {
+            const link = block.links.find((l) => l.platform === platform);
+            return (
+              <div key={platform} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id={`social-${platform}`}
+                    checked={!!link}
+                    className="accent-blue-600"
+                    onChange={(e) => togglePlatform(platform, e.target.checked)}
+                  />
+                  <label
+                    htmlFor={`social-${platform}`}
+                    className="text-sm font-semibold text-slate-700 capitalize"
+                  >
+                    {platform}
+                  </label>
+                </div>
+                {link ? (
+                  <input
+                    type="url"
+                    className={`${inputCls} mt-2`}
+                    placeholder={`${DEFAULT_SOCIAL_URLS[platform]}...`}
+                    value={link.url}
+                    onChange={(e) => updateLink(platform, e.target.value)}
+                  />
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      </Field>
+      <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+        <input
+          type="checkbox"
+          checked={block.showLabels !== false}
+          className="accent-blue-600"
+          onChange={(e) => onUpdate({ showLabels: e.target.checked })}
+        />
+        <span className="font-medium">Show platform labels</span>
+      </label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Alignment">
+          <select
+            className={selectCls}
+            value={block.align}
+            onChange={(e) => onUpdate({ align: e.target.value as SocialBlock['align'] })}
+          >
+            <option value="left">Left</option>
+            <option value="center">Center</option>
+            <option value="right">Right</option>
+          </select>
+        </Field>
+        <Field label="Padding (px)">
+          <input
+            type="number"
+            className={inputCls}
+            min={0}
+            max={100}
+            value={block.padding}
+            onChange={(e) => onUpdate({ padding: Number(e.target.value) })}
+          />
+        </Field>
+      </div>
     </>
   );
 }
@@ -1829,6 +2292,9 @@ function ColumnsEditor({
 // ─── Template Settings ────────────────────────────────────────────────────────
 
 const FONT_OPTIONS = [
+  'Inter, Arial, Helvetica, sans-serif',
+  'Segoe UI, Arial, Helvetica, sans-serif',
+  'Helvetica Neue, Arial, sans-serif',
   'Arial, Helvetica, sans-serif',
   'Georgia, \'Times New Roman\', serif',
   'Verdana, Geneva, sans-serif',
@@ -1838,60 +2304,28 @@ const FONT_OPTIONS = [
 
 interface TemplateSettingsProps {
   template: EmailTemplate;
+  activeTab: InspectorTab;
   onUpdateTemplate: (partial: Partial<EmailTemplate>) => void;
 }
 
 /** Shown in the right panel when no block is selected. */
-function TemplateSettings({ template, onUpdateTemplate }: TemplateSettingsProps) {
+function TemplateSettings({ template, activeTab, onUpdateTemplate }: TemplateSettingsProps) {
+  if (activeTab === 'content') {
+    return (
+      <EmptyInspectorState
+        title="Select a block to edit content"
+        body="Choose any block on the canvas to update its copy. Template-wide style and layout controls are available in the Style and Settings tabs."
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <p className="text-xs text-gray-400 text-center pt-1">
-        Click a block to edit it, or adjust global settings below.
-      </p>
-      <hr className="border-gray-200" />
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-        Template Settings
-      </p>
-      <Field label="Background Color">
-        <div className="flex gap-2">
-          <input
-            type="color"
-            className="h-8 w-10 rounded border border-gray-200 cursor-pointer p-0.5"
-            value={template.backgroundColor}
-            onChange={(e) => onUpdateTemplate({ backgroundColor: e.target.value })}
-          />
-          <input
-            type="text"
-            className={`${inputCls} flex-1`}
-            value={template.backgroundColor}
-            onChange={(e) => onUpdateTemplate({ backgroundColor: e.target.value })}
-          />
-        </div>
-      </Field>
-      <Field label="Content Width (px)">
-        <input
-          type="number"
-          className={inputCls}
-          min={320}
-          max={900}
-          step={20}
-          value={template.contentWidth}
-          onChange={(e) => onUpdateTemplate({ contentWidth: Number(e.target.value) })}
-        />
-      </Field>
-      <Field label="Font Family">
-        <select
-          className={selectCls}
-          value={template.fontFamily}
-          onChange={(e) => onUpdateTemplate({ fontFamily: e.target.value })}
-        >
-          {FONT_OPTIONS.map((f) => (
-            <option key={f} value={f}>
-              {f.split(',')[0].replace(/'/g, '')}
-            </option>
-          ))}
-        </select>
-      </Field>
+      {activeTab === 'style' ? (
+        <EmailWideStylePanel template={template} onUpdateTemplate={onUpdateTemplate} />
+      ) : (
+        <EmailWideSettingsPanel template={template} onUpdateTemplate={onUpdateTemplate} />
+      )}
     </div>
   );
 }
@@ -1929,6 +2363,8 @@ export default function BlockEditor({
   aiGeneratingBlockId,
   embedded = false,
 }: Props) {
+  const [activeTab, setActiveTab] = useState<InspectorTab>('content');
+
   /* Stable update helper so child editors don't need the block id. */
   const update = useCallback(
     (partial: Partial<EmailBlock>) => {
@@ -1940,8 +2376,29 @@ export default function BlockEditor({
   const content = (
     <>
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-200 bg-white shrink-0">
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+      <div className="px-4 py-3 border-b border-slate-200 bg-white shrink-0">
+        <div className="mb-3 flex gap-6 border-b border-slate-200 pb-2 text-sm font-semibold">
+          {([
+            ['content', 'Content'],
+            ['style', 'Style'],
+            ['settings', 'Settings'],
+          ] as const).map(([tabKey, label]) => (
+            <button
+              key={tabKey}
+              type="button"
+              onClick={() => setActiveTab(tabKey)}
+              className={[
+                'pb-2 transition-colors',
+                activeTab === tabKey
+                  ? 'border-b-2 border-blue-600 text-blue-600'
+                  : 'text-slate-500 hover:text-slate-700',
+              ].join(' ')}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
           {selectedBlock
             ? `Edit: ${selectedBlock.type.charAt(0).toUpperCase() + selectedBlock.type.slice(1)}`
             : 'Properties'}
@@ -1949,13 +2406,14 @@ export default function BlockEditor({
       </div>
 
       {/* Form body */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-white">
         {!selectedBlock ? (
           <TemplateSettings
             template={template}
+            activeTab={activeTab}
             onUpdateTemplate={onUpdateTemplate}
           />
-        ) : (
+        ) : activeTab === 'content' ? (
           <>
             {selectedBlock.type === 'text' && (
               <TextEditor
@@ -2142,6 +2600,16 @@ export default function BlockEditor({
               />
             )}
           </>
+        ) : activeTab === 'style' ? (
+          <>
+            <BlockStyleQuickPanel block={selectedBlock} onUpdate={update} />
+            <EmailWideStylePanel template={template} onUpdateTemplate={onUpdateTemplate} />
+          </>
+        ) : (
+          <>
+            <BlockSettingsQuickPanel block={selectedBlock} onUpdate={update} />
+            <EmailWideSettingsPanel template={template} onUpdateTemplate={onUpdateTemplate} />
+          </>
         )}
       </div>
     </>
@@ -2152,7 +2620,7 @@ export default function BlockEditor({
   }
 
   return (
-    <aside className="w-[300px] shrink-0 bg-white border-l border-gray-200 flex flex-col overflow-hidden">
+    <aside className="w-[300px] shrink-0 bg-white border-l border-slate-200 flex flex-col overflow-hidden">
       {content}
     </aside>
   );
