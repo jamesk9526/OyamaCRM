@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import TopBar from "./TopBar";
 import Sidebar from "./Sidebar";
@@ -133,6 +133,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [dockInsetPx, setDockInsetPx] = useState(0);
   const [compactDesktop, setCompactDesktop] = useState(false);
   const [shellScrolled, setShellScrolled] = useState(false);
+  const scrollFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (loading || !user) return;
@@ -223,15 +224,29 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    let latestScrollTop = 0;
+
     function handleScroll(event: Event) {
       const target = event.target as Element | null;
-      if (typeof target?.scrollTop === "number") {
-        setShellScrolled(target.scrollTop > 24);
+      if (!(target instanceof HTMLElement) || !target.closest('[data-crm-scroll-root="true"]')) return;
+      if (typeof target.scrollTop === "number") {
+        latestScrollTop = target.scrollTop;
+        if (scrollFrameRef.current !== null) return;
+        scrollFrameRef.current = window.requestAnimationFrame(() => {
+          scrollFrameRef.current = null;
+          setShellScrolled((current) => (current ? latestScrollTop > 8 : latestScrollTop > 42));
+        });
       }
     }
 
     document.addEventListener("scroll", handleScroll, true);
-    return () => document.removeEventListener("scroll", handleScroll, true);
+    return () => {
+      document.removeEventListener("scroll", handleScroll, true);
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
+        scrollFrameRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -275,24 +290,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const contentTopPaddingClass = donorMegaMenuEnabled
     ? shellScrolled
       ? "pt-28 xl:pt-32"
-      : "pt-28 xl:pt-[11.25rem]"
+      : "pt-28 xl:pt-40"
     : shellScrolled
       ? "pt-16 xl:pt-20"
-      : "pt-16 xl:pt-[8.25rem]";
+      : "pt-16 xl:pt-28";
 
   return (
     <div
-      className="flex h-[100dvh] min-h-[100svh] flex-col crm-page-surface transition-[padding] duration-300"
+      className="flex h-[100dvh] min-h-[100svh] flex-col crm-page-surface transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
       style={dockInsetPx > 0 ? { paddingRight: `${dockInsetPx}px` } : undefined}
     >
-      <TopBar />
-      {donorMegaMenuEnabled ? <DonorMegaMenu donorAccentTone={workspaceSettings.donorAccentTone} /> : null}
-      <div className={`relative flex min-w-0 flex-1 overflow-hidden bg-white transition-[padding] duration-300 ${contentTopPaddingClass}`}>
+      <TopBar scrolled={shellScrolled} />
+      {donorMegaMenuEnabled ? <DonorMegaMenu donorAccentTone={workspaceSettings.donorAccentTone} scrolled={shellScrolled} /> : null}
+      <div className={`relative flex min-w-0 flex-1 overflow-hidden bg-white transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${contentTopPaddingClass}`}>
         {donorSidebarDesktopEnabled ? (
           <div className="hidden md:flex h-full">
             <Sidebar
               donorAccentTone={workspaceSettings.donorAccentTone}
-              onSwitchToMegaMenu={() => void updateDonorLayout("mega")}
             />
           </div>
         ) : null}
@@ -308,7 +322,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         ) : null}
 
         {/* ErrorBoundary catches page-level render errors without crashing the whole shell */}
-        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto crm-page-surface p-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] xl:p-7 xl:pb-7 min-[1440px]:p-8 2xl:p-9">
+        <main data-crm-scroll-root="true" className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto crm-page-surface p-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] xl:p-7 xl:pb-7 min-[1440px]:p-8 2xl:p-9">
 
           <ErrorBoundary>
             <div className="min-w-0 max-w-full">{children}</div>

@@ -748,8 +748,12 @@ function GlobalSearch({
   );
 }
 
+interface TopBarProps {
+  scrolled?: boolean;
+}
+
 /** Full-width top navigation bar — spans the entire viewport width. */
-export default function TopBar() {
+export default function TopBar({ scrolled = false }: TopBarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, signOut } = useAuth();
@@ -771,7 +775,6 @@ export default function TopBar() {
   const [mobileQuickOpen, setMobileQuickOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [compactActionsOpen, setCompactActionsOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
   const [messengerOpen, setMessengerOpen] = useState(false);
   const [messengerUnread, setMessengerUnread] = useState(0);
   const [incomingMsgToast, setIncomingMsgToast] = useState<{ senderName: string; senderInitials: string; colorClass: string; body: string; threadId: string } | null>(null);
@@ -780,18 +783,6 @@ export default function TopBar() {
   const reactiveGlowFrameRef = useRef<number | null>(null);
   const reactiveGlowTimeoutRef = useRef<number | null>(null);
 
-  // Shrink only from the CRM page scroll root; dropdown/list scrolling should not jitter the shell.
-  useEffect(() => {
-    function handleScroll(e: Event) {
-      const target = e.target as Element | null;
-      if (!(target instanceof HTMLElement) || !target.closest('[data-crm-scroll-root="true"]')) return;
-      if (typeof target.scrollTop === "number") {
-        setScrolled((current) => (current ? target.scrollTop > 10 : target.scrollTop > 34));
-      }
-    }
-    document.addEventListener("scroll", handleScroll, true);
-    return () => document.removeEventListener("scroll", handleScroll, true);
-  }, []);
   const reportingModeChangedTimeoutRef = useRef<number | null>(null);
   const desktopNotificationsRef = useRef<HTMLDivElement | null>(null);
 
@@ -1289,8 +1280,8 @@ export default function TopBar() {
           </div>
         </>
       )}
-      <header data-topbar-root="true" className={`fixed left-0 right-0 top-0 isolate z-20 h-16 w-full shrink-0 border-b border-slate-200/80 bg-white/96 backdrop-blur-xl transition-[height,box-shadow,background-color,border-color] duration-300 xl:border-b-0 ${scrolled ? "shadow-[0_10px_28px_rgba(15,23,42,0.075)] xl:h-20" : "shadow-none xl:h-[132px]"}`} style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
-        <div aria-hidden="true" className={`pointer-events-none absolute left-0 top-0 z-10 hidden transition-[height,width] duration-300 xl:block ${scrolled ? "h-[94px] w-[424px]" : "h-[154px] w-[584px]"}`}>
+      <header data-topbar-root="true" className={`fixed left-0 right-0 top-0 isolate z-20 h-16 w-full shrink-0 border-b border-slate-200/80 bg-white/96 backdrop-blur-xl transition-[height,box-shadow,background-color,border-color] ${shellMotionClass} xl:border-b-0 ${scrolled ? "shadow-[0_10px_28px_rgba(15,23,42,0.075)] xl:h-20" : "shadow-none xl:h-28"}`} style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
+        <div aria-hidden="true" className={`pointer-events-none absolute left-0 top-0 z-10 hidden transition-[height,width] ${shellMotionClass} xl:block ${scrolled ? "h-[94px] w-[424px]" : "h-[136px] w-[548px]"}`}>
           <svg className="h-full w-full" viewBox="0 0 590 156" preserveAspectRatio="none">
             <defs>
               <radialGradient id="oyama-brand-glow" cx="16%" cy="20%" r="48%">
@@ -1305,7 +1296,7 @@ export default function TopBar() {
               </linearGradient>
             </defs>
             <path
-              d="M0 0H590C533 10 500 38 467 78C424 130 367 150 276 150C184 150 104 124 31 130C15 131 5 137 0 147Z"
+              d="M0 0H590C552 7 521 25 493 55C447 105 399 135 314 144C220 154 130 129 43 132C19 133 7 140 0 150Z"
               fill="url(#oyama-brand-scoop)"
               stroke="#0b6b5c"
               strokeWidth={2.25}
@@ -1313,31 +1304,31 @@ export default function TopBar() {
               vectorEffect="non-scaling-stroke"
             />
             <path
-              d="M0 0H590C533 10 500 38 467 78C424 130 367 150 276 150C184 150 104 124 31 130C15 131 5 137 0 147Z"
+              d="M0 0H590C552 7 521 25 493 55C447 105 399 135 314 144C220 154 130 129 43 132C19 133 7 140 0 150Z"
               fill="url(#oyama-brand-glow)"
             />
           </svg>
         </div>
-        <div aria-hidden="true" className={`pointer-events-none absolute bottom-0 right-0 z-0 hidden h-px bg-slate-200/55 transition-[left,opacity] duration-300 xl:block ${scrolled ? "left-[280px] opacity-100" : "left-[520px] opacity-70"}`} />
+        <div aria-hidden="true" className={`pointer-events-none absolute bottom-0 right-0 z-0 hidden h-px bg-slate-200/55 transition-[left,opacity] ${shellMotionClass} xl:block ${scrolled ? "left-[280px] opacity-100" : "left-[480px] opacity-70"}`} />
         <div
           aria-hidden="true"
-          className={`absolute bottom-0 left-[280px] right-0 h-px pointer-events-none hidden transition-opacity duration-300 xl:block ${moduleAccentClass} ${topBarReactiveGlow ? "opacity-70" : "opacity-0"}`}
+          className={`absolute bottom-0 left-[280px] right-0 h-px pointer-events-none hidden transition-opacity ${shellMotionClass} xl:block ${moduleAccentClass} ${topBarReactiveGlow ? "opacity-70" : "opacity-0"}`}
         />
 
         <div className="relative z-20 hidden h-full w-[520px] xl:block">
-          <Link href={homeHref} className={`absolute left-8 flex shrink-0 items-center gap-2.5 rounded-2xl px-1 py-0.5 transition-[top,opacity] duration-300 hover:opacity-90 ${scrolled ? "top-3" : "top-6"}`} aria-label="Go to workspace home">
+          <Link href={homeHref} className={`absolute left-8 flex shrink-0 items-center gap-2.5 rounded-2xl px-1 py-0.5 transition-[top,opacity] ${shellMotionClass} hover:opacity-90 ${scrolled ? "top-3" : "top-5"}`} aria-label="Go to workspace home">
             <Image
               src="/branding/oyama-crm-logo-final.png"
               alt="OyamaCRM"
               width={260}
               height={74}
-              className={`object-contain object-left transition-[height,width,opacity] duration-300 ${scrolled ? "h-9 w-[128px]" : "h-12 w-[178px]"}`}
+              className={`object-contain object-left transition-[height,width,opacity] ${shellMotionClass} ${scrolled ? "h-9 w-[128px]" : "h-11 w-[166px]"}`}
               priority
             />
           </Link>
 
           {workspaceSettings.showModuleSwitcher && (
-            <div className={`absolute transition-[left,top] duration-300 ${scrolled ? "left-[176px] top-[14px]" : "left-[156px] top-[76px]"}`}>
+            <div className={`absolute transition-[left,top] ${shellMotionClass} ${scrolled ? "left-[176px] top-[14px]" : "left-[152px] top-[62px]"}`}>
               <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled={scrolled} />
             </div>
           )}
@@ -1526,7 +1517,7 @@ export default function TopBar() {
           </div>
         </div>
 
-        <div className={`absolute inset-y-0 left-0 right-0 z-10 hidden min-w-0 items-center pr-5 transition-[padding,gap] duration-300 xl:flex 2xl:pr-8 ${scrolled ? "gap-3 pl-[360px] 2xl:pl-[382px]" : "gap-4 pl-[470px] 2xl:gap-5 2xl:pl-[512px]"}`}>
+        <div className={`absolute inset-y-0 left-0 right-0 z-10 hidden min-w-0 items-center pr-5 transition-[padding,gap] ${shellMotionClass} xl:flex 2xl:pr-8 ${scrolled ? "gap-3 pl-[360px] 2xl:pl-[382px]" : "gap-4 pl-[438px] 2xl:gap-5 2xl:pl-[476px]"}`}>
           {/* ── Center command search trigger ── */}
           <div className="flex min-w-0 flex-1 justify-center">
             <button
@@ -1540,7 +1531,7 @@ export default function TopBar() {
                 setMessengerOpen(false);
                 setMobileSearchOpen(true);
               }}
-              className={`group flex w-full items-center justify-between gap-3 rounded-[19px] border border-slate-200/85 bg-white/98 px-4 text-slate-500 shadow-[0_8px_22px_rgba(15,23,42,0.055),inset_0_1px_0_rgba(255,255,255,0.92)] transition-all duration-300 hover:-translate-y-px hover:border-emerald-200 hover:shadow-[0_14px_30px_rgba(15,23,42,0.08)] hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 ${scrolled ? "h-11 max-w-[520px]" : "h-[50px] max-w-[560px] 2xl:max-w-[600px]"}`}
+              className={`group flex w-full items-center justify-between gap-3 rounded-[19px] border border-slate-200/85 bg-white/98 px-4 text-slate-500 shadow-[0_8px_22px_rgba(15,23,42,0.055),inset_0_1px_0_rgba(255,255,255,0.92)] transition-all ${shellMotionClass} hover:-translate-y-px hover:border-emerald-200 hover:shadow-[0_14px_30px_rgba(15,23,42,0.08)] hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 ${scrolled ? "h-11 max-w-[520px]" : "h-[50px] max-w-[560px] 2xl:max-w-[600px]"}`}
             >
               <span className="flex min-w-0 items-center gap-2">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100/90 text-slate-500 transition-colors group-hover:bg-emerald-50 group-hover:text-emerald-700">
@@ -1972,14 +1963,14 @@ function ModuleSwitcher({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`group flex items-center rounded-[20px] border ${switcherButtonTone} text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md transition-all duration-200 hover:border-emerald-400/40 hover:bg-white/20 ${scrolled ? "gap-1.5 px-1.5 py-1 xl:min-w-[152px] xl:gap-2 xl:rounded-2xl xl:px-2.5 xl:py-1.5" : "gap-2 px-2.5 py-1.5 xl:min-w-[184px] xl:gap-2.5 xl:rounded-[18px] xl:px-3 xl:py-2"}`}
+        className={`group flex items-center rounded-[20px] border ${switcherButtonTone} text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-emerald-400/40 hover:bg-white/20 ${scrolled ? "gap-1.5 px-1.5 py-1 xl:min-w-[152px] xl:gap-2 xl:rounded-2xl xl:px-2.5 xl:py-1.5" : "gap-2 px-2.5 py-1.5 xl:min-w-[184px] xl:gap-2.5 xl:rounded-[18px] xl:px-3 xl:py-2"}`}
       >
-        <span className={`flex items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/15 text-emerald-200 transition-all duration-200 ${scrolled ? "h-6 w-6 xl:h-7 xl:w-7" : "h-7 w-7 xl:h-8 xl:w-8"}`}>
+        <span className={`flex items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/15 text-emerald-200 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${scrolled ? "h-6 w-6 xl:h-7 xl:w-7" : "h-7 w-7 xl:h-8 xl:w-8"}`}>
           {current.icon}
         </span>
         <div className="hidden min-[1180px]:block text-left leading-tight min-w-0 lg:block">
-          <p className={`uppercase text-white/60 transition-all duration-200 ${scrolled ? "hidden" : "text-[9px] tracking-[0.16em]"}`}>Workspace</p>
-          <p className={`truncate font-semibold text-white transition-[font-size] duration-200 ${scrolled ? "text-xs" : "text-[13px]"}`}>{current.label}</p>
+          <p className={`overflow-hidden uppercase text-white/60 transition-[max-height,opacity,letter-spacing,font-size] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${scrolled ? "max-h-0 text-[0px] opacity-0" : "max-h-4 text-[9px] tracking-[0.16em] opacity-100"}`}>Workspace</p>
+          <p className={`truncate font-semibold text-white transition-[font-size] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${scrolled ? "text-xs" : "text-[13px]"}`}>{current.label}</p>
         </div>
         <svg className={`h-3.5 w-3.5 text-slate-400 transition-transform group-hover:text-emerald-200 ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
@@ -2080,6 +2071,10 @@ function UserMenu({
   function runProfileAction(action: () => void) {
     setOpen(false);
     action();
+  }
+
+  function switchDonorNavigationLayout(layout: "mega" | "sidebar") {
+    window.dispatchEvent(new CustomEvent("crm:set-donor-shell-layout", { detail: { layout } }));
   }
 
   const avatarCls = moduleKey === "compassion"
@@ -2198,6 +2193,18 @@ function UserMenu({
                   >
                     <span className="min-w-0 truncate">Reporting</span>
                     <span className="shrink-0 rounded-full bg-white/80 px-1.5 py-0.5 text-[10px]">{reportingWindow.label}</span>
+                  </button>
+                ) : null}
+                {moduleKey === "donor" ? (
+                  <button
+                    type="button"
+                    onClick={() => runProfileAction(() => switchDonorNavigationLayout("mega"))}
+                    className="flex min-h-10 items-center gap-2 rounded-xl border border-transparent bg-white px-2.5 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                  >
+                    <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16M8 6v12" />
+                    </svg>
+                    <span className="min-w-0 truncate">Top Nav</span>
                   </button>
                 ) : null}
               </div>

@@ -217,7 +217,7 @@ const VARIANT_STYLES: Record<CrmSidebarVariant, SidebarVariantStyles> = {
   },
 };
 
-const SIDEBAR_SCROLLBAR_CLASS = "[scrollbar-width:thin] [scrollbar-color:rgba(148,163,184,0.55)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300/70 [&::-webkit-scrollbar-thumb:hover]:bg-slate-400/80";
+const SIDEBAR_SCROLLBAR_CLASS = "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden";
 
 /** Returns true when the item should be shown for the current role. */
 export function isSidebarItemVisible(item: CrmSidebarItem, userRole?: string | null): boolean {

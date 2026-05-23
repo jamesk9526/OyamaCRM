@@ -9,7 +9,7 @@ import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { usePlugins } from "@/app/components/plugins/PluginProvider";
-import { getDonorAccentTheme, type DonorAccentTone } from "@/app/lib/workspace-settings";
+import { type DonorAccentTone } from "@/app/lib/workspace-settings";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -267,17 +267,71 @@ function NavGlyph({ id }: { id: string }) {
 
 interface DonorMegaMenuProps {
   donorAccentTone?: DonorAccentTone;
+  scrolled?: boolean;
 }
 
-export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMenuProps) {
+interface LightAccentTheme {
+  navActive: string;
+  navRing: string;
+  navText: string;
+  navTextStrong: string;
+  iconTint: string;
+  iconTintSoft: string;
+  iconBorder: string;
+  badge: string;
+}
+
+const LIGHT_ACCENT_THEMES: Record<DonorAccentTone, LightAccentTheme> = {
+  green: {
+    navActive: "bg-emerald-50",
+    navRing: "ring-1 ring-emerald-200/80 border-emerald-200",
+    navText: "text-emerald-800",
+    navTextStrong: "text-emerald-950",
+    iconTint: "text-emerald-700",
+    iconTintSoft: "bg-emerald-50",
+    iconBorder: "border-emerald-200",
+    badge: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100",
+  },
+  blue: {
+    navActive: "bg-blue-50",
+    navRing: "ring-1 ring-blue-200/80 border-blue-200",
+    navText: "text-blue-800",
+    navTextStrong: "text-blue-950",
+    iconTint: "text-blue-700",
+    iconTintSoft: "bg-blue-50",
+    iconBorder: "border-blue-200",
+    badge: "bg-blue-50 text-blue-700 ring-1 ring-blue-100",
+  },
+  teal: {
+    navActive: "bg-teal-50",
+    navRing: "ring-1 ring-teal-200/80 border-teal-200",
+    navText: "text-teal-800",
+    navTextStrong: "text-teal-950",
+    iconTint: "text-teal-700",
+    iconTintSoft: "bg-teal-50",
+    iconBorder: "border-teal-200",
+    badge: "bg-teal-50 text-teal-700 ring-1 ring-teal-100",
+  },
+  amber: {
+    navActive: "bg-amber-50",
+    navRing: "ring-1 ring-amber-200/80 border-amber-200",
+    navText: "text-amber-800",
+    navTextStrong: "text-amber-950",
+    iconTint: "text-amber-700",
+    iconTintSoft: "bg-amber-50",
+    iconBorder: "border-amber-200",
+    badge: "bg-amber-50 text-amber-700 ring-1 ring-amber-100",
+  },
+};
+
+export default function DonorMegaMenu({ donorAccentTone = "green", scrolled = false }: DonorMegaMenuProps) {
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [mobileSectionId, setMobileSectionId] = useState<string | null>(null);
   const [dropdownAnchor, setDropdownAnchor] = useState<DOMRect | null>(null);
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const { qbEnabled } = usePlugins();
-  const [scrolled, setScrolled] = useState(false);
-  const accentTheme = getDonorAccentTheme(donorAccentTone);
+  const accentTheme = LIGHT_ACCENT_THEMES[donorAccentTone] ?? LIGHT_ACCENT_THEMES.green;
 
   // Build the full nav sections, injecting QB Sync into Fundraising when enabled.
   const navSections: NavSection[] = useMemo(() => BASE_NAV_SECTIONS.map((section) => {
@@ -295,18 +349,6 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
   // Track client mount for portal rendering.
   useEffect(() => {
     setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    function handleScroll(event: Event) {
-      const target = event.target as Element | null;
-      if (typeof target?.scrollTop === "number") {
-        setScrolled(target.scrollTop > 24);
-      }
-    }
-
-    document.addEventListener("scroll", handleScroll, true);
-    return () => document.removeEventListener("scroll", handleScroll, true);
   }, []);
 
   // Close on route change.
@@ -386,7 +428,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
     <>
     <nav
       aria-label="DonorCRM mobile workspace navigation"
-      className="fixed left-0 right-0 top-16 z-[19] flex h-12 items-center gap-1 overflow-x-auto border-b border-slate-800/80 bg-slate-950/96 px-2 shadow-[0_12px_30px_rgba(2,6,23,0.28)] backdrop-blur-md transition-[top] duration-200 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
+      className="fixed left-0 right-0 top-16 z-[19] flex h-12 items-center gap-1 overflow-x-auto border-b border-slate-200/80 bg-white/95 px-2 shadow-[0_10px_24px_rgba(15,23,42,0.055)] backdrop-blur-xl transition-[top] duration-200 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
     >
       {navSections.map((section) => {
         const active = isSectionActive(section);
@@ -399,7 +441,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
               className={`flex h-9 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition-colors ${
                 active
                   ? `${accentTheme.navActive} ${accentTheme.navText} ${accentTheme.navRing}`
-                  : "text-slate-300 hover:bg-white/8 hover:text-white"
+                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
               }`}
             >
               <NavGlyph id={section.id} />
@@ -418,7 +460,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
             className={`flex h-9 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition-colors ${
               active || mobileSectionId === section.id
                 ? `${accentTheme.navActive} ${accentTheme.navText} ${accentTheme.navRing}`
-                : "text-slate-300 hover:bg-white/8 hover:text-white"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
             }`}
           >
             <NavGlyph id={section.id} />
@@ -431,7 +473,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
 
     <nav
       aria-label="DonorCRM primary navigation"
-      className={`fixed left-0 right-0 top-16 z-[19] hidden h-12 items-center gap-1 overflow-x-auto border-b border-slate-800/80 bg-slate-950/96 px-3 shadow-[0_12px_30px_rgba(2,6,23,0.28)] backdrop-blur-md transition-[top] duration-300 [scrollbar-width:none] md:flex [&::-webkit-scrollbar]:hidden ${scrolled ? "xl:top-20" : "xl:top-[132px]"}`}
+      className={`fixed left-0 right-0 top-16 z-[19] hidden h-12 items-center gap-1 overflow-x-auto border-b border-slate-200/80 bg-white/92 px-3 shadow-[0_10px_26px_rgba(15,23,42,0.055)] backdrop-blur-xl transition-[top] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] [scrollbar-width:none] md:flex [&::-webkit-scrollbar]:hidden ${scrolled ? "xl:top-20" : "xl:top-28"}`}
     >
       {navSections.map((section) => {
         const active = isSectionActive(section);
@@ -446,7 +488,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
               className={`relative flex h-9 shrink-0 items-center gap-2 rounded-xl px-3.5 text-sm font-semibold transition-colors duration-150 ${
                 active
                   ? `${accentTheme.navActive} ${accentTheme.navText} ${accentTheme.navRing}`
-                  : "text-slate-300 hover:bg-white/8 hover:text-white"
+                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
               }`}
             >
               <NavGlyph id={section.id} />
@@ -475,7 +517,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
               className={`relative my-1.5 flex h-9 shrink-0 items-center gap-2 rounded-xl px-3.5 text-sm font-semibold transition-colors duration-150 ${
                 active || open
                   ? `${accentTheme.navActive} ${accentTheme.navText} ${accentTheme.navRing}`
-                  : "text-slate-300 hover:bg-white/8 hover:text-white"
+                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
               }`}
             >
               <NavGlyph id={section.id} />
@@ -494,7 +536,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
           setOpenSection(null);
           setDropdownAnchor(null);
         }}
-        className={`ml-auto flex h-8 shrink-0 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-colors ${accentTheme.iconBorder} ${accentTheme.iconTintSoft} ${accentTheme.iconTint} hover:bg-white/10`}
+        className={`ml-auto flex h-8 shrink-0 items-center gap-2 rounded-lg border bg-white px-3 text-xs font-semibold shadow-sm transition-colors ${accentTheme.iconBorder} ${accentTheme.iconTintSoft} ${accentTheme.iconTint} hover:bg-slate-50`}
         title="Switch to sidebar navigation"
         aria-label="Switch to sidebar navigation"
       >
@@ -511,24 +553,24 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
           type="button"
           aria-label={`Close ${activeMobileSection.label} navigation`}
           onClick={() => setMobileSectionId(null)}
-          className="absolute inset-0 bg-slate-950/45 backdrop-blur-[2px]"
+          className="absolute inset-0 bg-slate-950/25 backdrop-blur-[2px]"
         />
-        <div className="absolute inset-x-2 bottom-2 flex max-h-[82dvh] flex-col overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-950 shadow-[0_28px_80px_rgba(2,6,23,0.42)] pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-800 bg-[radial-gradient(circle_at_15%_0%,rgba(16,185,129,0.18),transparent_34%),linear-gradient(90deg,#020617,#0f172a)] px-4 py-3">
+        <div className="absolute inset-x-2 bottom-2 flex max-h-[82dvh] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.22)] pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 bg-[radial-gradient(circle_at_10%_0%,rgba(16,185,129,0.09),transparent_34%),linear-gradient(90deg,#ffffff,#f8fafc)] px-4 py-3">
             <div className="flex min-w-0 items-center gap-3">
               <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm ${accentTheme.iconBorder} ${accentTheme.iconTintSoft} ${accentTheme.iconTint}`}>
                 <NavGlyph id={activeMobileSection.id} />
               </span>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-white">{activeMobileSection.label}</p>
-                <p className="truncate text-xs text-slate-400">Choose a donor workspace or workflow.</p>
+                <p className="truncate text-sm font-semibold text-slate-950">{activeMobileSection.label}</p>
+                <p className="truncate text-xs text-slate-500">Choose a donor workspace or workflow.</p>
               </div>
             </div>
             <button
               type="button"
               aria-label="Close menu"
               onClick={() => setMobileSectionId(null)}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-white/5 text-slate-300"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -548,23 +590,23 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
                   className={`group flex items-start gap-3 rounded-xl border px-3 py-3 transition-colors ${
                     itemActive
                       ? `${accentTheme.navRing} ${accentTheme.navActive} ${accentTheme.navText}`
-                      : "border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-white/8 hover:text-white"
+                      : "border-slate-100 text-slate-700 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-950"
                   }`}
                 >
-                  <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${itemActive ? `${accentTheme.iconTintSoft} ${accentTheme.iconTint}` : "bg-white/8 text-slate-400 group-hover:bg-white/10"}`}>
+                  <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${itemActive ? `${accentTheme.iconTintSoft} ${accentTheme.iconTint}` : "bg-slate-50 text-slate-400 group-hover:bg-white"}`}>
                     <NavGlyph id={activeMobileSection.id} />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className={`flex items-center gap-1.5 text-sm font-semibold leading-tight ${itemActive ? accentTheme.navTextStrong : ""}`}>
                       <span className="truncate">{item.label}</span>
                       {item.badge ? (
-                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${accentTheme.iconTintSoft} ${accentTheme.iconTint}`}>
+                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${accentTheme.badge}`}>
                           {item.badge}
                         </span>
                       ) : null}
                     </span>
                     {item.description ? (
-                      <span className="mt-0.5 block text-xs leading-snug text-slate-400">{item.description}</span>
+                      <span className="mt-0.5 block text-xs leading-snug text-slate-500">{item.description}</span>
                     ) : null}
                   </span>
                 </Link>
@@ -596,17 +638,17 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
           id={portalId}
           role="menu"
           aria-label={`${activeSectionForPortal.label} navigation`}
-          className="overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-950 shadow-[0_28px_80px_rgba(2,6,23,0.42)]"
+          className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.18)]"
         >
           {/* Panel header */}
-          <div className="border-b border-slate-800 bg-[radial-gradient(circle_at_15%_0%,rgba(16,185,129,0.18),transparent_34%),linear-gradient(90deg,#020617,#0f172a)] px-4 py-3">
+          <div className="border-b border-slate-100 bg-[radial-gradient(circle_at_15%_0%,rgba(16,185,129,0.09),transparent_34%),linear-gradient(90deg,#ffffff,#f8fafc)] px-4 py-3">
             <div className="flex items-center gap-3">
               <span className={`flex h-9 w-9 items-center justify-center rounded-xl border shadow-sm ${accentTheme.iconBorder} ${accentTheme.iconTintSoft} ${accentTheme.iconTint}`}>
                 <NavGlyph id={activeSectionForPortal.id} />
               </span>
               <div>
-                <p className="text-sm font-semibold text-white">{activeSectionForPortal.label}</p>
-                <p className="text-xs text-slate-400">Open the canonical donor workspace or workflow.</p>
+                <p className="text-sm font-semibold text-slate-950">{activeSectionForPortal.label}</p>
+                <p className="text-xs text-slate-500">Open the canonical donor workspace or workflow.</p>
               </div>
             </div>
           </div>
@@ -627,10 +669,10 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
                       className={`group flex items-start gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
                         itemActive
                           ? `${accentTheme.navRing} ${accentTheme.navActive} ${accentTheme.navText}`
-                          : "border-transparent text-slate-300 hover:border-slate-700 hover:bg-white/8 hover:text-white"
+                          : "border-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-950"
                       }`}
                     >
-                      <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${itemActive ? `${accentTheme.iconTintSoft} ${accentTheme.iconTint}` : "bg-white/8 text-slate-400 group-hover:bg-white/10"}`}>
+                      <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${itemActive ? `${accentTheme.iconTintSoft} ${accentTheme.iconTint}` : "bg-slate-50 text-slate-400 group-hover:bg-white"}`}>
                         <NavGlyph id={activeSectionForPortal.id} />
                       </span>
                       <div className="flex-1 min-w-0">
@@ -639,13 +681,13 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
                             {item.label}
                           </span>
                           {item.badge && (
-                            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${accentTheme.iconTintSoft} ${accentTheme.iconTint}`}>
+                            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${accentTheme.badge}`}>
                               {item.badge}
                             </span>
                           )}
                         </div>
                         {item.description && (
-                          <p className="mt-0.5 text-xs leading-snug text-slate-400">{item.description}</p>
+                          <p className="mt-0.5 text-xs leading-snug text-slate-500">{item.description}</p>
                         )}
                       </div>
                     </Link>

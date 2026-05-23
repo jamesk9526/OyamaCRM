@@ -30,8 +30,8 @@ export default function Sidebar({ forceExpanded = false, donorAccentTone = "gree
       forceExpanded={forceExpanded}
       donorAccentTone={donorAccentTone}
       footerAction={!forceExpanded && onSwitchToMegaMenu ? {
-        label: "Switch To Mega Menu",
-        ariaLabel: "Switch navigation to mega menu",
+        label: "Use Top Navigation",
+        ariaLabel: "Switch navigation to top navigation",
         onClick: onSwitchToMegaMenu,
       } : undefined}
       expandedWidthClass="w-[280px]"
