@@ -254,7 +254,7 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
     },
     {
       id: "people-service",
-      label: "People & Service",
+      label: "Service",
       defaultOpen: false,
       collapsible: true,
       items: [
@@ -265,56 +265,6 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
           icon: DONOR_ICONS.volunteers,
           kind: "people",
           description: "Manage volunteer relationships and involvement.",
-        },
-      ],
-    },
-    {
-      id: "system",
-      label: "Admin",
-      defaultOpen: false,
-      collapsible: true,
-      items: [
-        {
-          id: "settings",
-          label: "Settings",
-          href: "/settings",
-          icon: DONOR_ICONS.settings,
-          kind: "system",
-          description: "Manage donor CRM settings, tools, and workspace configuration.",
-        },
-        {
-          id: "imports",
-          label: "Imports",
-          href: "/data-tools/import",
-          icon: DONOR_ICONS.dataTools,
-          kind: "system",
-          description: "Import constituents with mapping, validation, and duplicate review.",
-        },
-        {
-          id: "data-tools",
-          label: "Data Tools",
-          href: "/data-tools",
-          icon: DONOR_ICONS.dataTools,
-          kind: "system",
-          exact: true,
-          description: "Run data quality checks, exports, and merge workflows.",
-        },
-        {
-          id: "custom-fields",
-          label: "Custom Fields",
-          href: "/custom-fields",
-          icon: DONOR_ICONS.customFields,
-          kind: "system",
-          permissions: ["view:custom_fields"],
-          description: "Manage organization-specific fields used across donor records.",
-        },
-        {
-          id: "help",
-          label: "Help",
-          href: "/help?scope=donor&scopePath=/",
-          icon: DONOR_ICONS.help,
-          kind: "system",
-          description: "Open donor CRM help guides and walkthroughs.",
         },
       ],
     },
@@ -382,6 +332,7 @@ export const EVENTS_RESERVED_SEGMENTS = new Set([
 
 /** Resolves active event ID from event-scoped route paths for EventSTUDIO sidebar context. */
 export function resolveActiveEventId(pathname: string, _searchParams: Pick<URLSearchParams, "get">): string | null {
+  void _searchParams;
   const parts = pathname.split("/").filter(Boolean);
   const maybeEventId = parts[1];
 

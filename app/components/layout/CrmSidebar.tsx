@@ -89,7 +89,7 @@ interface CrmSidebarProps {
 
 const DONOR_ACCENT_OVERRIDES: Record<DonorAccentTone, { iconActive: string; accent: string; focusRing: string; buttonTone: string }> = {
   green: {
-    iconActive: "text-emerald-400",
+    iconActive: "text-emerald-700",
     accent: "bg-emerald-500",
     focusRing: "focus-visible:ring-emerald-500",
     buttonTone: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100",
@@ -116,13 +116,13 @@ const DONOR_ACCENT_OVERRIDES: Record<DonorAccentTone, { iconActive: string; acce
 
 const VARIANT_STYLES: Record<CrmSidebarVariant, SidebarVariantStyles> = {
   donor: {
-    aside: "bg-white border-r border-slate-200",
+    aside: "bg-white border-r border-slate-200 shadow-[10px_0_32px_rgba(15,23,42,0.035)]",
     navSurface: "",
     heading: "text-slate-500",
     headingMuted: "hover:text-slate-700",
-    itemActive: "text-slate-900 bg-slate-100 font-semibold",
+    itemActive: "text-emerald-950 bg-emerald-50 font-semibold shadow-[inset_0_0_0_1px_rgba(16,185,129,0.10)]",
     itemInactive: "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
-    iconActive: "text-emerald-400",
+    iconActive: "text-emerald-700",
     iconInactive: "text-slate-400 group-hover:text-slate-600",
     badge: "bg-slate-100 text-slate-600",
     sectionBorder: "border-transparent",
@@ -420,12 +420,12 @@ export default function CrmSidebar({
 
   return (
     <aside
-      className={`${styles.aside} ${isCollapsed ? collapsedWidthClass : expandedWidthClass} shrink-0 flex flex-col h-full select-none transition-[width] duration-200 ease-out`}
+      className={`${styles.aside} group/sidebar relative ${isCollapsed ? collapsedWidthClass : expandedWidthClass} shrink-0 flex flex-col h-full select-none transition-[width] duration-200 ease-out`}
       data-sidebar-collapsed={isCollapsed ? "true" : "false"}
     >
-      <div className={`flex-1 overflow-y-auto py-3 px-2.5 ${SIDEBAR_SCROLLBAR_CLASS} ${styles.navSurface}`}>
+      <div className={`flex-1 overflow-y-auto px-3 py-6 ${SIDEBAR_SCROLLBAR_CLASS} ${styles.navSurface}`}>
         {!forceExpanded ? (
-          <div className={`mb-2 flex ${isCollapsed ? "justify-center" : "justify-end"}`}>
+          <div className={`pointer-events-none absolute right-4 top-4 z-10 flex ${isCollapsed ? "justify-center" : "justify-end"}`}>
             <button
               type="button"
               aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -438,7 +438,7 @@ export default function CrmSidebar({
 
                 setCollapsed((current) => !current);
               }}
-              className={`inline-flex items-center justify-center rounded-lg border w-8 h-8 transition-colors ${styles.collapseButton}`}
+              className={`pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-lg border opacity-0 shadow-sm transition-all hover:opacity-100 group-hover/sidebar:opacity-100 focus-visible:opacity-100 ${styles.collapseButton}`}
             >
               {isCollapsed ? (
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">

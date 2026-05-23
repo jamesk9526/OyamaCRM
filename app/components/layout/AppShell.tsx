@@ -132,6 +132,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [dockInsetPx, setDockInsetPx] = useState(0);
   const [compactDesktop, setCompactDesktop] = useState(false);
+  const [shellScrolled, setShellScrolled] = useState(false);
 
   useEffect(() => {
     if (loading || !user) return;
@@ -222,6 +223,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    function handleScroll(event: Event) {
+      const target = event.target as Element | null;
+      if (typeof target?.scrollTop === "number") {
+        setShellScrolled(target.scrollTop > 24);
+      }
+    }
+
+    document.addEventListener("scroll", handleScroll, true);
+    return () => document.removeEventListener("scroll", handleScroll, true);
+  }, []);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
 
     const mediaQuery = window.matchMedia("(min-width: 1024px) and (max-width: 1439px)");
@@ -259,7 +272,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       : workspaceSettings.donorNavigationLayout;
   const donorMegaMenuEnabled = donorShellVisible && effectiveDonorLayout === "mega";
   const donorSidebarDesktopEnabled = donorShellVisible && effectiveDonorLayout === "sidebar";
-  const contentTopPaddingClass = donorMegaMenuEnabled ? "pt-[6.5rem]" : "pt-14";
+  const contentTopPaddingClass = donorMegaMenuEnabled
+    ? shellScrolled
+      ? "pt-28 xl:pt-32"
+      : "pt-28 xl:pt-[11.25rem]"
+    : shellScrolled
+      ? "pt-16 xl:pt-20"
+      : "pt-16 xl:pt-[8.25rem]";
 
   return (
     <div
@@ -268,7 +287,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     >
       <TopBar />
       {donorMegaMenuEnabled ? <DonorMegaMenu donorAccentTone={workspaceSettings.donorAccentTone} /> : null}
-      <div className={`relative flex min-w-0 flex-1 overflow-hidden ${contentTopPaddingClass}`}>
+      <div className={`relative flex min-w-0 flex-1 overflow-hidden bg-slate-50 transition-[padding] duration-300 ${contentTopPaddingClass}`}>
         {donorSidebarDesktopEnabled ? (
           <div className="hidden md:flex h-full">
             <Sidebar
@@ -289,7 +308,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         ) : null}
 
         {/* ErrorBoundary catches page-level render errors without crashing the whole shell */}
-        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto crm-page-surface p-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] lg:p-4 lg:pb-4 min-[1440px]:p-5 2xl:p-6">
+        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto crm-page-surface p-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] xl:p-7 xl:pb-7 min-[1440px]:p-8 2xl:p-9">
 
           <ErrorBoundary>
             <div className="min-w-0 max-w-full">{children}</div>

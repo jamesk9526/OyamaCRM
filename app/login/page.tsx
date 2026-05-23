@@ -2,6 +2,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
@@ -111,12 +112,12 @@ export default function LoginPage() {
 
           <div className="relative z-10 w-full max-w-md">
             <Image
-              src="/branding/oyama-logo.png"
+              src="/branding/oyama-crm-logo-final.png"
               alt="OyamaCRM"
-              width={200}
-              height={84}
+              width={260}
+              height={74}
               priority
-              className="h-auto w-[160px] xl:w-[190px] object-contain object-left"
+              className="h-auto w-[190px] object-contain object-left xl:w-[230px]"
             />
             <h1 className="mt-10 text-[2.6rem] font-semibold leading-[1.15] tracking-[-0.03em] text-slate-900 xl:text-5xl">
               Your nonprofit,<br />
@@ -154,12 +155,12 @@ export default function LoginPage() {
             {/* Mobile-only logo */}
             <div className="mb-8 flex justify-center lg:hidden">
               <Image
-                src="/branding/oyama-logo.png"
+                src="/branding/oyama-crm-logo-final.png"
                 alt="OyamaCRM"
-                width={160}
-                height={67}
+                width={220}
+                height={62}
                 priority
-                className="h-auto w-[140px] object-contain"
+                className="h-auto w-[170px] object-contain"
               />
             </div>
 
@@ -227,9 +228,9 @@ export default function LoginPage() {
                 </button>
 
                 <div className="text-right">
-                  <a href="/login/forgot-password" className="text-xs text-green-600 hover:text-green-700 transition-colors">
+                  <Link href="/login/forgot-password" className="text-xs text-green-600 hover:text-green-700 transition-colors">
                     Forgot password?
-                  </a>
+                  </Link>
                 </div>
               </form>
             ) : (

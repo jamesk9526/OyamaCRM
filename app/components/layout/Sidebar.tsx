@@ -34,8 +34,8 @@ export default function Sidebar({ forceExpanded = false, donorAccentTone = "gree
         ariaLabel: "Switch navigation to mega menu",
         onClick: onSwitchToMegaMenu,
       } : undefined}
-      expandedWidthClass="w-64"
-      collapsedWidthClass="w-20"
+      expandedWidthClass="w-[280px]"
+      collapsedWidthClass="w-[84px]"
       organizationLabel="Oyama Organization"
     />
   );

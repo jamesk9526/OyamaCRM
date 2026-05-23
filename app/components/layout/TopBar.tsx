@@ -243,10 +243,11 @@ function GlobalSearch({
               { id: "quick-help", type: "tool", label: "Open Help Center", sublabel: "Guides and walkthroughs", href: `/help?scope=donor&scopePath=${encodeURIComponent(pathname || "/")}`, group: "tools" },
             ], [moduleKey, pathname]);
 
+  const resultLimit = wide ? 24 : 12;
   const filteredResults = useMemo(() => (resultGroupFilter === "all"
     ? results
     : results.filter((result) => result.group === resultGroupFilter)
-  ).slice(0, 12), [resultGroupFilter, results]);
+  ).slice(0, resultLimit), [resultGroupFilter, resultLimit, results]);
 
   const quickActionMatches = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -605,7 +606,7 @@ function GlobalSearch({
           : "Search constituents, campaigns, tools...";
 
   return (
-    <div className={`relative w-full min-w-0 ${wide ? "max-w-3xl" : "max-w-xl"}`}>
+    <div className={`relative w-full min-w-0 ${wide ? "max-w-none" : "max-w-xl"}`}>
       <div className="group/search relative transition-colors duration-200 ease-out">
         <svg className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500 pointer-events-none transition-colors duration-200 ease-out group-focus-within/search:text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
@@ -618,7 +619,7 @@ function GlobalSearch({
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           placeholder={placeholder}
-          className={`w-full rounded-xl border border-slate-200 bg-white py-2 pl-8 pr-12 text-xs text-slate-900 placeholder:text-slate-500 shadow-sm transition-colors duration-200 ease-out focus:border-emerald-200 focus:bg-white focus:outline-none focus:ring-1 ${focusRing}`}
+          className={`w-full rounded-xl border border-slate-200 bg-white pl-8 pr-12 text-slate-900 placeholder:text-slate-500 shadow-sm transition-colors duration-200 ease-out focus:border-emerald-200 focus:bg-white focus:outline-none focus:ring-1 ${focusRing} ${wide ? "h-12 text-sm" : "py-2 text-xs"}`}
         />
         <kbd className="absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 transition-colors duration-200 ease-out group-focus-within/search:bg-white group-focus-within/search:text-slate-700 min-[1120px]:block">
           Ctrl+K
@@ -629,7 +630,7 @@ function GlobalSearch({
       </div>
 
       {open && (
-        <div className="absolute top-full mt-2 left-0 right-0 max-h-[min(30rem,calc(100dvh-9rem))] overflow-y-auto bg-white rounded-2xl border border-gray-200 shadow-2xl z-50">
+        <div className={`${wide ? "relative mt-3 max-h-[calc(100dvh-15rem)] min-h-[22rem]" : "absolute top-full mt-2 left-0 right-0 max-h-[min(30rem,calc(100dvh-9rem))]"} overflow-y-auto bg-white rounded-2xl border border-gray-200 shadow-2xl z-50`}>
           <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/80 flex flex-wrap items-center gap-1.5">
             <button
               onMouseDown={() => setResultGroupFilter("all")}
@@ -795,9 +796,8 @@ export default function TopBar() {
 
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
   const donorAccentTheme = getDonorAccentTheme(workspaceSettings.donorAccentTone);
-  const moduleSwitcherMinWidthClass = "hidden min-[420px]:flex";
   const chromeButtonBase = `${scrolled ? "h-8 w-8 md:h-7 md:w-7" : "h-9 w-9 sm:h-10 sm:w-10 md:h-9 md:w-9"} rounded-xl border border-slate-200/90 bg-white/95 text-slate-600 shadow-[0_6px_18px_rgba(15,23,42,0.06)] flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0`;
-  const darkIconButtonBase = `${scrolled ? "w-7 h-7" : "w-8 h-8"} rounded-xl border border-transparent bg-transparent text-slate-600 flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0 active:scale-95`;
+  const darkIconButtonBase = "h-10 w-10 rounded-2xl border border-transparent bg-transparent text-slate-600 flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0 active:scale-95";
   const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] z-50 overflow-hidden lg:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
   const moduleAccentClass = moduleKey === "compassion"
     ? "bg-blue-600"
@@ -923,6 +923,18 @@ export default function TopBar() {
     const nextMode: ReportingYearMode = reportingYearMode === "fiscal" ? "calendar" : "fiscal";
     setReportingYearMode(nextMode);
     setStoredReportingYearMode(nextMode);
+  }
+
+  function handleReportingWindowToggle() {
+    toggleReportingYearMode();
+    setReportingModeJustChanged(true);
+    if (reportingModeChangedTimeoutRef.current) {
+      window.clearTimeout(reportingModeChangedTimeoutRef.current);
+    }
+    reportingModeChangedTimeoutRef.current = window.setTimeout(() => {
+      setReportingModeJustChanged(false);
+    }, 1400);
+    triggerTopBarReactiveGlow();
   }
 
   async function handleMobileSignOut() {
@@ -1252,11 +1264,11 @@ export default function TopBar() {
       {mobileSearchOpen && (
         <>
           <div className="fixed inset-0 z-50 bg-slate-950/25 backdrop-blur-[2px]" onClick={() => setMobileSearchOpen(false)} />
-          <div className="fixed inset-x-2 top-[max(0.75rem,env(safe-area-inset-top))] z-50 mx-auto max-h-[calc(100dvh-1.5rem)] max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl sm:top-16 sm:p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-50 mx-auto flex max-h-[calc(100dvh-1.5rem)] max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl sm:top-10 sm:p-4 lg:top-16">
+            <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Command Search</p>
-                <h2 className="text-sm font-semibold text-slate-950">Search records, tools, campaigns, and help</h2>
+                <h2 className="text-base font-semibold text-slate-950">Search records, tools, campaigns, and help</h2>
               </div>
               <button
                 type="button"
@@ -1269,62 +1281,94 @@ export default function TopBar() {
                 </svg>
               </button>
             </div>
-            <div className="min-w-0">
+            <div className="min-h-0 min-w-0 flex-1">
               <GlobalSearch moduleKey={moduleKey} pathname={pathname} autoFocus wide onNavigate={() => setMobileSearchOpen(false)} />
             </div>
           </div>
         </>
       )}
-      <header data-topbar-root="true" className={`fixed top-0 left-0 right-0 isolate z-20 flex w-full shrink-0 items-center gap-1.5 border-b border-slate-200/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.94)_100%)] px-1.5 shadow-[0_14px_38px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-[height] duration-200 max-[380px]:gap-1 max-[380px]:px-1 sm:gap-2 sm:px-2 lg:gap-3 lg:px-3 min-[1440px]:gap-4 min-[1440px]:px-4 ${scrolled ? "h-10" : "h-14"}`} style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute left-0 top-0 hidden h-full w-[25vw] min-w-[340px] max-w-[520px] overflow-hidden lg:block"
-        >
-          <div className="absolute inset-0 rounded-tr-[42px] border-r border-white/10 bg-[linear-gradient(90deg,#020617_0%,#0b1324_58%,#0f172a_100%)] shadow-[14px_0_30px_rgba(15,23,42,0.18)]" />
-          <div className="absolute inset-x-0 top-0 h-px bg-white/10" />
+      <header data-topbar-root="true" className={`fixed left-0 right-0 top-0 isolate z-20 h-16 w-full shrink-0 border-b border-slate-200/80 bg-white/95 shadow-[0_12px_32px_rgba(15,23,42,0.045)] backdrop-blur-xl transition-[height,box-shadow] duration-300 xl:border-b-0 ${scrolled ? "xl:h-20" : "xl:h-[132px]"}`} style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
+        <div aria-hidden="true" className={`pointer-events-none absolute left-0 top-0 hidden transition-[height,width] duration-300 xl:block ${scrolled ? "h-[96px] w-[430px]" : "h-[156px] w-[590px]"}`}>
+          <svg className="h-full w-full" viewBox="0 0 590 156" preserveAspectRatio="none">
+            <defs>
+              <radialGradient id="oyama-brand-glow" cx="16%" cy="20%" r="48%">
+                <stop offset="0%" stopColor="#10b981" stopOpacity="0.24" />
+                <stop offset="58%" stopColor="#047857" stopOpacity="0.06" />
+                <stop offset="100%" stopColor="#010f0d" stopOpacity="0" />
+              </radialGradient>
+              <linearGradient id="oyama-brand-scoop" x1="0%" y1="0%" x2="100%" y2="92%">
+                <stop offset="0%" stopColor="#000d0b" />
+                <stop offset="58%" stopColor="#01231d" />
+                <stop offset="100%" stopColor="#032b24" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M0 0H590C533 10 500 38 467 78C424 130 367 150 276 150C184 150 104 124 31 130C15 131 5 137 0 147Z"
+              fill="url(#oyama-brand-scoop)"
+              stroke="#032b24"
+              strokeWidth={3}
+              strokeLinejoin="round"
+            />
+            <path
+              d="M0 0H590C533 10 500 38 467 78C424 130 367 150 276 150C184 150 104 124 31 130C15 131 5 137 0 147Z"
+              fill="url(#oyama-brand-glow)"
+            />
+          </svg>
         </div>
+        <div aria-hidden="true" className="pointer-events-none absolute left-[280px] right-0 bottom-0 z-0 hidden h-px bg-slate-200/75 xl:block" />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white"
-        />
-        <div
-          aria-hidden="true"
-          className={`absolute inset-x-0 bottom-0 h-px pointer-events-none transition-opacity duration-300 ${moduleAccentClass} ${topBarReactiveGlow ? "opacity-90" : "opacity-55"}`}
+          className={`absolute bottom-0 left-[280px] right-0 h-px pointer-events-none hidden transition-opacity duration-300 xl:block ${moduleAccentClass} ${topBarReactiveGlow ? "opacity-70" : "opacity-0"}`}
         />
 
-        <div className="relative z-10 flex w-full min-w-0 shrink-0 items-center justify-between gap-1.5 lg:w-auto lg:justify-start lg:gap-2.5 min-[1440px]:gap-3">
-          <div className="flex min-w-0 items-center gap-1.5 sm:gap-2 lg:gap-2.5 min-[1440px]:gap-3 shrink">
+        <div className="relative z-20 hidden h-full w-[520px] xl:block">
+          <Link href={homeHref} className={`absolute left-8 flex shrink-0 items-center gap-2.5 rounded-2xl px-1 py-0.5 transition-[top,opacity] duration-300 hover:opacity-90 ${scrolled ? "top-3" : "top-6"}`} aria-label="Go to workspace home">
+            <Image
+              src="/branding/oyama-crm-logo-final.png"
+              alt="OyamaCRM"
+              width={260}
+              height={74}
+              className={`object-contain object-left transition-[height,width,opacity] duration-300 ${scrolled ? "h-9 w-[128px]" : "h-12 w-[178px]"}`}
+              priority
+            />
+          </Link>
+
+          {workspaceSettings.showModuleSwitcher && (
+            <div className={`absolute transition-[left,top] duration-300 ${scrolled ? "left-[176px] top-[14px]" : "left-[154px] top-[72px]"}`}>
+              <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled={scrolled} />
+            </div>
+          )}
+        </div>
+
+        <div className="relative z-20 flex h-full w-full min-w-0 shrink-0 items-center justify-between gap-1.5 px-2 max-[380px]:gap-1 max-[380px]:px-1 sm:gap-2 sm:px-3 xl:hidden">
+          <div className="flex min-w-0 items-center gap-1.5 sm:gap-2 shrink">
           {/* ── Mobile hamburger — opens sidebar drawer via CustomEvent ── */}
           <button
             type="button"
             aria-label="Open navigation menu"
             onClick={() => window.dispatchEvent(new CustomEvent("crm:open-mobile-nav"))}
-            className="flex lg:hidden h-10 w-10 items-center justify-center rounded-xl text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors active:bg-emerald-100 shrink-0"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-600 transition-colors hover:bg-emerald-50 hover:text-emerald-700 active:bg-emerald-100"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
           {/* ── TopBar Brand ── */}
-          <Link href={homeHref} className="flex shrink-0 items-center rounded-xl border border-transparent bg-slate-950 px-2 py-1 shadow-sm transition-all hover:border-white/10 hover:bg-slate-900 lg:bg-transparent lg:px-1 lg:py-0.5 lg:shadow-none" aria-label="Go to workspace home">
+          <Link href={homeHref} className="flex shrink-0 items-center rounded-2xl border border-transparent bg-slate-950 px-2 py-1 shadow-sm transition-all hover:border-white/10 hover:bg-slate-900" aria-label="Go to workspace home">
             <Image
-              src="/branding/oyama-darklogocrm.png"
+              src="/branding/oyama-crm-logo-final.png"
               alt="OyamaCRM"
               width={144}
               height={48}
-              className={`block ${scrolled ? "h-7 w-[86px] max-[380px]:w-[70px]" : "h-10 w-[124px] max-[430px]:w-[96px] max-[360px]:w-[74px]"} object-contain object-left transition-all duration-200`}
+              className={`block ${scrolled ? "h-7 w-[96px] max-[380px]:w-[76px]" : "h-10 w-[138px] max-[430px]:w-[108px] max-[360px]:w-[84px]"} object-contain object-left transition-all duration-200`}
               priority
             />
           </Link>
 
-          <div className={`w-px ${scrolled ? "h-4" : "h-6"} shrink-0 bg-slate-200 transition-all duration-200 lg:bg-white/15`} />
-
           {/* ── Module switcher (left anchor) ── */}
            {workspaceSettings.showModuleSwitcher && (
-             <div className={`${moduleSwitcherMinWidthClass} min-w-0 items-center gap-1.5 sm:gap-2`}>
+             <div className="hidden min-[420px]:flex min-w-0 items-center gap-1.5 sm:gap-2">
                <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled={scrolled} />
-               {/* ── Divider ── */}
-               <div className={`w-px ${scrolled ? "h-4" : "h-6"} shrink-0 bg-slate-200 transition-all duration-200 lg:bg-white/15`} />
              </div>
            )}
 
@@ -1479,7 +1523,7 @@ export default function TopBar() {
           </div>
         </div>
 
-        <div className="relative z-10 hidden lg:flex w-full min-w-0 flex-1 items-center gap-2 lg:gap-3 min-[1440px]:gap-4">
+        <div className={`absolute inset-y-0 left-0 right-0 z-10 hidden min-w-0 items-center pr-5 transition-[padding,gap] duration-300 xl:flex 2xl:pr-8 ${scrolled ? "gap-3 pl-[370px] 2xl:pl-[390px]" : "gap-4 pl-[480px] 2xl:gap-5 2xl:pl-[520px]"}`}>
           {/* ── Center command search trigger ── */}
           <div className="flex min-w-0 flex-1 justify-center">
             <button
@@ -1493,7 +1537,7 @@ export default function TopBar() {
                 setMessengerOpen(false);
                 setMobileSearchOpen(true);
               }}
-              className={`group flex ${scrolled ? "h-8 max-w-[460px]" : "h-11 max-w-[620px]"} w-full items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-white px-3.5 text-slate-500 shadow-[0_10px_24px_rgba(15,23,42,0.05)] transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:shadow-[0_14px_30px_rgba(15,23,42,0.08)] hover:text-slate-700`}
+              className={`group flex w-full items-center justify-between gap-3 rounded-[20px] border border-slate-200/90 bg-white px-4 text-slate-500 shadow-[0_10px_24px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] transition-all duration-300 hover:-translate-y-px hover:border-emerald-200 hover:shadow-[0_16px_34px_rgba(15,23,42,0.09)] hover:text-slate-700 ${scrolled ? "h-11 max-w-[540px]" : "h-[52px] max-w-[620px] 2xl:max-w-[680px]"}`}
             >
               <span className="flex min-w-0 items-center gap-2">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors group-hover:bg-emerald-50 group-hover:text-emerald-700">
@@ -1501,18 +1545,18 @@ export default function TopBar() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
                   </svg>
                 </span>
-                <span className={`truncate text-sm ${scrolled ? "hidden min-[1180px]:inline" : ""}`}>
+                <span className="truncate text-sm">
                   Search constituents, donations, campaigns, tools...
                 </span>
               </span>
-              <span className="hidden rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 min-[1280px]:inline">
+              <span className="hidden rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-semibold text-slate-400 min-[1280px]:inline">
                 Ctrl K
               </span>
             </button>
           </div>
 
           {/* ── Right-side icon controls ── */}
-          <div className="hidden lg:flex items-center gap-1.5 shrink-0 rounded-2xl border border-slate-200/85 bg-white/92 px-2 py-1 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-sm">
+          <div className="hidden shrink-0 items-center gap-2 xl:flex 2xl:gap-3">
 
           {isStewardSignalsWorkspace && (
             <button
@@ -1525,127 +1569,16 @@ export default function TopBar() {
             </button>
           )}
 
-          <StewardAiRuntimePill
-            canRunConnectionTest={canRunAiConnectionTest}
-            onOpenSettings={openAiSettings}
-            compact
-          />
-
-          <div className="relative hidden lg:block">
-            <button
-              type="button"
-              title="More workspace tools"
-              onClick={() => {
-                setCompactActionsOpen((current) => {
-                  const nextOpen = !current;
-                  if (nextOpen) {
-                    setNotificationsOpen(false);
-                    setMessengerOpen(false);
-                    setMobileQuickOpen(false);
-                    setMobileSearchOpen(false);
-                  }
-                  return nextOpen;
-                });
-              }}
-              className={darkIconButtonBase}
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h.01M12 12h.01M19 12h.01" />
-              </svg>
-            </button>
-
-            {compactActionsOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setCompactActionsOpen(false)} />
-                <div className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl">
-                  <div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Workspace Tools</p>
-                  </div>
-                  <div className="p-2">
-                    {showTopBarAppLauncher ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCompactActionsOpen(false);
-                          setAppsOpen(true);
-                        }}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                      >
-                        <AppsGridIcon className="h-4 w-4" />
-                        Apps
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCompactActionsOpen(false);
-                        setFeedbackOpen(true);
-                      }}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
-                      </svg>
-                      Feedback
-                    </button>
-                    <Link
-                      href="/steward-ai-workspace"
-                      onClick={() => setCompactActionsOpen(false)}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      <StewardAvatarIcon size={16} alt="Steward" className="ring-slate-300/80" />
-                      Open Steward Workspace
-                    </Link>
-                    <Link
-                      href={helpHref}
-                      onClick={() => setCompactActionsOpen(false)}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      <HelpCircleIcon className="h-4 w-4" />
-                      Help
-                    </Link>
-                    {moduleKey === "donor" ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          toggleReportingYearMode();
-                          setReportingModeJustChanged(true);
-                          if (reportingModeChangedTimeoutRef.current) {
-                            window.clearTimeout(reportingModeChangedTimeoutRef.current);
-                          }
-                          reportingModeChangedTimeoutRef.current = window.setTimeout(() => {
-                            setReportingModeJustChanged(false);
-                          }, 1400);
-                          triggerTopBarReactiveGlow();
-                        }}
-                        title={donorReportingModeDescription}
-                        className={`mt-1 flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm font-medium transition-all ${
-                          reportingYearMode === "fiscal"
-                            ? "border-emerald-300 bg-emerald-50/80 text-emerald-800 hover:bg-emerald-100"
-                            : "border-sky-300 bg-sky-50/80 text-sky-800 hover:bg-sky-100"
-                        } ${reportingModeJustChanged ? "ring-2 ring-emerald-300/70" : ""}`}
-                      >
-                        <span className="inline-flex items-center gap-1.5">
-                          <span>Reporting Window</span>
-                          {reportingModeJustChanged ? (
-                            <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">Updated</span>
-                          ) : null}
-                        </span>
-                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                          reportingYearMode === "fiscal"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-sky-100 text-sky-700"
-                        }`}>{donorReportingModeLabel}</span>
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              </>
-            )}
+          <div className="order-4">
+            <StewardAiRuntimePill
+              canRunConnectionTest={canRunAiConnectionTest}
+              onOpenSettings={openAiSettings}
+              compact
+            />
           </div>
 
           {/* ── Messenger icon (desktop) ── */}
-          <div className="relative">
+          <div className="relative hidden">
             <button
               type="button"
               title="Messages"
@@ -1654,7 +1587,7 @@ export default function TopBar() {
                 setNotificationsOpen(false);
                 setCompactActionsOpen(false);
               }}
-              className={`${darkIconButtonBase} relative`}
+              className={`${darkIconButtonBase} relative max-2xl:hidden`}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
@@ -1668,7 +1601,7 @@ export default function TopBar() {
           </div>
 
           {/* Notifications */}
-        <div ref={desktopNotificationsRef} className="relative">
+        <div ref={desktopNotificationsRef} className="relative order-2">
           <button
             title="Notifications"
             onClick={() =>
@@ -1778,10 +1711,47 @@ export default function TopBar() {
           )}
         </div>
 
-            <div className="mx-1 h-5 w-px shrink-0 bg-slate-200/80" />
+            <Link
+              href={helpHref}
+              title="Help"
+              aria-label="Open help"
+              className={`${darkIconButtonBase} order-3`}
+            >
+              <HelpCircleIcon className="h-4 w-4" />
+            </Link>
+
+            <div className="order-5 hidden h-5 w-px shrink-0 bg-slate-200/80" />
 
             {/* User avatar */}
-            <UserMenu moduleKey={moduleKey} />
+            <div className="order-6">
+              <UserMenu
+                moduleKey={moduleKey}
+                showApps={showTopBarAppLauncher}
+                onOpenApps={() => {
+                  setAppsOpen(true);
+                  setNotificationsOpen(false);
+                  setMessengerOpen(false);
+                }}
+                onOpenFeedback={() => {
+                  setFeedbackOpen(true);
+                  setNotificationsOpen(false);
+                  setMessengerOpen(false);
+                }}
+                onToggleMessages={() => {
+                  setMessengerOpen((current) => !current);
+                  setNotificationsOpen(false);
+                }}
+                messengerUnread={messengerUnread}
+                helpHref={helpHref}
+                reportingWindow={moduleKey === "donor" ? {
+                  label: donorReportingModeLabel,
+                  description: donorReportingModeDescription,
+                  mode: reportingYearMode,
+                  justChanged: reportingModeJustChanged,
+                  onToggle: handleReportingWindowToggle,
+                } : undefined}
+              />
+            </div>
           </div>
         </div>
 
@@ -1885,17 +1855,7 @@ export default function TopBar() {
                 {moduleKey === "donor" ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      toggleReportingYearMode();
-                      setReportingModeJustChanged(true);
-                      if (reportingModeChangedTimeoutRef.current) {
-                        window.clearTimeout(reportingModeChangedTimeoutRef.current);
-                      }
-                      reportingModeChangedTimeoutRef.current = window.setTimeout(() => {
-                        setReportingModeJustChanged(false);
-                      }, 1400);
-                      triggerTopBarReactiveGlow();
-                    }}
+                    onClick={handleReportingWindowToggle}
                     title={donorReportingModeDescription}
                     className={`flex w-full min-h-11 items-center justify-between gap-3 rounded-xl border px-3 text-left text-sm font-medium transition-all ${
                       reportingYearMode === "fiscal"
@@ -1996,7 +1956,7 @@ function ModuleSwitcher({
   if (modules.length === 0) return null;
 
   const current = modules.find((m) => m.active) ?? modules[0];
-  const switcherButtonTone = "border-white/10 bg-white/5";
+  const switcherButtonTone = "border-white/10 bg-white/10";
 
   function switchTo(href: string) {
     setOpen(false);
@@ -2009,14 +1969,14 @@ function ModuleSwitcher({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`group flex items-center rounded-xl border ${switcherButtonTone} text-white shadow-sm transition-all duration-200 hover:border-emerald-400/40 hover:bg-white/10 ${scrolled ? "gap-1.5 px-1.5 py-1" : "gap-2.5 px-2.5 py-1.5"}`}
+        className={`group flex items-center rounded-[20px] border ${switcherButtonTone} text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md transition-all duration-200 hover:border-emerald-400/40 hover:bg-white/20 ${scrolled ? "gap-1.5 px-1.5 py-1 xl:min-w-[152px] xl:gap-2 xl:rounded-2xl xl:px-2.5 xl:py-1.5" : "gap-2.5 px-2.5 py-1.5 xl:min-w-[220px] xl:gap-3 xl:px-4 xl:py-3"}`}
       >
-        <span className={`flex items-center justify-center rounded-lg border border-emerald-400/20 bg-emerald-400/10 text-emerald-200 transition-all duration-200 ${scrolled ? "h-6 w-6" : "h-8 w-8"}`}>
+        <span className={`flex items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/15 text-emerald-200 transition-all duration-200 ${scrolled ? "h-6 w-6 xl:h-7 xl:w-7" : "h-8 w-8 xl:h-10 xl:w-10"}`}>
           {current.icon}
         </span>
-        <div className="hidden min-[1180px]:block text-left leading-tight min-w-0">
-          <p className="text-[9px] uppercase tracking-[0.22em] text-slate-400">Workspace</p>
-          <p className="text-xs font-semibold text-white truncate">{current.label}</p>
+        <div className="hidden min-[1180px]:block text-left leading-tight min-w-0 lg:block">
+          <p className={`uppercase text-white/60 transition-all duration-200 ${scrolled ? "hidden" : "text-[10px] tracking-[0.18em]"}`}>Workspace</p>
+          <p className={`truncate font-semibold text-white transition-[font-size] duration-200 ${scrolled ? "text-xs" : "text-sm"}`}>{current.label}</p>
         </div>
         <svg className={`w-3.5 h-3.5 ml-0.5 text-slate-400 group-hover:text-emerald-200 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
@@ -2062,52 +2022,206 @@ function ModuleSwitcher({
   );
 }
 
-/** UserMenu: avatar with sign-out dropdown. */
-function UserMenu({ moduleKey }: { moduleKey: TopBarModuleKey }) {
+interface UserMenuProps {
+  moduleKey: TopBarModuleKey;
+  showApps: boolean;
+  onOpenApps: () => void;
+  onOpenFeedback: () => void;
+  onToggleMessages: () => void;
+  messengerUnread: number;
+  helpHref: string;
+  reportingWindow?: {
+    label: string;
+    description: string;
+    mode: ReportingYearMode;
+    justChanged: boolean;
+    onToggle: () => void;
+  };
+}
+
+/** UserMenu: avatar with account, workspace tools, and role-aware admin controls. */
+function UserMenu({
+  moduleKey,
+  showApps,
+  onOpenApps,
+  onOpenFeedback,
+  onToggleMessages,
+  messengerUnread,
+  helpHref,
+  reportingWindow,
+}: UserMenuProps) {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
   const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : "?";
+  const canSeeAdminMenu = user?.role === "admin" || user?.role === "super_admin";
+  const adminLinks = [
+    { label: "Settings Home", href: "/settings", icon: "M10.3 4.3c.4-1.8 2.9-1.8 3.4 0 .2.8.9 1.3 1.7 1.3.3 0 .6-.1.9-.2 1.5-.9 3.3.8 2.4 2.4-.5.8-.2 1.9.7 2.3 1.8.4 1.8 2.9 0 3.4-.8.2-1.3.9-1.3 1.7 0 .3.1.6.2.9.9 1.5-.8 3.3-2.4 2.4-.8-.5-1.9-.2-2.3.7-.4 1.8-2.9 1.8-3.4 0-.2-.8-.9-1.3-1.7-1.3-.3 0-.6.1-.9.2-1.5.9-3.3-.8-2.4-2.4.5-.8.2-1.9-.7-2.3-1.8-.4-1.8-2.9 0-3.4.8-.2 1.3-.9 1.3-1.7 0-.3-.1-.6-.2-.9-.9-1.5.8-3.3 2.4-2.4.8.5 1.9.2 2.3-.7zM12 15a3 3 0 100-6 3 3 0 000 6z" },
+    { label: "Users", href: "/settings/users", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2m20 0v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75M9 11a4 4 0 100-8 4 4 0 000 8z" },
+    { label: "Roles", href: "/settings/roles", icon: "M12 3l7 4v5c0 4.5-2.9 8.5-7 9-4.1-.5-7-4.5-7-9V7l7-4zm-2 9 1.5 1.5L15 10" },
+    { label: "Security", href: "/settings/security", icon: "M12 2l8 4v6c0 5.5-3.5 9.74-8 10-4.5-.26-8-4.5-8-10V6l8-4zm0 7v4m0 4h.01" },
+    { label: "Modules", href: "/settings/modules", icon: "M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z" },
+    { label: "Imports", href: "/data-tools/import", icon: "M12 3v10m0 0 4-4m-4 4-4-4M5 17v2h14v-2" },
+    { label: "Data Tools", href: "/data-tools", icon: "M12 3C7 3 3 4.8 3 7v10c0 2.2 4 4 9 4s9-1.8 9-4V7c0-2.2-4-4-9-4zm0 0c5 0 9 1.8 9 4s-4 4-9 4-9-1.8-9-4 4-4 9-4zm-9 9c0 2.2 4 4 9 4s9-1.8 9-4" },
+    { label: "Custom Fields", href: "/custom-fields", icon: "M4 6h16M4 10h10M4 14h16M4 18h8M16 8v4m-2-2h4" },
+    { label: "Audit Log", href: "/settings/audit", icon: "M7 4h10M7 8h10M7 12h6m-8 8h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
+    { label: "System Status", href: "/settings/system-status", icon: "M4 13h3l2-6 4 12 2-6h5" },
+  ];
 
   async function handleSignOut() {
     await signOut();
     router.replace("/login");
   }
 
+  function runProfileAction(action: () => void) {
+    setOpen(false);
+    action();
+  }
+
   const avatarCls = moduleKey === "compassion"
-    ? "bg-blue-700 border-blue-500"
+    ? "bg-blue-700 border-blue-200"
     : moduleKey === "events"
-      ? "bg-violet-700 border-violet-500"
+      ? "bg-violet-700 border-violet-200"
       : moduleKey === "watchdog"
-        ? "bg-red-700 border-red-500"
+        ? "bg-red-700 border-red-200"
         : moduleKey === "webmaster"
-          ? "bg-indigo-700 border-indigo-500"
+          ? "bg-indigo-700 border-indigo-200"
           : moduleKey === "hrm"
-            ? "bg-teal-700 border-teal-500"
+            ? "bg-teal-700 border-teal-200"
             : moduleKey === "oshareview"
-              ? "bg-cyan-700 border-cyan-500"
-          : "bg-green-700 border-green-500";
+              ? "bg-cyan-700 border-cyan-200"
+          : "bg-emerald-700 border-emerald-200";
 
   return (
     <div className="relative shrink-0">
       <button
         onClick={() => setOpen((v) => !v)}
         title={user ? `${user.firstName} ${user.lastName}` : "Account"}
-        className={`w-8 h-8 rounded-full border-2 text-white flex items-center justify-center text-xs font-bold hover:opacity-90 transition-colors ${avatarCls}`}
+        className="flex h-12 items-center gap-3 rounded-2xl border border-transparent px-1.5 pr-2 text-left transition-colors hover:bg-slate-50"
       >
-        {initials}
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold text-white shadow-[0_10px_22px_rgba(15,23,42,0.12)] ${avatarCls}`}>
+          {initials}
+        </span>
+        <span className="hidden min-w-0 leading-tight 2xl:block">
+          <span className="block max-w-[132px] truncate text-sm font-semibold text-slate-900">
+            {user ? `${user.firstName} ${user.lastName}` : "Account"}
+          </span>
+          <span className="block max-w-[132px] truncate text-xs text-slate-500">Oyama Organization</span>
+        </span>
+        <svg className={`hidden h-4 w-4 text-slate-500 transition-transform xl:block ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.25} viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
+          <div className="absolute right-0 top-full z-50 mt-2 w-[min(23rem,calc(100vw-1rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
             <div className="px-4 py-3 border-b border-gray-100">
               <p className="text-sm font-medium text-gray-900">{user?.firstName} {user?.lastName}</p>
               <p className="text-xs text-gray-400 truncate">{user?.email}</p>
               <span className="inline-block mt-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full capitalize">{user?.role}</span>
             </div>
+            <div className="border-b border-slate-100 px-3 py-3">
+              <div className="mb-2 flex items-center justify-between gap-2 px-1">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">More Tools</p>
+                <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-100">Workspace</span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {showApps ? (
+                  <button
+                    type="button"
+                    onClick={() => runProfileAction(onOpenApps)}
+                    className="flex min-h-10 items-center gap-2 rounded-xl border border-transparent bg-white px-2.5 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                  >
+                    <AppsGridIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                    <span className="min-w-0 truncate">Apps</span>
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => runProfileAction(onOpenFeedback)}
+                  className="flex min-h-10 items-center gap-2 rounded-xl border border-transparent bg-white px-2.5 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                >
+                  <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
+                  </svg>
+                  <span className="min-w-0 truncate">Feedback</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runProfileAction(onToggleMessages)}
+                  className="flex min-h-10 items-center justify-between gap-2 rounded-xl border border-transparent bg-white px-2.5 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                >
+                  <span className="inline-flex min-w-0 items-center gap-2">
+                    <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
+                    </svg>
+                    <span className="min-w-0 truncate">Messages</span>
+                  </span>
+                  {messengerUnread > 0 ? (
+                    <span className="rounded-full bg-violet-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                      {Math.min(messengerUnread, 99)}
+                    </span>
+                  ) : null}
+                </button>
+                <Link
+                  href="/steward-ai-workspace"
+                  onClick={() => setOpen(false)}
+                  className="flex min-h-10 items-center gap-2 rounded-xl border border-transparent bg-white px-2.5 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                >
+                  <StewardAvatarIcon size={14} alt="Steward" className="ring-slate-300/80" />
+                  <span className="min-w-0 truncate">Steward</span>
+                </Link>
+                <Link
+                  href={helpHref}
+                  onClick={() => setOpen(false)}
+                  className="flex min-h-10 items-center gap-2 rounded-xl border border-transparent bg-white px-2.5 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                >
+                  <HelpCircleIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  <span className="min-w-0 truncate">Help</span>
+                </Link>
+                {reportingWindow ? (
+                  <button
+                    type="button"
+                    onClick={() => runProfileAction(reportingWindow.onToggle)}
+                    title={reportingWindow.description}
+                    className={`flex min-h-10 items-center justify-between gap-2 rounded-xl border px-2.5 py-2 text-[12px] font-semibold shadow-sm transition-colors ${
+                      reportingWindow.mode === "fiscal"
+                        ? "border-emerald-200 bg-emerald-50/90 text-emerald-800 hover:bg-emerald-100"
+                        : "border-sky-200 bg-sky-50/90 text-sky-800 hover:bg-sky-100"
+                    } ${reportingWindow.justChanged ? "ring-2 ring-emerald-300/70" : ""}`}
+                  >
+                    <span className="min-w-0 truncate">Reporting</span>
+                    <span className="shrink-0 rounded-full bg-white/80 px-1.5 py-0.5 text-[10px]">{reportingWindow.label}</span>
+                  </button>
+                ) : null}
+              </div>
+            </div>
+            {canSeeAdminMenu ? (
+              <div className="border-b border-slate-100 bg-slate-50/70 px-3 py-3">
+                <div className="mb-2 flex items-center justify-between gap-2 px-1">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Admin Controls</p>
+                  <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100">Admin</span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {adminLinks.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={() => setOpen(false)}
+                      className="flex min-h-10 items-center gap-2 rounded-xl border border-transparent bg-white px-2.5 py-2 text-[12px] font-semibold text-slate-700 shadow-sm transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                    >
+                      <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" d={link.icon} />
+                      </svg>
+                      <span className="min-w-0 truncate">{link.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <div className="py-1">
               <button
                 onClick={handleSignOut}

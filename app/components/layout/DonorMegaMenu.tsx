@@ -297,14 +297,14 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
     setMounted(true);
   }, []);
 
-  // Mirror the TopBar scroll-shrink so this bar slides up as TopBar shrinks.
   useEffect(() => {
-    function handleScroll(e: Event) {
-      const target = e.target as Element;
+    function handleScroll(event: Event) {
+      const target = event.target as Element | null;
       if (typeof target?.scrollTop === "number") {
         setScrolled(target.scrollTop > 24);
       }
     }
+
     document.addEventListener("scroll", handleScroll, true);
     return () => document.removeEventListener("scroll", handleScroll, true);
   }, []);
@@ -386,7 +386,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
     <>
     <nav
       aria-label="DonorCRM mobile workspace navigation"
-      className={`fixed left-0 right-0 z-[19] flex h-12 items-center gap-1 overflow-x-auto border-b border-slate-800/80 bg-slate-950/96 px-2 shadow-[0_12px_30px_rgba(2,6,23,0.28)] backdrop-blur-md transition-[top] duration-200 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden ${scrolled ? "top-10" : "top-14"}`}
+      className="fixed left-0 right-0 top-16 z-[19] flex h-12 items-center gap-1 overflow-x-auto border-b border-slate-800/80 bg-slate-950/96 px-2 shadow-[0_12px_30px_rgba(2,6,23,0.28)] backdrop-blur-md transition-[top] duration-200 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
     >
       {navSections.map((section) => {
         const active = isSectionActive(section);
@@ -431,7 +431,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
 
     <nav
       aria-label="DonorCRM primary navigation"
-      className={`fixed left-0 right-0 z-[19] hidden h-12 items-center gap-1 border-b border-slate-800/80 bg-slate-950/96 px-3 shadow-[0_12px_30px_rgba(2,6,23,0.28)] backdrop-blur-md transition-[top] duration-200 md:flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${scrolled ? "top-10" : "top-14"}`}
+      className={`fixed left-0 right-0 top-16 z-[19] hidden h-12 items-center gap-1 overflow-x-auto border-b border-slate-800/80 bg-slate-950/96 px-3 shadow-[0_12px_30px_rgba(2,6,23,0.28)] backdrop-blur-md transition-[top] duration-300 [scrollbar-width:none] md:flex [&::-webkit-scrollbar]:hidden ${scrolled ? "xl:top-20" : "xl:top-[132px]"}`}
     >
       {navSections.map((section) => {
         const active = isSectionActive(section);
