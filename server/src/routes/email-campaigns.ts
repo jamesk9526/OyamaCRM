@@ -119,7 +119,7 @@ router.post("/webhooks/delivery", async (req, res) => {
   const rawBody = req.body as { events?: unknown } | DeliveryWebhookPayload | null;
   const rawEvents = Array.isArray(rawBody)
     ? rawBody
-    : Array.isArray(rawBody?.events)
+    : rawBody && typeof rawBody === "object" && "events" in rawBody && Array.isArray(rawBody.events)
       ? rawBody.events
       : rawBody
         ? [rawBody]

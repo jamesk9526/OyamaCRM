@@ -82,24 +82,26 @@ interface TemplatePanelProps {
 
 interface QuickColorFieldProps {
   label: string;
-  value: string;
+  value?: string;
   onChange: (value: string) => void;
 }
 
 function QuickColorField({ label, value, onChange }: QuickColorFieldProps) {
+  const safeValue = value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : '#000000';
+
   return (
     <Field label={label}>
       <div className="flex gap-2">
         <input
           type="color"
           className="h-9 w-11 rounded border border-slate-200 cursor-pointer p-0.5"
-          value={value}
+          value={safeValue}
           onChange={(event) => onChange(event.target.value)}
         />
         <input
           type="text"
           className={`${inputCls} flex-1`}
-          value={value}
+          value={value ?? safeValue}
           onChange={(event) => onChange(event.target.value)}
         />
       </div>

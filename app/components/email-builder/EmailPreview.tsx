@@ -55,18 +55,11 @@ export default function EmailPreview({ template, campaignId, isDirty = false, on
     setLoadingPreview(true);
     setPreviewError(null);
 
-    apiFetch(`/api/email-campaigns/${campaignId}/preview`, {
+    apiFetch<CampaignPreviewPayload>(`/api/email-campaigns/${campaignId}/preview`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
     })
-      .then(async (response) => {
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null) as { error?: { message?: string } } | null;
-          throw new Error(payload?.error?.message || 'Failed to load donor preview.');
-        }
-        return response.json() as Promise<CampaignPreviewPayload>;
-      })
       .then((payload) => {
         if (!cancelled) {
           setRemotePreview(payload);

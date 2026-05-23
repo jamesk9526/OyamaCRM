@@ -1835,6 +1835,15 @@ router.post("/merge", async (req, res) => {
     return normalized.length > 0 ? normalized : undefined;
   };
 
+  const mergedDonorStatus = (() : DonorStatus | undefined => {
+    const raw = mergedString("donorStatus");
+    if (!raw) return undefined;
+
+    const normalized = raw.trim().toUpperCase().replace(/\s+/g, "_");
+    const allowedStatuses: DonorStatus[] = ["NEW", "ACTIVE", "LAPSED", "MAJOR_DONOR", "DECEASED"];
+    return allowedStatuses.includes(normalized as DonorStatus) ? (normalized as DonorStatus) : undefined;
+  })();
+
   await prisma.$transaction(async (tx) => {
     const fill = <T>(current: T | null | undefined, incoming: T | null | undefined): T | undefined => {
       if (current !== null && current !== undefined && String(current).trim() !== "") return undefined;
@@ -1846,7 +1855,7 @@ router.post("/merge", async (req, res) => {
       data: {
         firstName: mergedString("firstName") ?? keep.firstName,
         lastName: mergedString("lastName") ?? keep.lastName,
-        donorStatus: mergedString("donorStatus") ?? keep.donorStatus,
+        donorStatus: mergedDonorStatus ?? keep.donorStatus,
         email2: fill(keep.email2, source.email2),
         phone: mergedString("phone") ?? fill(keep.phone, source.phone),
         phone2: fill(keep.phone2, source.phone2),
