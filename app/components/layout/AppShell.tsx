@@ -287,7 +287,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     >
       <TopBar />
       {donorMegaMenuEnabled ? <DonorMegaMenu donorAccentTone={workspaceSettings.donorAccentTone} /> : null}
-      <div className={`relative flex min-w-0 flex-1 overflow-hidden bg-slate-50 transition-[padding] duration-300 ${contentTopPaddingClass}`}>
+      <div className={`relative flex min-w-0 flex-1 overflow-hidden bg-white transition-[padding] duration-300 ${contentTopPaddingClass}`}>
         {donorSidebarDesktopEnabled ? (
           <div className="hidden md:flex h-full">
             <Sidebar

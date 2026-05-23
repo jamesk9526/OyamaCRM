@@ -2,7 +2,7 @@
 @import "./globals-animations.css";
 
 :root {
-  --background: #f8faf9;
+  --background: #ffffff;
   --foreground: #0f172a;
   --accent: #16a34a;
   --accent-light: #f0fdf4;
@@ -36,7 +36,7 @@ body {
 
 /* Shared CRM visual language primitives for calm, consistent page surfaces. */
 .crm-page-surface {
-  background: var(--background);
+  background: var(--crm-surface);
 }
 
 .crm-shell-surface {

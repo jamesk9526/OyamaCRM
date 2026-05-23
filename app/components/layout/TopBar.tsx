@@ -780,12 +780,13 @@ export default function TopBar() {
   const reactiveGlowFrameRef = useRef<number | null>(null);
   const reactiveGlowTimeoutRef = useRef<number | null>(null);
 
-  // Shrink the TopBar height when any scrollable container scrolls past a threshold.
+  // Shrink only from the CRM page scroll root; dropdown/list scrolling should not jitter the shell.
   useEffect(() => {
     function handleScroll(e: Event) {
-      const target = e.target as Element;
-      if (typeof target?.scrollTop === "number") {
-        setScrolled(target.scrollTop > 24);
+      const target = e.target as Element | null;
+      if (!(target instanceof HTMLElement) || !target.closest('[data-crm-scroll-root="true"]')) return;
+      if (typeof target.scrollTop === "number") {
+        setScrolled((current) => (current ? target.scrollTop > 10 : target.scrollTop > 34));
       }
     }
     document.addEventListener("scroll", handleScroll, true);
@@ -797,8 +798,9 @@ export default function TopBar() {
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
   const donorAccentTheme = getDonorAccentTheme(workspaceSettings.donorAccentTone);
   const chromeButtonBase = `${scrolled ? "h-8 w-8 md:h-7 md:w-7" : "h-9 w-9 sm:h-10 sm:w-10 md:h-9 md:w-9"} rounded-xl border border-slate-200/90 bg-white/95 text-slate-600 shadow-[0_6px_18px_rgba(15,23,42,0.06)] flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0`;
-  const darkIconButtonBase = "h-10 w-10 rounded-2xl border border-transparent bg-transparent text-slate-600 flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0 active:scale-95";
+  const darkIconButtonBase = "h-9 w-9 rounded-xl border border-transparent bg-transparent text-slate-500 flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 active:translate-y-0 active:scale-95";
   const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] z-50 overflow-hidden lg:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
+  const shellMotionClass = "duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]";
   const moduleAccentClass = moduleKey === "compassion"
     ? "bg-blue-600"
     : moduleKey === "events"
@@ -1287,27 +1289,28 @@ export default function TopBar() {
           </div>
         </>
       )}
-      <header data-topbar-root="true" className={`fixed left-0 right-0 top-0 isolate z-20 h-16 w-full shrink-0 border-b border-slate-200/80 bg-white/95 shadow-[0_12px_32px_rgba(15,23,42,0.045)] backdrop-blur-xl transition-[height,box-shadow] duration-300 xl:border-b-0 ${scrolled ? "xl:h-20" : "xl:h-[132px]"}`} style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
-        <div aria-hidden="true" className={`pointer-events-none absolute left-0 top-0 hidden transition-[height,width] duration-300 xl:block ${scrolled ? "h-[96px] w-[430px]" : "h-[156px] w-[590px]"}`}>
+      <header data-topbar-root="true" className={`fixed left-0 right-0 top-0 isolate z-20 h-16 w-full shrink-0 border-b border-slate-200/80 bg-white/96 backdrop-blur-xl transition-[height,box-shadow,background-color,border-color] duration-300 xl:border-b-0 ${scrolled ? "shadow-[0_10px_28px_rgba(15,23,42,0.075)] xl:h-20" : "shadow-none xl:h-[132px]"}`} style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
+        <div aria-hidden="true" className={`pointer-events-none absolute left-0 top-0 z-10 hidden transition-[height,width] duration-300 xl:block ${scrolled ? "h-[94px] w-[424px]" : "h-[154px] w-[584px]"}`}>
           <svg className="h-full w-full" viewBox="0 0 590 156" preserveAspectRatio="none">
             <defs>
               <radialGradient id="oyama-brand-glow" cx="16%" cy="20%" r="48%">
-                <stop offset="0%" stopColor="#10b981" stopOpacity="0.24" />
-                <stop offset="58%" stopColor="#047857" stopOpacity="0.06" />
-                <stop offset="100%" stopColor="#010f0d" stopOpacity="0" />
+                <stop offset="0%" stopColor="#34d399" stopOpacity="0.34" />
+                <stop offset="58%" stopColor="#10b981" stopOpacity="0.1" />
+                <stop offset="100%" stopColor="#064e3b" stopOpacity="0" />
               </radialGradient>
               <linearGradient id="oyama-brand-scoop" x1="0%" y1="0%" x2="100%" y2="92%">
-                <stop offset="0%" stopColor="#000d0b" />
-                <stop offset="58%" stopColor="#01231d" />
-                <stop offset="100%" stopColor="#032b24" />
+                <stop offset="0%" stopColor="#012c25" />
+                <stop offset="58%" stopColor="#075443" />
+                <stop offset="100%" stopColor="#0f766e" />
               </linearGradient>
             </defs>
             <path
               d="M0 0H590C533 10 500 38 467 78C424 130 367 150 276 150C184 150 104 124 31 130C15 131 5 137 0 147Z"
               fill="url(#oyama-brand-scoop)"
-              stroke="#032b24"
-              strokeWidth={3}
+              stroke="#0b6b5c"
+              strokeWidth={2.25}
               strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
             />
             <path
               d="M0 0H590C533 10 500 38 467 78C424 130 367 150 276 150C184 150 104 124 31 130C15 131 5 137 0 147Z"
@@ -1315,7 +1318,7 @@ export default function TopBar() {
             />
           </svg>
         </div>
-        <div aria-hidden="true" className="pointer-events-none absolute left-[280px] right-0 bottom-0 z-0 hidden h-px bg-slate-200/75 xl:block" />
+        <div aria-hidden="true" className={`pointer-events-none absolute bottom-0 right-0 z-0 hidden h-px bg-slate-200/55 transition-[left,opacity] duration-300 xl:block ${scrolled ? "left-[280px] opacity-100" : "left-[520px] opacity-70"}`} />
         <div
           aria-hidden="true"
           className={`absolute bottom-0 left-[280px] right-0 h-px pointer-events-none hidden transition-opacity duration-300 xl:block ${moduleAccentClass} ${topBarReactiveGlow ? "opacity-70" : "opacity-0"}`}
@@ -1334,7 +1337,7 @@ export default function TopBar() {
           </Link>
 
           {workspaceSettings.showModuleSwitcher && (
-            <div className={`absolute transition-[left,top] duration-300 ${scrolled ? "left-[176px] top-[14px]" : "left-[154px] top-[72px]"}`}>
+            <div className={`absolute transition-[left,top] duration-300 ${scrolled ? "left-[176px] top-[14px]" : "left-[156px] top-[76px]"}`}>
               <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled={scrolled} />
             </div>
           )}
@@ -1523,7 +1526,7 @@ export default function TopBar() {
           </div>
         </div>
 
-        <div className={`absolute inset-y-0 left-0 right-0 z-10 hidden min-w-0 items-center pr-5 transition-[padding,gap] duration-300 xl:flex 2xl:pr-8 ${scrolled ? "gap-3 pl-[370px] 2xl:pl-[390px]" : "gap-4 pl-[480px] 2xl:gap-5 2xl:pl-[520px]"}`}>
+        <div className={`absolute inset-y-0 left-0 right-0 z-10 hidden min-w-0 items-center pr-5 transition-[padding,gap] duration-300 xl:flex 2xl:pr-8 ${scrolled ? "gap-3 pl-[360px] 2xl:pl-[382px]" : "gap-4 pl-[470px] 2xl:gap-5 2xl:pl-[512px]"}`}>
           {/* ── Center command search trigger ── */}
           <div className="flex min-w-0 flex-1 justify-center">
             <button
@@ -1537,10 +1540,10 @@ export default function TopBar() {
                 setMessengerOpen(false);
                 setMobileSearchOpen(true);
               }}
-              className={`group flex w-full items-center justify-between gap-3 rounded-[20px] border border-slate-200/90 bg-white px-4 text-slate-500 shadow-[0_10px_24px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] transition-all duration-300 hover:-translate-y-px hover:border-emerald-200 hover:shadow-[0_16px_34px_rgba(15,23,42,0.09)] hover:text-slate-700 ${scrolled ? "h-11 max-w-[540px]" : "h-[52px] max-w-[620px] 2xl:max-w-[680px]"}`}
+              className={`group flex w-full items-center justify-between gap-3 rounded-[19px] border border-slate-200/85 bg-white/98 px-4 text-slate-500 shadow-[0_8px_22px_rgba(15,23,42,0.055),inset_0_1px_0_rgba(255,255,255,0.92)] transition-all duration-300 hover:-translate-y-px hover:border-emerald-200 hover:shadow-[0_14px_30px_rgba(15,23,42,0.08)] hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 ${scrolled ? "h-11 max-w-[520px]" : "h-[50px] max-w-[560px] 2xl:max-w-[600px]"}`}
             >
               <span className="flex min-w-0 items-center gap-2">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors group-hover:bg-emerald-50 group-hover:text-emerald-700">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100/90 text-slate-500 transition-colors group-hover:bg-emerald-50 group-hover:text-emerald-700">
                   <svg className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
                   </svg>
@@ -1556,7 +1559,7 @@ export default function TopBar() {
           </div>
 
           {/* ── Right-side icon controls ── */}
-          <div className="hidden shrink-0 items-center gap-2 xl:flex 2xl:gap-3">
+          <div className="hidden shrink-0 items-center gap-1.5 xl:flex 2xl:gap-2.5">
 
           {isStewardSignalsWorkspace && (
             <button
@@ -1969,16 +1972,16 @@ function ModuleSwitcher({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`group flex items-center rounded-[20px] border ${switcherButtonTone} text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md transition-all duration-200 hover:border-emerald-400/40 hover:bg-white/20 ${scrolled ? "gap-1.5 px-1.5 py-1 xl:min-w-[152px] xl:gap-2 xl:rounded-2xl xl:px-2.5 xl:py-1.5" : "gap-2.5 px-2.5 py-1.5 xl:min-w-[220px] xl:gap-3 xl:px-4 xl:py-3"}`}
+        className={`group flex items-center rounded-[20px] border ${switcherButtonTone} text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md transition-all duration-200 hover:border-emerald-400/40 hover:bg-white/20 ${scrolled ? "gap-1.5 px-1.5 py-1 xl:min-w-[152px] xl:gap-2 xl:rounded-2xl xl:px-2.5 xl:py-1.5" : "gap-2 px-2.5 py-1.5 xl:min-w-[184px] xl:gap-2.5 xl:rounded-[18px] xl:px-3 xl:py-2"}`}
       >
-        <span className={`flex items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/15 text-emerald-200 transition-all duration-200 ${scrolled ? "h-6 w-6 xl:h-7 xl:w-7" : "h-8 w-8 xl:h-10 xl:w-10"}`}>
+        <span className={`flex items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/15 text-emerald-200 transition-all duration-200 ${scrolled ? "h-6 w-6 xl:h-7 xl:w-7" : "h-7 w-7 xl:h-8 xl:w-8"}`}>
           {current.icon}
         </span>
         <div className="hidden min-[1180px]:block text-left leading-tight min-w-0 lg:block">
-          <p className={`uppercase text-white/60 transition-all duration-200 ${scrolled ? "hidden" : "text-[10px] tracking-[0.18em]"}`}>Workspace</p>
-          <p className={`truncate font-semibold text-white transition-[font-size] duration-200 ${scrolled ? "text-xs" : "text-sm"}`}>{current.label}</p>
+          <p className={`uppercase text-white/60 transition-all duration-200 ${scrolled ? "hidden" : "text-[9px] tracking-[0.16em]"}`}>Workspace</p>
+          <p className={`truncate font-semibold text-white transition-[font-size] duration-200 ${scrolled ? "text-xs" : "text-[13px]"}`}>{current.label}</p>
         </div>
-        <svg className={`w-3.5 h-3.5 ml-0.5 text-slate-400 group-hover:text-emerald-200 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className={`h-3.5 w-3.5 text-slate-400 transition-transform group-hover:text-emerald-200 ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -2098,7 +2101,7 @@ function UserMenu({
       <button
         onClick={() => setOpen((v) => !v)}
         title={user ? `${user.firstName} ${user.lastName}` : "Account"}
-        className="flex h-12 items-center gap-3 rounded-2xl border border-transparent px-1.5 pr-2 text-left transition-colors hover:bg-slate-50"
+        className="flex h-11 items-center gap-2.5 rounded-[18px] border border-transparent px-1.5 pr-2 text-left transition-colors hover:bg-slate-50/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200"
       >
         <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold text-white shadow-[0_10px_22px_rgba(15,23,42,0.12)] ${avatarCls}`}>
           {initials}
