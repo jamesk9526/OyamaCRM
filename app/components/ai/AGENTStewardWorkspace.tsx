@@ -1,6 +1,6 @@
 /**
  * AGENTStewardWorkspace — full-page modern CRM assistant workspace.
- * Chroma-dark, conversation-first layout with a left sidebar for
+ * Light material, conversation-first layout with a left sidebar for
  * thread history, a wide central message area, and a bottom composer.
  * CRM scope is always visible and manually selectable.
  */
@@ -597,7 +597,7 @@ const SCOPE_OPTIONS: Array<{ key: ModuleKey; label: string; description: string;
   { key: "hrm",        label: "HRM",             description: "Staff, scheduling, HR records",                    color: "bg-purple-50 text-purple-700 border-purple-200" },
   { key: "webmaster",  label: "Webmaster",        description: "Sites, pages, publishing, CMS",                   color: "bg-rose-50 text-rose-700 border-rose-200" },
   { key: "watchdog",   label: "Watchdog",         description: "Security events, alerts, audit logs",             color: "bg-slate-50 text-slate-700 border-slate-200" },
-  { key: "all",        label: "All CRM Data",     description: "All modules where you have permission",           color: "bg-slate-900 text-white border-slate-900" },
+  { key: "all",        label: "All CRM Data",     description: "All modules where you have permission",           color: "bg-slate-50 text-slate-700 border-slate-200" },
 ];
 
 type AddContextActionKey =
@@ -2663,7 +2663,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
 
   return (
     <div
-      className={`steward-chroma-dark flex ${dockMode ? "h-full" : "h-[100dvh]"} min-h-0 overflow-hidden bg-[#09090b] text-slate-100`}
+      className={`steward-ai-light flex ${dockMode ? "h-full" : "h-[100dvh]"} min-h-0 overflow-hidden bg-slate-50 text-slate-900`}
       data-empty={isEmptyChat ? "true" : "false"}
       data-dock={dockMode ? "true" : "false"}
       style={viewportH && !dockMode ? { height: `${viewportH}px` } : undefined}
@@ -2672,7 +2672,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       {/* ── Mobile sidebar overlay backdrop — only in full workspace mode ── */}
       {!dockMode && sidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/40 sm:hidden"
+          className="fixed inset-0 z-30 bg-slate-900/25 backdrop-blur-[1px] sm:hidden"
           onClick={() => setSidebarOpen(false)}
           aria-hidden="true"
         />
@@ -2937,9 +2937,9 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
             </button>
 
             <div className="flex min-w-0 items-center gap-2">
-              <StewardAvatarIcon size={36} alt="Steward" className="ring-cyan-300/60" />
+              <StewardAvatarIcon size={36} alt="Steward" className="ring-emerald-200" />
               <span className="truncate text-xs font-semibold text-slate-900">Steward</span>
-              <span className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.8)]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.45)]" />
             </div>
 
             {/* Expand to full workspace */}
@@ -2965,7 +2965,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
               </svg>
             </button>
             <div className="flex min-w-0 items-center gap-2">
-              <StewardAvatarIcon size={36} alt="Steward" className="ring-cyan-300/60" />
+              <StewardAvatarIcon size={36} alt="Steward" className="ring-emerald-200" />
               <span className="truncate text-xs font-semibold text-slate-900">Steward Workspace</span>
             </div>
           </div>
@@ -2974,8 +2974,8 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
 
         {/* ── Conversation ────────────────────────────────────────────────── */}
         <div className="relative min-h-0 flex-1 overflow-hidden">
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-gradient-to-b from-black/72 via-black/28 to-transparent" />
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-10 bg-gradient-to-t from-black/70 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-gradient-to-b from-slate-50/95 via-slate-50/50 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-10 bg-gradient-to-t from-slate-50/95 to-transparent" />
           <div className="steward-chroma-scroll chat-scroll-smooth h-full overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
             <div className="mx-auto w-full max-w-4xl px-2 py-4 sm:px-4 sm:py-6">
 
@@ -2984,7 +2984,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
               <div className="steward-empty-state flex min-h-[62vh] flex-col items-center justify-center gap-7 px-2 text-center">
                 <h2 className="text-xl font-semibold text-slate-900 sm:text-2xl">Ready when you are.</h2>
 
-                <div ref={composerRef} className="steward-hero-composer relative w-full max-w-[820px] rounded-3xl border border-slate-200 bg-white px-2 py-2 shadow-sm sm:rounded-full sm:px-3">
+                <div ref={composerRef} className="steward-hero-composer relative w-full max-w-[820px] rounded-3xl border border-slate-200 bg-white px-2 py-2 shadow-[0_16px_42px_rgba(15,23,42,0.12)] sm:rounded-full sm:px-3">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -3004,21 +3004,21 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                   )}
 
                   {toolPickerQuery !== null && mentionQuery === null && (
-                    <div className="mb-1 rounded-lg border border-cyan-400/25 bg-slate-950/80 p-1.5 text-left">
-                      <p className="px-1 text-[10px] font-medium text-cyan-200">Slash tools: type after / to search available tools, then pick one</p>
+                    <div className="mb-1 rounded-lg border border-emerald-200 bg-white p-1.5 text-left shadow-sm">
+                      <p className="px-1 text-[10px] font-medium text-emerald-700">Slash tools: type after / to search available tools, then pick one</p>
                       <div className="mt-1 max-h-36 overflow-y-auto space-y-1">
                         {filteredToolOptions.length > 0 ? filteredToolOptions.map((tool) => (
                           <button
                             key={tool.name}
                             type="button"
                             onClick={() => handleForcedToolSelect(tool.name)}
-                            className="w-full rounded-md border border-white/10 bg-slate-900/80 px-2 py-1 text-left text-[11px] text-slate-200 hover:border-cyan-300/40 hover:bg-slate-800"
+                            className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-left text-[11px] text-slate-600 hover:border-emerald-200 hover:bg-emerald-50"
                           >
-                            <span className="font-semibold text-cyan-200">/{tool.name}</span>
-                            <span className="ml-1 text-slate-400">{tool.description}</span>
+                            <span className="font-semibold text-emerald-700">/{tool.name}</span>
+                            <span className="ml-1 text-slate-500">{tool.description}</span>
                           </button>
                         )) : (
-                          <p className="px-1 py-1 text-[11px] text-slate-400">No matching available tools. Try {slashToolHints}</p>
+                          <p className="px-1 py-1 text-[11px] text-slate-500">No matching available tools. Try {slashToolHints}</p>
                         )}
                       </div>
                     </div>
@@ -3032,14 +3032,14 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                         return (
                           <span
                             key={d.id}
-                            className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-xs font-medium text-slate-100"
+                            className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
                           >
-                            <span className="text-teal-400 text-[10px]">@</span>
+                            <span className="text-emerald-500 text-[10px]">@</span>
                             {name}
                             <button
                               type="button"
                               onClick={() => setLockedDonors((prev) => prev.filter((x) => x.id !== d.id))}
-                              className="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/15 hover:text-slate-100"
+                              className="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-emerald-500 transition-colors hover:bg-emerald-100 hover:text-emerald-700"
                               aria-label={`Remove ${name} from context`}
                             >
                               <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -3052,14 +3052,14 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
 
                   {forcedTools.length > 0 && (
                     <div className="mb-1.5 flex flex-wrap items-center gap-1.5 px-0.5 pt-0.5 text-left">
-                      <span className="shrink-0 text-[10px] font-medium text-cyan-300">Forced tools</span>
+                      <span className="shrink-0 text-[10px] font-medium text-emerald-700">Forced tools</span>
                       {forcedTools.map((tool) => (
-                        <span key={tool} className="inline-flex items-center gap-1 rounded-full border border-cyan-300/25 bg-cyan-500/10 px-2 py-0.5 text-xs font-medium text-cyan-100">
+                        <span key={tool} className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
                           /{tool}
                           <button
                             type="button"
                             onClick={() => setForcedTools((prev) => prev.filter((t) => t !== tool))}
-                            className="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-cyan-200 transition-colors hover:bg-cyan-400/20 hover:text-cyan-100"
+                            className="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-emerald-500 transition-colors hover:bg-emerald-100 hover:text-emerald-700"
                             aria-label={`Remove forced tool ${tool}`}
                           >
                             <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -3074,7 +3074,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                       <button
                         type="button"
                         onClick={() => { setAddOpen((v) => !v); setToolsOpen(false); setScopeOpen(false); }}
-                        className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-100 sm:h-9 sm:w-9"
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 sm:h-9 sm:w-9"
                         title="Add context or files"
                         aria-expanded={addOpen}
                       >
@@ -3114,20 +3114,20 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                       <select
                         value={mode}
                         onChange={(event) => setMode(event.target.value as ChatMode)}
-                        className="h-7 appearance-none rounded-full border border-slate-700/80 bg-slate-900/80 py-0 pl-2.5 pr-7 text-[10px] font-semibold text-slate-100 outline-none transition-colors hover:border-slate-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-500/20"
+                        className="h-7 appearance-none rounded-full border border-slate-200 bg-white py-0 pl-2.5 pr-7 text-[10px] font-semibold text-slate-700 outline-none transition-colors hover:border-slate-300 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                         title="Chat mode"
                       >
-                        <option value="ask" className="bg-slate-900 text-slate-100">Ask & Retrieve</option>
-                        <option value="analyze" className="bg-slate-900 text-slate-100">Analyze Trends</option>
-                        <option value="draft" className="bg-slate-900 text-slate-100">Draft Outreach</option>
-                        <option value="free" className="bg-slate-900 text-slate-100">Pure Mode</option>
-                        <option value="agentic" className="bg-slate-900 text-slate-100">Agentic Mode</option>
-                        <option value="llm" className="bg-slate-900 text-slate-100">LLM Deep Reasoning</option>
-                        <option value="action" className="bg-slate-900 text-slate-100">Action Planner</option>
-                        <option value="help" className="bg-slate-900 text-slate-100">Workflow Help</option>
+                        <option value="ask" className="bg-white text-slate-900">Ask & Retrieve</option>
+                        <option value="analyze" className="bg-white text-slate-900">Analyze Trends</option>
+                        <option value="draft" className="bg-white text-slate-900">Draft Outreach</option>
+                        <option value="free" className="bg-white text-slate-900">Pure Mode</option>
+                        <option value="agentic" className="bg-white text-slate-900">Agentic Mode</option>
+                        <option value="llm" className="bg-white text-slate-900">LLM Deep Reasoning</option>
+                        <option value="action" className="bg-white text-slate-900">Action Planner</option>
+                        <option value="help" className="bg-white text-slate-900">Workflow Help</option>
                       </select>
                       <svg
-                        className="pointer-events-none absolute right-2 top-1/2 h-2.5 w-2.5 -translate-y-1/2 text-slate-300"
+                        className="pointer-events-none absolute right-2 top-1/2 h-2.5 w-2.5 -translate-y-1/2 text-slate-400"
                         fill="none"
                         stroke="currentColor"
                         strokeWidth={2.25}
@@ -3143,12 +3143,12 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                       onClick={() => setThoughtStackEnabled((value) => !value)}
                       className={`${dockMode ? "hidden" : "hidden sm:inline-flex"} h-7 items-center gap-1 rounded-full border px-2 text-[10px] font-semibold transition-colors ${
                         thoughtStackEnabled
-                          ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25"
-                          : "border-slate-600 bg-slate-800 text-slate-300 hover:border-slate-500 hover:bg-slate-700"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50"
                       }`}
                       title={thoughtStackEnabled ? "ThoughtStack beta is enabled. Click to disable for direct chat responses." : "ThoughtStack beta is disabled. Click to enable reliability gating."}
                     >
-                      <span className="rounded bg-black/30 px-1 py-[1px] text-[8px] font-bold uppercase tracking-wide">BETA</span>
+                      <span className="rounded border border-current/25 px-1 py-[1px] text-[8px] font-bold uppercase tracking-wide">BETA</span>
                       {thoughtStackEnabled ? "ThoughtStack On" : "ThoughtStack Off"}
                     </button>
 
@@ -3172,7 +3172,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                         };
                         recog.start();
                       }}
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-100 disabled:opacity-40 sm:h-9 sm:w-9"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40 sm:h-9 sm:w-9"
                       title="Voice input"
                     >
                       <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" /></svg>
@@ -3192,7 +3192,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                         type="button"
                         onClick={() => void send()}
                         disabled={!canSend}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1388d8] text-white transition-all hover:bg-[#1d9bf0] active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 sm:h-10 sm:w-10"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 sm:h-10 sm:w-10"
                         title="Send"
                       >
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.4} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5M5 12l7-7 7 7" /></svg>
@@ -3201,25 +3201,25 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                   </div>
 
                   {dockMode && (
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5 border-t border-white/10 pt-1.5">
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-1.5">
                       <div className="relative shrink-0">
                         <select
                           value={mode}
                           onChange={(event) => setMode(event.target.value as ChatMode)}
-                          className="h-6 max-w-[170px] appearance-none rounded-full border border-slate-700/80 bg-slate-900/80 py-0 pl-2 pr-6 text-[10px] font-semibold text-slate-100 outline-none transition-colors hover:border-slate-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-500/20"
+                          className="h-6 max-w-[170px] appearance-none rounded-full border border-slate-200 bg-white py-0 pl-2 pr-6 text-[10px] font-semibold text-slate-700 outline-none transition-colors hover:border-slate-300 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                           title="Chat mode"
                         >
-                          <option value="ask" className="bg-slate-900 text-slate-100">Ask & Retrieve</option>
-                          <option value="analyze" className="bg-slate-900 text-slate-100">Analyze Trends</option>
-                          <option value="draft" className="bg-slate-900 text-slate-100">Draft Outreach</option>
-                          <option value="free" className="bg-slate-900 text-slate-100">Pure Mode</option>
-                          <option value="agentic" className="bg-slate-900 text-slate-100">Agentic Mode</option>
-                          <option value="llm" className="bg-slate-900 text-slate-100">LLM Deep Reasoning</option>
-                          <option value="action" className="bg-slate-900 text-slate-100">Action Planner</option>
-                          <option value="help" className="bg-slate-900 text-slate-100">Workflow Help</option>
+                          <option value="ask" className="bg-white text-slate-900">Ask & Retrieve</option>
+                          <option value="analyze" className="bg-white text-slate-900">Analyze Trends</option>
+                          <option value="draft" className="bg-white text-slate-900">Draft Outreach</option>
+                          <option value="free" className="bg-white text-slate-900">Pure Mode</option>
+                          <option value="agentic" className="bg-white text-slate-900">Agentic Mode</option>
+                          <option value="llm" className="bg-white text-slate-900">LLM Deep Reasoning</option>
+                          <option value="action" className="bg-white text-slate-900">Action Planner</option>
+                          <option value="help" className="bg-white text-slate-900">Workflow Help</option>
                         </select>
                         <svg
-                          className="pointer-events-none absolute right-1.5 top-1/2 h-2 w-2 -translate-y-1/2 text-slate-300"
+                          className="pointer-events-none absolute right-1.5 top-1/2 h-2 w-2 -translate-y-1/2 text-slate-400"
                           fill="none"
                           stroke="currentColor"
                           strokeWidth={2.25}
@@ -3235,12 +3235,12 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                         onClick={() => setThoughtStackEnabled((value) => !value)}
                         className={`inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[10px] font-semibold transition-colors ${
                           thoughtStackEnabled
-                            ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25"
-                            : "border-slate-600 bg-slate-800 text-slate-300 hover:border-slate-500 hover:bg-slate-700"
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                            : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50"
                         }`}
                         title={thoughtStackEnabled ? "ThoughtStack beta is enabled. Click to disable for direct chat responses." : "ThoughtStack beta is disabled. Click to enable reliability gating."}
                       >
-                        <span className="rounded bg-black/30 px-1 py-[1px] text-[8px] font-bold uppercase tracking-wide">BETA</span>
+                        <span className="rounded border border-current/25 px-1 py-[1px] text-[8px] font-bold uppercase tracking-wide">BETA</span>
                         {thoughtStackEnabled ? "ThoughtStack On" : "ThoughtStack Off"}
                       </button>
                     </div>
@@ -3307,7 +3307,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         {(!isEmptyChat || dockMode) && (
         <div className="steward-chroma-composer-wrap shrink-0 bg-white px-3 pt-3 sm:px-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
           <div className="mx-auto max-w-3xl">
-            <div ref={composerRef} className="steward-hero-composer relative w-full rounded-2xl border border-slate-200 bg-white px-2 pt-2 pb-1.5 shadow-sm sm:px-3">
+            <div ref={composerRef} className="steward-hero-composer relative w-full rounded-2xl border border-slate-200 bg-white px-2 pt-2 pb-1.5 shadow-[0_14px_32px_rgba(15,23,42,0.10)] sm:px-3">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -3327,21 +3327,21 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
               )}
 
               {toolPickerQuery !== null && mentionQuery === null && (
-                <div className="mb-1 rounded-lg border border-cyan-400/25 bg-slate-950/80 p-1.5 text-left">
-                  <p className="px-1 text-[10px] font-medium text-cyan-200">Slash tools: type after / to search available tools, then pick one</p>
+                <div className="mb-1 rounded-lg border border-emerald-200 bg-white p-1.5 text-left shadow-sm">
+                  <p className="px-1 text-[10px] font-medium text-emerald-700">Slash tools: type after / to search available tools, then pick one</p>
                   <div className="mt-1 max-h-36 overflow-y-auto space-y-1">
                     {filteredToolOptions.length > 0 ? filteredToolOptions.map((tool) => (
                       <button
                         key={tool.name}
                         type="button"
                         onClick={() => handleForcedToolSelect(tool.name)}
-                        className="w-full rounded-md border border-white/10 bg-slate-900/80 px-2 py-1 text-left text-[11px] text-slate-200 hover:border-cyan-300/40 hover:bg-slate-800"
+                        className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-left text-[11px] text-slate-600 hover:border-emerald-200 hover:bg-emerald-50"
                       >
-                        <span className="font-semibold text-cyan-200">/{tool.name}</span>
-                        <span className="ml-1 text-slate-400">{tool.description}</span>
+                        <span className="font-semibold text-emerald-700">/{tool.name}</span>
+                        <span className="ml-1 text-slate-500">{tool.description}</span>
                       </button>
                     )) : (
-                      <p className="px-1 py-1 text-[11px] text-slate-400">No matching available tools. Try {slashToolHints}</p>
+                      <p className="px-1 py-1 text-[11px] text-slate-500">No matching available tools. Try {slashToolHints}</p>
                     )}
                   </div>
                 </div>
@@ -3355,14 +3355,14 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     return (
                       <span
                         key={d.id}
-                        className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-xs font-medium text-slate-100"
+                        className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
                       >
-                        <span className="text-teal-400 text-[10px]">@</span>
+                        <span className="text-emerald-500 text-[10px]">@</span>
                         {name}
                         <button
                           type="button"
                           onClick={() => setLockedDonors((prev) => prev.filter((x) => x.id !== d.id))}
-                          className="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/15 hover:text-slate-100"
+                          className="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-emerald-500 transition-colors hover:bg-emerald-100 hover:text-emerald-700"
                           aria-label={`Remove ${name} from context`}
                         >
                           <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -3375,14 +3375,14 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
 
               {forcedTools.length > 0 && (
                 <div className="mb-1.5 flex flex-wrap items-center gap-1.5 px-0.5 pt-0.5 text-left">
-                  <span className="shrink-0 text-[10px] font-medium text-cyan-300">Forced tools</span>
+                  <span className="shrink-0 text-[10px] font-medium text-emerald-700">Forced tools</span>
                   {forcedTools.map((tool) => (
-                    <span key={tool} className="inline-flex items-center gap-1 rounded-full border border-cyan-300/25 bg-cyan-500/10 px-2 py-0.5 text-xs font-medium text-cyan-100">
+                    <span key={tool} className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
                       /{tool}
                       <button
                         type="button"
                         onClick={() => setForcedTools((prev) => prev.filter((t) => t !== tool))}
-                        className="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-cyan-200 transition-colors hover:bg-cyan-400/20 hover:text-cyan-100"
+                        className="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-emerald-500 transition-colors hover:bg-emerald-100 hover:text-emerald-700"
                         aria-label={`Remove forced tool ${tool}`}
                       >
                         <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -3397,7 +3397,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                   <button
                     type="button"
                     onClick={() => { setAddOpen((v) => !v); setToolsOpen(false); setScopeOpen(false); }}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-100 sm:h-9 sm:w-9"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 sm:h-9 sm:w-9"
                     title="Add context or files"
                     aria-expanded={addOpen}
                   >
@@ -3453,7 +3453,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     };
                     recog.start();
                   }}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-100 disabled:opacity-40 sm:h-9 sm:w-9"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40 sm:h-9 sm:w-9"
                   title="Voice input"
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" /></svg>
@@ -3473,7 +3473,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     type="button"
                     onClick={() => void send()}
                     disabled={!canSend}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1388d8] text-white transition-all hover:bg-[#1d9bf0] active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 sm:h-10 sm:w-10"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 sm:h-10 sm:w-10"
                     title="Send"
                   >
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.4} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5M5 12l7-7 7 7" /></svg>
@@ -3482,24 +3482,24 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
               </div>
 
               {/* ── Mode & ThoughtStack controls row ── */}
-              <div className="mt-0.5 flex flex-wrap items-center gap-1.5 border-t border-white/10 pt-1.5 pb-0.5 sm:gap-2">
+              <div className="mt-0.5 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-1.5 pb-0.5 sm:gap-2">
                 <div className="relative shrink-0">
                   <select
                     value={mode}
                     onChange={(event) => setMode(event.target.value as ChatMode)}
-                    className="h-6 max-w-[190px] appearance-none rounded-full border border-slate-700/80 bg-slate-900/80 py-0 pl-2.5 pr-6 text-[10px] font-semibold text-slate-100 outline-none transition-colors hover:border-slate-500 focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-500/20"
+                    className="h-6 max-w-[190px] appearance-none rounded-full border border-slate-200 bg-white py-0 pl-2.5 pr-6 text-[10px] font-semibold text-slate-700 outline-none transition-colors hover:border-slate-300 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                     title="Chat mode"
                   >
-                    <option value="ask" className="bg-slate-900 text-slate-100">Ask & Retrieve</option>
-                    <option value="analyze" className="bg-slate-900 text-slate-100">Analyze Trends</option>
-                    <option value="draft" className="bg-slate-900 text-slate-100">Draft Outreach</option>
-                    <option value="free" className="bg-slate-900 text-slate-100">Pure Mode</option>
-                    <option value="agentic" className="bg-slate-900 text-slate-100">Agentic Mode</option>
-                    <option value="llm" className="bg-slate-900 text-slate-100">LLM Deep Reasoning</option>
-                    <option value="action" className="bg-slate-900 text-slate-100">Action Planner</option>
-                    <option value="help" className="bg-slate-900 text-slate-100">Workflow Help</option>
+                    <option value="ask" className="bg-white text-slate-900">Ask & Retrieve</option>
+                    <option value="analyze" className="bg-white text-slate-900">Analyze Trends</option>
+                    <option value="draft" className="bg-white text-slate-900">Draft Outreach</option>
+                    <option value="free" className="bg-white text-slate-900">Pure Mode</option>
+                    <option value="agentic" className="bg-white text-slate-900">Agentic Mode</option>
+                    <option value="llm" className="bg-white text-slate-900">LLM Deep Reasoning</option>
+                    <option value="action" className="bg-white text-slate-900">Action Planner</option>
+                    <option value="help" className="bg-white text-slate-900">Workflow Help</option>
                   </select>
-                  <svg className="pointer-events-none absolute right-1.5 top-1/2 h-2 w-2 -translate-y-1/2 text-slate-300" fill="none" stroke="currentColor" strokeWidth={2.25} viewBox="0 0 24 24" aria-hidden="true">
+                  <svg className="pointer-events-none absolute right-1.5 top-1/2 h-2 w-2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2.25} viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                   </svg>
                 </div>
@@ -3508,12 +3508,12 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                   onClick={() => setThoughtStackEnabled((value) => !value)}
                   className={`inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[10px] font-semibold transition-colors ${
                     thoughtStackEnabled
-                      ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25"
-                      : "border-slate-600 bg-slate-800 text-slate-300 hover:border-slate-500 hover:bg-slate-700"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                      : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50"
                   }`}
                   title={thoughtStackEnabled ? "ThoughtStack beta is enabled. Click to disable for direct chat responses." : "ThoughtStack beta is disabled. Click to enable reliability gating."}
                 >
-                  <span className="rounded bg-black/30 px-1 py-[1px] text-[8px] font-bold uppercase tracking-wide">BETA</span>
+                  <span className="rounded border border-current/25 px-1 py-[1px] text-[8px] font-bold uppercase tracking-wide">BETA</span>
                   {thoughtStackEnabled ? "ThoughtStack On" : "ThoughtStack Off"}
                 </button>
               </div>
@@ -3527,32 +3527,32 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         )}
 
         {notePadOpen && (
-          <aside className={`absolute bottom-0 right-0 ${dockMode ? "top-[52px]" : "top-0"} z-20 w-full border-l border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-[#09090b] lg:w-1/2`}>
+          <aside className={`absolute bottom-0 right-0 ${dockMode ? "top-[52px]" : "top-0"} z-20 w-full border-l border-slate-200 bg-white/95 backdrop-blur lg:w-1/2`}>
             <div className="flex h-full flex-col">
-              <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2.5 dark:border-slate-800">
+              <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2.5">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">Workspace Notepad</p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Attached to every prompt in this thread</p>
+                  <p className="truncate text-sm font-semibold text-slate-900">Workspace Notepad</p>
+                  <p className="text-[11px] text-slate-500">Attached to every prompt in this thread</p>
                 </div>
-                <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-[#111217] dark:text-slate-200">v{activeThreadNote.version}</span>
+                <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">v{activeThreadNote.version}</span>
                 <button
                   type="button"
                   onClick={() => setNotePadOpen(false)}
-                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-[#17191f] dark:hover:text-slate-100"
+                  className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                   title="Close workspace notes"
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 dark:border-slate-800">
+              <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
                 <button
                   type="button"
                   onClick={() => setWorkspaceNoteSourceOfTruth(!activeThreadNote.sourceOfTruth)}
                   className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
                     activeThreadNote.sourceOfTruth
-                      ? "border-cyan-300 bg-cyan-50 text-cyan-700 dark:border-cyan-500/50 dark:bg-cyan-500/15 dark:text-cyan-200"
-                      : "border-slate-300 bg-white text-slate-600 dark:border-slate-700 dark:bg-[#111217] dark:text-slate-300"
+                      ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                      : "border-slate-300 bg-white text-slate-600"
                   }`}
                 >
                   {activeThreadNote.sourceOfTruth ? "Source of truth: on" : "Source of truth: off"}
@@ -3560,7 +3560,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                 <button
                   type="button"
                   onClick={clearWorkspaceNotes}
-                  className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-[#111217] dark:text-slate-300 dark:hover:bg-[#1b1e26]"
+                  className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
                 >
                   Clear notes
                 </button>
@@ -3572,7 +3572,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                   onChange={(event) => setWorkspaceNoteText(event.target.value)}
                   onBlur={bumpWorkspaceNoteVersion}
                   placeholder="Capture working context, constraints, and decisions here. Steward will treat this as attached context for each message."
-                  className="h-full w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-200 dark:border-slate-800 dark:bg-[#05070c] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-cyan-400 dark:focus:ring-cyan-500/30"
+                  className="h-full w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                 />
               </div>
             </div>
@@ -3601,18 +3601,18 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           subtitle="Build, preview, and revise this draft without leaving AGENTSteward."
           onClose={() => setEmailWorkspace(null)}
           maxWidthClassName="max-w-[96vw]"
-          appearance="dark"
+          appearance="light"
           openInNewTabHref={`/email-builder?campaign=${encodeURIComponent(emailWorkspace.campaignId)}${emailWorkspace.returnTo ? `&returnTo=${encodeURIComponent(emailWorkspace.returnTo)}` : ""}`}
           openInNewTabLabel="Open full screen"
         >
           <div className="px-4 pb-4 pt-12">
-            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2 text-xs text-slate-300">
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
               <span>Use Preview in the builder header, then ask Steward for edits and run the next build action.</span>
               <a
                 href={`/email-builder?campaign=${encodeURIComponent(emailWorkspace.campaignId)}${emailWorkspace.returnTo ? `&returnTo=${encodeURIComponent(emailWorkspace.returnTo)}` : ""}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-lg border border-slate-700 bg-slate-900/70 px-2.5 py-1 text-xs font-semibold text-slate-100 hover:bg-slate-800"
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
               >
                 Open full page
               </a>
@@ -3635,23 +3635,23 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           subtitle="Build, preview, and revise this letter draft directly in AGENTSteward."
           onClose={() => setLetterWorkspace(null)}
           maxWidthClassName="max-w-[96vw]"
-          appearance="dark"
+          appearance="light"
           openInNewTabHref={`/letters-printables/templates/${encodeURIComponent(letterWorkspace.templateId)}?fullscreen=1`}
           openInNewTabLabel="Open full screen"
         >
           <div className="px-4 pb-4 pt-12">
-            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2 text-xs text-slate-300">
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
               <span>Switch to Preview inside the letter editor and continue revisions from chat prompts.</span>
               <a
                 href={`/letters-printables/templates/${encodeURIComponent(letterWorkspace.templateId)}?fullscreen=1`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-lg border border-slate-700 bg-slate-900/70 px-2.5 py-1 text-xs font-semibold text-slate-100 hover:bg-slate-800"
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
               >
                 Open full page
               </a>
             </div>
-            <div className="h-[82vh] min-h-[640px] overflow-hidden rounded-xl border border-white/10 bg-[#020617]">
+            <div className="h-[82vh] min-h-[640px] overflow-hidden rounded-xl border border-slate-200 bg-white">
               <LetterTemplateEditor
                 templateId={letterWorkspace.templateId}
                 initialPanel={letterWorkspace.initialPanel ?? "document"}
@@ -3667,13 +3667,13 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           subtitle="Review deeper report details and ask Steward follow-up questions without leaving chat."
           onClose={() => setReportWorkspace(null)}
           maxWidthClassName="max-w-[96vw]"
-          appearance="dark"
+          appearance="light"
           openInNewTabHref={reportWorkspace.path}
           openInNewTabLabel="Open full screen"
         >
-          <div className="h-[calc(100dvh-8.5rem)] overflow-y-auto bg-[#020617] px-3 pb-4 pt-10 sm:h-[calc(100dvh-7.5rem)] sm:px-4 sm:pt-12">
-            <div className="mb-3 flex flex-col items-start gap-2 rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2 text-xs text-slate-300 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-              <span className="w-full truncate text-slate-300">Report route: {reportWorkspace.path}</span>
+          <div className="h-[calc(100dvh-8.5rem)] overflow-y-auto bg-slate-50 px-3 pb-4 pt-10 sm:h-[calc(100dvh-7.5rem)] sm:px-4 sm:pt-12">
+            <div className="mb-3 flex flex-col items-start gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+              <span className="w-full truncate text-slate-600">Report route: {reportWorkspace.path}</span>
               <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
                 <button
                   type="button"
@@ -3686,7 +3686,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                   href={reportWorkspace.path}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-lg border border-white/15 bg-slate-900/70 px-2.5 py-1 text-xs font-semibold text-slate-100 hover:bg-slate-800"
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                 >
                   Open full page
                 </a>
@@ -3694,11 +3694,11 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
             </div>
 
             <div className="grid gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,1fr)]">
-              <div className="rounded-xl border border-white/10 bg-[#060d1a] p-3 sm:p-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
                 <div className="mb-3 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <h3 className="text-sm font-semibold text-slate-100 sm:text-base">{reportCardArtifact?.title || reportWorkspace.title}</h3>
+                  <h3 className="text-sm font-semibold text-slate-900 sm:text-base">{reportCardArtifact?.title || reportWorkspace.title}</h3>
                   {reportCardArtifact?.fiscalYearLabel && (
-                    <span className="rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                       {reportCardArtifact.fiscalYearLabel}
                     </span>
                   )}
@@ -3707,30 +3707,30 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                 {reportCardArtifact?.metrics && reportCardArtifact.metrics.length > 0 ? (
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {reportCardArtifact.metrics.map((metric, idx) => (
-                      <div key={`${metric.label}-${idx}`} className="rounded-lg border border-white/10 bg-[#0b1324] px-3 py-2">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{metric.label}</p>
-                        <p className="mt-1 text-lg font-semibold text-slate-100">{metric.value}</p>
-                        {metric.delta && <p className="text-xs text-slate-400">{metric.delta}</p>}
+                      <div key={`${metric.label}-${idx}`} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{metric.label}</p>
+                        <p className="mt-1 text-lg font-semibold text-slate-900">{metric.value}</p>
+                        {metric.delta && <p className="text-xs text-slate-500">{metric.delta}</p>}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-400">No report metrics were attached to this response.</p>
+                  <p className="text-sm text-slate-500">No report metrics were attached to this response.</p>
                 )}
 
                 {reportMetricBars.length > 0 && (
-                  <div className="mt-4 rounded-lg border border-white/10 bg-[#0b1324] p-3">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Metric weight distribution</p>
+                  <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Metric weight distribution</p>
                     <div className="space-y-2">
                       {reportMetricBars.map((item) => (
                         <div key={item.label}>
-                          <div className="mb-1 flex items-center justify-between text-[11px] text-slate-300">
+                          <div className="mb-1 flex items-center justify-between text-[11px] text-slate-600">
                             <span className="truncate pr-2">{item.label}</span>
-                            <span className="font-semibold text-slate-100">{item.value}</span>
+                            <span className="font-semibold text-slate-900">{item.value}</span>
                           </div>
-                          <div className="h-2 overflow-hidden rounded bg-slate-900/60">
+                          <div className="h-2 overflow-hidden rounded bg-slate-200">
                             <div
-                              className="h-full rounded bg-gradient-to-r from-cyan-500/70 to-emerald-400/70"
+                              className="h-full rounded bg-gradient-to-r from-emerald-500 to-green-400"
                               style={{ width: `${item.width}%` }}
                             />
                           </div>
@@ -3741,31 +3741,31 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                 )}
 
                 {reportCharts.length > 0 && (
-                  <div className="mt-4 rounded-lg border border-white/10 bg-[#0b1324] p-3">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Chart snapshot</p>
+                  <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Chart snapshot</p>
                     <div className="space-y-2">
                       {reportCharts.slice(0, 1).map((chart) => {
                         const series = chart.series?.[0];
                         if (!series || series.data.length === 0) {
-                          return <p key={chart.title || chart.chartType} className="text-xs text-slate-400">No chart series data available.</p>;
+                          return <p key={chart.title || chart.chartType} className="text-xs text-slate-500">No chart series data available.</p>;
                         }
 
                         const maxValue = Math.max(...series.data, 1);
                         return (
                           <div key={chart.title || chart.chartType}>
-                            <p className="mb-1 text-xs font-medium text-slate-300">{chart.title || series.name}</p>
+                            <p className="mb-1 text-xs font-medium text-slate-700">{chart.title || series.name}</p>
                             <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-3">
                               {series.data.slice(0, 9).map((value, idx) => (
-                                <div key={`${series.name}-${idx}`} className="rounded border border-white/10 bg-slate-900/50 px-2 py-1.5">
-                                  <p className="truncate text-[10px] uppercase tracking-wide text-slate-400">{chart.labels[idx] || `P${idx + 1}`}</p>
+                                <div key={`${series.name}-${idx}`} className="rounded border border-slate-200 bg-white px-2 py-1.5">
+                                  <p className="truncate text-[10px] uppercase tracking-wide text-slate-500">{chart.labels[idx] || `P${idx + 1}`}</p>
                                   <div className="mt-1 flex items-center gap-2">
-                                    <div className="h-1.5 flex-1 overflow-hidden rounded bg-slate-800">
+                                    <div className="h-1.5 flex-1 overflow-hidden rounded bg-slate-200">
                                       <div
-                                        className="h-full rounded bg-cyan-400/80"
+                                        className="h-full rounded bg-emerald-500"
                                         style={{ width: `${Math.max(8, Math.round((value / maxValue) * 100))}%` }}
                                       />
                                     </div>
-                                    <span className="font-semibold text-slate-200">{chart.yAxisPrefix || ""}{formatCompact(value)}</span>
+                                    <span className="font-semibold text-slate-800">{chart.yAxisPrefix || ""}{formatCompact(value)}</span>
                                   </div>
                                 </div>
                               ))}
@@ -3780,9 +3780,9 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                 {reportWorkspace.structured?.evidence && reportWorkspace.structured.evidence.length > 0 && (
                   <div className="mt-4">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Evidence highlights</p>
-                    <ul className="space-y-1 text-sm text-slate-300">
+                    <ul className="space-y-1 text-sm text-slate-700">
                       {reportWorkspace.structured.evidence.slice(0, 12).map((item, idx) => (
-                        <li key={`${item.label}-${idx}`} className="rounded border border-white/10 bg-[#0b1324] px-2 py-1">
+                        <li key={`${item.label}-${idx}`} className="rounded border border-slate-200 bg-slate-50 px-2 py-1">
                           {item.label}{item.detail ? ` - ${item.detail}` : ""}
                         </li>
                       ))}
@@ -3792,24 +3792,24 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
               </div>
 
               <div className="space-y-3 xl:sticky xl:top-0 xl:self-start">
-                <div className="rounded-xl border border-sky-400/25 bg-sky-500/5 p-3 sm:p-4">
+                <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 sm:p-4">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-sky-200">Interactive HTML artifact</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Interactive HTML artifact</p>
                     {reportWorkspace.htmlGeneratedAt && (
                       <span className="text-[10px] text-slate-400">Built {reportWorkspace.htmlGeneratedAt}</span>
                     )}
                   </div>
-                  <p className="mt-2 text-xs leading-5 text-slate-300">
+                  <p className="mt-2 text-xs leading-5 text-slate-600">
                     The report artifact is rebuilt in the background as an interactive HTML packet whenever metrics or evidence change.
                   </p>
                   {reportArtifactBuilding && (
-                    <p className="mt-2 text-[11px] text-sky-200">Building artifact in background...</p>
+                    <p className="mt-2 text-[11px] text-sky-700">Building artifact in background...</p>
                   )}
                   {reportArtifactError && (
-                    <p className="mt-2 text-[11px] text-rose-300">{reportArtifactError}</p>
+                    <p className="mt-2 text-[11px] text-rose-700">{reportArtifactError}</p>
                   )}
                   {reportWorkspace.htmlArtifact ? (
-                    <div className="mt-3 overflow-hidden rounded-lg border border-white/10 bg-slate-950/60">
+                    <div className="mt-3 overflow-hidden rounded-lg border border-slate-200 bg-white">
                       <iframe
                         title="Interactive report artifact"
                         srcDoc={reportWorkspace.htmlArtifact}
@@ -3818,40 +3818,40 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                       />
                     </div>
                   ) : (
-                    <div className="mt-3 rounded-lg border border-dashed border-white/15 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
+                    <div className="mt-3 rounded-lg border border-dashed border-slate-300 bg-white/80 px-3 py-2 text-xs text-slate-500">
                       Artifact preview will appear after the first background build completes.
                     </div>
                   )}
                 </div>
 
                 {reportInsights.length > 0 && (
-                  <div className="rounded-xl border border-cyan-400/20 bg-[#06101f] p-3 sm:p-4">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-cyan-300">CRM intelligence snapshot</p>
-                    <ul className="space-y-1.5 text-sm text-slate-200">
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 sm:p-4">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">CRM intelligence snapshot</p>
+                    <ul className="space-y-1.5 text-sm text-slate-700">
                       {reportInsights.map((item, idx) => (
-                        <li key={`${item}-${idx}`} className="rounded border border-cyan-400/10 bg-cyan-500/5 px-2 py-1">{item}</li>
+                        <li key={`${item}-${idx}`} className="rounded border border-emerald-200 bg-white/80 px-2 py-1">{item}</li>
                       ))}
                     </ul>
                   </div>
                 )}
 
-                <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/5 p-3 sm:p-4">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-300">Printable paper version</p>
-                  <p className="text-xs leading-5 text-slate-300">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 sm:p-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">Printable paper version</p>
+                  <p className="text-xs leading-5 text-slate-600">
                     Generate a print-optimized report packet with KPI tiles, stewardship insights, and evidence highlights.
                     Use this for board packets, staff briefings, and physical review meetings.
                   </p>
                   <button
                     type="button"
                     onClick={printReportWorkspace}
-                    className="mt-3 rounded-lg border border-emerald-400/35 bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/25"
+                    className="mt-3 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
                   >
                     Open print layout
                   </button>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-[#060d1a] p-3 sm:p-4">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Deterministic guide templates</p>
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Deterministic guide templates</p>
                   <div className="space-y-2">
                     {reportWorkspace.guideTemplates.map((template) => {
                       const active = reportGuideTemplate === template.id;
@@ -3863,9 +3863,9 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                             setReportGuideTemplate(template.id);
                             setReportQuestion(template.defaultPrompt);
                           }}
-                          className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors ${active ? "border-emerald-400/60 bg-emerald-500/10" : "border-white/15 bg-slate-900/70 hover:bg-slate-800"}`}
+                          className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors ${active ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}
                         >
-                          <p className={`text-xs font-semibold ${active ? "text-emerald-200" : "text-slate-100"}`}>{template.label}</p>
+                          <p className={`text-xs font-semibold ${active ? "text-emerald-700" : "text-slate-900"}`}>{template.label}</p>
                           <p className="mt-1 text-[11px] leading-4 text-slate-400">{template.description}</p>
                           <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-500">Layout: {template.layoutHint}</p>
                         </button>
@@ -3873,17 +3873,17 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                     })}
                   </div>
                   <div className="mt-3 flex flex-wrap gap-1.5">
-                    <span className="rounded-full border border-white/15 bg-slate-900/70 px-2 py-0.5 text-[10px] text-slate-300">
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] text-slate-600">
                       Active template: {reportGuideTemplate}
                     </span>
-                    <span className="rounded-full border border-white/15 bg-slate-900/70 px-2 py-0.5 text-[10px] text-slate-300">
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] text-slate-600">
                       Layout: {reportWorkspace.layoutHint}
                     </span>
                   </div>
                   {reportWorkspace.appliedFilters.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {reportWorkspace.appliedFilters.map((filter) => (
-                        <span key={filter} className="rounded-full border border-cyan-300/25 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-200">
+                        <span key={filter} className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
                           {filter}
                         </span>
                       ))}
@@ -3891,34 +3891,34 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                   )}
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-[#060d1a] p-3 sm:p-4">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Revision history</p>
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Revision history</p>
                   <div className="space-y-2">
                     {reportWorkspace.revisions.slice().reverse().map((revision) => {
                       const active = reportWorkspace.activeRevisionId === revision.id;
                       return (
-                        <div key={revision.id} className={`rounded-lg border px-2.5 py-2 ${active ? "border-emerald-400/50 bg-emerald-500/10" : "border-white/15 bg-slate-900/70"}`}>
+                        <div key={revision.id} className={`rounded-lg border px-2.5 py-2 ${active ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}>
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs font-semibold text-slate-100">v{revision.version} - {revision.label}</p>
+                            <p className="text-xs font-semibold text-slate-900">v{revision.version} - {revision.label}</p>
                             <button
                               type="button"
                               onClick={() => rollbackReportRevision(revision.id)}
                               disabled={active}
-                              className="rounded border border-white/20 px-2 py-0.5 text-[10px] text-slate-200 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                              className="rounded border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               Restore
                             </button>
                           </div>
                           <p className="mt-1 text-[11px] text-slate-400">{new Date(revision.createdAt).toLocaleString()}</p>
-                          <p className="mt-1 text-[11px] text-slate-300">{revision.prompt}</p>
+                          <p className="mt-1 text-[11px] text-slate-600">{revision.prompt}</p>
                         </div>
                       );
                     })}
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-[#060d1a] p-3 sm:p-4">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Prompt shortcuts</p>
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Prompt shortcuts</p>
                   <div className="flex flex-wrap gap-2">
                     {[
                       "Explain the top 3 drivers behind this report.",
@@ -3931,7 +3931,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                         key={toolPrompt}
                         type="button"
                         onClick={() => setReportQuestion(toolPrompt)}
-                        className="w-full rounded-lg border border-white/15 bg-slate-900/70 px-2.5 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800 sm:w-auto"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-left text-xs text-slate-600 hover:bg-slate-50 sm:w-auto"
                       >
                         {toolPrompt}
                       </button>
@@ -3939,19 +3939,19 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-[#060d1a] p-3 sm:p-4">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Ask LLM about this report</p>
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Ask LLM about this report</p>
                   <textarea
                     value={reportQuestion}
                     onChange={(event) => setReportQuestion(event.target.value)}
                     placeholder="Ask for trends, risks, recommendations, or forecast insights..."
-                    className="min-h-28 w-full resize-y rounded-lg border border-white/15 bg-[#020817] px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-emerald-400/70 focus:ring-2 focus:ring-emerald-400/20"
+                    className="min-h-28 w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                   />
                   <div className="mt-2 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
                     <button
                       type="button"
                       onClick={() => setReportQuestion("")}
-                      className="rounded-lg border border-white/15 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800"
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
                     >
                       Clear
                     </button>
@@ -3995,7 +3995,7 @@ function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegene
   if (msg.role === "user") {
     return (
       <div className="steward-message-row steward-message-row-user flex justify-end animate-slide-up-fade-in">
-        <div className="steward-message-user max-w-[85%] sm:max-w-[80%] rounded-2xl rounded-br-sm bg-slate-900 px-4 py-3 text-sm text-white shadow-sm hover:shadow-md transition-shadow duration-200">
+        <div className="steward-message-user max-w-[85%] sm:max-w-[80%] rounded-2xl rounded-br-sm bg-emerald-600 px-4 py-3 text-sm text-white shadow-sm hover:shadow-md transition-shadow duration-200">
           <p className="whitespace-pre-wrap break-words">{msg.content}</p>
         </div>
       </div>
@@ -4041,7 +4041,7 @@ function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegene
         )}
         {isStreaming && (
           <span className="steward-live-thinking inline-flex items-center gap-1.5 text-[10px] text-emerald-600 animate-fade-in">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" />
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
             Thinking
             <span className="steward-thinking-dots" aria-hidden="true">
               <span />
@@ -4051,13 +4051,13 @@ function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegene
           </span>
         )}
         {isStreaming && (
-          <span className="inline-flex items-center rounded-full border border-white/20 bg-white/5 px-1.5 py-0.5 text-[10px] text-cyan-100" title="Live activity heartbeat to show the model is still working.">
+          <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-500 shadow-sm" title="Live activity heartbeat to show the model is still working.">
             Active {thinkingElapsedLabel}s
           </span>
         )}
         {isStreaming && (
           <span
-            className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${thoughtStackActive ? "border-cyan-300/45 bg-cyan-400/10 text-cyan-200" : "border-slate-400/40 bg-slate-700/20 text-slate-300"}`}
+            className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${thoughtStackActive ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-500"}`}
             title={thoughtStackActive ? "ThoughtStack reliability layer is active for this response." : "ThoughtStack reliability layer is bypassed in Pure mode."}
           >
             ThoughtStack {thoughtStackActive ? "on" : "off"}
@@ -4073,7 +4073,7 @@ function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegene
             thinkingContent={msg.thinkingContent ?? ""}
             isActive={isStreaming}
             compact
-            tone="dark"
+            tone="light"
             activeTools={msg.activeTools ?? []}
             progressPercent={msg.progressPercent}
             progressStage={msg.progressStage}
@@ -4081,15 +4081,15 @@ function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegene
         )}
         {isStreaming && !msg.content ? (
           <span className="steward-stream-placeholder inline-flex items-center gap-1.5 text-slate-400">
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300" style={{ animationDelay: "0ms" }} />
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300" style={{ animationDelay: "150ms" }} />
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300" style={{ animationDelay: "300ms" }} />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-500" style={{ animationDelay: "0ms" }} />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-500" style={{ animationDelay: "150ms" }} />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-500" style={{ animationDelay: "300ms" }} />
           </span>
         ) : (
           <StewardResponseRenderer
             content={msg.content}
             structured={msg.structured}
-            tone="dark"
+            tone="light"
             renderMode={renderMode}
             toolsUsed={msg.toolsUsed}
             recordsUsed={msg.recordsUsed}

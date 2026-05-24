@@ -1149,9 +1149,9 @@ export default function StewardChatPanel({
         onClick={() => onDisplayModeChange?.("dock-right")}
         aria-label="Open Steward AI Assistant"
         title="Open Steward AI Assistant"
-        className="fixed z-[96] right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] h-14 w-14 rounded-full border border-emerald-300 bg-emerald-600 text-white shadow-[0_16px_30px_rgba(22,163,74,0.35)] flex items-center justify-center"
+        className="fixed z-[96] right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-emerald-700 shadow-[0_16px_36px_rgba(15,23,42,0.18)] transition-all hover:scale-[1.03] hover:shadow-[0_20px_44px_rgba(15,23,42,0.22)]"
       >
-        <StewardAvatarIcon size={38} alt="Steward" className="ring-2 ring-white/70" />
+        <StewardAvatarIcon size={38} alt="Steward" className="ring-2 ring-emerald-200" />
       </button>
     );
   }
@@ -1318,7 +1318,7 @@ export default function StewardChatPanel({
                   type="button"
                   aria-label="Close conversations"
                   onClick={() => setConversationsOpen(false)}
-                  className="absolute inset-0 z-10 bg-slate-950/10 backdrop-blur-[1px]"
+                  className="absolute inset-0 z-10 bg-slate-900/10 backdrop-blur-[1px]"
                 />
               )}
 
@@ -1368,7 +1368,7 @@ export default function StewardChatPanel({
                       <div
                         className={`rounded-2xl px-3 py-2 text-sm shadow-sm border ${
                           message.role === "user"
-                            ? (isWorkspaceMode ? "bg-slate-900 text-white border-slate-900" : "bg-emerald-600 text-white border-emerald-500")
+                            ? "bg-emerald-600 text-white border-emerald-500"
                             : (isWorkspaceMode ? "bg-white text-slate-700 border-slate-200" : "bg-white text-slate-700 border-slate-200")
                         }`}
                       >
@@ -1379,7 +1379,7 @@ export default function StewardChatPanel({
                             const thoughtStackActive = effectiveMode !== "free";
                             return (
                               <div className="mb-1 inline-flex items-center gap-1.5">
-                                <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${thoughtStackActive ? "border-cyan-300/45 bg-cyan-400/10 text-cyan-700" : "border-slate-300 bg-slate-100 text-slate-600"}`}>
+                                <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${thoughtStackActive ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-300 bg-slate-100 text-slate-600"}`}>
                                   ThoughtStack {thoughtStackActive ? "on" : "off"}
                                 </span>
                               </div>
@@ -1501,7 +1501,7 @@ export default function StewardChatPanel({
                           title={thoughtStackEnabled ? "ThoughtStack beta is enabled. Click to disable for direct chat responses." : "ThoughtStack beta is disabled. Click to enable reliability gating."}
                           className={`h-7 inline-flex items-center gap-1 rounded-full border px-2 text-[10px] font-semibold transition-all ${
                             thoughtStackEnabled
-                              ? "border-cyan-500/60 bg-cyan-600/15 text-cyan-700 hover:bg-cyan-600/25"
+                              ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                               : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:bg-slate-100"
                           }`}
                         >

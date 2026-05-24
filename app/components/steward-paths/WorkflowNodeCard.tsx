@@ -7,6 +7,7 @@
 
 import { useRef } from "react";
 import type { PointerEvent } from "react";
+import type { DragEvent as ReactDragEvent } from "react";
 import { PALETTE_ITEMS } from "./palette-catalog";
 import { isBranchNode, type WorkflowNode, type WorkflowNodeCanvasOffset } from "./workflow-types";
 import { getEngagementStatusChipClass } from "@/app/lib/engagement-status";
@@ -183,6 +184,16 @@ export default function WorkflowNodeCard({
     ? "border-blue-500 ring-2 ring-blue-500/25 shadow-[0_12px_28px_rgba(37,99,235,0.16)]"
     : `${nodeBorderStyle(node.kind)} hover:border-slate-400 hover:shadow-sm`;
 
+  function handleNodeDragStart(event: ReactDragEvent<HTMLElement>) {
+    event.dataTransfer.setData("application/x-oyama-node-id", node.id);
+    event.dataTransfer.effectAllowed = "move";
+    onDragStartNode?.(node.id);
+  }
+
+  function handleNodeDragEnd() {
+    onDragEndNode?.();
+  }
+
   function beginFreeDrag(event: PointerEvent<HTMLDivElement>) {
     const target = event.target as HTMLElement | null;
     if (target?.closest("button, input, select, textarea, a")) return;
@@ -285,9 +296,16 @@ export default function WorkflowNodeCard({
       ) : null}
 
       {/* Drag handle — left edge grip dots, visible on hover */}
-      <span
+      <button
+        type="button"
+        draggable
+        onDragStart={handleNodeDragStart}
+        onDragEnd={handleNodeDragEnd}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
+        title="Drag to move this step"
+        aria-label="Drag step"
         className="absolute left-1.5 top-1/2 -translate-y-1/2 flex flex-col items-center gap-[3px] opacity-0 group-hover:opacity-100 transition-opacity cursor-grab"
-        aria-hidden="true"
       >
         {[0, 1, 2].map((row) => (
           <span key={row} className="flex gap-[3px]">
@@ -295,7 +313,7 @@ export default function WorkflowNodeCard({
             <span className="h-[3px] w-[3px] rounded-full bg-slate-300" />
           </span>
         ))}
-      </span>
+      </button>
 
       {/* Step type label */}
       <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-500">{typeLabel}</p>

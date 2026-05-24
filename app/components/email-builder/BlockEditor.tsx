@@ -2235,8 +2235,25 @@ function ColumnsEditor({
           },
         ];
       }
-      return col.map((b, bi) =>
-        bi === 0 && b.type === 'text' ? { ...b, content: html } : b
+
+      const firstTextIndex = col.findIndex((child) => child.type === 'text');
+      if (firstTextIndex === -1) {
+        return [
+          {
+            id: crypto.randomUUID(),
+            type: 'text',
+            content: html,
+            fontSize: 14,
+            color: '#333333',
+            align: 'left',
+            padding: 8,
+          },
+          ...col,
+        ];
+      }
+
+      return col.map((child, childIndex) =>
+        childIndex === firstTextIndex && child.type === 'text' ? { ...child, content: html } : child
       );
     });
     onUpdate({ columns: cols });
@@ -2263,8 +2280,14 @@ function ColumnsEditor({
         </select>
       </Field>
 
+      <div className="rounded-lg border border-blue-100 bg-blue-50/70 px-3 py-2 text-xs text-blue-800">
+        Drag content blocks from the left panel directly into each column on the canvas.
+        You can also keep written text in each column below.
+      </div>
+
       {normalizedColumns.map((column, index) => {
-        const columnText = column[0]?.type === 'text' ? (column[0] as TextBlock).content : '';
+        const firstTextBlock = column.find((child): child is TextBlock => child.type === 'text');
+        const columnText = firstTextBlock?.content ?? '';
         return (
           <Field key={`columns-editor-${index + 1}`} label={`Column ${index + 1} (HTML)`}>
             <textarea

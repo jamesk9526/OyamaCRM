@@ -67,7 +67,7 @@ export default function WorkflowMap({
 
     if (containerRef.kind === "root") {
       if (index <= 0 || nodeIds.length === 0) {
-        onDropPaletteKind(paletteKind, { kind: "root-end" });
+        onDropPaletteKind(paletteKind, nodeIds.length === 0 ? { kind: "root-end" } : { kind: "root-start" });
         return;
       }
       const previousNodeId = nodeIds[Math.min(index - 1, nodeIds.length - 1)] ?? null;

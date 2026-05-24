@@ -40,7 +40,7 @@ function safeValue(v: TooltipEntry["value"]): string {
   return fmtValue(v as number | string);
 }
 
-const DEFAULT_COLOURS = ["#22d3ee", "#60a5fa", "#a78bfa", "#34d399", "#f472b6", "#fbbf24"];
+const DEFAULT_COLOURS = ["#16a34a", "#2563eb", "#7c3aed", "#0f766e", "#db2777", "#d97706"];
 
 function fmtValue(v: number | string): string {
   if (typeof v === "string") return v;
@@ -57,13 +57,13 @@ function CustomTooltip(props: { active?: boolean; payload?: readonly TooltipEntr
   if (!active || !payload || payload.length === 0) return null;
 
   return (
-    <div className="rounded-lg border border-white/10 bg-[#0d1117] p-2 shadow-xl">
+    <div className="rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
       {payload.map((entry, i) => (
         <div key={i} className="text-xs">
           <span style={{ color: entry.color ?? "#000" }} className="font-semibold">
             {entry.name ?? "Value"}:{" "}
           </span>
-          <span className="text-slate-200">
+          <span className="text-slate-700">
             {yAxisPrefix}
             {safeValue(entry.value)}
           </span>
@@ -116,7 +116,7 @@ function BarChartRenderer({
             <CustomTooltip active={active} payload={payload} yAxisPrefix={yAxisPrefix} />
           )}
         />
-        <Legend wrapperStyle={{ paddingTop: "16px", color: "#cbd5e1" }} />
+        <Legend wrapperStyle={{ paddingTop: "16px", color: "#475569" }} />
         {series.map((s, i) => (
           <Bar
             key={s.name}
@@ -172,7 +172,7 @@ function LineChartRenderer({
             <CustomTooltip active={active} payload={payload} yAxisPrefix={yAxisPrefix} />
           )}
         />
-        <Legend wrapperStyle={{ paddingTop: "16px", color: "#cbd5e1" }} />
+        <Legend wrapperStyle={{ paddingTop: "16px", color: "#475569" }} />
         {series.map((s, i) => (
           <Line
             key={s.name}
@@ -232,7 +232,7 @@ function PieChartRenderer({
           fill="#16a34a"
           paddingAngle={2}
           dataKey="value"
-          label={({ name, value, percent }) => `${name}: ${percent && (percent * 100).toFixed(0)}%`}
+          label={({ name, percent }) => `${name}: ${percent && (percent * 100).toFixed(0)}%`}
         >
           {data.map((entry, index) => (
             <Cell key={`cell-${index}`} fill={entry.fill} opacity={0.9} />
@@ -243,9 +243,9 @@ function PieChartRenderer({
             const num = typeof val === "number" ? val : 0;
             return `${yAxisPrefix}${fmtValue(num)}`;
           }}
-          contentStyle={{ borderRadius: "8px", border: "1px solid rgba(255,255,255,0.12)", background: "#0d1117", color: "#e5e7eb" }}
+          contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", background: "#ffffff", color: "#334155" }}
         />
-        <Legend wrapperStyle={{ paddingTop: "16px", color: "#cbd5e1" }} />
+        <Legend wrapperStyle={{ paddingTop: "16px", color: "#475569" }} />
       </RechartPie>
     </ResponsiveContainer>
   );
@@ -319,56 +319,56 @@ export default function EnhancedChartArtifactCard({ artifact, onAskReportQuestio
   })();
 
   return (
-    <article className="space-y-3 rounded-2xl border border-white/10 bg-[#0d1117] p-4 text-slate-200 shadow-[0_18px_50px_rgba(0,0,0,0.28)]">
+    <article className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 text-slate-700 shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
       <header className="flex items-center justify-between gap-2">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300/80">Interactive Chart</p>
-          <h4 className="mt-1 text-sm font-semibold text-white">{artifact.title || "Chart"}</h4>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-700">Interactive Chart</p>
+          <h4 className="mt-1 text-sm font-semibold text-slate-950">{artifact.title || "Chart"}</h4>
         </div>
         <div className="flex items-center gap-2">
-          <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[11px] text-cyan-100">
+          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] text-emerald-700">
             {artifact.chartType.replace("_", " ")}
           </span>
           <button
             onClick={() => setShowDetails(!showDetails)}
-            className="text-xs font-medium text-slate-400 hover:text-white"
+            className="text-xs font-medium text-slate-500 hover:text-slate-900"
           >
             {showDetails ? "Hide" : "Details"}
           </button>
         </div>
       </header>
 
-      {artifact.description && <p className="text-xs leading-5 text-slate-400">{artifact.description}</p>}
+      {artifact.description && <p className="text-xs leading-5 text-slate-600">{artifact.description}</p>}
 
       {/* Chart container */}
-      <div className="overflow-hidden rounded-xl border border-white/10 bg-black/25 p-3">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-3">
         {chartComponent}
       </div>
 
       {/* Details panel */}
       {showDetails && (
-        <div className="space-y-2 rounded-xl border border-white/10 bg-black/25 p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-cyan-200">Data Details</p>
+        <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Data Details</p>
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div>
               <span className="font-medium text-slate-500">Total</span>
-              <p className="font-semibold text-white">{artifact.yAxisPrefix}{fmtValue(totalValue)}</p>
+              <p className="font-semibold text-slate-950">{artifact.yAxisPrefix}{fmtValue(totalValue)}</p>
             </div>
             <div>
               <span className="font-medium text-slate-500">Series</span>
-              <p className="font-semibold text-white">{artifact.series.length}</p>
+              <p className="font-semibold text-slate-950">{artifact.series.length}</p>
             </div>
             {!isPie && !isDonut && (
               <div>
                 <span className="font-medium text-slate-500">Periods</span>
-                <p className="font-semibold text-white">{artifact.labels.length}</p>
+                <p className="font-semibold text-slate-950">{artifact.labels.length}</p>
               </div>
             )}
           </div>
 
           {/* Series legend */}
           <div className="space-y-1">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-cyan-200">Series</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Series</p>
             <div className="flex flex-wrap gap-2">
               {artifact.series.map((s, i) => (
                 <div key={i} className="flex items-center gap-1">
@@ -376,7 +376,7 @@ export default function EnhancedChartArtifactCard({ artifact, onAskReportQuestio
                     className="w-2 h-2 rounded-full"
                     style={{ backgroundColor: s.color ?? DEFAULT_COLOURS[i % DEFAULT_COLOURS.length] }}
                   />
-                  <span className="text-xs text-slate-300">{s.name}</span>
+                  <span className="text-xs text-slate-700">{s.name}</span>
                 </div>
               ))}
             </div>
@@ -385,15 +385,15 @@ export default function EnhancedChartArtifactCard({ artifact, onAskReportQuestio
       )}
 
       {(onAskReportQuestion || showDetails) && (
-        <div className="space-y-2 rounded-xl border border-white/10 bg-black/25 p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-cyan-200">Chart tools</p>
+        <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Chart tools</p>
           <div className="flex flex-wrap gap-1.5">
             {quickPrompts.map((prompt) => (
               <button
                 key={prompt}
                 type="button"
                 onClick={() => askPrompt(prompt)}
-                className="rounded-lg border border-white/15 bg-[#0f172a] px-2 py-1 text-[11px] text-slate-200 hover:bg-[#1e293b]"
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-emerald-50 disabled:opacity-60"
                 disabled={!onAskReportQuestion}
               >
                 {prompt}
@@ -402,19 +402,19 @@ export default function EnhancedChartArtifactCard({ artifact, onAskReportQuestio
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-medium text-slate-300">Ask about this chart</label>
+            <label className="text-[11px] font-medium text-slate-600">Ask about this chart</label>
             <div className="flex items-center gap-2">
               <input
                 value={askDraft}
                 onChange={(event) => setAskDraft(event.target.value)}
                 placeholder="Ask for trends, risks, recommendations, forecasts..."
-                className="w-full rounded-lg border border-white/15 bg-[#020817] px-2.5 py-1.5 text-xs text-slate-100 placeholder:text-slate-500 outline-none focus:border-cyan-400/70"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/15"
               />
               <button
                 type="button"
                 onClick={() => askPrompt(askDraft)}
                 disabled={!askDraft.trim() || !onAskReportQuestion}
-                className="rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Ask
               </button>

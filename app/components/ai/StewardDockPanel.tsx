@@ -1,5 +1,5 @@
 /**
- * StewardDockPanel — floating chroma-dark chat-head + slide-in right-side dock panel.
+ * StewardDockPanel — floating material-light chat-head + slide-in right-side dock panel.
  * Renders a floating Steward button when closed; a fixed 420px right panel
  * containing AGENTStewardWorkspace in dock mode when open.
  * This is the unified docked agent surface — the full workspace lives at /steward-ai-workspace.
@@ -127,29 +127,29 @@ export default function StewardDockPanel({ moduleKey, behindOverlay = false }: S
           onClick={open_}
           title="Open Steward AI"
           style={{ bottom: "max(1.5rem, env(safe-area-inset-bottom))", right: "1.5rem" }}
-          className={`steward-chat-head group fixed flex h-13 w-13 items-center justify-center rounded-full text-white shadow-[0_18px_40px_rgba(0,0,0,0.45)] transition-all duration-200 hover:scale-[1.04] hover:shadow-[0_22px_50px_rgba(34,211,238,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#09090b] active:scale-95 touch-manipulation ${behindOverlay ? "z-40" : "z-[9990]"}`}
+          className={`steward-chat-head group fixed flex h-13 w-13 items-center justify-center rounded-full text-emerald-700 shadow-[0_16px_36px_rgba(15,23,42,0.18)] transition-all duration-200 hover:scale-[1.04] hover:shadow-[0_20px_44px_rgba(15,23,42,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 touch-manipulation ${behindOverlay ? "z-40" : "z-[9990]"}`}
           aria-label="Open Steward AI assistant"
         >
           <span
             aria-hidden="true"
-            className="steward-chat-head-pulse pointer-events-none absolute -inset-1 rounded-full bg-cyan-300/18 blur-md transition-opacity duration-200 group-hover:opacity-100"
+            className="steward-chat-head-pulse pointer-events-none absolute -inset-1 rounded-full bg-emerald-200/65 blur-md transition-opacity duration-200 group-hover:opacity-100"
           />
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 rounded-full bg-[#05070a]"
+            className="pointer-events-none absolute inset-0 rounded-full bg-white"
           />
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute inset-[1px] rounded-full border border-white/10 bg-[linear-gradient(160deg,#11151c_0%,#080a0f_100%)]"
+            className="pointer-events-none absolute inset-[1px] rounded-full border border-slate-200 bg-white shadow-inner"
           />
           <span className="relative z-10">
-            <StewardAvatarIcon size={24} alt="Steward" className="ring-cyan-300/45 bg-slate-950" />
+            <StewardAvatarIcon size={24} alt="Steward" className="ring-emerald-200 bg-white" />
           </span>
           <span
             aria-hidden="true"
-            className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-cyan-300 ring-2 ring-[#05070a] shadow-[0_0_12px_rgba(34,211,238,0.9)]"
+            className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-white shadow-[0_0_10px_rgba(16,185,129,0.55)]"
           />
-          <span className="pointer-events-none absolute right-full mr-2 hidden whitespace-nowrap rounded-full border border-cyan-300/20 bg-[#0d1117]/95 px-2 py-0.5 text-[11px] font-semibold text-cyan-100 opacity-0 shadow-sm transition-opacity duration-200 group-hover:opacity-100 lg:block">
+          <span className="pointer-events-none absolute right-full mr-2 hidden whitespace-nowrap rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 opacity-0 shadow-md transition-opacity duration-200 group-hover:opacity-100 lg:block">
             Steward AI
           </span>
         </button>
@@ -158,7 +158,7 @@ export default function StewardDockPanel({ moduleKey, behindOverlay = false }: S
       {/* ── Mobile backdrop — dims screen behind panel ────────────────────── */}
       {open && (
         <div
-          className="fixed inset-0 z-[9990] bg-black/55 backdrop-blur-sm sm:hidden"
+          className="fixed inset-0 z-[9990] bg-slate-900/25 backdrop-blur-sm sm:hidden"
           onClick={close}
           aria-hidden="true"
         />
@@ -166,7 +166,7 @@ export default function StewardDockPanel({ moduleKey, behindOverlay = false }: S
 
       {/* ── Slide-in right panel ──────────────────────────────────────────── */}
       <div
-        className={`${open ? "steward-dock-shell shadow-2xl" : "shadow-none"} fixed right-0 z-[9991] flex flex-col w-full bg-[#09090b] border-l border-white/10 transition-transform duration-300 ease-in-out ${
+        className={`${open ? "steward-dock-shell shadow-[0_24px_80px_rgba(15,23,42,0.22)]" : "shadow-none"} fixed right-0 z-[9991] flex flex-col w-full bg-white border-l border-slate-200 transition-transform duration-300 ease-in-out ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
         style={{

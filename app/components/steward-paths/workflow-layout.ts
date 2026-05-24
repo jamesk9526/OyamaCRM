@@ -11,6 +11,10 @@ export function describeInsertTarget(doc: WorkflowDocument, target: NodeInsertTa
     return "End of top-level workflow";
   }
 
+  if (target.kind === "root-start") {
+    return "Start of top-level workflow";
+  }
+
   if (target.kind === "after-node") {
     const node = doc.nodesById[target.nodeId];
     return node ? `After ${node.title}` : "After selected node";

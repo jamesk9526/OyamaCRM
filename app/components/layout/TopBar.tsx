@@ -788,9 +788,9 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
 
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
   const donorAccentTheme = getDonorAccentTheme(workspaceSettings.donorAccentTone);
-  const chromeButtonBase = `${scrolled ? "h-8 w-8 md:h-7 md:w-7" : "h-9 w-9 sm:h-10 sm:w-10 md:h-9 md:w-9"} rounded-xl border border-slate-200/90 bg-white/95 text-slate-600 shadow-[0_6px_18px_rgba(15,23,42,0.06)] flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0`;
+  const chromeButtonBase = "flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200/90 bg-white/95 text-slate-600 shadow-[0_6px_18px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0 max-[380px]:h-9 max-[380px]:w-9";
   const darkIconButtonBase = "h-9 w-9 rounded-xl border border-transparent bg-transparent text-slate-500 flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 active:translate-y-0 active:scale-95";
-  const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] z-50 overflow-hidden lg:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
+  const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] z-50 overflow-hidden xl:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
   const shellMotionClass = "duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]";
   const moduleAccentClass = moduleKey === "compassion"
     ? "bg-blue-600"
@@ -1257,7 +1257,7 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
       {mobileSearchOpen && (
         <>
           <div className="fixed inset-0 z-50 bg-slate-950/25 backdrop-blur-[2px]" onClick={() => setMobileSearchOpen(false)} />
-          <div className="fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-50 mx-auto flex max-h-[calc(100dvh-1.5rem)] max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl sm:top-10 sm:p-4 lg:top-16">
+          <div className="fixed inset-x-2 top-[max(0.5rem,env(safe-area-inset-top))] z-50 mx-auto flex max-h-[calc(100dvh-1rem)] max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl sm:inset-x-3 sm:top-10 sm:max-h-[calc(100dvh-2.5rem)] sm:p-4 lg:top-16">
             <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Command Search</p>
@@ -1334,42 +1334,43 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
           )}
         </div>
 
-        <div className="relative z-20 flex h-full w-full min-w-0 shrink-0 items-center justify-between gap-1.5 px-2 max-[380px]:gap-1 max-[380px]:px-1 sm:gap-2 sm:px-3 xl:hidden">
-          <div className="flex min-w-0 items-center gap-1.5 sm:gap-2 shrink">
-          {/* ── Mobile hamburger — opens sidebar drawer via CustomEvent ── */}
-          <button
-            type="button"
-            aria-label="Open navigation menu"
-            onClick={() => window.dispatchEvent(new CustomEvent("crm:open-mobile-nav"))}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-600 transition-colors hover:bg-emerald-50 hover:text-emerald-700 active:bg-emerald-100"
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          {/* ── TopBar Brand ── */}
-          <Link href={homeHref} className="flex shrink-0 items-center rounded-2xl border border-transparent bg-slate-950 px-2 py-1 shadow-sm transition-all hover:border-white/10 hover:bg-slate-900" aria-label="Go to workspace home">
-            <Image
-              src="/branding/oyama-crm-logo-final.png"
-              alt="OyamaCRM"
-              width={144}
-              height={48}
-              className={`block ${scrolled ? "h-7 w-[96px] max-[380px]:w-[76px]" : "h-10 w-[138px] max-[430px]:w-[108px] max-[360px]:w-[84px]"} object-contain object-left transition-all duration-200`}
-              priority
-            />
-          </Link>
+        <div className="relative z-20 flex h-full w-full min-w-0 shrink-0 items-center justify-between gap-2 px-2 max-[380px]:gap-1.5 sm:px-3 xl:hidden">
+          <div className="flex min-w-0 shrink items-center gap-1.5 sm:gap-2">
+            <div className="flex h-11 min-w-0 shrink items-center gap-1 rounded-2xl border border-emerald-200/10 bg-[radial-gradient(circle_at_8%_0%,rgba(52,211,153,0.24),transparent_42%),linear-gradient(135deg,#012c25,#075443_58%,#0f766e)] px-1.5 shadow-[0_10px_26px_rgba(6,78,59,0.20)] max-[380px]:h-10 max-[380px]:rounded-xl max-[380px]:px-1">
+              {/* ── Mobile hamburger — opens sidebar drawer via CustomEvent ── */}
+              <button
+                type="button"
+                aria-label="Open navigation menu"
+                onClick={() => window.dispatchEvent(new CustomEvent("crm:open-mobile-nav"))}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white/88 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15 max-[380px]:h-8 max-[380px]:w-8"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              {/* ── TopBar Brand ── */}
+              <Link href={homeHref} className="flex min-w-0 shrink items-center rounded-xl px-1.5 py-1 transition-opacity hover:opacity-90 max-[380px]:px-1" aria-label="Go to workspace home">
+                <Image
+                  src="/branding/oyama-crm-logo-final.png"
+                  alt="OyamaCRM"
+                  width={144}
+                  height={48}
+                  className="block h-8 w-[116px] object-contain object-left transition-[width,height] duration-200 max-[430px]:w-[96px] max-[380px]:h-7 max-[380px]:w-[76px]"
+                  priority
+                />
+              </Link>
+            </div>
 
-          {/* ── Module switcher (left anchor) ── */}
-           {workspaceSettings.showModuleSwitcher && (
-             <div className="hidden min-[420px]:flex min-w-0 items-center gap-1.5 sm:gap-2">
-               <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled={scrolled} />
-             </div>
-           )}
-
+            {/* ── Module switcher (left anchor) ── */}
+            {workspaceSettings.showModuleSwitcher && (
+              <div className="hidden min-[560px]:flex min-w-0 items-center gap-1.5 sm:gap-2">
+                <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled />
+              </div>
+            )}
           </div>
 
           {/* Mobile top-right priority controls */}
-          <div className="flex items-center gap-1 max-[380px]:gap-0.5 shrink-0 lg:hidden">
+          <div className="flex shrink-0 items-center gap-1.5 max-[380px]:gap-1 xl:hidden">
             {/* Search icon — opens full-screen overlay */}
             <button
               type="button"
@@ -1383,7 +1384,7 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
               }}
               className={chromeButtonBase}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+              <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
               </svg>
             </button>
@@ -1404,7 +1405,7 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
                   })}
                 className={`${chromeButtonBase} relative`}
               >
-                <BellIcon className="w-5 h-5" />
+                <BellIcon className="h-[18px] w-[18px]" />
                 {unreadCount > 0 && (
                   <span className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold text-white flex items-center justify-center ${
                     moduleKey === "compassion"
@@ -1505,7 +1506,7 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
               }}
               className={`${chromeButtonBase} relative`}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+              <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h.01M12 12h.01M19 12h.01" />
               </svg>
               {messengerUnread > 0 && (
@@ -1751,11 +1752,11 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
 
         {mobileQuickOpen && (
           <>
-            <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setMobileQuickOpen(false)} />
-            <div className={`${mobileSheetBase} max-h-[82dvh] flex flex-col`}>
-              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/80 px-3 py-2">
+            <div className="fixed inset-0 z-40 xl:hidden" onClick={() => setMobileQuickOpen(false)} />
+            <div className={`${mobileSheetBase} flex max-h-[82dvh] flex-col`}>
+              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 bg-[radial-gradient(circle_at_0%_0%,rgba(16,185,129,0.09),transparent_32%),linear-gradient(90deg,#ffffff,#f8fafc)] px-3 py-2.5">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-slate-600">Workspace tools</p>
+                  <p className="text-xs font-semibold text-slate-700">Workspace tools</p>
                   <p className="truncate text-[11px] text-slate-500">{user ? `${user.firstName} ${user.lastName}` : "Signed in workspace"}</p>
                 </div>
                 <button
@@ -1845,6 +1846,18 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
                 >
                   Help & Documentation
                 </Link>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-2">
+                  <div className="flex items-center gap-3 px-1 py-1.5">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-xs font-bold text-white">
+                      {user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : "?"}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">{user ? `${user.firstName} ${user.lastName}` : "Account"}</p>
+                      <p className="truncate text-xs text-slate-500">{user?.email ?? "Signed in"}</p>
+                    </div>
+                  </div>
+                </div>
 
                 {moduleKey === "donor" ? (
                   <button
@@ -1980,7 +1993,7 @@ function ModuleSwitcher({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="fixed left-2 right-2 top-14 z-50 mt-0 w-auto max-w-none overflow-hidden rounded-xl border border-slate-700/80 bg-slate-950 shadow-[0_24px_70px_rgba(2,6,23,0.38)] lg:absolute lg:left-0 lg:right-auto lg:top-full lg:mt-2 lg:w-[320px] lg:max-w-[calc(100vw-1rem)]">
+          <div className="fixed inset-x-2 bottom-2 z-50 mt-0 max-h-[82dvh] w-auto max-w-none overflow-y-auto rounded-2xl border border-slate-700/80 bg-slate-950 shadow-[0_24px_70px_rgba(2,6,23,0.38)] pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:absolute lg:inset-x-auto lg:left-0 lg:bottom-auto lg:top-full lg:mt-2 lg:max-h-[min(70vh,32rem)] lg:w-[320px] lg:max-w-[calc(100vw-1rem)] lg:pb-0">
             <div className={`px-4 pt-3 pb-2 border-b border-slate-800 bg-[radial-gradient(circle_at_15%_0%,rgba(16,185,129,0.18),transparent_34%),linear-gradient(90deg,#020617,#0f172a)]`}>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.22em]">Switch Workspace</p>
               <p className="text-[11px] text-slate-400 mt-0.5">Open another module without leaving your current session.</p>
@@ -2115,7 +2128,7 @@ function UserMenu({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-50 mt-2 w-[min(23rem,calc(100vw-1rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+          <div className="fixed inset-x-2 bottom-2 z-50 max-h-[calc(100dvh-1rem)] w-auto overflow-y-auto rounded-2xl border border-slate-200 bg-white pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-2xl xl:absolute xl:inset-x-auto xl:right-0 xl:bottom-auto xl:top-full xl:mt-2 xl:max-h-[min(80vh,44rem)] xl:w-[min(23rem,calc(100vw-1rem))] xl:pb-0">
             <div className="px-4 py-3 border-b border-gray-100">
               <p className="text-sm font-medium text-gray-900">{user?.firstName} {user?.lastName}</p>
               <p className="text-xs text-gray-400 truncate">{user?.email}</p>

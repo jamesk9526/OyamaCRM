@@ -31,15 +31,15 @@ export default function CallScriptArtifactCard({ artifact }: CallScriptArtifactC
   }
 
   return (
-    <article className="rounded-xl border border-cyan-200 bg-cyan-50/60 p-3 space-y-2">
+    <article className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
       <header className="flex items-center justify-between gap-2">
-        <h4 className="text-sm font-semibold text-cyan-900">{artifact.title || "Call Script"}</h4>
-        <span className="rounded-full border border-cyan-200 bg-white px-2 py-0.5 text-[11px] text-cyan-700">Script</span>
+        <h4 className="text-sm font-semibold text-emerald-900">{artifact.title || "Call Script"}</h4>
+        <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[11px] text-emerald-700">Script</span>
       </header>
 
       {artifact.openingLine && (
-        <div className="rounded-lg border border-cyan-200 bg-white p-2">
-          <p className="text-[11px] font-semibold text-cyan-800">Opening Line</p>
+        <div className="rounded-lg border border-emerald-200 bg-white p-2">
+          <p className="text-[11px] font-semibold text-emerald-800">Opening Line</p>
           <p className="mt-1 text-sm text-slate-800 whitespace-pre-wrap">{artifact.openingLine}</p>
         </div>
       )}
@@ -50,15 +50,15 @@ export default function CallScriptArtifactCard({ artifact }: CallScriptArtifactC
 
       {artifact.talkingPoints && artifact.talkingPoints.length > 0 && (
         <div>
-          <p className="text-[11px] font-semibold text-cyan-800">Talking Points</p>
+          <p className="text-[11px] font-semibold text-emerald-800">Talking Points</p>
           <ul className="mt-1 list-disc pl-5 text-xs text-slate-700 space-y-0.5">{artifact.talkingPoints.map((item) => <li key={item}>{item}</li>)}</ul>
         </div>
       )}
 
       {artifact.nextStep && <p className="text-xs text-slate-700">Next step: {artifact.nextStep}</p>}
 
-      <button type="button" onClick={() => void copyScript()} className="rounded-md border border-cyan-300 bg-white px-2 py-1 text-[11px] font-medium text-cyan-800 hover:bg-cyan-100">Copy Script</button>
-      {notice && <p className="text-[11px] text-cyan-700">{notice}</p>}
+      <button type="button" onClick={() => void copyScript()} className="rounded-md border border-emerald-300 bg-white px-2 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100">Copy Script</button>
+      {notice && <p className="text-[11px] text-emerald-700">{notice}</p>}
     </article>
   );
 }

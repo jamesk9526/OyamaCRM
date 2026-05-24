@@ -99,6 +99,7 @@ export type WorkflowNode = WorkflowActionNode | WorkflowBranchNode;
 
 /** Insert target emitted by connector plus-buttons and used by the palette. */
 export type NodeInsertTarget =
+  | { kind: "root-start" }
   | { kind: "root-end" }
   | { kind: "after-node"; nodeId: string }
   | { kind: "branch-lane"; branchNodeId: string; laneId: string; afterNodeId?: string };

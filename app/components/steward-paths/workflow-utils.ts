@@ -81,6 +81,26 @@ export function createBranchLane(
  */
 export function createNodeFromPalette(item: NodePaletteItem, idFactory: WorkflowIdFactory): WorkflowNode {
   if (item.kind === "logic.if_else" || item.kind === "logic.segment_condition" || item.kind === "logic.donation_amount_condition" || item.kind === "logic.communication_preference_condition" || item.kind === "logic.email_engagement_condition") {
+    if (item.kind === "logic.if_else") {
+      return {
+        id: idFactory(),
+        nodeType: "branch",
+        kind: item.kind,
+        title: "If/else Branch",
+        config: {
+          field: "lastGiftAmount",
+        },
+        statusLabel: "Draft",
+        lanes: [
+          {
+            ...createBranchLane(idFactory, "If true", { includeDefaultCondition: false }),
+            conditionGroups: [{ id: idFactory(), operator: "gt", value: "0" }],
+          },
+          createBranchLane(idFactory, "Else", { isFallback: true, includeDefaultCondition: false }),
+        ],
+      };
+    }
+
     if (item.kind === "logic.segment_condition") {
       return {
         id: idFactory(),
@@ -146,7 +166,7 @@ export function createNodeFromPalette(item: NodePaletteItem, idFactory: Workflow
       id: idFactory(),
       nodeType: "branch",
       kind: item.kind,
-      title: item.kind === "logic.donation_amount_condition" ? "Donation Amount Branch" : "If/else Branch",
+      title: item.kind === "logic.donation_amount_condition" ? "Donation Amount Branch" : "Conditional Branch",
       config: {
         field: "lastGiftAmount",
       },
@@ -308,6 +328,14 @@ export function insertNodeAtTarget(
     },
   };
 
+  if (target.kind === "root-start") {
+    nextDoc = {
+      ...nextDoc,
+      rootNodeIds: [node.id, ...nextDoc.rootNodeIds],
+    };
+    return nextDoc;
+  }
+
   if (target.kind === "root-end") {
     nextDoc = {
       ...nextDoc,
@@ -356,7 +384,7 @@ export function insertNodeAtTarget(
       laneNodeIds.push(node.id);
     }
   } else {
-    laneNodeIds.push(node.id);
+    laneNodeIds.unshift(node.id);
   }
 
   return setContainerNodeIds(nextDoc, { kind: "branch-lane", branchNodeId: branchNode.id, laneId: lane.id }, laneNodeIds);

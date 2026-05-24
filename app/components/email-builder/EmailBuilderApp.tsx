@@ -25,7 +25,7 @@ import {
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 
-import type { AiButtonBlock, AiTextBlock, EmailBlock, EmailTemplate, BlockType } from '@/app/lib/email-builder-types';
+import type { AiButtonBlock, AiTextBlock, ColumnsBlock as ColumnsBlockData, EmailBlock, EmailTemplate, BlockType } from '@/app/lib/email-builder-types';
 import {
   createDefaultBlock,
   createDefaultTemplate,
@@ -1010,6 +1010,83 @@ export default function EmailBuilderApp({
     const origin      = active.data.current?.origin as string | undefined;
     const overId      = String(over.id);
     const overIsBlock = template.blocks.some((b) => b.id === overId);
+    const overTarget = over.data.current?.target as string | undefined;
+    const overParentBlockId = over.data.current?.parentBlockId as string | undefined;
+    const overColumnIndex = over.data.current?.columnIndex as number | undefined;
+    const overIsColumnSlot = overTarget === 'columns-slot' && typeof overParentBlockId === 'string' && typeof overColumnIndex === 'number';
+
+    if (overIsColumnSlot && overParentBlockId) {
+      if (origin === 'palette') {
+        const blockType = active.data.current?.blockType as BlockType;
+        if (!blockType || blockType === 'columns') return;
+        const newBlock = applyBrandingToBlock(createDefaultBlock(blockType), branding);
+
+        setTemplate((prev) => {
+          const parentIndex = prev.blocks.findIndex((b) => b.id === overParentBlockId && b.type === 'columns');
+          if (parentIndex === -1) return prev;
+
+          const blocks = [...prev.blocks];
+          const parentBlock = blocks[parentIndex] as ColumnsBlockData;
+          const totalColumns = parentBlock.columnCount === 3 ? 3 : 2;
+          if (overColumnIndex < 0 || overColumnIndex >= totalColumns) return prev;
+
+          const nextColumns = Array.from({ length: totalColumns }, (_, index) => [
+            ...(parentBlock.columns[index] ?? []),
+          ]);
+          nextColumns[overColumnIndex].push(newBlock);
+
+          blocks[parentIndex] = {
+            ...parentBlock,
+            columns: nextColumns,
+          };
+
+          return { ...prev, blocks };
+        });
+
+        setSelectedId(overParentBlockId);
+        markDirty();
+        return;
+      }
+
+      if (origin === 'canvas') {
+        const activeId = String(active.id);
+        if (activeId === overParentBlockId) return;
+
+        setTemplate((prev) => {
+          const activeIndex = prev.blocks.findIndex((b) => b.id === activeId);
+          if (activeIndex === -1) return prev;
+
+          const movingBlock = prev.blocks[activeIndex];
+          if (movingBlock.type === 'columns') return prev;
+
+          const parentIndex = prev.blocks.findIndex((b) => b.id === overParentBlockId && b.type === 'columns');
+          if (parentIndex === -1) return prev;
+
+          const blocks = [...prev.blocks];
+          const [extractedBlock] = blocks.splice(activeIndex, 1);
+          const normalizedParentIndex = activeIndex < parentIndex ? parentIndex - 1 : parentIndex;
+          const parentBlock = blocks[normalizedParentIndex] as ColumnsBlockData;
+          const totalColumns = parentBlock.columnCount === 3 ? 3 : 2;
+          if (overColumnIndex < 0 || overColumnIndex >= totalColumns) return prev;
+
+          const nextColumns = Array.from({ length: totalColumns }, (_, index) => [
+            ...(parentBlock.columns[index] ?? []),
+          ]);
+          nextColumns[overColumnIndex].push(extractedBlock);
+
+          blocks[normalizedParentIndex] = {
+            ...parentBlock,
+            columns: nextColumns,
+          };
+
+          return { ...prev, blocks };
+        });
+
+        setSelectedId(overParentBlockId);
+        markDirty();
+        return;
+      }
+    }
 
     if (origin === 'palette') {
       /* ── Drop from palette: create a new block ── */

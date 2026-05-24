@@ -97,7 +97,22 @@ main {
   background-clip: padding-box;
 }
 
-/* Steward AI chroma-dark shell. Scoped overrides keep the existing chat logic intact. */
+/* Steward AI workspace shells. Scoped overrides keep the existing chat logic intact. */
+.steward-ai-light {
+  color-scheme: light;
+  --steward-bg: #f8fafc;
+  --steward-surface: #ffffff;
+  --steward-surface-2: #f1f5f9;
+  --steward-surface-3: #e2e8f0;
+  --steward-border: rgba(148, 163, 184, 0.32);
+  --steward-border-strong: rgba(22, 163, 74, 0.34);
+  --steward-text: #0f172a;
+  --steward-muted: #64748b;
+  --steward-dim: #94a3b8;
+  --steward-accent: #16a34a;
+  background: var(--steward-bg);
+}
+
 .steward-chroma-dark {
   color-scheme: dark;
   --steward-bg: #09090b;
@@ -203,7 +218,7 @@ main {
 
 .steward-chroma-scroll {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 180px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 180px),
     var(--steward-bg);
 }
 
@@ -270,37 +285,38 @@ main {
 }
 
 .steward-empty-state {
-  color: #f4f4f5;
+  color: #0f172a;
 }
 
 .steward-empty-state h2 {
-  color: #ffffff !important;
+  color: #0f172a !important;
 }
 
 .steward-hero-composer {
-  background: #242424 !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.12) !important;
 }
 
 .steward-hero-composer:focus-within {
-  background: #272727 !important;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+  background: #ffffff !important;
+  border-color: rgba(22, 163, 74, 0.38) !important;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12), 0 18px 46px rgba(15, 23, 42, 0.14) !important;
 }
 
 .steward-hero-composer select {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 .steward-chroma-composer {
-  background: #0d1117 !important;
-  border-color: rgba(34, 211, 238, 0.24) !important;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.025), 0 22px 48px rgba(0, 0, 0, 0.35) !important;
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.1) !important;
 }
 
 .steward-chroma-composer:focus-within {
-  border-color: rgba(34, 211, 238, 0.58) !important;
-  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.24), 0 24px 52px rgba(0, 0, 0, 0.42) !important;
+  border-color: rgba(22, 163, 74, 0.38) !important;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12), 0 18px 42px rgba(15, 23, 42, 0.12) !important;
 }
 
 .steward-chroma-textarea {
@@ -308,14 +324,14 @@ main {
 }
 
 .steward-chroma-textarea::placeholder {
-  color: #6b7280 !important;
+  color: #94a3b8 !important;
 }
 
 .steward-message-user {
-  background: #f4f7fb !important;
-  color: #05070a !important;
-  border: 1px solid rgba(255, 255, 255, 0.42);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22) !important;
+  background: #16a34a !important;
+  color: #ffffff !important;
+  border: 1px solid #16a34a;
+  box-shadow: 0 10px 24px rgba(22, 163, 74, 0.2) !important;
 }
 
 .steward-message-row-assistant {
@@ -323,7 +339,7 @@ main {
 }
 
 .steward-message-row-assistant > .pl-8 {
-  border-left: 1px solid rgba(34, 211, 238, 0.1);
+  border-left: 1px solid rgba(148, 163, 184, 0.22);
 }
 
 .steward-live-thinking {
@@ -373,12 +389,12 @@ main {
 
 .steward-thinking-scan {
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.82), transparent);
+  background: linear-gradient(90deg, transparent, rgba(22, 163, 74, 0.72), transparent);
   animation: stewardThinkingScan 1.8s linear infinite;
 }
 
 .steward-dock-shell {
-  box-shadow: -32px 0 70px rgba(0, 0, 0, 0.52) !important;
+  box-shadow: -24px 0 70px rgba(15, 23, 42, 0.22) !important;
 }
 
 .steward-chat-head {
