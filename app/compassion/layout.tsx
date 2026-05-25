@@ -1,7 +1,7 @@
 // Compassion CRM nested layout — provides the blue-themed CompassionShell for all /compassion/* routes.
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import TopBar from "@/app/components/layout/TopBar";
@@ -23,6 +23,8 @@ export default function CompassionLayout({ children }: { children: React.ReactNo
   const isPublicWidgetRoute = pathname.startsWith("/compassion/public");
   const [accessState, setAccessState] = useState<"checking" | "allowed" | "denied">("checking");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [shellScrolled, setShellScrolled] = useState(false);
+  const scrollFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (isPublicWidgetRoute || loading) return;
@@ -81,6 +83,34 @@ export default function CompassionLayout({ children }: { children: React.ReactNo
     return () => window.removeEventListener("crm:open-mobile-nav", handleOpenNav);
   }, []);
 
+  useEffect(() => {
+    let latestScrollTop = 0;
+
+    function handleScroll(event: Event) {
+      const target = event.target as Element | null;
+      if (!(target instanceof HTMLElement) || !target.closest('[data-crm-scroll-root="true"]')) return;
+      if (typeof target.scrollTop === "number") {
+        latestScrollTop = target.scrollTop;
+        if (scrollFrameRef.current !== null) return;
+        scrollFrameRef.current = window.requestAnimationFrame(() => {
+          scrollFrameRef.current = null;
+          setShellScrolled((current) => (current ? latestScrollTop > 8 : latestScrollTop > 42));
+        });
+      }
+    }
+
+    document.addEventListener("scroll", handleScroll, true);
+    return () => {
+      document.removeEventListener("scroll", handleScroll, true);
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
+        scrollFrameRef.current = null;
+      }
+    };
+  }, []);
+
+  const contentTopPaddingClass = shellScrolled ? "pt-16 xl:pt-20" : "pt-16 xl:pt-28";
+
   if (isPublicWidgetRoute) {
     return <>{children}</>;
   }
@@ -110,10 +140,9 @@ export default function CompassionLayout({ children }: { children: React.ReactNo
   return (
     <div className="flex flex-col h-screen bg-white">
       {/* TopBar is module-aware and will render blue accents for /compassion paths */}
-      <TopBar />
-      <div className="relative flex min-w-0 flex-1 overflow-hidden">
-        <div className="hidden lg:block mt-16">
-          {/* mt-16 ensures sidebar is not covered by TopBar */}
+      <TopBar scrolled={shellScrolled} />
+      <div className={`relative flex min-w-0 flex-1 overflow-hidden transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${contentTopPaddingClass}`}>
+        <div className="hidden lg:block">
           <CompassionSidebar />
         </div>
 
@@ -126,8 +155,7 @@ export default function CompassionLayout({ children }: { children: React.ReactNo
         </MobileSidebarDrawer>
 
         {/* Blue-tinted content area distinguishes Compassion CRM visually */}
-        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-blue-50/30 p-3 sm:p-4 lg:p-4 min-[1440px]:p-5 2xl:p-6 mt-16">
-          {/* mt-4 ensures content is not covered by TopBar */}
+        <main data-crm-scroll-root="true" className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-blue-50/30 p-3 sm:p-4 lg:p-4 min-[1440px]:p-5 2xl:p-6">
           <ErrorBoundary>
             <div className="min-w-0 max-w-full">{children}</div>
           </ErrorBoundary>

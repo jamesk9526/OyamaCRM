@@ -317,6 +317,16 @@ function GlobalSearch({
   }, [autoFocus]);
 
   useEffect(() => {
+    function focusSearch() {
+      inputRef.current?.focus();
+      setOpen(true);
+    }
+
+    window.addEventListener("crm:focus-topbar-search", focusSearch);
+    return () => window.removeEventListener("crm:focus-topbar-search", focusSearch);
+  }, []);
+
+  useEffect(() => {
     try {
       const raw = window.localStorage.getItem(storageKey);
       if (!raw) {
@@ -805,6 +815,96 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
           : moduleKey === "oshareview"
             ? "bg-cyan-600"
             : donorAccentTheme.topBarAccentLine;
+  const moduleChromePalette = moduleKey === "compassion"
+    ? {
+      scoopStart: "#1e3a8a",
+      scoopMid: "#1d4ed8",
+      scoopEnd: "#2563eb",
+      scoopStroke: "#1e40af",
+      glowStart: "#60a5fa",
+      glowMid: "#2563eb",
+      glowEnd: "#1e3a8a",
+      mobileGradient: "radial-gradient(circle at 8% 0%, rgba(96,165,250,0.24), transparent 42%), linear-gradient(135deg, #1e3a8a, #1d4ed8 58%, #2563eb)",
+      mobileBorderColor: "rgba(147,197,253,0.25)",
+      mobileShadow: "0 10px 26px rgba(30,58,138,0.24)",
+    }
+    : moduleKey === "events"
+      ? {
+        scoopStart: "#4c1d95",
+        scoopMid: "#6d28d9",
+        scoopEnd: "#7c3aed",
+        scoopStroke: "#5b21b6",
+        glowStart: "#c4b5fd",
+        glowMid: "#8b5cf6",
+        glowEnd: "#4c1d95",
+        mobileGradient: "radial-gradient(circle at 8% 0%, rgba(196,181,253,0.24), transparent 42%), linear-gradient(135deg, #4c1d95, #6d28d9 58%, #7c3aed)",
+        mobileBorderColor: "rgba(196,181,253,0.25)",
+        mobileShadow: "0 10px 26px rgba(76,29,149,0.24)",
+      }
+      : moduleKey === "watchdog"
+        ? {
+          scoopStart: "#7f1d1d",
+          scoopMid: "#b91c1c",
+          scoopEnd: "#dc2626",
+          scoopStroke: "#991b1b",
+          glowStart: "#fca5a5",
+          glowMid: "#ef4444",
+          glowEnd: "#7f1d1d",
+          mobileGradient: "radial-gradient(circle at 8% 0%, rgba(252,165,165,0.22), transparent 42%), linear-gradient(135deg, #7f1d1d, #b91c1c 58%, #dc2626)",
+          mobileBorderColor: "rgba(252,165,165,0.24)",
+          mobileShadow: "0 10px 26px rgba(127,29,29,0.24)",
+        }
+        : moduleKey === "webmaster"
+          ? {
+            scoopStart: "#312e81",
+            scoopMid: "#4f46e5",
+            scoopEnd: "#6366f1",
+            scoopStroke: "#3730a3",
+            glowStart: "#c7d2fe",
+            glowMid: "#818cf8",
+            glowEnd: "#312e81",
+            mobileGradient: "radial-gradient(circle at 8% 0%, rgba(199,210,254,0.24), transparent 42%), linear-gradient(135deg, #312e81, #4f46e5 58%, #6366f1)",
+            mobileBorderColor: "rgba(199,210,254,0.25)",
+            mobileShadow: "0 10px 26px rgba(49,46,129,0.24)",
+          }
+          : moduleKey === "hrm"
+            ? {
+              scoopStart: "#115e59",
+              scoopMid: "#0f766e",
+              scoopEnd: "#0d9488",
+              scoopStroke: "#0f766e",
+              glowStart: "#99f6e4",
+              glowMid: "#2dd4bf",
+              glowEnd: "#115e59",
+              mobileGradient: "radial-gradient(circle at 8% 0%, rgba(153,246,228,0.22), transparent 42%), linear-gradient(135deg, #115e59, #0f766e 58%, #0d9488)",
+              mobileBorderColor: "rgba(153,246,228,0.22)",
+              mobileShadow: "0 10px 26px rgba(17,94,89,0.24)",
+            }
+            : moduleKey === "oshareview"
+              ? {
+                scoopStart: "#0e7490",
+                scoopMid: "#0891b2",
+                scoopEnd: "#06b6d4",
+                scoopStroke: "#0e7490",
+                glowStart: "#a5f3fc",
+                glowMid: "#22d3ee",
+                glowEnd: "#0e7490",
+                mobileGradient: "radial-gradient(circle at 8% 0%, rgba(165,243,252,0.24), transparent 42%), linear-gradient(135deg, #0e7490, #0891b2 58%, #06b6d4)",
+                mobileBorderColor: "rgba(165,243,252,0.24)",
+                mobileShadow: "0 10px 26px rgba(14,116,144,0.24)",
+              }
+              : {
+                scoopStart: "#012c25",
+                scoopMid: "#075443",
+                scoopEnd: "#0f766e",
+                scoopStroke: "#0b6b5c",
+                glowStart: "#34d399",
+                glowMid: "#10b981",
+                glowEnd: "#064e3b",
+                mobileGradient: "radial-gradient(circle at 8% 0%, rgba(52,211,153,0.24), transparent 42%), linear-gradient(135deg, #012c25, #075443 58%, #0f766e)",
+                mobileBorderColor: "rgba(167,243,208,0.18)",
+                mobileShadow: "0 10px 26px rgba(6,78,59,0.20)",
+              };
   const homeHref = moduleKey === "compassion"
     ? "/compassion/dashboard"
     : moduleKey === "events"
@@ -883,6 +983,11 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
         setMobileQuickOpen(false);
         setCompactActionsOpen(false);
         setMessengerOpen(false);
+        if (window.matchMedia("(min-width: 1280px)").matches) {
+          setMobileSearchOpen(false);
+          window.dispatchEvent(new CustomEvent("crm:focus-topbar-search"));
+          return;
+        }
         setMobileSearchOpen(true);
       }
     }
@@ -1285,20 +1390,20 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
           <svg className="h-full w-full" viewBox="0 0 590 156" preserveAspectRatio="none">
             <defs>
               <radialGradient id="oyama-brand-glow" cx="16%" cy="20%" r="48%">
-                <stop offset="0%" stopColor="#34d399" stopOpacity="0.34" />
-                <stop offset="58%" stopColor="#10b981" stopOpacity="0.1" />
-                <stop offset="100%" stopColor="#064e3b" stopOpacity="0" />
+                <stop offset="0%" stopColor={moduleChromePalette.glowStart} stopOpacity="0.34" />
+                <stop offset="58%" stopColor={moduleChromePalette.glowMid} stopOpacity="0.1" />
+                <stop offset="100%" stopColor={moduleChromePalette.glowEnd} stopOpacity="0" />
               </radialGradient>
               <linearGradient id="oyama-brand-scoop" x1="0%" y1="0%" x2="100%" y2="92%">
-                <stop offset="0%" stopColor="#012c25" />
-                <stop offset="58%" stopColor="#075443" />
-                <stop offset="100%" stopColor="#0f766e" />
+                <stop offset="0%" stopColor={moduleChromePalette.scoopStart} />
+                <stop offset="58%" stopColor={moduleChromePalette.scoopMid} />
+                <stop offset="100%" stopColor={moduleChromePalette.scoopEnd} />
               </linearGradient>
             </defs>
             <path
               d="M0 0H590C552 7 521 25 493 55C447 105 399 135 314 144C220 154 130 129 43 132C19 133 7 140 0 150Z"
               fill="url(#oyama-brand-scoop)"
-              stroke="#0b6b5c"
+              stroke={moduleChromePalette.scoopStroke}
               strokeWidth={2.25}
               strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
@@ -1336,7 +1441,14 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
 
         <div className="relative z-20 flex h-full w-full min-w-0 shrink-0 items-center justify-between gap-2 px-2 max-[380px]:gap-1.5 sm:px-3 xl:hidden">
           <div className="flex min-w-0 shrink items-center gap-1.5 sm:gap-2">
-            <div className="flex h-11 min-w-0 shrink items-center gap-1 rounded-2xl border border-emerald-200/10 bg-[radial-gradient(circle_at_8%_0%,rgba(52,211,153,0.24),transparent_42%),linear-gradient(135deg,#012c25,#075443_58%,#0f766e)] px-1.5 shadow-[0_10px_26px_rgba(6,78,59,0.20)] max-[380px]:h-10 max-[380px]:rounded-xl max-[380px]:px-1">
+            <div
+              className="flex h-11 min-w-0 shrink items-center gap-1 rounded-2xl border px-1.5 max-[380px]:h-10 max-[380px]:rounded-xl max-[380px]:px-1"
+              style={{
+                background: moduleChromePalette.mobileGradient,
+                borderColor: moduleChromePalette.mobileBorderColor,
+                boxShadow: moduleChromePalette.mobileShadow,
+              }}
+            >
               {/* ── Mobile hamburger — opens sidebar drawer via CustomEvent ── */}
               <button
                 type="button"
@@ -1518,207 +1630,179 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
           </div>
         </div>
 
-        <div className={`absolute inset-y-0 left-0 right-0 z-10 hidden min-w-0 items-center pr-5 transition-[padding,gap] ${shellMotionClass} xl:flex 2xl:pr-8 ${scrolled ? "gap-3 pl-[360px] 2xl:pl-[382px]" : "gap-4 pl-[438px] 2xl:gap-5 2xl:pl-[476px]"}`}>
-          {/* ── Center command search trigger ── */}
-          <div className="flex min-w-0 flex-1 justify-center">
-            <button
-              type="button"
-              aria-label="Open global search"
-              title="Search OyamaCRM"
-              onClick={() => {
-                setNotificationsOpen(false);
-                setMobileQuickOpen(false);
-                setCompactActionsOpen(false);
-                setMessengerOpen(false);
-                setMobileSearchOpen(true);
-              }}
-              className={`group flex w-full items-center justify-between gap-3 rounded-[19px] border border-slate-200/85 bg-white/98 px-4 text-slate-500 shadow-[0_8px_22px_rgba(15,23,42,0.055),inset_0_1px_0_rgba(255,255,255,0.92)] transition-all ${shellMotionClass} hover:-translate-y-px hover:border-emerald-200 hover:shadow-[0_14px_30px_rgba(15,23,42,0.08)] hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 ${scrolled ? "h-11 max-w-[520px]" : "h-[50px] max-w-[560px] 2xl:max-w-[600px]"}`}
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100/90 text-slate-500 transition-colors group-hover:bg-emerald-50 group-hover:text-emerald-700">
-                  <svg className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+        <div className={`absolute inset-y-0 left-0 right-0 z-10 hidden min-w-0 items-center transition-[padding] ${shellMotionClass} xl:flex ${scrolled ? "pl-[338px] pr-5 2xl:pl-[362px] 2xl:pr-8" : "pl-[414px] pr-5 2xl:pl-[452px] 2xl:pr-8"}`}>
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+            <div className={`flex min-w-0 w-full max-w-[1024px] items-center rounded-2xl border border-slate-200/90 bg-white/96 shadow-[0_10px_28px_rgba(15,23,42,0.08)] transition-[height,padding] ${shellMotionClass} ${scrolled ? "h-11 px-2" : "h-[50px] px-2.5"}`}>
+              <div className="hidden shrink-0 items-center gap-2 border-r border-slate-200/80 pr-2 text-slate-500 min-[1440px]:flex">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M4 12h16M4 17h16" />
                   </svg>
                 </span>
-                <span className="truncate text-sm">
-                  Search constituents, donations, campaigns, tools...
-                </span>
-              </span>
-              <span className="hidden rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-semibold text-slate-400 min-[1280px]:inline">
-                Ctrl K
-              </span>
-            </button>
-          </div>
-
-          {/* ── Right-side icon controls ── */}
-          <div className="hidden shrink-0 items-center gap-1.5 xl:flex 2xl:gap-2.5">
-
-          {isStewardSignalsWorkspace && (
-            <button
-              title={signalsAnalyzeError ?? "Rebuild Steward Signals analysis index"}
-              onClick={() => void runStewardSignalsAnalysis()}
-              disabled={analyzingSignals}
-              className="h-9 rounded-lg border border-green-200 bg-green-50 px-3 text-xs font-semibold text-green-700 hover:bg-green-100 disabled:opacity-60"
-            >
-              {analyzingSignals ? "Analyzing..." : "Analyze"}
-            </button>
-          )}
-
-          <div className="order-4">
-            <StewardAiRuntimePill
-              canRunConnectionTest={canRunAiConnectionTest}
-              onOpenSettings={openAiSettings}
-              compact
-            />
-          </div>
-
-          {/* ── Messenger icon (desktop) ── */}
-          <div className="relative hidden">
-            <button
-              type="button"
-              title="Messages"
-              onClick={() => {
-                setMessengerOpen((v) => !v);
-                setNotificationsOpen(false);
-                setCompactActionsOpen(false);
-              }}
-              className={`${darkIconButtonBase} relative max-2xl:hidden`}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
-              </svg>
-              {messengerUnread > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold text-white flex items-center justify-center bg-violet-500">
-                  {Math.min(messengerUnread, 99)}
-                </span>
-              )}
-            </button>
-          </div>
-
-          {/* Notifications */}
-        <div ref={desktopNotificationsRef} className="relative order-2">
-          <button
-            title="Notifications"
-            onClick={() =>
-              setNotificationsOpen((current) => {
-                const nextOpen = !current;
-                if (nextOpen) {
-                  setCompactActionsOpen(false);
-                  setMessengerOpen(false);
-                  setMobileQuickOpen(false);
-                  setMobileSearchOpen(false);
-                }
-                return nextOpen;
-              })}
-            className={`${darkIconButtonBase} relative`}
-          >
-            <BellIcon className="w-4 h-4" />
-            {unreadCount > 0 && (
-              <span className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold text-white flex items-center justify-center ${
-                moduleKey === "compassion"
-                  ? "bg-blue-500"
-                  : moduleKey === "events"
-                    ? "bg-violet-500"
-                    : moduleKey === "watchdog"
-                      ? "bg-red-600"
-                      : moduleKey === "webmaster"
-                        ? "bg-indigo-600"
-                        : moduleKey === "hrm"
-                          ? "bg-teal-600"
-                            : moduleKey === "oshareview"
-                              ? "bg-cyan-600"
-                        : "bg-green-600"
-              }`}>
-                {Math.min(unreadCount, 99)}
-              </span>
-            )}
-          </button>
-
-          {notificationsOpen && (
-            <>
-              <div className="absolute right-0 top-full mt-2 w-[360px] max-w-[calc(100vw-1rem)] bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                  <p className="text-sm font-semibold text-gray-900">Notifications</p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => void apiFetch("/api/notifications/mark-all-read", { method: "POST", body: JSON.stringify({ module: moduleKey === "oshareview" || moduleKey === "hrm" ? "donor" : moduleKey }) }).then(() => loadNotifications())}
-                      className="text-xs text-slate-600 hover:text-slate-800"
-                    >
-                      Mark all read
-                    </button>
-                    <button
-                      onClick={() => void loadNotifications()}
-                      className="text-xs text-gray-500 hover:text-gray-700"
-                    >
-                      Refresh
-                    </button>
-                  </div>
+                <div className="leading-tight">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Action Ribbon</p>
+                  <p className="text-[11px] font-medium text-slate-600">Workspace Commands</p>
                 </div>
+              </div>
 
-                {notificationsLoading ? (
-                  <div className="px-4 py-6 text-sm text-gray-400">Loading notifications...</div>
-                ) : notificationsError ? (
-                  <div className="px-4 py-6 text-sm text-red-600">{notificationsError}</div>
-                ) : notifications.length === 0 ? (
-                  <div className="px-4 py-6 text-sm text-gray-500">No new notifications.</div>
-                ) : (
-                  <div className="max-h-[360px] overflow-y-auto">
-                    {notifications.map((item) => (
-                      <div key={item.id} className="w-full px-4 py-3 border-b border-gray-100 text-left hover:bg-gray-50">
-                        <button onClick={() => void openNotification(item)} className="w-full text-left">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm font-medium text-gray-900 line-clamp-1">{item.title}</p>
-                            <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${item.priority === "high" ? "bg-red-100 text-red-700" : item.priority === "medium" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
-                              {item.priority}
-                            </span>
-                          </div>
-                          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{item.message}</p>
-                          <p className="text-[11px] text-gray-400 mt-1">{new Date(item.createdAt).toLocaleString()}</p>
-                        </button>
-                        <div className="mt-2 flex items-center gap-2">
-                          {item.status !== "read" ? (
-                            <button
-                              onClick={() => void runNotificationAction(item.id, "read")}
-                              className="text-[11px] font-medium text-slate-600 hover:text-slate-900"
-                            >
-                              Mark read
-                            </button>
-                          ) : null}
+              <div className="min-w-0 flex-1 px-1.5">
+                <GlobalSearch moduleKey={moduleKey} pathname={pathname} onNavigate={() => setNotificationsOpen(false)} />
+              </div>
+
+              {isStewardSignalsWorkspace && (
+                <button
+                  title={signalsAnalyzeError ?? "Rebuild Steward Signals analysis index"}
+                  onClick={() => void runStewardSignalsAnalysis()}
+                  disabled={analyzingSignals}
+                  className="ml-1 h-8 rounded-lg border border-green-200 bg-green-50 px-2.5 text-[11px] font-semibold text-green-700 hover:bg-green-100 disabled:opacity-60"
+                >
+                  {analyzingSignals ? "Analyzing..." : "Analyze"}
+                </button>
+              )}
+
+              <div className="mx-2 h-7 w-px shrink-0 bg-slate-200/80" />
+
+              <div ref={desktopNotificationsRef} className="relative shrink-0">
+                <button
+                  title="Notifications"
+                  onClick={() =>
+                    setNotificationsOpen((current) => {
+                      const nextOpen = !current;
+                      if (nextOpen) {
+                        setCompactActionsOpen(false);
+                        setMessengerOpen(false);
+                        setMobileQuickOpen(false);
+                        setMobileSearchOpen(false);
+                      }
+                      return nextOpen;
+                    })}
+                  className={`${darkIconButtonBase} relative`}
+                >
+                  <BellIcon className="h-4 w-4" />
+                  {unreadCount > 0 && (
+                    <span className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold text-white flex items-center justify-center ${
+                      moduleKey === "compassion"
+                        ? "bg-blue-500"
+                        : moduleKey === "events"
+                          ? "bg-violet-500"
+                          : moduleKey === "watchdog"
+                            ? "bg-red-600"
+                            : moduleKey === "webmaster"
+                              ? "bg-indigo-600"
+                              : moduleKey === "hrm"
+                                ? "bg-teal-600"
+                                : moduleKey === "oshareview"
+                                  ? "bg-cyan-600"
+                                  : "bg-green-600"
+                    }`}>
+                      {Math.min(unreadCount, 99)}
+                    </span>
+                  )}
+                </button>
+
+                {notificationsOpen && (
+                  <>
+                    <div className="absolute right-0 top-full mt-2 w-[360px] max-w-[calc(100vw-1rem)] bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
+                      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                        <p className="text-sm font-semibold text-gray-900">Notifications</p>
+                        <div className="flex items-center gap-2">
                           <button
-                            onClick={() => void runNotificationAction(item.id, "snooze", { until: new Date(Date.now() + 60 * 60 * 1000).toISOString() })}
-                            className="text-[11px] font-medium text-slate-500 hover:text-slate-800"
+                            onClick={() => void apiFetch("/api/notifications/mark-all-read", { method: "POST", body: JSON.stringify({ module: moduleKey === "oshareview" || moduleKey === "hrm" ? "donor" : moduleKey }) }).then(() => loadNotifications())}
+                            className="text-xs text-slate-600 hover:text-slate-800"
                           >
-                            Snooze 1h
+                            Mark all read
                           </button>
                           <button
-                            onClick={() => void runNotificationAction(item.id, "dismiss")}
-                            className="text-[11px] font-medium text-red-600 hover:text-red-700"
+                            onClick={() => void loadNotifications()}
+                            className="text-xs text-gray-500 hover:text-gray-700"
                           >
-                            Dismiss
+                            Refresh
                           </button>
                         </div>
                       </div>
-                    ))}
-                  </div>
+
+                      {notificationsLoading ? (
+                        <div className="px-4 py-6 text-sm text-gray-400">Loading notifications...</div>
+                      ) : notificationsError ? (
+                        <div className="px-4 py-6 text-sm text-red-600">{notificationsError}</div>
+                      ) : notifications.length === 0 ? (
+                        <div className="px-4 py-6 text-sm text-gray-500">No new notifications.</div>
+                      ) : (
+                        <div className="max-h-[360px] overflow-y-auto">
+                          {notifications.map((item) => (
+                            <div key={item.id} className="w-full px-4 py-3 border-b border-gray-100 text-left hover:bg-gray-50">
+                              <button onClick={() => void openNotification(item)} className="w-full text-left">
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="text-sm font-medium text-gray-900 line-clamp-1">{item.title}</p>
+                                  <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${item.priority === "high" ? "bg-red-100 text-red-700" : item.priority === "medium" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
+                                    {item.priority}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{item.message}</p>
+                                <p className="text-[11px] text-gray-400 mt-1">{new Date(item.createdAt).toLocaleString()}</p>
+                              </button>
+                              <div className="mt-2 flex items-center gap-2">
+                                {item.status !== "read" ? (
+                                  <button
+                                    onClick={() => void runNotificationAction(item.id, "read")}
+                                    className="text-[11px] font-medium text-slate-600 hover:text-slate-900"
+                                  >
+                                    Mark read
+                                  </button>
+                                ) : null}
+                                <button
+                                  onClick={() => void runNotificationAction(item.id, "snooze", { until: new Date(Date.now() + 60 * 60 * 1000).toISOString() })}
+                                  className="text-[11px] font-medium text-slate-500 hover:text-slate-800"
+                                >
+                                  Snooze 1h
+                                </button>
+                                <button
+                                  onClick={() => void runNotificationAction(item.id, "dismiss")}
+                                  className="text-[11px] font-medium text-red-600 hover:text-red-700"
+                                >
+                                  Dismiss
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
-            </>
-          )}
-        </div>
 
-            <Link
-              href={helpHref}
-              title="Help"
-              aria-label="Open help"
-              className={`${darkIconButtonBase} order-3`}
-            >
-              <HelpCircleIcon className="h-4 w-4" />
-            </Link>
+              <div className="mx-2 h-7 w-px shrink-0 bg-slate-200/80" />
 
-            <div className="order-5 hidden h-5 w-px shrink-0 bg-slate-200/80" />
+              <div className="shrink-0">
+                <StewardAiRuntimePill
+                  canRunConnectionTest={canRunAiConnectionTest}
+                  onOpenSettings={openAiSettings}
+                  compact
+                />
+              </div>
 
-            {/* User avatar */}
-            <div className="order-6">
+              <Link
+                href="/steward-ai-workspace"
+                title="Open Steward Workspace"
+                aria-label="Open Steward Workspace"
+                className="ml-1 inline-flex h-9 items-center gap-1 rounded-xl border border-slate-200/90 bg-white px-2 text-xs font-semibold text-slate-700 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+              >
+                <StewardAvatarIcon size={14} alt="Steward" className="ring-slate-300/80" />
+                <span className="hidden min-[1460px]:inline">Steward</span>
+              </Link>
+
+              <Link
+                href={helpHref}
+                title="Help"
+                aria-label="Open help"
+                className={`${darkIconButtonBase} ml-1`}
+              >
+                <HelpCircleIcon className="h-4 w-4" />
+              </Link>
+            </div>
+
+            <div className="shrink-0">
               <UserMenu
                 moduleKey={moduleKey}
                 showApps={showTopBarAppLauncher}
@@ -1963,7 +2047,7 @@ function ModuleSwitcher({
   if (modules.length === 0) return null;
 
   const current = modules.find((m) => m.active) ?? modules[0];
-  const switcherButtonTone = "border-white/10 bg-white/10";
+  const switcherButtonTone = "border-transparent bg-white/10";
 
   function switchTo(href: string) {
     setOpen(false);
@@ -1976,16 +2060,20 @@ function ModuleSwitcher({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`group flex items-center rounded-[20px] border ${switcherButtonTone} text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-emerald-400/40 hover:bg-white/20 ${scrolled ? "gap-1.5 px-1.5 py-1 xl:min-w-[152px] xl:gap-2 xl:rounded-2xl xl:px-2.5 xl:py-1.5" : "gap-2 px-2.5 py-1.5 xl:min-w-[184px] xl:gap-2.5 xl:rounded-[18px] xl:px-3 xl:py-2"}`}
+        className={`group relative overflow-hidden flex items-center rounded-[18px] border ${switcherButtonTone} text-white shadow-[0_10px_28px_rgba(2,6,23,0.26)] backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-transparent hover:bg-white/16 ${scrolled ? "gap-1 px-1 py-0.5 xl:min-w-[138px] xl:gap-1.5 xl:rounded-xl xl:px-2 xl:py-1" : "gap-1.5 px-2 py-1 xl:min-w-[166px] xl:gap-2 xl:rounded-2xl xl:px-2.5 xl:py-1.5"}`}
       >
-        <span className={`flex items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/15 text-emerald-200 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${scrolled ? "h-6 w-6 xl:h-7 xl:w-7" : "h-7 w-7 xl:h-8 xl:w-8"}`}>
+        <span
+          aria-hidden="true"
+          className={`pointer-events-none absolute left-2 right-2 bottom-0.5 h-[2px] rounded-full bg-gradient-to-r from-transparent via-emerald-300 to-transparent transition-all duration-500 ${open ? "opacity-100" : "opacity-55 group-hover:opacity-90"}`}
+        />
+        <span className={`flex items-center justify-center rounded-xl border border-emerald-300/35 bg-emerald-400/12 text-emerald-200 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${scrolled ? "h-5 w-5 xl:h-6 xl:w-6" : "h-6 w-6 xl:h-7 xl:w-7"}`}>
           {current.icon}
         </span>
         <div className="hidden min-[1180px]:block text-left leading-tight min-w-0 lg:block">
-          <p className={`overflow-hidden uppercase text-white/60 transition-[max-height,opacity,letter-spacing,font-size] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${scrolled ? "max-h-0 text-[0px] opacity-0" : "max-h-4 text-[9px] tracking-[0.16em] opacity-100"}`}>Workspace</p>
-          <p className={`truncate font-semibold text-white transition-[font-size] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${scrolled ? "text-xs" : "text-[13px]"}`}>{current.label}</p>
+          <p className={`overflow-hidden uppercase text-white/65 transition-[max-height,opacity,letter-spacing,font-size] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${scrolled ? "max-h-0 text-[0px] opacity-0" : "max-h-3.5 text-[8px] tracking-[0.14em] opacity-100"}`}>Workspace</p>
+          <p className={`truncate font-semibold text-white transition-[font-size] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${scrolled ? "text-[11px]" : "text-[12px]"}`}>{current.label}</p>
         </div>
-        <svg className={`h-3.5 w-3.5 text-slate-400 transition-transform group-hover:text-emerald-200 ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className={`h-3 w-3 text-white/70 transition-transform group-hover:text-emerald-200 ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -1993,28 +2081,28 @@ function ModuleSwitcher({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="fixed inset-x-2 bottom-2 z-50 mt-0 max-h-[82dvh] w-auto max-w-none overflow-y-auto rounded-2xl border border-slate-700/80 bg-slate-950 shadow-[0_24px_70px_rgba(2,6,23,0.38)] pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:absolute lg:inset-x-auto lg:left-0 lg:bottom-auto lg:top-full lg:mt-2 lg:max-h-[min(70vh,32rem)] lg:w-[320px] lg:max-w-[calc(100vw-1rem)] lg:pb-0">
-            <div className={`px-4 pt-3 pb-2 border-b border-slate-800 bg-[radial-gradient(circle_at_15%_0%,rgba(16,185,129,0.18),transparent_34%),linear-gradient(90deg,#020617,#0f172a)]`}>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.22em]">Switch Workspace</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Open another module without leaving your current session.</p>
+          <div className="fixed inset-x-2 bottom-2 z-50 mt-0 max-h-[82dvh] w-auto max-w-none overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-[0_18px_52px_rgba(2,6,23,0.18)] pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:absolute lg:inset-x-auto lg:left-0 lg:bottom-auto lg:top-full lg:mt-2 lg:max-h-[min(66vh,29rem)] lg:w-[296px] lg:max-w-[calc(100vw-1rem)] lg:pb-0">
+            <div className="px-3.5 pt-2.5 pb-2 border-b border-slate-200 bg-[radial-gradient(circle_at_15%_0%,rgba(16,185,129,0.12),transparent_44%),linear-gradient(90deg,#ffffff,#f8fafc)]">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.22em]">Switch Workspace</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Open another module without leaving your current session.</p>
             </div>
-            <div className="p-2.5 space-y-2">
+            <div className="p-2 space-y-1.5">
               {modules.map((m) => (
                 <button
                   key={m.key}
                   onClick={() => switchTo(m.href)}
-                  className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${m.active ? "border-emerald-400/30 bg-emerald-500/15" : "border-transparent bg-transparent hover:border-slate-700 hover:bg-white/8"}`}
+                  className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors ${m.active ? "border-emerald-300 bg-emerald-50" : "border-transparent bg-transparent hover:border-slate-200 hover:bg-slate-50"}`}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${m.active ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-200" : "border-slate-700 bg-white/5 text-slate-300"}`}>
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className={`w-7 h-7 rounded-md border flex items-center justify-center shrink-0 ${m.active ? "border-emerald-200 bg-emerald-100 text-emerald-700" : "border-slate-200 bg-white text-slate-600"}`}>
                       {m.icon}
                     </span>
-                    <div className="min-w-0 flex-1 px-2">
-                      <p className="text-[13px] font-semibold text-white truncate">{m.label}</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5 truncate">{m.helper}</p>
+                    <div className="min-w-0 flex-1 px-1.5">
+                      <p className="text-[12px] font-semibold text-slate-900 truncate">{m.label}</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5 truncate">{m.helper}</p>
                     </div>
                     {m.active && (
-                      <svg className="w-4 h-4 text-emerald-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                       </svg>
                     )}

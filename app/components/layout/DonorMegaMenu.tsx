@@ -473,7 +473,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green", scrolled = fa
 
     <nav
       aria-label="DonorCRM primary navigation"
-      className={`fixed left-0 right-0 top-16 z-[19] hidden h-12 items-center gap-1 overflow-x-auto border-b border-slate-200/80 bg-white/92 px-3 shadow-[0_10px_26px_rgba(15,23,42,0.055)] backdrop-blur-xl transition-[top] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] [scrollbar-width:none] md:flex [&::-webkit-scrollbar]:hidden ${scrolled ? "xl:top-20" : "xl:top-28"}`}
+      className={`fixed left-0 right-0 top-16 z-[19] hidden h-12 items-center gap-1 overflow-x-auto border-b border-slate-200/80 bg-white/92 px-3 shadow-[0_10px_26px_rgba(15,23,42,0.055)] backdrop-blur-xl transition-[top] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] [scrollbar-width:none] md:flex [&::-webkit-scrollbar]:hidden ${scrolled ? "xl:top-24" : "xl:top-32"}`}
     >
       {navSections.map((section) => {
         const active = isSectionActive(section);
