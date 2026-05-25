@@ -116,18 +116,18 @@ const DONOR_ACCENT_OVERRIDES: Record<DonorAccentTone, { iconActive: string; acce
 
 const VARIANT_STYLES: Record<CrmSidebarVariant, SidebarVariantStyles> = {
   donor: {
-    aside: "bg-white border-r border-slate-200 shadow-[10px_0_32px_rgba(15,23,42,0.035)]",
+    aside: "bg-emerald-50/55 border-r border-emerald-100 shadow-[10px_0_32px_rgba(15,23,42,0.035)]",
     navSurface: "",
     heading: "text-slate-500",
     headingMuted: "hover:text-slate-700",
-    itemActive: "text-emerald-950 bg-emerald-50 font-semibold shadow-[inset_0_0_0_1px_rgba(16,185,129,0.10)]",
-    itemInactive: "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+    itemActive: "text-emerald-950 bg-white font-semibold shadow-[inset_3px_0_0_rgba(22,163,74,0.82),inset_0_0_0_1px_rgba(16,185,129,0.16)]",
+    itemInactive: "text-slate-600 hover:bg-white/80 hover:text-slate-900",
     iconActive: "text-emerald-700",
     iconInactive: "text-slate-400 group-hover:text-slate-600",
     badge: "bg-slate-100 text-slate-600",
     sectionBorder: "border-transparent",
     sectionHover: "",
-    footer: "border-t border-slate-200 bg-white",
+    footer: "border-t border-emerald-100 bg-emerald-50/70",
     footerText: "text-slate-500",
     collapseButton: "border-slate-300 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50",
     tooltip: "border-slate-200 bg-white text-slate-900 shadow-xl",

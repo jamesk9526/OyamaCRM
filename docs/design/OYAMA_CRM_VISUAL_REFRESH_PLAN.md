@@ -11,6 +11,9 @@ Use the provided screenshots as inspiration only. The refresh should keep curren
 - Light CRM background: `#f8faf9` / slate-50 family.
 - White cards with soft borders and subtle shadows.
 - Green accent for primary actions, active navigation, and positive status.
+- Workspace chrome can use a pale green Windows-ribbon treatment: grouped icon-first actions, compact side/navigation panels, and flatter square-ish controls. Do not show ribbon tabs unless they switch real command sets.
+- Any custom command bar that functions as a workspace ribbon should follow the same grouped-command treatment instead of introducing separate rounded-card ribbon styles.
+- Dashboard pages should feel like the same workspace, not a marketing dashboard: compact title strip, grouped command ribbon, flat KPI tiles, dense live panels, and an inspector-style priority area.
 - Deep slate primary text and muted gray secondary text.
 - One clear page header, one clean action strip, one consistent metric-card style.
 - Reduce heavy segmented toolbars, nested boxes, loud tags, and duplicate action paths.

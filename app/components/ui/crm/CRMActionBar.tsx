@@ -10,8 +10,8 @@ interface CRMActionBarProps {
 /** CRMActionBar replaces heavy segmented toolbar boxes with one calm control strip. */
 export default function CRMActionBar({ children, className = "" }: CRMActionBarProps) {
   return (
-    <CRMCard padding="sm" className={className}>
-      <div className="flex flex-wrap items-center gap-2.5">{children}</div>
+    <CRMCard padding="sm" className={`bg-gradient-to-b from-white to-slate-50 ${className}`}>
+      <div className="flex flex-wrap items-center gap-1.5">{children}</div>
     </CRMCard>
   );
 }

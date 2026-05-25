@@ -1,7 +1,7 @@
 // Full-page report viewer — workspace ribbon, multiple chart types, on-the-fly customization
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo } from "react";
 import {
   BarChart, Bar,
   LineChart, Line,
@@ -178,7 +178,7 @@ function ReportChart({ chartData, cfg }: { chartData: Record<string, unknown>[];
           <PieChart>
             <Pie data={pieData} cx="50%" cy="50%" innerRadius={inner} outerRadius="72%"
               dataKey="value" nameKey="name" paddingAngle={2}
-              label={showLabels ? ({ name, percent }) => `${(percent! * 100).toFixed(0)}%` : false}
+              label={showLabels ? ({ percent }) => `${(percent! * 100).toFixed(0)}%` : false}
               labelLine={showLabels}>
               {pieData.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
             </Pie>
@@ -285,10 +285,10 @@ function ReportChart({ chartData, cfg }: { chartData: Record<string, unknown>[];
 function RibbonBtn({ active, onClick, children, title }: { active?: boolean; onClick: () => void; children: React.ReactNode; title?: string }) {
   return (
     <button type="button" title={title} onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all ${
+      className={`inline-flex min-h-9 items-center gap-1.5 rounded-sm border px-2.5 py-1.5 text-xs font-medium transition-all ${
         active
-          ? "bg-green-600 text-white shadow-sm"
-          : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+          ? "border-green-600 bg-green-600 text-white shadow-sm"
+          : "border-emerald-100 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
       }`}>
       {children}
     </button>
@@ -297,15 +297,15 @@ function RibbonBtn({ active, onClick, children, title }: { active?: boolean; onC
 
 function RibbonGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex flex-wrap items-center gap-1.5">{children}</div>
-      <p className="text-center text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>
+    <div className="flex min-w-fit flex-col gap-1 border-r border-emerald-100 px-2 pb-0.5 last:border-r-0">
+      <div className="flex flex-wrap items-center gap-1">{children}</div>
+      <p className="text-center text-[9px] font-medium text-slate-500">{label}</p>
     </div>
   );
 }
 
 function RibbonDivider() {
-  return <div className="mx-1 h-10 w-px self-start bg-slate-200" />;
+  return null;
 }
 
 // ─── Mini table (dashboard preview) ──────────────────────────────────────────
@@ -446,7 +446,15 @@ export default function ReportViewer({ report, data, year, onClose }: ReportView
   }
 
   function toggleCol(k: string) {
-    setVisibleCols(s => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; });
+    setVisibleCols(s => {
+      const n = new Set(s);
+      if (n.has(k)) {
+        n.delete(k);
+      } else {
+        n.add(k);
+      }
+      return n;
+    });
   }
 
   function handleSort(k: string) {
@@ -462,7 +470,7 @@ export default function ReportViewer({ report, data, year, onClose }: ReportView
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-50">
 
       {/* ── Title bar ─────────────────────────────────────────────────────── */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-5 py-3 shadow-sm">
+      <div className="flex shrink-0 items-center gap-3 border-b border-emerald-200 bg-gradient-to-r from-emerald-50 via-green-50 to-emerald-100 px-5 py-3 shadow-sm">
         <div className="min-w-0 flex-1">
           {editingTitle ? (
             <input autoFocus
@@ -483,10 +491,10 @@ export default function ReportViewer({ report, data, year, onClose }: ReportView
           <p className="text-xs text-slate-500 mt-0.5">{report.category} · {year} · {isArrayData ? `${rows.length} records` : "Summary"}</p>
         </div>
 
-        <div className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+        <div className="inline-flex items-center gap-0.5 rounded-md border border-emerald-200 bg-white/75 p-0.5">
           {(["dashboard","table","print"] as PanelView[]).map(v => (
             <button key={v} onClick={() => setPanel(v)}
-              className={`rounded px-3 py-1.5 text-xs font-semibold transition capitalize ${panel === v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>
+              className={`rounded-sm px-3 py-1.5 text-xs font-semibold transition capitalize ${panel === v ? "bg-green-600 text-white shadow-sm" : "text-slate-600 hover:bg-white hover:text-emerald-800"}`}>
               {v === "dashboard" ? "Dashboard" : v === "table" ? "Data Table" : "Print Preview"}
             </button>
           ))}
@@ -502,8 +510,8 @@ export default function ReportViewer({ report, data, year, onClose }: ReportView
 
       {/* ── Workspace ribbon ──────────────────────────────────────────────── */}
       {(panel === "dashboard" || panel === "table") && isArrayData && (
-        <div className="shrink-0 overflow-x-auto border-b border-slate-200 bg-white px-5 py-2.5">
-          <div className="flex min-w-max items-start gap-4">
+        <div className="shrink-0 overflow-x-auto border-b border-emerald-200 bg-gradient-to-b from-white to-emerald-50/45 px-3 py-2">
+          <div className="flex min-w-max items-stretch gap-0">
 
             {panel === "dashboard" && (
               <>
@@ -524,14 +532,14 @@ export default function ReportViewer({ report, data, year, onClose }: ReportView
 
                 <RibbonGroup label="X Axis">
                   <select value={cfg.xKey} onChange={e => setCfg(c => ({ ...c, xKey: e.target.value }))}
-                    className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none focus:border-green-400">
+                    className="h-9 rounded-sm border border-emerald-100 bg-white px-2 text-xs font-medium text-slate-700 outline-none focus:border-green-400">
                     {allKeys.map(k => <option key={k} value={k}>{labelForKey(k)}</option>)}
                   </select>
                 </RibbonGroup>
                 <RibbonDivider />
 
                 <RibbonGroup label="Metrics (Y)">
-                  {numericKeys.map((k, i) => (
+                  {numericKeys.map((k) => (
                     <RibbonBtn key={k} active={cfg.yKeys.includes(k)} onClick={() => toggleYKey(k)}>
                       <span className="h-2 w-2 rounded-full shrink-0" style={{ background: cfg.yKeys.includes(k) ? colors[cfg.yKeys.indexOf(k) % colors.length] : "#cbd5e1" }} />
                       {labelForKey(k)}
@@ -560,7 +568,7 @@ export default function ReportViewer({ report, data, year, onClose }: ReportView
                   {(["green","blue","purple","orange","rainbow"] as const).map(th => (
                     <button key={th} type="button" title={th}
                       onClick={() => setCfg(c => ({ ...c, colorTheme: th }))}
-                      className={`relative h-7 w-7 rounded-full border-2 overflow-hidden transition ${cfg.colorTheme === th ? "border-slate-700 scale-110" : "border-transparent hover:border-slate-300"}`}>
+                      className={`relative h-8 w-8 overflow-hidden rounded-sm border-2 transition ${cfg.colorTheme === th ? "border-green-700 scale-105" : "border-emerald-100 hover:border-emerald-300"}`}>
                       <span className="absolute inset-0 flex">
                         {THEMES[th].slice(0, 4).map((col, i) => (
                           <span key={i} className="flex-1 h-full" style={{ background: col }} />

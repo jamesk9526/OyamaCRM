@@ -10,7 +10,7 @@ interface WorkspaceStepIndicatorProps {
  */
 export default function WorkspaceStepIndicator({ steps, activeStep }: WorkspaceStepIndicatorProps) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white p-3">
+    <div className="overflow-x-auto rounded-md border border-emerald-200 bg-gradient-to-b from-white to-emerald-50/45 p-3 shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
       <ol className="flex min-w-max items-center gap-2">
         {steps.map((step, index) => {
           const active = index === activeStep;
@@ -18,7 +18,7 @@ export default function WorkspaceStepIndicator({ steps, activeStep }: WorkspaceS
           return (
             <li key={step} className="inline-flex items-center gap-2">
               <span
-                className={`inline-flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-semibold ${
+                className={`inline-flex h-6 w-6 items-center justify-center rounded-sm border text-[11px] font-semibold ${
                   active
                     ? "border-green-600 bg-green-600 text-white"
                     : complete

@@ -53,7 +53,7 @@ export default function WorkspaceBreadcrumbBar({
         : "hover:text-green-700";
 
   return (
-    <section className="rounded-xl border border-slate-200/80 bg-white px-2.5 py-2 min-[1360px]:px-3 min-[1360px]:py-2">
+    <section className="rounded-md border border-slate-300 bg-gradient-to-b from-white to-slate-50 px-2.5 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] min-[1360px]:px-3 min-[1360px]:py-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-1 text-sm text-slate-600">
           {items.map((item, index) => {

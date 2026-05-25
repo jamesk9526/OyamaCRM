@@ -348,7 +348,7 @@ export default function WorkspaceRibbonButton({
   const tip = title ?? label;
 
   const className = [
-    "inline-flex h-7 shrink-0 items-center justify-center gap-1 min-[1360px]:gap-1.5 rounded-md border px-1.5 min-[1360px]:px-2",
+    "workspace-ribbon-command inline-flex h-7 shrink-0 items-center justify-center gap-1 min-[1360px]:gap-1.5 rounded-sm border px-1.5 min-[1360px]:px-2",
     "text-left text-xs font-medium leading-none transition-all touch-manipulation",
     tone,
     disabled ? "cursor-not-allowed opacity-50" : "",
@@ -359,16 +359,16 @@ export default function WorkspaceRibbonButton({
   if (href && !disabled) {
     return (
       <Link href={href} className={className} title={tip}>
-        <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center">{iconNode}</span>
-        <span className="inline max-w-[11rem] truncate whitespace-nowrap">{label}</span>
+        <span className="workspace-ribbon-command-icon inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center">{iconNode}</span>
+        <span className="workspace-ribbon-command-label inline max-w-[11rem] truncate whitespace-nowrap">{label}</span>
       </Link>
     );
   }
 
   return (
     <button type="button" onClick={onClick} disabled={disabled} className={className} title={tip}>
-      <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center">{iconNode}</span>
-      <span className="inline max-w-[11rem] truncate whitespace-nowrap">{label}</span>
+      <span className="workspace-ribbon-command-icon inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center">{iconNode}</span>
+      <span className="workspace-ribbon-command-label inline max-w-[11rem] truncate whitespace-nowrap">{label}</span>
     </button>
   );
 }

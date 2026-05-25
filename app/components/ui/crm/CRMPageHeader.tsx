@@ -14,13 +14,13 @@ interface CRMPageHeaderProps {
 /** CRMPageHeader gives every Donor CRM page one consistent hierarchy and primary action area. */
 export default function CRMPageHeader({ breadcrumb, title, description, status, primaryAction, secondaryActions, className = "" }: CRMPageHeaderProps) {
   return (
-    <header className={`flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between ${className}`}>
+    <header className={`rounded-md border border-slate-300 bg-gradient-to-b from-white to-slate-50 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between ${className}`}>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
           {breadcrumb}
           {status ? <span className="min-w-0">{status}</span> : null}
         </div>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{title}</h1>
+        <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">{title}</h1>
         {description ? <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{description}</p> : null}
       </div>
       {(primaryAction || secondaryActions) ? (

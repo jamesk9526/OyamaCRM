@@ -4,6 +4,12 @@ Date: May 19, 2026
 
 ## Completed
 
+- Shared workspace ribbons now use a green-accented Explorer-style command surface with only functional grouped commands, larger icon-first actions, and square control geometry. Nonfunctional static tabs were removed until they have real behavior.
+- Workspace-ribbon companion primitives (wizard shell, step indicator, project library, inspector drawer) now use the same square-edged green-accented treatment.
+- Custom report ribbons outside the shared `WorkspaceRibbon` path (`ReportViewer`, OShareview reports command bar) were aligned to the same functional command-group style.
+- Donor shell chrome now uses a pale green titlebar treatment and tinted navigation rail inspired by the reference app while preserving DonorCRM's green accent language.
+- Shared CRM cards, action bars, filter bars, metric cards, quick action cards, data tables, page headers, and breadcrumb bars were tightened to flatter Explorer-like borders, compact gradients, and less rounded control styling.
+- DonorCRM dashboard refreshed into the same desktop-workspace style with a compact title strip, grouped dashboard ribbon commands, tighter KPI cards, a live priority inspector panel, and square-edged widget/edit controls.
 - Top bar interaction reliability pass completed: search keyboard handling now avoids editable fields, Escape closes active overlays, and top-bar panels now coordinate so overlapping tool sheets are reduced on mobile and desktop.
 - Donor shell compact-desktop pass completed: at `1024-1439px`, donor shell now falls back from mega menu to sidebar navigation for clearer, denser small-laptop workflows.
 - Donor Email Builder reliability pass completed: stable save callback wiring, unsaved-change guard before browser/tab close, and a direct desktop Review Checklist action to reduce workflow confusion.
@@ -44,9 +50,12 @@ Date: May 19, 2026
 Last known focused checks from this pass:
 
 ```bash
+pnpm exec eslint app/components/workspace-ribbon/WorkspaceRibbon.tsx app/components/workspace-ribbon/WorkspaceRibbonGroup.tsx app/components/workspace-ribbon/WorkspaceRibbonButton.tsx app/components/workspace-ribbon/WorkspaceWizard.tsx app/components/workspace-ribbon/WorkspaceStepIndicator.tsx app/components/workspace-ribbon/WorkspaceProjectLibrary.tsx app/components/workspace-ribbon/WorkspaceInspectorDrawer.tsx app/components/dashboard/DonorDashboardVisualRefresh.tsx app/components/dashboard/DashboardWidget.tsx app/components/donor-reports/ReportViewer.tsx app/components/reports/ReportsCommandBar.tsx app/components/reports/ReportsModuleToolbar.tsx app/components/layout/WorkspaceBreadcrumbBar.tsx app/components/layout/CrmSidebar.tsx app/components/ui/crm/CRMCard.tsx app/components/ui/crm/CRMActionBar.tsx app/components/ui/crm/CRMFilterBar.tsx app/components/ui/crm/CRMMetricCard.tsx app/components/ui/crm/CRMDataTable.tsx app/components/ui/crm/CRMQuickActionCard.tsx app/components/ui/crm/CRMPageHeader.tsx
 pnpm typecheck:web
 pnpm typecheck:server
 pnpm exec vitest run tests/smoke/crm-visual-refresh-source.test.ts tests/smoke/letter-builder-ui-source.test.ts
 ```
+
+Current note: `pnpm typecheck:web` is blocked by an unrelated existing `app/components/email-builder/BlockEditor.tsx` `EmailBlock` inference error where a new block literal is typed as `type: string` instead of the `"text"` literal.
 
 Build note: a prior sandboxed `npm run build` failed because Turbopack could not read `node_modules/.pnpm/remark-gfm@4.0.1/node_modules/remark-gfm/index.js` due to Windows access denied. The elevated rerun was declined, so build remains unverified in this pass.

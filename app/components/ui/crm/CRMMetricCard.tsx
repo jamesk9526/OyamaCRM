@@ -23,9 +23,9 @@ const toneClassName = {
 /** CRMMetricCard keeps KPI cards consistent without owning data fetching. */
 export default function CRMMetricCard({ label, value, icon, helper, tone = "green", loading = false, className = "" }: CRMMetricCardProps) {
   return (
-    <CRMCard className={`flex items-center gap-4 ${className}`} padding="lg">
+    <CRMCard className={`flex items-center gap-3 ${className}`} padding="md">
       {icon ? (
-        <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ring-1 ${toneClassName[tone]}`}>
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-sm ring-1 ${toneClassName[tone]}`}>
           {icon}
         </span>
       ) : null}

@@ -141,12 +141,12 @@ export default function ReportsModuleToolbar({ activeModule, activeTool, onModul
   }
 
   return (
-    <section className="rounded-lg border border-cyan-200 bg-cyan-50/70 p-2">
+    <section className="rounded-md border border-cyan-200 bg-cyan-50/70 p-2">
       <div className="relative">
         <button
           type="button"
           onClick={() => setOpen((current) => !current)}
-          className="w-full rounded-xl border border-cyan-300 bg-white px-3 py-2 text-left shadow-sm hover:border-cyan-400"
+          className="w-full rounded-sm border border-cyan-300 bg-white px-3 py-2 text-left shadow-sm hover:border-cyan-400"
           aria-haspopup="menu"
           aria-expanded={open}
         >
@@ -167,7 +167,7 @@ export default function ReportsModuleToolbar({ activeModule, activeTool, onModul
               onClick={() => setOpen(false)}
               className="fixed inset-0 z-40"
             />
-            <div className="absolute left-0 right-0 z-50 mt-2 max-h-[70vh] overflow-auto rounded-2xl border border-cyan-200 bg-white p-2.5 shadow-xl">
+            <div className="absolute left-0 right-0 z-50 mt-2 max-h-[70vh] overflow-auto rounded-md border border-cyan-200 bg-white p-2.5 shadow-xl">
               <div className="space-y-2">
                 <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-cyan-700">Workspaces</p>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -175,7 +175,7 @@ export default function ReportsModuleToolbar({ activeModule, activeTool, onModul
                     <button
                       key={tab.id}
                       onClick={() => selectModule(tab.id)}
-                      className={`rounded-lg border px-2 py-1.5 text-left text-xs font-semibold transition-colors ${
+                      className={`rounded-sm border px-2 py-1.5 text-left text-xs font-semibold transition-colors ${
                         activeModule === tab.id
                           ? "border-cyan-500 bg-cyan-600 text-white"
                           : "border-cyan-200 bg-cyan-50 text-cyan-800 hover:bg-cyan-100"
@@ -190,7 +190,7 @@ export default function ReportsModuleToolbar({ activeModule, activeTool, onModul
               <div className="mt-3 space-y-2">
                 <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-cyan-700">Tools</p>
                 {groupedTools.map(({ module, tools: moduleTools }) => (
-                  <div key={module.id} className="rounded-lg border border-slate-100 bg-slate-50 p-2">
+                  <div key={module.id} className="rounded-md border border-slate-100 bg-slate-50 p-2">
                     <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">{module.label}</p>
                     <div className="flex flex-wrap gap-1">
                       {moduleTools.map((tool) => (
@@ -200,7 +200,7 @@ export default function ReportsModuleToolbar({ activeModule, activeTool, onModul
                             onModuleChange(module.id);
                             selectTool(tool.id);
                           }}
-                          className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+                          className={`rounded-sm border px-2 py-1 text-[11px] font-medium transition-colors ${
                             activeModule === module.id && activeTool === tool.id
                               ? "border-cyan-500 bg-white text-cyan-900"
                               : "border-slate-200 bg-white text-slate-600 hover:border-cyan-200 hover:text-cyan-700"
@@ -223,7 +223,7 @@ export default function ReportsModuleToolbar({ activeModule, activeTool, onModul
           <button
             key={tool.id}
             onClick={() => onToolChange(tool.id)}
-            className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+            className={`rounded-sm border px-2 py-1 text-[11px] font-medium transition-colors ${
               activeTool === tool.id
                 ? "border-cyan-500 bg-white text-cyan-900"
                 : "border-cyan-200 bg-white/70 text-cyan-700 hover:bg-white"

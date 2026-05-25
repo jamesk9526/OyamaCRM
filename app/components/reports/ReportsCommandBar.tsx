@@ -37,7 +37,7 @@ interface ReportsCommandBarProps {
 
 function RibbonIcon({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-cyan-200 bg-white text-cyan-700 shadow-sm">
+    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border border-cyan-200 bg-white text-cyan-700 shadow-sm">
       {children}
     </span>
   );
@@ -75,11 +75,11 @@ export default function ReportsCommandBar({
   const isAdminWorkspace = activeModule === "admin";
 
   return (
-    <section className="overflow-hidden rounded-[26px] border border-cyan-200 bg-[linear-gradient(180deg,#f0f9ff_0%,#ffffff_52%,#f8fafc_100%)] shadow-sm">
-      <div className="border-b border-cyan-100 px-4 py-4 sm:px-5">
+    <section className="overflow-hidden rounded-md border border-cyan-200 bg-[linear-gradient(180deg,#f0f9ff_0%,#ffffff_52%,#f8fafc_100%)] shadow-sm">
+      <div className="border-b border-cyan-100 px-3 py-3 sm:px-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <div className="mb-1 inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-700">
+            <div className="mb-1 inline-flex items-center gap-2 rounded-sm border border-cyan-200 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-700">
               <span className="h-1.5 w-1.5 rounded-full bg-cyan-500" />
               Reports Control Ribbon
             </div>
@@ -96,7 +96,7 @@ export default function ReportsCommandBar({
             <button
               type="button"
               onClick={onExport}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-700 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-cyan-800"
+              className="inline-flex items-center justify-center gap-2 rounded-sm bg-cyan-700 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-cyan-800"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" />
@@ -106,7 +106,7 @@ export default function ReportsCommandBar({
             <button
               type="button"
               onClick={onServerExport}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-200 bg-white px-4 py-3 text-sm font-semibold text-cyan-800 transition-colors hover:bg-cyan-50"
+              className="inline-flex items-center justify-center gap-2 rounded-sm border border-cyan-200 bg-white px-4 py-3 text-sm font-semibold text-cyan-800 transition-colors hover:bg-cyan-50"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M4 12h16M4 17h10" />
@@ -116,7 +116,7 @@ export default function ReportsCommandBar({
             <button
               type="button"
               onClick={onPrint}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              className="inline-flex items-center justify-center gap-2 rounded-sm border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 9V4h12v5M6 18h12v2H6zm-1-9h14a2 2 0 0 1 2 2v4H3v-4a2 2 0 0 1 2-2Z" />
@@ -127,8 +127,8 @@ export default function ReportsCommandBar({
         </div>
       </div>
 
-      <div className="grid gap-3 px-4 py-4 sm:px-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-        <div className="rounded-2xl border border-cyan-100 bg-white/90 p-3 shadow-sm">
+      <div className="grid gap-3 px-3 py-3 sm:px-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <div className="rounded-md border border-cyan-100 bg-white/90 p-3 shadow-sm">
           <div className="mb-2 flex items-center gap-2">
             <RibbonIcon>
               <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
@@ -148,7 +148,7 @@ export default function ReportsCommandBar({
           />
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-3 shadow-sm">
+        <div className="rounded-md border border-slate-200 bg-white/90 p-3 shadow-sm">
           <div className="mb-2 flex items-center gap-2">
             <RibbonIcon>
               <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
@@ -168,7 +168,7 @@ export default function ReportsCommandBar({
                 value={year}
                 onChange={(event) => onYearChange(Number.parseInt(event.target.value, 10))}
                 disabled={allYears}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                className="w-full rounded-sm border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
               >
                 {yearOptions.map((option) => (
                   <option key={option} value={option}>
@@ -184,7 +184,7 @@ export default function ReportsCommandBar({
                 value={recordFilterText}
                 onChange={(event) => onFilterTextChange(event.target.value)}
                 placeholder="Filter by name, status, type..."
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                className="w-full rounded-sm border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
               />
             </label>
 
@@ -196,7 +196,7 @@ export default function ReportsCommandBar({
                 value={Number.isFinite(minValueFilter) ? minValueFilter : 0}
                 onChange={(event) => onMinValueChange(Math.max(0, Number(event.target.value || 0)))}
                 placeholder="0"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                className="w-full rounded-sm border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
               />
             </label>
 
@@ -205,7 +205,7 @@ export default function ReportsCommandBar({
               <select
                 value={campaignStatusFilter}
                 onChange={(event) => onCampaignStatusChange(event.target.value as "all" | "active" | "inactive")}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                className="w-full rounded-sm border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
               >
                 <option value="all">All campaigns</option>
                 <option value="active">Active only</option>
@@ -221,7 +221,7 @@ export default function ReportsCommandBar({
                     type="date"
                     value={fromDate}
                     onChange={(event) => onFromDateChange(event.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    className="w-full rounded-sm border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </label>
                 <label className="space-y-1 text-xs text-slate-600">
@@ -230,18 +230,18 @@ export default function ReportsCommandBar({
                     type="date"
                     value={toDate}
                     onChange={(event) => onToDateChange(event.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    className="w-full rounded-sm border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </label>
               </>
             ) : (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-3 py-2 text-xs text-slate-500 sm:col-span-2 xl:col-span-2">
+              <div className="rounded-md border border-dashed border-slate-200 bg-slate-50/80 px-3 py-2 text-xs text-slate-500 sm:col-span-2 xl:col-span-2">
                 Administrative date-window and future designation-specific report lenses live here when the Admin scope is active.
               </div>
             )}
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-900">
+          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-900">
             <label className="inline-flex items-center gap-2 font-medium">
               <input
                 type="checkbox"

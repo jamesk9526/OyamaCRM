@@ -36,7 +36,7 @@ export default function WorkspaceWizard({
         />
       </div>
       <WorkspaceStepIndicator steps={steps} activeStep={activeStep} />
-      <section className="rounded-xl border border-gray-200 bg-white p-4">{children}</section>
+      <section className="rounded-md border border-emerald-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.05)]">{children}</section>
     </div>
   );
 }
