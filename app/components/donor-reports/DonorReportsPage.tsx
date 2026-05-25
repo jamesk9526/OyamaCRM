@@ -1,7 +1,7 @@
 // DonorReportsPage renders the DonorCRM-specific reporting catalog and preparation workspace.
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
@@ -9,12 +9,79 @@ import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import ReportViewer from "@/app/components/donor-reports/ReportViewer";
+import DonorReportsInsightDashboard from "@/app/components/donor-reports/DonorReportsInsightDashboard";
+import DonorReportTemplateModal from "@/app/components/donor-reports/DonorReportTemplateModal";
 import {
   DONOR_REPORT_CATEGORIES,
   DONOR_REPORTS,
   type DonorReportCategory,
   type DonorReportDefinition,
 } from "@/app/components/donor-reports/donor-report-catalog";
+
+interface ReportsSummarySnapshot {
+  ytdAmount: number;
+  ytdCount: number;
+  monthAmount: number;
+  weekAmount: number;
+  activeCampaigns: number;
+  pendingTasks: number;
+  overdueTasks: number;
+  newDonorsThisMonth: number;
+}
+
+interface RetentionSnapshot {
+  rate: number;
+  retained: number;
+  total: number;
+}
+
+interface TopDonorSnapshot {
+  firstName: string;
+  lastName: string;
+  totalLifetimeGiving: number;
+  lastGiftDate: string | null;
+}
+
+interface MonthlyTrendSnapshot {
+  month: number;
+  amount: number;
+}
+
+interface CampaignPerformanceSnapshot {
+  id: string;
+  name: string;
+  raised: number;
+  goal: number | null;
+  giftCount: number;
+  uniqueDonors: number;
+}
+
+interface AcquisitionSnapshot {
+  month: number;
+  newCount: number;
+  returningCount: number;
+}
+
+interface PaymentBreakdownSnapshot {
+  paymentMethod: string;
+  count: number;
+  amount: number;
+}
+
+interface GivingTierSnapshot {
+  count: number;
+  amount: number;
+}
+
+interface DonorSegmentsSnapshot {
+  ACTIVE: number;
+  LAPSED: number;
+  NEW: number;
+  MAJOR_DONOR: number;
+  PROSPECT: number;
+  DECEASED: number;
+  OTHER: number;
+}
 
 type CategoryFilter = "All" | DonorReportCategory;
 type ReportScopeFilter = "YEAR" | "ALL_YEARS";
@@ -281,6 +348,13 @@ function KpiResultsGrid({ data }: { data: Record<string, unknown> }) {
 
 type RunState = "idle" | "loading" | "done" | "error";
 
+const RUN_STATE_COPY: Record<RunState, { label: string; description: string }> = {
+  idle: { label: "Ready", description: "Pick a template, tune filters, and run a report." },
+  loading: { label: "Running", description: "Gathering live donor report data now." },
+  done: { label: "Results ready", description: "Review the summary or open the full report viewer." },
+  error: { label: "Needs attention", description: "The selected report failed and needs another run or changed filters." },
+};
+
 /**
  * Provides the DonorCRM-owned reports workspace. All templates are wired to live
  * API endpoints — select a report, pick a year, and click Run Report.
@@ -299,11 +373,35 @@ export default function DonorReportsPage() {
   const [runData, setRunData] = useState<unknown>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [showViewer, setShowViewer] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const [reportsSummary, setReportsSummary] = useState<ReportsSummarySnapshot | null>(null);
+  const [trendRows, setTrendRows] = useState<MonthlyTrendSnapshot[]>([]);
+  const [topDonors, setTopDonors] = useState<TopDonorSnapshot[]>([]);
+  const [retentionSnapshot, setRetentionSnapshot] = useState<RetentionSnapshot | null>(null);
+  const [segmentSnapshot, setSegmentSnapshot] = useState<DonorSegmentsSnapshot | null>(null);
+  const [acquisitionRows, setAcquisitionRows] = useState<AcquisitionSnapshot[]>([]);
+  const [campaignRows, setCampaignRows] = useState<CampaignPerformanceSnapshot[]>([]);
+  const [paymentRows, setPaymentRows] = useState<PaymentBreakdownSnapshot[]>([]);
+  const [givingTierRows, setGivingTierRows] = useState<Record<string, GivingTierSnapshot> | null>(null);
 
   const selectedReport = DONOR_REPORTS.find((r) => r.id === selectedReportId) ?? DONOR_REPORTS[0];
   const hasEndpoint = selectedReport ? Boolean(REPORT_ENDPOINT_MAP[selectedReport.id]) : false;
   const hasCsvServer = selectedReport ? Boolean(REPORT_CSV_MAP[selectedReport.id]) : false;
   const canExport = hasCsvServer || (runState === "done" && Array.isArray(runData) && (runData as unknown[]).length > 0);
+  const runWindowLabel = runFromDate || runToDate
+    ? `${runFromDate || "start"} to ${runToDate || "today"}`
+    : runScope === "ALL_YEARS"
+      ? "all years"
+      : String(runYear);
+  const runStateCopy = RUN_STATE_COPY[runState];
+  const nextStepItems = [
+    `Scope: ${runScope === "ALL_YEARS" ? "All years" : `Year ${runYear}`}`,
+    `Basis: ${runDateBasis === "fiscal" ? "Fiscal" : "Calendar"}`,
+    `Window: ${runWindowLabel}`,
+    `Rows: ${runLimit === 5000 ? "All available" : runLimit.toLocaleString()}`,
+  ];
 
   const filteredReports = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -317,16 +415,17 @@ export default function DonorReportsPage() {
     });
   }, [category, query]);
 
+  const reportCategoryCounts = useMemo(() => {
+    return DONOR_REPORT_CATEGORIES.map((item) => ({
+      category: item,
+      count: countByCategory(item),
+    }));
+  }, []);
+
   function resetFilters() {
     setQuery("");
     setCategory("All");
   }
-
-  const runWindowLabel = runFromDate || runToDate
-    ? `${runFromDate || "start"} to ${runToDate || "today"}`
-    : runScope === "ALL_YEARS"
-      ? "all years"
-      : String(runYear);
 
   /** Resets run state when a different template is selected. */
   const handleSelectReport = useCallback((report: DonorReportDefinition) => {
@@ -338,9 +437,9 @@ export default function DonorReportsPage() {
 
   /** Fetches the live report data from the mapped API endpoint. */
   const runReport = useCallback(async () => {
-    if (!selectedReport) return;
+    if (!selectedReport) return false;
     const endpointBase = REPORT_ENDPOINT_MAP[selectedReport.id];
-    if (!endpointBase) return;
+    if (!endpointBase) return false;
     const queryParams = buildReportQueryParams({
       year: runYear,
       scope: runScope,
@@ -357,11 +456,72 @@ export default function DonorReportsPage() {
       const data = await apiFetch<unknown>(endpoint);
       setRunData(data);
       setRunState("done");
+      return true;
     } catch (err) {
       setRunError(err instanceof Error ? err.message : "Report failed. Please try again.");
       setRunState("error");
+      return false;
     }
   }, [selectedReport, runYear, runScope, runDateBasis, runFromDate, runToDate, runLimit]);
+
+  const runReportFromModal = useCallback(async () => {
+    const succeeded = await runReport();
+    if (succeeded) setShowTemplateModal(false);
+  }, [runReport]);
+
+  const refreshDashboard = useCallback(async () => {
+    const queryParams = buildReportQueryParams({
+      year: runYear,
+      scope: runScope,
+      dateBasis: runDateBasis,
+      fromDate: runFromDate,
+      toDate: runToDate,
+      limit: runLimit,
+    });
+
+    setDashboardLoading(true);
+    setDashboardError(null);
+
+    try {
+      const [summaryData, trendData, donorData, retentionData, segmentsData, acquisitionData, campaignData, paymentData, givingTierData] = await Promise.all([
+        apiFetch<ReportsSummarySnapshot>(appendQuery("/api/reports/summary", queryParams)),
+        apiFetch<MonthlyTrendSnapshot[]>(appendQuery("/api/reports/giving-by-month", queryParams)),
+        apiFetch<TopDonorSnapshot[]>(appendQuery("/api/reports/top-donors", queryParams)),
+        apiFetch<RetentionSnapshot>(appendQuery("/api/reports/donor-retention", queryParams)),
+        apiFetch<DonorSegmentsSnapshot>(appendQuery("/api/reports/donor-segments", queryParams)),
+        apiFetch<AcquisitionSnapshot[]>(appendQuery("/api/reports/new-vs-returning", queryParams)),
+        apiFetch<CampaignPerformanceSnapshot[]>(appendQuery("/api/reports/campaign-performance", queryParams)),
+        apiFetch<PaymentBreakdownSnapshot[]>(appendQuery("/api/reports/payment-breakdown", queryParams)),
+        apiFetch<Record<string, GivingTierSnapshot>>(appendQuery("/api/reports/giving-by-tier", queryParams)),
+      ]);
+      setReportsSummary(summaryData);
+      setTrendRows(Array.isArray(trendData) ? trendData : []);
+      setTopDonors(Array.isArray(donorData) ? donorData : []);
+      setRetentionSnapshot(retentionData);
+      setSegmentSnapshot(segmentsData);
+      setAcquisitionRows(Array.isArray(acquisitionData) ? acquisitionData : []);
+      setCampaignRows(Array.isArray(campaignData) ? campaignData.slice(0, 5) : []);
+      setPaymentRows(Array.isArray(paymentData) ? paymentData.slice(0, 5) : []);
+      setGivingTierRows(givingTierData);
+    } catch (err) {
+      setDashboardError(err instanceof Error ? err.message : "Could not load reporting dashboard.");
+      setReportsSummary(null);
+      setTrendRows([]);
+      setTopDonors([]);
+      setRetentionSnapshot(null);
+      setSegmentSnapshot(null);
+      setAcquisitionRows([]);
+      setCampaignRows([]);
+      setPaymentRows([]);
+      setGivingTierRows(null);
+    } finally {
+      setDashboardLoading(false);
+    }
+  }, [runDateBasis, runFromDate, runLimit, runScope, runToDate, runYear]);
+
+  useEffect(() => {
+    void refreshDashboard();
+  }, [refreshDashboard]);
 
   /** Downloads CSV — server-side for supported reports, client-side otherwise. */
   function exportCsv() {
@@ -416,28 +576,16 @@ export default function DonorReportsPage() {
             primaryAction={
               <button
                 type="button"
-                disabled={!hasEndpoint || runState === "loading"}
-                onClick={() => void runReport()}
-                className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition ${
-                  hasEndpoint && runState !== "loading"
-                    ? "border-green-600 bg-green-600 text-white hover:bg-green-700"
-                    : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
-                }`}
+                onClick={() => setShowTemplateModal(true)}
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-green-600 bg-green-600 px-3 text-sm font-semibold text-white transition hover:bg-green-700"
               >
-                {runState === "loading" ? (
-                  <>
-                    <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    Running...
-                  </>
-                ) : "Run Report"}
+                Open Report Runner
               </button>
             }
           />
           <WorkspaceRibbon>
             <WorkspaceRibbonGroup label="Library">
+              <WorkspaceRibbonButton label="Template Modal" onClick={() => setShowTemplateModal(true)} variant="primary" />
               <WorkspaceRibbonButton label="All Reports" onClick={() => setCategory("All")} variant={category === "All" ? "primary" : "secondary"} />
               <WorkspaceRibbonButton label="Giving" onClick={() => setCategory("Giving")} variant={category === "Giving" ? "primary" : "secondary"} />
               <WorkspaceRibbonButton label="Retention" onClick={() => setCategory("Retention")} variant={category === "Retention" ? "primary" : "secondary"} />
@@ -465,68 +613,104 @@ export default function DonorReportsPage() {
       }
       contentClassName="space-y-5"
     >
-      <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-        {DONOR_REPORT_CATEGORIES.map((item) => (
-          <button
-            key={item}
-            type="button"
-            onClick={() => setCategory(item)}
-            className={`rounded-xl border bg-white p-3 text-left transition hover:border-green-300 hover:shadow-sm ${
-              category === item ? "border-green-400 shadow-[inset_3px_0_0_#16a34a]" : "border-slate-200"
-            }`}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-700">
-                <ReportIcon category={item} />
-              </span>
-              <span className="text-lg font-semibold text-slate-950">{countByCategory(item)}</span>
-            </div>
-            <p className="mt-3 text-xs font-semibold text-slate-900">{item}</p>
-          </button>
-        ))}
-      </section>
+      <DonorReportsInsightDashboard
+        loading={dashboardLoading}
+        error={dashboardError}
+        year={runYear}
+        dateBasis={runDateBasis}
+        summary={reportsSummary}
+        trendRows={trendRows}
+        topDonors={topDonors}
+        retention={retentionSnapshot}
+        segments={segmentSnapshot}
+        acquisitionRows={acquisitionRows}
+        campaignRows={campaignRows}
+        paymentRows={paymentRows}
+        givingTierRows={givingTierRows}
+        onRefresh={() => void refreshDashboard()}
+      />
 
-      {/* Template browser — full width */}
-      <section className="space-y-4">
-        <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 md:flex-row md:items-center md:justify-between">
-          <label className="relative min-w-0 flex-1">
-            <span className="sr-only">Search donor reports</span>
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search reports, inputs, or outcomes..."
-              className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition focus:border-green-400 focus:bg-white focus:ring-2 focus:ring-green-100"
-            />
-          </label>
-          <select
-            value={category}
-            onChange={(event) => setCategory(event.target.value as CategoryFilter)}
-            className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100"
-            aria-label="Filter reports by category"
-          >
-            <option value="All">All categories</option>
-            {DONOR_REPORT_CATEGORIES.map((item) => (
-              <option key={item} value={item}>{item}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-          {filteredReports.map((report) => (
-            <ReportCard
-              key={report.id}
-              report={report}
-              selected={selectedReport?.id === report.id}
-              onSelect={handleSelectReport}
-            />
-          ))}
-        </div>
-
-        {filteredReports.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-600">
-            No donor reports match those filters.
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,0.42fr)]">
+        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Run Method</p>
+            <h2 className="text-sm font-semibold text-slate-950">Modal-driven report runner</h2>
+            <p className="mt-1 text-xs text-slate-500">Templates now live in a focused modal where users choose, configure, and run reports.</p>
           </div>
-        ) : null}
+          <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.55fr)]">
+            <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Selected Template</p>
+                  <h3 className="mt-1 text-base font-semibold text-slate-950">{selectedReport.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">{selectedReport.description}</p>
+                </div>
+                <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-semibold ${categoryTones[selectedReport.category]}`}>
+                  <ReportIcon category={selectedReport.category} />
+                  {selectedReport.category}
+                </span>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {nextStepItems.map((item) => (
+                  <div key={item} className="rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700">
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Runner State</p>
+              <h3 className="mt-1 text-sm font-semibold text-slate-900">{runStateCopy.label}</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-500">{runStateCopy.description}</p>
+              <div className="mt-4 grid gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTemplateModal(true)}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-green-600 px-3 text-sm font-semibold text-white transition hover:bg-green-700"
+                >
+                  Choose And Run Template
+                </button>
+                <button
+                  type="button"
+                  onClick={exportCsv}
+                  disabled={!canExport}
+                  className={`inline-flex h-10 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-semibold transition ${
+                    canExport
+                      ? "border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:text-emerald-700"
+                      : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                  }`}
+                >
+                  Export CSV
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+          {reportCategoryCounts.map(({ category: item, count }) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => {
+                setCategory(item);
+                setShowTemplateModal(true);
+              }}
+              className={`rounded-xl border bg-white p-3 text-left transition hover:border-green-300 hover:shadow-sm ${
+                category === item ? "border-green-400 shadow-[inset_3px_0_0_#16a34a]" : "border-slate-200"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-700">
+                  <ReportIcon category={item} />
+                </span>
+                <span className="text-lg font-semibold text-slate-950">{count}</span>
+              </div>
+              <p className="mt-3 text-xs font-semibold text-slate-900">{item}</p>
+            </button>
+          ))}
+        </section>
       </section>
 
       {/* Run controls + results — below the cards, full width */}
@@ -547,105 +731,8 @@ export default function DonorReportsPage() {
               </div>
             </div>
 
-            {/* Run options inline in header */}
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                Year:
-                <input
-                  type="number"
-                  min={2015}
-                  max={new Date().getFullYear() + 1}
-                  value={runYear}
-                  onChange={(e) => {
-                    const y = parseInt(e.target.value, 10);
-                    if (Number.isFinite(y)) setRunYear(y);
-                  }}
-                  className="w-20 rounded border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-900 outline-none focus:border-green-400"
-                />
-              </label>
-              <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                Scope:
-                <select
-                  value={runScope}
-                  onChange={(e) => setRunScope(e.target.value as ReportScopeFilter)}
-                  className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-900 outline-none focus:border-green-400"
-                >
-                  <option value="YEAR">Year</option>
-                  <option value="ALL_YEARS">All years</option>
-                </select>
-              </label>
-              <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                Basis:
-                <select
-                  value={runDateBasis}
-                  onChange={(e) => setRunDateBasis(e.target.value as ReportDateBasis)}
-                  className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-900 outline-none focus:border-green-400"
-                >
-                  <option value="calendar">Calendar</option>
-                  <option value="fiscal">Fiscal</option>
-                </select>
-              </label>
-              <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                From:
-                <input
-                  type="date"
-                  value={runFromDate}
-                  onChange={(e) => setRunFromDate(e.target.value)}
-                  className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-900 outline-none focus:border-green-400"
-                />
-              </label>
-              <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                To:
-                <input
-                  type="date"
-                  value={runToDate}
-                  onChange={(e) => setRunToDate(e.target.value)}
-                  className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-900 outline-none focus:border-green-400"
-                />
-              </label>
-              <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                Rows:
-                <select
-                  value={runLimit}
-                  onChange={(e) => setRunLimit(Number(e.target.value) as ReportLimit)}
-                  className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-900 outline-none focus:border-green-400"
-                >
-                  {REPORT_LIMIT_OPTIONS.map((limitOption) => (
-                    <option key={limitOption} value={limitOption}>
-                      {limitOption === 5000 ? "All" : limitOption}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                type="button"
-                disabled={!hasEndpoint || runState === "loading"}
-                onClick={() => void runReport()}
-                className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition ${
-                  hasEndpoint && runState !== "loading"
-                    ? "bg-green-600 text-white hover:bg-green-700"
-                    : "cursor-not-allowed bg-slate-200 text-slate-400"
-                }`}
-              >
-                {runState === "loading" ? (
-                  <>
-                    <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    Running
-                  </>
-                ) : runState === "done" ? "Re-run" : "Run Report"}
-              </button>
-              {runState === "done" && (
-                <button
-                  type="button"
-                  onClick={() => { setRunState("idle"); setRunData(null); }}
-                  className="text-xs text-slate-400 hover:text-slate-700"
-                >
-                  Clear
-                </button>
-              )}
+            <div className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+              {runStateCopy.label}
             </div>
           </div>
 
@@ -749,6 +836,35 @@ export default function DonorReportsPage() {
           onClose={() => setShowViewer(false)}
         />
       )}
+
+      {showTemplateModal ? (
+        <DonorReportTemplateModal
+          onClose={() => setShowTemplateModal(false)}
+          filteredReports={filteredReports}
+          selectedReport={selectedReport}
+          query={query}
+          category={category}
+          onQueryChange={setQuery}
+          onCategoryChange={setCategory}
+          onSelectReport={handleSelectReport}
+          runYear={runYear}
+          onRunYearChange={setRunYear}
+          runScope={runScope}
+          onRunScopeChange={setRunScope}
+          runDateBasis={runDateBasis}
+          onRunDateBasisChange={setRunDateBasis}
+          runFromDate={runFromDate}
+          onRunFromDateChange={setRunFromDate}
+          runToDate={runToDate}
+          onRunToDateChange={setRunToDate}
+          runLimit={runLimit}
+          onRunLimitChange={setRunLimit}
+          runState={runState}
+          hasEndpoint={hasEndpoint}
+          runError={runError}
+          onRunReport={() => void runReportFromModal()}
+        />
+      ) : null}
     </EnterprisePageShell>
   );
 }

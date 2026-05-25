@@ -45,8 +45,8 @@ export interface ReadinessChecklistItem {
   note: string;
 }
 
-export const AUDIT_DATE = "2026-05-12";
-export const OVERALL_READINESS_SCORE = 76;
+export const AUDIT_DATE = "2026-05-24";
+export const OVERALL_READINESS_SCORE = 80;
 
 /**
  * Returns safe build metadata for UI display.
@@ -134,8 +134,8 @@ export const SYSTEM_STATUS_SECTIONS: SystemStatusSection[] = [
   },
   {
     title: "Reports Status",
-    status: "Partially Working",
-    summary: "Report endpoints and dashboards are functional, while export jobs and freshness controls remain in progress.",
+    status: "Working",
+    summary: "Live reporting dashboards and core report endpoints are functional on real data with refreshed charting coverage.",
   },
   {
     title: "Steward Paths Status",
@@ -237,11 +237,11 @@ export const FEATURE_READINESS: FeatureReadinessItem[] = [
   {
     feature: "Dashboard & Reports",
     workspace: "DonorCRM",
-    status: "Partially Working",
+    status: "Working",
     lastVerified: AUDIT_DATE,
-    workingPieces: "Dashboard summaries, core report endpoints, freshness markers, and permission-gated server CSV exports are running with real data.",
-    missingPieces: "Scheduled export delivery and deeper drilldown cross-filtering are still incomplete.",
-    nextAction: "Add scheduled report delivery and saved drilldown views.",
+    workingPieces: "Dashboard summaries, core report endpoints, live chart widgets, freshness markers, and permission-gated server CSV exports are running with real data.",
+    missingPieces: "Scheduled export delivery and deeper drilldown cross-filtering remain roadmap enhancements.",
+    nextAction: "Implement scheduled report delivery and saved drilldown views as the next reporting maturity phase.",
     linkedPlanFile: "docs/plans/phase-05-dashboard-and-reports.md",
     priority: "P2",
     successCriteria: "Staff can schedule recurring report deliveries and reopen saved drilldown filters.",

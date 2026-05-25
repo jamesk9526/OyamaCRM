@@ -154,7 +154,7 @@ function SectionHeader({
   children?: ReactNode;
 }) {
   return (
-    <div className="mb-3 flex min-w-0 items-center justify-between gap-3 border-b border-emerald-100 pb-2">
+    <div className="mb-3 flex min-w-0 items-center justify-between gap-3 border-b border-slate-200 pb-2">
       <div className="min-w-0">
         <h2 className="truncate text-sm font-semibold text-slate-950">{title}</h2>
         {children ? <div className="mt-1 text-xs text-slate-500">{children}</div> : null}
@@ -168,20 +168,21 @@ function DashboardRibbonCommand({ action }: { action: QuickAction }) {
   return (
     <Link
       href={action.href}
-      className="group flex h-[58px] min-w-[68px] flex-col items-center justify-center gap-1 rounded-sm border border-transparent px-2 text-center text-[11px] font-semibold leading-tight text-slate-700 hover:border-emerald-200 hover:bg-emerald-50"
+      className="group inline-flex h-8 min-w-fit items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 text-[11px] font-semibold text-slate-700 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
       title={action.label}
     >
-      <DashboardIcon name={action.icon} className="h-5 w-5 text-slate-600 group-hover:text-emerald-700" />
-      <span className="max-w-[5.5rem]">{action.label}</span>
+      <DashboardIcon name={action.icon} className="h-4 w-4 text-slate-500 group-hover:text-emerald-700" />
+      <span className="max-w-[9.5rem] truncate">{action.label}</span>
+      {action.badge ? <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">{action.badge}</span> : null}
     </Link>
   );
 }
 
 function DashboardRibbonGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex min-w-fit flex-col border-r border-emerald-100 px-2 pb-1 pt-1 last:border-r-0">
-      <div className="flex flex-wrap items-center gap-1">{children}</div>
-      <span className="mt-0.5 text-center text-[9px] font-medium text-slate-500">{label}</span>
+    <div className="flex min-w-0 flex-1 flex-col gap-1 border-r border-slate-200 px-2 py-1 last:border-r-0">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</span>
+      <div className="flex min-w-0 flex-wrap items-center gap-1">{children}</div>
     </div>
   );
 }
@@ -315,6 +316,11 @@ export default function DonorDashboardVisualRefresh({
   const monthTrendLabel = monthTrend == null
     ? "vs last month unavailable"
     : `${monthTrend >= 0 ? "Up" : "Down"} ${Math.abs(Math.round(monthTrend))}% vs last month`;
+  const monthTrendToneClass = monthTrend == null
+    ? "text-slate-500"
+    : monthTrend >= 0
+      ? "text-emerald-700"
+      : "text-rose-600";
 
   useEffect(() => {
     let cancelled = false;
@@ -360,25 +366,25 @@ export default function DonorDashboardVisualRefresh({
   }, []);
 
   return (
-    <div className="space-y-3">
-      <div className="overflow-hidden rounded-md border border-emerald-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06)]">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-200 bg-gradient-to-r from-emerald-50 via-green-50 to-emerald-100 px-3 py-2">
+    <div className="space-y-4">
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_4px_18px_rgba(15,23,42,0.06)]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-gradient-to-r from-white via-emerald-50/35 to-slate-50 px-3 py-2.5">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-white shadow-sm">
               <DashboardIcon name="pulse" className="h-4 w-4" />
             </span>
             <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold text-slate-950">DonorCRM Dashboard</h1>
-              <p className="truncate text-xs text-slate-600">{greeting}, {name.split(" ")[0] || name} · {loading ? "Refreshing data" : dataThroughLabel}</p>
+              <h1 className="truncate text-base font-semibold text-slate-950">DonorCRM Command Center</h1>
+              <p className="truncate text-xs text-slate-600">{greeting}, {name.split(" ")[0] || name} • {loading ? "Refreshing data" : dataThroughLabel}</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
-            <span className="rounded-full border border-emerald-200 bg-white/75 px-2.5 py-1">{reportingYearMode === "fiscal" ? "Fiscal mode" : "Calendar mode"}</span>
-            <span className="rounded-full border border-emerald-200 bg-white/75 px-2.5 py-1">{activeCampaigns} active campaigns</span>
+            <span className="rounded-full border border-slate-200 bg-white/90 px-2.5 py-1">{reportingYearMode === "fiscal" ? "Fiscal mode" : "Calendar mode"}</span>
+            <span className="rounded-full border border-slate-200 bg-white/90 px-2.5 py-1">{activeCampaigns} active campaigns</span>
             <button
               type="button"
               onClick={onRefresh}
-              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-emerald-200 bg-white/85 px-3 text-emerald-800 hover:bg-white"
+              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-slate-700 hover:border-emerald-200 hover:text-emerald-800"
             >
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8 8 0 0 0 4.582 9M20 20v-5h-.581m0 0a8.003 8.003 0 0 1-15.357-2" />
@@ -388,23 +394,23 @@ export default function DonorDashboardVisualRefresh({
           </div>
         </div>
 
-        <div className="border-b border-emerald-100 bg-gradient-to-b from-white to-emerald-50/45">
+        <div className="border-b border-slate-200 bg-gradient-to-b from-white to-slate-50/70">
           <div className="flex flex-wrap items-stretch">
             <DashboardRibbonGroup label="Create">
               {QUICK_ACTIONS.slice(0, 4).map((action) => <DashboardRibbonCommand key={action.label} action={action} />)}
             </DashboardRibbonGroup>
             <DashboardRibbonGroup label="Outreach">
-              {QUICK_ACTIONS.slice(4, 8).map((action) => <DashboardRibbonCommand key={action.label} action={action} />)}
+              {QUICK_ACTIONS.slice(4, 7).map((action) => <DashboardRibbonCommand key={action.label} action={action} />)}
             </DashboardRibbonGroup>
             <DashboardRibbonGroup label="Tools">
-              {QUICK_ACTIONS.slice(8, 11).map((action) => <DashboardRibbonCommand key={action.label} action={action} />)}
+              {QUICK_ACTIONS.slice(7, 10).map((action) => <DashboardRibbonCommand key={action.label} action={action} />)}
               <button
                 type="button"
                 onClick={onCustomize}
-                className="group flex h-[58px] min-w-[68px] flex-col items-center justify-center gap-1 rounded-sm border border-transparent px-2 text-center text-[11px] font-semibold leading-tight text-slate-700 hover:border-emerald-200 hover:bg-emerald-50"
+                className="group inline-flex h-8 min-w-fit items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 text-[11px] font-semibold text-slate-700 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
               >
-                <DashboardIcon name="chart" className="h-5 w-5 text-slate-600 group-hover:text-emerald-700" />
-                <span>Layout</span>
+                <DashboardIcon name="chart" className="h-4 w-4 text-slate-500 group-hover:text-emerald-700" />
+                <span>Customize</span>
               </button>
             </DashboardRibbonGroup>
           </div>
@@ -532,7 +538,7 @@ export default function DonorDashboardVisualRefresh({
 
         <CRMCard padding="md" className="min-h-[18rem]">
           <SectionHeader title="Donor Retention" action={<span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">All Donors</span>}>
-            {monthTrendLabel}
+            <span className={monthTrendToneClass}>{monthTrendLabel}</span>
           </SectionHeader>
           <DonorRetention
             retained={retentionRetained}
@@ -545,11 +551,28 @@ export default function DonorDashboardVisualRefresh({
         <TasksDueSoonCard tasks={tasks} loading={tasksLoading} />
 
         <CRMCard padding="md" className="min-h-[18rem]">
-          <SectionHeader title="Quick Actions">
-            Frequent donor workflow shortcuts
+          <SectionHeader title="Today At A Glance">
+            Key movement and next actions
           </SectionHeader>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {QUICK_ACTIONS.map((action) => (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Week gifts</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900">{weekCount.toLocaleString()}</p>
+              <p className="text-xs text-slate-500">{formatCurrency(weekAmount)}</p>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Month pace</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900">{formatCurrency(monthAmount)}</p>
+              <p className={`text-xs ${monthTrendToneClass}`}>{monthTrendLabel}</p>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Open tasks</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900">{pendingTasks.toLocaleString()}</p>
+              <p className={`text-xs ${overdueTasks > 0 ? "text-rose-600" : "text-slate-500"}`}>{overdueTasks > 0 ? `${overdueTasks} overdue` : "No overdue tasks"}</p>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {QUICK_ACTIONS.slice(0, 6).map((action) => (
               <Link
                 key={action.label}
                 href={action.href}

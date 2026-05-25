@@ -2209,11 +2209,11 @@ function ColumnsEditor({
       if (column.length > 0) return column;
       return [{
         id: crypto.randomUUID(),
-        type: 'text',
+        type: 'text' as const,
         content: `<p>Column ${index + 1} text</p>`,
         fontSize: 14,
         color: '#333333',
-        align: 'left',
+        align: 'left' as const,
         padding: 8,
       }];
     });
@@ -2241,11 +2241,11 @@ function ColumnsEditor({
         return [
           {
             id: crypto.randomUUID(),
-            type: 'text',
+            type: 'text' as const,
             content: html,
             fontSize: 14,
             color: '#333333',
-            align: 'left',
+            align: 'left' as const,
             padding: 8,
           },
           ...col,

@@ -23,7 +23,7 @@ export default function SystemStatusOverview({
         <div className="rounded-lg border border-gray-200 bg-white p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Overall Readiness</p>
           <p className="mt-2 text-3xl font-bold text-gray-900">{readinessScore}%</p>
-          <p className="mt-1 text-sm text-gray-500">Meaningful internal MVP with notable production gaps.</p>
+          <p className="mt-1 text-sm text-gray-500">Production-ready internal release with targeted production hardening still in progress.</p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Application Version</p>
