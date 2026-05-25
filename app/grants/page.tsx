@@ -13,7 +13,6 @@ import AddGrantModal from "@/app/components/grants/AddGrantModal";
 import FunderManager from "@/app/components/grants/FunderManager";
 import GrantsCommandPanel from "@/app/components/grants/GrantsCommandPanel";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
-import FirstRunCard from "@/app/components/ui/FirstRunCard";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
@@ -215,11 +214,6 @@ export default function GrantsPage() {
 
   return (
     <div className="p-6 space-y-6 min-h-screen">
-      <FirstRunCard
-        storageKey="howto:grants"
-        title="Getting started with Grants"
-        steps={["Add a grant opportunity with funder name, amount, and deadline", "Move grants through the Research → Writing → Submission pipeline", "Set deadline reminders so nothing is missed", "Record award money received as a Donation, then link it back here"]}
-      />
       <WorkspaceBreadcrumbBar
         items={[
           { label: "Donor CRM", href: "/" },
@@ -389,9 +383,6 @@ export default function GrantsPage() {
                   {activeLaneCount} active stage{activeLaneCount !== 1 ? "s" : ""} populated,
                   {" "}{overloadedLanes} lane{overloadedLanes !== 1 ? "s" : ""} overloaded (6+ grants)
                 </p>
-              </div>
-              <div className="text-xs text-gray-500">
-                Tip: use &quot;At-risk only&quot; to focus deadline triage during weekly grants meeting.
               </div>
             </div>
 

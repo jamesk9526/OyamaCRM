@@ -13,7 +13,6 @@ import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonFrame from "@/app/components/workspace-ribbon/WorkspaceRibbonFrame";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
-import FirstRunCard from "@/app/components/ui/FirstRunCard";
 import EmptyStateCard from "@/app/components/ui/EmptyStateCard";
 import ActionButton from "@/app/components/ui/ActionButton";
 import StewardContextButton from "@/app/components/ai/StewardContextButton";
@@ -437,11 +436,6 @@ export default function CommunicationsPage() {
       )}
     >
       <div className="space-y-6">
-      <FirstRunCard
-        storageKey="howto:communications"
-        title="Getting started with Communications"
-        steps={["Start with a Template or create a new Email Campaign", "Choose your audience segment before writing content", "Use the Overview tab to monitor drafts needing review", "Scheduled items auto-send — check the queue before leaving"]}
-      />
       {workspaceTab === "overview" && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">

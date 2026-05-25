@@ -10,7 +10,7 @@ import { useTriviaModuleState } from "@/app/apps/trivia/hooks/useTriviaModuleSta
  * It uses persisted trivia data and does not depend on CRM models.
  */
 export default function TriviaDashboardPage() {
-  const { state, createSampleEvent } = useTriviaModuleState();
+  const { state } = useTriviaModuleState();
 
   const stats = useMemo(() => {
     const totalEvents = state.events.length;
@@ -63,27 +63,6 @@ export default function TriviaDashboardPage() {
           <p className="text-sm text-cyan-200/90 mt-1">Open builder, host panel, scoring, answer keys, and display routes.</p>
         </Link>
       </div>
-
-      <section className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-lg font-semibold text-white">Quick Start Templates</h2>
-            <p className="text-sm text-slate-300 mt-1">Create a sample event with normal, picture, audio, final wager, and tiebreaker rounds.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => createSampleEvent()}
-            className="rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 px-3 py-2 text-xs font-semibold text-white"
-          >
-            Create Sample Event
-          </button>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4 space-y-2">
-        <h2 className="text-lg font-semibold text-white">Live Operations Checklist</h2>
-        <p className="text-sm text-slate-300">Open any event builder for the full 17-step runbook and complete flow sequence.</p>
-      </section>
     </section>
   );
 }

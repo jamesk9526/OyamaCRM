@@ -33,8 +33,6 @@ import AiOpportunityWidget from "./components/dashboard/AiOpportunityWidget";
 import AiChatWidget from "./components/dashboard/AiChatWidget";
 import DonorDashboardVisualRefresh from "./components/dashboard/DonorDashboardVisualRefresh";
 import EnterprisePageShell from "./components/layout/EnterprisePageShell";
-import WorkspaceHelpTip from "./components/ui/WorkspaceHelpTip";
-import CRMQuickActionCard from "@/app/components/ui/crm/CRMQuickActionCard";
 import DashboardLayoutModal, { type RevenueGoalMode, type RevenueProgressSource } from "./components/dashboard/DashboardLayoutModal";
 import { apiFetch } from "@/app/lib/auth-client";
 import { getStoredReportingYearMode, type ReportingYearMode } from "@/app/lib/fiscal-year";
@@ -72,22 +70,6 @@ interface RetentionData {
   rate: number;
 }
 
-interface StartHereAction {
-  id: string;
-  title: string;
-  description: string;
-  href: string;
-  actionLabel: string;
-}
-
-interface DashboardFocusItem {
-  id: string;
-  title: string;
-  value: string;
-  description: string;
-  href: string;
-}
-
 /** Previous shipped default order (kept to support one-time migration logic). */
 const PREVIOUS_DEFAULT_WIDGET_ORDER = [
   "giving-trend",
@@ -102,8 +84,6 @@ const PREVIOUS_DEFAULT_WIDGET_ORDER = [
 
 /** Ordered list of widget IDs (CRM default). */
 const DEFAULT_WIDGET_ORDER = [
-  "start-here",
-  "todays-focus",
   "actionable-insights",
   "ai-insights",
   "ai-opportunities",
@@ -132,8 +112,6 @@ type AutoArrangePreset = "BALANCED" | "ALTERNATING_WIDE" | "FEATURE_FIRST" | "CO
 
 /** Human-readable label + description for each widget (used in the layout modal) */
 const WIDGET_META = [
-  { id: "start-here", label: "Start Here", description: "Guided first actions for daily work" },
-  { id: "todays-focus", label: "Today's Focus", description: "Plain-language priority snapshot" },
   { id: "actionable-insights", label: "Actionable Insights", description: "Cross-workspace priorities and quick links" },
   { id: "ai-insights", label: "AI Runtime + Controls", description: "Steward AI status and dashboard AI toggle" },
   { id: "ai-opportunities", label: "AI Opportunities", description: "Top suggested stewardship opportunities" },
@@ -154,86 +132,6 @@ const WIDGET_META = [
   { id: "recent-donations", label: "Recent Donations", description: "Last 8 gifts received" },
   { id: "tasks", label: "Tasks", description: "Open & upcoming staff tasks" },
   { id: "meetings", label: "Upcoming Meetings", description: "Scheduled donor meetings" },
-];
-
-const START_HERE_ACTIONS: StartHereAction[] = [
-  {
-    id: "add-donor",
-    title: "Add a donor",
-    description: "Create or update a donor profile before recording gifts or follow-up work.",
-    href: "/constituents",
-    actionLabel: "Open Constituents",
-  },
-  {
-    id: "record-donation",
-    title: "Record a donation",
-    description: "Capture a gift so reporting, receipts, and stewardship tasks stay accurate.",
-    href: "/donations/new",
-    actionLabel: "Open Donation Entry",
-  },
-  {
-    id: "send-thank-you",
-    title: "Send a thank-you",
-    description: "Create an email or printable letter for a donor gift acknowledgement.",
-    href: "/communications/new/type",
-    actionLabel: "Start Communication",
-  },
-  {
-    id: "create-task",
-    title: "Create a task",
-    description: "Assign follow-up work so important donor outreach does not get missed.",
-    href: "/tasks",
-    actionLabel: "Open Tasks",
-  },
-  {
-    id: "todays-followups",
-    title: "View today's follow-ups",
-    description: "Review overdue and pending work to prioritize urgent donor touchpoints.",
-    href: "/tasks",
-    actionLabel: "Review Follow-Ups",
-  },
-  {
-    id: "create-campaign",
-    title: "Create a campaign",
-    description: "Launch a fundraising campaign with clear goals, timeline, and ownership.",
-    href: "/campaigns",
-    actionLabel: "Open Campaigns",
-  },
-  {
-    id: "generate-letters",
-    title: "Generate letters",
-    description: "Prepare printable letters for acknowledgements, appeals, and stewardship updates.",
-    href: "/letters-printables/generate",
-    actionLabel: "Open Generator",
-  },
-  {
-    id: "check-notifications",
-    title: "Check notifications",
-    description: "Review unread alerts for tasks, campaigns, and donor follow-up actions.",
-    href: "/tasks",
-    actionLabel: "Open Work Queue",
-  },
-  {
-    id: "ask-steward",
-    title: "Ask Steward",
-    description: "Review suggested donor next steps with evidence and human approval controls.",
-    href: "/steward-signals",
-    actionLabel: "Open Steward Signals",
-  },
-  {
-    id: "import-data",
-    title: "Import data",
-    description: "Upload and map donor records, then validate duplicates before final import.",
-    href: "/data-tools/import",
-    actionLabel: "Open Import Tool",
-  },
-  {
-    id: "review-reports",
-    title: "Review reports",
-    description: "Check fundraising progress, retention, and campaign outcomes with live data.",
-    href: "/reports/donor-crm",
-    actionLabel: "Open Reports",
-  },
 ];
 
 const LS_ORDER_KEY = "dashboard-widget-order";
@@ -264,14 +162,15 @@ function loadOrder(): WidgetId[] {
   try {
     const raw = localStorage.getItem(LS_ORDER_KEY);
     if (!raw) return [...DEFAULT_WIDGET_ORDER];
-    const parsed: WidgetId[] = JSON.parse(raw);
+    const parsed = JSON.parse(raw) as string[];
     // If the user still has the old out-of-box order, migrate to the new CRM default.
     if (sameOrder(parsed, PREVIOUS_DEFAULT_WIDGET_ORDER)) {
       return [...DEFAULT_WIDGET_ORDER];
     }
+    const validSavedOrder = parsed.filter((id): id is WidgetId => DEFAULT_WIDGET_ORDER.includes(id as WidgetId));
     // Merge: keep saved order, but append any new widgets not yet in the saved list
-    const existing = new Set(parsed);
-    return [...parsed, ...DEFAULT_WIDGET_ORDER.filter((w) => !existing.has(w))];
+    const existing = new Set(validSavedOrder);
+    return [...validSavedOrder, ...DEFAULT_WIDGET_ORDER.filter((w) => !existing.has(w))];
   } catch {
     return [...DEFAULT_WIDGET_ORDER];
   }
@@ -344,8 +243,6 @@ function loadAutoArrangePreset(): AutoArrangePreset {
 }
 
 const DEFAULT_WIDGET_SIZES: Record<WidgetId, DashboardWidgetSize> = {
-  "start-here": "wide",
-  "todays-focus": "wide",
   "actionable-insights": "wide",
   "ai-insights": "standard",
   "ai-opportunities": "standard",
@@ -412,7 +309,7 @@ function getAutoArrangePresetLabel(preset: AutoArrangePreset): string {
 
 function getAutoArrangeWidgetLayoutClass(id: WidgetId, idx: number, preset: AutoArrangePreset): string {
   const isHeroContent = id === "giving-trend";
-  const isPriorityFeature = id === "start-here" || id === "todays-focus" || id === "stewardship-attention";
+  const isPriorityFeature = id === "stewardship-attention";
 
   if (isHeroContent) {
     return "md:col-span-2 xl:col-span-4 min-h-[280px]";
@@ -588,51 +485,6 @@ export default function DashboardPage() {
     ? `Data through ${new Date(summary.freshness.dataThrough).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
     : `Refreshed ${lastRefreshed.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
 
-  const workSnapshot: DashboardFocusItem[] = [
-    {
-      id: "today-work",
-      title: "Today's Work",
-      value: `${summary?.pendingTasks ?? 0} open tasks`,
-      description: "Open assignments and due follow-ups.",
-      href: "/tasks",
-    },
-    {
-      id: "needs-attention",
-      title: "Needs Attention",
-      value: `${summary?.overdueTasks ?? 0} overdue tasks`,
-      description: "Urgent items that need immediate action.",
-      href: "/tasks",
-    },
-    {
-      id: "recent-giving",
-      title: "Recent Giving",
-      value: formatUsd(summary?.monthAmount ?? 0),
-      description: "Donations recorded this month.",
-      href: "/donations",
-    },
-    {
-      id: "follow-up-queue",
-      title: "Follow-Up Queue",
-      value: `${summary?.newDonorsThisMonth ?? 0} new donors`,
-      description: "Donors who may need welcome and thank-you outreach.",
-      href: "/steward-signals",
-    },
-    {
-      id: "campaign-snapshot",
-      title: "Campaign Snapshot",
-      value: `${summary?.activeCampaigns ?? 0} active campaigns`,
-      description: "Current campaign load and progress context.",
-      href: "/campaigns",
-    },
-    {
-      id: "steward-recommendations",
-      title: "Steward Recommendations",
-      value: `${(summary?.overdueTasks ?? 0) + (summary?.newDonorsThisMonth ?? 0)} priority signals`,
-      description: "Suggested next actions for stewardship follow-through.",
-      href: "/steward-signals",
-    },
-  ];
-
   /** Swap widget at `from` index to `to` index */
   function moveWidget(from: number, to: number) {
     if (to < 0 || to >= visibleWidgetOrder.length) return;
@@ -685,7 +537,7 @@ export default function DashboardPage() {
   }
 
   const topKpiWidgets: WidgetId[] = ["revenue", "goal-health", "donation-velocity", "fundraising-forecast", "retention", "engagement-pulse", "workflow-pressure", "follow-up-capacity"];
-  const stewardshipWidgets: WidgetId[] = ["start-here", "todays-focus", "actionable-insights", "stewardship-attention"];
+  const stewardshipWidgets: WidgetId[] = ["actionable-insights", "stewardship-attention"];
   const intelligenceWidgets: WidgetId[] = ["ai-insights", "ai-opportunities", "ai-chat"];
   const weeklyWidgets: WidgetId[] = ["weekly-stats", "recent-donations"];
   const monthlyWidgets: WidgetId[] = ["monthly-donors", "giving-trend"];
@@ -724,30 +576,6 @@ export default function DashboardPage() {
     };
 
     switch (id) {
-      case "start-here":
-        return (
-          <DashboardWidget
-            key={id}
-            id={id}
-            title="Start Here"
-            subtitle="Choose a common action to begin your day"
-            {...editProps}
-          >
-            <DashboardStartHereWidget />
-          </DashboardWidget>
-        );
-      case "todays-focus":
-        return (
-          <DashboardWidget
-            key={id}
-            id={id}
-            title="Today's Focus"
-            subtitle="A plain-language snapshot of what matters most right now"
-            {...editProps}
-          >
-            <DashboardTodaysFocusWidget items={workSnapshot} loading={loading} />
-          </DashboardWidget>
-        );
       case "actionable-insights":
         return (
           <DashboardWidget
@@ -1180,109 +1008,3 @@ export default function DashboardPage() {
   );
 }
 
-interface DashboardStartHereCardProps {
-  action: StartHereAction;
-  compact?: boolean;
-}
-
-/** DashboardStartHereWidget renders guided "first action" cards for staff onboarding and daily work. */
-function DashboardStartHereWidget() {
-  return (
-    <div className="space-y-3">
-      <div className="flex items-start justify-between gap-2 flex-wrap">
-        <p className="text-xs text-gray-600">
-          Choose a common action to begin your day. Each card opens a guided workspace.
-        </p>
-        <WorkspaceHelpTip
-          title="What is Start Here?"
-          summary="Common daily actions"
-          body="Use Start Here when you are not sure which workspace to open first. It is built for day-to-day nonprofit tasks."
-          example="Send a thank-you: create an email or printable letter for a recent donation."
-          href="/help?scope=donor&scopePath=/"
-          hrefLabel="Open donor help guides"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {START_HERE_ACTIONS.slice(0, 8).map((action) => (
-          <DashboardStartHereCard key={action.id} action={action} compact />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-interface DashboardTodaysFocusWidgetProps {
-  items: DashboardFocusItem[];
-  loading: boolean;
-}
-
-/** DashboardTodaysFocusWidget renders a concise priority summary for day-to-day staff work. */
-function DashboardTodaysFocusWidget({ items, loading }: DashboardTodaysFocusWidgetProps) {
-  return (
-    <div className="space-y-3">
-      <div className="flex items-start justify-between gap-2 flex-wrap">
-        <p className="text-xs text-gray-600">
-          A plain-language snapshot of what matters most right now.
-        </p>
-        <WorkspaceHelpTip
-          title="How to use this section"
-          summary="Read this first"
-          body="Use these cards to choose your next workspace quickly. Each card links to a page where you can take action safely."
-          example="If Needs Attention shows overdue tasks, open Tasks and clear urgent follow-ups first."
-        />
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {items.map((item) => (
-          <Link
-            key={item.id}
-            href={item.href}
-            className="rounded-lg border border-gray-200 bg-gray-50 hover:bg-white hover:border-green-300 transition-colors p-2.5"
-          >
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{item.title}</p>
-            <p className="text-sm font-semibold text-gray-900 mt-1">{loading ? "Loading..." : item.value}</p>
-            <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.description}</p>
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** DashboardStartHereCard renders a guided first-action card with one clear CTA. */
-function DashboardStartHereCard({ action, compact = false }: DashboardStartHereCardProps) {
-  return (
-    <DashboardStartHereCardContent action={action} compact={compact} />
-  );
-}
-
-interface DashboardStartHereCardContentProps {
-  action: StartHereAction;
-  compact: boolean;
-}
-
-/** DashboardStartHereCardContent supports full and compact card layouts. */
-function DashboardStartHereCardContent({ action, compact }: DashboardStartHereCardContentProps) {
-  if (compact) {
-    return (
-      <CRMQuickActionCard
-        href={action.href}
-        title={action.title}
-        description={action.description}
-        actionLabel={action.actionLabel}
-      />
-    );
-  }
-
-  return (
-    <Link
-      href={action.href}
-      className="rounded-lg border border-green-200 bg-white p-3 transition-colors hover:border-green-400 hover:bg-green-50/50"
-    >
-      <p className="text-sm font-semibold text-gray-900">{action.title}</p>
-      <p className="text-xs text-gray-600 mt-1 line-clamp-2">{action.description}</p>
-      <p className="text-xs font-semibold text-green-700 mt-2">{action.actionLabel}</p>
-    </Link>
-  );
-}

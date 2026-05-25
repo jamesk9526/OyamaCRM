@@ -263,9 +263,6 @@ export default function StewardPathsWorkspacePage() {
           <WorkspaceRibbonButton label="Refresh" onClick={() => void load()} />
         </WorkspaceRibbonGroup>
 
-        <WorkspaceRibbonGroup label="Help">
-          <WorkspaceRibbonButton label="How Paths Work" href="/help?scope=steward-paths" />
-        </WorkspaceRibbonGroup>
       </WorkspaceRibbon>
 
       <section className="grid gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">

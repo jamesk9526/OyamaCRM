@@ -12,7 +12,6 @@ import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
-import FirstRunCard from "@/app/components/ui/FirstRunCard";
 import CRMDataTable from "@/app/components/ui/crm/CRMDataTable";
 import CRMFilterBar from "@/app/components/ui/crm/CRMFilterBar";
 import CRMMetricCard from "@/app/components/ui/crm/CRMMetricCard";
@@ -136,11 +135,6 @@ export default function ConstituentsPage() {
       )}
     >
       <div className="space-y-5">
-      <FirstRunCard
-        storageKey="howto:constituents"
-        title="Getting started with Constituents"
-        steps={["Search or filter the list to find a person", "Click a name to open their full profile", "Use Add Constituent to create a new record", "Record a gift directly from the profile page"]}
-      />
       <CRMActionBar>
         <WorkspaceRibbonButton label="Add Constituent" href="/constituents/new" variant="primary" />
         <WorkspaceRibbonButton

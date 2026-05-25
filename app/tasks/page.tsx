@@ -15,7 +15,6 @@ import { apiFetch } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
-import FirstRunCard from "@/app/components/ui/FirstRunCard";
 
 /** Task as returned from the API */
 export interface Task {
@@ -253,11 +252,6 @@ export default function TasksPage() {
 
   return (
     <div className="space-y-5">
-      <FirstRunCard
-        storageKey="howto:tasks"
-        title="Getting started with Tasks"
-        steps={["Switch between My Tasks, Team, and Follow-ups using the tabs above", "Click New Task to assign a follow-up to yourself or a team member", "Check off a task when complete — it logs to the donor timeline", "Overdue tasks are highlighted in red for quick triage"]}
-      />
       <WorkspaceBreadcrumbBar
         items={[
           { label: "Donor CRM", href: "/" },
