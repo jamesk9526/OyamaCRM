@@ -6,7 +6,7 @@
 // Accept either "https://domain" or "https://domain/api" in env; normalize
 // to a root origin-like base so request paths can safely include "/api/...".
 const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-const API_BASE = RAW_API_BASE.replace(/\/+$/, "").replace(/\/api$/, "");
+export const API_BASE = RAW_API_BASE.replace(/\/+$/, "").replace(/\/api$/, "");
 
 export interface AuthUser {
   id: string;

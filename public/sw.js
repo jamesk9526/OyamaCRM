@@ -40,19 +40,16 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Navigation (HTML) requests: always network-first, no caching.
+  // Caching HTML causes stale Next.js chunk URLs after a new deployment.
+  // The browser already respects the server's Cache-Control: no-cache on HTML.
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const cloned = response.clone();
-          caches.open(RUNTIME_CACHE).then((cache) => cache.put(event.request, cloned)).catch(() => {});
-          return response;
-        })
-        .catch(async () => {
-          const cached = await caches.match(event.request);
-          if (cached) return cached;
-          return caches.match(OFFLINE_URL);
-        })
+      fetch(event.request).catch(async () => {
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+        return caches.match(OFFLINE_URL);
+      })
     );
     return;
   }

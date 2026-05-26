@@ -19,7 +19,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useAuth } from "@/app/components/auth/AuthProvider";
-import { apiFetch } from "@/app/lib/auth-client";
+import { apiFetch, API_BASE } from "@/app/lib/auth-client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -268,8 +268,8 @@ export default function MessengerPanel({ open, onClose, onUnreadChange, variant 
     if (!open || !enabled) return;
 
     // Build SSE URL with credentials via cookie; use native EventSource.
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-    const es = new EventSource(`${apiBase}/api/messenger/sse`, { withCredentials: true });
+    // Use the normalized API_BASE (strips /api suffix) to avoid /api/api/… in production.
+    const es = new EventSource(`${API_BASE}/api/messenger/sse`, { withCredentials: true });
     sseRef.current = es;
 
     es.addEventListener("message", (ev: MessageEvent) => {

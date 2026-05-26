@@ -11,7 +11,7 @@ import StewardAiRuntimePill from "@/app/components/layout/StewardAiRuntimePill";
 import StewardDockPanel from "@/app/components/ai/StewardDockPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 import { FeedbackModal } from "@/app/components/feedback/FeedbackModal";
-import { apiFetch } from "@/app/lib/auth-client";
+import { apiFetch, API_BASE as AUTH_API_BASE } from "@/app/lib/auth-client";
 import {
   DEFAULT_WORKSPACE_SETTINGS,
   fetchWorkspaceSettings,
@@ -1152,10 +1152,10 @@ export default function TopBar({ scrolled = false, donorChromeTint }: TopBarProp
   }, [loadUnreadCount]);
 
   useEffect(() => {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+    // Use the normalized API base (strips trailing /api) so we don't produce /api/api/… in production.
     let es: EventSource | null = null;
     try {
-      es = new EventSource(`${apiBase}/api/notifications/sse`, { withCredentials: true });
+      es = new EventSource(`${AUTH_API_BASE}/api/notifications/sse`, { withCredentials: true });
       const refresh = () => {
         void loadUnreadCount();
         if (notificationsOpen) void loadNotifications();
@@ -1193,10 +1193,10 @@ export default function TopBar({ scrolled = false, donorChromeTint }: TopBarProp
   // Background SSE: fires live notifications when the messenger panel is closed.
   useEffect(() => {
     if (!user || messengerOpen) return;
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
     let es: EventSource;
     try {
-      es = new EventSource(`${apiBase}/api/messenger/sse`, { withCredentials: true });
+      // Use normalized API base — avoids /api/api/messenger/sse in production.
+      es = new EventSource(`${AUTH_API_BASE}/api/messenger/sse`, { withCredentials: true });
       es.addEventListener("message", (ev: MessageEvent) => {
         try {
           const payload = JSON.parse(ev.data as string) as {

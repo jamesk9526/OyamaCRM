@@ -24,6 +24,9 @@ export function useDashboardChromeTint(userId: string | undefined): DashboardChr
   const [tint, setTint] = useState<DashboardChromeTint>(() => deriveDashboardChromeTint("#047857"));
 
   useEffect(() => {
+    // Don't fire until the user is authenticated — avoids a noisy 401 on every page load.
+    if (!userId) return;
+
     let active = true;
 
     async function loadTint() {
