@@ -7,7 +7,24 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  RadialBar,
+  RadialBarChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import CRMCard from "@/app/components/ui/crm/CRMCard";
+import CRMFilterBar from "@/app/components/ui/crm/CRMFilterBar";
 import { apiFetch } from "@/app/lib/auth-client";
 import StewardContextButton from "@/app/components/ai/StewardContextButton";
 
@@ -87,6 +104,15 @@ interface TrendPoint {
   amount: number;
 }
 
+interface LapsedDonorItem {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  lastGiftDate: string | null;
+  totalLifetimeGiving: number | string | null;
+}
+
 interface QuickAction {
   label: string;
   href: string;
@@ -128,13 +154,18 @@ type ExpandedDashboardWidget =
   | "metric-new-donors"
   | "metric-average"
   | "metric-tasks"
-  | "metric-retention";
+  | "metric-retention"
+  | "campaign-progress"
+  | "lapsed"
+  | "giving-levels";
 
 const DASHBOARD_RANGES: Array<{ id: DashboardRangeId; label: string; comparisonLabel: string }> = [
   { id: "CURRENT_WEEK", label: "This week", comparisonLabel: "vs. prior week" },
   { id: "CURRENT_MONTH", label: "This month", comparisonLabel: "vs. prior month" },
   { id: "YTD", label: "Year to date", comparisonLabel: "vs. prior year" },
 ];
+
+const DONOR_CHART_COLORS = ["#059669", "#2563eb", "#d97706", "#7c3aed", "#0e7490", "#be123c"];
 
 const REPORT_SHORTCUTS: QuickAction[] = [
   { label: "Donations by Designation", href: "/reports?report=designation-fund", icon: "gift" },
@@ -428,7 +459,7 @@ function DashboardMetricCard({
     : null;
 
   return (
-    <CRMCard padding="sm" className="min-h-[6.75rem]">
+    <CRMCard padding="sm" className="min-h-[6.75rem] animate-slide-up-fade-in transition-transform duration-200 hover:-translate-y-0.5">
       <div className="flex items-start gap-3">
         <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-1 ${toneClassName}`}>
           <DashboardIcon name={icon} className="h-5 w-5" />
@@ -456,6 +487,100 @@ function DashboardMetricCard({
   );
 }
 
+function DashboardFilterSelect({
+  label,
+  value,
+  onChange,
+  children,
+  disabled = false,
+  title,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  children: ReactNode;
+  disabled?: boolean;
+  title?: string;
+}) {
+  return (
+    <label className="flex min-w-[11rem] flex-col gap-1 text-xs font-semibold text-slate-600" title={title ?? label}>
+      <span>{label}</span>
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-9 rounded-md border border-slate-200 bg-white px-2 text-sm font-semibold text-slate-800 shadow-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50 disabled:text-slate-400"
+      >
+        {children}
+      </select>
+    </label>
+  );
+}
+
+function DashboardFilterButton({ label, onClick, active = false }: { label: string; onClick: () => void; active?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`h-9 rounded-md border px-3 text-sm font-semibold shadow-sm transition ${
+        active
+          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+          : "border-slate-200 bg-white text-slate-700 hover:border-emerald-200 hover:text-emerald-700"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function DashboardCommandRibbon({
+  selectedRange,
+  setSelectedRange,
+  selectedCampaignId,
+  setSelectedCampaignId,
+  campaigns,
+  campaignsLoading,
+  reportingYearMode,
+  activeRange,
+  onRefresh,
+  onOpenWidget,
+}: {
+  selectedRange: DashboardRangeId;
+  setSelectedRange: (range: DashboardRangeId) => void;
+  selectedCampaignId: string;
+  setSelectedCampaignId: (campaignId: string) => void;
+  campaigns: CampaignSummary[];
+  campaignsLoading: boolean;
+  reportingYearMode: "calendar" | "fiscal";
+  activeRange: { id: DashboardRangeId; label: string; comparisonLabel: string };
+  onRefresh: () => void;
+  onOpenWidget: (widget: ExpandedDashboardWidget) => void;
+}) {
+  return (
+    <div aria-label="Dashboard Tools">
+      <CRMFilterBar className="animate-slide-up-fade-in">
+        <div className="flex min-w-0 flex-wrap items-end gap-3">
+          <DashboardFilterSelect label="Range" value={selectedRange} onChange={(value) => setSelectedRange(value as DashboardRangeId)} title={activeRange.comparisonLabel}>
+            {DASHBOARD_RANGES.map((range) => <option key={range.id} value={range.id}>{range.label}</option>)}
+          </DashboardFilterSelect>
+          <DashboardFilterSelect label="Campaign" value={selectedCampaignId} onChange={setSelectedCampaignId} disabled={campaignsLoading}>
+            <option value="">All Campaigns</option>
+            {campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
+          </DashboardFilterSelect>
+          <DashboardFilterButton label={reportingYearMode === "fiscal" ? "Fiscal Year" : "Calendar Year"} onClick={() => onOpenWidget("metric-giving")} active />
+          <DashboardFilterButton label="Refresh" onClick={onRefresh} />
+        </div>
+        <div className="flex flex-wrap items-end justify-start gap-2 lg:justify-end">
+          <DashboardFilterButton label="Giving Trends" onClick={() => onOpenWidget("giving")} />
+          <DashboardFilterButton label="Today" onClick={() => onOpenWidget("today")} />
+          <DashboardFilterButton label="Recent Gifts" onClick={() => onOpenWidget("recent")} />
+          <DashboardFilterButton label="Retention" onClick={() => onOpenWidget("metric-retention")} />
+        </div>
+      </CRMFilterBar>
+    </div>
+  );
+}
+
 function OpenWidgetButton({ onClick }: { onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 hover:border-emerald-200 hover:text-emerald-700">
@@ -466,20 +591,11 @@ function OpenWidgetButton({ onClick }: { onClick: () => void }) {
 
 function DesignationBreakdownCard({ items, loading, onExpand }: { items: DesignationBreakdownItem[]; loading: boolean; onExpand?: () => void }) {
   const total = items.reduce((sum, item) => sum + item.amount, 0);
-  const palette = ["#2563eb", "#059669", "#f59e0b", "#ef4444", "#7c3aed"];
+  const palette = DONOR_CHART_COLORS;
   const topDesignation = items[0] ?? null;
-  let cursor = 0;
-  const gradientStops = items.length === 0
-    ? "#e2e8f0 0 100%"
-    : items.map((item, index) => {
-      const start = cursor;
-      const pct = total > 0 ? (item.amount / total) * 100 : 0;
-      cursor += pct;
-      return `${palette[index % palette.length]} ${start}% ${cursor}%`;
-    }).join(", ");
 
   return (
-    <CRMCard padding="md" className="h-full min-h-[20rem]">
+    <CRMCard padding="md" className="h-full min-h-[20rem] animate-slide-up-fade-in">
       <SectionHeader
         title="Giving by Designation"
         action={<div className="flex items-center gap-2"><Link href="/reports?report=designation-fund" className="text-xs font-semibold text-slate-600 hover:text-slate-900">Report</Link>{onExpand ? <OpenWidgetButton onClick={onExpand} /> : null}</div>}
@@ -495,8 +611,16 @@ function DesignationBreakdownCard({ items, loading, onExpand }: { items: Designa
       ) : (
         <div className="flex h-full min-h-0 flex-col">
           <div className="grid gap-4 lg:grid-cols-[10rem_1fr] xl:grid-cols-1 2xl:grid-cols-[10rem_1fr]">
-            <div className="relative mx-auto flex h-40 w-40 items-center justify-center rounded-full" style={{ background: `conic-gradient(${gradientStops})` }}>
-              <div className="flex h-24 w-24 flex-col items-center justify-center rounded-full bg-white shadow-inner">
+            <div className="relative mx-auto h-44 w-full min-w-0 max-w-[13rem]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={items} dataKey="amount" nameKey="name" innerRadius="58%" outerRadius="82%" paddingAngle={2} isAnimationActive animationDuration={700}>
+                    {items.map((item, index) => <Cell key={item.id} fill={palette[index % palette.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-base font-bold text-slate-950">{formatCurrency(total)}</span>
                 <span className="text-[11px] font-semibold text-slate-500">Total</span>
               </div>
@@ -541,7 +665,7 @@ function DesignationBreakdownCard({ items, loading, onExpand }: { items: Designa
 function PaymentSourceBreakdownCard({ items, total, loading, onExpand }: { items: PaymentMethodBreakdownItem[]; total: number; loading: boolean; onExpand?: () => void }) {
   const topSource = items[0] ?? null;
   return (
-    <CRMCard padding="md" className="h-full min-h-[20rem]">
+    <CRMCard padding="md" className="h-full min-h-[20rem] animate-slide-up-fade-in">
       <SectionHeader
         title="Giving by Source"
         action={<div className="flex items-center gap-2"><Link href="/donations" className="text-xs font-semibold text-slate-600 hover:text-slate-900">Donations</Link>{onExpand ? <OpenWidgetButton onClick={onExpand} /> : null}</div>}
@@ -567,6 +691,19 @@ function PaymentSourceBreakdownCard({ items, total, loading, onExpand }: { items
               <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Top source</p>
               <p className="mt-0.5 truncate text-sm font-bold text-slate-950">{topSource?.label ?? "None"}</p>
             </div>
+          </div>
+          <div className="mb-3 h-32 rounded-md border border-slate-100 bg-slate-50/50 p-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={items.slice(0, 6)} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} interval={0} />
+                <YAxis hide />
+                <Tooltip formatter={(value) => formatCurrency(Number(value))} cursor={{ fill: "rgba(16,185,129,0.08)" }} />
+                <Bar dataKey="amount" radius={[4, 4, 0, 0]} isAnimationActive animationDuration={650}>
+                  {items.slice(0, 6).map((item, index) => <Cell key={item.method} fill={DONOR_CHART_COLORS[index % DONOR_CHART_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
           <div className="space-y-2.5">
             {items.map((item) => {
@@ -597,22 +734,6 @@ function PaymentSourceBreakdownCard({ items, total, loading, onExpand }: { items
 function FilteredGivingTrendChart({ donations, rangeId, loading, expanded = false }: { donations: DonationPreview[]; rangeId: DashboardRangeId; loading: boolean; expanded?: boolean }) {
   const points = useMemo(() => buildTrendPoints(donations, rangeId), [donations, rangeId]);
   const total = points.reduce((sum, point) => sum + point.amount, 0);
-  const max = Math.max(1, ...points.map((point) => point.amount));
-  const chartWidth = 760;
-  const chartHeight = 245;
-  const padLeft = 54;
-  const padRight = 18;
-  const padTop = 18;
-  const padBottom = 34;
-  const plotWidth = chartWidth - padLeft - padRight;
-  const plotHeight = chartHeight - padTop - padBottom;
-  const xFor = (index: number) => padLeft + (plotWidth / Math.max(points.length - 1, 1)) * index;
-  const yFor = (amount: number) => padTop + plotHeight - (amount / max) * plotHeight;
-  const path = points.map((point, index) => `${index === 0 ? "M" : "L"}${xFor(index)} ${yFor(point.amount)}`).join(" ");
-  const areaPath = `${path} L${xFor(points.length - 1)} ${padTop + plotHeight} L${xFor(0)} ${padTop + plotHeight} Z`;
-  const tickIndexes = points.length <= 12
-    ? points.map((_, index) => index)
-    : points.map((_, index) => index).filter((index) => index === 0 || index === points.length - 1 || index % 5 === 0);
 
   if (loading) {
     return <div className={`flex ${expanded ? "h-[28rem]" : "h-[13rem]"} items-center justify-center rounded-md bg-slate-50 text-sm text-slate-400`}>Loading filtered giving...</div>;
@@ -637,74 +758,437 @@ function FilteredGivingTrendChart({ donations, rangeId, loading, expanded = fals
         <p className="text-xs font-semibold text-slate-500">{donations.length.toLocaleString()} gift{donations.length === 1 ? "" : "s"}</p>
       </div>
       <div className={`relative ${expanded ? "h-[28rem]" : "h-[13rem]"} rounded-md border border-slate-100 bg-white/80 p-2`}>
-        <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="h-full w-full" aria-label="Filtered giving trend">
-          <defs>
-            <linearGradient id="filteredGivingArea" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#10b981" stopOpacity="0.24" />
-              <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
-            </linearGradient>
-          </defs>
-          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-            const y = padTop + plotHeight * ratio;
-            const value = max * (1 - ratio);
-            return (
-              <g key={ratio}>
-                <line x1={padLeft} y1={y} x2={chartWidth - padRight} y2={y} stroke="#e2e8f0" />
-                <text x={padLeft - 8} y={y + 4} textAnchor="end" fontSize="10" fill="#94a3b8">{value >= 1000 ? `$${Math.round(value / 1000)}K` : `$${Math.round(value)}`}</text>
-              </g>
-            );
-          })}
-          <path d={areaPath} fill="url(#filteredGivingArea)" />
-          <path d={path} fill="none" stroke="#059669" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-          {points.map((point, index) => (
-            <circle key={`${point.label}-${index}`} cx={xFor(index)} cy={yFor(point.amount)} r="3" fill="#059669" />
-          ))}
-          {tickIndexes.map((index) => (
-            <text key={index} x={xFor(index)} y={chartHeight - 8} textAnchor="middle" fontSize="10" fill="#94a3b8">{points[index]?.label}</text>
-          ))}
-        </svg>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={points} margin={{ top: 16, right: 18, bottom: 8, left: 0 }}>
+            <defs>
+              <linearGradient id="filteredGivingArea" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor="#10b981" stopOpacity={0.28} />
+                <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+            <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} minTickGap={10} />
+            <YAxis tickFormatter={(value) => value >= 1000 ? `$${Math.round(Number(value) / 1000)}K` : `$${Number(value)}`} tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={48} />
+            <Tooltip formatter={(value) => formatCurrency(Number(value))} labelClassName="font-semibold text-slate-800" contentStyle={{ borderRadius: 8, borderColor: "#d1fae5" }} />
+            <Area type="monotone" dataKey="amount" stroke="#059669" strokeWidth={3} fill="url(#filteredGivingArea)" dot={{ r: 3, fill: "#059669", strokeWidth: 0 }} activeDot={{ r: 5 }} isAnimationActive animationDuration={800} />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );
 }
 
 function MonthlyGiversCard({ donors, loading, onExpand }: { donors: MonthlyDonorItem[]; loading: boolean; onExpand?: () => void }) {
-  const total = donors.reduce((sum, donor) => sum + donor.amount, 0);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [sortBy, setSortBy] = useState<"amount" | "name" | "date">("amount");
+  const [bulkAction, setBulkAction] = useState<"task" | "segment" | "email" | null>(null);
+  const [segmentName, setSegmentName] = useState("");
+  const [taskType, setTaskType] = useState("Thank-You Follow-Up");
+  const [dueOffset, setDueOffset] = useState("7");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionResult, setActionResult] = useState<string | null>(null);
+
+  const sorted = useMemo(() => {
+    const items = [...donors];
+    if (sortBy === "name") items.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sortBy === "date") items.sort((a, b) => new Date(b.lastGiftDate).getTime() - new Date(a.lastGiftDate).getTime());
+    return items;
+  }, [donors, sortBy]);
+
+  const total = donors.reduce((sum, d) => sum + d.amount, 0);
+  const allSelected = selectedIds.size === donors.length && donors.length > 0;
+  const selectedDonors = donors.filter((d) => selectedIds.has(d.donorId));
+
+  function toggleAll() {
+    if (allSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(donors.map((d) => d.donorId)));
+  }
+
+  function toggleOne(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleCreateTasks() {
+    setActionLoading(true);
+    setActionResult(null);
+    const dueDateStr = new Date(Date.now() + parseInt(dueOffset, 10) * 86_400_000).toISOString().slice(0, 10);
+    let created = 0;
+    let failed = 0;
+    for (const donor of selectedDonors) {
+      try {
+        await apiFetch("/api/tasks", {
+          method: "POST",
+          body: JSON.stringify({ title: `${taskType}: ${donor.name}`, type: "FOLLOW_UP", dueDate: dueDateStr, constituentId: donor.donorId }),
+        });
+        created++;
+      } catch {
+        failed++;
+      }
+    }
+    setActionLoading(false);
+    setBulkAction(null);
+    setActionResult(`${created} task${created === 1 ? "" : "s"} created${failed > 0 ? `, ${failed} failed` : ""}.`);
+  }
+
+  async function handleTagSegment() {
+    if (!segmentName.trim()) return;
+    setActionLoading(true);
+    setActionResult(null);
+    try {
+      await apiFetch("/api/constituents/tags/bulk-actions", {
+        method: "POST",
+        body: JSON.stringify({ action: "ADD", tagNames: [segmentName.trim()], constituentIds: [...selectedIds] }),
+      });
+      setActionResult(`Saved segment "${segmentName}" for ${selectedIds.size} donor${selectedIds.size === 1 ? "" : "s"}.`);
+    } catch {
+      setActionResult("Segment save failed. Check constituent access.");
+    } finally {
+      setActionLoading(false);
+      setBulkAction(null);
+    }
+  }
+
+  async function handleDraftEmail() {
+    setActionLoading(true);
+    setActionResult(null);
+    const monthLabel = new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
+    try {
+      const result = await apiFetch<{ id?: string }>("/api/email-campaigns", {
+        method: "POST",
+        body: JSON.stringify({ name: `Monthly Donor Thank You – ${monthLabel}`, subject: `Thank you for your ${monthLabel} gift!`, status: "DRAFT" }),
+      });
+      if (result?.id) {
+        window.location.assign(`/communications/${result.id}?mode=build`);
+      } else {
+        setActionResult("Draft campaign created — open Communications to find it.");
+      }
+    } catch {
+      setActionResult("Could not create draft email campaign.");
+    } finally {
+      setActionLoading(false);
+      setBulkAction(null);
+    }
+  }
+
   return (
     <CRMCard padding="md" className="h-full min-h-[20rem]">
-      <SectionHeader
-        title="Who Gave This Month"
-        action={onExpand ? <OpenWidgetButton onClick={onExpand} /> : undefined}
-      >
-        Instant monthly giving list from completed gifts
+      <SectionHeader title="Who Gave This Month" action={onExpand ? <OpenWidgetButton onClick={onExpand} /> : undefined}>
+        Monthly giving list — select donors to take action
       </SectionHeader>
-      <div className="mb-3 grid grid-cols-2 gap-2">
+
+      {/* Stats row */}
+      <div className="mb-3 grid grid-cols-3 gap-2">
         <div className="rounded-md bg-emerald-50 px-3 py-2">
           <p className="text-lg font-bold text-slate-950">{formatCurrency(total)}</p>
-          <p className="text-xs text-slate-500">Monthly giving</p>
+          <p className="text-xs text-slate-500">Total raised</p>
         </div>
         <div className="rounded-md bg-slate-50 px-3 py-2">
           <p className="text-lg font-bold text-slate-950">{donors.length.toLocaleString()}</p>
           <p className="text-xs text-slate-500">Donors</p>
         </div>
+        <div className={`rounded-md px-3 py-2 ${selectedIds.size > 0 ? "bg-emerald-100" : "bg-slate-50"}`}>
+          <p className="text-lg font-bold text-slate-950">{selectedIds.size}</p>
+          <p className="text-xs text-slate-500">Selected</p>
+        </div>
       </div>
+
+      {/* Select-all + sort controls */}
+      <div className="mb-2 flex items-center gap-3">
+        <label className="flex cursor-pointer select-none items-center gap-1.5 text-xs text-slate-600">
+          <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded border-slate-300 accent-emerald-600" />
+          <span className="font-semibold">All</span>
+        </label>
+        <div className="flex-1" />
+        <label className="flex items-center gap-1 text-xs text-slate-500">
+          Sort:
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className="ml-0.5 rounded border border-slate-200 bg-white px-1 py-0.5 text-xs font-semibold text-slate-700 outline-none focus:border-emerald-400">
+            <option value="amount">Amount</option>
+            <option value="name">Name</option>
+            <option value="date">Recent</option>
+          </select>
+        </label>
+      </div>
+
+      {/* Action result toast */}
+      {actionResult ? (
+        <div className="mb-2 flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+          {actionResult}
+          <button type="button" onClick={() => setActionResult(null)} className="ml-auto text-emerald-700 hover:text-emerald-900" aria-label="Dismiss">✕</button>
+        </div>
+      ) : null}
+
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && bulkAction === null ? (
+        <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+          <span className="text-xs font-bold text-slate-700">{selectedIds.size} selected —</span>
+          <button type="button" onClick={() => setBulkAction("task")} className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-emerald-300 hover:text-emerald-700">Create Tasks</button>
+          <button type="button" onClick={() => setBulkAction("segment")} className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-emerald-300 hover:text-emerald-700">Tag Segment</button>
+          <button type="button" onClick={() => void handleDraftEmail()} disabled={actionLoading} className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">Draft Email</button>
+          <Link href={`/constituents?ids=${[...selectedIds].join(",")}`} className="ml-auto text-xs font-semibold text-blue-600 hover:text-blue-800">View profiles →</Link>
+        </div>
+      ) : null}
+
+      {/* Task creation panel */}
+      {bulkAction === "task" ? (
+        <div className="mb-2 rounded-md border border-slate-200 bg-white p-3">
+          <p className="mb-2 text-xs font-bold text-slate-800">Create tasks for {selectedIds.size} donor{selectedIds.size === 1 ? "" : "s"}</p>
+          <div className="mb-2 flex flex-wrap gap-2">
+            <label className="text-xs font-semibold text-slate-600">
+              Type
+              <select value={taskType} onChange={(e) => setTaskType(e.target.value)} className="ml-1 rounded border border-slate-200 bg-white px-1 py-0.5 text-xs font-semibold text-slate-700 outline-none focus:border-emerald-400">
+                <option>Thank-You Follow-Up</option>
+                <option>Impact Update</option>
+                <option>Phone Call</option>
+                <option>Cultivation Meeting</option>
+                <option>Send Letter</option>
+              </select>
+            </label>
+            <label className="text-xs font-semibold text-slate-600">
+              Due in
+              <select value={dueOffset} onChange={(e) => setDueOffset(e.target.value)} className="ml-1 rounded border border-slate-200 bg-white px-1 py-0.5 text-xs font-semibold text-slate-700 outline-none focus:border-emerald-400">
+                <option value="1">1 day</option>
+                <option value="3">3 days</option>
+                <option value="7">7 days</option>
+                <option value="14">14 days</option>
+                <option value="30">30 days</option>
+              </select>
+            </label>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => void handleCreateTasks()} disabled={actionLoading} className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">{actionLoading ? "Creating…" : "Create Tasks"}</button>
+            <button type="button" onClick={() => setBulkAction(null)} className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Segment tag panel */}
+      {bulkAction === "segment" ? (
+        <div className="mb-2 rounded-md border border-slate-200 bg-white p-3">
+          <p className="mb-2 text-xs font-bold text-slate-800">Tag {selectedIds.size} donor{selectedIds.size === 1 ? "" : "s"} as a segment</p>
+          <input
+            type="text"
+            value={segmentName}
+            onChange={(e) => setSegmentName(e.target.value)}
+            placeholder={`e.g. Monthly Donors ${new Date().toLocaleString("en-US", { month: "short", year: "numeric" })}`}
+            className="mb-2 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+          />
+          <div className="flex gap-2">
+            <button type="button" onClick={() => void handleTagSegment()} disabled={actionLoading || !segmentName.trim()} className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">{actionLoading ? "Saving…" : "Save Segment"}</button>
+            <button type="button" onClick={() => setBulkAction(null)} className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Donor list */}
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-9 animate-pulse rounded bg-slate-100" />)}
         </div>
-      ) : donors.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div className="flex h-32 items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50 text-xs text-slate-400">No completed gifts this month.</div>
       ) : (
         <div className="divide-y divide-slate-100">
-          {donors.slice(0, 7).map((donor) => (
-            <Link key={donor.donorId} href={donor.profileHref} className="grid grid-cols-[1fr_auto] gap-3 py-2 hover:bg-slate-50">
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold text-slate-900">{donor.name}</span>
-                <span className="block truncate text-xs text-slate-500">{donor.count} gift{donor.count === 1 ? "" : "s"} · {donor.email ?? relativeDate(donor.lastGiftDate)}</span>
-              </span>
-              <span className="text-right text-sm font-bold text-emerald-700">{formatCurrency(donor.amount)}</span>
-            </Link>
-          ))}
+          {sorted.slice(0, 12).map((donor) => {
+            const initials = donor.name.split(" ").map((w) => w[0] ?? "").slice(0, 2).join("").toUpperCase();
+            const isSelected = selectedIds.has(donor.donorId);
+            return (
+              <div key={donor.donorId} className={`grid grid-cols-[auto_auto_1fr_auto] items-center gap-2 py-1.5 ${isSelected ? "bg-emerald-50/60" : "hover:bg-slate-50"}`}>
+                <input type="checkbox" checked={isSelected} onChange={() => toggleOne(donor.donorId)} className="cursor-pointer rounded border-slate-300 accent-emerald-600" />
+                <Link href={donor.profileHref} tabIndex={-1} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-bold text-emerald-800 ring-1 ring-emerald-200 hover:ring-emerald-400">
+                  {initials || "?"}
+                </Link>
+                <Link href={donor.profileHref} className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-slate-900">{donor.name}</span>
+                  <span className="block truncate text-xs text-slate-500">{donor.count} gift{donor.count === 1 ? "" : "s"} · {donor.email ?? relativeDate(donor.lastGiftDate)}</span>
+                </Link>
+                <span className="text-right text-sm font-bold text-emerald-700">{formatCurrency(donor.amount)}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {!loading && sorted.length > 12 ? (
+        <p className="mt-2 text-center text-xs text-slate-400">{sorted.length - 12} more · <Link href="/donations?range=CURRENT_MONTH" className="font-semibold text-slate-600 hover:text-slate-900">view all</Link></p>
+      ) : null}
+    </CRMCard>
+  );
+}
+
+/** Campaign progress bars for active fundraising campaigns. */
+function CampaignProgressCard({ campaigns, loading, onExpand }: { campaigns: CampaignSummary[]; loading: boolean; onExpand?: () => void }) {
+  const active = campaigns.filter((c) => c.active);
+  return (
+    <CRMCard padding="md" className="h-full min-h-[20rem] animate-slide-up-fade-in">
+      <SectionHeader
+        title="Campaign Progress"
+        action={
+          <div className="flex items-center gap-2">
+            <Link href="/campaigns" className="text-xs font-semibold text-slate-500 hover:text-slate-900">All</Link>
+            {onExpand ? <OpenWidgetButton onClick={onExpand} /> : null}
+          </div>
+        }
+      >
+        Active fundraising campaigns
+      </SectionHeader>
+      {loading ? (
+        <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-14 animate-pulse rounded bg-slate-100" />)}</div>
+      ) : active.length === 0 ? (
+        <div className="flex h-32 items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50 text-xs text-slate-400">No active campaigns.</div>
+      ) : (
+        <div className="space-y-2.5">
+          {active.map((campaign) => {
+            const raised = toNumber(campaign.totalRaised);
+            const goal = toNumber(campaign.goal);
+            const pct = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
+            const remaining = Math.max(0, goal - raised);
+            return (
+              <Link key={campaign.id} href={`/campaigns/${campaign.id}`} className="block rounded-md border border-slate-200 bg-white px-3 py-2.5 hover:border-emerald-200 hover:bg-emerald-50/40 transition-colors">
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <span className="truncate text-sm font-semibold text-slate-900">{campaign.name}</span>
+                  <span className="shrink-0 text-xs font-bold text-emerald-700">{goal > 0 ? `${pct}%` : "–"}</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-full rounded-full bg-emerald-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+                </div>
+                <div className="mt-1.5 flex items-center justify-between text-xs text-slate-500">
+                  <span>{formatCurrency(raised)} raised</span>
+                  {goal > 0 ? <span>{remaining > 0 ? `${formatCurrency(remaining)} to go` : "Goal reached!"}</span> : <span>No goal set</span>}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </CRMCard>
+  );
+}
+
+/** Lapsed donor alert panel — self-fetching, uses refreshNonce to re-fetch on dashboard refresh. */
+function LapsedDonorsCard({ refreshNonce, onExpand }: { refreshNonce: number; onExpand?: () => void }) {
+  const [lapsed, setLapsed] = useState<LapsedDonorItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    void apiFetch<{ items?: LapsedDonorItem[] } | LapsedDonorItem[]>("/api/constituents?donorStatus=lapsed&limit=10&orderBy=lastGiftDate&order=desc")
+      .then((data) => {
+        if (!cancelled) {
+          const items = Array.isArray(data) ? data : (data as { items?: LapsedDonorItem[] }).items ?? [];
+          setLapsed(items);
+        }
+      })
+      .catch(() => { if (!cancelled) setLapsed([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [refreshNonce]);
+
+  return (
+    <CRMCard padding="md" className="h-full min-h-[20rem] animate-slide-up-fade-in">
+      <SectionHeader
+        title="Lapsed Donors"
+        action={
+          <div className="flex items-center gap-2">
+            <Link href="/constituents?donorStatus=lapsed" className="text-xs font-semibold text-rose-600 hover:text-rose-800">View all</Link>
+            {onExpand ? <OpenWidgetButton onClick={onExpand} /> : null}
+          </div>
+        }
+      >
+        Donors who haven&apos;t given recently
+      </SectionHeader>
+      {loading ? (
+        <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-9 animate-pulse rounded bg-slate-100" />)}</div>
+      ) : lapsed.length === 0 ? (
+        <div className="flex h-32 items-center justify-center rounded-md border border-dashed border-emerald-200 bg-emerald-50/40 text-xs text-emerald-700">No lapsed donors found — great retention!</div>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {lapsed.map((donor) => {
+            const name = `${donor.firstName} ${donor.lastName}`;
+            const initials = [donor.firstName?.[0], donor.lastName?.[0]].filter(Boolean).join("").toUpperCase();
+            return (
+              <Link key={donor.id} href={`/constituents/${donor.id}`} className="grid grid-cols-[auto_1fr_auto] items-center gap-2.5 py-2 hover:bg-slate-50">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-100 text-[11px] font-bold text-rose-800 ring-1 ring-rose-200">
+                  {initials || "?"}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-slate-900">{name}</span>
+                  <span className="block truncate text-xs text-slate-500">Last gift: {donor.lastGiftDate ? relativeDate(donor.lastGiftDate) : "Unknown"}</span>
+                </span>
+                <span className="text-right">
+                  <span className="block text-sm font-bold text-slate-700">{donor.totalLifetimeGiving != null ? formatCurrency(toNumber(donor.totalLifetimeGiving)) : "–"}</span>
+                  <span className="block text-[10px] font-semibold text-rose-500">Lapsed</span>
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+      <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+        <Link href="/communications/new/type?segment=lapsed" className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:border-emerald-200 hover:text-emerald-700">Email Lapsed</Link>
+        <Link href="/steward-paths?segment=lapsed" className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:border-emerald-200 hover:text-emerald-700">Steward Path</Link>
+      </div>
+    </CRMCard>
+  );
+}
+
+/** Giving tier breakdown — Major / Mid-level / Annual Fund from the current filtered donation set. */
+function GivingLevelsCard({ donations, total, loading, onExpand }: { donations: DonationPreview[]; total: number; loading: boolean; onExpand?: () => void }) {
+  const levels = useMemo(() => [
+    { label: "Major Gifts", threshold: 5000, color: "#7c3aed", bgClass: "bg-violet-100", textClass: "text-violet-800", count: 0, amount: 0 },
+    { label: "Mid-Level",   threshold: 500,  color: "#2563eb", bgClass: "bg-blue-100",   textClass: "text-blue-800",   count: 0, amount: 0 },
+    { label: "Annual Fund", threshold: 0,    color: "#059669", bgClass: "bg-emerald-100", textClass: "text-emerald-800", count: 0, amount: 0 },
+  ].reduce<Array<{ label: string; threshold: number; color: string; bgClass: string; textClass: string; count: number; amount: number }>>((acc) => {
+    const tiers = [...acc];
+    donations.forEach((d) => {
+      const a = toNumber(d.amount);
+      if (a >= 5000) { tiers[0].count++; tiers[0].amount += a; }
+      else if (a >= 500) { tiers[1].count++; tiers[1].amount += a; }
+      else { tiers[2].count++; tiers[2].amount += a; }
+    });
+    return tiers;
+  }, [
+    { label: "Major Gifts", threshold: 5000, color: "#7c3aed", bgClass: "bg-violet-100", textClass: "text-violet-800", count: 0, amount: 0 },
+    { label: "Mid-Level",   threshold: 500,  color: "#2563eb", bgClass: "bg-blue-100",   textClass: "text-blue-800",   count: 0, amount: 0 },
+    { label: "Annual Fund", threshold: 0,    color: "#059669", bgClass: "bg-emerald-100", textClass: "text-emerald-800", count: 0, amount: 0 },
+  ]), [donations]);
+
+  return (
+    <CRMCard padding="md" className="h-full min-h-[20rem] animate-slide-up-fade-in">
+      <SectionHeader title="Giving Levels" action={onExpand ? <OpenWidgetButton onClick={onExpand} /> : undefined}>
+        Gift tier breakdown for selected view
+      </SectionHeader>
+      {loading ? (
+        <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-16 animate-pulse rounded bg-slate-100" />)}</div>
+      ) : donations.length === 0 ? (
+        <div className="flex h-32 items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50 text-xs text-slate-400">No gift data in selected view.</div>
+      ) : (
+        <div className="space-y-3">
+          {levels.map((level) => {
+            const pct = total > 0 ? Math.round((level.amount / total) * 100) : 0;
+            return (
+              <div key={level.label} className="rounded-md border border-slate-100 bg-white p-3">
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${level.bgClass} ${level.textClass}`}>{level.count}</span>
+                    <span className="text-sm font-semibold text-slate-800">{level.label}</span>
+                  </div>
+                  <span className="text-sm font-bold text-slate-950">{formatCurrency(level.amount)}</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: level.color }} />
+                </div>
+                <div className="mt-1.5 flex items-center justify-between text-xs text-slate-500">
+                  <span>{level.count} gift{level.count === 1 ? "" : "s"}</span>
+                  <span>{pct}% of total</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </CRMCard>
@@ -725,6 +1209,41 @@ function DashboardToolsPanel({ onExpand }: { onExpand?: () => void }) {
             {action.badge ? <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-700">{action.badge}</span> : null}
           </Link>
         ))}
+      </div>
+    </CRMCard>
+  );
+}
+
+function RetentionRadialCard({ retentionRate, retained, total, loading, onExpand }: { retentionRate: number; retained: number; total: number; loading: boolean; onExpand?: () => void }) {
+  const bounded = Math.max(0, Math.min(100, retentionRate));
+  return (
+    <CRMCard padding="md" className="h-full min-h-[20rem] animate-slide-up-fade-in bg-gradient-to-b from-white to-emerald-50/30">
+      <SectionHeader title="Retention Health" action={onExpand ? <OpenWidgetButton onClick={onExpand} /> : undefined}>
+        Returning donor cohort for the active reporting year
+      </SectionHeader>
+      <div className="grid min-h-0 gap-3 lg:grid-cols-[13rem_1fr] xl:grid-cols-1 2xl:grid-cols-[13rem_1fr]">
+        <div className="relative mx-auto h-44 w-full max-w-[13rem]">
+          <ResponsiveContainer width="100%" height="100%">
+            <RadialBarChart innerRadius="66%" outerRadius="92%" data={[{ name: "Retention", value: bounded }]} startAngle={210} endAngle={-30}>
+              <RadialBar dataKey="value" cornerRadius={12} fill="#059669" background={{ fill: "#d1fae5" }} isAnimationActive animationDuration={750} />
+            </RadialBarChart>
+          </ResponsiveContainer>
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-3xl font-bold text-slate-950">{loading ? "--" : `${bounded}%`}</span>
+            <span className="text-xs font-semibold text-emerald-700">Retained</span>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <div className="rounded-md border border-emerald-100 bg-white px-3 py-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Returning donors</p>
+            <p className="mt-1 text-xl font-bold text-slate-950">{retained.toLocaleString()}</p>
+          </div>
+          <div className="rounded-md border border-slate-100 bg-white px-3 py-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Prior cohort</p>
+            <p className="mt-1 text-xl font-bold text-slate-950">{total.toLocaleString()}</p>
+          </div>
+          <p className="text-xs leading-5 text-slate-500">Use this as a stewardship signal: lower retention should pull staff toward lapsed donor lists, thank-you follow-up, and impact communications.</p>
+        </div>
       </div>
     </CRMCard>
   );
@@ -1080,6 +1599,12 @@ export default function DonorDashboardVisualRefresh({
         return <MetricDetail title="Open Tasks" value={pendingTasks.toLocaleString()} detail={`${overdueTasks.toLocaleString()} tasks are overdue across the organization queue.`} />;
       case "metric-retention":
         return <MetricDetail title="Retention Rate" value={`${retentionRate}%`} detail={`${retentionRetained.toLocaleString()} of ${retentionTotal.toLocaleString()} donors retained this reporting year.`} />;
+      case "campaign-progress":
+        return <CampaignProgressCard campaigns={campaigns} loading={campaignsLoading} />;
+      case "lapsed":
+        return <LapsedDonorsCard refreshNonce={refreshNonce} />;
+      case "giving-levels":
+        return <GivingLevelsCard donations={filteredDonations} total={filteredGivingTotal} loading={donationsLoading} />;
       default:
         return null;
     }
@@ -1087,7 +1612,7 @@ export default function DonorDashboardVisualRefresh({
 
   return (
     <div className="space-y-4 bg-slate-50/40 pb-6">
-      <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div className="animate-slide-up-fade-in rounded-md border border-slate-200 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-950">{greeting}, {name.split(" ")[0] || name}</h1>
@@ -1117,32 +1642,18 @@ export default function DonorDashboardVisualRefresh({
       </div>
       </div>
 
-      <CRMCard padding="sm" className="shadow-[0_4px_18px_rgba(15,23,42,0.05)]">
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex min-w-[13rem] flex-1 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
-            <DashboardIcon name="calendar" className="h-4 w-4 text-slate-500" />
-            <select value={selectedRange} onChange={(event) => setSelectedRange(event.target.value as DashboardRangeId)} className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-700 outline-none">
-              {DASHBOARD_RANGES.map((range) => <option key={range.id} value={range.id}>{range.label}</option>)}
-            </select>
-          </label>
-          <div className="min-w-[12rem] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-500">
-            {activeRange.comparisonLabel}
-          </div>
-          <div className="ml-auto flex flex-wrap items-center gap-3">
-            <span className="inline-flex h-10 items-center rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600">
-              {reportingYearMode === "fiscal" ? "Fiscal Year" : "Calendar Year"}
-            </span>
-            <select value={selectedCampaignId} disabled={campaignsLoading} onChange={(event) => setSelectedCampaignId(event.target.value)} className="h-10 min-w-[12rem] rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none disabled:bg-slate-50 disabled:text-slate-400">
-              <option value="">All Campaigns</option>
-              {campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
-            </select>
-            <button type="button" onClick={handleRefresh} className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:border-emerald-200 hover:text-emerald-700">
-              <DashboardIcon name="refresh" className="h-4 w-4" />
-              Refresh
-            </button>
-          </div>
-        </div>
-      </CRMCard>
+      <DashboardCommandRibbon
+        selectedRange={selectedRange}
+        setSelectedRange={setSelectedRange}
+        selectedCampaignId={selectedCampaignId}
+        setSelectedCampaignId={setSelectedCampaignId}
+        campaigns={campaigns}
+        campaignsLoading={campaignsLoading}
+        reportingYearMode={reportingYearMode}
+        activeRange={activeRange}
+        onRefresh={handleRefresh}
+        onOpenWidget={setExpandedWidget}
+      />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <DashboardMetricCard label="Filtered Giving" value={formatCurrency(filteredGivingTotal)} helper={`${filteredGiftCount.toLocaleString()} gifts in view`} icon="donation" tone="emerald" loading={donationsLoading} progressPercent={revenuePercent} progressLabel={`${revenuePercent}% of ${revenueGoalLabel}`} onExpand={() => setExpandedWidget("metric-giving")} />
@@ -1153,10 +1664,8 @@ export default function DonorDashboardVisualRefresh({
         <DashboardMetricCard label="Retention Rate" value={`${retentionRate}%`} helper={`${retentionRetained.toLocaleString()} of ${retentionTotal.toLocaleString()} retained this reporting year`} icon="pulse" tone="emerald" loading={loading} progressPercent={retentionRate} progressLabel="cohort retained" onExpand={() => setExpandedWidget("metric-retention")} />
       </div>
 
-      <DashboardToolsPanel onExpand={() => setExpandedWidget("tools")} />
-
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.72fr)]">
-        <CRMCard padding="md" className="min-h-[18rem]">
+        <CRMCard padding="md" className="min-h-[18rem] animate-slide-up-fade-in">
           <SectionHeader
             title="Giving Overview"
             action={<div className="flex items-center gap-2"><span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">{activeRange.label}</span><OpenWidgetButton onClick={() => setExpandedWidget("giving")} /></div>}
@@ -1202,7 +1711,7 @@ export default function DonorDashboardVisualRefresh({
 
         <PaymentSourceBreakdownCard items={paymentMethodBreakdown} total={filteredGivingTotal} loading={donationsLoading} onExpand={() => setExpandedWidget("source")} />
 
-        <CRMCard padding="md" className="h-full min-h-[20rem] bg-gradient-to-b from-white to-emerald-50/35">
+        <CRMCard padding="md" className="h-full min-h-[20rem] animate-slide-up-fade-in bg-gradient-to-b from-white to-emerald-50/35">
           <SectionHeader title="Today At A Glance" action={<OpenWidgetButton onClick={() => setExpandedWidget("today")} />}>
             Key movement and next actions
           </SectionHeader>
@@ -1219,7 +1728,17 @@ export default function DonorDashboardVisualRefresh({
         </CRMCard>
       </div>
 
-      <TopReportsPanel onExpand={() => setExpandedWidget("reports")} />
+      <div className="grid grid-cols-1 items-stretch gap-3 xl:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
+        <RetentionRadialCard retentionRate={retentionRate} retained={retentionRetained} total={retentionTotal} loading={loading} onExpand={() => setExpandedWidget("metric-retention")} />
+        <TopReportsPanel onExpand={() => setExpandedWidget("reports")} />
+      </div>
+
+      {/* Campaign / Lapsed / Giving-level intelligence row */}
+      <div className="grid grid-cols-1 items-stretch gap-3 xl:grid-cols-3">
+        <CampaignProgressCard campaigns={campaigns} loading={campaignsLoading} onExpand={() => setExpandedWidget("campaign-progress")} />
+        <LapsedDonorsCard refreshNonce={refreshNonce} onExpand={() => setExpandedWidget("lapsed")} />
+        <GivingLevelsCard donations={filteredDonations} total={filteredGivingTotal} loading={donationsLoading} onExpand={() => setExpandedWidget("giving-levels")} />
+      </div>
 
       {expandedWidget ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 p-4" role="dialog" aria-modal="true">

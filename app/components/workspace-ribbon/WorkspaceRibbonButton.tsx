@@ -316,12 +316,12 @@ export default function WorkspaceRibbonButton({
 }: WorkspaceRibbonButtonProps) {
   const primaryTone =
     accentTone === "blue"
-      ? "border-blue-600 bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800"
+      ? "border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-100 active:bg-blue-100"
       : accentTone === "purple"
-        ? "border-violet-600 bg-violet-600 text-white hover:bg-violet-700 active:bg-violet-800"
+        ? "border-violet-100 bg-violet-50 text-violet-700 hover:bg-violet-100 active:bg-violet-100"
       : accentTone === "amber"
-        ? "border-amber-600 bg-amber-600 text-white hover:bg-amber-700 active:bg-amber-800"
-        : "border-green-600 bg-green-600 text-white hover:bg-green-700 active:bg-green-800";
+        ? "border-amber-100 bg-amber-50 text-amber-700 hover:bg-amber-100 active:bg-amber-100"
+        : "border-emerald-100 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:bg-emerald-100";
 
   // Active (selected/current) secondary styling — used for filter toggles and view tabs.
   const activeTone =
@@ -337,19 +337,20 @@ export default function WorkspaceRibbonButton({
     variant === "primary"
       ? primaryTone
       : variant === "danger"
-        ? "border-red-600 bg-red-600 text-white hover:bg-red-700 active:bg-red-800"
+        ? "border-red-100 bg-red-50 text-red-700 hover:bg-red-100 active:bg-red-100"
       : active
         ? activeTone
         : variant === "ghost"
           ? "border-transparent bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-800"
-          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 hover:shadow-sm";
+          : "border-transparent bg-transparent text-slate-700 hover:bg-slate-100 hover:text-slate-950";
 
   const iconNode = icon ?? <AutoRibbonIcon label={label} />;
   const tip = title ?? label;
 
   const className = [
-    "workspace-ribbon-command inline-flex h-7 shrink-0 items-center justify-center gap-1 min-[1360px]:gap-1.5 rounded-sm border px-1.5 min-[1360px]:px-2",
-    "text-left text-xs font-medium leading-none transition-all touch-manipulation",
+    "workspace-ribbon-command inline-flex min-h-[4.75rem] w-[5.75rem] shrink-0 flex-col items-center justify-start gap-1 rounded-md border px-1.5 py-2",
+    "text-center text-xs font-medium leading-tight transition-all touch-manipulation",
+    "[&_.workspace-ribbon-command-icon>svg]:h-6 [&_.workspace-ribbon-command-icon>svg]:w-6",
     tone,
     disabled ? "cursor-not-allowed opacity-50" : "",
   ]
@@ -359,16 +360,16 @@ export default function WorkspaceRibbonButton({
   if (href && !disabled) {
     return (
       <Link href={href} className={className} title={tip}>
-        <span className="workspace-ribbon-command-icon inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center">{iconNode}</span>
-        <span className="workspace-ribbon-command-label inline max-w-[11rem] truncate whitespace-nowrap">{label}</span>
+        <span className="workspace-ribbon-command-icon inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/65 shadow-[0_1px_6px_rgba(15,23,42,0.06)]">{iconNode}</span>
+        <span className="workspace-ribbon-command-label block max-w-full whitespace-normal text-balance">{label}</span>
       </Link>
     );
   }
 
   return (
     <button type="button" onClick={onClick} disabled={disabled} className={className} title={tip}>
-      <span className="workspace-ribbon-command-icon inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center">{iconNode}</span>
-      <span className="workspace-ribbon-command-label inline max-w-[11rem] truncate whitespace-nowrap">{label}</span>
+      <span className="workspace-ribbon-command-icon inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/65 shadow-[0_1px_6px_rgba(15,23,42,0.06)]">{iconNode}</span>
+      <span className="workspace-ribbon-command-label block max-w-full whitespace-normal text-balance">{label}</span>
     </button>
   );
 }

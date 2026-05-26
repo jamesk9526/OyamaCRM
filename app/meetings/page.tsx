@@ -12,6 +12,7 @@ import ScheduleMeetingModal from "@/app/components/meetings/ScheduleMeetingModal
 import MeetingCard from "@/app/components/meetings/MeetingCard";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
 import CRMEmptyState from "@/app/components/ui/crm/CRMEmptyState";
 import CRMFilterBar from "@/app/components/ui/crm/CRMFilterBar";
@@ -109,11 +110,15 @@ export default function MeetingsPage() {
       />
 
       <CRMActionBar>
-        <WorkspaceRibbonButton label="Schedule Meeting" onClick={() => setShowModal(true)} variant="primary" />
-        <WorkspaceRibbonButton label="All" onClick={() => setStatusFilter("")} variant={!statusFilter ? "primary" : "secondary"} />
-        <WorkspaceRibbonButton label="Scheduled" onClick={() => setStatusFilter("SCHEDULED")} variant={statusFilter === "SCHEDULED" ? "primary" : "secondary"} />
-        <WorkspaceRibbonButton label="Follow-Up" onClick={() => setStatusFilter("NEEDS_FOLLOW_UP")} variant={statusFilter === "NEEDS_FOLLOW_UP" ? "primary" : "secondary"} />
-        <WorkspaceRibbonButton label="Refresh" onClick={() => void loadMeetings()} />
+        <WorkspaceRibbonGroup label="Create">
+          <WorkspaceRibbonButton label="Schedule Meeting" onClick={() => setShowModal(true)} variant="primary" />
+        </WorkspaceRibbonGroup>
+        <WorkspaceRibbonGroup label="View">
+          <WorkspaceRibbonButton label="All" onClick={() => setStatusFilter("")} variant={!statusFilter ? "primary" : "secondary"} />
+          <WorkspaceRibbonButton label="Scheduled" onClick={() => setStatusFilter("SCHEDULED")} variant={statusFilter === "SCHEDULED" ? "primary" : "secondary"} />
+          <WorkspaceRibbonButton label="Follow-Up" onClick={() => setStatusFilter("NEEDS_FOLLOW_UP")} variant={statusFilter === "NEEDS_FOLLOW_UP" ? "primary" : "secondary"} />
+          <WorkspaceRibbonButton label="Refresh" onClick={() => void loadMeetings()} />
+        </WorkspaceRibbonGroup>
       </CRMActionBar>
 
       <div className="grid gap-3 md:grid-cols-3">

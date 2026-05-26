@@ -210,7 +210,7 @@ export default function StewardAiRuntimePill({ canRunConnectionTest, onOpenSetti
         type="button"
         title={tooltip}
         onClick={() => setOpen((current) => !current)}
-        className={`inline-flex items-center rounded-full border font-semibold transition-colors ${tone.pillTone} ${compact ? "h-10 gap-2 px-3 text-[11px] shadow-[0_10px_24px_rgba(15,23,42,0.04)]" : "h-9 gap-2 px-3 text-xs"}`}
+        className={`inline-flex items-center rounded-full border font-semibold transition-colors ${tone.pillTone} ${compact ? "h-8 gap-1.5 px-2 text-[10px] shadow-[0_8px_18px_rgba(15,23,42,0.04)]" : "h-9 gap-2 px-3 text-xs"}`}
       >
         {tone.spinner ? (
           <span className={`${compact ? "h-3 w-3" : "h-3.5 w-3.5"} animate-spin rounded-full border-2 border-current border-r-transparent`} aria-hidden="true" />

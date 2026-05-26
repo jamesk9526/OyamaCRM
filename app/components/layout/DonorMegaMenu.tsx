@@ -32,6 +32,27 @@ interface NavSection {
   requiresQb?: boolean;
 }
 
+interface RibbonTab {
+  id: string;
+  label: string;
+  href: string;
+  match: string[];
+}
+
+interface RibbonCommand {
+  id: string;
+  label: string;
+  href: string;
+  icon: string;
+  tone: "green" | "blue" | "purple" | "orange" | "teal" | "amber" | "slate";
+  badge?: string;
+}
+
+interface RibbonCommandGroup {
+  label: string;
+  commands: RibbonCommand[];
+}
+
 // ── Nav data ─────────────────────────────────────────────────────────────────
 
 const BASE_NAV_SECTIONS: NavSection[] = [
@@ -227,6 +248,67 @@ const QB_SYNC_ITEM: NavItem = {
   href: "/quickbooks-sync",
   description: "Queue and sync donations to QuickBooks",
 };
+
+const RIBBON_TABS: RibbonTab[] = [
+  { id: "home", label: "Home", href: "/", match: ["/"] },
+  { id: "constituents", label: "Constituents", href: "/constituents", match: ["/constituents", "/contacts-manager", "/volunteers"] },
+  { id: "giving", label: "Giving", href: "/donations", match: ["/donations", "/campaigns", "/grants", "/payments", "/designations", "/quickbooks-sync"] },
+  { id: "outreach", label: "Outreach", href: "/communications", match: ["/communications", "/email-builder", "/letters-printables", "/livecom", "/meetings", "/steward-paths"] },
+  { id: "reports", label: "Reports", href: "/reports", match: ["/reports", "/steward-signals", "/steward-ai-workspace"] },
+  { id: "data", label: "Data", href: "/data-tools", match: ["/data-tools", "/custom-fields"] },
+  { id: "tools", label: "Tools", href: "/settings", match: ["/settings", "/help", "/automations"] },
+  { id: "view", label: "View", href: "/preferences", match: ["/preferences"] },
+];
+
+const HOME_RIBBON_GROUPS: RibbonCommandGroup[] = [
+  {
+    label: "Create",
+    commands: [
+      { id: "add-constituent", label: "Add Constituent", href: "/constituents/new", icon: "person-add", tone: "green" },
+      { id: "record-donation", label: "Record Donation", href: "/donations?recordGift=1", icon: "gift", tone: "green" },
+      { id: "create-task", label: "Create Task", href: "/tasks", icon: "task", tone: "purple" },
+    ],
+  },
+  {
+    label: "Communicate",
+    commands: [
+      { id: "send-email", label: "Send Email", href: "/communications", icon: "mail", tone: "blue" },
+      { id: "create-letter", label: "Create Letter", href: "/letters-printables", icon: "document", tone: "blue" },
+      { id: "add-campaign", label: "Add to Campaign", href: "/campaigns", icon: "megaphone", tone: "blue" },
+    ],
+  },
+  {
+    label: "Data & Import",
+    commands: [
+      { id: "import-data", label: "Import Data", href: "/data-tools/import", icon: "import", tone: "orange" },
+      { id: "data-quality", label: "Data Quality", href: "/data-tools", icon: "database", tone: "orange" },
+      { id: "dedupe", label: "Deduplicate Manager", href: "/contacts-manager", icon: "people-check", tone: "orange" },
+    ],
+  },
+  {
+    label: "Analyze",
+    commands: [
+      { id: "view-reports", label: "View Reports", href: "/reports", icon: "bar-chart", tone: "teal" },
+      { id: "dashboard-analytics", label: "Dashboard Analytics", href: "/", icon: "pie-chart", tone: "teal" },
+      { id: "giving-trends", label: "Giving Trends", href: "/reports", icon: "line-chart", tone: "teal" },
+    ],
+  },
+  {
+    label: "Manage",
+    commands: [
+      { id: "steward-paths", label: "Steward Paths", href: "/steward-paths", icon: "path", tone: "purple" },
+      { id: "designations", label: "Designations", href: "/designations", icon: "tag", tone: "purple" },
+      { id: "settings", label: "Settings", href: "/settings", icon: "settings", tone: "purple" },
+    ],
+  },
+  {
+    label: "Quick Actions",
+    commands: [
+      { id: "favorites", label: "Favorites", href: "/preferences", icon: "star", tone: "amber" },
+      { id: "help", label: "More", href: "/help?scope=donor&scopePath=/", icon: "more", tone: "slate" },
+    ],
+  },
+];
 
 // ── Helper icons ─────────────────────────────────────────────────────────────
 

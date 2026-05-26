@@ -5,14 +5,18 @@ Date: May 19, 2026
 ## Completed
 
 - Shared workspace ribbons now use a green-accented Explorer-style command surface with only functional grouped commands, larger icon-first actions, and square control geometry. Nonfunctional static tabs were removed until they have real behavior.
+- Shared `CRMActionBar` now uses the same Explorer-style command surface as `WorkspaceRibbon`, and the Constituents, Donations, Meetings, and Tasks command rows now use grouped ribbon commands instead of separate rounded toolbar treatments.
 - Workspace-ribbon companion primitives (wizard shell, step indicator, project library, inspector drawer) now use the same square-edged green-accented treatment.
 - Custom report ribbons outside the shared `WorkspaceRibbon` path (`ReportViewer`, OShareview reports command bar) were aligned to the same functional command-group style.
 - Donor shell chrome now uses a pale green titlebar treatment and tinted navigation rail inspired by the reference app while preserving DonorCRM's green accent language.
 - Shared CRM cards, action bars, filter bars, metric cards, quick action cards, data tables, page headers, and breadcrumb bars were tightened to flatter Explorer-like borders, compact gradients, and less rounded control styling.
-- DonorCRM dashboard refreshed into the same desktop-workspace style with a compact title strip, grouped dashboard ribbon commands, tighter KPI cards, a live priority inspector panel, and square-edged widget/edit controls.
+- DonorCRM dashboard refreshed into the same desktop-workspace style with a compact title strip, dashboard filter bar, tighter KPI cards, a live priority inspector panel, and square-edged widget/edit controls.
+- DonorCRM dashboard tools now use a compact filter bar limited to dashboard-local filters, chart focus, widget expansion, metric drill-ins, and refresh controls instead of a workspace ribbon or global navigation surface.
+- DonorCRM dashboard graphics now use Recharts for the giving trend area chart, designation donut, giving-source bar chart, and retention radial gauge, with lightweight entrance and chart animations.
 - Top bar interaction reliability pass completed: search keyboard handling now avoids editable fields, Escape closes active overlays, and top-bar panels now coordinate so overlapping tool sheets are reduced on mobile and desktop.
 - Donor shell compact-desktop pass completed: at `1024-1439px`, donor shell now falls back from mega menu to sidebar navigation for clearer, denser small-laptop workflows.
 - Donor Email Builder reliability pass completed: stable save callback wiring, unsaved-change guard before browser/tab close, and a direct desktop Review Checklist action to reduce workflow confusion.
+- Donor Email Builder visual refresh pass completed: compact mockup-style top chrome, draft status strip, two-column block tiles, lighter preview canvas, simplified inspector tabs, and top-level Send Test wiring.
 - Shared CRM UI primitives created.
 - Dashboard metric card surface refreshed through existing `StatCard`.
 - Dashboard command center softened.
@@ -23,6 +27,7 @@ Date: May 19, 2026
 - Donations row three-dot quick-actions menu remains intact.
 - Meetings page first pass completed with shared action, metric, filter, badge, and empty-state primitives.
 - Dashboard ribbon controls replaced with a single `CRMActionBar` while preserving existing section jumps, create routes, Steward prompts, refresh, edit layout, lock, and widget controls.
+- Dashboard command controls now use `CRMFilterBar` instead of a workspace ribbon, keeping the top dashboard surface focused on range, campaign, refresh, and dashboard widget drill-ins.
 - Dashboard quick action cards now use the shared `CRMQuickActionCard` pattern.
 - Dashboard command center received a second polish pass with a reference-style greeting, KPI row, revenue pace card, priority action card, and compact quick actions.
 - DonorCRM dashboard default landing view now uses the latest mockup-inspired SaaS grid with live KPI cards, giving overview, recent gifts, top campaigns, retention, due-soon tasks, and quick actions.

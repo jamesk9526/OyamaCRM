@@ -127,7 +127,7 @@ describe("Donor CRM visual refresh foundation", () => {
 
     expect(page).toContain("apiFetch<{ items?: Task[]; total?: number }>");
     expect(page).toContain("CRMActionBar");
-    expect(page).not.toContain("WorkspaceRibbonGroup");
+    expect(page).toContain("WorkspaceRibbonGroup");
     expect(table).toContain("CRMDataTable");
     expect(table).toContain("CRMEmptyState");
     expect(table).toContain("onComplete");

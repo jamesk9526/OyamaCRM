@@ -1763,7 +1763,7 @@ export default function EmailBuilderApp({
           embedded
             ? "h-[calc(100vh-130px)] min-h-[600px] rounded-xl border border-slate-200"
             : "h-screen",
-          "min-w-0 flex flex-col overflow-hidden bg-[linear-gradient(180deg,#f7f8fc_0%,#f4f6fb_100%)]",
+          "min-w-0 flex flex-col overflow-hidden bg-[#f5f7fb]",
         ].join(" ")}
       >
 
@@ -1773,7 +1773,7 @@ export default function EmailBuilderApp({
             <span className="font-semibold">Campaign load issue:</span> {loadError} The editor is using the local draft blocks until the API reconnects.
           </div>
         ) : null}
-        <header className="z-30 shrink-0 border-b border-slate-200 bg-white px-4 shadow-sm" style={{ paddingTop: embedded ? '8px' : '12px', paddingBottom: embedded ? '8px' : '12px' }}>
+        <header className="z-30 shrink-0 border-b border-slate-200 bg-white px-4 shadow-sm" style={{ paddingTop: embedded ? '8px' : '10px', paddingBottom: embedded ? '8px' : '10px' }}>
           {/* Compact single-row header in embedded mode */}
           {embedded ? (
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
@@ -1809,7 +1809,7 @@ export default function EmailBuilderApp({
             </div>
           ) : (
           <>
-          <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                 <a
@@ -1824,58 +1824,16 @@ export default function EmailBuilderApp({
                   {returnLabel}
                 </a>
                 <span className="text-slate-300">/</span>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-semibold text-slate-600">
-                  Email Builder
-                </span>
-              </div>
-
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <h2 className="truncate text-sm font-semibold text-slate-800 sm:text-base">
-                  {campaignName}
-                </h2>
-                {campaignId && (
-                  <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[11px] font-mono text-slate-500">
-                    #{campaignId}
-                  </span>
-                )}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                <span>
-                  {template.blocks.length} block{template.blocks.length !== 1 ? 's' : ''}
-                </span>
-                <span className="text-slate-300">•</span>
-                <span className={dirty ? 'font-medium text-amber-700' : 'text-slate-500'}>
-                  {dirty ? 'Unsaved changes' : 'Saved'}
-                </span>
-                {campaignId && (
-                  <a
-                    href={campaignWorkspaceHref}
-                    target="_self"
-                    className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
-                  >
-                    Open Campaign Workspace
-                  </a>
-                )}
+                <span className="font-medium text-slate-700">Email Draft: {campaignName}</span>
               </div>
             </div>
 
             <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
-              <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700">
-                Status: Draft-first
-              </span>
-              <span
-                className={[
-                  'rounded-md px-2 py-1 text-[11px] font-semibold',
-                  readinessLabel === 'Ready to Send'
-                    ? 'border border-blue-200 bg-blue-50 text-blue-700'
-                    : readinessLabel === 'Needs Review'
-                      ? 'border border-amber-200 bg-amber-50 text-amber-700'
-                      : 'border border-slate-200 bg-slate-100 text-slate-600',
-                ].join(' ')}
-              >
-                {readinessLabel}
-              </span>
+              <div className="hidden items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 lg:inline-flex">
+                <button type="button" className="rounded-md bg-blue-50 px-2.5 py-1.5 text-blue-700 ring-1 ring-blue-200" title="Desktop preview">▣</button>
+                <button type="button" className="rounded-md px-2.5 py-1.5 text-slate-500 hover:bg-white" title="Tablet preview">▯</button>
+                <button type="button" className="rounded-md px-2.5 py-1.5 text-slate-500 hover:bg-white" title="Mobile preview">▯</button>
+              </div>
 
               {embedded && (
                 <>
@@ -1906,24 +1864,25 @@ export default function EmailBuilderApp({
 
               <button
                 onClick={() => setShowPreview(true)}
-                className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
               >
                 Preview
               </button>
               <button
                 type="button"
-                onClick={() => setActiveSidebarTab('review')}
-                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                title="Open readiness checklist"
+                onClick={() => void handleSendTest()}
+                disabled={sendingTest || !campaignId || authLoading || loading}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                title={campaignId ? `Send test to ${testEmail || 'your test address'}` : 'Open this builder from a campaign route to send tests'}
               >
-                Review Checklist
+                {sendingTest ? 'Sending…' : 'Send Test'}
               </button>
 
               <button
                 onClick={handleSave}
                 disabled={!canSaveDraftAction}
                 className={[
-                  'rounded-lg px-3 py-1 text-xs font-semibold transition-colors',
+                  'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
                   saving
                     ? 'bg-blue-400 text-white cursor-wait'
                     : 'bg-blue-600 hover:bg-blue-700 text-white',
@@ -2027,6 +1986,25 @@ export default function EmailBuilderApp({
           )}
         </header>
 
+        {!embedded && (
+          <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-2">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-700">✓ Saved</span>
+              <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-600">{template.blocks.length} block{template.blocks.length !== 1 ? 's' : ''}</span>
+              <span className={dirty ? 'rounded-lg border border-amber-100 bg-amber-50 px-3 py-1.5 font-semibold text-amber-700' : 'rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-500'}>{dirty ? 'Unsaved changes' : 'All changes saved'}</span>
+              <span className={[
+                'rounded-lg px-3 py-1.5 font-semibold',
+                readinessLabel === 'Ready to Send'
+                  ? 'border border-blue-200 bg-blue-50 text-blue-700'
+                  : readinessLabel === 'Needs Review'
+                    ? 'border border-amber-200 bg-amber-50 text-amber-700'
+                    : 'border border-slate-200 bg-slate-50 text-slate-600',
+              ].join(' ')}>{readinessLabel}</span>
+              {campaignId ? <a href={campaignWorkspaceHref} target="_self" className="ml-auto rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50">Open Campaign Workspace</a> : null}
+            </div>
+          </div>
+        )}
+
         {/* ── Three-panel body ── */}
         <div className="flex flex-1 overflow-hidden">
           {/* Left: block palette */}
@@ -2059,24 +2037,20 @@ export default function EmailBuilderApp({
 
           {/* Right: tabbed sidebar */}
           <aside className="w-[340px] shrink-0 border-l border-slate-200 bg-white flex flex-col overflow-hidden">
-            <div className="border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white px-3 py-2">
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Builder Controls</p>
-              <div className="grid grid-cols-5 gap-1 rounded-lg border border-slate-200 bg-slate-100/80 p-1">
+            <div className="border-b border-slate-200 bg-white px-3 py-3">
+              <div className="grid grid-cols-5 gap-1 border-b border-slate-200">
                 {SIDEBAR_TABS.map((tab) => (
                   <button
                     key={tab.key}
                     type="button"
                     onClick={() => setActiveSidebarTab(tab.key)}
                     className={[
-                      'rounded-md px-1.5 py-1.5 text-[11px] font-semibold transition-colors',
+                      'border-b-2 px-1.5 py-2 text-[11px] font-semibold transition-colors',
                       activeSidebarTab === tab.key
-                        ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-200'
-                        : 'text-slate-600 hover:bg-white hover:text-slate-800',
+                        ? 'border-blue-600 text-blue-700'
+                        : 'border-transparent text-slate-600 hover:text-slate-800',
                     ].join(' ')}
                   >
-                    <span className="mx-auto mb-1 block w-fit rounded-sm border border-slate-200 bg-slate-50 px-1 text-[9px] leading-4 text-slate-500">
-                      {tab.short}
-                    </span>
                     <span className="block truncate">{tab.label}</span>
                   </button>
                 ))}

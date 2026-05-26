@@ -215,20 +215,20 @@ export default function EmailCanvas({
 
   return (
     <div
-      className="flex-1 overflow-auto bg-[radial-gradient(circle_at_top,rgba(37,99,255,0.05),transparent_35%)]"
-      style={{ padding: '22px 28px' }}
+      className="flex-1 overflow-auto bg-[linear-gradient(180deg,#f5f7fb_0%,#eef2f8_100%)]"
+      style={{ padding: '20px 28px' }}
       /* Deselect when clicking the raw canvas background */
       onClick={() => onSelectBlock(null)}
     >
-      <div className="mx-auto mb-3 flex max-w-[980px] items-center justify-between rounded-lg border border-slate-300/50 bg-slate-800/60 px-3 py-2 text-xs text-slate-200">
+      <div className="mx-auto mb-3 flex max-w-[760px] items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500 shadow-sm">
         <span>Email width: {viewport === 'mobile' ? 380 : template.contentWidth}px · {viewport === 'mobile' ? 'Mobile Preview' : 'Desktop Preview'}</span>
-        <div className="inline-flex rounded-md border border-slate-400/50 bg-slate-900/50 p-0.5">
+        <div className="inline-flex rounded-md border border-blue-100 bg-blue-50/60 p-0.5">
           <button
             type="button"
             onClick={() => setViewport('desktop')}
             className={[
               'rounded px-2 py-1 font-semibold',
-              viewport === 'desktop' ? 'bg-white text-slate-800' : 'text-slate-300',
+              viewport === 'desktop' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-200' : 'text-slate-500 hover:text-slate-800',
             ].join(' ')}
           >
             Desktop
@@ -238,7 +238,7 @@ export default function EmailCanvas({
             onClick={() => setViewport('mobile')}
             className={[
               'rounded px-2 py-1 font-semibold',
-              viewport === 'mobile' ? 'bg-white text-slate-800' : 'text-slate-300',
+              viewport === 'mobile' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-200' : 'text-slate-500 hover:text-slate-800',
             ].join(' ')}
           >
             Mobile
@@ -253,10 +253,10 @@ export default function EmailCanvas({
           margin:          '0 auto',
           backgroundColor: '#ffffff',
           fontFamily:      template.fontFamily,
-          boxShadow:       '0 16px 40px rgba(17,24,39,0.08)',
-          borderRadius:    '14px',
+          boxShadow:       '0 18px 42px rgba(15,23,42,0.08)',
+          borderRadius:    '6px',
           overflow:        'hidden',
-          border:          '1px solid #e6e9f2',
+          border:          '1px solid #dfe5ef',
         }}
         /* Stop click propagation so the canvas deselect above doesn't fire */
         onClick={(e) => e.stopPropagation()}

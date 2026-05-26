@@ -14,6 +14,8 @@ import NewTaskModal from "@/app/components/tasks/NewTaskModal";
 import { apiFetch } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
+import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
 
 /** Task as returned from the API */
@@ -244,11 +246,6 @@ export default function TasksPage() {
     : 0;
   const followUpCount = tasks.filter((task) => FOLLOW_UP_TYPES.has(task.type) && task.status !== "COMPLETED").length;
   const focusLabel = focusMode === "team" ? "Team Queue" : focusMode === "followups" ? "Follow-Ups" : "My Work";
-  const actionButtonClass = "inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50";
-  const activeActionButtonClass = "border-emerald-200 bg-emerald-50 text-emerald-700";
-  const primaryActionButtonClass = "inline-flex h-8 items-center justify-center rounded-lg border border-emerald-600 bg-emerald-600 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:border-emerald-700 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50";
-  const actionGroupClass = "flex flex-wrap items-center gap-2 border-r border-slate-100 pr-3 last:border-r-0 last:pr-0";
-  const actionGroupLabelClass = "mr-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400";
 
   return (
     <div className="space-y-5">
@@ -259,14 +256,7 @@ export default function TasksPage() {
           { label: focusLabel },
         ]}
         metadata={`${total} total · ${assignedToMe} assigned to me · ${overdue} overdue`}
-        primaryAction={(
-          <button
-            onClick={() => setShowModal(true)}
-            className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
-          >
-            New Task
-          </button>
-        )}
+        primaryAction={<WorkspaceRibbonButton label="New Task" onClick={() => setShowModal(true)} variant="primary" />}
         overflowActions={
           highlightTaskId
             ? <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">Notification context active</span>
@@ -275,29 +265,25 @@ export default function TasksPage() {
       />
 
       <CRMActionBar>
-        <div className={actionGroupClass}>
-          <span className={actionGroupLabelClass}>Queues</span>
-          <button type="button" className={`${actionButtonClass} ${focusMode === "my" ? activeActionButtonClass : ""}`} onClick={() => setFocusMode("my")}>My Work ({assignedToMe})</button>
-          <button type="button" className={`${actionButtonClass} ${focusMode === "team" ? activeActionButtonClass : ""}`} onClick={() => setFocusMode(isAdmin ? "team" : "my")} disabled={!isAdmin}>Team Queue</button>
-          <button type="button" className={`${actionButtonClass} ${focusMode === "followups" ? activeActionButtonClass : ""}`} onClick={() => setFocusMode("followups")}>Follow-Ups ({followUpCount})</button>
-          <button type="button" className={actionButtonClass} onClick={() => { setFocusMode("my"); setStatusFilter("COMPLETED"); }}>Completed</button>
-        </div>
-        <div className={actionGroupClass}>
-          <span className={actionGroupLabelClass}>Create</span>
-          <button type="button" className={primaryActionButtonClass} onClick={() => setShowModal(true)}>New Task</button>
-        </div>
-        <div className={actionGroupClass}>
-          <span className={actionGroupLabelClass}>Assignment</span>
-          <button type="button" className={actionButtonClass} onClick={() => setFocusMode("my")}>Assigned To Me</button>
-          <button type="button" className={actionButtonClass} onClick={() => setFocusMode("my")}>Assigned By Me</button>
-          <button type="button" className={actionButtonClass} onClick={handleBulkAssignVisible} disabled={bulkAssigning || !bulkAssigneeId}>Bulk Assign</button>
-        </div>
-        <div className={actionGroupClass}>
-          <span className={actionGroupLabelClass}>View</span>
-          <button type="button" className={actionButtonClass} onClick={() => { setStatusFilter(""); setTypeFilter(""); }}>Reset Filters</button>
-          <button type="button" className={actionButtonClass} onClick={() => void loadTasks()}>Refresh Tasks</button>
-          <button type="button" className={actionButtonClass} onClick={() => void loadNotifications()}>Refresh Notifications</button>
-        </div>
+        <WorkspaceRibbonGroup label="Queues">
+          <WorkspaceRibbonButton label={`My Work (${assignedToMe})`} onClick={() => setFocusMode("my")} active={focusMode === "my"} />
+          <WorkspaceRibbonButton label="Team Queue" onClick={() => setFocusMode(isAdmin ? "team" : "my")} active={focusMode === "team"} disabled={!isAdmin} />
+          <WorkspaceRibbonButton label={`Follow-Ups (${followUpCount})`} onClick={() => setFocusMode("followups")} active={focusMode === "followups"} />
+          <WorkspaceRibbonButton label="Completed" onClick={() => { setFocusMode("my"); setStatusFilter("COMPLETED"); }} />
+        </WorkspaceRibbonGroup>
+        <WorkspaceRibbonGroup label="Create">
+          <WorkspaceRibbonButton label="New Task" onClick={() => setShowModal(true)} variant="primary" />
+        </WorkspaceRibbonGroup>
+        <WorkspaceRibbonGroup label="Assignment">
+          <WorkspaceRibbonButton label="Assigned To Me" onClick={() => setFocusMode("my")} />
+          <WorkspaceRibbonButton label="Assigned By Me" onClick={() => setFocusMode("my")} />
+          <WorkspaceRibbonButton label="Bulk Assign" onClick={handleBulkAssignVisible} disabled={bulkAssigning || !bulkAssigneeId} />
+        </WorkspaceRibbonGroup>
+        <WorkspaceRibbonGroup label="View">
+          <WorkspaceRibbonButton label="Reset Filters" onClick={() => { setStatusFilter(""); setTypeFilter(""); }} />
+          <WorkspaceRibbonButton label="Refresh Tasks" onClick={() => void loadTasks()} />
+          <WorkspaceRibbonButton label="Refresh Notifications" onClick={() => void loadNotifications()} />
+        </WorkspaceRibbonGroup>
       </CRMActionBar>
 
       {/* Notification-integrated task feed */}

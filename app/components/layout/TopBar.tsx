@@ -798,7 +798,7 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
   const donorAccentTheme = getDonorAccentTheme(workspaceSettings.donorAccentTone);
   const chromeButtonBase = "flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200/90 bg-white/95 text-slate-600 shadow-[0_6px_18px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0 max-[380px]:h-9 max-[380px]:w-9";
-  const darkIconButtonBase = "h-9 w-9 rounded-xl border border-transparent bg-transparent text-slate-500 flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 active:translate-y-0 active:scale-95";
+  const darkIconButtonBase = "h-8 w-8 rounded-lg border border-transparent bg-transparent text-slate-500 flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 active:translate-y-0 active:scale-95";
   const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] z-50 overflow-hidden xl:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
   const shellMotionClass = "duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]";
   const moduleAccentClass = moduleKey === "compassion"
@@ -1323,6 +1323,7 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
         onMessagesOpenChange={setMessengerOpen}
         messengerUnread={messengerUnread}
         onMessengerUnreadChange={setMessengerUnread}
+        showLauncher={false}
       />
 
             {/* Incoming message toast — shown when panel is closed and a new message arrives */}
@@ -1632,16 +1633,16 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
 
         <div className={`absolute inset-y-0 left-0 right-0 z-10 hidden min-w-0 items-center transition-[padding] ${shellMotionClass} xl:flex ${scrolled ? "pl-[338px] pr-5 2xl:pl-[362px] 2xl:pr-8" : "pl-[414px] pr-5 2xl:pl-[452px] 2xl:pr-8"}`}>
           <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
-            <div className={`flex min-w-0 w-full max-w-[1024px] items-center rounded-2xl border border-slate-200/90 bg-white/96 shadow-[0_10px_28px_rgba(15,23,42,0.08)] transition-[height,padding] ${shellMotionClass} ${scrolled ? "h-11 px-2" : "h-[50px] px-2.5"}`}>
-              <div className="hidden shrink-0 items-center gap-2 border-r border-slate-200/80 pr-2 text-slate-500 min-[1440px]:flex">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+            <div className={`flex min-w-0 w-full max-w-[1000px] items-center rounded-xl border border-slate-200/90 bg-white/96 shadow-[0_8px_22px_rgba(15,23,42,0.07)] transition-[height,padding] ${shellMotionClass} ${scrolled ? "h-10 px-1.5" : "h-11 px-2"}`}>
+              <div className="hidden shrink-0 items-center gap-1.5 border-r border-slate-200/80 pr-2 text-slate-500 min-[1440px]:flex">
+                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-600">
+                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M4 12h16M4 17h16" />
                   </svg>
                 </span>
                 <div className="leading-tight">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Action Ribbon</p>
-                  <p className="text-[11px] font-medium text-slate-600">Workspace Commands</p>
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">Action Ribbon</p>
+                  <p className="text-[10px] font-medium text-slate-600">Workspace Commands</p>
                 </div>
               </div>
 
@@ -1660,7 +1661,7 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
                 </button>
               )}
 
-              <div className="mx-2 h-7 w-px shrink-0 bg-slate-200/80" />
+              <div className="mx-1.5 h-6 w-px shrink-0 bg-slate-200/80" />
 
               <div ref={desktopNotificationsRef} className="relative shrink-0">
                 <button
@@ -1772,7 +1773,28 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
                 )}
               </div>
 
-              <div className="mx-2 h-7 w-px shrink-0 bg-slate-200/80" />
+              <button
+                type="button"
+                title="Open Steward and messages"
+                aria-label="Open Steward and messages"
+                onClick={() => {
+                  setMessengerOpen(true);
+                  setNotificationsOpen(false);
+                  setCompactActionsOpen(false);
+                  setMobileQuickOpen(false);
+                  setMobileSearchOpen(false);
+                }}
+                className={`${darkIconButtonBase} relative ml-0.5`}
+              >
+                <StewardAvatarIcon size={17} alt="" className="ring-slate-300/80" />
+                {messengerUnread > 0 ? (
+                  <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-600 px-1 text-[9px] font-bold text-white">
+                    {Math.min(messengerUnread, 99)}
+                  </span>
+                ) : null}
+              </button>
+
+              <div className="mx-1.5 h-6 w-px shrink-0 bg-slate-200/80" />
 
               <div className="shrink-0">
                 <StewardAiRuntimePill
@@ -1786,17 +1808,17 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
                 href="/steward-ai-workspace"
                 title="Open Steward Workspace"
                 aria-label="Open Steward Workspace"
-                className="ml-1 inline-flex h-9 items-center gap-1 rounded-xl border border-slate-200/90 bg-white px-2 text-xs font-semibold text-slate-700 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                className="ml-0.5 inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200/90 bg-white px-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
               >
-                <StewardAvatarIcon size={14} alt="Steward" className="ring-slate-300/80" />
-                <span className="hidden min-[1460px]:inline">Steward</span>
+                <StewardAvatarIcon size={12} alt="Steward" className="ring-slate-300/80" />
+                <span className="hidden min-[1500px]:inline">Workspace</span>
               </Link>
 
               <Link
                 href={helpHref}
                 title="Help"
                 aria-label="Open help"
-                className={`${darkIconButtonBase} ml-1`}
+                className={`${darkIconButtonBase} ml-0.5`}
               >
                 <HelpCircleIcon className="h-4 w-4" />
               </Link>
@@ -1817,7 +1839,7 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
                   setMessengerOpen(false);
                 }}
                 onToggleMessages={() => {
-                  setMessengerOpen((current) => !current);
+                  setMessengerOpen(true);
                   setNotificationsOpen(false);
                 }}
                 messengerUnread={messengerUnread}
@@ -1887,7 +1909,7 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
                   type="button"
                   onClick={() => {
                     setMobileQuickOpen(false);
-                    setMessengerOpen((current) => !current);
+                    setMessengerOpen(true);
                   }}
                   className="flex w-full min-h-11 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 text-left text-sm font-medium text-slate-700"
                 >

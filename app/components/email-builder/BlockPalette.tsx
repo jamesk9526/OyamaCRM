@@ -38,7 +38,7 @@ function PaletteDragCard({ item }: CardProps) {
       {...attributes}
       {...listeners}
       className={[
-        'group flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5',
+        'group flex min-h-[5.35rem] flex-col items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-3 text-center',
         'cursor-grab select-none transition-all duration-150',
         'hover:border-blue-300 hover:bg-blue-50/40 hover:shadow-sm',
         isDragging ? 'opacity-40 shadow-lg scale-105' : '',
@@ -47,17 +47,15 @@ function PaletteDragCard({ item }: CardProps) {
     >
       {/* Icon */}
       <span
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-sm font-bold text-slate-600"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 text-sm font-bold text-blue-600"
         aria-hidden
       >
         {item.icon}
       </span>
 
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold leading-tight text-slate-800">{item.label}</p>
+      <div className="min-w-0">
+        <p className="line-clamp-2 text-xs font-semibold leading-tight text-slate-800">{item.label}</p>
       </div>
-
-      <span className="text-xs font-semibold text-slate-300 group-hover:text-blue-500">+</span>
     </div>
   );
 }
@@ -123,16 +121,19 @@ export default function BlockPalette() {
   );
 
   return (
-    <aside className="h-full w-full border-r border-slate-200 bg-[#fdfdff] flex flex-col overflow-y-auto">
+    <aside className="h-full w-full border-r border-slate-200 bg-white flex flex-col overflow-y-auto">
       {/* Header */}
-      <div className="border-b border-slate-200 bg-white px-4 py-3 space-y-2.5">
+      <div className="border-b border-slate-200 bg-white px-4 py-4 space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-[20px] font-semibold tracking-[-0.02em] text-slate-800">Add Components</h2>
+          <div>
+            <h2 className="text-base font-semibold tracking-[-0.02em] text-slate-900">Add Components</h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">Drag content blocks onto the email canvas.</p>
+          </div>
           <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
             {visibleItems.length} items
           </span>
         </div>
-        <div className="flex gap-5 border-b border-slate-200 pb-2">
+        <div className="flex gap-5 border-b border-slate-200">
           <button
             type="button"
             onClick={() => setPaletteMode('content')}
@@ -163,12 +164,12 @@ export default function BlockPalette() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={paletteMode === 'layout' ? 'Search layout blocks...' : 'Search content blocks...'}
-          className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700"
+          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
         />
       </div>
 
       {/* Sections */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
         {SECTIONS.map((section) => {
           const items = visibleItems.filter((i) => i.section === section);
           if (items.length === 0) return null;
@@ -184,7 +185,7 @@ export default function BlockPalette() {
                 <span className="text-xs text-slate-400">{isCollapsed ? '+' : '-'}</span>
               </button>
               {!isCollapsed && (
-                <div className="grid grid-cols-1 gap-1.5">
+                <div className="grid grid-cols-2 gap-2">
                   {items.map((item) => (
                     <PaletteDragCard key={item.blockType} item={item} />
                   ))}
@@ -201,10 +202,12 @@ export default function BlockPalette() {
       </div>
 
       {/* Footer hint */}
-      <div className="border-t border-slate-200 bg-white px-4 py-3">
-        <p className="text-center text-xs text-slate-400">
-          Drag blocks onto the canvas
-        </p>
+      <div className="border-t border-slate-200 bg-white px-4 py-4">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+          <p className="text-sm font-semibold text-slate-800">Design tip</p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">Keep your message clear and focused.</p>
+          <p className="mt-2 text-xs font-semibold text-blue-600">Learn more →</p>
+        </div>
       </div>
     </aside>
   );

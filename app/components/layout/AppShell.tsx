@@ -289,8 +289,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const donorSidebarDesktopEnabled = donorShellVisible && effectiveDonorLayout === "sidebar";
   const contentTopPaddingClass = donorMegaMenuEnabled
     ? shellScrolled
-      ? "pt-28 xl:pt-32"
-      : "pt-28 xl:pt-40"
+      ? "pt-48 xl:pt-60"
+      : "pt-48 xl:pt-72"
     : shellScrolled
       ? "pt-16 xl:pt-20"
       : "pt-16 xl:pt-28";

@@ -1,6 +1,6 @@
 # CRM Sidebar Navigation
 
-Last updated: 2026-05-16
+Last updated: 2026-05-26
 
 ## Current Navigation Problem
 
@@ -15,27 +15,31 @@ Specific donor issues addressed in this pass:
 
 ## New Donor CRM Group Structure
 
-The donor sidebar now uses a smaller default navigation with secondary tools tucked into clearer collapsible groups:
+The donor sidebar now uses a desktop-focused chrome treatment that visually connects to the dark green/teal top bar brand area. Secondary tools remain tucked into clearer collapsible groups:
 
-1. Home
-2. Fundraising
-3. Outreach
+1. Fundraising
+2. Engagement Workspace
+3. Communication Tools
 4. Insights & Reports
 5. People & Service
-6. Admin
+6. System
 
 ### Group details
 
-- Home: Dashboard, Constituents, Donations, Tasks, Communications
-- Fundraising (collapsed by default): Campaigns, Grants, Payments (+ QB Sync when plugin is enabled)
-- Outreach (collapsed by default): Contacts Manager, Letters & Printables, LiveCom, Meetings, Steward Paths
+- Fundraising: Dashboard, Constituents, Donations, Campaigns, Grants, Payments
+- Engagement Workspace: Steward Paths, Tasks, Meetings
+- Communication Tools (collapsed by default): Communications, Contacts Manager, Letters & Printables, LiveCom
 - Insights & Reports (collapsed by default): AGENTSteward, Steward Signals, Reports
 - People & Service (collapsed by default): Volunteers
-- Admin (collapsed by default): Settings, Imports, Data Tools, Custom Fields, Help, admin-only Feedback Tickets, admin-only Watchdog/WebMaster links
+- System (collapsed by default): QB Sync when enabled, Designations, Import Data, Data Tools, Custom Fields, Settings, Help, admin-only Feedback Tickets, admin-only Watchdog/WebMaster links
 
 Collapsed groups automatically open when the current route belongs to that group, so deep links still orient the user without keeping every tool visible all the time.
 
 Donor-specific IA companion doc: [docs/DONOR_CRM_SIDEBAR_NAVIGATION.md](docs/DONOR_CRM_SIDEBAR_NAVIGATION.md)
+
+## Desktop Chrome Update
+
+The DonorCRM desktop sidebar now uses the same dark green/teal chrome family as the top bar brand scoop. Active items, badges, section cards, collapsed tooltips, and the footer use translucent surfaces over that chrome so the sidebar reads as part of the CRM shell instead of a separate pale panel.
 
 ## Why Steward Paths Is Treated As A Major Workspace
 

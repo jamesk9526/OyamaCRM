@@ -11,6 +11,7 @@ import RecordGiftModal from "@/app/components/donations/RecordGiftModal";
 import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
 import CRMDataTable from "@/app/components/ui/crm/CRMDataTable";
 import CRMFilterBar from "@/app/components/ui/crm/CRMFilterBar";
@@ -313,24 +314,32 @@ export default function DonationsPage() {
     >
     <div className="space-y-5">
       <CRMActionBar>
-        <WorkspaceRibbonButton label="Record Gift" href={recordGiftHref} variant="primary" />
-        <WorkspaceRibbonButton label="All" onClick={() => setStatus("")} active={!status} />
-        <WorkspaceRibbonButton label="Completed" onClick={() => setStatus("COMPLETED")} active={status === "COMPLETED"} />
-        <WorkspaceRibbonButton label="Pending" onClick={() => setStatus("PENDING")} active={status === "PENDING"} />
-        <WorkspaceRibbonButton label="YTD" onClick={() => setAllYears(false)} active={!allYears} />
-        <WorkspaceRibbonButton label="All Years" onClick={() => setAllYears(true)} active={allYears} />
-        <WorkspaceRibbonButton label="Refresh" onClick={() => void load()} />
-        <WorkspaceRibbonButton
-          label="Clear"
-          onClick={() => {
-            setSearch("");
-            setStatus("");
-            setAllYears(false);
-            setFrom(defaultRange.from);
-            setTo(defaultRange.to);
-          }}
-          disabled={!search && !status && !allYears && from === defaultRange.from && to === defaultRange.to}
-        />
+        <WorkspaceRibbonGroup label="Create">
+          <WorkspaceRibbonButton label="Record Gift" href={recordGiftHref} variant="primary" />
+        </WorkspaceRibbonGroup>
+        <WorkspaceRibbonGroup label="Status">
+          <WorkspaceRibbonButton label="All" onClick={() => setStatus("")} active={!status} />
+          <WorkspaceRibbonButton label="Completed" onClick={() => setStatus("COMPLETED")} active={status === "COMPLETED"} />
+          <WorkspaceRibbonButton label="Pending" onClick={() => setStatus("PENDING")} active={status === "PENDING"} />
+        </WorkspaceRibbonGroup>
+        <WorkspaceRibbonGroup label="Range">
+          <WorkspaceRibbonButton label="YTD" onClick={() => setAllYears(false)} active={!allYears} />
+          <WorkspaceRibbonButton label="All Years" onClick={() => setAllYears(true)} active={allYears} />
+        </WorkspaceRibbonGroup>
+        <WorkspaceRibbonGroup label="View">
+          <WorkspaceRibbonButton label="Refresh" onClick={() => void load()} />
+          <WorkspaceRibbonButton
+            label="Clear"
+            onClick={() => {
+              setSearch("");
+              setStatus("");
+              setAllYears(false);
+              setFrom(defaultRange.from);
+              setTo(defaultRange.to);
+            }}
+            disabled={!search && !status && !allYears && from === defaultRange.from && to === defaultRange.to}
+          />
+        </WorkspaceRibbonGroup>
       </CRMActionBar>
 
       {campaignIdFilter && (

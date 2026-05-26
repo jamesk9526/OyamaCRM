@@ -76,9 +76,9 @@ export default function StewardContextButton({
         disabled={disabled}
         title={title ?? label}
         aria-label={label}
-        className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${className}`}
+        className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${className}`}
       >
-        <StewardAvatarIcon size={16} alt="Steward" />
+        <StewardAvatarIcon size={13} alt="Steward" />
       </button>
     );
   }
@@ -90,9 +90,9 @@ export default function StewardContextButton({
         onClick={handleClick}
         disabled={disabled}
         title={title ?? label}
-        className={`inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap ${className}`}
+        className={`inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap ${className}`}
       >
-        <StewardAvatarIcon size={12} alt="" />
+        <StewardAvatarIcon size={10} alt="" />
         {label}
       </button>
     );
@@ -105,9 +105,9 @@ export default function StewardContextButton({
       onClick={handleClick}
       disabled={disabled}
       title={title ?? label}
-      className={`inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50/80 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap ${className}`}
+      className={`inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50/80 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap ${className}`}
     >
-      <StewardAvatarIcon size={13} alt="" />
+      <StewardAvatarIcon size={11} alt="" />
       {label}
     </button>
   );

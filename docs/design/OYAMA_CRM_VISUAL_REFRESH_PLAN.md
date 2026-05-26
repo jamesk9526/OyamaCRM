@@ -13,7 +13,8 @@ Use the provided screenshots as inspiration only. The refresh should keep curren
 - Green accent for primary actions, active navigation, and positive status.
 - Workspace chrome can use a pale green Windows-ribbon treatment: grouped icon-first actions, compact side/navigation panels, and flatter square-ish controls. Do not show ribbon tabs unless they switch real command sets.
 - Any custom command bar that functions as a workspace ribbon should follow the same grouped-command treatment instead of introducing separate rounded-card ribbon styles.
-- Dashboard pages should feel like the same workspace, not a marketing dashboard: compact title strip, grouped command ribbon, flat KPI tiles, dense live panels, and an inspector-style priority area.
+- Dashboard pages should feel like the same workspace, not a marketing dashboard: compact title strip, dashboard-local filter bar, flat KPI tiles, dense live panels, and an inspector-style priority area.
+- Dashboard filter bars should only contain controls that act on the dashboard itself, such as range/campaign filters, refresh, chart focus, widget expansion, and metric drill-ins. Keep global navigation and cross-workspace create actions in the sidebar, top bar, or page content cards.
 - Deep slate primary text and muted gray secondary text.
 - One clear page header, one clean action strip, one consistent metric-card style.
 - Reduce heavy segmented toolbars, nested boxes, loud tags, and duplicate action paths.
@@ -45,12 +46,17 @@ Goal: create reusable primitives without changing page behavior.
 - [x] Fix Giving Trends fiscal-year comparison so fiscal mode requests the configured fiscal year and orders months from the fiscal start month.
 - [x] Third pass: rebuild the default DonorCRM landing dashboard into the screenshot-inspired SaaS grid with KPI cards, giving overview, recent activity, top campaigns, retention, due-soon tasks, and quick actions backed by live APIs.
 - [x] Add a "Who Gave This Month" dashboard widget with a donor-list modal, per-donor task creation, bulk donor-list task saving, saved email audience lists, and email template draft starters.
+- [x] Restore Dashboard Tools to a compact filter bar instead of a workspace ribbon.
+- [x] Restrict Dashboard Tools to dashboard-local filters, chart focus, widget expansion, metric drill-ins, and refresh controls.
+- [x] Replace hand-drawn dashboard charts with Recharts-backed giving trend, designation, source, and retention visuals.
+- [x] Add lightweight dashboard entrance and chart animations while preserving live API data boundaries.
 - [ ] Verify dashboard at 1366x768 and 1280x720.
 
 ### Phase 3: Constituents Page
 
 - [x] Preserve existing search/filter/table behavior.
 - [x] Apply shared `CRMMetricCard`, `CRMActionBar`, `CRMFilterBar`, `CRMDataTable`, and `CRMStatusBadge` surfaces.
+- [x] Convert the page action strip to grouped Explorer-style ribbon commands.
 - [x] Calm tag display: max 2 visible tags plus `+N more`.
 - [x] Move secondary row actions into a More menu only if no behavior is lost.
 
@@ -58,6 +64,7 @@ Goal: create reusable primitives without changing page behavior.
 
 - [x] Preserve donation data, filters, record gift flow, row three-dot quick-actions menu, and acknowledgment behavior.
 - [x] Apply shared metric cards, action/filter strip, data-table shell, and badge system.
+- [x] Convert the donation command strip to grouped Explorer-style ribbon commands.
 - [x] Make stewardship loop notice an insight card instead of a warning-style banner.
 - [ ] Calm DonationTable row/status styling and keep row More menu intact.
 
@@ -65,6 +72,7 @@ Goal: create reusable primitives without changing page behavior.
 
 - [x] Preserve meeting filters, schedule flow, and row/card actions.
 - [x] Apply shared action bar, filter bar, metric cards, status badge, and empty state.
+- [x] Convert the meeting command strip to grouped Explorer-style ribbon commands.
 - [ ] Convert meeting rows into calmer structured cards if action handlers remain intact.
 
 ### Phase 6: Letters & Printables
@@ -103,12 +111,16 @@ Done:
 - [x] Donations page first pass completed with shared metrics/action/filter/table shells while keeping the existing row three-dot quick-actions menu.
 - [x] Meetings page first pass completed with shared metrics/action/filter/empty-state shells.
 - [x] Dashboard heavy ribbon controls replaced with `CRMActionBar` while preserving routes and handlers.
+- [x] Dashboard Tools restored to a compact `CRMFilterBar` surface.
+- [x] Dashboard Recharts pass completed for trend, designation, source, and retention visuals.
 - [x] Dashboard quick-action cards updated to the shared target card pattern.
 - [x] Top bar refreshed to a light surface with dark text/icons, including Steward runtime status contrast.
 - [x] Top bar updated with a dark diagonal brand block using `public/branding/oyama-darklogocrm.png`.
 - [x] Workspace selector and DonorCRM mega menu updated to dark surfaces with green active states.
 - [x] Sidebar grouping/style refreshed with Home and Core CRM grouping.
 - [x] Shared data table adoption extended to Tasks after Constituents and Donations.
+- [x] Shared `CRMActionBar` aligned to the same Explorer-style command surface as `WorkspaceRibbon`.
+- [x] Constituents, Donations, Meetings, and Tasks action strips converted to grouped ribbon commands.
 - [x] Letter builder scroll containment fixed after page-scroll QA.
 - [x] Messenger panel refreshed with its own top bar, image attachment support, optional 2-day image expiry, and sender message editing.
 - [x] AGENTS visual refresh guidance added.

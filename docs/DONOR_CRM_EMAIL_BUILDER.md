@@ -1,6 +1,6 @@
 # DonorCRM Email Builder
 
-Last updated: 2026-05-21
+Last updated: 2026-05-26
 
 ## Purpose
 
@@ -32,10 +32,11 @@ Document the current Email Builder implementation, workflow relationship to Comm
   - Review
   - Schedule
 - Draft-first status and save feedback in the top bar
+- Mockup-inspired studio chrome with a compact breadcrumb/action bar, status strip, lighter canvas workspace, tile-based block library, and simplified inspector tabs.
 - Three-panel body:
-  - Block Library (search + donor-focused collapsible categories)
-  - Canvas (desktop/mobile toggle + width label + block action toolbar)
-  - Right-side inspector tabs (Block/Campaign/Personalize/Review/AI)
+  - Block Library (search + donor-focused collapsible categories + two-column draggable block tiles)
+  - Canvas (light preview workspace + desktop/mobile toggle + width label + block action toolbar)
+  - Right-side inspector tabs (Block/Campaign/Personalize/Review/AI) styled as compact top tabs
 
 ### Blocks currently supported
 
@@ -88,6 +89,7 @@ Document the current Email Builder implementation, workflow relationship to Comm
 | Branding settings enforcement | Working | New campaigns seed sender identity from CRM Branding Settings; builder save applies current CRM branding to template-level settings and brandable block accents. |
 | Unsaved-change protection | Working | Builder now warns on browser/tab close when unsaved edits exist (`beforeunload` guard). |
 | Desktop review navigation clarity | Working | Builder header now includes a direct “Review Checklist” action to reduce route/tool confusion before send-stage handoff. |
+| Mockup-inspired editor chrome | Working | Builder shell, block palette, canvas, and inspector were refreshed to better match a modern three-panel email studio while preserving save/preview/test/drag-drop behavior. |
 
 ## Safety Constraints
 

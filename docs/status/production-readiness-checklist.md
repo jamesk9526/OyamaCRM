@@ -14,6 +14,15 @@ Use only these status labels:
 - Broken
 - Not Implemented
 
+## Donor Desktop Sidebar Snapshot (2026-05-26)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Donor dashboard tools use a compact filter bar and Recharts-backed visual panels | Working | `app/components/dashboard/DonorDashboardVisualRefresh.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` |
+| DonorCRM high-traffic workspace commands use grouped Explorer-style ribbons | Working | `app/components/ui/crm/CRMActionBar.tsx`, `app/constituents/page.tsx`, `app/donations/page.tsx`, `app/meetings/page.tsx`, `app/tasks/page.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` |
+| Donor sidebar visually matches the dark green/teal top bar brand chrome on desktop | Working | `app/components/layout/CrmSidebar.tsx` |
+| Donor sidebar grouping exposes separate Home and Core CRM groups while keeping supporting tools in lower collapsible groups | Working | `app/components/layout/sidebar-configs.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` |
+
 ## Production Pass Phase 1/2 Snapshot (2026-05-14)
 
 ## Oyama Reports App Snapshot (2026-05-26)

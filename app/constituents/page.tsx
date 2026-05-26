@@ -11,6 +11,7 @@ import {
 import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
 import CRMDataTable from "@/app/components/ui/crm/CRMDataTable";
 import CRMFilterBar from "@/app/components/ui/crm/CRMFilterBar";
@@ -136,35 +137,39 @@ export default function ConstituentsPage() {
     >
       <div className="space-y-5">
       <CRMActionBar>
-        <WorkspaceRibbonButton label="Add Constituent" href="/constituents/new" variant="primary" />
-        <WorkspaceRibbonButton
-          label="All Constituents"
-          onClick={() => {
-            setTypeFilter("");
-            setStatusFilter("");
-            setPage(1);
-          }}
-          variant={!typeFilter && !statusFilter ? "primary" : "secondary"}
-        />
-        <WorkspaceRibbonButton
-          label="Active Donors"
-          onClick={() => {
-            setTypeFilter("");
-            setStatusFilter("ACTIVE");
-            setPage(1);
-          }}
-          variant={statusFilter === "ACTIVE" ? "primary" : "secondary"}
-        />
-        <WorkspaceRibbonButton
-          label="Prospects"
-          onClick={() => {
-            setTypeFilter("PROSPECT");
-            setStatusFilter("");
-            setPage(1);
-          }}
-          variant={typeFilter === "PROSPECT" ? "primary" : "secondary"}
-        />
-        <WorkspaceRibbonButton label="Clear Filters" onClick={() => { setSearch(""); setTypeFilter(""); setStatusFilter(""); setPage(1); }} disabled={!search && !typeFilter && !statusFilter} />
+        <WorkspaceRibbonGroup label="Create">
+          <WorkspaceRibbonButton label="Add Constituent" href="/constituents/new" variant="primary" />
+        </WorkspaceRibbonGroup>
+        <WorkspaceRibbonGroup label="View">
+          <WorkspaceRibbonButton
+            label="All Constituents"
+            onClick={() => {
+              setTypeFilter("");
+              setStatusFilter("");
+              setPage(1);
+            }}
+            variant={!typeFilter && !statusFilter ? "primary" : "secondary"}
+          />
+          <WorkspaceRibbonButton
+            label="Active Donors"
+            onClick={() => {
+              setTypeFilter("");
+              setStatusFilter("ACTIVE");
+              setPage(1);
+            }}
+            variant={statusFilter === "ACTIVE" ? "primary" : "secondary"}
+          />
+          <WorkspaceRibbonButton
+            label="Prospects"
+            onClick={() => {
+              setTypeFilter("PROSPECT");
+              setStatusFilter("");
+              setPage(1);
+            }}
+            variant={typeFilter === "PROSPECT" ? "primary" : "secondary"}
+          />
+          <WorkspaceRibbonButton label="Clear Filters" onClick={() => { setSearch(""); setTypeFilter(""); setStatusFilter(""); setPage(1); }} disabled={!search && !typeFilter && !statusFilter} />
+        </WorkspaceRibbonGroup>
       </CRMActionBar>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

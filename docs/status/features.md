@@ -2,6 +2,23 @@
 
 _Last deep audit: 2026-05-18 (v1.1.0)_
 
+## 2026-05-26 Donor Desktop Sidebar Chrome Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Donor dashboard filter bar and graphics pass | Working | `app/components/dashboard/DonorDashboardVisualRefresh.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` | Dashboard Tools now live in a compact `CRMFilterBar` limited to dashboard-local filters, chart focus, widget expansion, metric drill-ins, and refresh controls; giving trend, designations, giving sources, and retention use Recharts visuals with lightweight animations and existing live dashboard APIs. |
+| DonorCRM grouped command ribbons | Working | `app/components/ui/crm/CRMActionBar.tsx`, `app/constituents/page.tsx`, `app/donations/page.tsx`, `app/meetings/page.tsx`, `app/tasks/page.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` | Shared action bars now use the same Explorer-style surface as workspace ribbons, and high-traffic donor workspaces group commands by Create/View/Status/Range/Assignment without changing handlers. |
+| Donor desktop sidebar chrome alignment | Working | `app/components/layout/CrmSidebar.tsx` | Donor sidebar now uses the same dark green/teal chrome family as the top bar brand area, with matching active states, badges, footer, collapse button, and collapsed tooltips. |
+| Donor sidebar information architecture repair | Working | `app/components/layout/sidebar-configs.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` | Restored the documented/tested grouping: a separate Home group, Core CRM records, Steward Paths at the top of Engagement Workspace, Communication Tools grouped together, and System utilities lower/collapsible. |
+
+## 2026-05-26 Action Ribbon + Steward TopBar Compact Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Top bar Steward and messages entry point | Working | `app/components/layout/TopBar.tsx`, `app/components/ai/StewardDockPanel.tsx` | Removed the floating Steward chat-head launcher from the CRM shell and moved Steward/Messages access into a compact top-bar button that opens the same dock. |
+| Compact Steward status and workspace controls | Working | `app/components/layout/StewardAiRuntimePill.tsx`, `app/components/ai/StewardContextButton.tsx` | Reduced the runtime status pill, Steward workspace link, and contextual Steward buttons for a tighter command bar. |
+| Workspace ribbon density | Working | `app/components/workspace-ribbon/WorkspaceRibbon.tsx`, `WorkspaceRibbonGroup.tsx`, `WorkspaceRibbonButton.tsx` | Tightened the shared ribbon surface, group labels, command heights, spacing, and label widths so workspace commands occupy less vertical space. |
+
 ## 2026-05-21 Top Bar + Donor Email Builder Usability Pass
 
 | Area | Status | Evidence | Notes |
@@ -9,6 +26,7 @@ _Last deep audit: 2026-05-18 (v1.1.0)_
 | Top bar overlay coordination and keyboard reliability | Working | `app/components/layout/TopBar.tsx` | Added editable-field-safe `Ctrl/Cmd+K`, Escape-based overlay close behavior, and panel coordination to reduce overlap/confusion across mobile and desktop. |
 | Donor shell compact-desktop navigation fallback | Working | `app/components/layout/AppShell.tsx`, `app/components/layout/CrmSidebar.tsx` | Widths `1024-1439px` now use sidebar navigation flow even when donor layout preference is mega menu, improving small-laptop density and reducing shell confusion. |
 | Donor Email Builder save safety and review clarity | Working | `app/components/email-builder/EmailBuilderApp.tsx` | Added unsaved-change browser guard, stabilized save callback wiring, and added desktop “Review Checklist” quick action for clearer pre-send workflow. |
+| Donor Email Builder studio visual refresh | Working | `app/components/email-builder/EmailBuilderApp.tsx`, `app/components/email-builder/BlockPalette.tsx`, `app/components/email-builder/EmailCanvas.tsx`, `app/components/email-builder/BlockEditor.tsx` | Refreshed the builder toward the provided mockup: compact top chrome, status strip, tile block library, lighter email canvas, simplified inspector tabs, and top-level Send Test wiring. |
 
 ## 2026-05-18 EventSTUDIO Production Polish Pass
 

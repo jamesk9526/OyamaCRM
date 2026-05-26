@@ -70,7 +70,7 @@ function Field({ label, children, hint }: FieldProps) {
 }
 
 const inputCls =
-  'block w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+  'block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400';
 const selectCls = inputCls;
 
 type InspectorTab = 'content' | 'style' | 'settings';
@@ -128,7 +128,7 @@ function InspectorSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-3">
+    <section className="rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm">
       <div className="mb-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</p>
         {body ? <p className="mt-1 text-xs leading-5 text-slate-500">{body}</p> : null}

@@ -57,7 +57,35 @@ const DONOR_ICONS = {
 
 /** Returns the refined Donor CRM sidebar groups with item metadata and stable routes. */
 export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): CrmSidebarGroup[] {
+  const homeItems: CrmSidebarGroup["items"] = [
+    {
+      id: "dashboard",
+      label: "Dashboard",
+      href: "/",
+      icon: DONOR_ICONS.dashboard,
+      exact: true,
+      kind: "workspace" as const,
+      description: "View donor CRM overview and fundraising health.",
+    },
+  ];
+
   const fundraisingItems: CrmSidebarGroup["items"] = [
+    {
+      id: "constituents",
+      label: "Constituents",
+      href: "/constituents",
+      icon: DONOR_ICONS.constituents,
+      kind: "core_record" as const,
+      description: "Manage donors, volunteers, members, and supporters.",
+    },
+    {
+      id: "donations",
+      label: "Donations",
+      href: "/donations",
+      icon: DONOR_ICONS.donations,
+      kind: "core_record" as const,
+      description: "Track gifts, giving history, and donation activity.",
+    },
     {
       id: "campaigns",
       label: "Campaigns",
@@ -82,18 +110,89 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
       kind: "core_record" as const,
       description: "Review payment records and transaction activity.",
     },
+  ];
+
+  const systemItems: CrmSidebarGroup["items"] = [
     {
       id: "designations",
       label: "Designations",
       href: "/designations",
       icon: DONOR_ICONS.designations,
-      kind: "core_record" as const,
+      kind: "system" as const,
       description: "Create and manage fund/designation options used when recording donations.",
+    },
+    {
+      id: "data-import",
+      label: "Import Data",
+      href: "/data-tools/import",
+      icon: DONOR_ICONS.dataTools,
+      kind: "system" as const,
+      badge: "Tool",
+      description: "Upload, map, validate, and import CRM records.",
+    },
+    {
+      id: "data-tools",
+      label: "Data Tools",
+      href: "/data-tools",
+      icon: DONOR_ICONS.dataTools,
+      kind: "system" as const,
+      description: "Clean, dedupe, and maintain donor data quality.",
+    },
+    {
+      id: "custom-fields",
+      label: "Custom Fields",
+      href: "/custom-fields",
+      icon: DONOR_ICONS.customFields,
+      kind: "system" as const,
+      description: "Manage configurable donor and donation fields.",
+    },
+    {
+      id: "settings",
+      label: "Settings",
+      href: "/settings",
+      icon: DONOR_ICONS.settings,
+      kind: "system" as const,
+      description: "Configure organization, workspace, and donor CRM settings.",
+    },
+    {
+      id: "help",
+      label: "Help",
+      href: "/help?scope=donor&scopePath=/",
+      icon: DONOR_ICONS.help,
+      kind: "system" as const,
+      description: "Open donor CRM help and operational guidance.",
+    },
+    {
+      id: "feedback-tickets",
+      label: "Feedback Tickets",
+      href: "/watchdog/feedback-tickets",
+      icon: DONOR_ICONS.watchdog,
+      kind: "system" as const,
+      allowedRoles: ["admin", "super_admin"],
+      description: "Review user feedback and support tickets in OyamaWatchdog.",
+    },
+    {
+      id: "watchdog",
+      label: "OyamaWatchdog",
+      href: "/watchdog",
+      icon: DONOR_ICONS.watchdog,
+      kind: "system" as const,
+      allowedRoles: ["admin", "super_admin"],
+      description: "Open the security and audit workspace.",
+    },
+    {
+      id: "webmaster",
+      label: "OyamaWebMaster",
+      href: "/webmaster",
+      icon: DONOR_ICONS.webmaster,
+      kind: "system" as const,
+      allowedRoles: ["admin", "super_admin"],
+      description: "Open website operations and publishing tools.",
     },
   ];
 
   if (qbEnabled) {
-    fundraisingItems.push({
+    systemItems.unshift({
       id: "qb-sync",
       label: "QB Sync",
       href: "/quickbooks-sync",
@@ -108,39 +207,31 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
       id: "home",
       label: "Home",
       defaultOpen: true,
-      items: [
-        {
-          id: "dashboard",
-          label: "Dashboard",
-          href: "/",
-          icon: DONOR_ICONS.dashboard,
-          exact: true,
-          kind: "workspace" as const,
-          description: "View donor CRM overview and fundraising health.",
-        },
-      ],
+      collapsible: true,
+      items: homeItems,
     },
     {
       id: "core-crm",
       label: "Core CRM",
       defaultOpen: true,
       collapsible: true,
+      items: fundraisingItems,
+    },
+    {
+      id: "engagement-workspace",
+      label: "Engagement Workspace",
+      defaultOpen: true,
+      collapsible: true,
       items: [
         {
-          id: "constituents",
-          label: "Constituents",
-          href: "/constituents",
-          icon: DONOR_ICONS.constituents,
-          kind: "core_record" as const,
-          description: "Manage donors, volunteers, members, and supporters.",
-        },
-        {
-          id: "donations",
-          label: "Donations",
-          href: "/donations",
-          icon: DONOR_ICONS.donations,
-          kind: "core_record" as const,
-          description: "Track gifts, giving history, and donation activity.",
+          id: "steward-paths",
+          label: "Steward Paths",
+          href: "/steward-paths",
+          icon: DONOR_ICONS.stewardPaths,
+          kind: "workspace",
+          badge: "App",
+          permissions: ["steward_paths.view"],
+          description: "Build donor engagement sequences and follow-up workflows.",
         },
         {
           id: "tasks",
@@ -151,6 +242,22 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
           description: "Manage follow-up tasks and stewardship assignments.",
         },
         {
+          id: "meetings",
+          label: "Meetings",
+          href: "/meetings",
+          icon: DONOR_ICONS.meetings,
+          kind: "daily_tool",
+          description: "Track donor meetings and relationship touchpoints.",
+        },
+      ],
+    },
+    {
+      id: "communication-tools",
+      label: "Communication Tools",
+      defaultOpen: false,
+      collapsible: true,
+      items: [
+        {
           id: "communications",
           label: "Communications",
           href: "/communications",
@@ -159,21 +266,6 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
           permissions: ["view:communications"],
           description: "Manage email projects, communication activity, and outreach work.",
         },
-      ],
-    },
-    {
-      id: "fundraising",
-      label: "Fundraising",
-      defaultOpen: false,
-      collapsible: true,
-      items: fundraisingItems,
-    },
-    {
-      id: "outreach",
-      label: "Outreach",
-      defaultOpen: false,
-      collapsible: true,
-      items: [
         {
           id: "contacts-manager",
           label: "Contacts Manager",
@@ -188,6 +280,7 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
           href: "/letters-printables",
           icon: DONOR_ICONS.letters,
           kind: "communication_tool",
+          badge: "Tool",
           permissions: ["letters.view"],
           description: "Create thank-you letters, receipts, newsletters, and printable donor communication.",
         },
@@ -198,24 +291,8 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
           activePath: "/livecom",
           icon: DONOR_ICONS.livecom,
           kind: "communication_tool",
+          badge: "New",
           description: "Open the LiveCom Inbox for website chat and live donor communication.",
-        },
-        {
-          id: "meetings",
-          label: "Meetings",
-          href: "/meetings",
-          icon: DONOR_ICONS.meetings,
-          kind: "daily_tool",
-          description: "Track donor meetings and relationship touchpoints.",
-        },
-        {
-          id: "steward-paths",
-          label: "Steward Paths",
-          href: "/steward-paths",
-          icon: DONOR_ICONS.stewardPaths,
-          kind: "workspace",
-          permissions: ["steward_paths.view"],
-          description: "Build donor engagement sequences and follow-up workflows.",
         },
       ],
     },
@@ -254,7 +331,7 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
     },
     {
       id: "people-service",
-      label: "Service",
+      label: "People & Service",
       defaultOpen: false,
       collapsible: true,
       items: [
@@ -267,6 +344,13 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
           description: "Manage volunteer relationships and involvement.",
         },
       ],
+    },
+    {
+      id: "system",
+      label: "System",
+      defaultOpen: false,
+      collapsible: true,
+      items: systemItems,
     },
   ];
 }
@@ -331,8 +415,12 @@ export const EVENTS_RESERVED_SEGMENTS = new Set([
 ]);
 
 /** Resolves active event ID from event-scoped route paths for EventSTUDIO sidebar context. */
-export function resolveActiveEventId(pathname: string, _searchParams: Pick<URLSearchParams, "get">): string | null {
-  void _searchParams;
+export function resolveActiveEventId(pathname: string, searchParams: Pick<URLSearchParams, "get">): string | null {
+  const explicitEventId = searchParams.get("eventId");
+  if (explicitEventId) {
+    return explicitEventId;
+  }
+
   const parts = pathname.split("/").filter(Boolean);
   const maybeEventId = parts[1];
 

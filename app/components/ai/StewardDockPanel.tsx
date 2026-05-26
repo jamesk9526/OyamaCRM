@@ -7,7 +7,7 @@
  */
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import MessengerPanel from "@/app/components/messenger/MessengerPanel";
 import StewardChatPanel from "@/app/components/ai/StewardChatPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
@@ -37,6 +37,8 @@ interface StewardDockPanelProps {
   messengerUnread?: number;
   /** Receives unread count changes from the embedded Messenger app. */
   onMessengerUnreadChange?: (count: number) => void;
+  /** When false, the dock is opened only by external/top-bar controls. */
+  showLauncher?: boolean;
 }
 
 const STORAGE_KEY = "steward-dock-open";
@@ -66,12 +68,13 @@ export default function StewardDockPanel({
   onMessagesOpenChange,
   messengerUnread = 0,
   onMessengerUnreadChange,
+  showLauncher = true,
 }: StewardDockPanelProps) {
   const [open, setOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [activeTab, setActiveTab] = useState<DockTab>("steward");
   const [externalPrompt, setExternalPrompt] = useState<StewardOpenPromptDetail | null>(null);
-  const scopePathRef = useRef("/");
+  const [scopePath, setScopePath] = useState("/");
 
   const emitDockState = useCallback((nextOpen: boolean) => {
     window.dispatchEvent(new CustomEvent(DOCK_STATE_EVENT, {
@@ -103,7 +106,7 @@ export default function StewardDockPanel({
   }, [onMessagesOpenChange, open]);
 
   useEffect(() => {
-    scopePathRef.current = `${window.location.pathname}${window.location.search}`;
+    setScopePath(`${window.location.pathname}${window.location.search}`);
     const restoredOpen = localStorage.getItem(STORAGE_KEY) === "true";
     const restoredTab = localStorage.getItem(TAB_STORAGE_KEY) === "messages" ? "messages" : "steward";
     setActiveTab(restoredTab);
@@ -147,7 +150,7 @@ export default function StewardDockPanel({
 
   return (
     <>
-      {!open ? (
+      {showLauncher && !open ? (
         <button
           type="button"
           onClick={() => openDock("steward")}
@@ -226,7 +229,7 @@ export default function StewardDockPanel({
                 open
                 onClose={closeDock}
                 moduleKey={stewardModule}
-                scopePath={scopePathRef.current}
+                scopePath={scopePath}
                 displayMode="workspace"
                 externalPrompt={externalPrompt}
                 onExternalPromptConsumed={() => setExternalPrompt(null)}
