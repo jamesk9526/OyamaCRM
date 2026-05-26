@@ -6,6 +6,7 @@ import TopBar from "./TopBar";
 import Sidebar from "./Sidebar";
 import DonorMegaMenu from "./DonorMegaMenu";
 import MobileSidebarDrawer from "./MobileSidebarDrawer";
+import { useDashboardChromeTint } from "./useDashboardChromeTint";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
 import {
@@ -15,6 +16,7 @@ import {
   type WorkspaceSettings,
   type DonorNavigationLayout,
 } from "@/app/lib/workspace-settings";
+import type { CSSProperties } from "react";
 
 // Module routes render their own shells — bypass AppShell wrapper.
 // /steward-ai-workspace uses its own standalone PWA layout.
@@ -134,6 +136,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [compactDesktop, setCompactDesktop] = useState(false);
   const [shellScrolled, setShellScrolled] = useState(false);
   const scrollFrameRef = useRef<number | null>(null);
+  const dashboardChromeTint = useDashboardChromeTint(user?.id);
 
   useEffect(() => {
     if (loading || !user) return;
@@ -295,18 +298,28 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       ? "pt-16 xl:pt-20"
       : "pt-16 xl:pt-28";
 
+  const shellStyle: CSSProperties = {
+    "--oyama-donor-chrome-start": dashboardChromeTint.dark,
+    "--oyama-donor-chrome-mid": dashboardChromeTint.mid,
+    "--oyama-donor-chrome-end": dashboardChromeTint.base,
+    "--oyama-donor-chrome-border": dashboardChromeTint.border,
+    "--oyama-donor-chrome-shadow-rgb": dashboardChromeTint.shadowRgb,
+    ...(dockInsetPx > 0 ? { paddingRight: `${dockInsetPx}px` } : {}),
+  } as CSSProperties;
+
   return (
     <div
       className="flex h-[100dvh] min-h-[100svh] flex-col crm-page-surface transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
-      style={dockInsetPx > 0 ? { paddingRight: `${dockInsetPx}px` } : undefined}
+      style={shellStyle}
     >
-      <TopBar scrolled={shellScrolled} />
+      <TopBar scrolled={shellScrolled} donorChromeTint={dashboardChromeTint} />
       {donorMegaMenuEnabled ? <DonorMegaMenu donorAccentTone={workspaceSettings.donorAccentTone} scrolled={shellScrolled} /> : null}
       <div className={`relative flex min-w-0 flex-1 overflow-hidden bg-white transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${contentTopPaddingClass}`}>
         {donorSidebarDesktopEnabled ? (
           <div className="hidden md:flex h-full">
             <Sidebar
               donorAccentTone={workspaceSettings.donorAccentTone}
+              donorChromeTint={dashboardChromeTint}
             />
           </div>
         ) : null}
@@ -317,7 +330,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             title="DonorCRM navigation"
             onClose={() => setMobileNavOpen(false)}
           >
-            <Sidebar forceExpanded donorAccentTone={workspaceSettings.donorAccentTone} />
+            <Sidebar forceExpanded donorAccentTone={workspaceSettings.donorAccentTone} donorChromeTint={dashboardChromeTint} />
           </MobileSidebarDrawer>
         ) : null}
 

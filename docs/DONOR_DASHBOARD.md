@@ -9,8 +9,12 @@ The DonorCRM dashboard is the stewardship home page for live donor work. It pres
 - New Donors: `/api/reports/summary`, constituents whose first gift falls inside the selected reporting scope.
 - Follow-Ups Needed: `/api/reports/summary`, pending plus overdue tasks.
 - This Month: `/api/reports/summary`, completed gifts from the current calendar month.
+- Who Gave This Month: `/api/reports/donors-this-month`, current-month donors with gift totals, latest gift dates, task creation, saved audience-list handoff, and email draft starters.
 - Giving by Designation: `/api/reports/designations-summary`, completed donations grouped by designation.
 - Recent Donor Movement: `/api/donations?limit=20&status=COMPLETED`.
+- Acknowledgment Queue: recent completed donations without `acknowledgmentSentAt`.
+- Giving Source Mix: payment methods grouped from recent completed gifts.
+- Donor Health Snapshot: active donors, first-time donors, pending/overdue tasks, and retention cohort counts.
 - Campaign Impact: `/api/campaigns?active=true&limit=6`.
 - My Due Tasks: `/api/tasks?status=PENDING&limit=5&queue=assigned-to-me`.
 
@@ -19,6 +23,9 @@ The DonorCRM dashboard is the stewardship home page for live donor work. It pres
 Dashboard appearance is managed from `Settings > Dashboard Appearance` and stored in the `donor-dashboard-appearance` plugin setting.
 
 Configurable fields include header image, image position, overlay color and strength, optional quote card, hero greeting style, hero height, dashboard density, primary hero actions, and section visibility.
+Admins can also show or hide the metric strip from the same settings page.
+Follow-up widgets can be shown or hidden as a group from the same settings page.
+The current-month donor workflow can be shown or hidden separately from both organization appearance settings and the personal dashboard customizer.
 
 If no header image is configured, the dashboard uses a green Oyama gradient fallback. No stock or fake donor photo is shown.
 

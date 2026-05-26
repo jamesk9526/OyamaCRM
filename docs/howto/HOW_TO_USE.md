@@ -195,7 +195,7 @@ Use this section as an operations safety list.
 | Compassion full-name search | Partially Working | If full-name search misses records, search by last name or first name separately. |
 | Compassion appointment matcher queue | Not Implemented | Public bookings sync to the staff calendar now, but manual triage is still required until matcher/review queue ships. |
 | Letters PDF export | Partially Working | Use browser print/PDF fallback until server-side PDF rendering ships. |
-| Steward Paths branch persistence from visual builder | Partially Working | Branch visuals and editing are usable; activation is intentionally blocked when branch persistence is not supported by the linear-safe save adapter. |
+| Steward Paths branch persistence from visual builder | Working | Branch visuals, editing, branch-aware persistence, activation checks, and runtime branch execution are supported in the canonical `/steward-paths/builder` workflow. |
 | Some module tabs and tools | Not Implemented | Follow in-app in-development warnings and do not rely on those tabs for live operations. |
 
 ## DonorCRM Daily Stewardship Operations

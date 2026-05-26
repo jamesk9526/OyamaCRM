@@ -348,7 +348,7 @@ export default function WorkspaceRibbonButton({
   const tip = title ?? label;
 
   const className = [
-    "workspace-ribbon-command inline-flex min-h-[4.75rem] w-[5.75rem] shrink-0 flex-col items-center justify-start gap-1 rounded-md border px-1.5 py-2",
+    "workspace-ribbon-command inline-flex min-h-[4.75rem] w-[5.75rem] max-w-full shrink-0 touch-manipulation flex-col items-center justify-start gap-1 rounded-md border px-1.5 py-2",
     "text-center text-xs font-medium leading-tight transition-all touch-manipulation",
     "[&_.workspace-ribbon-command-icon>svg]:h-6 [&_.workspace-ribbon-command-icon>svg]:w-6",
     tone,
@@ -359,7 +359,7 @@ export default function WorkspaceRibbonButton({
 
   if (href && !disabled) {
     return (
-      <Link href={href} className={className} title={tip}>
+      <Link href={href} className={className} title={tip} data-mobile-touch="true">
         <span className="workspace-ribbon-command-icon inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/65 shadow-[0_1px_6px_rgba(15,23,42,0.06)]">{iconNode}</span>
         <span className="workspace-ribbon-command-label block max-w-full whitespace-normal text-balance">{label}</span>
       </Link>
@@ -367,7 +367,7 @@ export default function WorkspaceRibbonButton({
   }
 
   return (
-    <button type="button" onClick={onClick} disabled={disabled} className={className} title={tip}>
+    <button type="button" onClick={onClick} disabled={disabled} className={className} title={tip} data-mobile-touch="true">
       <span className="workspace-ribbon-command-icon inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/65 shadow-[0_1px_6px_rgba(15,23,42,0.06)]">{iconNode}</span>
       <span className="workspace-ribbon-command-label block max-w-full whitespace-normal text-balance">{label}</span>
     </button>

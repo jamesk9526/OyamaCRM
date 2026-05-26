@@ -45,9 +45,11 @@ export default function MeetingsWidget() {
   const [meetings, setMeetings] = useState<MeetingItem[]>([]);
   const [todayCount, setTodayCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await apiFetch<{ items?: MeetingItem[]; todayCount?: number }>(
         "/api/meetings/upcoming"
@@ -56,6 +58,8 @@ export default function MeetingsWidget() {
       setTodayCount(data.todayCount ?? 0);
     } catch {
       setMeetings([]);
+      setTodayCount(0);
+      setError("Upcoming meetings could not be loaded.");
     } finally {
       setLoading(false);
     }
@@ -77,7 +81,7 @@ export default function MeetingsWidget() {
   if (meetings.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-center">
-        <div className="text-gray-400 text-sm mb-2">No upcoming meetings</div>
+        <div className="text-gray-400 text-sm mb-2">{error ?? "No upcoming meetings"}</div>
         <Link
           href="/meetings"
           className="text-xs text-green-600 hover:text-green-700 font-medium hover:underline"

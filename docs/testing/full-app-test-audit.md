@@ -33,7 +33,7 @@ Status labels:
 | Standalone apps (`/apps/*`) | Not Implemented for dedicated tests | App-shell and boundary checks for all standalone apps | Smoke, E2E, Mobile | Medium |
 | Communications | Partially Working (reports/donations link assertions) | Queue/send guard and draft-first regression assertions | E2E, API, Regression | High |
 | Letters & Printables | Partially Working (unit merge/layout coverage) | Queue/state transition API tests and UI E2E | API, E2E | High |
-| Steward Paths | Partially Working (unit engine/status tests) | Builder UI interaction E2E and API contract tests | E2E, API | High |
+| Steward Paths | Working (unit engine/status tests + API contract tests) | Builder UI interaction E2E depth | E2E | Medium |
 | Reports/Dashboards | Partially Working (reports smoke + some browser checks) | Empty-state chart resilience + export guard checks in browser | Smoke, E2E, Mobile | Medium |
 | Imports/Exports | Partially Working (compassion import validator units) | CSV upload + map + dry-run E2E/API tests across donor importer | E2E, API, Regression | High |
 | Permissions/Admin/Settings | Partially Working (selected route guards) | Full forbidden matrix per module and sensitive actions | API, Smoke, Regression | High |

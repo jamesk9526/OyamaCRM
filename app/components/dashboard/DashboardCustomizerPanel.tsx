@@ -14,6 +14,9 @@ interface WidgetDef {
     | "showImpactBand"
     | "showStewardSuggestions"
     | "showMovementFeed"
+    | "showThisMonthsDonors"
+    | "showFollowUpWidgets"
+    | "showExpandedWidgets"
     | "showGivingTrend"
     | "showDesignationChart"
     | "showCampaignCards"
@@ -43,6 +46,24 @@ const WIDGETS: WidgetDef[] = [
     label: "Donor Movement Feed",
     description: "Recent gifts and activity timeline",
     iconPath: "M4 6h16M4 10h16M4 14h8",
+  },
+  {
+    key: "showThisMonthsDonors",
+    label: "This Month's Donors",
+    description: "Current-month donor list and follow-up workflow",
+    iconPath: "M17 20h5v-2a4 4 0 0 0-5-4M9 20H4v-2a4 4 0 0 1 5-4m4-5a4 4 0 1 1 8 0 4 4 0 0 1-8 0zM5 9a4 4 0 1 0 8 0 4 4 0 0 0-8 0z",
+  },
+  {
+    key: "showFollowUpWidgets",
+    label: "Follow-Up Widgets",
+    description: "Acknowledgments, source mix, and donor health",
+    iconPath: "M9 11l2 2 4-4M5 5h14v14H5V5z",
+  },
+  {
+    key: "showExpandedWidgets",
+    label: "Expanded Widgets",
+    description: "Top donors, meetings, forecast, workload, and campaign health",
+    iconPath: "M4 5h7v7H4V5zm9 0h7v7h-7V5zM4 14h7v5H4v-5zm9 0h7v5h-7v-5z",
   },
   {
     key: "showGivingTrend",

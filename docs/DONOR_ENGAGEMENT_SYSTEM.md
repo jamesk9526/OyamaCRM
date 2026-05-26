@@ -149,7 +149,7 @@ Partially Working:
 | Communications hub architecture | Partially Working |
 | Letters and printables integration | Partially Working |
 | Email builder campaign authoring flow | Partially Working |
-| Steward paths orchestration links | Partially Working |
+| Steward paths orchestration links | Working |
 | Donation acknowledgment quick action persistence | Working |
 
 ## Next Steps

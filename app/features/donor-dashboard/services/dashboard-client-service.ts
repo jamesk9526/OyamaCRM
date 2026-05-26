@@ -44,6 +44,12 @@ function normalizeCampaignList(input: CampaignImpact[] | { campaigns?: CampaignI
   return input?.campaigns ?? input?.items ?? [];
 }
 
+function rejectedMessage(label: string, result: PromiseSettledResult<unknown>): string | null {
+  if (result.status !== "rejected") return null;
+  const detail = result.reason instanceof Error ? result.reason.message : "Request failed.";
+  return `${label}: ${detail}`;
+}
+
 export async function loadDonorDashboardData(input: {
   reportingYearMode: string;
   summary: DonorDashboardSummary | null;
@@ -65,6 +71,7 @@ export async function loadDonorDashboardData(input: {
   const designations = designationResult.status === "fulfilled" ? designationResult.value : null;
 
   return {
+    period: appearance.defaultPeriod,
     appearance,
     recentDonations: donationsResult.status === "fulfilled" ? normalizeDonationList(donationsResult.value) : [],
     trendPoints: trend?.points ?? [],
@@ -75,5 +82,12 @@ export async function loadDonorDashboardData(input: {
     designationTotal: toDashboardNumber(designations?.total),
     campaigns: campaignsResult.status === "fulfilled" ? normalizeCampaignList(campaignsResult.value) : [],
     stewardshipAlerts: buildStewardshipSuggestions(input.summary, input.retention),
+    errors: [
+      rejectedMessage("Dashboard appearance", appearanceResult),
+      rejectedMessage("Recent donor movement", donationsResult),
+      rejectedMessage("Giving trend", trendResult),
+      rejectedMessage("Giving by designation", designationResult),
+      rejectedMessage("Campaign impact", campaignsResult),
+    ].filter((message): message is string => Boolean(message)),
   };
 }

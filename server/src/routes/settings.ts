@@ -1842,8 +1842,12 @@ interface DashboardAppearanceSettings {
   density: "comfortable" | "compact";
   defaultPeriod: "this-month" | "fiscal-ytd" | "calendar-ytd";
   defaultCampaignId: string;
+  showMetricCards: boolean;
   showStewardSuggestions: boolean;
   showRecentDonorMovement: boolean;
+  showThisMonthsDonors: boolean;
+  showFollowUpWidgets: boolean;
+  showExpandedWidgets: boolean;
   showCampaignImpactCards: boolean;
   showProjectsAndInitiatives: boolean;
 }
@@ -1864,8 +1868,12 @@ const DASHBOARD_APPEARANCE_DEFAULTS: DashboardAppearanceSettings = {
   density: "comfortable",
   defaultPeriod: "fiscal-ytd",
   defaultCampaignId: "",
+  showMetricCards: true,
   showStewardSuggestions: true,
   showRecentDonorMovement: true,
+  showThisMonthsDonors: true,
+  showFollowUpWidgets: true,
+  showExpandedWidgets: true,
   showCampaignImpactCards: true,
   showProjectsAndInitiatives: true,
 };
@@ -1914,8 +1922,12 @@ function normalizeDashboardAppearancePayload(input: unknown): DashboardAppearanc
     density,
     defaultPeriod,
     defaultCampaignId: typeof src.defaultCampaignId === "string" ? src.defaultCampaignId.slice(0, 160) : "",
+    showMetricCards: src.showMetricCards !== false,
     showStewardSuggestions: src.showStewardSuggestions !== false,
     showRecentDonorMovement: src.showRecentDonorMovement !== false,
+    showThisMonthsDonors: src.showThisMonthsDonors !== false,
+    showFollowUpWidgets: src.showFollowUpWidgets !== false,
+    showExpandedWidgets: src.showExpandedWidgets !== false,
     showCampaignImpactCards: src.showCampaignImpactCards !== false,
     showProjectsAndInitiatives: src.showProjectsAndInitiatives !== false,
   };

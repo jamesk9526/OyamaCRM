@@ -89,7 +89,7 @@ export default function GivingDesignationChart({ slices, total, loading }: Givin
 
             {/* Center label */}
             <div className="pointer-events-none absolute flex flex-col items-center">
-              <p className="text-xl font-bold text-slate-950">{formatCurrency(total)}</p>
+              <p className="max-w-[6.5rem] truncate text-center text-sm font-bold text-slate-950">{formatCurrency(total)}</p>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Total</p>
             </div>
           </div>

@@ -126,14 +126,22 @@ body {
 
 @media (max-width: 900px) {
   .workspace-ribbon-surface .workspace-ribbon-command {
-    min-width: 46px;
-    height: 44px;
-    padding: 4px 5px;
+    min-width: 54px;
+    min-height: 48px;
+    height: auto;
+    padding: 6px 7px;
   }
 
   .workspace-ribbon-surface .workspace-ribbon-command-label {
     max-width: 5rem;
     font-size: 10px;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (pointer: coarse), (max-width: 640px) {
+  [data-mobile-touch="true"] {
+    min-height: 44px;
   }
 }
 

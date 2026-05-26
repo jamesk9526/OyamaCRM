@@ -25,8 +25,12 @@ export interface DashboardAppearanceSettings {
   density: DashboardDensity;
   defaultPeriod: DashboardDefaultPeriod;
   defaultCampaignId: string;
+  showMetricCards: boolean;
   showStewardSuggestions: boolean;
   showRecentDonorMovement: boolean;
+  showThisMonthsDonors: boolean;
+  showFollowUpWidgets: boolean;
+  showExpandedWidgets: boolean;
   showCampaignImpactCards: boolean;
   showProjectsAndInitiatives: boolean;
 }
@@ -92,6 +96,7 @@ export interface RetentionData {
 }
 
 export interface DashboardData {
+  period: DashboardDefaultPeriod;
   appearance: DashboardAppearanceSettings;
   recentDonations: DonationPreview[];
   trendPoints: TrendPoint[];
@@ -102,4 +107,5 @@ export interface DashboardData {
   designationTotal: number;
   campaigns: CampaignImpact[];
   stewardshipAlerts: StewardSuggestion[];
+  errors: string[];
 }

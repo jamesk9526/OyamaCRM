@@ -396,7 +396,11 @@ export default function DashboardAppearancePage() {
         <div className="space-y-4">
           {([
             { key: "showStewardSuggestions", label: "Steward Intelligence", desc: "Show deterministic stewardship alert cards from tasks, retention, and donor status" },
+            { key: "showMetricCards", label: "Metric Strip", desc: "Show the real-data metric cards that overlap the dashboard hero" },
             { key: "showRecentDonorMovement", label: "Recent Donor Movement", desc: "Show recent completed gifts and donor activity" },
+            { key: "showThisMonthsDonors", label: "This Month's Donors", desc: "Show current-month donors with task, audience-list, and thank-you workflows" },
+            { key: "showFollowUpWidgets", label: "Follow-Up Widgets", desc: "Show acknowledgment, source mix, and donor health widgets from real CRM data" },
+            { key: "showExpandedWidgets", label: "Expanded Dashboard Widgets", desc: "Show top donors, recent gifts, meetings, forecast, campaign health, and workload widgets" },
             { key: "showCampaignImpactCards", label: "Campaign Impact Cards", desc: "Show visual campaign progress cards at the bottom" },
             { key: "showProjectsAndInitiatives", label: "Projects & Initiatives", desc: "Allow campaign/project progress to appear on the dashboard" },
           ] as { key: keyof DashboardAppearanceSettings; label: string; desc: string }[]).map(({ key, label, desc }) => (

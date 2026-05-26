@@ -11,7 +11,7 @@ interface CRMDataTableProps {
 export default function CRMDataTable({ children, className = "" }: CRMDataTableProps) {
   return (
     <CRMCard padding="none" className={`overflow-hidden ${className}`}>
-      <div className="max-w-full overflow-x-auto border-t border-slate-300">
+      <div className="max-w-full overflow-x-auto border-t border-slate-100">
         {children}
       </div>
     </CRMCard>

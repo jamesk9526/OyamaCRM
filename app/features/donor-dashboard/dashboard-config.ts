@@ -20,8 +20,12 @@ export const DASHBOARD_APPEARANCE_DEFAULTS: DashboardAppearanceSettings = {
   density: "comfortable",
   defaultPeriod: "fiscal-ytd",
   defaultCampaignId: "",
+  showMetricCards: true,
   showStewardSuggestions: true,
   showRecentDonorMovement: true,
+  showThisMonthsDonors: true,
+  showFollowUpWidgets: true,
+  showExpandedWidgets: true,
   showCampaignImpactCards: true,
   showProjectsAndInitiatives: true,
 };

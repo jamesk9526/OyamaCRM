@@ -20,6 +20,6 @@ Status labels:
 | Standalone apps (`/apps/*`) | Partially Working | Not Implemented | Not Implemented | Not Implemented | Partially Working | Not Implemented | Route smoke checks include `/apps` and `/apps/trivia`; deeper tests missing. |
 | Communications | Partially Working | Partially Working | Partially Working | Working | Partially Working | Partially Working | Draft/queue guard regression coverage still needed. |
 | Letters & Printables | Partially Working | Not Implemented | Not Implemented | Working | Not Implemented | Partially Working | Unit merge/layout covered; route/API workflow expansion needed. |
-| Steward Paths | Partially Working | Not Implemented | Not Implemented | Working | Not Implemented | Partially Working | Engine/helper unit tests are present; builder E2E pending. |
+| Steward Paths | Working | Working | Not Implemented | Working | Working | Working | Engine/helper unit tests and API contract tests are present; builder E2E remains a coverage-depth follow-up. |
 | Reports | Working | Partially Working | Partially Working | Working | Partially Working | Partially Working | Smoke is strong; export and empty-state E2E assertions pending. |
 | Data Tools / Importer | Partially Working | Not Implemented | Not Implemented | Working | Not Implemented | Partially Working | CSV fixtures added; flow E2E/API dry-run coverage still pending. |

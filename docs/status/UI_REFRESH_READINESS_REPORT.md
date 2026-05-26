@@ -33,6 +33,11 @@ Date: May 19, 2026
 - DonorCRM dashboard default landing view now uses the latest mockup-inspired SaaS grid with live KPI cards, giving overview, recent gifts, top campaigns, retention, due-soon tasks, and quick actions.
 - Giving Trends fiscal-year mode now requests the configured fiscal year, compares against the prior fiscal year, and orders months from the fiscal start month.
 - DonorCRM dashboard now includes a "Who Gave This Month" widget with a modal donor list, per-donor task creation, bulk follow-up task saving, saved email audience-list creation, and email template draft starters.
+- DonorCRM dashboard naturalistic pass added real-data Acknowledgment Queue, Giving Source Mix, and Donor Health Snapshot widgets with empty/loading states.
+- Shared `CRMCard` and `CRMPageHeader` now use softer naturalistic card/header surfaces so refreshed donor pages feel more consistent without replacing route behavior.
+- DonorCRM dashboard now has editorial section headers for Today, Follow-up, Giving, and Next-work sections so the page reads like a stewardship command center.
+- Shared `CRMMetricCard`, `CRMFilterBar`, `CRMDataTable`, `CRMEmptyState`, and `CRMQuickActionCard` were refreshed with softer white/green card surfaces, more consistent typography, and calmer hover states.
+- Constituents and Donations tables received naturalistic polish for mobile cards, desktop headers, row hover states, and overflow action menus while preserving existing edit/delete/stewardship actions.
 - Top bar refreshed with a light SaaS-style surface and a dark diagonal brand block using `oyama-darklogocrm.png`; Steward runtime status tokens remain readable.
 - Workspace selector and DonorCRM mega menu now use dark surfaces with green active states.
 - Donor sidebar grouping/style refreshed with a separate Home group and Core CRM group while preserving existing destinations.
@@ -46,7 +51,7 @@ Date: May 19, 2026
 
 ## Not Yet Complete
 
-- Donations row/status styling cleanup.
+- Full browser QA for the latest naturalistic dashboard pass at `1366x768` and `1280x720`.
 - Meetings row/card styling cleanup.
 - Dashboard 1366x768 and 1280x720 browser screenshot verification.
 - Full e2e/build verification.

@@ -66,7 +66,7 @@ function ConstituentRowMoreMenu({ constituent, onDelete }: { constituent: Consti
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+        className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Open constituent actions"
@@ -77,14 +77,14 @@ function ConstituentRowMoreMenu({ constituent, onDelete }: { constituent: Consti
       </button>
 
       {open && (
-        <div className="absolute right-0 z-30 mt-1 w-44 rounded-lg border border-gray-200 bg-white p-1.5 text-xs shadow-lg">
-          <Link href={`/constituents/${constituent.id}`} onClick={() => setOpen(false)} className="block rounded px-2.5 py-1.5 text-gray-700 hover:bg-gray-50">
+        <div className="absolute right-0 z-30 mt-1 w-44 rounded-xl border border-slate-100 bg-white p-1.5 text-xs shadow-xl shadow-slate-200/70">
+          <Link href={`/constituents/${constituent.id}`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
             View Details
           </Link>
-          <Link href={`/constituents/${constituent.id}/edit`} onClick={() => setOpen(false)} className="block rounded px-2.5 py-1.5 text-gray-700 hover:bg-gray-50">
+          <Link href={`/constituents/${constituent.id}/edit`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
             Edit
           </Link>
-          <Link href={`/letters-printables/generate?constituentId=${constituent.id}`} onClick={() => setOpen(false)} className="block rounded px-2.5 py-1.5 text-gray-700 hover:bg-gray-50">
+          <Link href={`/letters-printables/generate?constituentId=${constituent.id}`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
             Draft Letter
           </Link>
           {onDelete && (
@@ -94,7 +94,7 @@ function ConstituentRowMoreMenu({ constituent, onDelete }: { constituent: Consti
                 setOpen(false);
                 onDelete(constituent.id);
               }}
-              className="block w-full rounded px-2.5 py-1.5 text-left text-red-600 hover:bg-red-50"
+              className="block w-full rounded-lg px-2.5 py-1.5 text-left font-semibold text-red-600 hover:bg-red-50"
             >
               Delete
             </button>
@@ -137,15 +137,15 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="p-8 text-center text-gray-400 text-sm">Loading constituents...</div>
+      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white">
+        <div className="p-8 text-center text-sm font-medium text-slate-400">Loading constituents...</div>
       </div>
     );
   }
 
   if (sorted.length === 0) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white">
         <EmptyStateCard
           className="border-0 shadow-none"
           title="No constituents in this view"
@@ -175,35 +175,35 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
 
   return (
     <div className="overflow-hidden bg-white">
-      <div className="md:hidden divide-y divide-gray-100">
+      <div className="divide-y divide-slate-100 md:hidden">
         {sorted.map((c) => (
-          <article key={c.id} className="p-3">
+          <article key={c.id} className="p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <Link href={`/constituents/${c.id}`} className="font-medium text-gray-900 hover:text-green-600 transition-colors">
                   {c.firstName} {c.lastName}
                 </Link>
-                {c.email && <p className="text-xs text-gray-500 mt-0.5 truncate">{c.email}</p>}
+                {c.email && <p className="mt-0.5 truncate text-xs text-slate-500">{c.email}</p>}
               </div>
               <ConstituentStatusBadge status={c.donorStatus} />
             </div>
 
             <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded-md bg-gray-50 px-2 py-1.5">
-                <p className="text-gray-500">Type</p>
-                <p className="font-medium text-gray-800">{typeLabel(c.type)}</p>
+              <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+                <p className="text-slate-500">Type</p>
+                <p className="font-semibold text-slate-800">{typeLabel(c.type)}</p>
               </div>
-              <div className="rounded-md bg-gray-50 px-2 py-1.5">
-                <p className="text-gray-500">YTD</p>
-                <p className="font-medium text-gray-900">{formatCurrency(c.totalYtdGiving)}</p>
+              <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+                <p className="text-slate-500">YTD</p>
+                <p className="font-semibold text-slate-950">{formatCurrency(c.totalYtdGiving)}</p>
               </div>
-              <div className="rounded-md bg-gray-50 px-2 py-1.5">
-                <p className="text-gray-500">Lifetime</p>
-                <p className="font-medium text-gray-800">{formatCurrency(c.totalLifetimeGiving)}</p>
+              <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+                <p className="text-slate-500">Lifetime</p>
+                <p className="font-semibold text-slate-800">{formatCurrency(c.totalLifetimeGiving)}</p>
               </div>
-              <div className="rounded-md bg-gray-50 px-2 py-1.5">
-                <p className="text-gray-500">Last Gift</p>
-                <p className="font-medium text-gray-800">{c.lastGiftAmount ? formatCurrency(c.lastGiftAmount) : "No gifts"}</p>
+              <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+                <p className="text-slate-500">Last Gift</p>
+                <p className="font-semibold text-slate-800">{c.lastGiftAmount ? formatCurrency(c.lastGiftAmount) : "No gifts"}</p>
               </div>
             </div>
 
@@ -236,12 +236,12 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
       <div className="hidden md:block overflow-x-auto">
       <table className="w-full min-w-[1100px] border-separate border-spacing-0 text-sm">
         <thead>
-          <tr className="border-b border-slate-200 bg-slate-50">
+          <tr className="border-b border-slate-100 bg-slate-50/80">
             {COLUMNS.map((col) => (
               <th
                 key={col.key}
-                className={`sticky top-0 z-10 border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap ${
-                  col.sortable ? "cursor-pointer hover:text-gray-900 select-none" : ""
+                className={`sticky top-0 z-10 whitespace-nowrap border-b border-slate-100 bg-slate-50/95 px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.11em] text-slate-500 ${
+                  col.sortable ? "cursor-pointer select-none hover:text-emerald-700" : ""
                 }`}
                 onClick={() => col.sortable && handleSort(col.key)}
               >
@@ -257,13 +257,13 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
         </thead>
         <tbody>
           {sorted.map((c) => (
-            <tr key={c.id} className="border-b border-slate-100 bg-white hover:bg-emerald-50/30 transition-colors">
+            <tr key={c.id} className="border-b border-slate-100 bg-white transition-colors hover:bg-emerald-50/35">
               {/* Name */}
               <td className="sticky left-0 z-[1] bg-inherit px-4 py-4 align-top">
-                <Link href={`/constituents/${c.id}`} className="font-medium text-gray-900 hover:text-green-600 transition-colors">
+                <Link href={`/constituents/${c.id}`} className="font-semibold text-slate-900 transition-colors hover:text-emerald-700">
                   {c.firstName} {c.lastName}
                 </Link>
-                {c.email && <p className="text-xs text-gray-400 mt-0.5">{c.email}</p>}
+                {c.email && <p className="mt-0.5 text-xs text-slate-400">{c.email}</p>}
               </td>
               {/* Type */}
               <td className="px-4 py-4 text-gray-600 whitespace-nowrap align-top">

@@ -12,6 +12,9 @@ export interface DashboardPreferences {
   showImpactBand: boolean;
   showStewardSuggestions: boolean;
   showMovementFeed: boolean;
+  showThisMonthsDonors: boolean;
+  showFollowUpWidgets: boolean;
+  showExpandedWidgets: boolean;
   showGivingTrend: boolean;
   showDesignationChart: boolean;
   showCampaignCards: boolean;
@@ -24,6 +27,9 @@ export const DASHBOARD_PREF_DEFAULTS: DashboardPreferences = {
   showImpactBand: true,
   showStewardSuggestions: true,
   showMovementFeed: true,
+  showThisMonthsDonors: true,
+  showFollowUpWidgets: true,
+  showExpandedWidgets: true,
   showGivingTrend: true,
   showDesignationChart: true,
   showCampaignCards: true,

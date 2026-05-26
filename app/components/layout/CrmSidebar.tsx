@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type React from "react";
 import type { DonorAccentTone } from "@/app/lib/workspace-settings";
+import type { DashboardChromeTint } from "@/app/lib/dashboard-image-tint";
 
 export type SidebarItemKind =
   | "workspace"
@@ -80,6 +81,7 @@ interface CrmSidebarProps {
   collapsedWidthClass?: string;
   organizationLabel?: string;
   donorAccentTone?: DonorAccentTone;
+  donorChromeTint?: DashboardChromeTint;
   footerAction?: {
     label: string;
     ariaLabel?: string;
@@ -276,6 +278,7 @@ export default function CrmSidebar({
   collapsedWidthClass = "w-20",
   organizationLabel = "Oyama Organization",
   donorAccentTone = "green",
+  donorChromeTint,
   footerAction,
 }: CrmSidebarProps) {
   const pathname = usePathname();
@@ -288,6 +291,13 @@ export default function CrmSidebar({
     }
     : VARIANT_STYLES[variant];
   const isDonorChrome = variant === "donor";
+  const donorTintStyle = isDonorChrome && donorChromeTint
+    ? {
+      background: `linear-gradient(180deg, ${donorChromeTint.dark} 0%, ${donorChromeTint.mid} 54%, ${donorChromeTint.base} 100%)`,
+      borderColor: donorChromeTint.border,
+      boxShadow: `10px 0 30px rgba(${donorChromeTint.shadowRgb}, 0.15)`,
+    }
+    : undefined;
   const focusRingClass = variant === "donor" ? donorAccent.focusRing : "focus-visible:ring-green-500";
   const [hash, setHash] = useState("");
   const [collapsed, setCollapsed] = useState(false);
@@ -422,6 +432,7 @@ export default function CrmSidebar({
     <aside
       className={`${styles.aside} group/sidebar relative ${isCollapsed ? collapsedWidthClass : expandedWidthClass} shrink-0 flex flex-col h-full select-none transition-[width] duration-200 ease-out`}
       data-sidebar-collapsed={isCollapsed ? "true" : "false"}
+      style={donorTintStyle}
     >
       <div className={`flex-1 overflow-y-auto px-3 py-6 ${SIDEBAR_SCROLLBAR_CLASS} ${styles.navSurface}`}>
         {!forceExpanded ? (

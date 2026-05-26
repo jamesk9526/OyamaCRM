@@ -865,6 +865,13 @@ Steward ThoughtStack is the reliability layer above Steward tool execution. Stew
 - Completed: Donor dashboard workspace uses a central real-data client adapter in `app/features/donor-dashboard/`.
 - Completed: Dashboard hero appearance is configurable from `Settings > Dashboard Appearance`.
 - Completed: Metric strip avoids fake sparklines and fake totals; missing values render as empty states.
+- Completed: Dashboard data adapter reports failed section requests so the workspace can show refresh warnings instead of silently replacing failures with fake data.
+- Completed: Naturalistic dashboard now includes real-data Acknowledgment Queue, Giving Source Mix, and Donor Health Snapshot widgets.
+- Completed: Naturalistic dashboard includes the real-data "Who Gave This Month" workflow backed by `/api/reports/donors-this-month`, with explicit unavailable/error state handling.
+- Completed: Shared DonorCRM `CRMCard` and `CRMPageHeader` primitives use softer naturalistic white/green surfaces for broader page refresh consistency.
+- Completed: Naturalistic dashboard sections now use editorial headers for stewardship, follow-up, giving momentum, and next work.
+- Completed: Shared DonorCRM metric, filter, table, empty-state, and quick-action primitives now carry the naturalistic visual treatment across refreshed pages.
+- Completed: Constituents and Donations row/card/table surfaces received a naturalistic polish pass without removing existing actions.
 - Completed: Active campaign summary counts only active campaigns in dashboard report summary.
 - Partial: Recent Donor Movement currently uses completed donation activity; notes, letters, event registrations, and completed task activity still need activity-feed adapters.
 - Partial: Major gift thank-you opportunity alerts need a dedicated data adapter that joins major completed gifts to completed thank-you tasks.

@@ -27,6 +27,7 @@ import {
   type ReportingYearMode,
 } from "@/app/lib/fiscal-year";
 import { buildHelpHref, mapModuleKeyToHelpScope } from "@/app/help-content";
+import type { DashboardChromeTint } from "@/app/lib/dashboard-image-tint";
 
 interface SearchResult {
   id: string;
@@ -759,10 +760,11 @@ function GlobalSearch({
 
 interface TopBarProps {
   scrolled?: boolean;
+  donorChromeTint?: DashboardChromeTint;
 }
 
 /** Full-width top navigation bar — spans the entire viewport width. */
-export default function TopBar({ scrolled = false }: TopBarProps) {
+export default function TopBar({ scrolled = false, donorChromeTint }: TopBarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, signOut } = useAuth();
@@ -797,8 +799,8 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
 
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
   const donorAccentTheme = getDonorAccentTheme(workspaceSettings.donorAccentTone);
-  const chromeButtonBase = "flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200/90 bg-white/95 text-slate-600 shadow-[0_6px_18px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0 max-[380px]:h-9 max-[380px]:w-9";
-  const darkIconButtonBase = "h-8 w-8 rounded-lg border border-transparent bg-transparent text-slate-500 flex items-center justify-center transition-all duration-200 hover:-translate-y-px hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 active:translate-y-0 active:scale-95";
+  const chromeButtonBase = "flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-slate-200/90 bg-white/95 text-slate-600 shadow-[0_6px_18px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0 max-[380px]:h-9 max-[380px]:w-9";
+  const darkIconButtonBase = "flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-transparent bg-transparent text-slate-500 transition-all duration-200 hover:-translate-y-px hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 active:translate-y-0 active:scale-95";
   const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] z-50 overflow-hidden xl:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
   const shellMotionClass = "duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]";
   const moduleAccentClass = moduleKey === "compassion"
@@ -892,7 +894,18 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
                 mobileBorderColor: "rgba(165,243,252,0.24)",
                 mobileShadow: "0 10px 26px rgba(14,116,144,0.24)",
               }
-              : {
+              : donorChromeTint ? {
+                scoopStart: donorChromeTint.dark,
+                scoopMid: donorChromeTint.mid,
+                scoopEnd: donorChromeTint.base,
+                scoopStroke: donorChromeTint.mid,
+                glowStart: donorChromeTint.light,
+                glowMid: donorChromeTint.base,
+                glowEnd: donorChromeTint.dark,
+                mobileGradient: `radial-gradient(circle at 8% 0%, ${donorChromeTint.light}24, transparent 42%), linear-gradient(135deg, ${donorChromeTint.dark}, ${donorChromeTint.mid} 58%, ${donorChromeTint.base})`,
+                mobileBorderColor: donorChromeTint.border,
+                mobileShadow: `0 8px 20px rgba(${donorChromeTint.shadowRgb}, 0.15)`,
+              } : {
                 scoopStart: "#012c25",
                 scoopMid: "#075443",
                 scoopEnd: "#0f766e",
@@ -2219,11 +2232,16 @@ function UserMenu({
   return (
     <div className="relative shrink-0">
       <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={user ? `Open profile menu for ${user.firstName} ${user.lastName}` : "Open profile menu"}
+        data-mobile-touch="true"
         title={user ? `${user.firstName} ${user.lastName}` : "Account"}
-        className="flex h-11 items-center gap-2.5 rounded-[18px] border border-transparent px-1.5 pr-2 text-left transition-colors hover:bg-slate-50/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200"
+        className="inline-flex h-11 max-w-[12rem] shrink-0 items-center gap-2 rounded-[18px] border border-transparent px-1.5 pr-2 text-left transition-colors hover:bg-slate-50/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 max-[480px]:h-10 max-[480px]:w-10 max-[480px]:justify-center max-[480px]:rounded-full max-[480px]:p-0"
       >
-        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold text-white shadow-[0_10px_22px_rgba(15,23,42,0.12)] ${avatarCls}`}>
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold text-white shadow-[0_10px_22px_rgba(15,23,42,0.12)] max-[480px]:h-9 max-[480px]:w-9 max-[480px]:text-xs ${avatarCls}`}>
           {initials}
         </span>
         <span className="hidden min-w-0 leading-tight 2xl:block">
@@ -2240,7 +2258,7 @@ function UserMenu({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="fixed inset-x-2 bottom-2 z-50 max-h-[calc(100dvh-1rem)] w-auto overflow-y-auto rounded-2xl border border-slate-200 bg-white pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-2xl xl:absolute xl:inset-x-auto xl:right-0 xl:bottom-auto xl:top-full xl:mt-2 xl:max-h-[min(80vh,44rem)] xl:w-[min(23rem,calc(100vw-1rem))] xl:pb-0">
+          <div role="menu" className="fixed inset-x-2 bottom-2 z-50 max-h-[calc(100dvh-1rem)] w-auto overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-2xl xl:absolute xl:inset-x-auto xl:right-0 xl:bottom-auto xl:top-full xl:mt-2 xl:max-h-[min(80vh,44rem)] xl:w-[min(23rem,calc(100vw-1rem))] xl:pb-0">
             <div className="px-4 py-3 border-b border-gray-100">
               <p className="text-sm font-medium text-gray-900">{user?.firstName} {user?.lastName}</p>
               <p className="text-xs text-gray-400 truncate">{user?.email}</p>
@@ -2251,12 +2269,12 @@ function UserMenu({
                 <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">More Tools</p>
                 <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-100">Workspace</span>
               </div>
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-1 gap-1.5 min-[420px]:grid-cols-2">
                 {showApps ? (
                   <button
                     type="button"
                     onClick={() => runProfileAction(onOpenApps)}
-                    className="flex min-h-10 items-center gap-2 rounded-xl border border-transparent bg-white px-2.5 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                    className="flex min-h-11 items-center gap-2 rounded-xl border border-transparent bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 xl:min-h-10 xl:px-2.5"
                   >
                     <AppsGridIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                     <span className="min-w-0 truncate">Apps</span>
@@ -2265,7 +2283,7 @@ function UserMenu({
                 <button
                   type="button"
                   onClick={() => runProfileAction(onOpenFeedback)}
-                  className="flex min-h-10 items-center gap-2 rounded-xl border border-transparent bg-white px-2.5 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                  className="flex min-h-11 items-center gap-2 rounded-xl border border-transparent bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 xl:min-h-10 xl:px-2.5"
                 >
                   <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
@@ -2275,7 +2293,7 @@ function UserMenu({
                 <button
                   type="button"
                   onClick={() => runProfileAction(onToggleMessages)}
-                  className="flex min-h-10 items-center justify-between gap-2 rounded-xl border border-transparent bg-white px-2.5 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                  className="flex min-h-11 items-center justify-between gap-2 rounded-xl border border-transparent bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 xl:min-h-10 xl:px-2.5"
                 >
                   <span className="inline-flex min-w-0 items-center gap-2">
                     <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
@@ -2292,7 +2310,7 @@ function UserMenu({
                 <Link
                   href="/steward-ai-workspace"
                   onClick={() => setOpen(false)}
-                  className="flex min-h-10 items-center gap-2 rounded-xl border border-transparent bg-white px-2.5 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                  className="flex min-h-11 items-center gap-2 rounded-xl border border-transparent bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 xl:min-h-10 xl:px-2.5"
                 >
                   <StewardAvatarIcon size={14} alt="Steward" className="ring-slate-300/80" />
                   <span className="min-w-0 truncate">Steward</span>
@@ -2300,7 +2318,7 @@ function UserMenu({
                 <Link
                   href={helpHref}
                   onClick={() => setOpen(false)}
-                  className="flex min-h-10 items-center gap-2 rounded-xl border border-transparent bg-white px-2.5 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                  className="flex min-h-11 items-center gap-2 rounded-xl border border-transparent bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 xl:min-h-10 xl:px-2.5"
                 >
                   <HelpCircleIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                   <span className="min-w-0 truncate">Help</span>
@@ -2310,7 +2328,7 @@ function UserMenu({
                     type="button"
                     onClick={() => runProfileAction(reportingWindow.onToggle)}
                     title={reportingWindow.description}
-                    className={`flex min-h-10 items-center justify-between gap-2 rounded-xl border px-2.5 py-2 text-[12px] font-semibold shadow-sm transition-colors ${
+                    className={`flex min-h-11 items-center justify-between gap-2 rounded-xl border px-3 py-2 text-[12px] font-semibold shadow-sm transition-colors xl:min-h-10 xl:px-2.5 ${
                       reportingWindow.mode === "fiscal"
                         ? "border-emerald-200 bg-emerald-50/90 text-emerald-800 hover:bg-emerald-100"
                         : "border-sky-200 bg-sky-50/90 text-sky-800 hover:bg-sky-100"
@@ -2324,7 +2342,7 @@ function UserMenu({
                   <button
                     type="button"
                     onClick={() => runProfileAction(() => switchDonorNavigationLayout("mega"))}
-                    className="flex min-h-10 items-center gap-2 rounded-xl border border-transparent bg-white px-2.5 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                    className="flex min-h-11 items-center gap-2 rounded-xl border border-transparent bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 xl:min-h-10 xl:px-2.5"
                   >
                     <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16M8 6v12" />
@@ -2340,7 +2358,7 @@ function UserMenu({
                   <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Admin Controls</p>
                   <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100">Admin</span>
                 </div>
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-1 gap-1.5 min-[420px]:grid-cols-2">
                   {adminLinks.map((link) => (
                     <Link
                       key={link.href}
@@ -2348,7 +2366,7 @@ function UserMenu({
                       target={link.openInNewTab ? "_blank" : undefined}
                       rel={link.openInNewTab ? "noopener noreferrer" : undefined}
                       onClick={() => setOpen(false)}
-                      className="flex min-h-10 items-center gap-2 rounded-xl border border-transparent bg-white px-2.5 py-2 text-[12px] font-semibold text-slate-700 shadow-sm transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                      className="flex min-h-11 items-center gap-2 rounded-xl border border-transparent bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 shadow-sm transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 xl:min-h-10 xl:px-2.5"
                     >
                       <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" d={link.icon} />

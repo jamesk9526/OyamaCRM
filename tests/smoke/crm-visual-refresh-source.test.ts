@@ -44,6 +44,10 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(naturalDashboard).toContain("StewardSuggestions");
     expect(naturalDashboard).toContain("DonorMovementFeed");
     expect(naturalDashboard).toContain("GivingDesignationChart");
+    expect(naturalDashboard).toContain("GiftAcknowledgmentQueue");
+    expect(naturalDashboard).toContain("GivingSourceMixCard");
+    expect(naturalDashboard).toContain("DonorHealthSnapshot");
+    expect(naturalDashboard).toContain("ThisMonthsDonorsCard");
     expect(dashboardService).toContain("/api/reports/giving-trend");
     expect(dashboardService).toContain("/api/reports/designations-summary");
     expect(dashboardService).toContain("/api/settings/dashboard-appearance");
@@ -51,6 +55,7 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(monthlyDonations).toContain("/api/reports/donors-this-month");
     expect(monthlyDonations).toContain("/api/email-campaigns/lists");
     expect(monthlyDonations).toContain("Save task with selected donors");
+    expect(monthlyDonations).toContain("This month's donor report could not be loaded.");
     expect(statCard).toContain("CRMMetricCard");
     expect(quickActionCard).toContain("actionLabel");
   });
@@ -59,6 +64,9 @@ describe("Donor CRM visual refresh foundation", () => {
     const topBar = read("app/components/layout/TopBar.tsx");
     const megaMenu = read("app/components/layout/DonorMegaMenu.tsx");
     const sidebar = read("app/components/layout/sidebar-configs.tsx");
+    const actionButton = read("app/components/ui/ActionButton.tsx");
+    const ribbonButton = read("app/components/workspace-ribbon/WorkspaceRibbonButton.tsx");
+    const globals = read("app/globals.css");
 
     expect(topBar).toContain("bg-white/95");
     expect(topBar).toContain("resolveTopBarModuleKey");
@@ -69,6 +77,16 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(topBar).toContain('aria-label="Open command search"');
     expect(topBar).toContain("Command Search");
     expect(topBar).toContain("autoFocus wide");
+    expect(topBar).toContain('aria-haspopup="menu"');
+    expect(topBar).toContain('aria-expanded={open}');
+    expect(topBar).toContain('data-mobile-touch="true"');
+    expect(topBar).toContain("min-[420px]:grid-cols-2");
+    expect(actionButton).toContain('data-mobile-touch="true"');
+    expect(actionButton).toContain("min-h-11");
+    expect(actionButton).toContain("sm:whitespace-nowrap");
+    expect(ribbonButton).toContain('data-mobile-touch="true"');
+    expect(globals).toContain('[data-mobile-touch="true"]');
+    expect(globals).toContain("min-height: 44px");
     expect(megaMenu).toContain("LIGHT_ACCENT_THEMES");
     expect(megaMenu).toContain("bg-slate-950/25");
     expect(megaMenu).toContain("accentTheme.navActive");

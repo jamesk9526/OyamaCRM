@@ -514,9 +514,10 @@ router.post("/templates/:id/duplicate", requirePermission("steward_paths.create"
   res.status(201).json(copy);
 });
 
-/** POST /api/steward-paths/templates/:id/test-run — pure dry-run simulation, no DB writes, no sends. */
+/** POST /api/steward-paths/templates/:id/test-run — creates a safe completed test enrollment, with no sends. */
 router.post("/templates/:id/test-run", requirePermission("steward_paths.view"), async (req, res) => {
   const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
   if (!organizationId) {
     res.status(400).json({ error: { code: "ORG_REQUIRED", message: "Organization context is required." } });
     return;
@@ -697,7 +698,34 @@ router.post("/templates/:id/test-run", requirePermission("steward_paths.view"), 
     blocked: dryRunSteps.filter((s) => s.result === "blocked").length,
   };
 
-  res.status(200).json({
+  const enrollment = await prisma.stewardPathEnrollment.create({
+    data: {
+      organizationId,
+      pathId: existing.id,
+      targetType: existing.targetType,
+      targetId: constituent.id,
+      constituentId: constituent.id,
+      status: "COMPLETED",
+      completedAt: new Date(),
+      lastStepCompletedAt: new Date(),
+      timelineEvents: {
+        create: {
+          eventType: "PATH_COMPLETED",
+          message: `Safe test run completed for ${constituent.firstName} ${constituent.lastName}`.trim(),
+          createdByUserId: userId,
+          metadataJson: {
+            testRun: true,
+            dryRun: true,
+            summary,
+          },
+        },
+      },
+    },
+  });
+
+  res.status(201).json({
+    success: true,
+    enrollmentId: enrollment.id,
     dryRun: true,
     pathId: existing.id,
     pathName: existing.name,

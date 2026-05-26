@@ -50,6 +50,11 @@ Goal: create reusable primitives without changing page behavior.
 - [x] Restrict Dashboard Tools to dashboard-local filters, chart focus, widget expansion, metric drill-ins, and refresh controls.
 - [x] Replace hand-drawn dashboard charts with Recharts-backed giving trend, designation, source, and retention visuals.
 - [x] Add lightweight dashboard entrance and chart animations while preserving live API data boundaries.
+- [x] Add naturalistic real-data dashboard widgets for gift acknowledgments, giving source mix, and donor health.
+- [x] Reintroduce the "Who Gave This Month" dashboard workflow into the naturalistic dashboard with real API data and no silent zero fallback on load errors.
+- [x] Soften shared CRM card/header primitives so refreshed DonorCRM pages inherit the calmer naturalistic surface.
+- [x] Add dashboard editorial section headers so the home screen reads as a stewardship command center instead of a stack of widgets.
+- [x] Refresh shared metric, filter, empty-state, quick-action, and table primitives with softer naturalistic surfaces.
 - [ ] Verify dashboard at 1366x768 and 1280x720.
 
 ### Phase 3: Constituents Page
@@ -59,6 +64,7 @@ Goal: create reusable primitives without changing page behavior.
 - [x] Convert the page action strip to grouped Explorer-style ribbon commands.
 - [x] Calm tag display: max 2 visible tags plus `+N more`.
 - [x] Move secondary row actions into a More menu only if no behavior is lost.
+- [x] Apply naturalistic table polish to mobile cards, headers, row hover, and row action menus.
 
 ### Phase 4: Donations Page
 
@@ -66,7 +72,7 @@ Goal: create reusable primitives without changing page behavior.
 - [x] Apply shared metric cards, action/filter strip, data-table shell, and badge system.
 - [x] Convert the donation command strip to grouped Explorer-style ribbon commands.
 - [x] Make stewardship loop notice an insight card instead of a warning-style banner.
-- [ ] Calm DonationTable row/status styling and keep row More menu intact.
+- [x] Calm DonationTable row/status styling and keep row More menu intact.
 
 ### Phase 5: Meetings Page
 

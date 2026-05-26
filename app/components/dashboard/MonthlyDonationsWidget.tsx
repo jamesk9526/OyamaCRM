@@ -109,17 +109,21 @@ export default function MonthlyDonationsWidget() {
   const [saving, setSaving] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [savedList, setSavedList] = useState<SavedRecipientList | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const result = await apiFetch<MonthlyData>("/api/reports/donors-this-month");
       setData(result);
       setSelectedIds(new Set(result.donors.map((donor) => donor.id)));
       setSavedList(null);
     } catch {
-      // Silently fail — show zero state
+      setData(null);
+      setSelectedIds(new Set());
+      setLoadError("This month's donor report could not be loaded.");
     } finally {
       setLoading(false);
     }
@@ -308,12 +312,14 @@ export default function MonthlyDonationsWidget() {
           <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">{monthLabel}</p>
           {loading ? (
             <div className="h-8 w-24 mt-1 bg-gray-200 rounded animate-pulse" />
+          ) : loadError ? (
+            <p className="mt-0.5 text-2xl font-bold text-slate-400">Unavailable</p>
           ) : (
             <p className="text-3xl font-bold text-gray-900 mt-0.5 tabular-nums">
               {formatUsd(data?.total ?? 0)}
             </p>
           )}
-          {!loading && (
+          {!loading && !loadError && (
             <p className="text-xs text-gray-500 mt-1">
               {data?.giftCount ?? 0} gift{(data?.giftCount ?? 0) !== 1 ? "s" : ""} from{" "}
               <span className="font-medium text-gray-700">{donorCount}</span> donor{donorCount !== 1 ? "s" : ""}
@@ -330,7 +336,7 @@ export default function MonthlyDonationsWidget() {
       </div>
 
       {/* ── View donors modal trigger ── */}
-      {!loading && donorCount > 0 && (
+      {!loading && !loadError && donorCount > 0 && (
         <button
           type="button"
           onClick={() => setModalOpen(true)}
@@ -347,7 +353,7 @@ export default function MonthlyDonationsWidget() {
         <button
           type="button"
           onClick={() => setModalOpen(true)}
-          disabled={loading || donors.length === 0}
+          disabled={loading || Boolean(loadError) || donors.length === 0}
           className="rounded-lg border border-gray-200 px-3 py-2 text-left text-xs font-semibold text-gray-700 hover:border-green-200 hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Manage donor list
@@ -360,7 +366,13 @@ export default function MonthlyDonationsWidget() {
         </Link>
       </div>
 
-      {!loading && donorCount === 0 && (
+      {!loading && loadError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+          {loadError} Try refreshing the dashboard or opening Reports.
+        </div>
+      )}
+
+      {!loading && !loadError && donorCount === 0 && (
         <p className="text-xs text-gray-400 italic">No donations recorded yet this month.</p>
       )}
 

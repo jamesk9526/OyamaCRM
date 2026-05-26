@@ -18,8 +18,8 @@ interface ActionButtonProps {
 }
 
 const SIZE_CLASS: Record<ActionSize, string> = {
-  sm: "h-8 px-3 text-xs",
-  md: "h-9 px-3.5 text-sm",
+  sm: "min-h-11 px-3 py-2 text-xs sm:h-8 sm:min-h-0 sm:py-0",
+  md: "min-h-11 px-3.5 py-2 text-sm sm:h-9 sm:min-h-0 sm:py-0",
 };
 
 const VARIANT_CLASS: Record<ActionVariant, string> = {
@@ -41,7 +41,7 @@ export default function ActionButton({
   className = "",
 }: ActionButtonProps) {
   const classes = [
-    "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border font-medium transition-colors",
+    "inline-flex max-w-full shrink-0 touch-manipulation items-center justify-center gap-1.5 rounded-md border text-center font-medium leading-tight transition-colors",
     SIZE_CLASS[size],
     VARIANT_CLASS[variant],
     disabled ? "cursor-not-allowed opacity-50" : "",
@@ -53,20 +53,20 @@ export default function ActionButton({
   const content = (
     <>
       {icon ? <span className="inline-flex h-3.5 w-3.5 items-center justify-center">{icon}</span> : null}
-      <span className="whitespace-nowrap">{label}</span>
+      <span className="min-w-0 whitespace-normal text-balance sm:whitespace-nowrap">{label}</span>
     </>
   );
 
   if (href && !disabled) {
     return (
-      <Link href={href} title={title ?? label} className={classes}>
+      <Link href={href} title={title ?? label} className={classes} data-mobile-touch="true">
         {content}
       </Link>
     );
   }
 
   return (
-    <button type="button" onClick={onClick} disabled={disabled} title={title ?? label} className={classes}>
+    <button type="button" onClick={onClick} disabled={disabled} title={title ?? label} className={classes} data-mobile-touch="true">
       {content}
     </button>
   );

@@ -218,7 +218,7 @@ export default function OpportunityEnginePlaceholderTable() {
                   {pendingActionId === `${row.id}:create-task` ? "Creating..." : "Create Task"}
                 </button>
                 <Link
-                  href="/automations"
+                  href="/steward-paths"
                   className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
                 >
                   Add to Steward Path

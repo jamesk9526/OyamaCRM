@@ -96,6 +96,10 @@ export function createNodeFromPalette(item: NodePaletteItem, idFactory: Workflow
             ...createBranchLane(idFactory, "If true", { includeDefaultCondition: false }),
             conditionGroups: [{ id: idFactory(), operator: "gt", value: "0" }],
           },
+          {
+            ...createBranchLane(idFactory, "If false", { includeDefaultCondition: false }),
+            conditionGroups: [{ id: idFactory(), operator: "lte", value: "0" }],
+          },
           createBranchLane(idFactory, "Else", { isFallback: true, includeDefaultCondition: false }),
         ],
       };

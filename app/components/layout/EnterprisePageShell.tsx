@@ -21,7 +21,7 @@ export default function EnterprisePageShell({
   maxWidthClassName = "max-w-[1480px]",
 }: EnterprisePageShellProps) {
   return (
-    <div className={`mx-auto flex w-full ${maxWidthClassName} flex-col gap-3 min-[1360px]:gap-4 ${className}`}>
+    <div className={`mx-auto flex w-full ${maxWidthClassName} flex-col gap-4 rounded-[1.75rem] bg-gradient-to-b from-white/35 via-emerald-50/20 to-transparent p-0 min-[1360px]:gap-5 ${className}`}>
       {ribbon ? <div className="min-w-0">{ribbon}</div> : null}
       <div className={`min-w-0 ${contentClassName}`}>{children}</div>
     </div>

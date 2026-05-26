@@ -48,11 +48,13 @@ function statusLabel(status: string): string {
 export default function TopDonorsWidget() {
   const [donors, setDonors] = useState<TopDonor[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadTopDonors() {
+      setError(null);
       try {
         const data = await apiFetch<TopDonor[]>("/api/reports/top-donors?limit=5");
         if (!cancelled) {
@@ -61,6 +63,7 @@ export default function TopDonorsWidget() {
       } catch {
         if (!cancelled) {
           setDonors([]);
+          setError("Top donors could not be loaded.");
         }
       } finally {
         if (!cancelled) {
@@ -100,7 +103,7 @@ export default function TopDonorsWidget() {
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
           <circle cx="9" cy="7" r="4" />
         </svg>
-        <p className="text-sm">No donor data yet</p>
+        <p className="text-sm">{error ?? "No donor data yet"}</p>
       </div>
     );
   }

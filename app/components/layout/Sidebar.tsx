@@ -7,15 +7,17 @@ import { usePlugins } from "@/app/components/plugins/PluginProvider";
 import CrmSidebar from "@/app/components/layout/CrmSidebar";
 import { buildDonorSidebarGroups } from "@/app/components/layout/sidebar-configs";
 import type { DonorAccentTone } from "@/app/lib/workspace-settings";
+import type { DashboardChromeTint } from "@/app/lib/dashboard-image-tint";
 
 interface SidebarProps {
   forceExpanded?: boolean;
   donorAccentTone?: DonorAccentTone;
+  donorChromeTint?: DashboardChromeTint;
   onSwitchToMegaMenu?: () => void;
 }
 
 /** Renders Donor CRM sidebar with grouped navigation, badges, and persisted collapse state. */
-export default function Sidebar({ forceExpanded = false, donorAccentTone = "green", onSwitchToMegaMenu }: SidebarProps) {
+export default function Sidebar({ forceExpanded = false, donorAccentTone = "green", donorChromeTint, onSwitchToMegaMenu }: SidebarProps) {
   const { qbEnabled } = usePlugins();
   const { user } = useAuth();
 
@@ -29,6 +31,7 @@ export default function Sidebar({ forceExpanded = false, donorAccentTone = "gree
       userRole={user?.role}
       forceExpanded={forceExpanded}
       donorAccentTone={donorAccentTone}
+      donorChromeTint={donorChromeTint}
       footerAction={!forceExpanded && onSwitchToMegaMenu ? {
         label: "Use Top Navigation",
         ariaLabel: "Switch navigation to top navigation",

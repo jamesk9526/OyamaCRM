@@ -173,7 +173,7 @@ export default function GrowthIdeasPanel() {
               <Link href="/communications" className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100">
                 Draft Campaign
               </Link>
-              <Link href="/automations" className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100">
+              <Link href="/steward-paths" className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100">
                 Add to Steward Path
               </Link>
               <Link href="/reports" className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">

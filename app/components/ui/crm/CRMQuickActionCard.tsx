@@ -13,10 +13,10 @@ interface CRMQuickActionCardProps {
 /** CRMQuickActionCard gives dashboard and workspace launchers one consistent shape. */
 export default function CRMQuickActionCard({ href, title, description, icon, actionLabel }: CRMQuickActionCardProps) {
   return (
-    <Link href={href} className="group flex min-h-[76px] items-start gap-3 rounded-md border border-slate-300 bg-gradient-to-b from-white to-slate-50 px-3 py-2.5 transition hover:border-emerald-300 hover:bg-emerald-50/45 hover:shadow-[0_1px_2px_rgba(15,23,42,0.08)]">
-      {icon ? <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm bg-white text-slate-600 ring-1 ring-slate-300 group-hover:bg-emerald-50 group-hover:text-emerald-700">{icon}</span> : null}
+    <Link href={href} className="group flex min-h-[82px] items-start gap-3 rounded-2xl border border-slate-100 bg-gradient-to-br from-white via-white to-slate-50 px-4 py-3 shadow-[0_10px_30px_rgba(15,23,42,0.045)] transition duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-emerald-50/45 hover:shadow-[0_16px_34px_rgba(15,23,42,0.08)]">
+      {icon ? <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100 group-hover:bg-white">{icon}</span> : null}
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-slate-900">{title}</span>
+        <span className="block text-sm font-bold text-slate-950">{title}</span>
         {description ? <span className="mt-1 block text-xs leading-5 text-slate-500">{description}</span> : null}
         {actionLabel ? <span className="mt-2 block text-xs font-semibold text-emerald-700">{actionLabel}</span> : null}
       </span>

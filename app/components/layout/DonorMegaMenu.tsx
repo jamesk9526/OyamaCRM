@@ -256,7 +256,7 @@ const RIBBON_TABS: RibbonTab[] = [
   { id: "outreach", label: "Outreach", href: "/communications", match: ["/communications", "/email-builder", "/letters-printables", "/livecom", "/meetings", "/steward-paths"] },
   { id: "reports", label: "Reports", href: "/reports", match: ["/reports", "/steward-signals", "/steward-ai-workspace"] },
   { id: "data", label: "Data", href: "/data-tools", match: ["/data-tools", "/custom-fields"] },
-  { id: "tools", label: "Tools", href: "/settings", match: ["/settings", "/help", "/automations"] },
+  { id: "tools", label: "Tools", href: "/settings", match: ["/settings", "/help", "/steward-paths", "/automations"] },
   { id: "view", label: "View", href: "/preferences", match: ["/preferences"] },
 ];
 

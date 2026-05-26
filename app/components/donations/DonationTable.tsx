@@ -82,14 +82,14 @@ function RowQuickActionsMenu({
     onMarkThanked(donation.id);
   }
 
-  const itemClass = "flex w-full items-center justify-between rounded px-2.5 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50";
+  const itemClass = "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
     <div className="relative" ref={menuRef}>
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+        className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Open donation quick actions"
@@ -100,7 +100,7 @@ function RowQuickActionsMenu({
       </button>
 
       {open && (
-        <div className="absolute right-0 z-30 mt-1 w-48 rounded-md border border-gray-200 bg-white p-1.5 shadow-lg">
+        <div className="absolute right-0 z-30 mt-1 w-48 rounded-xl border border-slate-100 bg-white p-1.5 shadow-xl shadow-slate-200/70">
           <button
             type="button"
             onClick={() => runAction(onCompleteStewardshipLoop)}
@@ -113,7 +113,7 @@ function RowQuickActionsMenu({
           <Link
             href={`/letters-printables/generate?constituentId=${donation.constituent.id}&donationId=${donation.id}`}
             onClick={() => setOpen(false)}
-            className="flex w-full items-center justify-between rounded px-2.5 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-50"
+            className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800"
           >
             <span>Letter</span>
           </Link>
@@ -199,7 +199,7 @@ function SortHeader({
   const active = sortKey === col;
   return (
     <th
-      className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:text-green-600"
+      className="cursor-pointer select-none px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.11em] text-slate-500 hover:text-emerald-700"
       onClick={() => onToggle(col)}
     >
       {label}{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
@@ -238,44 +238,44 @@ export default function DonationTable({
   }
 
   if (!sorted.length) {
-    return <div className="py-16 text-center text-gray-400 text-sm">No donations found.</div>;
+    return <div className="py-16 text-center text-sm font-medium text-slate-400">No donations found.</div>;
   }
 
   return (
     <div>
-      <div className="md:hidden space-y-2">
+      <div className="space-y-3 md:hidden">
         {sorted.map((d) => (
-          <article key={d.id} className="rounded-lg border border-gray-200 bg-white p-3">
+          <article key={d.id} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.045)]">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <Link href={`/constituents/${d.constituent.id}`} className="font-medium text-gray-800 hover:text-green-600">
+                <Link href={`/constituents/${d.constituent.id}`} className="font-semibold text-slate-900 hover:text-emerald-700">
                   {d.constituent.firstName} {d.constituent.lastName}
                 </Link>
-                {d.constituent.email && <p className="text-xs text-gray-500 truncate">{d.constituent.email}</p>}
+                {d.constituent.email && <p className="truncate text-xs text-slate-500">{d.constituent.email}</p>}
                 <p className={`mt-1 text-[11px] ${d.acknowledgmentSentAt ? "text-green-700" : "text-amber-700"}`}>
                   {d.acknowledgmentSentAt
                     ? `Thanked ${formatDate(d.acknowledgmentSentAt)}`
                     : "Needs acknowledgment"}
                 </p>
               </div>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(d.status)}`}>
+              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${statusColor(d.status)}`}>
                 {d.status.charAt(0) + d.status.slice(1).toLowerCase()}
               </span>
             </div>
 
             <div className="mt-2 flex items-center justify-between">
-              <span className="text-xs text-gray-500">{formatDonationDate(d.date)}</span>
-              <span className="font-semibold text-gray-900">{formatCurrency(d.amount)}</span>
+              <span className="text-xs text-slate-500">{formatDonationDate(d.date)}</span>
+              <span className="font-bold text-slate-950">{formatCurrency(d.amount)}</span>
             </div>
 
             <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded-md bg-gray-50 px-2 py-1.5">
-                <p className="text-gray-500">Method</p>
-                <p className="font-medium text-gray-800">{methodLabel(d.paymentMethod)}</p>
+              <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+                <p className="text-slate-500">Method</p>
+                <p className="font-semibold text-slate-800">{methodLabel(d.paymentMethod)}</p>
               </div>
-              <div className="rounded-md bg-gray-50 px-2 py-1.5">
-                <p className="text-gray-500">Recurring</p>
-                <p className="font-medium text-gray-800">{d.isRecurring ? "Yes" : "No"}</p>
+              <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+                <p className="text-slate-500">Recurring</p>
+                <p className="font-semibold text-slate-800">{d.isRecurring ? "Yes" : "No"}</p>
               </div>
             </div>
 
@@ -323,27 +323,27 @@ export default function DonationTable({
 
       <div className="hidden md:block overflow-x-auto overflow-y-visible">
       <table className="w-full text-sm">
-        <thead className="bg-gray-50 border-b border-gray-200">
+        <thead className="border-b border-slate-100 bg-slate-50/80">
           <tr>
             <SortHeader label="Date" col="date" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
             <SortHeader label="Donor" col="constituent" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
             <SortHeader label="Amount" col="amount" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Fund / Campaign</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Method</th>
+            <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.11em] text-slate-500">Fund / Campaign</th>
+            <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.11em] text-slate-500">Method</th>
             <SortHeader label="Status" col="status" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide w-72">Actions</th>
+            <th className="w-72 px-4 py-3 text-right text-[11px] font-bold uppercase tracking-[0.11em] text-slate-500">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-slate-100">
           {sorted.map(d => (
-            <tr key={d.id} className="hover:bg-gray-50 transition-colors">
-              <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{formatDonationDate(d.date)}</td>
+            <tr key={d.id} className="transition-colors hover:bg-emerald-50/35">
+              <td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatDonationDate(d.date)}</td>
               <td className="px-4 py-3">
-                <Link href={`/constituents/${d.constituent.id}`} className="font-medium text-gray-800 hover:text-green-600">
+                <Link href={`/constituents/${d.constituent.id}`} className="font-semibold text-slate-900 hover:text-emerald-700">
                   {d.constituent.firstName} {d.constituent.lastName}
                 </Link>
                 {d.constituent.email && (
-                  <div className="text-xs text-gray-400">{d.constituent.email}</div>
+                  <div className="text-xs text-slate-400">{d.constituent.email}</div>
                 )}
                 <div className="mt-1 text-[11px]">
                   {d.acknowledgmentSentAt ? (
@@ -358,7 +358,7 @@ export default function DonationTable({
                 </div>
               </td>
               <td className="px-4 py-3">
-                <span className="font-semibold text-gray-900">{formatCurrency(d.amount)}</span>
+                <span className="font-bold text-slate-950">{formatCurrency(d.amount)}</span>
                 {d.isRecurring && (
                   <span className="ml-1.5 inline-block text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">Recurring</span>
                 )}
