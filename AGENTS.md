@@ -582,6 +582,12 @@ Status labels in donor docs and readiness summaries must stay restricted to:
 - Demo Only
 - Broken
 - Not Implemented
+
+Current Oyama Reports app readiness checklist:
+
+- Working: prebuilt report registry, visible report card statuses, live-data-only default donation report runner, Recharts chart surface, data grid, and legacy `/reports/donor-crm` redirect.
+- Partially Working: Report Builder Lite saved views, PDF export, letter-list handoff, event-scoped donor joins, and cards whose backend endpoint coverage is incomplete.
+- Not Implemented: fabricated demo report data is not allowed; report pages must show empty, Partial, or Coming Soon states when live data is unavailable.
 <!-- END:donorcrm-stabilization-rules -->
 
 <!-- BEGIN:donor-engagement-system-rules -->

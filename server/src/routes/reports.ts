@@ -620,6 +620,7 @@ router.get("/summary", async (req, res) => {
     prisma.campaign.count({
       where: {
         organizationId,
+        active: true,
         ...(useAllYears ? {} : campaignOverlapRangeFilter(yearRange)),
       },
     }),
@@ -629,6 +630,7 @@ router.get("/summary", async (req, res) => {
     prisma.campaign.aggregate({
       where: {
         organizationId,
+        active: true,
         goal: { not: null },
         ...(useAllYears ? {} : campaignOverlapRangeFilter(yearRange)),
       },
@@ -641,6 +643,7 @@ router.get("/summary", async (req, res) => {
         campaign: {
           is: {
             organizationId,
+            active: true,
             ...(useAllYears ? {} : campaignOverlapRangeFilter(yearRange)),
           },
         },

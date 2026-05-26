@@ -96,7 +96,7 @@ const QUICK_TOOLS: QuickTool[] = [
   {
     title: "Reports",
     description: "Open donor reporting and trend views.",
-    href: "/reports/donor-crm",
+    href: "/reports",
   },
 ];
 

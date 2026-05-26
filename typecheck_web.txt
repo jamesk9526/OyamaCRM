@@ -1,0 +1,14 @@
+
+> agents-create-oyamam-crm-workspace@1.2.0 typecheck:web C:\Users\James\Documents\GitHub\OyamaCRM
+> tsc --noEmit
+
+
+> agents-create-oyamam-crm-workspace@1.2.0 typecheck:web C:\Users\James\Documents\GitHub\OyamaCRM
+> tsc --noEmit
+
+app/components/reports-app/report-data-adapter.ts(109,5): error TS2322: Type '({ [k: string]: string; } | { Month: string; Amount: number | null; "This Year": number | null; "Last Year": number | null; "New Donors": number | null; "Returning Donors": number | null; Rank?: undefined; ... 12 more ...; "Average Gift"?: undefined; } | { ...; } | { ...; } | { ...; })[]' is not assignable to type 'ReportTableRow[]'.
+  Type '{ [k: string]: string; } | { Month: string; Amount: number | null; "This Year": number | null; "Last Year": number | null; "New Donors": number | null; "Returning Donors": number | null; Rank?: undefined; ... 12 more ...; "Average Gift"?: undefined; } | { ...; } | { ...; } | { ...; }' is not assignable to type 'ReportTableRow'.
+    Type '{ Month: string; Amount: number | null; "This Year": number | null; "Last Year": number | null; "New Donors": number | null; "Returning Donors": number | null; Rank?: undefined; "Donor Name"?: undefined; ... 11 more ...; "Average Gift"?: undefined; }' is not assignable to type 'ReportTableRow'.
+      Property 'Rank' is incompatible with index signature.
+        Type 'undefined' is not assignable to type 'string | number | boolean | null'.
+ΓÇëELIFECYCLEΓÇë Command failed with exit code 2.

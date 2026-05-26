@@ -27,20 +27,24 @@ describe("Donor CRM visual refresh foundation", () => {
 
   it("keeps the dashboard refresh non-breaking by preserving existing dashboard entry points", () => {
     const page = read("app/page.tsx");
+    const dashboardState = read("app/components/dashboard/useDashboardPageState.ts");
     const visualDashboard = read("app/components/dashboard/DonorDashboardVisualRefresh.tsx");
     const monthlyDonations = read("app/components/dashboard/MonthlyDonationsWidget.tsx");
     const statCard = read("app/components/dashboard/StatCard.tsx");
     const quickActionCard = read("app/components/ui/crm/CRMQuickActionCard.tsx");
 
     expect(page).toContain("DonorDashboardVisualRefresh");
-    expect(page).toContain("/api/reports/summary");
-    expect(page).toContain("DashboardLayoutModal");
+    expect(page).toContain("useDashboardPageState");
+    expect(page).toContain("EnterprisePageShell");
     expect(page).not.toContain("WorkspaceRibbonGroup");
-    expect(page).toContain("CRMQuickActionCard");
-    expect(visualDashboard).toContain("Giving Overview");
+    expect(dashboardState).toContain("/api/reports/summary");
+    expect(dashboardState).toContain("/api/reports/donor-retention");
+    expect(visualDashboard).toContain("DashboardMetricCard");
     expect(visualDashboard).toContain("Who Gave This Month");
-    expect(visualDashboard).toContain("MonthlyDonationsWidget");
-    expect(visualDashboard).toContain("Quick Actions");
+    expect(visualDashboard).toContain("Giving by Designation");
+    expect(visualDashboard).toContain("Giving by Source");
+    expect(visualDashboard).toContain("Today At A Glance");
+    expect(visualDashboard).toContain("Dashboard Tools");
     expect(monthlyDonations).toContain("/api/reports/donors-this-month");
     expect(monthlyDonations).toContain("/api/email-campaigns/lists");
     expect(monthlyDonations).toContain("Save task with selected donors");
@@ -54,17 +58,16 @@ describe("Donor CRM visual refresh foundation", () => {
     const sidebar = read("app/components/layout/sidebar-configs.tsx");
 
     expect(topBar).toContain("bg-white/95");
-    expect(topBar).toContain("w-[25vw]");
-    expect(topBar).toContain("polygon(0 0, 88% 0, 100% 100%, 0 100%)");
-    expect(topBar).toContain("/branding/oyama-darklogocrm.png");
+    expect(topBar).toContain("resolveTopBarModuleKey");
+    expect(topBar).toContain("getDonorAccentTheme");
     expect(topBar).toContain("Switch Workspace");
-    expect(topBar).toContain("bg-slate-950");
+    expect(topBar).toContain("bg-slate-950/25");
     expect(topBar).toContain("Search constituents, campaigns, tools");
-    expect(topBar).toContain('aria-label="Open global search"');
+    expect(topBar).toContain('aria-label="Open command search"');
     expect(topBar).toContain("Command Search");
     expect(topBar).toContain("autoFocus wide");
-    expect(megaMenu).toContain("bg-slate-950");
-    expect(megaMenu).toContain("getDonorAccentTheme");
+    expect(megaMenu).toContain("LIGHT_ACCENT_THEMES");
+    expect(megaMenu).toContain("bg-slate-950/25");
     expect(megaMenu).toContain("accentTheme.navActive");
     expect(sidebar).toContain('label: "Core CRM"');
     expect(sidebar).toContain('label: "Home"');

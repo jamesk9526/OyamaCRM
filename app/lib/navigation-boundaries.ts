@@ -9,8 +9,7 @@ export function resolveTopBarModuleKey(pathname: string): TopBarModuleKey {
   if (pathname.startsWith("/watchdog")) return "watchdog";
   if (pathname.startsWith("/password")) return "password";
   if (pathname.startsWith("/webmaster")) return "webmaster";
-  if (pathname.startsWith("/reports/donor-crm")) return "donor";
-  if (pathname.startsWith("/reports")) return "oshareview";
+  if (pathname.startsWith("/reports")) return "donor";
   if (pathname.startsWith("/hrm")) return "hrm";
   return "donor";
 }

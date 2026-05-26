@@ -16,10 +16,11 @@ describe("letter builder UI redesign source contract", () => {
     expect(editor).toContain('data-testid="letter-right-sidebar"');
     expect(editor).toContain('data-testid="letter-bottom-status"');
     expect(editor).toContain("flex h-[calc(100dvh-5.75rem)]");
-    expect(editor).toContain("min-h-9 min-w-0 items-center justify-between");
-    expect(editor).toContain("border-l border-gray-200 pl-3");
+    expect(editor).toContain("min-h-9 min-w-0");
+    expect(editor).toContain("sm:justify-between");
+    expect(editor).toContain("border-l border-gray-200 bg-white");
     expect(editor).toContain("overflow-hidden bg-gray-50");
-    expect(editor).toContain("absolute bottom-0 left-0 right-0");
+    expect(editor).toContain("lg:absolute lg:bottom-0 lg:left-0 lg:right-0");
     expect(editor).toContain('floatingToolbarTopClassName="top-0"');
     expect(editor).toContain("Confirm Publish");
     expect(richEditor).toContain('data-testid="letter-floating-command-bar"');

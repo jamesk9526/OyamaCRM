@@ -373,6 +373,7 @@ describe("API smoke tests", () => {
       });
     expect(batch.status).toBe(200);
     expect(batch.body.generatedCount).toBeGreaterThanOrEqual(1);
+    expect(batch.body.queuePolicyApplied).toBeTruthy();
 
     const generatedId = (batch.body.generated as Array<{ id: string }>)?.[0]?.id;
     expect(generatedId).toBeTruthy();
@@ -385,11 +386,31 @@ describe("API smoke tests", () => {
     expect(String(batchPdf.headers["content-type"] || "")).toContain("application/pdf");
 
     const printQueue = await request(app)
-      .get("/api/letters/generated/queue/print?queueStatus=QUEUED_FOR_PRINT")
+      .get(`/api/letters/generated/queue/print?queueStatus=${batch.body.queuePolicyApplied.requirePrintApproval ? "NEEDS_REVIEW" : "QUEUED_FOR_PRINT"}`)
       .set(auth);
     expect(printQueue.status).toBe(200);
     const printRow = (printQueue.body as Array<{ id: string }>).find((row) => row.id === generatedId);
     expect(printRow).toBeTruthy();
+
+    if (batch.body.queuePolicyApplied.requirePrintApproval) {
+      const approve = await request(app)
+        .post("/api/letters/generated/queue/print/actions")
+        .set(auth)
+        .send({
+          action: "APPROVE",
+          letterIds: [generatedId],
+        });
+      expect(approve.status).toBe(200);
+
+      const queueForPrint = await request(app)
+        .post("/api/letters/generated/queue/print/actions")
+        .set(auth)
+        .send({
+          action: "QUEUE_FOR_PRINT",
+          letterIds: [generatedId],
+        });
+      expect(queueForPrint.status).toBe(200);
+    }
 
     const markPrinted = await request(app)
       .post("/api/letters/generated/queue/print/actions")
@@ -399,15 +420,6 @@ describe("API smoke tests", () => {
         letterIds: [generatedId],
       });
     expect(markPrinted.status).toBe(200);
-
-    const toMailQueue = await request(app)
-      .post("/api/letters/generated/queue/print/actions")
-      .set(auth)
-      .send({
-        action: "MOVE_TO_MAIL_QUEUE",
-        letterIds: [generatedId],
-      });
-    expect(toMailQueue.status).toBe(200);
 
     const mailQueue = await request(app)
       .get("/api/letters/generated/queue/mail?queueStatus=QUEUED_FOR_MAIL")

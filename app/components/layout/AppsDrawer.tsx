@@ -55,12 +55,13 @@ const AVAILABLE_APPS: DrawerApp[] = [
   },
   {
     id: "admin-reports",
-    label: "Admin Reports",
-    description: "Administrative reporting workspace for donor, compassion, governance, and data quality ops.",
-    href: "/reports?module=admin",
+    label: "Oyama Reports",
+    description: "Dedicated Donor CRM reporting app for prebuilt reports, exports, and board summaries.",
+    href: "/reports",
     tone: "blue",
     helper: "Reports",
     adminOnly: true,
+    openInNewTab: true,
   },
 ];
 

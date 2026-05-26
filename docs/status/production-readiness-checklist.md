@@ -16,6 +16,17 @@ Use only these status labels:
 
 ## Production Pass Phase 1/2 Snapshot (2026-05-14)
 
+## Oyama Reports App Snapshot (2026-05-26)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Canonical `/reports` app replaces legacy reporting workspace | Partially Working | `app/reports/page.tsx`, `app/components/reports-app/ReportsApp.tsx`, `app/reports/donor-crm/page.tsx` redirect |
+| Prebuilt report registry with visible card statuses | Working | `app/components/reports-app/report-registry.ts` uses card labels `Working`, `Partial`, and `Coming Soon` |
+| Live-data-only report runner | Working | `app/components/reports-app/report-data-adapter.ts` calls `/api/donations` and `/api/reports/*`; no seed/demo rows are used |
+| Recharts dashboard, KPI cards, and data grid | Partially Working | `app/components/reports-app/ReportCharts.tsx`, `app/components/reports-app/ReportResultsWorkspace.tsx`; depends on endpoint coverage per report |
+| Report Builder Lite | Partially Working | `app/components/reports-app/ReportBuilderLite.tsx`; browser-session saved view only until backend persistence is implemented |
+| CSV/PDF/export and letter-list handoff | Partially Working | CSV exports loaded rows client-side; PDF uses browser print placeholder; letter-list persistence route still needed |
+
 | Item | Status | Evidence |
 |---|---|---|
 | Central partial implementation audit established | Working | `docs/status/PARTIAL_IMPLEMENTATION_AUDIT.md` |

@@ -8,11 +8,6 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import CRMCard from "@/app/components/ui/crm/CRMCard";
-import CRMMetricCard from "@/app/components/ui/crm/CRMMetricCard";
-import GivingTrendChart from "@/app/components/dashboard/GivingTrendChart";
-import RecentDonationsWidget from "@/app/components/dashboard/RecentDonationsWidget";
-import DonorRetention from "@/app/components/dashboard/DonorRetention";
-import MonthlyDonationsWidget from "@/app/components/dashboard/MonthlyDonationsWidget";
 import { apiFetch } from "@/app/lib/auth-client";
 import StewardContextButton from "@/app/components/ai/StewardContextButton";
 
@@ -22,10 +17,6 @@ interface DonorDashboardVisualRefreshProps {
   loading: boolean;
   dataThroughLabel: string;
   totalConstituents: number;
-  ytdAmount: number;
-  ytdCount: number;
-  weekAmount: number;
-  weekCount: number;
   monthAmount: number;
   monthTrend: number | null;
   revenueGoal: number;
@@ -37,9 +28,7 @@ interface DonorDashboardVisualRefreshProps {
   activeCampaigns: number;
   newDonorsThisMonth: number;
   reportingYearMode: "calendar" | "fiscal";
-  includeGrants: boolean;
   onRefresh: () => void;
-  onCustomize: () => void;
 }
 
 interface CampaignSummary {
@@ -57,6 +46,45 @@ interface TaskPreview {
   taskType?: string;
   dueDate: string | null;
   constituent: { firstName: string; lastName: string } | null;
+}
+
+interface DonationPreview {
+  id: string;
+  amount: number | string;
+  date: string;
+  paymentMethod?: string | null;
+  constituent?: { id: string; firstName: string; lastName: string; email?: string | null } | null;
+  campaign?: { id: string; name: string } | null;
+  designation?: { id: string; name: string } | null;
+}
+
+interface DesignationBreakdownItem {
+  id: string;
+  name: string;
+  amount: number;
+  count: number;
+}
+
+interface PaymentMethodBreakdownItem {
+  method: string;
+  label: string;
+  amount: number;
+  count: number;
+}
+
+interface MonthlyDonorItem {
+  donorId: string;
+  profileHref: string;
+  name: string;
+  email: string | null;
+  amount: number;
+  count: number;
+  lastGiftDate: string;
+}
+
+interface TrendPoint {
+  label: string;
+  amount: number;
 }
 
 interface QuickAction {
@@ -77,7 +105,45 @@ type DashboardIconName =
   | "steward"
   | "more"
   | "gift"
-  | "pulse";
+  | "pulse"
+  | "calendar"
+  | "refresh"
+  | "chevron"
+  | "plus"
+  | "average";
+
+type DashboardRangeId = "CURRENT_WEEK" | "CURRENT_MONTH" | "YTD";
+
+type ExpandedDashboardWidget =
+  | "giving"
+  | "recent"
+  | "monthly-givers"
+  | "designation"
+  | "source"
+  | "today"
+  | "reports"
+  | "tools"
+  | "metric-giving"
+  | "metric-donors"
+  | "metric-new-donors"
+  | "metric-average"
+  | "metric-tasks"
+  | "metric-retention";
+
+const DASHBOARD_RANGES: Array<{ id: DashboardRangeId; label: string; comparisonLabel: string }> = [
+  { id: "CURRENT_WEEK", label: "This week", comparisonLabel: "vs. prior week" },
+  { id: "CURRENT_MONTH", label: "This month", comparisonLabel: "vs. prior month" },
+  { id: "YTD", label: "Year to date", comparisonLabel: "vs. prior year" },
+];
+
+const REPORT_SHORTCUTS: QuickAction[] = [
+  { label: "Donations by Designation", href: "/reports?report=designation-fund", icon: "gift" },
+  { label: "Monthly Giving Report", href: "/reports?report=monthly-giving", icon: "calendar" },
+  { label: "Top Donors", href: "/reports?report=top-donors", icon: "constituent" },
+  { label: "First Time Donors", href: "/reports?report=new-donor", icon: "steward" },
+  { label: "Comprehensive Analysis", href: "/reports", icon: "chart" },
+  { label: "Year Over Year", href: "/reports?report=year-to-date-giving", icon: "pulse" },
+];
 
 const QUICK_ACTIONS: QuickAction[] = [
   { label: "Add Constituent", href: "/constituents/new", icon: "constituent" },
@@ -87,11 +153,26 @@ const QUICK_ACTIONS: QuickAction[] = [
   { label: "Contacts Manager", href: "/contacts-manager", icon: "constituent" },
   { label: "Create Letter", href: "/letters-printables/generate", icon: "letter" },
   { label: "Campaigns", href: "/campaigns", icon: "gift" },
-  { label: "View Reports", href: "/reports/donor-crm", icon: "chart" },
+  { label: "View Reports", href: "/reports", icon: "chart" },
   { label: "Import Data", href: "/data-tools/import", icon: "import" },
   { label: "Steward Paths", href: "/steward-paths", icon: "steward" },
   { label: "Launch Steward", href: "/steward-signals", icon: "steward", badge: "AI" },
   { label: "More Tools", href: "/data-tools", icon: "more" },
+];
+
+const DASHBOARD_TOOL_ACTIONS: QuickAction[] = [
+  { label: "Contacts Manager", href: "/contacts-manager", icon: "constituent" },
+  { label: "Groups & Lists", href: "/contacts-manager/lists", icon: "constituent" },
+  { label: "Campaigns", href: "/campaigns", icon: "gift" },
+  { label: "Donations", href: "/donations", icon: "donation" },
+  { label: "Letters & Printables", href: "/letters-printables", icon: "letter" },
+  { label: "Communications", href: "/communications", icon: "mail" },
+  { label: "Tasks", href: "/tasks", icon: "task" },
+  { label: "Reports", href: "/reports", icon: "chart" },
+  { label: "Import Data", href: "/data-tools/import", icon: "import" },
+  { label: "Steward Paths", href: "/steward-paths", icon: "steward" },
+  { label: "Steward Signals", href: "/steward-signals", icon: "steward", badge: "AI" },
+  { label: "Designations", href: "/designations", icon: "gift" },
 ];
 
 function formatCurrency(value: number): string {
@@ -122,6 +203,164 @@ function toNumber(value: number | string | null | undefined): number {
   return Number.isFinite(next) ? next : 0;
 }
 
+function getRangeDates(rangeId: DashboardRangeId): { from?: string; to?: string } {
+  const now = new Date();
+  const to = now.toISOString().slice(0, 10);
+  if (rangeId === "YTD") return {};
+
+  const fromDate = new Date(now);
+  if (rangeId === "CURRENT_WEEK") {
+    const day = fromDate.getDay();
+    const diffToMonday = day === 0 ? 6 : day - 1;
+    fromDate.setDate(fromDate.getDate() - diffToMonday);
+  } else {
+    fromDate.setDate(1);
+  }
+  return { from: fromDate.toISOString().slice(0, 10), to };
+}
+
+function buildDonationQuery(rangeId: DashboardRangeId, reportingYearMode: "calendar" | "fiscal", campaignId: string): string {
+  const params = new URLSearchParams({ limit: "all", status: "COMPLETED", scope: "CURRENT_YEAR", dateBasis: reportingYearMode });
+  const rangeDates = getRangeDates(rangeId);
+  if (rangeDates.from) params.set("from", rangeDates.from);
+  if (rangeDates.to) params.set("to", rangeDates.to);
+  if (campaignId) params.set("campaignId", campaignId);
+  return `/api/donations?${params.toString()}`;
+}
+
+function buildDesignationBreakdown(donations: DonationPreview[]): DesignationBreakdownItem[] {
+  const byDesignation = new Map<string, DesignationBreakdownItem>();
+  donations.forEach((donation) => {
+    const designation = donation.designation;
+    const id = designation?.id ?? "undesignated";
+    const existing = byDesignation.get(id) ?? {
+      id,
+      name: designation?.name ?? "Undesignated",
+      amount: 0,
+      count: 0,
+    };
+    existing.amount += toNumber(donation.amount);
+    existing.count += 1;
+    byDesignation.set(id, existing);
+  });
+
+  return [...byDesignation.values()]
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 5);
+}
+
+function getDonorName(donation: DonationPreview): string {
+  const firstName = donation.constituent?.firstName?.trim() ?? "";
+  const lastName = donation.constituent?.lastName?.trim() ?? "";
+  const fullName = `${firstName} ${lastName}`.trim();
+  return fullName || "Unknown Donor";
+}
+
+function methodLabel(method: string | null | undefined): string {
+  const map: Record<string, string> = {
+    CREDIT_CARD: "Card",
+    ACH: "ACH",
+    CHECK: "Check",
+    CASH: "Cash",
+    WIRE: "Wire",
+    STOCK: "Stock",
+    IN_KIND: "In-kind",
+    ONLINE: "Online",
+    CRYPTO: "Crypto",
+    OTHER: "Other",
+  };
+  return map[method ?? ""] ?? "Other";
+}
+
+function methodColor(method: string | null | undefined): string {
+  const map: Record<string, string> = {
+    CREDIT_CARD: "bg-blue-100 text-blue-700",
+    ACH: "bg-green-100 text-green-700",
+    CHECK: "bg-amber-100 text-amber-700",
+    CASH: "bg-emerald-100 text-emerald-700",
+    WIRE: "bg-purple-100 text-purple-700",
+    STOCK: "bg-rose-100 text-rose-700",
+    IN_KIND: "bg-cyan-100 text-cyan-700",
+    ONLINE: "bg-indigo-100 text-indigo-700",
+  };
+  return map[method ?? ""] ?? "bg-slate-100 text-slate-600";
+}
+
+function buildPaymentMethodBreakdown(donations: DonationPreview[]): PaymentMethodBreakdownItem[] {
+  const byMethod = new Map<string, PaymentMethodBreakdownItem>();
+  donations.forEach((donation) => {
+    const method = donation.paymentMethod ?? "OTHER";
+    const existing = byMethod.get(method) ?? {
+      method,
+      label: methodLabel(method),
+      amount: 0,
+      count: 0,
+    };
+    existing.amount += toNumber(donation.amount);
+    existing.count += 1;
+    byMethod.set(method, existing);
+  });
+
+  return [...byMethod.values()].sort((a, b) => b.amount - a.amount);
+}
+
+function buildMonthlyDonorList(donations: DonationPreview[]): MonthlyDonorItem[] {
+  const byDonor = new Map<string, MonthlyDonorItem>();
+  donations.forEach((donation) => {
+    const donorId = donation.constituent?.id ?? `gift-${donation.id}`;
+    const existing = byDonor.get(donorId) ?? {
+      donorId,
+      profileHref: donation.constituent?.id ? `/constituents/${donation.constituent.id}` : "/donations",
+      name: getDonorName(donation),
+      email: donation.constituent?.email ?? null,
+      amount: 0,
+      count: 0,
+      lastGiftDate: donation.date,
+    };
+    existing.amount += toNumber(donation.amount);
+    existing.count += 1;
+    if (new Date(donation.date).getTime() > new Date(existing.lastGiftDate).getTime()) {
+      existing.lastGiftDate = donation.date;
+    }
+    byDonor.set(donorId, existing);
+  });
+
+  return [...byDonor.values()].sort((a, b) => b.amount - a.amount);
+}
+
+function relativeDate(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  if (diff < 0) return "Scheduled";
+  const days = Math.floor(diff / 86_400_000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days}d ago`;
+  if (days < 30) return `${Math.floor(days / 7)}w ago`;
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function buildTrendPoints(donations: DonationPreview[], rangeId: DashboardRangeId): TrendPoint[] {
+  const now = new Date();
+  const labels = rangeId === "YTD"
+    ? ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    : rangeId === "CURRENT_WEEK"
+      ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+      : Array.from({ length: now.getDate() }, (_, index) => String(index + 1));
+  const points = labels.map((label) => ({ label, amount: 0 }));
+
+  donations.forEach((donation) => {
+    const date = new Date(donation.date);
+    const index = rangeId === "YTD"
+      ? date.getMonth()
+      : rangeId === "CURRENT_WEEK"
+        ? (date.getDay() + 6) % 7
+        : date.getDate() - 1;
+    if (points[index]) points[index].amount += toNumber(donation.amount);
+  });
+
+  return points;
+}
+
 function DashboardIcon({ name, className = "h-5 w-5" }: { name: DashboardIconName; className?: string }) {
   const paths: Record<DashboardIconName, string> = {
     constituent: "M8.5 11.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM15.5 11.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3.75 18.5a4.75 4.75 0 0 1 9.5 0M10.75 18.5a4.75 4.75 0 0 1 9.5 0",
@@ -135,12 +374,506 @@ function DashboardIcon({ name, className = "h-5 w-5" }: { name: DashboardIconNam
     more: "M5 12h.01M12 12h.01M19 12h.01",
     gift: "M20 12v7H4v-7m16 0H4m16 0V8H4v4m8-4v11M9 8a2 2 0 1 1 3-1.7M15 8a2 2 0 1 0-3-1.7",
     pulse: "M4 13h3l2-6 4 12 2-6h5",
+    calendar: "M4.5 6.5h15v12h-15v-12ZM8 4v4M16 4v4M4.5 10.5h15",
+    refresh: "M4 4v5h5M20 20v-5h-5M5.5 15A7 7 0 0 0 18 17M18.5 9A7 7 0 0 0 6 7",
+    chevron: "m8 9 4 4 4-4",
+    plus: "M12 5v14M5 12h14",
+    average: "M5 19V5m0 14h14M9 15l2.5-4 3 2 4.5-7",
   };
 
   return (
     <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" d={paths[name]} />
     </svg>
+  );
+}
+
+function DashboardMetricCard({
+  label,
+  value,
+  helper,
+  icon,
+  tone,
+  loading,
+  progressPercent,
+  progressLabel,
+  onExpand,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+  icon: DashboardIconName;
+  tone: "emerald" | "blue" | "violet" | "cyan" | "orange";
+  loading: boolean;
+  progressPercent?: number | null;
+  progressLabel?: string;
+  onExpand?: () => void;
+}) {
+  const toneClassName = {
+    emerald: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+    blue: "bg-blue-50 text-blue-700 ring-blue-100",
+    violet: "bg-violet-50 text-violet-700 ring-violet-100",
+    cyan: "bg-cyan-50 text-cyan-700 ring-cyan-100",
+    orange: "bg-orange-50 text-orange-700 ring-orange-100",
+  }[tone];
+  const barClassName = {
+    emerald: "bg-emerald-500",
+    blue: "bg-blue-500",
+    violet: "bg-violet-500",
+    cyan: "bg-cyan-500",
+    orange: "bg-orange-500",
+  }[tone];
+  const boundedProgress = typeof progressPercent === "number" && Number.isFinite(progressPercent)
+    ? Math.max(0, Math.min(100, progressPercent))
+    : null;
+
+  return (
+    <CRMCard padding="sm" className="min-h-[6.75rem]">
+      <div className="flex items-start gap-3">
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-1 ${toneClassName}`}>
+          <DashboardIcon name={icon} className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate text-xs font-semibold text-slate-500">{label}</p>
+            {onExpand ? <button type="button" onClick={onExpand} className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-800">Open</button> : null}
+          </div>
+          {loading ? <div className="mt-1 h-6 w-24 animate-pulse rounded bg-slate-100" /> : <p className="mt-0.5 truncate text-xl font-bold tracking-tight text-slate-950">{value}</p>}
+          <p className="mt-1 truncate text-xs font-semibold text-emerald-600">{helper}</p>
+        </div>
+      </div>
+      {boundedProgress !== null ? (
+        <div className="mt-3">
+          <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+            <div className={`h-full rounded-full ${barClassName}`} style={{ width: `${boundedProgress}%` }} />
+          </div>
+          {progressLabel ? <p className="mt-1 truncate text-[11px] font-medium text-slate-500">{progressLabel}</p> : null}
+        </div>
+      ) : (
+        <div className="mt-3 h-1.5 rounded-full bg-slate-100" aria-hidden="true" />
+      )}
+    </CRMCard>
+  );
+}
+
+function OpenWidgetButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 hover:border-emerald-200 hover:text-emerald-700">
+      Open
+    </button>
+  );
+}
+
+function DesignationBreakdownCard({ items, loading, onExpand }: { items: DesignationBreakdownItem[]; loading: boolean; onExpand?: () => void }) {
+  const total = items.reduce((sum, item) => sum + item.amount, 0);
+  const palette = ["#2563eb", "#059669", "#f59e0b", "#ef4444", "#7c3aed"];
+  const topDesignation = items[0] ?? null;
+  let cursor = 0;
+  const gradientStops = items.length === 0
+    ? "#e2e8f0 0 100%"
+    : items.map((item, index) => {
+      const start = cursor;
+      const pct = total > 0 ? (item.amount / total) * 100 : 0;
+      cursor += pct;
+      return `${palette[index % palette.length]} ${start}% ${cursor}%`;
+    }).join(", ");
+
+  return (
+    <CRMCard padding="md" className="h-full min-h-[20rem]">
+      <SectionHeader
+        title="Giving by Designation"
+        action={<div className="flex items-center gap-2"><Link href="/reports?report=designation-fund" className="text-xs font-semibold text-slate-600 hover:text-slate-900">Report</Link>{onExpand ? <OpenWidgetButton onClick={onExpand} /> : null}</div>}
+      >
+        Live completed gifts from the selected filters
+      </SectionHeader>
+      {loading ? (
+        <div className="h-48 animate-pulse rounded-md bg-slate-100" />
+      ) : items.length === 0 ? (
+        <div className="flex h-48 items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50 text-xs text-slate-400">
+          No designation giving found for this view.
+        </div>
+      ) : (
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="grid gap-4 lg:grid-cols-[10rem_1fr] xl:grid-cols-1 2xl:grid-cols-[10rem_1fr]">
+            <div className="relative mx-auto flex h-40 w-40 items-center justify-center rounded-full" style={{ background: `conic-gradient(${gradientStops})` }}>
+              <div className="flex h-24 w-24 flex-col items-center justify-center rounded-full bg-white shadow-inner">
+                <span className="text-base font-bold text-slate-950">{formatCurrency(total)}</span>
+                <span className="text-[11px] font-semibold text-slate-500">Total</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {items.map((item, index) => {
+                const pct = total > 0 ? Math.round((item.amount / total) * 100) : 0;
+                return (
+                  <Link key={item.id} href={item.id === "undesignated" ? "/donations" : `/donations?designationId=${item.id}`} className="block rounded-md px-2 py-1.5 hover:bg-slate-50">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: palette[index % palette.length] }} />
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{item.name}</span>
+                      <span className="shrink-0 text-xs font-semibold text-slate-600">{pct}%</span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-2">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: palette[index % palette.length] }} />
+                      </div>
+                      <span className="w-20 shrink-0 text-right text-[11px] font-semibold text-slate-500">{formatCurrency(item.amount)}</span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+          <div className="mt-auto grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
+            <div className="rounded-md bg-slate-50 px-3 py-2">
+              <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Top fund</span>
+              <span className="mt-0.5 block truncate text-sm font-bold text-slate-900">{topDesignation?.name ?? "None"}</span>
+            </div>
+            <div className="rounded-md bg-emerald-50 px-3 py-2">
+              <span className="block text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Designations</span>
+              <span className="mt-0.5 block text-sm font-bold text-slate-900">{items.length.toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </CRMCard>
+  );
+}
+
+function PaymentSourceBreakdownCard({ items, total, loading, onExpand }: { items: PaymentMethodBreakdownItem[]; total: number; loading: boolean; onExpand?: () => void }) {
+  const topSource = items[0] ?? null;
+  return (
+    <CRMCard padding="md" className="h-full min-h-[20rem]">
+      <SectionHeader
+        title="Giving by Source"
+        action={<div className="flex items-center gap-2"><Link href="/donations" className="text-xs font-semibold text-slate-600 hover:text-slate-900">Donations</Link>{onExpand ? <OpenWidgetButton onClick={onExpand} /> : null}</div>}
+      >
+        Completed payment methods in the selected view
+      </SectionHeader>
+      {loading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-9 animate-pulse rounded bg-slate-100" />)}
+        </div>
+      ) : items.length === 0 ? (
+        <div className="flex h-40 items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50 text-xs text-slate-400">
+          No completed giving sources in this view.
+        </div>
+      ) : (
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            <div className="rounded-md bg-slate-50 px-3 py-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total</p>
+              <p className="mt-0.5 text-sm font-bold text-slate-950">{formatCurrency(total)}</p>
+            </div>
+            <div className="rounded-md bg-emerald-50 px-3 py-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Top source</p>
+              <p className="mt-0.5 truncate text-sm font-bold text-slate-950">{topSource?.label ?? "None"}</p>
+            </div>
+          </div>
+          <div className="space-y-2.5">
+            {items.map((item) => {
+              const pct = total > 0 ? Math.round((item.amount / total) * 100) : 0;
+              return (
+                <div key={item.method} className="rounded-md border border-slate-100 bg-white px-2.5 py-2">
+                  <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+                    <span className="inline-flex min-w-0 items-center gap-2 font-semibold text-slate-800">
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${methodColor(item.method)}`}>{item.label}</span>
+                      <span className="truncate text-xs font-medium text-slate-500">{item.count} gift{item.count === 1 ? "" : "s"}</span>
+                    </span>
+                    <span className="shrink-0 font-semibold text-slate-900">{formatCurrency(item.amount)}</span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="mt-1 text-right text-[11px] font-semibold text-slate-500">{pct}% of filtered giving</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </CRMCard>
+  );
+}
+
+function FilteredGivingTrendChart({ donations, rangeId, loading, expanded = false }: { donations: DonationPreview[]; rangeId: DashboardRangeId; loading: boolean; expanded?: boolean }) {
+  const points = useMemo(() => buildTrendPoints(donations, rangeId), [donations, rangeId]);
+  const total = points.reduce((sum, point) => sum + point.amount, 0);
+  const max = Math.max(1, ...points.map((point) => point.amount));
+  const chartWidth = 760;
+  const chartHeight = 245;
+  const padLeft = 54;
+  const padRight = 18;
+  const padTop = 18;
+  const padBottom = 34;
+  const plotWidth = chartWidth - padLeft - padRight;
+  const plotHeight = chartHeight - padTop - padBottom;
+  const xFor = (index: number) => padLeft + (plotWidth / Math.max(points.length - 1, 1)) * index;
+  const yFor = (amount: number) => padTop + plotHeight - (amount / max) * plotHeight;
+  const path = points.map((point, index) => `${index === 0 ? "M" : "L"}${xFor(index)} ${yFor(point.amount)}`).join(" ");
+  const areaPath = `${path} L${xFor(points.length - 1)} ${padTop + plotHeight} L${xFor(0)} ${padTop + plotHeight} Z`;
+  const tickIndexes = points.length <= 12
+    ? points.map((_, index) => index)
+    : points.map((_, index) => index).filter((index) => index === 0 || index === points.length - 1 || index % 5 === 0);
+
+  if (loading) {
+    return <div className={`flex ${expanded ? "h-[28rem]" : "h-[13rem]"} items-center justify-center rounded-md bg-slate-50 text-sm text-slate-400`}>Loading filtered giving...</div>;
+  }
+
+  if (donations.length === 0) {
+    return (
+      <div className={`flex ${expanded ? "h-[28rem]" : "h-[13rem]"} flex-col items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50 text-center`}>
+        <p className="text-sm font-semibold text-slate-600">No giving in this view</p>
+        <p className="mt-1 text-xs text-slate-400">Change the date range or campaign filter to broaden the dashboard.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <div>
+          <p className="text-3xl font-bold tracking-tight text-slate-950">{formatCurrency(total)}</p>
+          <p className="mt-1 text-xs font-semibold text-slate-500">Filtered giving total</p>
+        </div>
+        <p className="text-xs font-semibold text-slate-500">{donations.length.toLocaleString()} gift{donations.length === 1 ? "" : "s"}</p>
+      </div>
+      <div className={`relative ${expanded ? "h-[28rem]" : "h-[13rem]"} rounded-md border border-slate-100 bg-white/80 p-2`}>
+        <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="h-full w-full" aria-label="Filtered giving trend">
+          <defs>
+            <linearGradient id="filteredGivingArea" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#10b981" stopOpacity="0.24" />
+              <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+            const y = padTop + plotHeight * ratio;
+            const value = max * (1 - ratio);
+            return (
+              <g key={ratio}>
+                <line x1={padLeft} y1={y} x2={chartWidth - padRight} y2={y} stroke="#e2e8f0" />
+                <text x={padLeft - 8} y={y + 4} textAnchor="end" fontSize="10" fill="#94a3b8">{value >= 1000 ? `$${Math.round(value / 1000)}K` : `$${Math.round(value)}`}</text>
+              </g>
+            );
+          })}
+          <path d={areaPath} fill="url(#filteredGivingArea)" />
+          <path d={path} fill="none" stroke="#059669" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          {points.map((point, index) => (
+            <circle key={`${point.label}-${index}`} cx={xFor(index)} cy={yFor(point.amount)} r="3" fill="#059669" />
+          ))}
+          {tickIndexes.map((index) => (
+            <text key={index} x={xFor(index)} y={chartHeight - 8} textAnchor="middle" fontSize="10" fill="#94a3b8">{points[index]?.label}</text>
+          ))}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function MonthlyGiversCard({ donors, loading, onExpand }: { donors: MonthlyDonorItem[]; loading: boolean; onExpand?: () => void }) {
+  const total = donors.reduce((sum, donor) => sum + donor.amount, 0);
+  return (
+    <CRMCard padding="md" className="h-full min-h-[20rem]">
+      <SectionHeader
+        title="Who Gave This Month"
+        action={onExpand ? <OpenWidgetButton onClick={onExpand} /> : undefined}
+      >
+        Instant monthly giving list from completed gifts
+      </SectionHeader>
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <div className="rounded-md bg-emerald-50 px-3 py-2">
+          <p className="text-lg font-bold text-slate-950">{formatCurrency(total)}</p>
+          <p className="text-xs text-slate-500">Monthly giving</p>
+        </div>
+        <div className="rounded-md bg-slate-50 px-3 py-2">
+          <p className="text-lg font-bold text-slate-950">{donors.length.toLocaleString()}</p>
+          <p className="text-xs text-slate-500">Donors</p>
+        </div>
+      </div>
+      {loading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-9 animate-pulse rounded bg-slate-100" />)}
+        </div>
+      ) : donors.length === 0 ? (
+        <div className="flex h-32 items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50 text-xs text-slate-400">No completed gifts this month.</div>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {donors.slice(0, 7).map((donor) => (
+            <Link key={donor.donorId} href={donor.profileHref} className="grid grid-cols-[1fr_auto] gap-3 py-2 hover:bg-slate-50">
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold text-slate-900">{donor.name}</span>
+                <span className="block truncate text-xs text-slate-500">{donor.count} gift{donor.count === 1 ? "" : "s"} · {donor.email ?? relativeDate(donor.lastGiftDate)}</span>
+              </span>
+              <span className="text-right text-sm font-bold text-emerald-700">{formatCurrency(donor.amount)}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </CRMCard>
+  );
+}
+
+function DashboardToolsPanel({ onExpand }: { onExpand?: () => void }) {
+  return (
+    <CRMCard padding="md">
+      <SectionHeader title="Dashboard Tools" action={onExpand ? <OpenWidgetButton onClick={onExpand} /> : undefined}>
+        Fast access to the donor tools built so far
+      </SectionHeader>
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
+        {DASHBOARD_TOOL_ACTIONS.map((action) => (
+          <Link key={action.label} href={action.href} className="group flex min-h-11 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700">
+            <DashboardIcon name={action.icon} className="h-4 w-4 shrink-0 text-slate-500 group-hover:text-emerald-700" />
+            <span className="min-w-0 truncate">{action.label}</span>
+            {action.badge ? <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-700">{action.badge}</span> : null}
+          </Link>
+        ))}
+      </div>
+    </CRMCard>
+  );
+}
+
+function RecentActivityCard({ donations, loading, onExpand }: { donations: DonationPreview[]; loading: boolean; onExpand?: () => void }) {
+  return (
+    <CRMCard padding="md" className="min-h-[24rem]">
+      <SectionHeader
+        title="Recent Activity"
+        action={<div className="flex items-center gap-2"><Link href="/donations" className="text-xs font-semibold text-slate-600 hover:text-slate-900">View all</Link>{onExpand ? <OpenWidgetButton onClick={onExpand} /> : null}</div>}
+      >
+        Latest filtered gifts across your organization
+      </SectionHeader>
+      {loading ? (
+        <div className="space-y-2.5">
+          {Array.from({ length: 7 }).map((_, index) => <div key={index} className="h-10 animate-pulse rounded bg-slate-100" />)}
+        </div>
+      ) : donations.length === 0 ? (
+        <div className="flex h-48 items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50 text-xs text-slate-400">
+          No recent gifts match the current filters.
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {donations.slice(0, 8).map((donation) => (
+            <Link key={donation.id} href="/donations" className="grid grid-cols-[auto_1fr_auto] items-center gap-3 py-2.5 hover:bg-slate-50">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+                <DashboardIcon name="donation" className="h-3.5 w-3.5" />
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold text-slate-900">{getDonorName(donation)}</span>
+                <span className="block truncate text-xs text-slate-500">{donation.campaign?.name ?? donation.designation?.name ?? "General giving"}</span>
+              </span>
+              <span className="shrink-0 text-right">
+                <span className="block text-sm font-bold text-emerald-700">{formatCurrency(toNumber(donation.amount))}</span>
+                <span className={`mt-0.5 inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold ${methodColor(donation.paymentMethod)}`}>{methodLabel(donation.paymentMethod)}</span>
+                <span className="block text-[10px] text-slate-400">{relativeDate(donation.date)}</span>
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </CRMCard>
+  );
+}
+
+function TopReportsPanel({ onExpand }: { onExpand?: () => void }) {
+  return (
+    <CRMCard padding="md">
+      <SectionHeader
+        title="Your Top Reports"
+        action={<div className="flex items-center gap-2"><Link href="/reports" className="text-xs font-semibold text-blue-600 hover:text-blue-700">View all reports</Link>{onExpand ? <OpenWidgetButton onClick={onExpand} /> : null}</div>}
+      >
+        Quick access to commonly used donor reports
+      </SectionHeader>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+        {REPORT_SHORTCUTS.map((report) => (
+          <Link key={report.label} href={report.href} className="group flex min-h-[4.5rem] items-center gap-3 rounded-md border border-slate-200 bg-white px-4 py-3 transition-all hover:border-emerald-200 hover:bg-emerald-50">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100 group-hover:bg-white">
+              <DashboardIcon name={report.icon} className="h-5 w-5" />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-slate-900">{report.label}</span>
+              <span className="block truncate text-xs text-slate-500">Open live report</span>
+            </span>
+          </Link>
+        ))}
+      </div>
+    </CRMCard>
+  );
+}
+
+function MetricDetail({ title, value, detail }: { title: string; value: string; detail: string }) {
+  return (
+    <CRMCard padding="lg">
+      <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">{title}</p>
+      <p className="mt-3 text-5xl font-bold tracking-tight text-slate-950">{value}</p>
+      <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">{detail}</p>
+    </CRMCard>
+  );
+}
+
+function TodayAtAGlanceContent({
+  tasks,
+  tasksLoading,
+  pendingTasks,
+  overdueTasks,
+  activeCampaigns,
+  revenuePercent,
+  revenueGoal,
+  revenueGoalLabel,
+  filteredGivingTotal,
+  compact = false,
+}: {
+  tasks: TaskPreview[];
+  tasksLoading: boolean;
+  pendingTasks: number;
+  overdueTasks: number;
+  activeCampaigns: number;
+  revenuePercent: number;
+  revenueGoal: number;
+  revenueGoalLabel: string;
+  filteredGivingTotal: number;
+  compact?: boolean;
+}) {
+  return (
+    <div className={compact ? "space-y-2" : "space-y-3"}>
+      <div className="rounded-md border border-emerald-200 bg-white px-3 py-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Focus</p>
+        <p className="mt-1 text-sm font-semibold text-slate-900">{overdueTasks > 0 ? "Overdue stewardship work needs attention" : "Stewardship queue is current"}</p>
+        <p className="mt-1 text-xs leading-5 text-slate-500">{pendingTasks.toLocaleString()} open tasks · {overdueTasks.toLocaleString()} overdue · {activeCampaigns.toLocaleString()} campaigns</p>
+      </div>
+      <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Revenue pace</p>
+        <div className="mt-2 h-2 overflow-hidden rounded-sm bg-emerald-100">
+          <div className="h-full rounded-sm bg-emerald-500" style={{ width: `${revenuePercent}%` }} />
+        </div>
+        <p className="mt-2 text-xs text-slate-500">{revenuePercent}% of {revenueGoalLabel} · {formatCurrency(Math.max(0, revenueGoal - filteredGivingTotal))} remaining</p>
+      </div>
+      <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tasks due soon</p>
+          <Link href="/tasks" className="text-xs font-semibold text-slate-600 hover:text-slate-900">View all</Link>
+        </div>
+        {tasksLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: compact ? 2 : 5 }).map((_, index) => <div key={index} className="h-8 animate-pulse rounded bg-slate-100" />)}
+          </div>
+        ) : tasks.length === 0 ? (
+          <p className="rounded-md border border-dashed border-emerald-200 bg-emerald-50/60 px-3 py-4 text-center text-xs text-slate-500">No pending tasks due soon.</p>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {tasks.slice(0, compact ? 3 : 8).map((task) => (
+              <Link key={task.id} href="/tasks" className="grid grid-cols-[1fr_auto] items-center gap-3 py-2">
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-slate-800">{task.title}</span>
+                  <span className="block truncate text-xs text-slate-500">
+                    {task.constituent ? `${task.constituent.firstName} ${task.constituent.lastName}` : task.type ?? task.taskType ?? "Follow-up"}
+                  </span>
+                </span>
+                <span className={`text-xs font-semibold ${formatShortDate(task.dueDate) === "Overdue" || formatShortDate(task.dueDate) === "Today" ? "text-red-500" : "text-slate-500"}`}>
+                  {formatShortDate(task.dueDate)}
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -164,121 +897,6 @@ function SectionHeader({
   );
 }
 
-function DashboardRibbonCommand({ action }: { action: QuickAction }) {
-  return (
-    <Link
-      href={action.href}
-      className="group inline-flex h-8 min-w-fit items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 text-[11px] font-semibold text-slate-700 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
-      title={action.label}
-    >
-      <DashboardIcon name={action.icon} className="h-4 w-4 text-slate-500 group-hover:text-emerald-700" />
-      <span className="max-w-[9.5rem] truncate">{action.label}</span>
-      {action.badge ? <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">{action.badge}</span> : null}
-    </Link>
-  );
-}
-
-function DashboardRibbonGroup({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex min-w-0 flex-1 flex-col gap-1 border-r border-slate-200 px-2 py-1 last:border-r-0">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</span>
-      <div className="flex min-w-0 flex-wrap items-center gap-1">{children}</div>
-    </div>
-  );
-}
-
-function TopCampaignsCard({ campaigns, loading }: { campaigns: CampaignSummary[]; loading: boolean }) {
-  const topCampaigns = useMemo(() => {
-    return [...campaigns]
-      .sort((a, b) => toNumber(b.totalRaised) - toNumber(a.totalRaised))
-      .slice(0, 5);
-  }, [campaigns]);
-
-  return (
-    <CRMCard padding="md" className="min-h-[21rem]">
-      <SectionHeader
-        title="Top Campaigns"
-        action={<Link href="/campaigns" className="text-xs font-semibold text-emerald-700 hover:text-emerald-800">View all</Link>}
-      >
-        Active campaigns by raised amount
-      </SectionHeader>
-      {loading ? (
-        <div className="space-y-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="h-11 animate-pulse rounded-md bg-slate-100" />
-          ))}
-        </div>
-      ) : topCampaigns.length === 0 ? (
-        <div className="rounded-md border border-dashed border-emerald-200 bg-emerald-50/50 px-4 py-8 text-center text-sm text-slate-500">
-          No active campaigns yet.
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {topCampaigns.map((campaign) => {
-            const raised = toNumber(campaign.totalRaised);
-            const goal = toNumber(campaign.goal);
-            const pct = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
-            return (
-              <Link key={campaign.id} href={`/campaigns/${campaign.id}`} className="block rounded-md px-2 py-1 transition-colors hover:bg-emerald-50">
-                <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                  <span className="min-w-0 truncate font-semibold text-slate-900">{campaign.name}</span>
-                  <span className="shrink-0 text-xs font-medium text-slate-500">{pct}%</span>
-                </div>
-                <div className="mb-1 flex items-center justify-between gap-3 text-xs text-slate-500">
-                  <span>{formatCurrency(raised)}</span>
-                  <span>{goal > 0 ? formatCurrency(goal) : "No goal"}</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-sm bg-emerald-100">
-                  <div className="h-full rounded-sm bg-emerald-500" style={{ width: `${pct}%` }} />
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </CRMCard>
-  );
-}
-
-function TasksDueSoonCard({ tasks, loading }: { tasks: TaskPreview[]; loading: boolean }) {
-  return (
-    <CRMCard padding="md" className="min-h-[18rem]">
-      <SectionHeader
-        title="Tasks Due Soon"
-        action={<Link href="/tasks" className="text-xs font-semibold text-slate-600 hover:text-slate-900">View all</Link>}
-      />
-      {loading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="h-10 animate-pulse rounded-md bg-slate-100" />
-          ))}
-        </div>
-      ) : tasks.length === 0 ? (
-        <div className="rounded-md border border-dashed border-emerald-200 bg-emerald-50/50 px-4 py-8 text-center text-sm text-slate-500">
-          No pending tasks due soon.
-        </div>
-      ) : (
-        <div className="divide-y divide-slate-100">
-          {tasks.slice(0, 5).map((task) => (
-            <Link key={task.id} href="/tasks" className="grid grid-cols-[auto_1fr_auto] items-center gap-3 py-3">
-              <span className="h-4 w-4 rounded border border-slate-300 bg-white" />
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-medium text-slate-900">{task.title}</span>
-                <span className="block truncate text-xs text-slate-500">
-                  {task.constituent ? `${task.constituent.firstName} ${task.constituent.lastName}` : task.type ?? task.taskType ?? "Follow-up"}
-                </span>
-              </span>
-              <span className={`text-xs font-semibold ${formatShortDate(task.dueDate) === "Overdue" || formatShortDate(task.dueDate) === "Today" ? "text-red-500" : "text-slate-500"}`}>
-                {formatShortDate(task.dueDate)}
-              </span>
-            </Link>
-          ))}
-        </div>
-      )}
-    </CRMCard>
-  );
-}
-
 /**
  * Default donor dashboard experience inspired by the user's provided CRM mockup.
  * API-backed cards avoid fake activity while keeping the layout scan-friendly.
@@ -289,10 +907,6 @@ export default function DonorDashboardVisualRefresh({
   loading,
   dataThroughLabel,
   totalConstituents,
-  ytdAmount,
-  ytdCount,
-  weekAmount,
-  weekCount,
   monthAmount,
   monthTrend,
   revenueGoal,
@@ -304,15 +918,37 @@ export default function DonorDashboardVisualRefresh({
   activeCampaigns,
   newDonorsThisMonth,
   reportingYearMode,
-  includeGrants,
   onRefresh,
-  onCustomize,
 }: DonorDashboardVisualRefreshProps) {
+  const [selectedRange, setSelectedRange] = useState<DashboardRangeId>("YTD");
+  const [selectedCampaignId, setSelectedCampaignId] = useState("");
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [refreshNonce, setRefreshNonce] = useState(0);
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [campaignsLoading, setCampaignsLoading] = useState(true);
   const [tasks, setTasks] = useState<TaskPreview[]>([]);
   const [tasksLoading, setTasksLoading] = useState(true);
-  const revenuePercent = revenueGoal > 0 ? Math.min(100, Math.round((ytdAmount / revenueGoal) * 100)) : 0;
+  const [filteredDonations, setFilteredDonations] = useState<DonationPreview[]>([]);
+  const [monthlyDonations, setMonthlyDonations] = useState<DonationPreview[]>([]);
+  const [donationsLoading, setDonationsLoading] = useState(true);
+  const [monthlyDonationsLoading, setMonthlyDonationsLoading] = useState(true);
+  const [expandedWidget, setExpandedWidget] = useState<ExpandedDashboardWidget | null>(null);
+  const selectedCampaign = useMemo(
+    () => campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? null,
+    [campaigns, selectedCampaignId]
+  );
+  const filteredGivingTotal = filteredDonations.reduce((sum, donation) => sum + toNumber(donation.amount), 0);
+  const filteredGiftCount = filteredDonations.length;
+  const filteredAverageGift = filteredGiftCount > 0 ? filteredGivingTotal / filteredGiftCount : 0;
+  const filteredDonorCount = new Set(filteredDonations.map((donation) => donation.constituent?.id).filter(Boolean)).size;
+  const monthlyDonors = useMemo(() => buildMonthlyDonorList(monthlyDonations), [monthlyDonations]);
+  const designationBreakdown = useMemo(() => buildDesignationBreakdown(filteredDonations), [filteredDonations]);
+  const paymentMethodBreakdown = useMemo(() => buildPaymentMethodBreakdown(filteredDonations), [filteredDonations]);
+  const selectedCampaignGoal = selectedCampaign ? toNumber(selectedCampaign.goal) : 0;
+  const viewRevenueGoal = selectedCampaignGoal > 0 ? selectedCampaignGoal : revenueGoal;
+  const revenuePercent = viewRevenueGoal > 0 ? Math.min(100, Math.round((filteredGivingTotal / viewRevenueGoal) * 100)) : 0;
+  const revenueGoalLabel = selectedCampaignGoal > 0 ? `${selectedCampaign?.name ?? "Campaign"} goal` : "organization goal";
+  const activeRange = DASHBOARD_RANGES.find((range) => range.id === selectedRange) ?? DASHBOARD_RANGES[2];
   const monthTrendLabel = monthTrend == null
     ? "vs last month unavailable"
     : `${monthTrend >= 0 ? "Up" : "Down"} ${Math.abs(Math.round(monthTrend))}% vs last month`;
@@ -341,7 +977,7 @@ export default function DonorDashboardVisualRefresh({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshNonce]);
 
   useEffect(() => {
     let cancelled = false;
@@ -363,231 +999,218 @@ export default function DonorDashboardVisualRefresh({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshNonce]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadFilteredDonations() {
+      setDonationsLoading(true);
+      try {
+        const data = await apiFetch<{ items?: DonationPreview[] } | DonationPreview[]>(buildDonationQuery(selectedRange, reportingYearMode, selectedCampaignId));
+        const items = Array.isArray(data) ? data : data.items ?? [];
+        if (!cancelled) setFilteredDonations(items);
+      } catch {
+        if (!cancelled) setFilteredDonations([]);
+      } finally {
+        if (!cancelled) setDonationsLoading(false);
+      }
+    }
+
+    void loadFilteredDonations();
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshNonce, reportingYearMode, selectedCampaignId, selectedRange]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMonthlyDonations() {
+      setMonthlyDonationsLoading(true);
+      try {
+        const data = await apiFetch<{ items?: DonationPreview[] } | DonationPreview[]>(buildDonationQuery("CURRENT_MONTH", reportingYearMode, selectedCampaignId));
+        const items = Array.isArray(data) ? data : data.items ?? [];
+        if (!cancelled) setMonthlyDonations(items);
+      } catch {
+        if (!cancelled) setMonthlyDonations([]);
+      } finally {
+        if (!cancelled) setMonthlyDonationsLoading(false);
+      }
+    }
+
+    void loadMonthlyDonations();
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshNonce, reportingYearMode, selectedCampaignId]);
+
+  function handleRefresh() {
+    onRefresh();
+    setRefreshNonce((value) => value + 1);
+  }
+
+  function renderExpandedWidget() {
+    switch (expandedWidget) {
+      case "giving":
+        return <FilteredGivingTrendChart donations={filteredDonations} rangeId={selectedRange} loading={donationsLoading} expanded />;
+      case "recent":
+        return <RecentActivityCard donations={filteredDonations} loading={donationsLoading} />;
+      case "monthly-givers":
+        return <MonthlyGiversCard donors={monthlyDonors} loading={monthlyDonationsLoading} />;
+      case "designation":
+        return <DesignationBreakdownCard items={designationBreakdown} loading={donationsLoading} />;
+      case "source":
+        return <PaymentSourceBreakdownCard items={paymentMethodBreakdown} total={filteredGivingTotal} loading={donationsLoading} />;
+      case "today":
+        return <TodayAtAGlanceContent tasks={tasks} tasksLoading={tasksLoading} pendingTasks={pendingTasks} overdueTasks={overdueTasks} activeCampaigns={activeCampaigns} revenuePercent={revenuePercent} revenueGoal={viewRevenueGoal} revenueGoalLabel={revenueGoalLabel} filteredGivingTotal={filteredGivingTotal} />;
+      case "reports":
+        return <TopReportsPanel />;
+      case "tools":
+        return <DashboardToolsPanel />;
+      case "metric-giving":
+        return <MetricDetail title="Filtered Giving" value={formatCurrency(filteredGivingTotal)} detail={`${filteredGiftCount.toLocaleString()} completed gifts in the selected view across all payment sources.`} />;
+      case "metric-donors":
+        return <MetricDetail title="Donors In View" value={filteredDonorCount.toLocaleString()} detail={`Unique donors in the filtered completed-gift dataset. ${totalConstituents.toLocaleString()} total constituents exist in this workspace.`} />;
+      case "metric-new-donors":
+        return <MetricDetail title="New Donors" value={newDonorsThisMonth.toLocaleString()} detail="New donors in the selected reporting year from the dashboard summary endpoint." />;
+      case "metric-average":
+        return <MetricDetail title="Average Gift" value={formatCurrency(filteredAverageGift)} detail="Average gift amount from the selected completed donations." />;
+      case "metric-tasks":
+        return <MetricDetail title="Open Tasks" value={pendingTasks.toLocaleString()} detail={`${overdueTasks.toLocaleString()} tasks are overdue across the organization queue.`} />;
+      case "metric-retention":
+        return <MetricDetail title="Retention Rate" value={`${retentionRate}%`} detail={`${retentionRetained.toLocaleString()} of ${retentionTotal.toLocaleString()} donors retained this reporting year.`} />;
+      default:
+        return null;
+    }
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_4px_18px_rgba(15,23,42,0.06)]">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-gradient-to-r from-white via-emerald-50/35 to-slate-50 px-3 py-2.5">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-white shadow-sm">
-              <DashboardIcon name="pulse" className="h-4 w-4" />
-            </span>
-            <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold text-slate-950">DonorCRM Command Center</h1>
-              <p className="truncate text-xs text-slate-600">{greeting}, {name.split(" ")[0] || name} • {loading ? "Refreshing data" : dataThroughLabel}</p>
+    <div className="space-y-4 bg-slate-50/40 pb-6">
+      <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950">{greeting}, {name.split(" ")[0] || name}</h1>
+          <p className="mt-1 text-sm font-medium text-slate-500">Here&apos;s what&apos;s happening with your mission today. {loading ? "Refreshing data..." : dataThroughLabel}</p>
+        </div>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setCreateMenuOpen((open) => !open)}
+            className="inline-flex h-9 items-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-emerald-800"
+          >
+            <DashboardIcon name="plus" className="h-4 w-4" />
+            Create
+            <DashboardIcon name="chevron" className="h-4 w-4" />
+          </button>
+          {createMenuOpen ? (
+            <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl">
+              {QUICK_ACTIONS.slice(0, 6).map((action) => (
+                <Link key={action.label} href={action.href} className="flex items-center gap-3 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700" onClick={() => setCreateMenuOpen(false)}>
+                  <DashboardIcon name={action.icon} className="h-4 w-4" />
+                  {action.label}
+                </Link>
+              ))}
             </div>
+          ) : null}
+        </div>
+      </div>
+      </div>
+
+      <CRMCard padding="sm" className="shadow-[0_4px_18px_rgba(15,23,42,0.05)]">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex min-w-[13rem] flex-1 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
+            <DashboardIcon name="calendar" className="h-4 w-4 text-slate-500" />
+            <select value={selectedRange} onChange={(event) => setSelectedRange(event.target.value as DashboardRangeId)} className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-700 outline-none">
+              {DASHBOARD_RANGES.map((range) => <option key={range.id} value={range.id}>{range.label}</option>)}
+            </select>
+          </label>
+          <div className="min-w-[12rem] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-500">
+            {activeRange.comparisonLabel}
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
-            <span className="rounded-full border border-slate-200 bg-white/90 px-2.5 py-1">{reportingYearMode === "fiscal" ? "Fiscal mode" : "Calendar mode"}</span>
-            <span className="rounded-full border border-slate-200 bg-white/90 px-2.5 py-1">{activeCampaigns} active campaigns</span>
-            <button
-              type="button"
-              onClick={onRefresh}
-              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-slate-700 hover:border-emerald-200 hover:text-emerald-800"
-            >
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8 8 0 0 0 4.582 9M20 20v-5h-.581m0 0a8.003 8.003 0 0 1-15.357-2" />
-              </svg>
+          <div className="ml-auto flex flex-wrap items-center gap-3">
+            <span className="inline-flex h-10 items-center rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600">
+              {reportingYearMode === "fiscal" ? "Fiscal Year" : "Calendar Year"}
+            </span>
+            <select value={selectedCampaignId} disabled={campaignsLoading} onChange={(event) => setSelectedCampaignId(event.target.value)} className="h-10 min-w-[12rem] rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none disabled:bg-slate-50 disabled:text-slate-400">
+              <option value="">All Campaigns</option>
+              {campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
+            </select>
+            <button type="button" onClick={handleRefresh} className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:border-emerald-200 hover:text-emerald-700">
+              <DashboardIcon name="refresh" className="h-4 w-4" />
               Refresh
             </button>
           </div>
         </div>
+      </CRMCard>
 
-        <div className="border-b border-slate-200 bg-gradient-to-b from-white to-slate-50/70">
-          <div className="flex flex-wrap items-stretch">
-            <DashboardRibbonGroup label="Create">
-              {QUICK_ACTIONS.slice(0, 4).map((action) => <DashboardRibbonCommand key={action.label} action={action} />)}
-            </DashboardRibbonGroup>
-            <DashboardRibbonGroup label="Outreach">
-              {QUICK_ACTIONS.slice(4, 7).map((action) => <DashboardRibbonCommand key={action.label} action={action} />)}
-            </DashboardRibbonGroup>
-            <DashboardRibbonGroup label="Tools">
-              {QUICK_ACTIONS.slice(7, 10).map((action) => <DashboardRibbonCommand key={action.label} action={action} />)}
-              <button
-                type="button"
-                onClick={onCustomize}
-                className="group inline-flex h-8 min-w-fit items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 text-[11px] font-semibold text-slate-700 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
-              >
-                <DashboardIcon name="chart" className="h-4 w-4 text-slate-500 group-hover:text-emerald-700" />
-                <span>Customize</span>
-              </button>
-            </DashboardRibbonGroup>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <DashboardMetricCard label="Filtered Giving" value={formatCurrency(filteredGivingTotal)} helper={`${filteredGiftCount.toLocaleString()} gifts in view`} icon="donation" tone="emerald" loading={donationsLoading} progressPercent={revenuePercent} progressLabel={`${revenuePercent}% of ${revenueGoalLabel}`} onExpand={() => setExpandedWidget("metric-giving")} />
+        <DashboardMetricCard label="Donors In View" value={filteredDonorCount.toLocaleString()} helper={`${totalConstituents.toLocaleString()} total constituents`} icon="constituent" tone="blue" loading={donationsLoading} progressPercent={totalConstituents > 0 ? (filteredDonorCount / totalConstituents) * 100 : null} progressLabel="of constituent file" onExpand={() => setExpandedWidget("metric-donors")} />
+        <DashboardMetricCard label="New Donors" value={newDonorsThisMonth.toLocaleString()} helper="Selected reporting year" icon="gift" tone="violet" loading={loading} progressPercent={totalConstituents > 0 ? (newDonorsThisMonth / totalConstituents) * 100 : null} progressLabel="of constituent file" onExpand={() => setExpandedWidget("metric-new-donors")} />
+        <DashboardMetricCard label="Avg. Gift" value={formatCurrency(filteredAverageGift)} helper="Selected filters" icon="average" tone="cyan" loading={donationsLoading} progressLabel="live average from gifts" onExpand={() => setExpandedWidget("metric-average")} />
+        <DashboardMetricCard label="Open Tasks" value={pendingTasks.toLocaleString()} helper={overdueTasks > 0 ? `${overdueTasks} org tasks overdue` : "Org queue is current"} icon="task" tone="orange" loading={loading} progressPercent={pendingTasks > 0 ? (overdueTasks / pendingTasks) * 100 : 0} progressLabel="overdue share" onExpand={() => setExpandedWidget("metric-tasks")} />
+        <DashboardMetricCard label="Retention Rate" value={`${retentionRate}%`} helper={`${retentionRetained.toLocaleString()} of ${retentionTotal.toLocaleString()} retained this reporting year`} icon="pulse" tone="emerald" loading={loading} progressPercent={retentionRate} progressLabel="cohort retained" onExpand={() => setExpandedWidget("metric-retention")} />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <CRMMetricCard
-          label="Total Giving (YTD)"
-          value={formatCurrency(ytdAmount)}
-          loading={loading}
-          icon={<DashboardIcon name="donation" />}
-          helper={<span className="text-emerald-600">Raised from {ytdCount.toLocaleString()} gifts</span>}
-          tone="green"
-        />
-        <CRMMetricCard
-          label="Active Donors"
-          value={totalConstituents.toLocaleString()}
-          loading={loading}
-          icon={<DashboardIcon name="constituent" />}
-          helper="Constituents in this workspace"
-          tone="blue"
-        />
-        <CRMMetricCard
-          label="New Donors"
-          value={newDonorsThisMonth.toLocaleString()}
-          loading={loading}
-          icon={<DashboardIcon name="gift" />}
-          helper="This month"
-          tone="purple"
-        />
-        <CRMMetricCard
-          label="Open Tasks"
-          value={pendingTasks.toLocaleString()}
-          loading={loading}
-          icon={<DashboardIcon name="task" />}
-          helper={overdueTasks > 0 ? `${overdueTasks} due today or overdue` : "Queue is current"}
-          tone={overdueTasks > 0 ? "orange" : "slate"}
-        />
-        <CRMMetricCard
-          label="Retention Rate"
-          value={`${retentionRate}%`}
-          loading={loading}
-          icon={<DashboardIcon name="pulse" />}
-          helper={<span className="text-emerald-600">{retentionRetained.toLocaleString()} retained donors</span>}
-          tone="green"
-        />
-      </div>
+      <DashboardToolsPanel onExpand={() => setExpandedWidget("tools")} />
 
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.95fr)_minmax(18rem,0.82fr)]">
-        <CRMCard padding="md" className="min-h-[24rem]">
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.72fr)]">
+        <CRMCard padding="md" className="min-h-[18rem]">
           <SectionHeader
             title="Giving Overview"
-            action={<span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{reportingYearMode === "fiscal" ? "Fiscal YTD" : "Year to Date"}</span>}
+            action={<div className="flex items-center gap-2"><span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">{activeRange.label}</span><OpenWidgetButton onClick={() => setExpandedWidget("giving")} /></div>}
           >
-            {formatCurrency(ytdAmount)} raised toward {formatCurrency(revenueGoal)} ({revenuePercent}%)
+            Total giving over time
           </SectionHeader>
-          <GivingTrendChart includeGrants={includeGrants} dateBasis={reportingYearMode} />
-          <div className="mt-4 grid grid-cols-1 gap-3 border-t border-emerald-100 pt-4 sm:grid-cols-3">
-            <div>
-              <p className="text-xl font-semibold text-slate-950">{formatCurrency(ytdAmount)}</p>
-              <p className="mt-1 text-xs text-slate-500">This Year (YTD)</p>
+          <div className="mb-4">
+            <p className="text-3xl font-bold tracking-tight text-slate-950">{formatCurrency(filteredGivingTotal)}</p>
+            <p className="mt-1 text-xs font-semibold text-slate-500">{activeRange.label} · {selectedCampaignId ? "selected campaign" : "all campaigns"} · {revenuePercent}% of {revenueGoalLabel}</p>
+          </div>
+          <FilteredGivingTrendChart donations={filteredDonations} rangeId={selectedRange} loading={donationsLoading} />
+          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-emerald-100 pt-3 md:grid-cols-5">
+            <div className="rounded-md bg-emerald-50/70 px-3 py-2">
+              <p className="text-xl font-semibold text-slate-950">{formatCurrency(filteredGivingTotal)}</p>
+              <p className="mt-1 text-xs text-slate-500">Selected Total</p>
             </div>
-            <div>
+            <div className="rounded-md bg-slate-50 px-3 py-2">
+              <p className="text-xl font-semibold text-slate-950">{formatCurrency(filteredAverageGift)}</p>
+              <p className="mt-1 text-xs text-slate-500">Avg. Gift</p>
+            </div>
+            <div className="rounded-md bg-slate-50 px-3 py-2">
+              <p className={`text-xl font-semibold ${monthTrendToneClass}`}>{monthTrend == null ? "-" : `${monthTrend >= 0 ? "+" : ""}${Math.round(monthTrend)}%`}</p>
+              <p className="mt-1 text-xs text-slate-500">{monthTrendLabel}</p>
+            </div>
+            <div className="rounded-md bg-slate-50 px-3 py-2">
               <p className="text-xl font-semibold text-slate-950">{formatCurrency(monthAmount)}</p>
-              <p className="mt-1 text-xs text-slate-500">This Month</p>
+              <p className="mt-1 text-xs text-slate-500">Org Month Total</p>
             </div>
-            <div>
-              <p className="text-xl font-semibold text-slate-950">{formatCurrency(weekAmount)}</p>
-              <p className="mt-1 text-xs text-slate-500">{weekCount} gift{weekCount === 1 ? "" : "s"} this week</p>
+            <div className="rounded-md bg-slate-50 px-3 py-2">
+              <p className="text-xl font-semibold text-emerald-700">{filteredGiftCount.toLocaleString()}</p>
+              <p className="mt-1 text-xs text-slate-500">Filtered Gifts</p>
             </div>
           </div>
         </CRMCard>
 
-        <CRMCard padding="md" className="min-h-[24rem]">
-          <SectionHeader
-            title="Recent Activity"
-            action={<Link href="/donations" className="text-xs font-semibold text-slate-600 hover:text-slate-900">View all</Link>}
-          >
-            Live recent gifts
-          </SectionHeader>
-          <RecentDonationsWidget />
-        </CRMCard>
-
-        <CRMCard padding="md" className="min-h-[24rem] bg-gradient-to-b from-white to-emerald-50/35">
-          <SectionHeader title="Inspector">
-            Live priorities from this dashboard
-          </SectionHeader>
-          <div className="space-y-3">
-            <div className="rounded-md border border-emerald-200 bg-white px-3 py-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Focus</p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">{overdueTasks > 0 ? "Overdue stewardship work needs attention" : "Stewardship queue is current"}</p>
-              <p className="mt-1 text-xs leading-5 text-slate-500">{pendingTasks.toLocaleString()} open tasks · {overdueTasks.toLocaleString()} overdue</p>
-            </div>
-            <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Revenue pace</p>
-              <div className="mt-2 h-2 overflow-hidden rounded-sm bg-emerald-100">
-                <div className="h-full rounded-sm bg-emerald-500" style={{ width: `${revenuePercent}%` }} />
-              </div>
-              <p className="mt-2 text-xs text-slate-500">{revenuePercent}% of goal · {formatCurrency(Math.max(0, revenueGoal - ytdAmount))} remaining</p>
-            </div>
-            <StewardContextButton
-              label="Ask Steward for priorities"
-              prompt={`Summarize this DonorCRM dashboard. YTD revenue is $${ytdAmount.toLocaleString()}, active donors are ${totalConstituents}, retention is ${retentionRate}%, open tasks are ${pendingTasks}, active campaigns are ${activeCampaigns}. What should staff focus on today?`}
-              moduleKey="donor"
-              mode="ask"
-              variant="mini"
-            />
-          </div>
-        </CRMCard>
+        <RecentActivityCard donations={filteredDonations} loading={donationsLoading} onExpand={() => setExpandedWidget("recent")} />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 2xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)_minmax(20rem,0.9fr)_minmax(20rem,0.9fr)]">
-        <TopCampaignsCard campaigns={campaigns} loading={campaignsLoading} />
+      <div className="grid grid-cols-1 items-stretch gap-3 xl:grid-cols-2 2xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1fr)_minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <MonthlyGiversCard donors={monthlyDonors} loading={monthlyDonationsLoading} onExpand={() => setExpandedWidget("monthly-givers")} />
 
-        <CRMCard padding="md" className="min-h-[18rem]">
-          <SectionHeader
-            title="Who Gave This Month"
-            action={<Link href="/donations?filter=this-month" className="text-xs font-semibold text-slate-600 hover:text-slate-900">Donations</Link>}
-          >
-            Donor list, task, and email follow-up tools
-          </SectionHeader>
-          <MonthlyDonationsWidget />
-        </CRMCard>
+        <DesignationBreakdownCard items={designationBreakdown} loading={donationsLoading} onExpand={() => setExpandedWidget("designation")} />
 
-        <CRMCard padding="md" className="min-h-[18rem]">
-          <SectionHeader title="Donor Retention" action={<span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">All Donors</span>}>
-            <span className={monthTrendToneClass}>{monthTrendLabel}</span>
-          </SectionHeader>
-          <DonorRetention
-            retained={retentionRetained}
-            total={retentionTotal}
-            rate={retentionRate}
-            loading={loading}
-          />
-        </CRMCard>
+        <PaymentSourceBreakdownCard items={paymentMethodBreakdown} total={filteredGivingTotal} loading={donationsLoading} onExpand={() => setExpandedWidget("source")} />
 
-        <TasksDueSoonCard tasks={tasks} loading={tasksLoading} />
-
-        <CRMCard padding="md" className="min-h-[18rem]">
-          <SectionHeader title="Today At A Glance">
+        <CRMCard padding="md" className="h-full min-h-[20rem] bg-gradient-to-b from-white to-emerald-50/35">
+          <SectionHeader title="Today At A Glance" action={<OpenWidgetButton onClick={() => setExpandedWidget("today")} />}>
             Key movement and next actions
           </SectionHeader>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Week gifts</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{weekCount.toLocaleString()}</p>
-              <p className="text-xs text-slate-500">{formatCurrency(weekAmount)}</p>
-            </div>
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Month pace</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{formatCurrency(monthAmount)}</p>
-              <p className={`text-xs ${monthTrendToneClass}`}>{monthTrendLabel}</p>
-            </div>
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Open tasks</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{pendingTasks.toLocaleString()}</p>
-              <p className={`text-xs ${overdueTasks > 0 ? "text-rose-600" : "text-slate-500"}`}>{overdueTasks > 0 ? `${overdueTasks} overdue` : "No overdue tasks"}</p>
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {QUICK_ACTIONS.slice(0, 6).map((action) => (
-              <Link
-                key={action.label}
-                href={action.href}
-                className="group flex min-h-12 items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-all hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
-              >
-                <DashboardIcon name={action.icon} className="h-4 w-4 shrink-0 text-slate-500 group-hover:text-emerald-700" />
-                <span className="min-w-0 flex-1 truncate">{action.label}</span>
-                {action.badge ? <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">{action.badge}</span> : null}
-              </Link>
-            ))}
-          </div>
-          <div className="mt-3 border-t border-emerald-100 pt-3">
+          <div className="space-y-2">
+            <TodayAtAGlanceContent tasks={tasks} tasksLoading={tasksLoading} pendingTasks={pendingTasks} overdueTasks={overdueTasks} activeCampaigns={activeCampaigns} revenuePercent={revenuePercent} revenueGoal={viewRevenueGoal} revenueGoalLabel={revenueGoalLabel} filteredGivingTotal={filteredGivingTotal} compact />
             <StewardContextButton
-              label="Summarize dashboard"
-              prompt={`Summarize this DonorCRM dashboard. YTD revenue is $${ytdAmount.toLocaleString()}, active donors are ${totalConstituents}, retention is ${retentionRate}%, open tasks are ${pendingTasks}, active campaigns are ${activeCampaigns}. What should staff focus on today?`}
+              label="Ask Steward for priorities"
+              prompt={`Summarize this DonorCRM dashboard. Filtered giving is $${filteredGivingTotal.toLocaleString()}, the selected view has ${filteredGiftCount} gifts and ${filteredDonorCount} donors, total constituents are ${totalConstituents}, retention is ${retentionRate}%, open tasks are ${pendingTasks}, active campaigns are ${activeCampaigns}. What should staff focus on today?`}
               moduleKey="donor"
               mode="ask"
               variant="mini"
@@ -595,6 +1218,22 @@ export default function DonorDashboardVisualRefresh({
           </div>
         </CRMCard>
       </div>
+
+      <TopReportsPanel onExpand={() => setExpandedWidget("reports")} />
+
+      {expandedWidget ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 p-4" role="dialog" aria-modal="true">
+          <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Dashboard widget</h2>
+              <button type="button" onClick={() => setExpandedWidget(null)} className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Close</button>
+            </div>
+            <div className="overflow-auto bg-slate-50 p-4">
+              {renderExpandedWidget()}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

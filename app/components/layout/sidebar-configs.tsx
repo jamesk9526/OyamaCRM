@@ -245,7 +245,7 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
         {
           id: "reports",
           label: "Reports",
-          href: "/reports/donor-crm",
+          href: "/reports",
           icon: DONOR_ICONS.reports,
           kind: "insight",
           description: "Open DonorCRM report tools for giving, retention, stewardship, and campaigns.",

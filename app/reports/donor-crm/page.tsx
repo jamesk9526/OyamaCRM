@@ -1,7 +1,8 @@
-// DonorCRM reports route composed from the modular donor reports workspace.
-import DonorReportsPage from "@/app/components/donor-reports/DonorReportsPage";
+// Legacy DonorCRM reports route kept as a compatibility redirect.
 
-/** Renders the DonorCRM-owned reporting tool library. */
-export default function DonorReportsRoute() {
-  return <DonorReportsPage />;
+import { redirect } from "next/navigation";
+
+/** Redirects old DonorCRM reports links into the canonical Oyama Reports app. */
+export default function LegacyDonorReportsRoute() {
+  redirect("/reports");
 }

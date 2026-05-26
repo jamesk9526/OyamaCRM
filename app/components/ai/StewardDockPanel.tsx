@@ -1,101 +1,132 @@
 /**
- * StewardDockPanel — floating material-light chat-head + slide-in right-side dock panel.
- * Renders a floating Steward button when closed; a fixed 420px right panel
- * containing AGENTStewardWorkspace in dock mode when open.
- * This is the unified docked agent surface — the full workspace lives at /steward-ai-workspace.
+ * StewardDockPanel renders the unified Steward + staff messages dock.
+ *
+ * The dock intentionally behaves like a compact DM window instead of a
+ * full-height CRM side panel: a bottom-right launcher opens a tabbed
+ * conversation surface for Steward AI and internal staff messages.
  */
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import AGENTStewardWorkspace from "@/app/components/ai/AGENTStewardWorkspace";
+import { useCallback, useEffect, useRef, useState } from "react";
+import MessengerPanel from "@/app/components/messenger/MessengerPanel";
+import StewardChatPanel from "@/app/components/ai/StewardChatPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 import { STEWARD_OPEN_EVENT, type StewardOpenPromptDetail } from "@/app/lib/steward-context";
 
+type DockTab = "steward" | "messages";
+type StewardChatModuleKey =
+  | "donor"
+  | "compassion"
+  | "events"
+  | "watchdog"
+  | "webmaster"
+  | "oshareview"
+  | "hrm"
+  | "password";
+
 interface StewardDockPanelProps {
-  /** Active CRM module key passed from TopBar so the dock scopes correctly. */
+  /** Active CRM module key passed from TopBar so Steward scopes correctly. */
   moduleKey?: string;
-  /** When true, lowers the chat-head z-index so overlays (e.g. Messenger panel) appear on top. */
+  /** Kept for older call sites; the new dock no longer sits behind Messenger. */
   behindOverlay?: boolean;
+  /** TopBar message button command. When true, the dock opens to Messages. */
+  messagesOpen?: boolean;
+  /** Keeps TopBar unread and background-SSE behavior in sync with the dock tab. */
+  onMessagesOpenChange?: (open: boolean) => void;
+  /** Current unread count for the closed launcher badge. */
+  messengerUnread?: number;
+  /** Receives unread count changes from the embedded Messenger app. */
+  onMessengerUnreadChange?: (count: number) => void;
 }
 
 const STORAGE_KEY = "steward-dock-open";
-const WIDTH_STORAGE_KEY = "steward-dock-width";
+const TAB_STORAGE_KEY = "steward-dock-tab";
 const DOCK_STATE_EVENT = "steward-dock-state";
-const DOCK_WIDTH_PX = 420;
-const DOCK_MIN_WIDTH_PX = 360;
-const DOCK_MAX_WIDTH_PX = 780;
-const TOPBAR_OFFSET_PX = 56;
 
-/** StewardDockPanel renders the floating chat-head and the slide-in agent dock. */
-export default function StewardDockPanel({ moduleKey, behindOverlay = false }: StewardDockPanelProps) {
+function normalizeStewardModule(moduleKey?: string): StewardChatModuleKey {
+  const valid = new Set<StewardChatModuleKey>([
+    "donor",
+    "compassion",
+    "events",
+    "watchdog",
+    "webmaster",
+    "oshareview",
+    "hrm",
+    "password",
+  ]);
+  return moduleKey && valid.has(moduleKey as StewardChatModuleKey)
+    ? (moduleKey as StewardChatModuleKey)
+    : "donor";
+}
+
+/** StewardDockPanel combines Steward AI and real staff DMs in one docked chat box. */
+export default function StewardDockPanel({
+  moduleKey,
+  messagesOpen = false,
+  onMessagesOpenChange,
+  messengerUnread = 0,
+  onMessengerUnreadChange,
+}: StewardDockPanelProps) {
   const [open, setOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
-  const [dockWidth, setDockWidth] = useState<number>(DOCK_WIDTH_PX);
-  // Track the visual viewport height so the panel shrinks above the iOS keyboard.
-  const [viewportH, setViewportH] = useState<string>("100dvh");
-  // Contextual prompt fired from StewardContextButton elsewhere in the UI.
+  const [activeTab, setActiveTab] = useState<DockTab>("steward");
   const [externalPrompt, setExternalPrompt] = useState<StewardOpenPromptDetail | null>(null);
-  const dockWidthRef = useRef(DOCK_WIDTH_PX);
+  const scopePathRef = useRef("/");
 
-  useEffect(() => {
-    dockWidthRef.current = dockWidth;
-  }, [dockWidth]);
-
-  const emitDockState = useCallback((nextOpen: boolean, widthOverride?: number) => {
-    const pushLayout = nextOpen && window.innerWidth >= 1024;
-    const panelWidth = pushLayout ? (widthOverride ?? dockWidthRef.current) : 0;
+  const emitDockState = useCallback((nextOpen: boolean) => {
     window.dispatchEvent(new CustomEvent(DOCK_STATE_EVENT, {
-      detail: { open: nextOpen, pushLayout, panelWidth },
+      detail: { open: nextOpen, pushLayout: false, panelWidth: 0 },
     }));
   }, []);
 
-  // Restore open state from localStorage on mount.
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    const restored = saved === "true";
-    const savedWidth = Number.parseInt(localStorage.getItem(WIDTH_STORAGE_KEY) ?? "", 10);
-    let initialWidth = DOCK_WIDTH_PX;
-    if (Number.isFinite(savedWidth)) {
-      initialWidth = Math.min(DOCK_MAX_WIDTH_PX, Math.max(DOCK_MIN_WIDTH_PX, savedWidth));
-      dockWidthRef.current = initialWidth;
-      setDockWidth(initialWidth);
-    }
-    setOpen(restored);
-    emitDockState(restored, initialWidth);
-    setHydrated(true);
-    return () => emitDockState(false);
-  }, [emitDockState]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    localStorage.setItem(WIDTH_STORAGE_KEY, String(dockWidth));
-    if (open) {
-      emitDockState(true, dockWidth);
-    }
-  }, [dockWidth, hydrated, open, emitDockState]);
-
-  // Track visual viewport so the panel stays above the iOS soft keyboard.
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const onResize = () => setViewportH(`${vv.height}px`);
-    vv.addEventListener("resize", onResize);
-    return () => vv.removeEventListener("resize", onResize);
-  }, []);
-
-  const open_ = useCallback(() => {
+  const openDock = useCallback((tab: DockTab) => {
+    setActiveTab(tab);
     setOpen(true);
     localStorage.setItem(STORAGE_KEY, "true");
+    localStorage.setItem(TAB_STORAGE_KEY, tab);
     emitDockState(true);
-  }, [emitDockState]);
+    onMessagesOpenChange?.(tab === "messages");
+  }, [emitDockState, onMessagesOpenChange]);
 
-  const close = useCallback(() => {
+  const closeDock = useCallback(() => {
     setOpen(false);
     localStorage.setItem(STORAGE_KEY, "false");
     emitDockState(false);
-    // Clear external prompt on close so it doesn't replay
     setExternalPrompt(null);
-  }, [emitDockState]);
+    onMessagesOpenChange?.(false);
+  }, [emitDockState, onMessagesOpenChange]);
+
+  const switchTab = useCallback((tab: DockTab) => {
+    setActiveTab(tab);
+    localStorage.setItem(TAB_STORAGE_KEY, tab);
+    onMessagesOpenChange?.(tab === "messages" && open);
+  }, [onMessagesOpenChange, open]);
+
+  useEffect(() => {
+    scopePathRef.current = `${window.location.pathname}${window.location.search}`;
+    const restoredOpen = localStorage.getItem(STORAGE_KEY) === "true";
+    const restoredTab = localStorage.getItem(TAB_STORAGE_KEY) === "messages" ? "messages" : "steward";
+    setActiveTab(restoredTab);
+    setOpen(restoredOpen);
+    emitDockState(restoredOpen);
+    onMessagesOpenChange?.(restoredOpen && restoredTab === "messages");
+    setHydrated(true);
+    return () => emitDockState(false);
+  }, [emitDockState, onMessagesOpenChange]);
+
+  useEffect(() => {
+    if (!hydrated || !messagesOpen) return;
+    openDock("messages");
+  }, [hydrated, messagesOpen, openDock]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") closeDock();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [closeDock, open]);
 
   // Listen for steward:open-with-prompt events fired by StewardContextButton.
   useEffect(() => {
@@ -103,118 +134,114 @@ export default function StewardDockPanel({ moduleKey, behindOverlay = false }: S
       const detail = (e as CustomEvent<StewardOpenPromptDetail>).detail;
       if (!detail?.prompt) return;
       setExternalPrompt(detail);
-      setOpen(true);
-      localStorage.setItem(STORAGE_KEY, "true");
-      emitDockState(true);
+      openDock("steward");
     }
     window.addEventListener(STEWARD_OPEN_EVENT, handleOpenWithPrompt);
     return () => window.removeEventListener(STEWARD_OPEN_EVENT, handleOpenWithPrompt);
-  }, [emitDockState]);
+  }, [openDock]);
 
-  // Don't render anything until client hydration to avoid SSR mismatch.
   if (!hydrated) return null;
 
-  const VALID_MODULES = new Set(["donor","compassion","events","watchdog","webmaster","hrm","all"]);
-  const validModule = (moduleKey && VALID_MODULES.has(moduleKey) ? moduleKey : "donor") as
-    "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "hrm" | "all";
+  const stewardModule = normalizeStewardModule(externalPrompt?.moduleKey ?? moduleKey);
+  const unreadLabel = messengerUnread > 0 ? `${Math.min(messengerUnread, 99)} unread` : "No unread";
 
   return (
     <>
-      {/* ── Floating chat-head — visible when panel is closed ─────────────── */}
-      {!open && (
+      {!open ? (
         <button
           type="button"
-          onClick={open_}
-          title="Open Steward AI"
-          style={{ bottom: "max(1.5rem, env(safe-area-inset-bottom))", right: "1.5rem" }}
-          className={`steward-chat-head group fixed flex h-13 w-13 items-center justify-center rounded-full text-emerald-700 shadow-[0_16px_36px_rgba(15,23,42,0.18)] transition-all duration-200 hover:scale-[1.04] hover:shadow-[0_20px_44px_rgba(15,23,42,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 touch-manipulation ${behindOverlay ? "z-40" : "z-[9990]"}`}
-          aria-label="Open Steward AI assistant"
+          onClick={() => openDock("steward")}
+          title="Open Steward and messages"
+          style={{ bottom: "max(1rem, env(safe-area-inset-bottom))", right: "1rem" }}
+          className="group fixed z-[9990] flex w-[min(22rem,calc(100vw-2rem))] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-left shadow-[0_18px_44px_rgba(15,23,42,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_24px_54px_rgba(15,23,42,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+          aria-label="Open Steward and messages"
         >
-          <span
-            aria-hidden="true"
-            className="steward-chat-head-pulse pointer-events-none absolute -inset-1 rounded-full bg-emerald-200/65 blur-md transition-opacity duration-200 group-hover:opacity-100"
-          />
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 rounded-full bg-white"
-          />
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-[1px] rounded-full border border-slate-200 bg-white shadow-inner"
-          />
-          <span className="relative z-10">
-            <StewardAvatarIcon size={24} alt="Steward" className="ring-emerald-200 bg-white" />
+          <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50">
+            <StewardAvatarIcon size={30} alt="Steward" className="ring-2 ring-white" />
+            <span className="absolute -right-0.5 -bottom-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500" />
           </span>
-          <span
-            aria-hidden="true"
-            className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-white shadow-[0_0_10px_rgba(16,185,129,0.55)]"
-          />
-          <span className="pointer-events-none absolute right-full mr-2 hidden whitespace-nowrap rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 opacity-0 shadow-md transition-opacity duration-200 group-hover:opacity-100 lg:block">
-            Steward AI
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-slate-900">Steward + Messages</span>
+            <span className="block truncate text-xs text-slate-500">Docked DM box · {unreadLabel}</span>
           </span>
+          {messengerUnread > 0 ? (
+            <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-violet-600 px-1.5 text-[11px] font-bold text-white">
+              {Math.min(messengerUnread, 99)}
+            </span>
+          ) : (
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
+          )}
         </button>
-      )}
+      ) : null}
 
-      {/* ── Mobile backdrop — dims screen behind panel ────────────────────── */}
-      {open && (
-        <div
-          className="fixed inset-0 z-[9990] bg-slate-900/25 backdrop-blur-sm sm:hidden"
-          onClick={close}
-          aria-hidden="true"
-        />
-      )}
+      {open ? (
+        <section
+          className="fixed inset-x-2 bottom-2 top-[4.25rem] z-[9991] flex flex-col overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_26px_80px_rgba(15,23,42,0.24)] sm:inset-x-auto sm:left-auto sm:right-4 sm:top-auto sm:h-[min(720px,calc(100dvh-5rem))] sm:w-[min(760px,calc(100vw-2rem))]"
+          aria-label="Steward and messages dock"
+        >
+          <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-3 py-2.5">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <StewardAvatarIcon size={28} alt="Steward" className="ring-2 ring-emerald-100" />
+              <div className="min-w-0">
+                <h2 className="truncate text-sm font-semibold text-slate-900">Steward DM Dock</h2>
+                <p className="truncate text-[11px] text-slate-500">AI assistant and staff messages in one conversation box</p>
+              </div>
+            </div>
+            <div className="flex rounded-full border border-slate-200 bg-slate-50 p-0.5">
+              <button
+                type="button"
+                onClick={() => switchTab("steward")}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${activeTab === "steward" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-900"}`}
+              >
+                Steward
+              </button>
+              <button
+                type="button"
+                onClick={() => switchTab("messages")}
+                className={`relative rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${activeTab === "messages" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-900"}`}
+              >
+                Messages
+                {messengerUnread > 0 ? (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-600 px-1 text-[9px] font-bold text-white">
+                    {Math.min(messengerUnread, 99)}
+                  </span>
+                ) : null}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={closeDock}
+              title="Minimize dock"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </header>
 
-      {/* ── Slide-in right panel ──────────────────────────────────────────── */}
-      <div
-        className={`${open ? "steward-dock-shell shadow-[0_24px_80px_rgba(15,23,42,0.22)]" : "shadow-none"} fixed right-0 z-[9991] flex flex-col w-full bg-white border-l border-slate-200 transition-transform duration-300 ease-in-out ${
-          open ? "translate-x-0" : "translate-x-full"
-        }`}
-        style={{
-          top: `${TOPBAR_OFFSET_PX}px`,
-          width: `min(100vw, ${dockWidth}px)`,
-          height: `calc(${viewportH} - ${TOPBAR_OFFSET_PX}px)`,
-        }}
-        aria-hidden={!open}
-      >
-        {/* Desktop resize rail */}
-        <div
-          className="absolute left-0 top-0 hidden h-full w-2 -translate-x-1 cursor-col-resize bg-transparent lg:block"
-          onMouseDown={(event) => {
-            event.preventDefault();
-            const startX = event.clientX;
-            const startWidth = dockWidth;
-
-            function onMouseMove(moveEvent: MouseEvent) {
-              const next = startWidth - (moveEvent.clientX - startX);
-              const bounded = Math.max(DOCK_MIN_WIDTH_PX, Math.min(DOCK_MAX_WIDTH_PX, next));
-              setDockWidth(bounded);
-            }
-
-            function onMouseUp() {
-              window.removeEventListener("mousemove", onMouseMove);
-              window.removeEventListener("mouseup", onMouseUp);
-            }
-
-            window.addEventListener("mousemove", onMouseMove);
-            window.addEventListener("mouseup", onMouseUp);
-          }}
-          title="Resize Steward panel"
-          aria-label="Resize Steward panel"
-        />
-        {/*
-          Mount AGENTStewardWorkspace only when open so it doesn't consume
-          resources while hidden. It will re-hydrate from localStorage on open.
-        */}
-        {open && (
-          <AGENTStewardWorkspace
-            initialModule={(externalPrompt?.moduleKey ?? validModule)}
-            dockMode
-            onCloseDock={close}
-            externalPrompt={externalPrompt ?? undefined}
-            onExternalPromptConsumed={() => setExternalPrompt(null)}
-          />
-        )}
-      </div>
+          <div className="min-h-0 flex-1 overflow-hidden bg-white">
+            {activeTab === "steward" ? (
+              <StewardChatPanel
+                open
+                onClose={closeDock}
+                moduleKey={stewardModule}
+                scopePath={scopePathRef.current}
+                displayMode="workspace"
+                externalPrompt={externalPrompt}
+                onExternalPromptConsumed={() => setExternalPrompt(null)}
+              />
+            ) : (
+              <MessengerPanel
+                open
+                variant="dock"
+                onClose={closeDock}
+                onUnreadChange={onMessengerUnreadChange}
+              />
+            )}
+          </div>
+        </section>
+      ) : null}
     </>
   );
 }

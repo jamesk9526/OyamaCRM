@@ -76,7 +76,8 @@ Goal: create reusable primitives without changing page behavior.
 
 ### Phase 7: Reports, Steward, Settings
 
-- [ ] Apply the same visual primitives after core CRM pages are stable.
+- [x] Replace the legacy `/reports` workspace with the first-class Oyama Reports app: category rail, report search, prebuilt cards, live report runner, Recharts visuals, data grid, presentation summary, and Report Builder Lite.
+- [ ] Finish backend persistence for saved report views, letter-list handoff, server PDF export, and event-scoped donor joins.
 
 ## Non-Breaking Rules
 

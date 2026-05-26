@@ -11,7 +11,6 @@ import StewardAiRuntimePill from "@/app/components/layout/StewardAiRuntimePill";
 import StewardDockPanel from "@/app/components/ai/StewardDockPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 import { FeedbackModal } from "@/app/components/feedback/FeedbackModal";
-import MessengerPanel from "@/app/components/messenger/MessengerPanel";
 import { apiFetch } from "@/app/lib/auth-client";
 import {
   DEFAULT_WORKSPACE_SETTINGS,
@@ -1317,14 +1316,14 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
         moduleKey={moduleKey}
         pathname={pathname}
       />
-      {/* StewardDockPanel renders the floating chat-head and the slide-in agent dock. */}
-      <StewardDockPanel moduleKey={moduleKey} behindOverlay={messengerOpen} />
-            {/* CRM Messenger panel — slides in from the TopBar chat icon */}
-            <MessengerPanel
-              open={messengerOpen}
-              onClose={() => setMessengerOpen(false)}
-              onUnreadChange={setMessengerUnread}
-            />
+      {/* Unified dock renders Steward AI and staff DMs in one bottom-right conversation box. */}
+      <StewardDockPanel
+        moduleKey={moduleKey}
+        messagesOpen={messengerOpen}
+        onMessagesOpenChange={setMessengerOpen}
+        messengerUnread={messengerUnread}
+        onMessengerUnreadChange={setMessengerUnread}
+      />
 
             {/* Incoming message toast — shown when panel is closed and a new message arrives */}
             {incomingMsgToast && !messengerOpen && (
@@ -1487,6 +1486,7 @@ export default function TopBar({ scrolled = false }: TopBarProps) {
             <button
               type="button"
               title="Search"
+              aria-label="Open command search"
               onClick={() => {
                 setNotificationsOpen(false);
                 setMobileQuickOpen(false);
@@ -1992,6 +1992,7 @@ function ModuleSwitcher({
   scrolled?: boolean;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const canViewHrm = user?.permissions?.includes("hrm.view") ?? user?.role !== "report_viewer";
@@ -2003,7 +2004,7 @@ function ModuleSwitcher({
       helper: "Fundraising",
       href: "/",
       icon: <WorkspaceSwitcherIcon moduleKey="donor" />,
-      active: moduleKey === "donor",
+      active: moduleKey === "donor" && !pathname.startsWith("/reports"),
     },
     {
       key: "compassion",
@@ -2031,11 +2032,11 @@ function ModuleSwitcher({
     },
     {
       key: "oshareview",
-      label: "OShareview",
-      helper: "Reporting Hub",
+      label: "Reports",
+      helper: "Donor reporting app",
       href: "/reports",
       icon: <WorkspaceSwitcherIcon moduleKey="oshareview" />,
-      active: moduleKey === "oshareview",
+      active: pathname.startsWith("/reports"),
     },
   ].filter((module) => {
     if (module.key === "donor") return settings.donorEnabled;
@@ -2151,12 +2152,13 @@ function UserMenu({
 
   const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : "?";
   const canSeeAdminMenu = user?.role === "admin" || user?.role === "super_admin";
-  const adminLinks = [
+  const adminLinks: Array<{ label: string; href: string; icon: string; openInNewTab?: boolean }> = [
     { label: "Settings Home", href: "/settings", icon: "M10.3 4.3c.4-1.8 2.9-1.8 3.4 0 .2.8.9 1.3 1.7 1.3.3 0 .6-.1.9-.2 1.5-.9 3.3.8 2.4 2.4-.5.8-.2 1.9.7 2.3 1.8.4 1.8 2.9 0 3.4-.8.2-1.3.9-1.3 1.7 0 .3.1.6.2.9.9 1.5-.8 3.3-2.4 2.4-.8-.5-1.9-.2-2.3.7-.4 1.8-2.9 1.8-3.4 0-.2-.8-.9-1.3-1.7-1.3-.3 0-.6.1-.9.2-1.5.9-3.3-.8-2.4-2.4.5-.8.2-1.9-.7-2.3-1.8-.4-1.8-2.9 0-3.4.8-.2 1.3-.9 1.3-1.7 0-.3-.1-.6-.2-.9-.9-1.5.8-3.3 2.4-2.4.8.5 1.9.2 2.3-.7zM12 15a3 3 0 100-6 3 3 0 000 6z" },
     { label: "Users", href: "/settings/users", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2m20 0v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75M9 11a4 4 0 100-8 4 4 0 000 8z" },
     { label: "Roles", href: "/settings/roles", icon: "M12 3l7 4v5c0 4.5-2.9 8.5-7 9-4.1-.5-7-4.5-7-9V7l7-4zm-2 9 1.5 1.5L15 10" },
     { label: "Security", href: "/settings/security", icon: "M12 2l8 4v6c0 5.5-3.5 9.74-8 10-4.5-.26-8-4.5-8-10V6l8-4zm0 7v4m0 4h.01" },
     { label: "Modules", href: "/settings/modules", icon: "M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z" },
+    { label: "Reports", href: "/reports", icon: "M4 19h16M7 15V9m5 6V5m5 10v-3", openInNewTab: true },
     { label: "Imports", href: "/data-tools/import", icon: "M12 3v10m0 0 4-4m-4 4-4-4M5 17v2h14v-2" },
     { label: "Data Tools", href: "/data-tools", icon: "M12 3C7 3 3 4.8 3 7v10c0 2.2 4 4 9 4s9-1.8 9-4V7c0-2.2-4-4-9-4zm0 0c5 0 9 1.8 9 4s-4 4-9 4-9-1.8-9-4 4-4 9-4zm-9 9c0 2.2 4 4 9 4s9-1.8 9-4" },
     { label: "Custom Fields", href: "/custom-fields", icon: "M4 6h16M4 10h10M4 14h16M4 18h8M16 8v4m-2-2h4" },
@@ -2321,6 +2323,8 @@ function UserMenu({
                     <Link
                       key={link.href}
                       href={link.href}
+                      target={link.openInNewTab ? "_blank" : undefined}
+                      rel={link.openInNewTab ? "noopener noreferrer" : undefined}
                       onClick={() => setOpen(false)}
                       className="flex min-h-10 items-center gap-2 rounded-xl border border-transparent bg-white px-2.5 py-2 text-[12px] font-semibold text-slate-700 shadow-sm transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
                     >

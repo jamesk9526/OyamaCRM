@@ -173,7 +173,7 @@ const BASE_NAV_SECTIONS: NavSection[] = [
         {
           id: "reports",
           label: "Reports",
-          href: "/reports/donor-crm",
+          href: "/reports",
           description: "Giving, retention, and analytics",
         },
       ],

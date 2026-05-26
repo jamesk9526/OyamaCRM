@@ -16,6 +16,7 @@ import { StewardThinkingPanel } from "@/app/components/ai/StewardThinkingPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 import type { StewardStructuredResponse } from "@/app/components/ai/steward-artifact-types";
 import { executeStewardSuggestedAction } from "@/app/components/ai/steward-action-executor";
+import type { StewardOpenPromptDetail } from "@/app/lib/steward-context";
 
 type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview" | "hrm" | "password";
 type ChatMode = "ask" | "analyze" | "draft" | "free" | "agentic" | "writing" | "llm" | "action" | "help";
@@ -43,6 +44,9 @@ interface StewardChatPanelProps {
   displayMode?: StewardChatDisplayMode;
   onDisplayModeChange?: (mode: StewardPanelMode) => void;
   onTraceUpdate?: (trace: StewardTraceSnapshot) => void;
+  /** Prompt supplied by context buttons that should be sent as soon as the dock opens. */
+  externalPrompt?: StewardOpenPromptDetail | null;
+  onExternalPromptConsumed?: () => void;
 }
 
 interface AiConfigPayload {
@@ -384,6 +388,8 @@ export default function StewardChatPanel({
   displayMode = "dock",
   onDisplayModeChange,
   onTraceUpdate,
+  externalPrompt,
+  onExternalPromptConsumed,
 }: StewardChatPanelProps) {
   const [aiConfig, setAiConfig] = useState<AiConfigPayload | null>(null);
   const [mode, setMode] = useState<ChatMode>("ask");
@@ -407,6 +413,7 @@ export default function StewardChatPanel({
   const messagesBottomRef = useRef<HTMLDivElement | null>(null);
   const composerInputRef = useRef<HTMLInputElement | null>(null);
   const streamAbortRef = useRef<AbortController | null>(null);
+  const externalPromptKeyRef = useRef<string | null>(null);
 
   const isWorkspaceMode = displayMode === "workspace";
   const isPopoutMode = displayMode === "popout";
@@ -1141,6 +1148,27 @@ export default function StewardChatPanel({
     // sendMessage is intentionally omitted to avoid effect churn from function recreation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queuedContinuationPrompt, sending]);
+
+  /** Auto-send prompts fired from contextual Steward buttons outside this tree. */
+  useEffect(() => {
+    if (!open || !externalPrompt?.prompt) return;
+    const key = `${externalPrompt.prompt}:${externalPrompt.mode ?? "ask"}`;
+    if (externalPromptKeyRef.current === key) return;
+    externalPromptKeyRef.current = key;
+
+    if (externalPrompt.mode) {
+      setMode(externalPrompt.mode);
+    }
+    setDraft(externalPrompt.prompt);
+
+    const timer = window.setTimeout(() => {
+      void sendMessage(externalPrompt.prompt).finally(() => onExternalPromptConsumed?.());
+    }, 120);
+
+    return () => window.clearTimeout(timer);
+    // sendMessage is intentionally omitted because it is recreated with chat state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalPrompt, onExternalPromptConsumed, open]);
 
   if (!open && !isWorkspaceMode && aiConfig?.chatHeadEnabled !== false) {
     return (

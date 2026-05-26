@@ -193,9 +193,11 @@ export interface MessengerPanelProps {
   open: boolean;
   onClose: () => void;
   onUnreadChange?: (count: number) => void;
+  /** Renders inside another dock shell instead of as a standalone TopBar overlay. */
+  variant?: "overlay" | "dock";
 }
 
-export default function MessengerPanel({ open, onClose, onUnreadChange }: MessengerPanelProps) {
+export default function MessengerPanel({ open, onClose, onUnreadChange, variant = "overlay" }: MessengerPanelProps) {
   const { user } = useAuth();
   const [threadView, setThreadView] = useState<"inbox" | "unread" | "mentions">("inbox");
   const [threads, setThreads] = useState<MsgThread[]>([]);
@@ -345,7 +347,7 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
   // ── Close on outside click ────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || variant === "dock") return;
     const handlePointerDown = (e: PointerEvent) => {
       if (!panelRef.current?.contains(e.target as Node)) {
         onClose();
@@ -353,7 +355,7 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
     };
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [open, onClose]);
+  }, [open, onClose, variant]);
 
   // ── Send message ──────────────────────────────────────────────────────────
 
@@ -516,15 +518,21 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
 
   if (!open) return null;
 
+  const isDockVariant = variant === "dock";
+
   return (
     <>
       {/* Backdrop (mobile) */}
-      <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden" onClick={onClose} />
+      {!isDockVariant ? (
+        <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden" onClick={onClose} />
+      ) : null}
 
       {/* Panel */}
       <div
         ref={panelRef}
-        className="fixed right-2 top-[3.75rem] z-50 flex h-[calc(100dvh-4.25rem)] w-[min(860px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_30px_80px_rgba(2,6,23,0.22)]"
+        className={isDockVariant
+          ? "relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-white"
+          : "fixed right-2 top-[3.75rem] z-50 flex h-[calc(100dvh-4.25rem)] w-[min(860px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_30px_80px_rgba(2,6,23,0.22)]"}
         style={{ animation: "msgPanelIn 0.18s cubic-bezier(0.22,1,0.36,1)" }}
       >
         <div className="border-b border-slate-200 px-6 pb-4 pt-5">
@@ -644,8 +652,11 @@ export default function MessengerPanel({ open, onClose, onUnreadChange }: Messen
         {/* ── Thread list ─────────────────────────────────────────────── */}
         {enabled !== false && !showNewDm && (
           <>
-            <div className="flex min-h-0 flex-1 bg-white">
-              <aside className="flex w-[290px] shrink-0 flex-col border-r border-slate-200/80 bg-slate-50/60">
+            <div className={isDockVariant ? "flex min-h-0 flex-1 flex-col bg-white sm:flex-row" : "flex min-h-0 flex-1 bg-white"}>
+              <aside className={isDockVariant
+                ? "flex h-44 w-full shrink-0 flex-col border-b border-slate-200/80 bg-slate-50/60 sm:h-auto sm:w-[260px] sm:border-b-0 sm:border-r"
+                : "flex w-[290px] shrink-0 flex-col border-r border-slate-200/80 bg-slate-50/60"}
+              >
                 <div className="border-b border-slate-200/80 px-4 pb-3 pt-4">
                   <div className="flex items-center gap-6 text-sm">
                     {[

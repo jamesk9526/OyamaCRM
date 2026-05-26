@@ -37,6 +37,7 @@ Date: May 19, 2026
 - Messenger panel refreshed with its own top bar, denser conversation surface, sender message editing, image attachments, and optional 2-day image auto-delete metadata.
 - Messenger runtime uploads are ignored at `/public/uploads/messenger/`.
 - Plan/checklist and component-system docs created.
+- Oyama Reports app replaced the legacy `/reports` workspace with a dedicated reporting product surface: left category rail, searchable prebuilt report cards, live API report runner, Recharts-powered summaries, dense data grid, presentation summary, and guided Report Builder Lite.
 
 ## Not Yet Complete
 
@@ -44,6 +45,7 @@ Date: May 19, 2026
 - Meetings row/card styling cleanup.
 - Dashboard 1366x768 and 1280x720 browser screenshot verification.
 - Full e2e/build verification.
+- Reports app follow-up: saved views are browser-session only, PDF export uses browser print placeholder, letter-list handoff is placeholder-only, and event-scoped donor joins remain partial.
 
 ## Verification
 
