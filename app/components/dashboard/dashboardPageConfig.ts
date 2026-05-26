@@ -9,6 +9,8 @@ import type { RevenueGoalMode, RevenueProgressSource } from "./DashboardLayoutMo
 /** Shape returned by /api/reports/summary (extended) */
 export interface Summary {
   totalConstituents: number;
+  /** Unique constituents with completed gifts in the selected reporting scope. */
+  activeDonors: number;
   ytdAmount: number;
   ytdCount: number;
   /** YTD awarded grant total - always returned; added to ytdAmount when includeGrants=true */

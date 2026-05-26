@@ -52,6 +52,11 @@ const CARDS = [
     href: "/settings/branding",
   },
   {
+    title: "Dashboard Appearance",
+    description: "Configure the Donor Dashboard header image, overlay, quote card, density, and visible sections.",
+    href: "/settings/dashboard-appearance",
+  },
+  {
     title: "Integrations",
     description: "Unified integration readiness and plugin controls for QuickBooks, embeds, SMTP, and AI.",
     href: "/settings/integrations",
@@ -95,6 +100,7 @@ export default function SettingsOverviewPage() {
         <WorkspaceRibbonGroup label="System">
           <WorkspaceRibbonButton label="Modules" href="/settings/modules" />
           <WorkspaceRibbonButton label="AI" href="/settings/ai" />
+          <WorkspaceRibbonButton label="Dashboard Appearance" href="/settings/dashboard-appearance" />
           <WorkspaceRibbonButton label="Integrations" href="/settings/integrations" />
           <WorkspaceRibbonButton label="Payments" href="/settings/payments" />
           <WorkspaceRibbonButton label="System Updates" href="/settings/system-updates" />

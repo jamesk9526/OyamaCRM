@@ -1822,4 +1822,204 @@ router.post("/reset", requireAuth, requireRole("admin"), async (req: Request, re
   }
 });
 
+// ─── Dashboard Appearance Settings ────────────────────────────────────────────
+
+const DASHBOARD_APPEARANCE_PLUGIN_KEY = "donor-dashboard-appearance";
+
+interface DashboardAppearanceSettings {
+  headerImageUrl: string;
+  headerImagePosition: "center" | "top" | "bottom" | "left" | "right";
+  overlayStrength: number;
+  overlayColor: string;
+  showQuoteCard: boolean;
+  quoteText: string;
+  quoteAuthor: string;
+  heroTitleMode: "greeting" | "mission" | "custom";
+  customHeroText: string;
+  greetingStyle: "formal" | "warm" | "simple";
+  primaryActions: Array<"record-gift" | "view-reports" | "open-tasks">;
+  heroHeight: "compact" | "standard" | "large";
+  density: "comfortable" | "compact";
+  defaultPeriod: "this-month" | "fiscal-ytd" | "calendar-ytd";
+  defaultCampaignId: string;
+  showStewardSuggestions: boolean;
+  showRecentDonorMovement: boolean;
+  showCampaignImpactCards: boolean;
+  showProjectsAndInitiatives: boolean;
+}
+
+const DASHBOARD_APPEARANCE_DEFAULTS: DashboardAppearanceSettings = {
+  headerImageUrl: "",
+  headerImagePosition: "center",
+  overlayStrength: 62,
+  overlayColor: "#052e24",
+  showQuoteCard: false,
+  quoteText: "",
+  quoteAuthor: "",
+  heroTitleMode: "greeting",
+  customHeroText: "",
+  greetingStyle: "warm",
+  primaryActions: ["record-gift", "view-reports", "open-tasks"],
+  heroHeight: "standard",
+  density: "comfortable",
+  defaultPeriod: "fiscal-ytd",
+  defaultCampaignId: "",
+  showStewardSuggestions: true,
+  showRecentDonorMovement: true,
+  showCampaignImpactCards: true,
+  showProjectsAndInitiatives: true,
+};
+
+function normalizeDashboardAppearancePayload(input: unknown): DashboardAppearanceSettings {
+  const src = (typeof input === "object" && input !== null ? input : {}) as Record<string, unknown>;
+  const heroTitleMode = ["greeting", "mission", "custom"].includes(String(src.heroTitleMode ?? ""))
+    ? (src.heroTitleMode as DashboardAppearanceSettings["heroTitleMode"])
+    : DASHBOARD_APPEARANCE_DEFAULTS.heroTitleMode;
+  const headerImagePosition = ["center", "top", "bottom", "left", "right"].includes(String(src.headerImagePosition ?? ""))
+    ? (src.headerImagePosition as DashboardAppearanceSettings["headerImagePosition"])
+    : DASHBOARD_APPEARANCE_DEFAULTS.headerImagePosition;
+  const greetingStyle = ["formal", "warm", "simple"].includes(String(src.greetingStyle ?? ""))
+    ? (src.greetingStyle as DashboardAppearanceSettings["greetingStyle"])
+    : DASHBOARD_APPEARANCE_DEFAULTS.greetingStyle;
+  const heroHeight = ["compact", "standard", "large"].includes(String(src.heroHeight ?? ""))
+    ? (src.heroHeight as DashboardAppearanceSettings["heroHeight"])
+    : DASHBOARD_APPEARANCE_DEFAULTS.heroHeight;
+  const density = ["comfortable", "compact"].includes(String(src.density ?? ""))
+    ? (src.density as DashboardAppearanceSettings["density"])
+    : DASHBOARD_APPEARANCE_DEFAULTS.density;
+  const defaultPeriod = ["this-month", "fiscal-ytd", "calendar-ytd"].includes(String(src.defaultPeriod ?? ""))
+    ? (src.defaultPeriod as DashboardAppearanceSettings["defaultPeriod"])
+    : DASHBOARD_APPEARANCE_DEFAULTS.defaultPeriod;
+  const overlayStrengthCandidate = Number(src.overlayStrength ?? DASHBOARD_APPEARANCE_DEFAULTS.overlayStrength);
+  const overlayColor = /^#[0-9a-fA-F]{6}$/.test(String(src.overlayColor ?? ""))
+    ? String(src.overlayColor)
+    : DASHBOARD_APPEARANCE_DEFAULTS.overlayColor;
+  const allowedActions = new Set(["record-gift", "view-reports", "open-tasks"]);
+  const primaryActions = Array.isArray(src.primaryActions)
+    ? src.primaryActions.filter((action): action is DashboardAppearanceSettings["primaryActions"][number] => allowedActions.has(String(action)))
+    : DASHBOARD_APPEARANCE_DEFAULTS.primaryActions;
+  return {
+    headerImageUrl: typeof src.headerImageUrl === "string" ? src.headerImageUrl.slice(0, 512) : DASHBOARD_APPEARANCE_DEFAULTS.headerImageUrl,
+    headerImagePosition,
+    overlayStrength: Number.isFinite(overlayStrengthCandidate) ? Math.min(90, Math.max(0, overlayStrengthCandidate)) : DASHBOARD_APPEARANCE_DEFAULTS.overlayStrength,
+    overlayColor,
+    showQuoteCard: Boolean(src.showQuoteCard),
+    quoteText: typeof src.quoteText === "string" ? src.quoteText.slice(0, 220) : "",
+    quoteAuthor: typeof src.quoteAuthor === "string" ? src.quoteAuthor.slice(0, 120) : "",
+    heroTitleMode,
+    customHeroText: typeof src.customHeroText === "string" ? src.customHeroText.slice(0, 200) : "",
+    greetingStyle,
+    primaryActions: primaryActions.length > 0 ? primaryActions : DASHBOARD_APPEARANCE_DEFAULTS.primaryActions,
+    heroHeight,
+    density,
+    defaultPeriod,
+    defaultCampaignId: typeof src.defaultCampaignId === "string" ? src.defaultCampaignId.slice(0, 160) : "",
+    showStewardSuggestions: src.showStewardSuggestions !== false,
+    showRecentDonorMovement: src.showRecentDonorMovement !== false,
+    showCampaignImpactCards: src.showCampaignImpactCards !== false,
+    showProjectsAndInitiatives: src.showProjectsAndInitiatives !== false,
+  };
+}
+
+/** GET /api/settings/dashboard-appearance — returns current or default settings */
+router.get("/dashboard-appearance", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const organizationId = await resolveSettingsOrganizationId(req);
+    if (!organizationId) {
+      return res.json(DASHBOARD_APPEARANCE_DEFAULTS);
+    }
+    const record = await prisma.pluginSetting.findUnique({
+      where: { organizationId_pluginKey: { organizationId, pluginKey: DASHBOARD_APPEARANCE_PLUGIN_KEY } },
+    });
+    const config = record?.config
+      ? normalizeDashboardAppearancePayload(record.config)
+      : DASHBOARD_APPEARANCE_DEFAULTS;
+    return res.json(config);
+  } catch {
+    return res.json(DASHBOARD_APPEARANCE_DEFAULTS);
+  }
+});
+
+/** PUT /api/settings/dashboard-appearance — upsert settings (admin only) */
+router.put("/dashboard-appearance", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await resolveSettingsOrganizationId(req);
+    if (!organizationId) {
+      return res.status(404).json({ success: false, error: "No organization has been configured yet." });
+    }
+    const payload = normalizeDashboardAppearancePayload(req.body);
+    await prisma.pluginSetting.upsert({
+      where: { organizationId_pluginKey: { organizationId, pluginKey: DASHBOARD_APPEARANCE_PLUGIN_KEY } },
+      update: { config: payload as unknown as Prisma.InputJsonObject },
+      create: {
+        organizationId,
+        pluginKey: DASHBOARD_APPEARANCE_PLUGIN_KEY,
+        enabled: true,
+        config: payload as unknown as Prisma.InputJsonObject,
+      },
+    });
+    await logAudit({
+      action: "update_dashboard_appearance",
+      entity: "PluginSetting",
+      entityId: DASHBOARD_APPEARANCE_PLUGIN_KEY,
+      userId: req.user!.sub,
+      organizationId,
+      metadata: { heroTitleMode: payload.heroTitleMode },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+    return res.json({ success: true, settings: payload });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: "Failed to save dashboard appearance settings." });
+  }
+});
+
+/** POST /api/settings/dashboard-appearance/header-upload — base64 image upload */
+router.post("/dashboard-appearance/header-upload", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await resolveSettingsOrganizationId(req);
+    if (!organizationId) {
+      return res.status(404).json({ success: false, error: "No organization has been configured yet." });
+    }
+    const { fileName, mimeType, dataBase64 } = req.body as { fileName?: string; mimeType?: string; dataBase64?: string };
+
+    if (!fileName || !mimeType || !dataBase64) {
+      return res.status(400).json({ success: false, error: "fileName, mimeType, and dataBase64 are required." });
+    }
+    const ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp", "image/avif"];
+    if (!ALLOWED_MIME.includes(mimeType)) {
+      return res.status(400).json({ success: false, error: "Only JPEG, PNG, WebP, and AVIF images are allowed." });
+    }
+    const buffer = Buffer.from(dataBase64, "base64");
+    const MAX_BYTES = 3 * 1024 * 1024; // 3 MB
+    if (buffer.length > MAX_BYTES) {
+      return res.status(400).json({ success: false, error: "Image must be under 3 MB." });
+    }
+
+    const ext = mimeType === "image/jpeg" ? "jpg" : mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "avif";
+    const uploadDir = path.join(process.cwd(), "public", "uploads", "dashboard-headers", String(organizationId));
+    await mkdir(uploadDir, { recursive: true });
+
+    const fileName_ = `${randomUUID()}.${ext}`;
+    await writeFile(path.join(uploadDir, fileName_), buffer);
+    const publicUrl = `/uploads/dashboard-headers/${organizationId}/${fileName_}`;
+
+    await logAudit({
+      action: "upload_dashboard_header_image",
+      entity: "PluginSetting",
+      entityId: DASHBOARD_APPEARANCE_PLUGIN_KEY,
+      userId: req.user!.sub,
+      organizationId,
+      metadata: { url: publicUrl },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    return res.json({ success: true, url: publicUrl });
+  } catch {
+    return res.status(500).json({ success: false, error: "Image upload failed." });
+  }
+});
+
 export default router;
+

@@ -28,23 +28,26 @@ describe("Donor CRM visual refresh foundation", () => {
   it("keeps the dashboard refresh non-breaking by preserving existing dashboard entry points", () => {
     const page = read("app/page.tsx");
     const dashboardState = read("app/components/dashboard/useDashboardPageState.ts");
-    const visualDashboard = read("app/components/dashboard/DonorDashboardVisualRefresh.tsx");
+    const naturalDashboard = read("app/components/dashboard/NaturalisticDonorDashboard.tsx");
+    const dashboardService = read("app/features/donor-dashboard/services/dashboard-client-service.ts");
+    const dashboardTypes = read("app/features/donor-dashboard/types.ts");
     const monthlyDonations = read("app/components/dashboard/MonthlyDonationsWidget.tsx");
     const statCard = read("app/components/dashboard/StatCard.tsx");
     const quickActionCard = read("app/components/ui/crm/CRMQuickActionCard.tsx");
 
-    expect(page).toContain("DonorDashboardVisualRefresh");
+    expect(page).toContain("NaturalisticDonorDashboard");
     expect(page).toContain("useDashboardPageState");
-    expect(page).toContain("EnterprisePageShell");
     expect(page).not.toContain("WorkspaceRibbonGroup");
     expect(dashboardState).toContain("/api/reports/summary");
     expect(dashboardState).toContain("/api/reports/donor-retention");
-    expect(visualDashboard).toContain("DashboardMetricCard");
-    expect(visualDashboard).toContain("Who Gave This Month");
-    expect(visualDashboard).toContain("Giving by Designation");
-    expect(visualDashboard).toContain("Giving by Source");
-    expect(visualDashboard).toContain("Today At A Glance");
-    expect(visualDashboard).toContain("Dashboard Tools");
+    expect(naturalDashboard).toContain("loadDonorDashboardData");
+    expect(naturalDashboard).toContain("StewardSuggestions");
+    expect(naturalDashboard).toContain("DonorMovementFeed");
+    expect(naturalDashboard).toContain("GivingDesignationChart");
+    expect(dashboardService).toContain("/api/reports/giving-trend");
+    expect(dashboardService).toContain("/api/reports/designations-summary");
+    expect(dashboardService).toContain("/api/settings/dashboard-appearance");
+    expect(dashboardTypes).toContain("DashboardData");
     expect(monthlyDonations).toContain("/api/reports/donors-this-month");
     expect(monthlyDonations).toContain("/api/email-campaigns/lists");
     expect(monthlyDonations).toContain("Save task with selected donors");

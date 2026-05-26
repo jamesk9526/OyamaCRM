@@ -556,6 +556,7 @@ router.get("/summary", async (req, res) => {
   if (!organizationId) {
     res.json({
       totalConstituents: 0,
+      activeDonors: 0,
       ytdAmount: 0,
       ytdCount: 0,
       ytdGrantAmount: 0,
@@ -579,6 +580,7 @@ router.get("/summary", async (req, res) => {
 
   const [
     totalConstituents,
+    activeDonorGroups,
     ytdDonations,
     weekDonations,
     monthDonations,
@@ -593,6 +595,10 @@ router.get("/summary", async (req, res) => {
     ytdGrants,
   ] = await Promise.all([
     prisma.constituent.count({ where: { organizationId } }),
+    prisma.donation.groupBy({
+      by: ["constituentId"],
+      where: completedDonationWhere(organizationId, donationDateFilter),
+    }),
     // YTD completed donations — scoped to selected year unless ALL_YEARS is requested
     prisma.donation.aggregate({
       where: completedDonationWhere(organizationId, donationDateFilter),
@@ -676,6 +682,7 @@ router.get("/summary", async (req, res) => {
 
   res.json({
     totalConstituents,
+    activeDonors: activeDonorGroups.length,
     ytdAmount: Number(ytdDonations._sum.amount ?? 0),
     ytdCount: ytdDonations._count,
     // ytdGrantAmount is always returned separately so the UI can decide whether to include it
@@ -2186,6 +2193,115 @@ router.get("/admin-summary", async (req, res) => {
 });
 
 
+
+/**
+ * GET /api/reports/giving-trend?mode=calendar|fiscal&year=YYYY
+ * Dashboard trend chart — returns monthly donation totals as labeled points with YoY comparison.
+ * Respects fiscal vs calendar year mode. Returns data through today for the current year.
+ * Response: { points: { label, amount }[], total, giftCount, trendPercent, rangeLabel, dataThrough }
+ */
+router.get("/giving-trend", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json({ points: [], total: 0, giftCount: 0, trendPercent: null, rangeLabel: "", dataThrough: new Date().toISOString() });
+    return;
+  }
+
+  const { year, dateBasis, fiscalYearStart, yearRange } = await parseReportScope(req.query, organizationId);
+  const now = new Date();
+  const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  // Fetch all completed donations in the scoped year range
+  const donations = await prisma.donation.findMany({
+    where: completedDonationWhere(organizationId, yearRange),
+    select: { date: true, amount: true },
+  });
+
+  // Build monthly buckets from range start through min(range end, today)
+  const rangeStart: Date = yearRange.gte as Date;
+  const rangeEndRaw = (yearRange as { lt?: Date; lte?: Date }).lt ?? (yearRange as { lte?: Date }).lte ?? now;
+  const effectiveEnd: Date = rangeEndRaw < now ? rangeEndRaw : now;
+
+  const points: { label: string; amount: number }[] = [];
+  const cursor = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
+  while (cursor <= effectiveEnd) {
+    const m = cursor.getMonth();
+    const y = cursor.getFullYear();
+    const label = MONTH_LABELS[m] ?? "";
+    const amount = donations
+      .filter((d) => d.date.getFullYear() === y && d.date.getMonth() === m)
+      .reduce((sum, d) => sum + Number(d.amount), 0);
+    points.push({ label, amount });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  const total = donations.reduce((sum, d) => sum + Number(d.amount), 0);
+  const giftCount = donations.length;
+
+  // YoY comparison: same period one year prior
+  const lastYearStart = new Date(rangeStart);
+  lastYearStart.setFullYear(lastYearStart.getFullYear() - 1);
+  const lastYearEnd = new Date(effectiveEnd);
+  lastYearEnd.setFullYear(lastYearEnd.getFullYear() - 1);
+  const lastYearAgg = await prisma.donation.aggregate({
+    where: completedDonationWhere(organizationId, { gte: lastYearStart, lte: lastYearEnd }),
+    _sum: { amount: true },
+  });
+  const lastYearTotal = Number(lastYearAgg._sum.amount ?? 0);
+  const trendPercent = calcYoYPercent(total, lastYearTotal);
+
+  const rangeLabel = dateBasis === "fiscal" ? `FY ${year}` : String(year);
+  res.json({ points, total, giftCount, trendPercent, rangeLabel, dataThrough: now.toISOString() });
+});
+
+/**
+ * GET /api/reports/designations-summary
+ * Dashboard designation pie chart — returns donation totals grouped by fund/designation.
+ * Donations with no designation are grouped as "General Fund".
+ * Response: { slices: { name, amount }[], total }
+ */
+router.get("/designations-summary", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json({ slices: [], total: 0 });
+    return;
+  }
+
+  const { yearRange } = await parseReportScope(req.query, organizationId);
+
+  // Fetch donations with their designation names
+  const donations = await prisma.donation.findMany({
+    where: completedDonationWhere(organizationId, yearRange),
+    select: { amount: true, designation: { select: { name: true } } },
+  });
+
+  // Aggregate by designation name
+  const buckets = new Map<string, number>();
+  for (const d of donations) {
+    const name = d.designation?.name ?? "General Fund";
+    buckets.set(name, (buckets.get(name) ?? 0) + Number(d.amount));
+  }
+
+  // Sort by amount descending, cap at top 8 + "Other"
+  const sorted = Array.from(buckets.entries())
+    .map(([name, amount]) => ({ name, amount }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const TOP_SLICES = 8;
+  const slices =
+    sorted.length <= TOP_SLICES
+      ? sorted
+      : [
+          ...sorted.slice(0, TOP_SLICES),
+          {
+            name: "Other",
+            amount: sorted.slice(TOP_SLICES).reduce((sum, s) => sum + s.amount, 0),
+          },
+        ];
+
+  const total = donations.reduce((sum, d) => sum + Number(d.amount), 0);
+  res.json({ slices, total });
+});
 
 /**
  * GET /api/reports/recent-donations?limit=N

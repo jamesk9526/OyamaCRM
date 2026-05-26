@@ -1,0 +1,79 @@
+/**
+ * Client-side Donor Dashboard data adapter.
+ * Centralizes dashboard API calls so cards consume one real-data object.
+ */
+
+import { apiFetch } from "@/app/lib/auth-client";
+import { normalizeDashboardAppearanceSettings } from "../dashboard-config";
+import { buildStewardshipSuggestions, toDashboardNumber } from "../calculations/dashboard-calculations";
+import type {
+  CampaignImpact,
+  DashboardAppearanceSettings,
+  DashboardData,
+  DesignationSlice,
+  DonationPreview,
+  DonorDashboardSummary,
+  RetentionData,
+  TrendPoint,
+} from "../types";
+
+interface DonationListResponse {
+  items?: DonationPreview[];
+  donations?: DonationPreview[];
+}
+
+interface TrendResponse {
+  points?: TrendPoint[];
+  total?: number | string;
+  giftCount?: number;
+  trendPercent?: number | null;
+}
+
+interface DesignationResponse {
+  slices?: DesignationSlice[];
+  total?: number | string;
+}
+
+function normalizeDonationList(input: DonationListResponse | DonationPreview[] | null | undefined): DonationPreview[] {
+  if (Array.isArray(input)) return input;
+  return input?.items ?? input?.donations ?? [];
+}
+
+function normalizeCampaignList(input: CampaignImpact[] | { campaigns?: CampaignImpact[]; items?: CampaignImpact[] } | null | undefined): CampaignImpact[] {
+  if (Array.isArray(input)) return input;
+  return input?.campaigns ?? input?.items ?? [];
+}
+
+export async function loadDonorDashboardData(input: {
+  reportingYearMode: string;
+  summary: DonorDashboardSummary | null;
+  retention: RetentionData | null;
+}): Promise<DashboardData> {
+  const [appearanceResult, donationsResult, trendResult, designationResult, campaignsResult] = await Promise.allSettled([
+    apiFetch<Partial<DashboardAppearanceSettings>>("/api/settings/dashboard-appearance"),
+    apiFetch<DonationListResponse | DonationPreview[]>("/api/donations?limit=20&status=COMPLETED"),
+    apiFetch<TrendResponse>(`/api/reports/giving-trend?dateBasis=${encodeURIComponent(input.reportingYearMode)}`),
+    apiFetch<DesignationResponse>(`/api/reports/designations-summary?dateBasis=${encodeURIComponent(input.reportingYearMode)}`),
+    apiFetch<CampaignImpact[] | { campaigns?: CampaignImpact[]; items?: CampaignImpact[] }>("/api/campaigns?active=true&limit=6"),
+  ]);
+
+  const appearance = appearanceResult.status === "fulfilled"
+    ? normalizeDashboardAppearanceSettings(appearanceResult.value)
+    : normalizeDashboardAppearanceSettings(null);
+
+  const trend = trendResult.status === "fulfilled" ? trendResult.value : null;
+  const designations = designationResult.status === "fulfilled" ? designationResult.value : null;
+
+  return {
+    appearance,
+    recentDonations: donationsResult.status === "fulfilled" ? normalizeDonationList(donationsResult.value) : [],
+    trendPoints: trend?.points ?? [],
+    trendTotal: toDashboardNumber(trend?.total),
+    trendGiftCount: trend?.giftCount ?? 0,
+    trendPercent: trend?.trendPercent ?? null,
+    designationSlices: designations?.slices ?? [],
+    designationTotal: toDashboardNumber(designations?.total),
+    campaigns: campaignsResult.status === "fulfilled" ? normalizeCampaignList(campaignsResult.value) : [],
+    stewardshipAlerts: buildStewardshipSuggestions(input.summary, input.retention),
+  };
+}
