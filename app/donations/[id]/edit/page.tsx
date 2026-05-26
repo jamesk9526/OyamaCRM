@@ -31,7 +31,11 @@ function toFormDefaults(d: Record<string, unknown>) {
     console.warn(
       `[donations/edit] donation ${String(d.id ?? "?")} missing a string date; defaulting to today`,
     );
-    dateStr = new Date().toISOString().split("T")[0];
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    dateStr = `${y}-${m}-${day}`;
   }
   return {
     constituentId: (d.constituentId as string) ?? "",

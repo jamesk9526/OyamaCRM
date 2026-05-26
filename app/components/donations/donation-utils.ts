@@ -26,6 +26,16 @@ export const PAYMENT_METHODS = [
 
 export const DONATION_STATUSES = ["PENDING", "COMPLETED", "FAILED", "REFUNDED"] as const;
 
+function parseYmd(value: string): { year: number; month: number; day: number } | null {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
+  return { year, month, day };
+}
+
 export function formatCurrency(value: string | number | null | undefined): string {
   if (value == null) return "$0";
   const num = typeof value === "string" ? parseFloat(value) : value;
@@ -36,6 +46,34 @@ export function formatCurrency(value: string | number | null | undefined): strin
 export function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
   return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+/**
+ * Formats donation calendar dates without timezone drift.
+ * Donation `date` is date-only business data, so render in UTC calendar terms.
+ */
+export function formatDonationDate(value: string | null | undefined): string {
+  if (!value) return "—";
+
+  const ymd = parseYmd(value.slice(0, 10));
+  if (ymd) {
+    const utcDate = new Date(Date.UTC(ymd.year, ymd.month - 1, ymd.day));
+    return utcDate.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return parsed.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 export function methodLabel(method: string): string {

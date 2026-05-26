@@ -295,18 +295,48 @@ async function recalculateConstituentGivingRollups(constituentId: string): Promi
 /** Parses a YYYY-MM-DD-like date string into start-of-day local time. */
 function parseDateStart(raw?: string): Date | undefined {
   if (!raw) return undefined;
+  const ymdMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymdMatch) {
+    const year = Number(ymdMatch[1]);
+    const month = Number(ymdMatch[2]);
+    const day = Number(ymdMatch[3]);
+    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  }
+
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return undefined;
-  parsed.setHours(0, 0, 0, 0);
   return parsed;
 }
 
 /** Parses a YYYY-MM-DD-like date string into end-of-day local time. */
 function parseDateEnd(raw?: string): Date | undefined {
   if (!raw) return undefined;
+  const ymdMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymdMatch) {
+    const year = Number(ymdMatch[1]);
+    const month = Number(ymdMatch[2]);
+    const day = Number(ymdMatch[3]);
+    return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+  }
+
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return undefined;
-  parsed.setHours(23, 59, 59, 999);
+  return parsed;
+}
+
+/** Parses donation date inputs with date-only semantics for YYYY-MM-DD values. */
+function parseDonationDateInput(raw?: string): Date | undefined {
+  if (!raw) return undefined;
+  const ymdMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymdMatch) {
+    const year = Number(ymdMatch[1]);
+    const month = Number(ymdMatch[2]);
+    const day = Number(ymdMatch[3]);
+    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return undefined;
   return parsed;
 }
 
@@ -519,7 +549,7 @@ router.post("/", async (req, res) => {
       designationId: designationId || undefined,
       pledgeId:      pledgeId      || undefined,
       amount,
-      date:          date ? new Date(date) : new Date(),
+      date:          parseDonationDateInput(date) ?? new Date(),
       paymentMethod: paymentMethod || "ONLINE",
       checkNumber:   checkNumber   || undefined,
       isRecurring:   isRecurring   ?? false,
@@ -598,7 +628,7 @@ router.put("/:id", async (req, res) => {
       campaignId:    campaignId    || undefined,
       designationId: designationId || undefined,
       amount:        amount        || undefined,
-      date:          date ? new Date(date) : undefined,
+      date:          date ? parseDonationDateInput(date) : undefined,
       paymentMethod: paymentMethod || undefined,
       checkNumber:   checkNumber   || undefined,
       isRecurring,

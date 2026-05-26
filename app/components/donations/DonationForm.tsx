@@ -86,8 +86,16 @@ type FormData = {
   notes: string;
 };
 
+function getTodayInputValue(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 const EMPTY: FormData = {
-  constituentId: "", amount: "", date: new Date().toISOString().split("T")[0],
+  constituentId: "", amount: "", date: getTodayInputValue(),
   paymentMethod: "ONLINE", checkNumber: "", campaignId: "", designationId: "",
   status: "COMPLETED", isRecurring: false, frequency: "", taxDeductible: true, notes: "",
 };

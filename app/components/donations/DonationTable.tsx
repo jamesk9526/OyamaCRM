@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { DonationRow, formatCurrency, formatDate, methodLabel, statusColor } from "./donation-utils";
+import { DonationRow, formatCurrency, formatDate, formatDonationDate, methodLabel, statusColor } from "./donation-utils";
 
 type SortKey = "date" | "amount" | "constituent" | "status";
 
@@ -264,7 +264,7 @@ export default function DonationTable({
             </div>
 
             <div className="mt-2 flex items-center justify-between">
-              <span className="text-xs text-gray-500">{formatDate(d.date)}</span>
+              <span className="text-xs text-gray-500">{formatDonationDate(d.date)}</span>
               <span className="font-semibold text-gray-900">{formatCurrency(d.amount)}</span>
             </div>
 
@@ -337,7 +337,7 @@ export default function DonationTable({
         <tbody className="divide-y divide-gray-100">
           {sorted.map(d => (
             <tr key={d.id} className="hover:bg-gray-50 transition-colors">
-              <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{formatDate(d.date)}</td>
+              <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{formatDonationDate(d.date)}</td>
               <td className="px-4 py-3">
                 <Link href={`/constituents/${d.constituent.id}`} className="font-medium text-gray-800 hover:text-green-600">
                   {d.constituent.firstName} {d.constituent.lastName}
