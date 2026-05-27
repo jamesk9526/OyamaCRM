@@ -11,7 +11,7 @@ const cmdExe = process.env.ComSpec || "cmd.exe";
 const env = { ...process.env, DEV_CORS_ALLOW_ALL: "1" };
 
 // ANSI colour helpers
-const C = { cyan: "\x1b[36m", green: "\x1b[32m", reset: "\x1b[0m" };
+const C = { cyan: "\x1b[36m", green: "\x1b[32m", yellow: "\x1b[33m", reset: "\x1b[0m" };
 
 /** Prefix each non-empty line with a coloured [label] tag. */
 function prefixLines(label, color, data) {
@@ -47,8 +47,9 @@ function startProc(label, color, scriptName) {
 }
 
 const procs = [
-  startProc("api", C.cyan,  "dev:api"),
-  startProc("web", C.green, "dev:web"),
+  startProc("api",     C.cyan,   "dev:api"),
+  startProc("web",     C.green,  "dev:web"),
+  startProc("letters", C.yellow, "dev:letters"),
 ];
 
 // Forward SIGINT/SIGTERM so Ctrl-C cleanly kills children

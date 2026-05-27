@@ -1,6 +1,7 @@
 /** @type {import('pm2').StartOptions} */
 const WEB_PORT = Number(process.env.PORT || 3650);
 const API_PORT = Number(process.env.API_PORT || 4000);
+const LETTERS_PORT = Number(process.env.LETTERS_PORT || 3001);
 
 module.exports = {
   apps: [
@@ -46,6 +47,32 @@ module.exports = {
       env_production: {
         NODE_ENV: 'production',
         API_PORT,
+      },
+    },
+    {
+      name: 'oyama-letters',
+      script: './node_modules/next/dist/bin/next',
+      interpreter: 'node',
+      args: `start -p ${LETTERS_PORT}`,
+      cwd: './apps/letters',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      max_memory_restart: '512M',
+      env: {
+        NODE_ENV: 'production',
+        PORT: LETTERS_PORT,
+        OYAMA_API_URL: `http://localhost:${API_PORT}`,
+      },
+      env_development: {
+        NODE_ENV: 'development',
+        PORT: LETTERS_PORT,
+        OYAMA_API_URL: `http://localhost:${API_PORT}`,
+      },
+      env_production: {
+        NODE_ENV: 'production',
+        PORT: LETTERS_PORT,
+        OYAMA_API_URL: `http://localhost:${API_PORT}`,
       },
     },
   ],
