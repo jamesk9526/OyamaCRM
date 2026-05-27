@@ -242,7 +242,7 @@ const BUILDER_JOURNEY_STEPS: Array<{ key: BuilderJourneyStep; label: string }> =
   { key: 'design', label: 'Design' },
   { key: 'personalize', label: 'Personalize' },
   { key: 'review', label: 'Review' },
-  { key: 'schedule', label: 'Schedule' },
+  { key: 'schedule', label: 'Queue & Send' },
 ];
 
 const BUILDER_JOURNEY_ORDER: Record<BuilderJourneyStep, number> = {
@@ -1627,6 +1627,7 @@ export default function EmailBuilderApp({
   const safeReturnHref = returnTo && returnTo.startsWith("/") ? returnTo : campaignWorkspaceHref;
   const returnLabel = safeReturnHref.startsWith("/communications/") ? "Campaign Workspace" : "Communications";
   const audienceWorkspaceHref = campaignId ? `/communications/${campaignId}?mode=send#audience` : safeReturnHref;
+  const sendWorkspaceHref = campaignId ? `/communications/${campaignId}?mode=send` : safeReturnHref;
   const scheduleWorkspaceHref = campaignId ? `/communications/${campaignId}?mode=send#schedule` : safeReturnHref;
   const reviewRouteHref = campaignId ? `/communications/${campaignId}/review` : safeReturnHref;
   const scheduleRouteHref = campaignId ? `/communications/${campaignId}/schedule` : safeReturnHref;
@@ -2375,12 +2376,23 @@ export default function EmailBuilderApp({
                 </div>
 
                 <div className="space-y-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Queue Path</p>
+                  <p className="text-xs text-gray-600">
+                    Builder is draft-first. Save here, then open Send Workspace to choose audience mode, queue/schedule delivery, and track logs.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <a href={sendWorkspaceHref} target="_self" className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Open Send Workspace</a>
+                    <a href={activityRouteHref} target="_self" className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Open Activity Log</a>
+                  </div>
+                </div>
+
+                <div className="space-y-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Route Checks</p>
                   <div className="grid grid-cols-2 gap-2">
                     <a href={campaignWorkspaceHref} target="_self" className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Campaign</a>
                     <a href={fullScreenBuilderHref} target="_self" className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Builder</a>
                     <a href={reviewRouteHref} target="_self" className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Review</a>
-                    <a href={scheduleRouteHref} target="_self" className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Schedule</a>
+                    <a href={scheduleRouteHref} target="_self" className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Queue & Send</a>
                     <a href={activityRouteHref} target="_self" className="col-span-2 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Activity Log</a>
                   </div>
                   {!hasRouteContext && (

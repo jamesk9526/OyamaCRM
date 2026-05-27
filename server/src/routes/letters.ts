@@ -5,6 +5,7 @@
 import { Prisma } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { Router, type Request } from "express";
+import type { jsPDF as JsPdfDocument } from "jspdf";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { logAudit } from "../lib/audit.js";
@@ -55,6 +56,44 @@ type PrintQueueStatus = (typeof PRINT_QUEUE_STATUSES)[number];
 type MailQueueStatus = (typeof MAIL_QUEUE_STATUSES)[number];
 type LetterPriority = (typeof LETTER_PRIORITY)[number];
 type PdfFallbackMode = (typeof PDF_FALLBACK_MODES)[number];
+
+interface LetterPdfBrandingContext {
+  organizationName: string;
+  tagline: string;
+  addressLine: string;
+  contactLine: string;
+  taxId: string;
+}
+
+interface LetterPdfPresetContext {
+  headerPreset?: {
+    showOrganizationName: boolean;
+    showTagline: boolean;
+    showAddress: boolean;
+    showPhone: boolean;
+    showWebsite: boolean;
+    customHtml?: string | null;
+  } | null;
+  footerPreset?: {
+    showOrganizationName: boolean;
+    showAddress: boolean;
+    showPhone: boolean;
+    showEmail: boolean;
+    showWebsite: boolean;
+    showTaxId: boolean;
+    showPageNumber: boolean;
+    customText?: string | null;
+    customHtml?: string | null;
+  } | null;
+  signatureBlock?: {
+    signerName: string;
+    signerTitle?: string | null;
+    closingPhrase?: string | null;
+    typedSignature?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  } | null;
+}
 
 interface LettersWorkflowPolicy {
   autoQueueBatchToPrint: boolean;
@@ -330,6 +369,133 @@ function htmlToPlainText(value: string): string {
     .trim();
 }
 
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&#(\d+);/g, (_match, group) => {
+      const codePoint = Number.parseInt(group, 10);
+      if (!Number.isFinite(codePoint) || codePoint < 0 || codePoint > 0x10ffff) return "";
+      return String.fromCodePoint(codePoint);
+    })
+    .replace(/&#x([a-f0-9]+);/gi, (_match, group) => {
+      const codePoint = Number.parseInt(group, 16);
+      if (!Number.isFinite(codePoint) || codePoint < 0 || codePoint > 0x10ffff) return "";
+      return String.fromCodePoint(codePoint);
+    });
+}
+
+function stripHtmlInline(value: string): string {
+  return decodeHtmlEntities(value
+    .replace(/<\s*br\s*\/?\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[ \t\f\v]+/g, " ")
+    .replace(/ ?\n ?/g, "\n"))
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+type PdfContentBlock =
+  | { kind: "heading"; text: string; level: number }
+  | { kind: "paragraph"; text: string }
+  | { kind: "list"; text: string }
+  | { kind: "tableRow"; cells: string[]; header: boolean }
+  | { kind: "divider" };
+
+/** Converts simple template HTML into PDF layout blocks while preserving common editor formatting. */
+function htmlToPdfBlocks(html: string): PdfContentBlock[] {
+  const blocks: PdfContentBlock[] = [];
+  const normalized = html
+    .replace(/\r\n/g, "\n")
+    .replace(/<\s*\/\s*(div|section|article|blockquote)\s*>/gi, "</p>")
+    .replace(/<\s*(div|section|article|blockquote)\b[^>]*>/gi, "<p>");
+
+  const pattern = /<\s*(h[1-3]|p|li|tr)\b[^>]*>([\s\S]*?)<\s*\/\s*\1\s*>|<\s*hr\b[^>]*>/gi;
+  let match: RegExpExecArray | null = pattern.exec(normalized);
+  while (match) {
+    const tag = (match[1] ?? "hr").toLowerCase();
+    const inner = match[2] ?? "";
+    if (tag === "hr") {
+      blocks.push({ kind: "divider" });
+    } else if (tag === "tr") {
+      const cells = Array.from(inner.matchAll(/<\s*(td|th)\b[^>]*>([\s\S]*?)<\s*\/\s*\1\s*>/gi))
+        .map((cell) => stripHtmlInline(cell[2] ?? ""))
+        .filter(Boolean);
+      if (cells.length > 0) {
+        blocks.push({ kind: "tableRow", cells, header: /<\s*th\b/i.test(inner) });
+      }
+    } else {
+      const text = stripHtmlInline(inner);
+      if (text) {
+        if (tag.startsWith("h")) blocks.push({ kind: "heading", text, level: Number.parseInt(tag.slice(1), 10) || 2 });
+        else if (tag === "li") blocks.push({ kind: "list", text });
+        else blocks.push({ kind: "paragraph", text });
+      }
+    }
+    match = pattern.exec(normalized);
+  }
+
+  if (blocks.length === 0) {
+    const plain = htmlToPlainText(html);
+    return plain ? plain.split(/\n{2,}/g).map((text) => ({ kind: "paragraph", text } as PdfContentBlock)) : [];
+  }
+
+  return blocks;
+}
+
+function readTextConfig(config: unknown, key: string): string {
+  if (!config || typeof config !== "object" || Array.isArray(config)) return "";
+  const raw = (config as Record<string, unknown>)[key];
+  return typeof raw === "string" ? raw.trim() : "";
+}
+
+function buildAddressLineFromBranding(config: unknown): string {
+  const parts = [
+    readTextConfig(config, "streetAddress1"),
+    readTextConfig(config, "streetAddress2"),
+    [readTextConfig(config, "city"), readTextConfig(config, "stateProvince")].filter(Boolean).join(", "),
+    readTextConfig(config, "postalCode"),
+    readTextConfig(config, "country"),
+  ].filter(Boolean);
+  return parts.join(" | ");
+}
+
+async function getLetterPdfBrandingContext(organizationId: string): Promise<LetterPdfBrandingContext> {
+  const [organization, settings, brandingSetting] = await Promise.all([
+    prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } }),
+    prisma.organizationSettings.findUnique({ where: { organizationId }, select: { smtpFromEmail: true, smtpFromName: true } }),
+    prisma.pluginSetting.findUnique({
+      where: { organizationId_pluginKey: { organizationId, pluginKey: "organization-branding" } },
+      select: { config: true },
+    }),
+  ]);
+
+  const branding = brandingSetting?.config;
+  const organizationName =
+    readTextConfig(branding, "organizationDisplayName")
+    || readTextConfig(branding, "legalOrganizationName")
+    || organization?.name
+    || settings?.smtpFromName
+    || "Organization";
+  const contactLine = [
+    readTextConfig(branding, "contactPhone"),
+    readTextConfig(branding, "contactEmail") || settings?.smtpFromEmail || "",
+    readTextConfig(branding, "websiteUrl"),
+  ].filter(Boolean).join(" | ");
+
+  return {
+    organizationName,
+    tagline: readTextConfig(branding, "tagline"),
+    addressLine: buildAddressLineFromBranding(branding),
+    contactLine,
+    taxId: readTextConfig(branding, "taxId"),
+  };
+}
+
 /** Sanitizes a value for safe ASCII PDF filename usage. */
 function sanitizePdfFilename(value: string): string {
   const normalized = value
@@ -340,6 +506,149 @@ function sanitizePdfFilename(value: string): string {
   return normalized || "generated_letter";
 }
 
+function headerLines(branding: LetterPdfBrandingContext, preset?: LetterPdfPresetContext["headerPreset"]): string[] {
+  return [
+    (preset?.showOrganizationName ?? true) ? branding.organizationName : "",
+    (preset?.showTagline ?? false) ? branding.tagline : "",
+    (preset?.showAddress ?? true) ? branding.addressLine : "",
+    (preset?.showPhone ?? true) || (preset?.showWebsite ?? true) ? branding.contactLine : "",
+    preset?.customHtml ? stripHtmlInline(preset.customHtml) : "",
+  ].filter(Boolean);
+}
+
+function footerLines(branding: LetterPdfBrandingContext, preset?: LetterPdfPresetContext["footerPreset"]): string[] {
+  return [
+    preset?.customHtml ? stripHtmlInline(preset.customHtml) : "",
+    preset?.customText ?? "",
+    (preset?.showOrganizationName ?? true) ? branding.organizationName : "",
+    (preset?.showAddress ?? true) ? branding.addressLine : "",
+    [
+      (preset?.showPhone ?? true) ? branding.contactLine.split(" | ")[0] ?? "" : "",
+      (preset?.showEmail ?? true) ? branding.contactLine.split(" | ")[1] ?? "" : "",
+      (preset?.showWebsite ?? true) ? branding.contactLine.split(" | ")[2] ?? "" : "",
+    ].filter(Boolean).join(" | "),
+    (preset?.showTaxId ?? false) && branding.taxId ? `Tax ID: ${branding.taxId}` : "",
+  ].filter(Boolean);
+}
+
+function drawPdfChrome(doc: JsPdfDocument, branding: LetterPdfBrandingContext, presets: LetterPdfPresetContext): void {
+  const pageCount = doc.getNumberOfPages();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginX = 54;
+  const footerY = pageHeight - 54;
+  const header = headerLines(branding, presets.headerPreset);
+  const footer = footerLines(branding, presets.footerPreset);
+
+  for (let page = 1; page <= pageCount; page += 1) {
+    doc.setPage(page);
+    doc.setDrawColor(226, 232, 240);
+    doc.setTextColor(15, 23, 42);
+
+    if (header.length > 0) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.text(header[0] ?? "", marginX, 42);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      header.slice(1, 4).forEach((line, index) => {
+        doc.text(line, marginX, 57 + index * 11);
+      });
+      doc.line(marginX, 92, pageWidth - marginX, 92);
+    }
+
+    doc.line(marginX, footerY - 16, pageWidth - marginX, footerY - 16);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(71, 85, 105);
+    footer.slice(0, 3).forEach((line, index) => {
+      doc.text(line, marginX, footerY + index * 10);
+    });
+    if (presets.footerPreset?.showPageNumber) {
+      doc.text(`Page ${page} of ${pageCount}`, pageWidth - marginX, footerY, { align: "right" });
+    }
+  }
+}
+
+function appendSignatureBlocks(blocks: PdfContentBlock[], signature?: LetterPdfPresetContext["signatureBlock"]): PdfContentBlock[] {
+  if (!signature) return blocks;
+  const next = [...blocks];
+  if (signature.closingPhrase) next.push({ kind: "paragraph", text: signature.closingPhrase });
+  next.push({ kind: "paragraph", text: signature.typedSignature || signature.signerName });
+  if (signature.signerName && signature.typedSignature && signature.typedSignature !== signature.signerName) {
+    next.push({ kind: "paragraph", text: signature.signerName });
+  }
+  if (signature.signerTitle) next.push({ kind: "paragraph", text: signature.signerTitle });
+  const contact = [signature.email, signature.phone].filter(Boolean).join(" | ");
+  if (contact) next.push({ kind: "paragraph", text: contact });
+  return next;
+}
+
+function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], options: { startY: number; itemLabel?: string }): void {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginX = 54;
+  const marginBottom = 96;
+  const contentTop = options.startY;
+  const maxTextWidth = pageWidth - marginX * 2;
+  let cursorY = contentTop;
+
+  const ensurePageSpace = (requiredHeight: number) => {
+    if (cursorY + requiredHeight <= pageHeight - marginBottom) return;
+    doc.addPage();
+    cursorY = contentTop;
+  };
+
+  const writeText = (text: string, fontSize: number, fontStyle: "normal" | "bold" = "normal", marginAfter = 8, indent = 0) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    doc.setFont("helvetica", fontStyle);
+    doc.setFontSize(fontSize);
+    doc.setTextColor(15, 23, 42);
+    const width = maxTextWidth - indent;
+    const lines = doc.splitTextToSize(trimmed, width) as string[];
+    const lineHeight = Math.max(13, Math.round(fontSize * 1.38));
+    for (const line of lines) {
+      ensurePageSpace(lineHeight);
+      doc.text(line, marginX + indent, cursorY);
+      cursorY += lineHeight;
+    }
+    cursorY += marginAfter;
+  };
+
+  if (options.itemLabel) writeText(options.itemLabel, 8.5, "normal", 12);
+
+  for (const block of blocks.length > 0 ? blocks : [{ kind: "paragraph", text: "(No letter content)" } as PdfContentBlock]) {
+    if (block.kind === "heading") {
+      const size = block.level === 1 ? 18 : block.level === 2 ? 15 : 13;
+      writeText(block.text, size, "bold", 10);
+    } else if (block.kind === "list") {
+      writeText(`• ${block.text}`, 10.5, "normal", 6, 10);
+    } else if (block.kind === "divider") {
+      ensurePageSpace(18);
+      doc.setDrawColor(203, 213, 225);
+      doc.line(marginX, cursorY, pageWidth - marginX, cursorY);
+      cursorY += 18;
+    } else if (block.kind === "tableRow") {
+      const rowHeight = 24;
+      ensurePageSpace(rowHeight);
+      const cellWidth = maxTextWidth / Math.max(block.cells.length, 1);
+      doc.setFont("helvetica", block.header ? "bold" : "normal");
+      doc.setFontSize(9);
+      doc.setDrawColor(203, 213, 225);
+      block.cells.forEach((cell, index) => {
+        const x = marginX + index * cellWidth;
+        doc.rect(x, cursorY - 12, cellWidth, rowHeight);
+        const clipped = doc.splitTextToSize(cell, cellWidth - 10) as string[];
+        doc.text(clipped.slice(0, 1), x + 5, cursorY + 2);
+      });
+      cursorY += rowHeight;
+    } else {
+      writeText(block.text, 11, "normal", 8);
+    }
+  }
+}
+
 /** Renders one generated letter into PDF bytes using jsPDF server-side. */
 async function renderGeneratedLetterPdf(params: {
   templateName: string;
@@ -347,61 +656,18 @@ async function renderGeneratedLetterPdf(params: {
   constituentName: string;
   generatedAt: Date;
   mergedPrintBody: string;
+  branding: LetterPdfBrandingContext;
+  presets: LetterPdfPresetContext;
 }): Promise<Buffer> {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "pt", format: "letter", compress: true });
 
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const marginX = 54;
-  const marginTop = 56;
-  const marginBottom = 56;
-  const maxTextWidth = pageWidth - marginX * 2;
-  let cursorY = marginTop;
-
-  const ensurePageSpace = (requiredHeight: number) => {
-    if (cursorY + requiredHeight <= pageHeight - marginBottom) return;
-    doc.addPage();
-    cursorY = marginTop;
-  };
-
-  const writeParagraph = (
-    text: string,
-    fontSize: number,
-    fontStyle: "normal" | "bold" = "normal",
-    marginAfter = 8,
-  ) => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-
-    doc.setFont("helvetica", fontStyle);
-    doc.setFontSize(fontSize);
-
-    const lines = doc.splitTextToSize(trimmed, maxTextWidth) as string[];
-    const lineHeight = Math.max(14, Math.round(fontSize * 1.45));
-
-    for (const line of lines) {
-      ensurePageSpace(lineHeight);
-      doc.text(line, marginX, cursorY);
-      cursorY += lineHeight;
-    }
-
-    cursorY += marginAfter;
-  };
-
-  writeParagraph(params.templateName || "Generated Letter", 16, "bold", 4);
-  writeParagraph(`Subject: ${params.subject || "Letter"}`, 11, "bold", 4);
-  if (params.constituentName) {
-    writeParagraph(`Constituent: ${params.constituentName}`, 10, "normal", 2);
-  }
-  writeParagraph(`Generated: ${params.generatedAt.toLocaleString()}`, 10, "normal", 10);
-
-  const plainTextBody = htmlToPlainText(params.mergedPrintBody || "");
-  const paragraphs = plainTextBody.length > 0 ? plainTextBody.split(/\n{2,}/g) : ["(No letter content)"];
-
-  for (const paragraph of paragraphs) {
-    writeParagraph(paragraph, 11, "normal", 8);
-  }
+  const blocks = appendSignatureBlocks(htmlToPdfBlocks(params.mergedPrintBody || ""), params.presets.signatureBlock);
+  renderPdfContentBlocks(doc, blocks, {
+    startY: 122,
+    itemLabel: params.constituentName ? `Generated for ${params.constituentName} on ${params.generatedAt.toLocaleDateString()}` : undefined,
+  });
+  drawPdfChrome(doc, params.branding, params.presets);
 
   const pdfBytes = doc.output("arraybuffer");
   return Buffer.from(pdfBytes);
@@ -414,69 +680,23 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
   constituentName: string;
   generatedAt: Date;
   mergedPrintBody: string;
+  branding: LetterPdfBrandingContext;
+  presets: LetterPdfPresetContext;
 }>): Promise<Buffer> {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "pt", format: "letter", compress: true });
 
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const marginX = 54;
-  const marginTop = 56;
-  const marginBottom = 56;
-  const maxTextWidth = pageWidth - marginX * 2;
-  let cursorY = marginTop;
-
-  const ensurePageSpace = (requiredHeight: number) => {
-    if (cursorY + requiredHeight <= pageHeight - marginBottom) return;
-    doc.addPage();
-    cursorY = marginTop;
-  };
-
-  const writeParagraph = (
-    text: string,
-    fontSize: number,
-    fontStyle: "normal" | "bold" = "normal",
-    marginAfter = 8,
-  ) => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-
-    doc.setFont("helvetica", fontStyle);
-    doc.setFontSize(fontSize);
-
-    const lines = doc.splitTextToSize(trimmed, maxTextWidth) as string[];
-    const lineHeight = Math.max(14, Math.round(fontSize * 1.45));
-
-    for (const line of lines) {
-      ensurePageSpace(lineHeight);
-      doc.text(line, marginX, cursorY);
-      cursorY += lineHeight;
-    }
-
-    cursorY += marginAfter;
-  };
-
   items.forEach((item, index) => {
     if (index > 0) {
       doc.addPage();
-      cursorY = marginTop;
     }
-
-    writeParagraph(item.templateName || "Generated Letter", 16, "bold", 4);
-    writeParagraph(`Subject: ${item.subject || "Letter"}`, 11, "bold", 4);
-    if (item.constituentName) {
-      writeParagraph(`Constituent: ${item.constituentName}`, 10, "normal", 2);
-    }
-    writeParagraph(`Generated: ${item.generatedAt.toLocaleString()}`, 10, "normal", 2);
-    writeParagraph(`Batch item ${index + 1} of ${items.length}`, 9, "normal", 10);
-
-    const plainTextBody = htmlToPlainText(item.mergedPrintBody || "");
-    const paragraphs = plainTextBody.length > 0 ? plainTextBody.split(/\n{2,}/g) : ["(No letter content)"];
-
-    for (const paragraph of paragraphs) {
-      writeParagraph(paragraph, 11, "normal", 8);
-    }
+    const blocks = appendSignatureBlocks(htmlToPdfBlocks(item.mergedPrintBody || ""), item.presets.signatureBlock);
+    renderPdfContentBlocks(doc, blocks, {
+      startY: 122,
+      itemLabel: `Batch item ${index + 1} of ${items.length}${item.constituentName ? ` - ${item.constituentName}` : ""}`,
+    });
   });
+  if (items[0]) drawPdfChrome(doc, items[0].branding, items[0].presets);
 
   const pdfBytes = doc.output("arraybuffer");
   return Buffer.from(pdfBytes);
@@ -2381,7 +2601,14 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
       mergedPrintBody: true,
       generatedAt: true,
       metadataJson: true,
-      template: { select: { name: true } },
+      template: {
+        select: {
+          name: true,
+          headerPreset: true,
+          footerPreset: true,
+          signatureBlock: true,
+        },
+      },
       constituent: { select: { firstName: true, lastName: true } },
     },
   });
@@ -2399,12 +2626,19 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
   const subject = generatedLetter.mergedPrintSubject?.trim() || templateName;
 
   try {
+    const branding = await getLetterPdfBrandingContext(organizationId);
     const pdfBuffer = await renderGeneratedLetterPdf({
       templateName,
       subject,
       constituentName,
       generatedAt: generatedLetter.generatedAt,
       mergedPrintBody: generatedLetter.mergedPrintBody,
+      branding,
+      presets: {
+        headerPreset: generatedLetter.template?.headerPreset,
+        footerPreset: generatedLetter.template?.footerPreset,
+        signatureBlock: generatedLetter.template?.signatureBlock,
+      },
     });
 
     const timestamp = new Date().toISOString().slice(0, 10);
@@ -2436,8 +2670,9 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
       },
     });
 
+    const dispositionType = req.query.preview === "1" || req.query.inline === "1" ? "inline" : "attachment";
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename=\"${fileName}\"`);
+    res.setHeader("Content-Disposition", `${dispositionType}; filename=\"${fileName}\"`);
     res.setHeader("Cache-Control", "no-store");
     res.status(200).send(pdfBuffer);
   } catch (error) {
@@ -2514,7 +2749,14 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
       mergedPrintBody: true,
       generatedAt: true,
       metadataJson: true,
-      template: { select: { name: true } },
+      template: {
+        select: {
+          name: true,
+          headerPreset: true,
+          footerPreset: true,
+          signatureBlock: true,
+        },
+      },
       constituent: { select: { firstName: true, lastName: true } },
     },
   });
@@ -2539,6 +2781,7 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
   const exportedAtIso = new Date().toISOString();
 
   try {
+    const branding = await getLetterPdfBrandingContext(organizationId);
     const pdfBuffer = await renderGeneratedLettersBatchPdf(
       orderedRows.map((row) => {
         const constituentName = [row.constituent?.firstName, row.constituent?.lastName]
@@ -2554,6 +2797,12 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
           constituentName,
           generatedAt: row.generatedAt,
           mergedPrintBody: row.mergedPrintBody,
+          branding,
+          presets: {
+            headerPreset: row.template?.headerPreset,
+            footerPreset: row.template?.footerPreset,
+            signatureBlock: row.template?.signatureBlock,
+          },
         };
       }),
     );
@@ -2587,8 +2836,9 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
       },
     });
 
+    const dispositionType = req.query.preview === "1" || req.query.inline === "1" ? "inline" : "attachment";
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename=\"${fileName}\"`);
+    res.setHeader("Content-Disposition", `${dispositionType}; filename=\"${fileName}\"`);
     res.setHeader("Cache-Control", "no-store");
     res.status(200).send(pdfBuffer);
   } catch (error) {
@@ -2664,7 +2914,23 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
 
   const filterType = parseEnum(req.body?.filterType, ["ALL", "ACTIVE", "LAPSED", "NEW", "MAJOR_DONOR", "MONTHLY_DONOR"] as const) ?? "ALL";
   const donorStatusFilter = filterType === "ALL" || filterType === "MONTHLY_DONOR" ? undefined : filterType;
-  const recurringFilter = filterType === "MONTHLY_DONOR" ? { donations: { some: { isRecurring: true } } } : {};
+  const campaignId = typeof req.body?.campaignId === "string" && req.body.campaignId.trim() ? req.body.campaignId.trim() : undefined;
+  const dateFrom = typeof req.body?.dateFrom === "string" && req.body.dateFrom.trim() ? new Date(`${req.body.dateFrom.trim()}T00:00:00.000Z`) : null;
+  const dateTo = typeof req.body?.dateTo === "string" && req.body.dateTo.trim() ? new Date(`${req.body.dateTo.trim()}T23:59:59.999Z`) : null;
+  const donationAudienceFilter: Prisma.DonationWhereInput = {
+    status: "COMPLETED",
+    ...(filterType === "MONTHLY_DONOR" ? { isRecurring: true } : {}),
+    ...(campaignId ? { campaignId } : {}),
+    ...((dateFrom && !Number.isNaN(dateFrom.getTime())) || (dateTo && !Number.isNaN(dateTo.getTime()))
+      ? {
+          date: {
+            ...(dateFrom && !Number.isNaN(dateFrom.getTime()) ? { gte: dateFrom } : {}),
+            ...(dateTo && !Number.isNaN(dateTo.getTime()) ? { lte: dateTo } : {}),
+          },
+        }
+      : {}),
+  };
+  const hasDonationAudienceFilter = Object.keys(donationAudienceFilter).length > 0;
 
   const candidates = requestedIds.length > 0
     ? await prisma.constituent.findMany({
@@ -2690,7 +2956,7 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
       where: {
         organizationId,
         ...(donorStatusFilter ? { donorStatus: donorStatusFilter } : {}),
-        ...recurringFilter,
+        ...(hasDonationAudienceFilter ? { donations: { some: donationAudienceFilter } } : {}),
       },
       select: {
         id: true,
@@ -2813,6 +3079,9 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
     metadata: {
       dryRun,
       filterType,
+      campaignId,
+      dateFrom: dateFrom && !Number.isNaN(dateFrom.getTime()) ? dateFrom.toISOString() : null,
+      dateTo: dateTo && !Number.isNaN(dateTo.getTime()) ? dateTo.toISOString() : null,
       selectedCount: candidates.length,
       generatedCount: generatedIds.length,
       skippedCount: skipped.length,

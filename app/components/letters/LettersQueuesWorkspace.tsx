@@ -103,12 +103,12 @@ export default function LettersQueuesWorkspace() {
       description="Unified production, print, and mail operations for donor letters and printable outputs."
       breadcrumbItems={[
         { label: "Donor CRM", href: "/" },
-        { label: "Letters & Printables", href: "/letters-printables" },
+        { label: "OyamaLetters", href: "/oyama-letters" },
         { label: "Queues" },
       ]}
       statusLabel="Partially Working"
       metadata={`${queuedForProduction} in production flow · ${stats?.needsReview ?? 0} need review`}
-      primaryAction={<WorkspaceRibbonButton label="Generate Media" href="/letters-printables/generate" variant="primary" />}
+      primaryAction={<WorkspaceRibbonButton label="Generate PDF" href="/oyama-letters/generate" variant="primary" />}
       ribbon={(
         <WorkspaceRibbon>
           <WorkspaceRibbonGroup label="Queues">
@@ -118,9 +118,9 @@ export default function LettersQueuesWorkspace() {
           </WorkspaceRibbonGroup>
 
           <WorkspaceRibbonGroup label="Workspace">
-            <WorkspaceRibbonButton label="Project Manager" href="/letters-printables" />
-            <WorkspaceRibbonButton label="Templates" href="/letters-printables/templates" />
-            <WorkspaceRibbonButton label="Run Generation" href="/letters-printables/generate" />
+            <WorkspaceRibbonButton label="OyamaLetters" href="/oyama-letters" />
+            <WorkspaceRibbonButton label="Templates" href="/oyama-letters/templates" />
+            <WorkspaceRibbonButton label="Run Generation" href="/oyama-letters/generate" />
           </WorkspaceRibbonGroup>
 
           <WorkspaceRibbonGroup label="Refresh">

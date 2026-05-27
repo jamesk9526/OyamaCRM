@@ -10,6 +10,34 @@ interface Props {
   onRefresh: () => void;
 }
 
+/** Formats one audit metadata payload into concise operational send details. */
+function formatLogDetails(metadata: Record<string, unknown> | null | undefined): string {
+  if (!metadata) return "-";
+
+  const errorMessage = typeof metadata.message === "string" ? metadata.message : "";
+  if (errorMessage) return errorMessage;
+
+  const parts: string[] = [];
+  const trigger = typeof metadata.trigger === "string" ? metadata.trigger : "";
+  const sendMode = typeof metadata.sendMode === "string" ? metadata.sendMode : "";
+  const audienceType = typeof metadata.audienceType === "string" ? metadata.audienceType : "";
+  const finalSendCount = typeof metadata.finalSendCount === "number" ? metadata.finalSendCount : undefined;
+  const totalMatched = typeof metadata.totalMatched === "number" ? metadata.totalMatched : undefined;
+  const suppressed = typeof metadata.suppressed === "number" ? metadata.suppressed : undefined;
+  const optedOut = typeof metadata.optedOut === "number" ? metadata.optedOut : undefined;
+
+  if (trigger) parts.push(`trigger=${trigger.toLowerCase()}`);
+  if (sendMode) parts.push(`mode=${sendMode.toLowerCase()}`);
+  if (audienceType) parts.push(`audience=${audienceType}`);
+  if (typeof finalSendCount === "number") parts.push(`final=${finalSendCount}`);
+  if (typeof totalMatched === "number") parts.push(`matched=${totalMatched}`);
+  if (typeof suppressed === "number") parts.push(`suppressed=${suppressed}`);
+  if (typeof optedOut === "number") parts.push(`optedOut=${optedOut}`);
+
+  if (parts.length === 0) return "-";
+  return parts.join(" · ");
+}
+
 /** CampaignSendLogTable lists send/schedule/test/failure events for this campaign. */
 export default function CampaignSendLogTable({ logs, loading, onRefresh }: Props) {
   return (
@@ -39,11 +67,8 @@ export default function CampaignSendLogTable({ logs, loading, onRefresh }: Props
         <>
         <div className="md:hidden divide-y divide-gray-100">
           {logs.map((entry) => {
-            const metadata = entry.metadata ?? {};
-            const sendMode = typeof metadata.sendMode === "string" ? metadata.sendMode : undefined;
-            const audienceType = typeof metadata.audienceType === "string" ? metadata.audienceType : undefined;
-            const finalSendCount = typeof metadata.finalSendCount === "number" ? metadata.finalSendCount : undefined;
-            const errorMessage = typeof metadata.message === "string" ? metadata.message : undefined;
+            const details = formatLogDetails(entry.metadata);
+            const hasError = typeof entry.metadata?.message === "string";
 
             return (
               <article key={entry.id} className="px-4 py-3">
@@ -52,17 +77,7 @@ export default function CampaignSendLogTable({ logs, loading, onRefresh }: Props
                   <span className="text-xs font-medium text-gray-800">{formatSendAction(entry.action)}</span>
                 </div>
                 <p className="mt-1 text-xs text-gray-600">Actor: {entry.user?.name || "System"}</p>
-                <p className="mt-1 text-xs text-gray-600">
-                  {errorMessage ? (
-                    <span className="text-red-600">{errorMessage}</span>
-                  ) : (
-                    <span>
-                      {sendMode ? `mode=${sendMode}` : ""}
-                      {audienceType ? ` audience=${audienceType}` : ""}
-                      {typeof finalSendCount === "number" ? ` recipients=${finalSendCount}` : ""}
-                    </span>
-                  )}
-                </p>
+                <p className={`mt-1 text-xs ${hasError ? "text-red-600" : "text-gray-600"}`}>{details}</p>
               </article>
             );
           })}
@@ -80,27 +95,16 @@ export default function CampaignSendLogTable({ logs, loading, onRefresh }: Props
             </thead>
             <tbody>
               {logs.map((entry) => {
-                const metadata = entry.metadata ?? {};
-                const sendMode = typeof metadata.sendMode === "string" ? metadata.sendMode : undefined;
-                const audienceType = typeof metadata.audienceType === "string" ? metadata.audienceType : undefined;
-                const finalSendCount = typeof metadata.finalSendCount === "number" ? metadata.finalSendCount : undefined;
-                const errorMessage = typeof metadata.message === "string" ? metadata.message : undefined;
+                const details = formatLogDetails(entry.metadata);
+                const hasError = typeof entry.metadata?.message === "string";
 
                 return (
                   <tr key={entry.id} className="border-t border-gray-100 align-top">
                     <td className="whitespace-nowrap px-4 py-2.5 text-xs text-gray-600">{formatWorkspaceDate(entry.createdAt)}</td>
                     <td className="px-4 py-2.5 font-medium text-gray-800">{formatSendAction(entry.action)}</td>
                     <td className="px-4 py-2.5 text-gray-600">{entry.user?.name || "System"}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-600">
-                      {errorMessage ? (
-                        <span className="text-red-600">{errorMessage}</span>
-                      ) : (
-                        <span>
-                          {sendMode ? `mode=${sendMode}` : ""}
-                          {audienceType ? ` audience=${audienceType}` : ""}
-                          {typeof finalSendCount === "number" ? ` recipients=${finalSendCount}` : ""}
-                        </span>
-                      )}
+                    <td className={`px-4 py-2.5 text-xs ${hasError ? "text-red-600" : "text-gray-600"}`}>
+                      {details}
                     </td>
                   </tr>
                 );

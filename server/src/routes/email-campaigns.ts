@@ -2969,8 +2969,9 @@ router.post("/:id/send", async (req, res) => {
 
     const body = (req.body ?? {}) as {
       sendMode?: CampaignSendMode;
-      audienceFilter?: AudienceFilter;
+      audienceFilter?: AudienceFilter | { types?: string[] };
       recipientListId?: string;
+      recipientListIds?: string[];
       recipientEmails?: string[];
     };
 
@@ -2978,11 +2979,27 @@ router.post("/:id/send", async (req, res) => {
       sendMode: body.sendMode,
       audienceFilter: body.audienceFilter,
       recipientListId: typeof body.recipientListId === "string" ? body.recipientListId : undefined,
+      recipientListIds: Array.isArray(body.recipientListIds)
+        ? body.recipientListIds.map((value) => String(value)).filter(Boolean)
+        : undefined,
       recipientEmails: Array.isArray(body.recipientEmails) ? body.recipientEmails : undefined,
     };
 
     const updated = await sendCampaignNow(req.params.id as string, "MANUAL", sendOptions);
-    res.json(updated);
+    res.json({
+      ...updated,
+      sendSummary: {
+        trigger: "MANUAL",
+        sendMode: sendOptions.sendMode ?? "CAMPAIGN_AUDIENCE",
+        status: updated.status,
+        totalRecipients: updated.totalRecipients,
+        delivered: updated.delivered,
+        opened: updated.opened,
+        clicked: updated.clicked,
+        bounced: updated.bounced,
+        sentAt: updated.sentAt,
+      },
+    });
   } catch (err) {
     if (err instanceof CampaignSendError) {
       res.status(err.status).json({ error: err.message });

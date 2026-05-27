@@ -9,12 +9,11 @@ import {
 } from "@/app/components/layout/sidebar-configs";
 
 describe("Donor sidebar organization", () => {
-  it("keeps Fundraising group focused on core records", () => {
+  it("keeps Core CRM group focused on core records", () => {
     const groups = buildDonorSidebarGroups({ qbEnabled: false });
-    const fundraising = groups.find((group) => group.id === "fundraising");
+    const coreCrm = groups.find((group) => group.id === "core-crm");
 
-    expect(fundraising?.items.map((item) => item.label)).toEqual([
-      "Dashboard",
+    expect(coreCrm?.items.map((item) => item.label)).toEqual([
       "Constituents",
       "Donations",
       "Campaigns",
@@ -31,13 +30,15 @@ describe("Donor sidebar organization", () => {
     expect(engagement?.items[0]?.badge).toBe("App");
   });
 
-  it("keeps Letters and LiveCom in communication tools with useful badges", () => {
+  it("keeps OyamaLetters and LiveCom in communication tools with useful badges", () => {
     const groups = buildDonorSidebarGroups({ qbEnabled: false });
     const communicationTools = groups.find((group) => group.id === "communication-tools");
 
     const letters = communicationTools?.items.find((item) => item.id === "letters-printables");
     const liveCom = communicationTools?.items.find((item) => item.id === "livecom");
 
+    expect(letters?.label).toBe("OyamaLetters");
+    expect(letters?.href).toBe("/oyama-letters");
     expect(letters?.badge).toBe("Tool");
     expect(letters?.description).toContain("thank-you letters");
     expect(liveCom?.badge).toBe("New");

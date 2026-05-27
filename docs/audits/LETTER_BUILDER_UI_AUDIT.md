@@ -1,6 +1,6 @@
 # Letter Builder UI Audit
 
-Date: May 19, 2026
+Date: May 27, 2026
 
 ## Scope
 
@@ -31,6 +31,9 @@ Audited `app/components/letters/LetterTemplateEditor.tsx` and `app/components/le
 | Font size | Missing/limited | Applies print font size | Add | Required for print fidelity | Right Format tab, TipTap `FontSize` extension | Done |
 | Slash commands | Missing | Inserts blocks/tokens from `/` | Add | Reduces visible toolbar clutter | Editor inline command menu | Done |
 | AI Write | Not focused in builder | Drafting assistance | Add as controlled prompt | Should not dominate or auto-apply actions | Floating command bar and `/ai-write` | Done |
+| OyamaLetters Generate Center | Separate single/batch page | Select real records, preview merge, generate PDF | Replace | Letter, receipt, label, and batch workflows need one production center | `/oyama-letters/generate` three-column workspace | Done |
+| PDF Preview | Download-first PDF export | Streams generated PDF bytes | Move into workspace | Staff need to inspect final generated PDF before download/print | Center `PDF Preview` mode using generated blob | Done |
+| Missing merge fields | Silent blanks for supported empty fields | Highlights missing values | Add guardrail | Prevents accidental blank donor-facing letters | Merge status rail and highlighted preview marks | Done |
 
 ## Remaining Production Risks
 
@@ -38,9 +41,13 @@ Audited `app/components/letters/LetterTemplateEditor.tsx` and `app/components/le
 - Duplicate Template and Archive Template need backend persistence hardening before being considered complete production workflows.
 - Font controls persist through inline TipTap HTML for edited selections; a future schema field should store document-level typography defaults.
 - Drag-to-insert is not implemented. Click-to-insert is the supported first pass.
+- PDF rendering uses the existing jsPDF/plain-text renderer. Chromium-grade HTML/CSS PDF fidelity remains a production risk.
+- Avery label grids, ZIP export, cover pages, table of contents, and Create Task handoff need follow-up implementation before they should be considered complete.
 
 ## Approved Journey
 
 Donor CRM -> Communications -> Letters & Printables -> Select Template -> Compose -> Preview -> Save Draft or Publish.
 
 Contextual links from donor, gift, campaign, or Steward workflows should open this same builder with preview context prefilled rather than creating a separate mini editor.
+
+Generated output should open `/oyama-letters/generate` for production actions. `/letters-printables`, `/letters-printables/generate`, `/communications/letters-printables`, and `/communications/letters-printables/generate` are compatibility redirects to the canonical routes.

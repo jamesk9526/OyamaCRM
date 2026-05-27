@@ -1,8 +1,8 @@
-# Letters & Printables Workspace
+# OyamaLetters Workspace
 
 ## Summary
 
-The Donor CRM Letters & Printables workspace at `/letters-printables` supports template authoring, single and batch generation, print queue operations, mail queue operations, and letter-to-email draft handoff.
+The Donor CRM OyamaLetters workspace at `/oyama-letters` supports template authoring, single and batch generation, print queue operations, mail queue operations, and letter-to-email draft handoff. The previous `/letters-printables` home is deprecated and redirects to OyamaLetters.
 
 ## Scope
 
@@ -10,11 +10,15 @@ This workspace is Donor CRM-only and uses the green DonorCRM shell.
 
 Implemented routes:
 
-- `/letters-printables`
-- `/letters-printables/templates`
-- `/letters-printables/templates/new`
-- `/letters-printables/templates/[templateId]`
-- `/letters-printables/generate`
+- `/oyama-letters`
+- `/oyama-letters/templates`
+- `/oyama-letters/templates/new`
+- `/oyama-letters/templates/[templateId]`
+- `/oyama-letters/generate`
+- `/letters-printables` (compatibility redirect to `/oyama-letters`)
+- `/letters-printables/generate` (compatibility redirect to `/oyama-letters/generate`)
+- `/communications/letters-printables` (compatibility redirect to `/oyama-letters`)
+- `/communications/letters-printables/generate` (compatibility redirect to `/oyama-letters/generate`)
 - `/letters-printables/batches` (compatibility redirect to `/letters-printables/generate?mode=batch`)
 - `/letters-printables/queues` (canonical production/print/mail workspace)
 - `/letters-printables/print-queue` (compatibility redirect to `/letters-printables/queues?view=print`)
@@ -61,6 +65,8 @@ Implemented endpoints:
 - `POST /generated/batch`
 - `POST /generated/:id/export-pdf`
 - `POST /generated/export-pdf-batch`
+
+`POST /generated/:id/export-pdf?preview=1` and `POST /generated/export-pdf-batch?preview=1` stream inline PDF responses for the in-browser Generate Printables preview.
 
 `GET /generated` supports trace-aware filters for unified workflow navigation:
 

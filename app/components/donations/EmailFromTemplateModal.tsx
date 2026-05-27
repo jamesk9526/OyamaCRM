@@ -38,6 +38,21 @@ interface PreviewPayload {
   resolvedTemplateJson?: string | null;
 }
 
+interface SendFromTemplateResponse {
+  success: boolean;
+  sentTo: string;
+  campaignId?: string;
+  sendSummary?: {
+    status?: string;
+    totalRecipients?: number;
+    delivered?: number;
+    opened?: number;
+    clicked?: number;
+    bounced?: number;
+    sentAt?: string | null;
+  };
+}
+
 interface DonationContext {
   donationId: string;
   donorName: string;
@@ -291,6 +306,8 @@ export default function EmailFromTemplateModal({ donation, onClose }: Props) {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [sentCampaignId, setSentCampaignId] = useState<string | null>(null);
+  const [sendSummaryText, setSendSummaryText] = useState<string>("");
 
   // Fallback WYSIWYG editor state (used when templateJson is unavailable)
   const [showSlashMenu, setShowSlashMenu] = useState(false);
@@ -439,10 +456,18 @@ export default function EmailFromTemplateModal({ donation, onClose }: Props) {
     // Use block-generated HTML when available, fall back to server-rendered bodyHtml
     const finalHtml = emailTemplate ? generateEmailHtml(emailTemplate) : bodyHtml;
     try {
-      await apiFetch(`/api/donations/${donation.donationId}/send-from-template`, {
+      const payload = await apiFetch<SendFromTemplateResponse>(`/api/donations/${donation.donationId}/send-from-template`, {
         method: "POST",
         body: JSON.stringify({ templateId: preview.templateId, subject, bodyHtml: finalHtml }),
       });
+      setSentCampaignId(payload.campaignId ?? null);
+      const queuedCount = Number(payload.sendSummary?.totalRecipients ?? 0);
+      const deliveredCount = Number(payload.sendSummary?.delivered ?? 0);
+      if (queuedCount > 0 || deliveredCount > 0) {
+        setSendSummaryText(`Queue logged for ${queuedCount || deliveredCount} recipient${(queuedCount || deliveredCount) === 1 ? "" : "s"}; delivered ${deliveredCount}.`);
+      } else {
+        setSendSummaryText("Send completed and activity was logged.");
+      }
       setSent(true);
     } catch (err) {
       setSendError(err instanceof Error ? err.message : "Failed to send email.");
@@ -764,10 +789,21 @@ export default function EmailFromTemplateModal({ donation, onClose }: Props) {
                 </svg>
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Email Sent</p>
+                <p className="font-semibold text-gray-900">Email Sent And Logged</p>
                 <p className="text-sm text-gray-500 mt-0.5">
                   Delivered to {preview?.toEmail}
                 </p>
+                {sendSummaryText ? (
+                  <p className="text-xs text-gray-500 mt-1">{sendSummaryText}</p>
+                ) : null}
+                {sentCampaignId ? (
+                  <a
+                    href={`/communications/${sentCampaignId}?mode=activity`}
+                    className="mt-2 inline-flex rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                  >
+                    Open Send Activity Log
+                  </a>
+                ) : null}
               </div>
             </div>
           )}
@@ -815,7 +851,7 @@ export default function EmailFromTemplateModal({ donation, onClose }: Props) {
                     <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                     </svg>
-                    Send Email
+                    Send + Log Email
                   </>
                 )}
               </button>

@@ -1,4 +1,4 @@
-/** Dashboard screen for the Donor CRM Letters & Printables workspace. */
+/** Legacy dashboard screen for the Donor CRM OyamaLetters workspace. */
 "use client";
 
 import Link from "next/link";
@@ -35,18 +35,18 @@ export default function LettersDashboard() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Letters & Printables</h1>
+          <h1 className="text-xl font-semibold text-gray-900">OyamaLetters</h1>
           <p className="mt-0.5 text-sm text-gray-500">Create polished donor letters, manage print packets, and complete mailing workflows.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
-            href="/letters-printables/templates/new"
+            href="/oyama-letters/templates/new"
             className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
           >
             New Template
           </Link>
           <Link
-            href="/letters-printables/generate"
+            href="/oyama-letters/generate"
             className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 bg-white rounded-lg hover:bg-gray-50"
           >
             Generate Letter
@@ -89,7 +89,7 @@ export default function LettersDashboard() {
           <Link href="/letters-printables/queues?view=mail" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
             Open Mail Queue
           </Link>
-          <Link href="/letters-printables/generate?mode=batch" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+          <Link href="/oyama-letters/generate?mode=batch" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
             Run Batch Generation
           </Link>
           <Link href="/letters-printables/queues?view=production" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
@@ -111,7 +111,7 @@ export default function LettersDashboard() {
             (stats?.recentlyUsedTemplates ?? []).map((template) => (
               <Link
                 key={template.id}
-                href={`/letters-printables/templates/${template.id}`}
+                href={`/oyama-letters/templates/${template.id}`}
                 className="block rounded-lg border border-gray-200 px-3 py-2 hover:bg-gray-50"
               >
                 <div className="flex items-center justify-between gap-2">

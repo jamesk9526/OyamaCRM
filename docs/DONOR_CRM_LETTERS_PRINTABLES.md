@@ -1,6 +1,6 @@
 # DonorCRM Letters And Printables
 
-Last updated: 2026-05-16
+Last updated: 2026-05-27
 
 ## Purpose
 
@@ -30,6 +30,7 @@ It should:
 
 The old template-library route now opens the same project manager for compatibility. Print queue, mail queue, and generated-output routes remain available as production views, but the primary user entry point is the project manager.
 The old batch exporter route redirects into the unified generator at `/letters-printables/generate?mode=batch`.
+The Communications aliases `/communications/letters-printables` and `/communications/letters-printables/generate` redirect to the canonical Letters & Printables routes.
 
 ## Current Status
 
@@ -45,9 +46,9 @@ Reason:
 - The editor can be opened in a full-screen new tab with `?fullscreen=1`.
 - Branding Settings now includes editable header/footer preset tools and uploaded handwritten signature images for rendered letters.
 - Constituent and donation preview context uses searchable API lookups.
-- Single-letter and batch generation now share `/letters-printables/generate`, with segment search, contact search, saved audience list matching, dry-run checks, PDF export, and queue handoff.
+- Single-letter and batch generation now share `/letters-printables/generate`, with document type selection, template cards, real constituent search, saved audience list matching, report-result handoff IDs, campaign donors, date-range donors, segment search, dry-run checks, merged HTML preview, actual PDF blob preview, PDF download/open, and mark-printed actions.
 - Letter-to-email draft bridge is persisted and linked.
-- PDF export and batch generation are still partial/in-development.
+- PDF export and batch generation are working through the existing `GeneratedLetter` model, but Chromium-grade PDF fidelity, Avery label grids, ZIP export, cover pages, and TOC generation are still partial/in-development.
 
 ## Implemented Routes
 

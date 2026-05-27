@@ -1,0 +1,11 @@
+
+> agents-create-oyamam-crm-workspace@1.2.0 dev C:\Users\James\Documents\GitHub\OyamaCRM
+> next dev --webpack
+
+▲ Next.js 16.2.5 (webpack)
+- Local:         http://localhost:3001
+- Network:       http://172.24.96.1:3001
+- Environments: .env
+✓ Ready in 590ms
+[?25h
+ ELIFECYCLE  Command failed with exit code 1.

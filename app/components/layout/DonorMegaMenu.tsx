@@ -134,9 +134,9 @@ const BASE_NAV_SECTIONS: NavSection[] = [
       [
         {
           id: "letters",
-          label: "Letters & Printables",
-          href: "/letters-printables",
-          description: "Thank-you letters and mail pieces",
+          label: "OyamaLetters",
+          href: "/oyama-letters",
+          description: "Letters, receipts, labels, and PDFs",
         },
         {
           id: "contacts-manager",
@@ -253,7 +253,7 @@ const RIBBON_TABS: RibbonTab[] = [
   { id: "home", label: "Home", href: "/", match: ["/"] },
   { id: "constituents", label: "Constituents", href: "/constituents", match: ["/constituents", "/contacts-manager", "/volunteers"] },
   { id: "giving", label: "Giving", href: "/donations", match: ["/donations", "/campaigns", "/grants", "/payments", "/designations", "/quickbooks-sync"] },
-  { id: "outreach", label: "Outreach", href: "/communications", match: ["/communications", "/email-builder", "/letters-printables", "/livecom", "/meetings", "/steward-paths"] },
+  { id: "outreach", label: "Outreach", href: "/communications", match: ["/communications", "/email-builder", "/letters-printables", "/oyama-letters", "/livecom", "/meetings", "/steward-paths"] },
   { id: "reports", label: "Reports", href: "/reports", match: ["/reports", "/steward-signals", "/steward-ai-workspace"] },
   { id: "data", label: "Data", href: "/data-tools", match: ["/data-tools", "/custom-fields"] },
   { id: "tools", label: "Tools", href: "/settings", match: ["/settings", "/help", "/steward-paths", "/automations"] },
@@ -273,7 +273,7 @@ const HOME_RIBBON_GROUPS: RibbonCommandGroup[] = [
     label: "Communicate",
     commands: [
       { id: "send-email", label: "Send Email", href: "/communications", icon: "mail", tone: "blue" },
-      { id: "create-letter", label: "Create Letter", href: "/letters-printables", icon: "document", tone: "blue" },
+      { id: "create-letter", label: "Create Letter", href: "/oyama-letters", icon: "document", tone: "blue" },
       { id: "add-campaign", label: "Add to Campaign", href: "/campaigns", icon: "megaphone", tone: "blue" },
     ],
   },

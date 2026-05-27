@@ -5,6 +5,19 @@
 
 /** Canonical list of merge fields supported by the letters engine. */
 export const SUPPORTED_LETTER_MERGE_FIELDS = [
+  "{{constituent.firstName}}",
+  "{{constituent.lastName}}",
+  "{{constituent.fullName}}",
+  "{{constituent.preferredName}}",
+  "{{constituent.email}}",
+  "{{constituent.phone}}",
+  "{{constituent.addressLine1}}",
+  "{{constituent.addressLine2}}",
+  "{{constituent.city}}",
+  "{{constituent.state}}",
+  "{{constituent.zip}}",
+  "{{constituent.addressBlock}}",
+  "{{constituent.salutation}}",
   "{{donor.firstName}}",
   "{{donor.lastName}}",
   "{{donor.fullName}}",
@@ -16,7 +29,15 @@ export const SUPPORTED_LETTER_MERGE_FIELDS = [
   "{{donor.city}}",
   "{{donor.state}}",
   "{{donor.zip}}",
+  "{{donor.addressBlock}}",
   "{{donor.salutation}}",
+  "{{donation.amount}}",
+  "{{donation.date}}",
+  "{{donation.designation}}",
+  "{{donation.campaign}}",
+  "{{donation.paymentMethod}}",
+  "{{donation.receiptNumber}}",
+  "{{donation.taxDeductibleAmount}}",
   "{{gift.amount}}",
   "{{gift.date}}",
   "{{gift.fund}}",
@@ -29,6 +50,9 @@ export const SUPPORTED_LETTER_MERGE_FIELDS = [
   "{{year.firstGiftDate}}",
   "{{year.lastGiftDate}}",
   "{{year.numberOfGifts}}",
+  "{{campaign.name}}",
+  "{{event.name}}",
+  "{{household.name}}",
   "{{organization.name}}",
   "{{organization.address}}",
   "{{organization.phone}}",
@@ -56,6 +80,7 @@ const LEGACY_LETTER_MERGE_FIELD_ALIASES: Readonly<Record<string, string>> = {
   "constituent.city": "donor.city",
   "constituent.state": "donor.state",
   "constituent.zip": "donor.zip",
+  "constituent.addressBlock": "donor.addressBlock",
   "constituent.salutation": "donor.salutation",
   "donation.amount": "gift.amount",
   "donation.date": "gift.date",
@@ -70,11 +95,63 @@ const LEGACY_LETTER_MERGE_FIELD_ALIASES: Readonly<Record<string, string>> = {
 };
 
 const FIELD_SET = new Set<string>(SUPPORTED_LETTER_MERGE_FIELDS.map((field) => field.slice(2, -2).trim()));
-const FIELD_PATTERN = /{{\s*([a-zA-Z0-9_.]+)\s*}}/g;
+const FIELD_PATTERN = /{{\s*([a-zA-Z0-9_.]+)(?:\s*\|\s*([^}]+?))?\s*}}/g;
 
 function canonicalizeMergeFieldKey(key: string): string {
   const normalized = key.trim();
   return LEGACY_LETTER_MERGE_FIELD_ALIASES[normalized] ?? normalized;
+}
+
+function formatDateValue(value: string, format: string): string {
+  if (!value.trim()) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  if (format === "MM/dd/yyyy") {
+    return new Intl.DateTimeFormat("en-US", { month: "2-digit", day: "2-digit", year: "numeric" }).format(parsed);
+  }
+  return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(parsed);
+}
+
+function formatCurrencyValue(value: string): string {
+  if (!value.trim()) return "";
+  const numeric = Number.parseFloat(value.replace(/[^0-9.-]/g, ""));
+  if (!Number.isFinite(numeric)) return value;
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(numeric);
+}
+
+function parseFilters(rawFilters: string | undefined): string[] {
+  if (!rawFilters) return [];
+  return rawFilters
+    .split("|")
+    .map((filter) => filter.trim())
+    .filter(Boolean);
+}
+
+function readFallbackFilter(filter: string): string | null {
+  const match = filter.match(/^fallback\s*:\s*"([^"]*)"$/i) ?? filter.match(/^fallback\s*:\s*'([^']*)'$/i);
+  return match?.[1] ?? null;
+}
+
+function applyMergeFilters(value: string, filters: string[]): string {
+  let output = value;
+  for (const filter of filters) {
+    const fallback = readFallbackFilter(filter);
+    if (fallback !== null) {
+      if (!output.trim()) output = fallback;
+      continue;
+    }
+    if (/^currency$/i.test(filter)) {
+      output = formatCurrencyValue(output);
+      continue;
+    }
+    const dateMatch = filter.match(/^date\s*:\s*"([^"]+)"$/i) ?? filter.match(/^date\s*:\s*'([^']+)'$/i);
+    if (dateMatch) output = formatDateValue(output, dateMatch[1] ?? "");
+  }
+  return output;
+}
+
+function missingFieldMarkup(key: string): string {
+  return `<mark class="merge-field-missing" data-merge-field="${key}">Missing: {{${key}}}</mark>`;
 }
 
 /** Returns all merge field keys referenced in one or more text blocks. */
@@ -97,14 +174,24 @@ export function unsupportedMergeFieldKeys(keys: string[]): string[] {
   return keys.filter((key) => !FIELD_SET.has(canonicalizeMergeFieldKey(key)));
 }
 
+export interface RenderMergeFieldsOptions {
+  missingMode?: "blank" | "highlight";
+  missingFields?: Set<string>;
+}
+
 /** Replaces all supported placeholders while leaving unsupported tokens untouched. */
-export function renderMergeFields(template: string, values: Record<string, string>): string {
-  return template.replace(FIELD_PATTERN, (_full, key: string) => {
+export function renderMergeFields(template: string, values: Record<string, string>, options: RenderMergeFieldsOptions = {}): string {
+  return template.replace(FIELD_PATTERN, (_full, key: string, rawFilters: string | undefined) => {
     const normalized = String(key ?? "").trim();
     const canonical = canonicalizeMergeFieldKey(normalized);
     if (!FIELD_SET.has(canonical)) {
       return `{{${normalized}}}`;
     }
-    return values[canonical] ?? "";
+    const filtered = applyMergeFilters(values[canonical] ?? "", parseFilters(rawFilters));
+    if (!filtered.trim()) {
+      options.missingFields?.add(normalized);
+      return options.missingMode === "highlight" ? missingFieldMarkup(normalized) : "";
+    }
+    return filtered;
   });
 }

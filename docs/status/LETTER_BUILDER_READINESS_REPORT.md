@@ -1,6 +1,6 @@
 # Letter Builder Readiness Report
 
-Date: May 19, 2026
+Date: May 27, 2026
 
 ## Completed
 
@@ -16,12 +16,18 @@ Date: May 19, 2026
 - Added a bottom status bar for words, characters, read time, save status, and merge health.
 - Added confirmation gating before publish handoff.
 - Added source smoke coverage for required builder test IDs and controls.
+- Added the unified `/oyama-letters/generate` production center with document type, template, real audience selection, merged HTML preview, generated PDF blob preview, and generation history.
+- Renamed the staff-facing workspace to OyamaLetters and deprecated the old `/letters-printables` home route.
+- Added inline PDF streaming support through `?preview=1` on single and batch PDF export endpoints.
+- Added missing merge-field highlighting and fallback/filter parsing to the server merge engine.
 
 ## Partially Ready
 
 - Version history is represented as a workflow entry but is not a full version browser.
 - Duplicate Template and Archive Template are present in More Options, but need backend persistence workflows before being marked complete.
 - Typography controls serialize inline styles for selected text. A future migration should add document-level typography defaults to the template schema.
+- OyamaLetters Generate Center uses the existing jsPDF server renderer. Chromium/PDF.js fidelity is still a follow-up.
+- Label presets and ZIP exports are not production-complete.
 
 ## Not Ready For Removal Of Warnings
 
@@ -40,7 +46,7 @@ Targeted tests to run:
 
 ```bash
 pnpm exec vitest run tests/smoke/letter-builder-ui-source.test.ts
-pnpm exec vitest run tests/unit/letters-merge.test.ts tests/unit/letters-print-layout.test.ts
+pnpm exec vitest run tests/unit/letters-merge.test.ts tests/unit/letters-print-layout.test.ts tests/smoke/letters-printables-generate-source.test.ts
 pnpm test:e2e
 npm run build
 ```

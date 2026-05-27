@@ -36,7 +36,8 @@ export default function CampaignDeliveryEventsPanel({ data, loading, onRefresh }
         <div className="px-5 py-8 text-sm text-gray-500">Delivery analytics unavailable.</div>
       ) : (
         <div className="space-y-4 px-5 py-4">
-          <div className="grid gap-3 sm:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <Metric label="Queued" value={data.summary.queued.toLocaleString()} />
             <Metric label="Delivered" value={data.summary.delivered.toLocaleString()} />
             <Metric label="Opened" value={`${data.summary.opened.toLocaleString()} (${data.summary.openRate}%)`} />
             <Metric label="Clicked" value={`${data.summary.clicked.toLocaleString()} (${data.summary.clickRate}%)`} />

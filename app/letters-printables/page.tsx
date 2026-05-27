@@ -1,7 +1,7 @@
-/** Letters & Printables workspace dashboard route. */
-import LettersRibbonHome from "@/app/components/letters/LettersRibbonHome";
+/** Deprecated Letters & Printables workspace entry. */
+import { redirect } from "next/navigation";
 
-/** Renders dashboard metrics and quick actions for donor letters. */
+/** Redirects old links to the canonical OyamaLetters production center. */
 export default function LettersPrintablesPage() {
-  return <LettersRibbonHome />;
+  redirect("/oyama-letters");
 }

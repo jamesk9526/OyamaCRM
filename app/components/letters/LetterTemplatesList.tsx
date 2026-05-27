@@ -1,4 +1,4 @@
-/** Template library list and management actions for Letters & Printables. */
+/** Template library list and management actions for OyamaLetters. */
 "use client";
 
 import Link from "next/link";
@@ -74,7 +74,7 @@ export default function LetterTemplatesList() {
           <p className="mt-0.5 text-sm text-gray-500">Versioned donor letter templates with reusable print and mailing content.</p>
         </div>
         <Link
-          href="/letters-printables/templates/new"
+          href="/oyama-letters/templates/new"
           className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
         >
           New Template
@@ -137,7 +137,7 @@ export default function LetterTemplatesList() {
             <div key={template.id} className="rounded-xl border border-gray-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div>
-                  <Link href={`/letters-printables/templates/${template.id}`} className="text-sm font-semibold text-gray-900 hover:text-green-700">
+                  <Link href={`/oyama-letters/templates/${template.id}`} className="text-sm font-semibold text-gray-900 hover:text-green-700">
                     {template.name}
                   </Link>
                   <p className="text-xs text-gray-500 mt-0.5">{template.category.replaceAll("_", " ")} · {template.status}</p>

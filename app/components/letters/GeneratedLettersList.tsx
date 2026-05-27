@@ -164,7 +164,7 @@ export default function GeneratedLettersList({ embedded = false }: GeneratedLett
             <h1 className="text-xl font-semibold text-gray-900">Generated Media</h1>
             <p className="mt-0.5 text-sm text-gray-500">Track, preview, and fulfill donor-specific generated outputs through print and mail queues.</p>
           </div>
-          <Link href="/letters-printables/generate" className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700">
+          <Link href="/oyama-letters/generate" className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700">
             Generate New Media
           </Link>
         </div>

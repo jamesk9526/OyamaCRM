@@ -395,6 +395,15 @@ The Donor CRM Letters & Printables builder uses a focused document workspace mod
 - Keep the left builder panel focused on click-to-insert blocks and variables.
 - Publish must remain confirmation-gated and must not send, queue, or generate output without an explicit follow-up action.
 - Update `docs/audits/LETTER_BUILDER_UI_AUDIT.md` and `docs/status/LETTER_BUILDER_READINESS_REPORT.md` when builder tools move, are removed, or become production-ready.
+
+### OyamaLetters Generate Center Status
+
+- Canonical workspace routes: `/oyama-letters` and `/oyama-letters/generate`. Old `/letters-printables` and Communications aliases redirect into OyamaLetters.
+- Implemented: document type selection, real template cards, real constituent search, multiple selected constituents, saved-list email matching to constituents, report-result ID handoff, campaign/date-range/segment batch generation, server-side merge preview, missing merge-field highlighting, `GeneratedLetter` persistence, constituent activity logging, inline PDF blob preview, download/open/print, and mark-printed.
+- Merge fields supported: constituent/donor, donation/gift, year-end, campaign, event, household, organization, and staff fields listed in `docs/MERGE_FIELDS.md`.
+- Partial: conditional blocks, repeated sections, Avery label grids, ZIP export, cover pages, table of contents, Create Task handoff, and advanced PDF settings.
+- PDF limitation: server export currently uses the existing jsPDF/plain-text renderer. Browser preview renders the real PDF blob with the browser PDF viewer; PDF.js/react-pdf and Playwright/Chromium rendering are not installed/wired yet.
+- Missing data sources: report results are supported only when constituent IDs are handed off in the URL; standalone report-result persistence is not implemented.
 <!-- END:letter-builder-rules -->
 
 <!-- BEGIN:donor-crm-visual-refresh-rules -->

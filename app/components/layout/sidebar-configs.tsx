@@ -276,13 +276,14 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
         },
         {
           id: "letters-printables",
-          label: "Letters & Printables",
-          href: "/letters-printables",
+          label: "OyamaLetters",
+          href: "/oyama-letters",
+          activePath: "/oyama-letters",
           icon: DONOR_ICONS.letters,
           kind: "communication_tool",
           badge: "Tool",
           permissions: ["letters.view"],
-          description: "Create thank-you letters, receipts, newsletters, and printable donor communication.",
+          description: "Generate thank-you letters, receipts, labels, packets, and printable PDFs.",
         },
         {
           id: "livecom",

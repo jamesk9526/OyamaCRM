@@ -23,7 +23,7 @@ import { resolveOrganizationId } from "../lib/organization.js";
 import { donationOrgWhere } from "../lib/donationScope.js";
 import { getFiscalYTDRange, normalizeFiscalYearStart } from "../lib/dateRanges.js";
 import { executeStewardPathsForTrigger } from "../services/stewardPathsEngine.js";
-import { createOrganizationEmailSender } from "../services/smtp-service.js";
+import { sendCampaignNow } from "./email-campaigns.js";
 
 const router = Router();
 
@@ -1902,6 +1902,8 @@ router.post(
 /**
  * POST /api/donations/:id/send-from-template
  * Sends a personalized email (with any user edits applied) to this donation's donor.
+ * This route creates a one-off campaign record and sends through the campaign pipeline
+ * so queue, recipient, delivery, and audit logs remain complete.
  * Body: { templateId: string; subject: string; bodyHtml: string }
  */
 router.post(
@@ -1934,14 +1936,81 @@ router.post(
       return;
     }
 
-    const bodyText = htmlToPlainText(bodyHtml);
-    const sender = await createOrganizationEmailSender(organizationId);
-    await sender.send({
-      to: donation.constituent.email,
-      subject,
-      text: bodyText,
-      html: bodyHtml,
+    const recipientEmail = donation.constituent.email.trim().toLowerCase();
+    const donationAmount = formatDonationAmountForLabel(donation.amount);
+    const donationDate = formatDonationDateForLabel(donation.date);
+    const settings = await prisma.organizationSettings.findUnique({
+      where: { organizationId },
+      select: { smtpFromName: true, smtpFromEmail: true },
     });
+
+    const campaign = await prisma.emailCampaign.create({
+      data: {
+        organizationId,
+        name: `Donation Template Send: ${donation.constituent.firstName} ${donation.constituent.lastName}`.trim(),
+        subject,
+        purpose: "THANK_YOU",
+        previewText: `Donation follow-up for $${donationAmount} on ${donationDate}.`,
+        fromName: settings?.smtpFromName || "OyamaCRM",
+        fromEmail: settings?.smtpFromEmail || "noreply@oyamacrm.org",
+        bodyHtml,
+        bodyText: htmlToPlainText(bodyHtml),
+        audienceFilter: JSON.stringify({
+          type: "individual",
+          recipientEmail,
+          recipientConstituentId: donation.constituent.id,
+          source: "donation-template-send",
+          donationId: donation.id,
+          templateId,
+          _quickSelection: {
+            sendMode: "INDIVIDUAL",
+            individualRecipientEmail: recipientEmail,
+          },
+          _sharing: {
+            ownerId: userId,
+            sharedWithOrganization: false,
+          },
+          _workflow: {
+            preparationStatus: "READY",
+          },
+        }),
+        status: "DRAFT",
+      },
+      select: { id: true },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        organizationId,
+        userId,
+        action: "EMAIL_CAMPAIGN_CREATED",
+        entity: "EmailCampaign",
+        entityId: campaign.id,
+        metadata: {
+          source: "api/donations:send-from-template",
+          donationId: donation.id,
+          templateId,
+        },
+      },
+    });
+
+    let sentCampaign: Awaited<ReturnType<typeof sendCampaignNow>>;
+    try {
+      sentCampaign = await sendCampaignNow(campaign.id, "MANUAL", {
+        sendMode: "INDIVIDUAL",
+        recipientEmails: [recipientEmail],
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to send donation template email.";
+      res.status(400).json({
+        error: {
+          code: "SEND_FAILED",
+          message,
+        },
+        campaignId: campaign.id,
+      });
+      return;
+    }
 
     const donorFullName = `${donation.constituent.firstName} ${donation.constituent.lastName}`.trim();
 
@@ -1954,9 +2023,12 @@ router.post(
         description: `Template email sent: "${subject}" → ${donation.constituent.email}`,
         metadata: {
           source: "api/donations:send-from-template",
+          campaignId: campaign.id,
           templateId,
           subject,
           recipientEmail: donation.constituent.email,
+          sendMode: "INDIVIDUAL",
+          sendTrigger: "MANUAL",
         },
       },
     });
@@ -1968,16 +2040,35 @@ router.post(
       userId,
       organizationId,
       metadata: {
+        campaignId: campaign.id,
         templateId,
         subject,
         recipientEmail: donation.constituent.email,
         donorName: donorFullName,
+        totalRecipients: sentCampaign.totalRecipients,
+        delivered: sentCampaign.delivered,
+        opened: sentCampaign.opened,
+        clicked: sentCampaign.clicked,
+        bounced: sentCampaign.bounced,
       },
       ipAddress: req.ip,
       userAgent: req.headers["user-agent"],
     });
 
-    res.json({ success: true, sentTo: donation.constituent.email });
+    res.json({
+      success: true,
+      sentTo: donation.constituent.email,
+      campaignId: campaign.id,
+      sendSummary: {
+        status: sentCampaign.status,
+        totalRecipients: sentCampaign.totalRecipients,
+        delivered: sentCampaign.delivered,
+        opened: sentCampaign.opened,
+        clicked: sentCampaign.clicked,
+        bounced: sentCampaign.bounced,
+        sentAt: sentCampaign.sentAt,
+      },
+    });
   },
 );
 

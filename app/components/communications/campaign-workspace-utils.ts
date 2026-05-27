@@ -42,6 +42,10 @@ export function parseAudienceType(raw?: string | null): (typeof AUDIENCE_TYPES)[
 /** Friendly labels for send-log audit actions. */
 export function formatSendAction(action: string): string {
   switch (action) {
+    case "EMAIL_CAMPAIGN_CREATED":
+      return "Campaign Created";
+    case "EMAIL_CAMPAIGN_UPDATED":
+      return "Campaign Updated";
     case "EMAIL_CAMPAIGN_SENT":
       return "Campaign Sent";
     case "EMAIL_CAMPAIGN_SEND_FAILED":

@@ -28,6 +28,7 @@ export interface ResolveMergeContextInput {
 export interface ResolveMergeContextOutput {
   values: Record<string, string>;
   unsupportedFields: string[];
+  missingFields: string[];
   mergedPrintBody: string;
   mergedEmailBody: string | null;
   mergedPrintSubject: string | null;
@@ -126,6 +127,7 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
           city: true,
           state: true,
           zip: true,
+          household: { select: { id: true, name: true } },
         },
       })
     : null;
@@ -167,6 +169,13 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
   const lastGift = yearDonations[yearDonations.length - 1]?.date ?? null;
 
   const donorFullName = constituent ? `${constituent.firstName} ${constituent.lastName}`.trim() : "";
+  const donorAddressBlock = [
+    constituent?.addressLine1,
+    constituent?.addressLine2,
+    [constituent?.city, constituent?.state, constituent?.zip].filter(Boolean).join(", ").replace(", ", ", "),
+  ].filter((value) => Boolean(value && value.trim())).join("<br />");
+  const campaignName = campaign?.name ?? donation?.campaign?.name ?? "";
+  const eventName = event?.name ?? donation?.event?.name ?? "";
 
   const values: Record<string, string> = {
     "donor.firstName": constituent?.firstName ?? "",
@@ -180,11 +189,12 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
     "donor.city": constituent?.city ?? "",
     "donor.state": constituent?.state ?? "",
     "donor.zip": constituent?.zip ?? "",
+    "donor.addressBlock": donorAddressBlock,
     "donor.salutation": constituent?.firstName ? `Dear ${constituent.firstName},` : "Dear Friend,",
     "gift.amount": formatCurrency(donation?.amount ?? 0),
     "gift.date": formatDate(donation?.date),
     "gift.fund": donation?.designation?.name ?? "",
-    "gift.campaign": campaign?.name ?? donation?.campaign?.name ?? "",
+    "gift.campaign": campaignName,
     "gift.paymentMethod": donation?.paymentMethod ? donation.paymentMethod.replace(/_/g, " ") : "",
     "gift.receiptNumber": donation?.receiptNumber ?? "",
     "gift.taxDeductibleAmount": formatCurrency(donation?.taxDeductible ? donation.amount : 0),
@@ -193,6 +203,9 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
     "year.firstGiftDate": formatDate(firstGift),
     "year.lastGiftDate": formatDate(lastGift),
     "year.numberOfGifts": String(yearDonations.length),
+    "campaign.name": campaignName,
+    "event.name": eventName,
+    "household.name": constituent?.household?.name ?? "",
     "organization.name": organization?.name ?? "",
     "organization.address": "",
     "organization.phone": "",
@@ -204,10 +217,12 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
     "staff.email": user?.email ?? "",
   };
 
-  const mergedPrintBody = renderMergeFields(params.template.printBody, values);
-  const mergedEmailBody = params.template.emailBody ? renderMergeFields(params.template.emailBody, values) : null;
-  const mergedPrintSubject = params.template.printSubject ? renderMergeFields(params.template.printSubject, values) : null;
-  const mergedEmailSubject = params.template.emailSubject ? renderMergeFields(params.template.emailSubject, values) : null;
+  const missingFields = new Set<string>();
+  const renderOptions = { missingMode: "highlight" as const, missingFields };
+  const mergedPrintBody = renderMergeFields(params.template.printBody, values, renderOptions);
+  const mergedEmailBody = params.template.emailBody ? renderMergeFields(params.template.emailBody, values, renderOptions) : null;
+  const mergedPrintSubject = params.template.printSubject ? renderMergeFields(params.template.printSubject, values, renderOptions) : null;
+  const mergedEmailSubject = params.template.emailSubject ? renderMergeFields(params.template.emailSubject, values, renderOptions) : null;
 
   const keys = collectMergeFieldKeys(
     params.template.printBody,
@@ -219,6 +234,7 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
   return {
     values,
     unsupportedFields: unsupportedMergeFieldKeys(keys),
+    missingFields: Array.from(missingFields).sort(),
     mergedPrintBody,
     mergedEmailBody,
     mergedPrintSubject,
@@ -284,6 +300,7 @@ export async function generateLetterFromTemplate(input: GenerateLetterInput) {
         generatedByUserId: input.actorUserId,
         metadataJson: {
           unsupportedMergeFields: merged.unsupportedFields,
+          missingMergeFields: merged.missingFields,
           templateStatusAtGeneration: template.status,
         },
       },

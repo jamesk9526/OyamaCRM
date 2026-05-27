@@ -39,9 +39,27 @@ describe("letters-merge", () => {
     expect(output).toContain("{{custom.field}}");
   });
 
+  it("supports fallback filters and highlighted missing fields", () => {
+    const missingFields = new Set<string>();
+    const output = renderMergeFields(
+      "Dear {{ constituent.firstName | fallback:\"Friend\" }} {{ donor.addressBlock }}",
+      {
+        "donor.firstName": "",
+        "donor.addressBlock": "",
+      },
+      { missingMode: "highlight", missingFields },
+    );
+
+    expect(output).toContain("Dear Friend");
+    expect(output).toContain("Missing: {{donor.addressBlock}}");
+    expect(Array.from(missingFields)).toEqual(["donor.addressBlock"]);
+  });
+
   it("contains core donor and gift merge tokens", () => {
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{donor.firstName}}");
+    expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{constituent.firstName}}");
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{gift.amount}}");
+    expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{donation.amount}}");
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{organization.name}}");
   });
 });

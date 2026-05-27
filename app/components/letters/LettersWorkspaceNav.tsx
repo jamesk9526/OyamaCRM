@@ -1,14 +1,14 @@
-/** Compact navigation for Letters & Printables workspace routes. */
+/** Compact navigation for OyamaLetters compatibility routes. */
 "use client";
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
 const WORKFLOW_STEPS = [
-  { href: "/letters-printables", label: "1. Dashboard" },
-  { href: "/letters-printables/templates", label: "2. Templates" },
+  { href: "/oyama-letters", label: "1. Home" },
+  { href: "/oyama-letters/templates", label: "2. Templates" },
   { href: "/letters-printables/queues?view=production", label: "3. Production Queue" },
-  { href: "/letters-printables/generate", label: "4. Generate" },
+  { href: "/oyama-letters/generate", label: "4. Generate" },
   { href: "/letters-printables/queues?view=print", label: "5. Print Queue" },
   { href: "/letters-printables/queues?view=mail", label: "6. Mail Queue" },
 ] as const;
@@ -35,7 +35,7 @@ export default function LettersWorkspaceNav() {
               const queueViewMatch = link.href.match(/\/letters-printables\/queues\?view=([a-z]+)/);
               const active = queueViewMatch
                 ? pathname === "/letters-printables/queues" && activeQueueView === queueViewMatch[1]
-                : (link.href === "/letters-printables"
+                : (link.href === "/oyama-letters"
                   ? pathname === link.href
                   : pathname.startsWith(link.href));
 

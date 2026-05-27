@@ -33,6 +33,39 @@ interface InitialSendPreset {
   individualEmail: string;
 }
 
+interface QueueWorkerStatus {
+  running: boolean;
+  processing: boolean;
+  status: "Working" | "Broken" | "Not Implemented";
+  pollMs: number;
+  batchSize: number;
+  pendingDueCount: number;
+  lastRunAt: string | null;
+  lastSuccessAt: string | null;
+  lastError: string | null;
+}
+
+interface CampaignSendResponse {
+  status?: string;
+  totalRecipients?: number;
+  delivered?: number;
+  opened?: number;
+  clicked?: number;
+  bounced?: number;
+  sentAt?: string | null;
+  sendSummary?: {
+    trigger?: string;
+    sendMode?: string;
+    status?: string;
+    totalRecipients?: number;
+    delivered?: number;
+    opened?: number;
+    clicked?: number;
+    bounced?: number;
+    sentAt?: string | null;
+  };
+}
+
 /** Parses optional quick-selection metadata from campaign audienceFilter into send workspace defaults. */
 function parseInitialSendPreset(
   rawAudienceFilter: string | null | undefined,
@@ -132,6 +165,8 @@ export default function CampaignSendWorkspace({
   const [sendingTest, setSendingTest] = useState(false);
   const [scheduling, setScheduling] = useState(false);
   const [cancellingSchedule, setCancellingSchedule] = useState(false);
+  const [queueStatus, setQueueStatus] = useState<QueueWorkerStatus | null>(null);
+  const [loadingQueueStatus, setLoadingQueueStatus] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -160,6 +195,23 @@ export default function CampaignSendWorkspace({
   useEffect(() => {
     void refreshSavedLists();
   }, [refreshSavedLists]);
+
+  /** Reads queue worker health from API health so staff can trust schedule/queue execution state. */
+  const refreshQueueStatus = useCallback(async () => {
+    setLoadingQueueStatus(true);
+    try {
+      const payload = await apiFetch<{ queue?: QueueWorkerStatus }>("/api/health");
+      setQueueStatus(payload.queue ?? null);
+    } catch {
+      setQueueStatus(null);
+    } finally {
+      setLoadingQueueStatus(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshQueueStatus();
+  }, [refreshQueueStatus]);
 
   useEffect(() => {
     setScheduledAtInput(toDatetimeLocalValue(scheduledAt));
@@ -298,7 +350,7 @@ export default function CampaignSendWorkspace({
       const recipientListId = sendMode === "SAVED_LIST" ? selectedSavedListId : undefined;
       const recipientListIds = sendMode === "MULTI_LIST" ? Array.from(selectedSavedListIds) : undefined;
 
-      await apiFetch(`/api/email-campaigns/${campaignId}/send`, {
+      const payload = await apiFetch<CampaignSendResponse>(`/api/email-campaigns/${campaignId}/send`, {
         method: "POST",
         body: JSON.stringify({
           sendMode,
@@ -309,8 +361,15 @@ export default function CampaignSendWorkspace({
         }),
       });
 
-      setMessage("Campaign send started successfully.");
+      const summary = payload.sendSummary;
+      const queuedCount = Number(summary?.totalRecipients ?? payload.totalRecipients ?? 0);
+      const deliveredCount = Number(summary?.delivered ?? payload.delivered ?? 0);
+      const modeLabel = (summary?.sendMode ?? sendMode).replace(/_/g, " ").toLowerCase();
+      setMessage(
+        `Send complete via ${modeLabel}. Queue logged ${queuedCount} recipient${queuedCount === 1 ? "" : "s"}; delivered ${deliveredCount}.`,
+      );
       await onSent();
+      await refreshQueueStatus();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send campaign.");
     } finally {
@@ -360,8 +419,9 @@ export default function CampaignSendWorkspace({
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       });
-      setMessage("Campaign scheduled.");
+      setMessage("Campaign queued for scheduled sending.");
       await onSent();
+      await refreshQueueStatus();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to schedule campaign.");
     } finally {
@@ -378,8 +438,9 @@ export default function CampaignSendWorkspace({
       await apiFetch(`/api/email-campaigns/${campaignId}/cancel`, {
         method: "POST",
       });
-      setMessage("Schedule cancelled.");
+      setMessage("Scheduled queue entry cancelled.");
       await onSent();
+      await refreshQueueStatus();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to cancel schedule.");
     } finally {
@@ -404,6 +465,16 @@ export default function CampaignSendWorkspace({
     sendMode,
   ]);
 
+  const sendActionLabel = useMemo(() => {
+    if (sendMode === "INDIVIDUAL") return "Send To Individual";
+    if (sendMode === "LIST") return "Send To One-time List";
+    if (sendMode === "SAVED_LIST") return "Send To Saved List";
+    if (sendMode === "MULTI_LIST") return "Send To Multiple Lists";
+    if (sendMode === "SEGMENT") return "Send To Segment";
+    if (sendMode === "MULTI_SEGMENT") return "Send To Multiple Segments";
+    return "Send Campaign Audience";
+  }, [sendMode]);
+
   return (
     <section className="rounded-xl border border-gray-200 bg-white">
       <div className="border-b border-gray-100 px-5 py-4">
@@ -412,6 +483,32 @@ export default function CampaignSendWorkspace({
       </div>
 
       <div className="space-y-4 px-5 py-4">
+        <div className="space-y-2 rounded-lg border border-gray-200 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500">Queue Worker</label>
+            <button
+              type="button"
+              onClick={() => void refreshQueueStatus()}
+              className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50"
+            >
+              {loadingQueueStatus ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
+          {queueStatus ? (
+            <div className="space-y-1 text-xs text-gray-600">
+              <p>
+                Status: <span className={`font-semibold ${queueStatus.status === "Working" ? "text-green-700" : queueStatus.status === "Broken" ? "text-red-700" : "text-amber-700"}`}>{queueStatus.status}</span>
+              </p>
+              <p>Due scheduled campaigns: {queueStatus.pendingDueCount.toLocaleString()}</p>
+              <p>Poll interval: {Math.round(queueStatus.pollMs / 1000)}s · Batch size: {queueStatus.batchSize}</p>
+              {queueStatus.lastSuccessAt ? <p>Last success: {new Date(queueStatus.lastSuccessAt).toLocaleString()}</p> : null}
+              {queueStatus.lastError ? <p className="text-red-600">Last error: {queueStatus.lastError}</p> : null}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500">Queue status unavailable. Check /api/health if needed.</p>
+          )}
+        </div>
+
         <div className="space-y-2 rounded-lg border border-gray-200 p-3">
           <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500">Schedule Controls</label>
           <input
@@ -677,7 +774,7 @@ export default function CampaignSendWorkspace({
           }
           className="w-full rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
         >
-          {sending ? "Sending..." : "Send Campaign"}
+          {sending ? "Sending..." : sendActionLabel}
         </button>
 
         {!canSendCampaign && (
