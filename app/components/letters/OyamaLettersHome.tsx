@@ -52,6 +52,7 @@ export default function OyamaLettersHome() {
   const [error, setError] = useState<string | null>(null);
   const [activeQueue, setActiveQueue] = useState<ProjectFilter>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [insightsTab, setInsightsTab] = useState<"projects" | "insights" | "production" | "activity">("projects");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
@@ -186,7 +187,7 @@ export default function OyamaLettersHome() {
                         : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
                     ].join(" ")}
                   >
-                    <span className="flex flex-col min-w-0">
+                    <span className="flex min-w-0 flex-col">
                       <span className="truncate">{queue.label}</span>
                       <span className="mt-0.5 truncate text-[11px] font-normal text-slate-500">{queue.description}</span>
                     </span>
@@ -251,7 +252,7 @@ export default function OyamaLettersHome() {
               <Link href="/settings/branding/signatures" className="block rounded-md border border-slate-200 bg-white px-3 py-1.5 hover:bg-slate-50">Signatures</Link>
               <Link href="/settings/branding" className="block rounded-md border border-slate-200 bg-white px-3 py-1.5 hover:bg-slate-50">Organization Branding</Link>
             </div>
-            <button type="button" className="mt-3 h-10 w-full rounded-md border border-violet-400 bg-violet-50 text-xs font-semibold text-violet-700 hover:bg-violet-100">⚙ Advanced Settings</button>
+            <Link href="/settings/branding" className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-md border border-violet-400 bg-violet-50 text-xs font-semibold text-violet-700 hover:bg-violet-100">⚙ Advanced Settings</Link>
           </StepCard>
         </aside>
 
@@ -308,61 +309,98 @@ export default function OyamaLettersHome() {
 
         {/* RIGHT RAIL — production status & focused project details */}
         <aside className="flex min-h-0 min-w-0 flex-col gap-2 overflow-auto rounded-lg border border-slate-200 bg-white/95 p-3 shadow-sm">
-          <RightTabs />
+          <RightTabs activeTab={insightsTab} onTabChange={setInsightsTab} searchTerm={searchTerm} onSearchChange={setSearchTerm} />
 
-          <div className="grid grid-cols-2 gap-2">
-            <Metric label="Templates" value={loading ? "–" : String(activeTemplates.length)} />
-            <Metric label="Generated" value={loading ? "–" : String(generatedThisMonth)} accent="emerald" />
-            <Metric label="Needs Review" value={loading ? "–" : String(needsReview)} accent={needsReview > 0 ? "amber" : "slate"} />
-            <Metric label="Queued Print" value={loading ? "–" : String(queuedForPrint)} />
-            <Metric label="Printed Today" value={loading ? "–" : String(printedToday)} />
-            <Metric label="Address Issues" value={loading ? "–" : String(addressIssues)} accent={addressIssues > 0 ? "amber" : "slate"} />
-            <Metric label="Tax Receipts" value={loading ? "–" : String(taxReceipts)} />
-            <Metric label="Email Drafts" value={loading ? "–" : String(emailDrafts)} />
-          </div>
+          {(insightsTab === "projects" || insightsTab === "insights") ? (
+            <div className="grid grid-cols-2 gap-2">
+              <Metric label="Templates" value={loading ? "–" : String(activeTemplates.length)} />
+              <Metric label="Generated" value={loading ? "–" : String(generatedThisMonth)} accent="emerald" />
+              <Metric label="Needs Review" value={loading ? "–" : String(needsReview)} accent={needsReview > 0 ? "amber" : "slate"} />
+              <Metric label="Queued Print" value={loading ? "–" : String(queuedForPrint)} />
+              <Metric label="Printed Today" value={loading ? "–" : String(printedToday)} />
+              <Metric label="Address Issues" value={loading ? "–" : String(addressIssues)} accent={addressIssues > 0 ? "amber" : "slate"} />
+              <Metric label="Tax Receipts" value={loading ? "–" : String(taxReceipts)} />
+              <Metric label="Email Drafts" value={loading ? "–" : String(emailDrafts)} />
+            </div>
+          ) : null}
 
-          <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Focused Project</p>
-            {selectedProject ? (
-              <div className="mt-2 space-y-2">
-                <p className="text-sm font-semibold text-slate-950">{selectedProject.template?.name ?? "Generated document"}</p>
-                <p className="text-xs text-slate-600">
-                  {selectedProject.constituent
-                    ? `${selectedProject.constituent.firstName} ${selectedProject.constituent.lastName}`
-                    : "Batch or no constituent"}
-                </p>
-                <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                  <p>Status</p>
-                  <p className="mt-0.5 font-semibold text-slate-800">{selectedProject.status}</p>
+          {insightsTab === "projects" ? (
+            <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Focused Project</p>
+              {selectedProject ? (
+                <div className="mt-2 space-y-2">
+                  <p className="text-sm font-semibold text-slate-950">{selectedProject.template?.name ?? "Generated document"}</p>
+                  <p className="text-xs text-slate-600">
+                    {selectedProject.constituent
+                      ? `${selectedProject.constituent.firstName} ${selectedProject.constituent.lastName}`
+                      : "Batch or no constituent"}
+                  </p>
+                  <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    <p>Status</p>
+                    <p className="mt-0.5 font-semibold text-slate-800">{selectedProject.status}</p>
+                  </div>
+                  <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    <p>Generated</p>
+                    <p className="mt-0.5 font-semibold text-slate-800">{formatDate(selectedProject.generatedAt)}</p>
+                  </div>
+                  <Link
+                    href={`/oyama-letters/generate?templateId=${selectedProject.templateId}${selectedProject.constituentId ? `&constituentId=${selectedProject.constituentId}` : ""}`}
+                    className="inline-flex w-full justify-center rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                  >
+                    Open in Builder
+                  </Link>
                 </div>
-                <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                  <p>Generated</p>
-                  <p className="mt-0.5 font-semibold text-slate-800">{formatDate(selectedProject.generatedAt)}</p>
-                </div>
-                <Link
-                  href={`/oyama-letters/generate?templateId=${selectedProject.templateId}${selectedProject.constituentId ? `&constituentId=${selectedProject.constituentId}` : ""}`}
-                  className="inline-flex w-full justify-center rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
-                >
-                  Open in Builder
-                </Link>
+              ) : (
+                <p className="mt-2 text-xs text-slate-500">Select a project to see its merge status, recipient, and quick actions here.</p>
+              )}
+            </section>
+          ) : null}
+
+          {(insightsTab === "production" || insightsTab === "insights") ? (
+            <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Production Health</p>
+              <div className="mt-2 space-y-1.5 text-xs text-slate-700">
+                <HealthRow label="Batch Generation" value={stats?.batchGenerationStatus ?? (loading ? "Loading" : "Idle")} />
+                <HealthRow label="PDF Export" value={stats?.pdfExportStatus ?? (loading ? "Loading" : "Idle")} />
+                <HealthRow label="Mailed This Week" value={loading ? "–" : String(stats?.mailedThisWeek ?? 0)} />
+                <HealthRow label="Queued For Mail" value={loading ? "–" : String(stats?.queuedForMail ?? 0)} />
               </div>
-            ) : (
-              <p className="mt-2 text-xs text-slate-500">Select a project to see its merge status, recipient, and quick actions here.</p>
-            )}
-          </section>
+              <div className="mt-3 rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800">
+                Production reads real CRM templates, generated documents, constituents, donations, lists, and reports.
+              </div>
+            </section>
+          ) : null}
 
-          <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Production Health</p>
-            <div className="mt-2 space-y-1.5 text-xs text-slate-700">
-              <HealthRow label="Batch Generation" value={stats?.batchGenerationStatus ?? (loading ? "Loading" : "Idle")} />
-              <HealthRow label="PDF Export" value={stats?.pdfExportStatus ?? (loading ? "Loading" : "Idle")} />
-              <HealthRow label="Mailed This Week" value={loading ? "–" : String(stats?.mailedThisWeek ?? 0)} />
-              <HealthRow label="Queued For Mail" value={loading ? "–" : String(stats?.queuedForMail ?? 0)} />
-            </div>
-            <div className="mt-3 rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800">
-              Production reads real CRM templates, generated documents, constituents, donations, lists, and reports.
-            </div>
-          </section>
+          {insightsTab === "activity" ? (
+            <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Recent Activity</p>
+                <Link href="/oyama-letters/generate?tab=activity" className="text-[11px] font-semibold text-emerald-700 hover:underline">Open activity</Link>
+              </div>
+              {loading ? (
+                <LoadingRows compact />
+              ) : generated.length === 0 ? (
+                <EmptyText text="Generated PDFs and saved document history will appear here." />
+              ) : (
+                <div className="mt-2 space-y-1.5">
+                  {generated.slice(0, 8).map((letter) => (
+                    <button
+                      type="button"
+                      key={letter.id}
+                      onClick={() => setSelectedProjectId(letter.id)}
+                      className="block w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left hover:bg-white"
+                    >
+                      <p className="truncate text-xs font-semibold text-slate-900">{letter.template?.name ?? "Generated document"}</p>
+                      <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                        {letter.constituent ? `${letter.constituent.firstName} ${letter.constituent.lastName}` : "Batch"} · {letter.status}
+                      </p>
+                      <p className="mt-0.5 text-[10px] text-slate-400">{formatDate(letter.generatedAt)}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+          ) : null}
         </aside>
       </div>
     </div>
@@ -475,19 +513,31 @@ function ProjectStatusPill({ status }: { status: string }) {
   return <StatusPill label={status} tone={tone} />;
 }
 
-function RightTabs() {
+function RightTabs({
+  activeTab,
+  onTabChange,
+  searchTerm,
+  onSearchChange,
+}: {
+  activeTab: "projects" | "insights" | "production" | "activity";
+  onTabChange: (tab: "projects" | "insights" | "production" | "activity") => void;
+  searchTerm: string;
+  onSearchChange: (value: string) => void;
+}) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
       <div className="flex items-center gap-1 overflow-x-auto text-xs font-semibold text-slate-600">
-        <TabButton label="Projects" active />
-        <TabButton label="Insights" />
-        <TabButton label="Production" />
-        <TabButton label="Activity" />
+        <TabButton label="Projects" active={activeTab === "projects"} onClick={() => onTabChange("projects")} />
+        <TabButton label="Insights" active={activeTab === "insights"} onClick={() => onTabChange("insights")} />
+        <TabButton label="Production" active={activeTab === "production"} onClick={() => onTabChange("production")} />
+        <TabButton label="Activity" active={activeTab === "activity"} onClick={() => onTabChange("activity")} />
       </div>
-      <label className="mt-2 relative block">
+      <label className="relative mt-2 block">
         <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
         <input
-          placeholder="Search project insights…"
+          value={searchTerm}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Filter projects, recipients, templates…"
           className="h-9 w-full rounded-md border border-slate-200 bg-slate-50 pl-9 pr-3 text-xs text-slate-800 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
         />
       </label>
@@ -495,10 +545,11 @@ function RightTabs() {
   );
 }
 
-function TabButton({ label, active = false }: { label: string; active?: boolean }) {
+function TabButton({ label, active = false, onClick }: { label: string; active?: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
+      onClick={onClick}
       className={[
         "shrink-0 rounded-md px-3 py-1.5 transition",
         active ? "bg-emerald-50 text-emerald-700" : "text-slate-600 hover:bg-slate-50",
