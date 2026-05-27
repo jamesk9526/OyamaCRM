@@ -1,0 +1,9 @@
+# pnpm workspace configuration.
+#
+# The repository root remains the main OyamaCRM application (donor CRM, server,
+# Prisma schema). Sibling workspaces live under apps/* and packages/* so that
+# individual modules — like Oyama Letters — can be developed, built, and
+# deployed independently while still sharing the same database and codebase.
+packages:
+  - "apps/*"
+  - "packages/*"

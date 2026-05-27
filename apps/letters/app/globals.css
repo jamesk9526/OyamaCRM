@@ -1,0 +1,24 @@
+/* Global styles for the standalone Oyama Letters workspace.
+ *
+ * The Letters app does not currently pull in Tailwind so this file provides
+ * just enough base styling to keep the production-center surfaces legible
+ * when the workspace is run standalone. The component library still uses
+ * Tailwind utility class names, which will render as plain HTML until a
+ * follow-up wires Tailwind into this workspace (see README).
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}

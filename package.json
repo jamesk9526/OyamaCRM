@@ -65,7 +65,11 @@
     "pm2:reload": "pm2 reload ecosystem.config.cjs",
     "pm2:delete": "pm2 delete ecosystem.config.cjs",
     "pm2:logs": "pm2 logs oyama-crm",
-    "pm2:status": "pm2 status"
+    "pm2:status": "pm2 status",
+    "dev:letters": "pnpm --filter @oyama/letters dev",
+    "build:letters": "pnpm --filter @oyama/letters build",
+    "start:letters": "pnpm --filter @oyama/letters start",
+    "typecheck:letters": "pnpm --filter @oyama/letters typecheck"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
