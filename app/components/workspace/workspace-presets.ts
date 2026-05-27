@@ -37,7 +37,7 @@ export function buildCommunicationsControlGroups(options: CommunicationsControlP
           id: "related:letters-printables",
           label: "Letters & Printables",
           description: "Print/mail queues and generated letter workflows",
-          href: "/letters-printables",
+          href: "/oyama-letters",
           external: true,
           status: "Working",
         },

@@ -940,7 +940,7 @@ router.post("/actions/draft-thank-you-new-donors", requirePermission("edit:commu
       }
     }
 
-    lettersRedirectTo = `/letters-printables/generated?templateId=${encodeURIComponent(letterTemplate.id)}`;
+    lettersRedirectTo = `/oyama-letters?templateId=${encodeURIComponent(letterTemplate.id)}`;
   }
 
   if (!communicationsDraftId && !lettersTemplateId) {

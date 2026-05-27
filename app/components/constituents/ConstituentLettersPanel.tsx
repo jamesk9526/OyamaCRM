@@ -55,7 +55,7 @@ export default function ConstituentLettersPanel({ constituentId }: ConstituentLe
         </div>
         <div className="flex items-center gap-2">
           <Link
-            href={`/letters-printables/generate?constituentId=${constituentId}`}
+            href={`/oyama-letters/generate?constituentId=${constituentId}`}
             className="px-3 py-1.5 text-xs rounded-lg text-white bg-green-600 hover:bg-green-700"
           >
             Generate Letter

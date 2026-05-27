@@ -879,7 +879,7 @@ export default function LetterTemplateEditor({ templateId, fullScreen = false, i
             <div className="hidden min-w-0 shrink text-xs text-gray-500 md:flex md:items-center md:gap-1.5">
               <Link href="/communications" className="hover:text-green-700">Communications</Link>
               <span className="text-gray-300">/</span>
-              <Link href="/oyama-letters" className="hover:text-green-700">OyamaLetters</Link>
+              <Link href="/oyama-letters" className="hover:text-green-700">Letters &amp; Printables</Link>
               <span className="text-gray-300">/</span>
             </div>
             <input
@@ -990,10 +990,10 @@ export default function LetterTemplateEditor({ templateId, fullScreen = false, i
             <div className="mx-auto w-full max-w-[940px] space-y-3">
               <section className="rounded-xl border border-gray-200 bg-white p-4">
                 <h2 className="text-sm font-semibold text-gray-900">History and Publishing Workflows</h2>
-                <p className="mt-1 text-xs text-gray-600">Generated-document history opens in OyamaLetters Generate Center. Version history is still planned.</p>
+                <p className="mt-1 text-xs text-gray-600">Generated-document history opens in the Letters & Printables Generate Center. Version history is still planned.</p>
               </section>
               <div className="grid gap-3 md:grid-cols-2">
-                <PublishCard title="View Generated History" description="Open this template in OyamaLetters Generate Center with the activity/history rail selected." action="Open History" onClick={() => void openGenerateHistoryWorkspace()} />
+                <PublishCard title="View Generated History" description="Open this template in the Letters & Printables Generate Center with the activity/history rail selected." action="Open History" onClick={() => void openGenerateHistoryWorkspace()} />
                 <PublishCard title="Generate Single Letter" description="Search one constituent, preview the merge, generate the letter, and export a PDF from the same workspace." action="Open Single Generator" onClick={() => void openGenerateWorkspace("single")} />
                 <PublishCard title="Batch Generate Letters" description="Use segments, contact search, or saved audience lists, run a dry-run, then generate batch PDFs or queue output." action="Open Batch Generator" onClick={() => void openGenerateWorkspace("batch")} />
                 <PublishCard title="Generate For Print Queue" description="Open batch generation with print queue handoff selected for this template." action="Open Print Workflow" onClick={() => void openGenerateWorkspace("batch", "print")} />

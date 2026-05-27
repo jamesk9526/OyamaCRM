@@ -304,7 +304,7 @@ async function runBuildFullLetterDraft(input: ExecuteStewardActionInput): Promis
     return { status: "failed", message: "Letter template was created without an id." };
   }
 
-  input.navigate(`/letters-printables/templates/${encodeURIComponent(created.id)}`);
+  input.navigate(`/oyama-letters/templates/${encodeURIComponent(created.id)}`);
   return { status: "executed", message: "Full letter draft created and opened in Letters workspace." };
 }
 

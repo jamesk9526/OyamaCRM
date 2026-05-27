@@ -318,7 +318,7 @@ export default function CampaignDetailPage() {
             Create Email Campaign
           </Link>
           <Link
-            href={`/letters-printables/generate?campaignId=${campaign.id}`}
+            href={`/oyama-letters/generate?campaignId=${campaign.id}`}
             className="px-3 py-1.5 text-xs font-semibold text-green-700 bg-white border border-green-200 rounded-md hover:bg-green-50"
           >
             Generate Appeal Letter

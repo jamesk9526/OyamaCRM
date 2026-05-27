@@ -2741,7 +2741,7 @@ export async function executeStewardTool(
       result = {
         created: true,
         draft: template,
-        deepLink: `/letters-printables/templates/${template.id}`,
+        deepLink: `/oyama-letters/templates/${template.id}`,
       };
       break;
     }
@@ -2788,7 +2788,7 @@ export async function executeStewardTool(
         created: true,
         draft: template,
         styleIncluded: Boolean(css.trim()),
-        deepLink: `/letters-printables/templates/${template.id}`,
+        deepLink: `/oyama-letters/templates/${template.id}`,
       };
       break;
     }

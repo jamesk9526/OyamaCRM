@@ -253,7 +253,7 @@ const RIBBON_TABS: RibbonTab[] = [
   { id: "home", label: "Home", href: "/", match: ["/"] },
   { id: "constituents", label: "Constituents", href: "/constituents", match: ["/constituents", "/contacts-manager", "/volunteers"] },
   { id: "giving", label: "Giving", href: "/donations", match: ["/donations", "/campaigns", "/grants", "/payments", "/designations", "/quickbooks-sync"] },
-  { id: "outreach", label: "Outreach", href: "/communications", match: ["/communications", "/email-builder", "/letters-printables", "/oyama-letters", "/livecom", "/meetings", "/steward-paths"] },
+  { id: "outreach", label: "Outreach", href: "/communications", match: ["/communications", "/email-builder", "/oyama-letters", "/livecom", "/meetings", "/steward-paths"] },
   { id: "reports", label: "Reports", href: "/reports", match: ["/reports", "/steward-signals", "/steward-ai-workspace"] },
   { id: "data", label: "Data", href: "/data-tools", match: ["/data-tools", "/custom-fields"] },
   { id: "tools", label: "Tools", href: "/settings", match: ["/settings", "/help", "/steward-paths", "/automations"] },

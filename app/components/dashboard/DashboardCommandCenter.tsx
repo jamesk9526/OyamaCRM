@@ -81,7 +81,7 @@ const QUICK_TOOLS: QuickTool[] = [
   {
     title: "Thank donors",
     description: "Open letters and acknowledgements quickly.",
-    href: "/letters-printables/generate",
+    href: "/oyama-letters/generate",
   },
   {
     title: "Campaigns",
@@ -138,7 +138,7 @@ function getPriorityAction(params: {
       eyebrow: "Best next move",
       title: `Welcome ${newDonorsThisMonth} new donor${newDonorsThisMonth === 1 ? "" : "s"}`,
       description: "Recent donors are the highest-value stewardship opportunity on the board right now.",
-      href: "/letters-printables/generate",
+      href: "/oyama-letters/generate",
       cta: "Draft Thank-You",
       toneClassName: "border-emerald-200 bg-emerald-50 text-emerald-900",
       actionType: "DRAFT_THANK_YOU_NEW_DONORS",

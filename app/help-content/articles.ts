@@ -344,7 +344,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     difficulty: "intermediate",
     role: "staff",
     walkthroughSteps: [
-      { id: "dlpq-1", title: "Open Letters", instruction: "Go to Letters and Printables workspace.", targetRoute: "/letters-printables", order: 1 },
+      { id: "dlpq-1", title: "Open Letters", instruction: "Go to Letters and Printables workspace.", targetRoute: "/oyama-letters", order: 1 },
       { id: "dlpq-2", title: "Approve Draft", instruction: "Review generated content and approve for print.", order: 2 },
       { id: "dlpq-3", title: "Advance Queue", instruction: "Move queue items from printed to mailed.", order: 3 },
     ],

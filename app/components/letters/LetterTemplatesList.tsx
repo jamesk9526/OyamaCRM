@@ -4,7 +4,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
-import LettersWorkspaceNav from "@/app/components/letters/LettersWorkspaceNav";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 import type { LetterTemplateSummary } from "@/app/components/letters/types";
 
@@ -80,8 +79,6 @@ export default function LetterTemplatesList() {
           New Template
         </Link>
       </div>
-
-      <LettersWorkspaceNav />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-gray-200 bg-white p-4">

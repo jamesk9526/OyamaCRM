@@ -46,6 +46,7 @@ const RESERVED_ROOT_PUBLIC_EVENT_SEGMENTS = new Set([
   "icons",
   "letters-printables",
   "livecom",
+  "oyama-letters",
   "login",
   "meetings",
   "modules",

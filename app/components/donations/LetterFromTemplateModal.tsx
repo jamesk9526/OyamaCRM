@@ -86,7 +86,7 @@ export default function LetterFromTemplateModal({ donation, onClose }: Props) {
       constituentId: donation.constituentId,
       donationId: donation.donationId,
     });
-    router.push(`/letters-printables/generate?${params.toString()}`);
+    router.push(`/oyama-letters/generate?${params.toString()}`);
     onClose();
   }
 

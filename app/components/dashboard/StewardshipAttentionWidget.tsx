@@ -106,7 +106,7 @@ export default function StewardshipAttentionWidget({
       label: "Unthanked Value",
       value: new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(unthankedGiftTotal),
       tone: unthankedGiftTotal > 0 ? "text-amber-700 bg-amber-50 border-amber-200" : "text-green-700 bg-green-50 border-green-200",
-      href: "/letters-printables/generate",
+      href: "/oyama-letters/generate",
     },
     {
       label: "Major Follow-Up",
@@ -146,7 +146,7 @@ export default function StewardshipAttentionWidget({
         <p className="text-lg font-semibold mt-0.5">{metrics[4].value}</p>
       </Link>
       <div className="flex flex-wrap gap-2 text-xs">
-        <Link href="/letters-printables/generate" className="px-2.5 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50">
+        <Link href="/oyama-letters/generate" className="px-2.5 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50">
           Generate Thank-You Letter
         </Link>
         <Link href="/tasks" className="px-2.5 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50">

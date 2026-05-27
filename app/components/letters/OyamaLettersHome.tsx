@@ -52,7 +52,7 @@ export default function OyamaLettersHome() {
       setTemplates(templatesResult.status === "fulfilled" ? templatesResult.value : []);
       setGenerated(generatedResult.status === "fulfilled" ? generatedResult.value : []);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to load OyamaLetters.");
+      setError(requestError instanceof Error ? requestError.message : "Failed to load Letters & Printables.");
     } finally {
       setLoading(false);
     }
@@ -68,12 +68,12 @@ export default function OyamaLettersHome() {
 
   return (
     <WorkspaceRibbonFrame
-      title="OyamaLetters"
+      title="Letters & Printables"
       description="Document production studio for letters, receipts, labels, packets, and printable PDFs."
       breadcrumbItems={[
         { label: "Donor CRM", href: "/" },
         { label: "Communications", href: "/communications" },
-        { label: "OyamaLetters", href: "/oyama-letters" },
+        { label: "Letters & Printables", href: "/oyama-letters" },
       ]}
       statusLabel="Production center"
       metadata={`${activeTemplates.length} templates · ${generatedThisMonth} generated this month`}
@@ -91,9 +91,9 @@ export default function OyamaLettersHome() {
             <WorkspaceRibbonButton label="New Template" href="/oyama-letters/templates/new" />
             <WorkspaceRibbonButton label="Generated History" href="/oyama-letters/generate?tab=activity" />
           </WorkspaceRibbonGroup>
-          <WorkspaceRibbonGroup label="Production">
-            <WorkspaceRibbonButton label="Print Queue" href="/letters-printables/queues?view=print" />
-            <WorkspaceRibbonButton label="Mail Queue" href="/letters-printables/queues?view=mail" />
+          <WorkspaceRibbonGroup label="Setup">
+            <WorkspaceRibbonButton label="Letter Presets" href="/settings/branding/letter-presets" />
+            <WorkspaceRibbonButton label="Signatures" href="/settings/branding/signatures" />
             <WorkspaceRibbonButton label="Branding" href="/settings/branding" />
           </WorkspaceRibbonGroup>
         </WorkspaceRibbon>
@@ -114,7 +114,7 @@ export default function OyamaLettersHome() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Generate mode</p>
                 <h1 className="mt-1 text-2xl font-semibold text-slate-950">What would you like to create?</h1>
                 <p className="mt-1 max-w-2xl text-sm text-slate-600">
-                  Pick the printable first, then OyamaLetters guides you through template, records, merge validation, document preview, PDF preview, and print or download.
+                  Pick the printable first, then Letters & Printables guides you through template, records, merge validation, document preview, PDF preview, and print or download.
                 </p>
               </div>
               <Link href="/oyama-letters/generate" className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
@@ -137,8 +137,8 @@ export default function OyamaLettersHome() {
             <div className="mt-4 grid grid-cols-2 gap-3">
               <StatusMetric label="Templates" value={loading ? "-" : String(activeTemplates.length)} />
               <StatusMetric label="Generated" value={loading ? "-" : String(generatedThisMonth)} />
-              <StatusMetric label="Print Queue" value={loading ? "-" : String(stats?.queuedForPrint ?? 0)} />
-              <StatusMetric label="Mail Queue" value={loading ? "-" : String(stats?.queuedForMail ?? 0)} />
+              <StatusMetric label="Needs Review" value={loading ? "-" : String(stats?.needsReview ?? 0)} />
+              <StatusMetric label="Tax Receipts" value={loading ? "-" : String(stats?.taxReceiptsGenerated ?? 0)} />
             </div>
             <div className="mt-4 rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
               Production UI uses real CRM templates, generated documents, constituents, donations, lists, and reports. Empty states appear when data is missing.

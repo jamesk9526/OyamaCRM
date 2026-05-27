@@ -454,7 +454,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
             ) : (
               <>
                 <Link href="/communications" className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Email Projects</Link>
-                <Link href="/letters-printables/generate" className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Letter Generation</Link>
+                <Link href="/oyama-letters/generate" className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Letter Generation</Link>
               </>
             )}
           </div>
@@ -488,7 +488,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
           <WorkspaceRibbonButton label={fullscreen ? "Exit Full Screen" : "Full Screen"} href={fullscreen ? "/contacts-manager" : "/contacts-manager/fullscreen"} title="Open the immersive spreadsheet Contacts Manager workspace" />
           <WorkspaceRibbonButton label="Import List CSV" href="/data-tools/import?target=list" title="Import a CSV and create a reusable Contacts Manager audience list" />
           <WorkspaceRibbonButton label="Email Projects" href="/communications" title="Open communications project library" />
-          <WorkspaceRibbonButton label="Letter Generation" href="/letters-printables/generate" title="Open letter generation workspace" />
+          <WorkspaceRibbonButton label="Letter Generation" href="/oyama-letters/generate" title="Open letter generation workspace" />
         </WorkspaceRibbonGroup>
       </WorkspaceRibbon>
 

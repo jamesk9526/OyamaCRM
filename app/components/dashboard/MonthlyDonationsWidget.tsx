@@ -518,7 +518,7 @@ export default function MonthlyDonationsWidget() {
                   <Link href="/communications?view=templates" className="block rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
                     Browse all email templates
                   </Link>
-                  <Link href="/letters-printables/generate" className="block rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                  <Link href="/oyama-letters/generate" className="block rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
                     Create printable thank-you letters
                   </Link>
                   <Link href="/donations?filter=this-month" className="block rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">

@@ -199,7 +199,7 @@ function AudienceSelector(props: TemplateAudiencePanelProps) {
   }
 
   if (props.audienceSource === "report-result") {
-    return props.reportIds.length > 0 ? <p className="text-xs text-slate-600">{props.reportIds.length} constituent IDs loaded from report URL handoff.</p> : <EmptyText text="No report result is attached. Open OyamaLetters Generate Center from a report result to use this source." />;
+    return props.reportIds.length > 0 ? <p className="text-xs text-slate-600">{props.reportIds.length} constituent IDs loaded from report URL handoff.</p> : <EmptyText text="No report result is attached. Open the Letters & Printables Generate Center from a report result to use this source." />;
   }
 
   if (props.audienceSource === "campaign") {

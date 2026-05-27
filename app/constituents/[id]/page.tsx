@@ -377,7 +377,7 @@ export default function ConstituentDetailPage() {
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                   Draft Email
                 </Link>
-                <Link href={`/letters-printables/generate?constituentId=${id}`} className={QA_BTN}>
+                <Link href={`/oyama-letters/generate?constituentId=${id}`} className={QA_BTN}>
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                   Create Letter
                 </Link>
@@ -957,7 +957,7 @@ function CommunicationsTab({
 
       <div className="flex flex-wrap gap-2">
         <Link href={`/communications?new=1&source=constituent&constituentId=${constituentId}`} className={ACTION_BTN}>Draft Email</Link>
-        <Link href={`/letters-printables/generate?constituentId=${constituentId}`} className={ACTION_BTN}>Create Letter</Link>
+        <Link href={`/oyama-letters/generate?constituentId=${constituentId}`} className={ACTION_BTN}>Create Letter</Link>
         <Link href={`/meetings?constituentId=${constituentId}`} className={ACTION_BTN}>Log Call</Link>
       </div>
 

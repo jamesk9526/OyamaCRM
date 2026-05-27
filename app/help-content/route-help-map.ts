@@ -106,7 +106,7 @@ export const HELP_ROUTE_CONTEXT_RULES: HelpRouteContextRule[] = [
     prioritizeSlugs: ["donor-send-email-campaign", "donor-email-preferences"],
   },
   {
-    routePrefix: "/letters-printables",
+    routePrefix: "/oyama-letters",
     crmScope: "donor",
     tags: ["letters", "printables", "mail", "queue"],
     prioritizeSlugs: ["donor-letters-print-queue"],

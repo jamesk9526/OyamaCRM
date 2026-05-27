@@ -84,7 +84,7 @@ function ConstituentRowMoreMenu({ constituent, onDelete }: { constituent: Consti
           <Link href={`/constituents/${constituent.id}/edit`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
             Edit
           </Link>
-          <Link href={`/letters-printables/generate?constituentId=${constituent.id}`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
+          <Link href={`/oyama-letters/generate?constituentId=${constituent.id}`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
             Draft Letter
           </Link>
           {onDelete && (

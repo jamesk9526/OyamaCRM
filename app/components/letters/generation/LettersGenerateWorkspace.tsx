@@ -139,7 +139,7 @@ export default function LettersGenerateWorkspace() {
       if (!templateId && templateRows[0]) setTemplateId(templateRows[0].id);
       if (!audienceListId && listRows[0]) setAudienceListId(listRows[0].id);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to load OyamaLetters.");
+      setError(requestError instanceof Error ? requestError.message : "Failed to load Letters & Printables.");
       setStatus("Failed");
     }
   }, [audienceListId, templateId]);

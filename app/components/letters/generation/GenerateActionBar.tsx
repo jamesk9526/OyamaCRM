@@ -49,7 +49,7 @@ export default function GenerateActionBar({
       <div className="mb-3">
         <Link href="/oyama-letters" className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-950">
           <span aria-hidden="true">‹</span>
-          Back to OyamaLetters
+          Back to Letters &amp; Printables
         </Link>
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-3">

@@ -2107,7 +2107,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       return true;
     }
 
-    const letterMatch = pathname.match(/^\/letters-printables\/templates\/([^/]+)$/);
+    const letterMatch = pathname.match(/^\/oyama-letters\/templates\/([^/]+)$/);
     if (letterMatch?.[1] && params.get("embedded") === "1") {
       const panelRaw = params.get("panel");
       const initialPanel = panelRaw === "preview" || panelRaw === "publish" ? panelRaw : "document";
@@ -2264,7 +2264,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         confirm: (msg) => typeof window !== "undefined" ? window.confirm(msg) : false,
         callApi: async (path, init) => { await apiFetch(path, { method: init?.method, body: init?.body, headers: { "Content-Type": "application/json" } }); },
         navigate: (path) => {
-          if (path.startsWith("/letters-printables/templates/")) {
+          if (path.startsWith("/oyama-letters/templates/")) {
             const fullPath = path.includes("?") ? `${path}&fullscreen=1` : `${path}?fullscreen=1`;
             if (typeof window !== "undefined") window.location.href = fullPath;
             return;
@@ -2372,7 +2372,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       }
 
       if (typeof window !== "undefined") {
-        window.location.href = `/letters-printables/templates/${encodeURIComponent(created.id)}?fullscreen=1`;
+        window.location.href = `/oyama-letters/templates/${encodeURIComponent(created.id)}?fullscreen=1`;
       }
       setActionStatus({ tone: "success", message: "Draft letter saved and opened in Letters workspace." });
     } catch (e) {
@@ -3636,14 +3636,14 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           onClose={() => setLetterWorkspace(null)}
           maxWidthClassName="max-w-[96vw]"
           appearance="light"
-          openInNewTabHref={`/letters-printables/templates/${encodeURIComponent(letterWorkspace.templateId)}?fullscreen=1`}
+          openInNewTabHref={`/oyama-letters/templates/${encodeURIComponent(letterWorkspace.templateId)}?fullscreen=1`}
           openInNewTabLabel="Open full screen"
         >
           <div className="px-4 pb-4 pt-12">
             <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
               <span>Switch to Preview inside the letter editor and continue revisions from chat prompts.</span>
               <a
-                href={`/letters-printables/templates/${encodeURIComponent(letterWorkspace.templateId)}?fullscreen=1`}
+                href={`/oyama-letters/templates/${encodeURIComponent(letterWorkspace.templateId)}?fullscreen=1`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"

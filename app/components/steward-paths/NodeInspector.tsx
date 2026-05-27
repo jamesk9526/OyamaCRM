@@ -830,7 +830,7 @@ export default function NodeInspector({
               <p><span className="font-semibold">Linked template:</span> {readString(activeNode.config, "templateName") || "Not linked"}</p>
               <p><span className="font-semibold">Template status:</span> {readString(activeNode.config, "templateStatus") || "Unknown"}</p>
               <Link
-                href="/letters-printables"
+                href="/oyama-letters"
                 className="inline-flex rounded-md border border-gray-300 px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
               >
                 Open Letters & Printables

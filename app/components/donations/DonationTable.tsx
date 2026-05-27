@@ -111,7 +111,7 @@ function RowQuickActionsMenu({
           </button>
 
           <Link
-            href={`/letters-printables/generate?constituentId=${donation.constituent.id}&donationId=${donation.id}`}
+            href={`/oyama-letters/generate?constituentId=${donation.constituent.id}&donationId=${donation.id}`}
             onClick={() => setOpen(false)}
             className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800"
           >
