@@ -119,6 +119,7 @@ export default function LettersGenerateWorkspace() {
   const canGeneratePdf = Boolean(templateId && (selectedConstituent?.id || isBatch));
   const canDownloadPdf = Boolean(pdfPreview);
   const primaryLabel = pdfPreview ? "Download PDF" : isBatch ? "Generate Batch PDF" : "Generate PDF";
+  const workspaceTitle = titleForDocumentType(selectedDocumentType.id, selectedDocumentType.label);
 
   const loadCatalog = useCallback(async () => {
     setError(null);
@@ -387,8 +388,10 @@ export default function LettersGenerateWorkspace() {
   }
 
   return (
-    <div className="min-w-0 space-y-3">
+    <div className="min-w-0 bg-[#f6f8fb]">
       <GenerateActionBar
+        title={workspaceTitle}
+        subtitle="Create and personalize print-ready documents from real CRM records."
         status={status}
         primaryLabel={primaryLabel}
         canGeneratePdf={Boolean(pdfPreview) || canGeneratePdf}
@@ -406,10 +409,10 @@ export default function LettersGenerateWorkspace() {
         onMarkPrinted={() => void markPrinted()}
       />
 
-      {error ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">PDF generation failed. {error} <button type="button" onClick={() => void generatePdf()} className="ml-2 font-semibold underline">Retry</button></div> : null}
-      {notice ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{notice}</div> : null}
+      {error ? <div className="mx-3 mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">PDF generation failed. {error} <button type="button" onClick={() => void generatePdf()} className="ml-2 font-semibold underline">Retry</button></div> : null}
+      {notice ? <div className="mx-3 mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{notice}</div> : null}
 
-      <div className="grid min-h-[720px] min-w-0 gap-3 xl:grid-cols-[310px_minmax(0,1fr)_330px]">
+      <div className="grid min-h-[calc(100dvh-9.25rem)] min-w-0 gap-3 p-3 xl:grid-cols-[292px_minmax(0,1fr)_348px]">
         <TemplateAudiencePanel
           documentTypes={DOCUMENT_TYPES}
           documentTypeId={selectedDocumentType.id}
@@ -540,4 +543,13 @@ function filterTemplates(templates: LetterTemplateCard[], category?: string): Le
   if (!category) return templates;
   const filtered = templates.filter((template) => template.category === category || category === "GENERAL");
   return filtered.length > 0 ? filtered : templates;
+}
+
+function titleForDocumentType(id: string, label: string): string {
+  if (id === "thank-you") return "Generate Thank-You Letters";
+  if (id === "receipt") return "Generate Donation Receipts";
+  if (id === "labels") return "Generate Mailing Labels";
+  if (id === "event-packet") return "Build Event Packet";
+  if (id === "board-packet") return "Build Board Packet";
+  return `Generate ${label}`;
 }

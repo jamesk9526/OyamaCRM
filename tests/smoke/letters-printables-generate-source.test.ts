@@ -19,8 +19,8 @@ describe("OyamaLetters generate workspace source contract", () => {
     expect(workspace).toContain("MergeSettingsPanel");
     expect(leftPanel).toContain("Document Type");
     expect(leftPanel).toContain("Audience / Records");
-    expect(centerPanel).toContain("Merged HTML Preview");
-    expect(centerPanel).toContain("Generated PDF preview");
+    expect(centerPanel).toContain("Document Preview");
+    expect(centerPanel).toContain("No generated PDF yet");
     expect(rightPanel).toContain("Merge Fields");
     expect(rightPanel).toContain("Activity");
   });

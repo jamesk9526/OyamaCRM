@@ -32,23 +32,30 @@ export default function DocumentPreviewPanel({
   const hasBatchRecipients = recipientCount > 1;
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-col rounded-lg border border-slate-200 bg-slate-100 shadow-inner">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2">
-        <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 p-1">
-          <ModeButton active={mode === "html"} label="Preview Data" onClick={() => onModeChange("html")} />
-          <ModeButton active={mode === "pdf"} label="PDF Preview" onClick={() => onModeChange("pdf")} />
-          <ModeButton active={mode === "page"} label="Page View" onClick={() => onModeChange("page")} />
-        </div>
-        {hasBatchRecipients ? (
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-            <button type="button" onClick={onPreviousRecipient} className="rounded-md border border-slate-200 px-2 py-1 hover:bg-slate-50">Previous Recipient</button>
-            <span>Recipient {recipientIndex + 1} of {recipientCount}</span>
-            <button type="button" onClick={onNextRecipient} className="rounded-md border border-slate-200 px-2 py-1 hover:bg-slate-50">Next Recipient</button>
+    <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="grid min-h-14 grid-cols-[minmax(230px,0.9fr)_auto_minmax(190px,0.8fr)] items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <button type="button" onClick={onPreviousRecipient} disabled={!hasBatchRecipients} className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-700 disabled:opacity-50">|‹</button>
+          <button type="button" onClick={onPreviousRecipient} disabled={!hasBatchRecipients} className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-700 disabled:opacity-50">‹</button>
+          <div className="min-w-0 px-1 text-xs">
+            <p className="truncate text-slate-500">{hasBatchRecipients ? `Recipient ${recipientIndex + 1} of ${recipientCount}` : "Recipient 1 of 1"}</p>
+            <p className="truncate font-semibold text-slate-900">{selectedRecipientName || "No recipient selected"}</p>
           </div>
-        ) : null}
+          <button type="button" onClick={onNextRecipient} disabled={!hasBatchRecipients} className="ml-auto flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-700 disabled:opacity-50">›</button>
+          <button type="button" onClick={onNextRecipient} disabled={!hasBatchRecipients} className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-700 disabled:opacity-50">›|</button>
+        </div>
+        <div className="flex items-center gap-1 rounded-md bg-slate-100 p-1">
+          <ModeButton active={mode === "html"} label="Document Preview" onClick={() => onModeChange("html")} />
+          <ModeButton active={mode === "pdf"} label="PDF Preview" onClick={() => onModeChange("pdf")} />
+        </div>
+        <div className="flex justify-end gap-2">
+          <button type="button" className="h-9 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700">100%⌄</button>
+          <button type="button" className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-700">⌕</button>
+          <button type="button" onClick={() => onModeChange("page")} className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-700">⛶</button>
+        </div>
       </div>
 
-      <div className="min-h-[520px] flex-1 overflow-auto p-4">
+      <div className="min-h-[520px] flex-1 overflow-auto bg-[#eef2f7] p-4">
         {mode === "pdf" ? (
           <PdfCanvas pdfPreview={pdfPreview} />
         ) : mode === "page" ? (
@@ -76,9 +83,9 @@ function HtmlCanvas({ preview, batchPreview, selectedRecipientName }: { preview:
 
   return (
     <div className="mx-auto max-w-[780px]">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Merged HTML Preview {selectedRecipientName ? `for ${selectedRecipientName}` : ""}</p>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Merged document preview {selectedRecipientName ? `for ${selectedRecipientName}` : ""}</p>
       <div
-        className="min-h-[720px] rounded-sm border border-slate-200 bg-white px-12 py-10 text-[14px] leading-7 text-slate-900 shadow-[0_18px_40px_rgba(15,23,42,0.16)] [&_.merge-field-missing]:rounded [&_.merge-field-missing]:bg-amber-100 [&_.merge-field-missing]:px-1 [&_.merge-field-missing]:font-semibold [&_.merge-field-missing]:text-amber-800 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2"
+        className="min-h-[760px] rounded-sm border border-slate-200 bg-white px-16 py-12 text-[14px] leading-7 text-slate-900 shadow-[0_18px_40px_rgba(15,23,42,0.16)] [&_.merge-field-missing]:rounded [&_.merge-field-missing]:bg-amber-100 [&_.merge-field-missing]:px-1 [&_.merge-field-missing]:font-semibold [&_.merge-field-missing]:text-amber-800 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2"
         dangerouslySetInnerHTML={{ __html: preview.mergedPrintBody }}
       />
     </div>
@@ -125,7 +132,7 @@ function PdfCanvas({ pdfPreview }: { pdfPreview: PdfPreviewState | null }) {
 
 function ModeButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className={`rounded px-2.5 py-1 text-xs font-semibold ${active ? "bg-white text-emerald-700 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>
+    <button type="button" onClick={onClick} className={`rounded-md px-4 py-2 text-xs font-semibold ${active ? "bg-white text-emerald-700 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>
       {label}
     </button>
   );

@@ -1,6 +1,7 @@
 /** Merge field catalog, production settings, and activity rail. */
 "use client";
 
+import { useMemo, useState } from "react";
 import type { GeneratedLetterSummary } from "@/app/components/letters/types";
 import type { MergeFieldSection, RightPanelTab, SinglePreview } from "./letters-generation-types";
 
@@ -35,16 +36,18 @@ interface MergeSettingsPanelProps {
 export default function MergeSettingsPanel(props: MergeSettingsPanelProps) {
   return (
     <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div className="grid grid-cols-4 border-b border-slate-200 text-[11px] font-semibold">
+      <div className="grid grid-cols-5 border-b border-slate-200 text-[11px] font-semibold">
         <TabButton active={props.tab === "merge-fields"} label="Merge Fields" onClick={() => props.onTabChange("merge-fields")} />
-        <TabButton active={props.tab === "document-settings"} label="Document" onClick={() => props.onTabChange("document-settings")} />
-        <TabButton active={props.tab === "pdf-settings"} label="PDF" onClick={() => props.onTabChange("pdf-settings")} />
+        <TabButton active={props.tab === "document-settings"} label="Document Settings" onClick={() => props.onTabChange("document-settings")} />
+        <TabButton active={props.tab === "pdf-settings"} label="PDF Settings" onClick={() => props.onTabChange("pdf-settings")} />
+        <TabButton active={props.tab === "validation"} label="Validation" onClick={() => props.onTabChange("validation")} />
         <TabButton active={props.tab === "activity"} label="Activity" onClick={() => props.onTabChange("activity")} />
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-3">
         {props.tab === "merge-fields" ? <MergeFieldsTab {...props} /> : null}
         {props.tab === "document-settings" ? <DocumentSettingsTab {...props} /> : null}
         {props.tab === "pdf-settings" ? <PdfSettingsTab {...props} /> : null}
+        {props.tab === "validation" ? <ValidationTab preview={props.preview} /> : null}
         {props.tab === "activity" ? <ActivityTab generatedLetters={props.generatedLetters} /> : null}
       </div>
     </aside>
@@ -52,31 +55,56 @@ export default function MergeSettingsPanel(props: MergeSettingsPanelProps) {
 }
 
 function MergeFieldsTab({ mergeSections, preview, onInsertMergeField }: MergeSettingsPanelProps) {
+  const visibleSections = useMemo(() => mergeSections.filter((section) => section.fields.length > 0), [mergeSections]);
+  const [activeKey, setActiveKey] = useState(visibleSections[0]?.key ?? "");
+  const activeSection = visibleSections.find((section) => section.key === activeKey) ?? visibleSections[0];
+
   return (
     <div className="space-y-3">
-      {mergeSections.length === 0 ? <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">No merge field catalog was returned for this user.</p> : null}
-      {mergeSections.map((section) => (
-        <section key={section.key} className="space-y-2">
-          <h3 className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{section.label}</h3>
-          <div className="space-y-1">
-            {section.fields.map((field) => {
+      <label className="block">
+        <span className="sr-only">Search merge fields</span>
+        <input placeholder="Search merge fields..." className="h-10 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100" />
+      </label>
+      {visibleSections.length === 0 ? <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">No merge field catalog was returned for this user.</p> : null}
+      {activeSection ? (
+        <div className="grid min-h-[430px] grid-cols-[94px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200">
+          <nav className="space-y-1 border-r border-slate-200 bg-slate-50 p-2">
+            {visibleSections.map((section) => (
+              <button
+                key={section.key}
+                type="button"
+                onClick={() => setActiveKey(section.key)}
+                className={`w-full rounded-md px-2 py-2 text-left text-xs font-semibold ${section.key === activeSection.key ? "bg-emerald-50 text-emerald-700" : "text-slate-600 hover:bg-white"}`}
+              >
+                {section.label}
+              </button>
+            ))}
+          </nav>
+          <div className="min-w-0 divide-y divide-slate-100 bg-white">
+            {activeSection.fields.map((field) => {
               const key = field.slice(2, -2);
               const example = preview?.values?.[key] ?? preview?.values?.[aliasKey(key)] ?? "";
               return (
-                <div key={field} className="rounded-md border border-slate-200 p-2">
-                  <code className="block break-all text-[11px] font-semibold text-slate-800">{field}</code>
-                  <p className="mt-1 text-xs text-slate-500">{describeField(key)}</p>
-                  <p className="mt-1 truncate text-xs text-slate-600">Example: {example || "Unavailable for selected record"}</p>
-                  <div className="mt-2 flex gap-1">
-                    <button type="button" onClick={() => void navigator.clipboard?.writeText(field)} className="rounded border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50">Copy</button>
-                    <button type="button" onClick={() => onInsertMergeField(field)} className="rounded bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700">Insert</button>
+                <div key={field} className="grid grid-cols-[minmax(0,1fr)_64px] gap-2 px-3 py-2">
+                  <div className="min-w-0">
+                    <code className="block truncate text-[12px] font-semibold text-slate-800">{field.replaceAll("{", "").replaceAll("}", "")}</code>
+                    <p className="truncate text-xs text-slate-500">{example || describeField(key)}</p>
+                  </div>
+                  <div className="flex justify-end gap-1">
+                    <button type="button" onClick={() => void navigator.clipboard?.writeText(field)} className="flex h-8 w-8 items-center justify-center rounded border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50" title="Copy">□</button>
+                    <button type="button" onClick={() => onInsertMergeField(field)} className="flex h-8 w-8 items-center justify-center rounded border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50" title="Insert">▣</button>
                   </div>
                 </div>
               );
             })}
           </div>
-        </section>
-      ))}
+        </div>
+      ) : null}
+      <div className="rounded-lg border border-violet-100 bg-white p-3">
+        <p className="text-xs font-semibold text-violet-700">Field Preview</p>
+        <code className="mt-2 block text-xs font-semibold text-violet-700">{"{{ donation.amount }}"}</code>
+        <p className="mt-2 text-sm text-slate-700">{preview?.values?.["donation.amount"] ?? preview?.values?.["gift.amount"] ?? "$100.00"}</p>
+      </div>
     </div>
   );
 }
@@ -110,6 +138,23 @@ function PdfSettingsTab(props: MergeSettingsPanelProps) {
   );
 }
 
+function ValidationTab({ preview }: { preview: SinglePreview | null }) {
+  if (!preview) {
+    return <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">Preview a real record to validate merge fields and PDF readiness.</p>;
+  }
+  const issues = [...preview.missingFields.map((field) => `Missing ${field}`), ...preview.unsupportedFields.map((field) => `Unsupported ${field}`)];
+  if (issues.length === 0) {
+    return <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">Merge fields look good. No critical issues found.</div>;
+  }
+  return (
+    <div className="space-y-2">
+      {issues.map((issue) => (
+        <div key={issue} className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs font-semibold text-amber-800">{issue}</div>
+      ))}
+    </div>
+  );
+}
+
 function ActivityTab({ generatedLetters }: { generatedLetters: GeneratedLetterSummary[] }) {
   const rows = generatedLetters.slice(0, 8);
   if (rows.length === 0) {
@@ -129,7 +174,7 @@ function ActivityTab({ generatedLetters }: { generatedLetters: GeneratedLetterSu
 }
 
 function TabButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className={`min-w-0 border-r border-slate-200 px-2 py-2 ${active ? "bg-emerald-50 text-emerald-700" : "text-slate-500 hover:bg-slate-50"}`}>{label}</button>;
+  return <button type="button" onClick={onClick} className={`min-w-0 border-r border-slate-200 px-1 py-3 text-[10px] ${active ? "border-b-2 border-b-emerald-500 bg-white text-emerald-700" : "text-slate-600 hover:bg-slate-50"}`}>{label}</button>;
 }
 
 function SelectControl({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: string[] }) {

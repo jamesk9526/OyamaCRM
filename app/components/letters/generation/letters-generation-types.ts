@@ -2,7 +2,7 @@
 
 export type GenerateAudienceSource = "single" | "multiple" | "saved-list" | "report-result" | "campaign" | "date-range" | "segment";
 export type PreviewMode = "html" | "pdf" | "page";
-export type RightPanelTab = "merge-fields" | "document-settings" | "pdf-settings" | "activity";
+export type RightPanelTab = "merge-fields" | "document-settings" | "pdf-settings" | "validation" | "activity";
 export type GenerationStatus = "Draft" | "Ready to Preview" | "Missing Merge Fields" | "Generating PDF" | "Generated" | "Failed" | "Downloaded" | "Printed" | "Saved to Record";
 
 export interface PrintableDocumentType {

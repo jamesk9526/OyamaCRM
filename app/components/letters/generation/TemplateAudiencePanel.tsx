@@ -12,7 +12,7 @@ import type {
   SavedAudienceList,
   SinglePreview,
 } from "./letters-generation-types";
-import { formatConstituentName, printableTypeLabel } from "./generation-utils";
+import { formatConstituentName } from "./generation-utils";
 
 interface TemplateAudiencePanelProps {
   documentTypes: PrintableDocumentType[];
@@ -61,53 +61,60 @@ interface TemplateAudiencePanelProps {
 /** Renders the left configuration rail for the generation workspace. */
 export default function TemplateAudiencePanel(props: TemplateAudiencePanelProps) {
   const selectedTemplate = props.templates.find((template) => template.id === props.templateId) ?? null;
+  const selectedDocumentType = props.documentTypes.find((type) => type.id === props.documentTypeId) ?? props.documentTypes[0];
   const missingCount = props.preview?.missingFields.length ?? 0;
   const unsupportedCount = props.preview?.unsupportedFields.length ?? 0;
+  const selectedCount = audienceCount(props);
 
   return (
-    <aside className="flex min-h-0 min-w-0 flex-col gap-3 overflow-auto rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-      <PanelSection title="Document Type">
-        <div className="grid gap-2">
-          {props.documentTypes.map((type) => (
-            <button
-              key={type.id}
-              type="button"
-              onClick={() => props.onDocumentTypeChange(type.id)}
-              className={`rounded-lg border p-2 text-left ${props.documentTypeId === type.id ? "border-emerald-500 bg-emerald-50" : "border-slate-200 hover:bg-slate-50"}`}
-            >
-              <span className="block text-sm font-semibold text-slate-900">{type.label}</span>
-              <span className="block text-xs text-slate-500">{type.description}</span>
-            </button>
-          ))}
-        </div>
-      </PanelSection>
+    <aside className="flex min-h-0 min-w-0 flex-col gap-2 overflow-auto rounded-lg border border-slate-200 bg-white/95 p-3 shadow-sm">
+      <StepCard step="STEP 1" title="Document Type" complete={Boolean(selectedDocumentType)}>
+        <label className="relative block">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-violet-700">◆</span>
+          <select value={props.documentTypeId} onChange={(event) => props.onDocumentTypeChange(event.target.value)} className="h-10 w-full rounded-md border border-slate-200 bg-slate-50 pl-9 pr-8 text-sm font-medium text-slate-800 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100">
+            {props.documentTypes.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}
+          </select>
+        </label>
+      </StepCard>
 
-      <PanelSection title="Template">
+      <StepCard step="STEP 2" title="Template" complete={Boolean(selectedTemplate)}>
         {props.templates.length === 0 ? (
           <EmptyText text="No real templates exist yet. Create a template before generating documents." />
-        ) : (
-          <div className="grid gap-2">
-            {props.templates.map((template) => (
-              <button
-                key={template.id}
-                type="button"
-                onClick={() => props.onTemplateChange(template.id)}
-                className={`rounded-lg border p-2 text-left ${props.templateId === template.id ? "border-emerald-500 bg-emerald-50" : "border-slate-200 hover:bg-slate-50"}`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-sm font-semibold text-slate-900">{template.name}</span>
-                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-600">{template.status}</span>
+        ) : selectedTemplate ? (
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-semibold text-slate-950">{selectedTemplate.name}</p>
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">{selectedTemplate.status}</span>
+            </div>
+            <div className="mt-3 flex gap-3">
+              <div className="h-28 w-28 shrink-0 rounded-md border border-slate-200 bg-white p-2 shadow-sm">
+                <div className="h-full rounded-sm border border-slate-100 bg-gradient-to-b from-white to-slate-50 px-2 py-2">
+                  <div className="mb-2 h-2 w-10 rounded bg-violet-100" />
+                  <div className="space-y-1">
+                    {Array.from({ length: 8 }).map((_, index) => <div key={index} className="h-1 rounded bg-slate-200" />)}
+                  </div>
                 </div>
-                <p className="mt-1 text-xs text-slate-500">{printableTypeLabel(template.category)} · Edited {new Date(template.updatedAt).toLocaleDateString()}</p>
-                <p className="mt-1 text-xs text-slate-500">Created by {formatUser(template.createdBy)}</p>
-              </button>
-            ))}
+              </div>
+              <div className="min-w-0 flex-1 text-xs text-slate-600">
+                <p>Last edited</p>
+                <p className="font-semibold text-slate-800">{new Date(selectedTemplate.updatedAt).toLocaleDateString()}</p>
+                <p className="mt-2">by {formatUser(selectedTemplate.createdBy)}</p>
+              </div>
+            </div>
+            <select value={props.templateId} onChange={(event) => props.onTemplateChange(event.target.value)} className="mt-3 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700">
+              {props.templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
+            </select>
+            <div className="mt-2 flex justify-between gap-2">
+              <Link href={`/oyama-letters/templates/${selectedTemplate.id}`} className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Edit Template</Link>
+              <button type="button" className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Change Template</button>
+            </div>
           </div>
+        ) : (
+          <EmptyText text="Choose a real template before generating documents." />
         )}
-        {selectedTemplate ? <Link href={`/oyama-letters/templates/${selectedTemplate.id}`} className="text-xs font-semibold text-emerald-700 hover:underline">Edit selected template</Link> : null}
-      </PanelSection>
+      </StepCard>
 
-      <PanelSection title="Audience / Records">
+      <StepCard step="STEP 3" title="Audience / Records" complete={selectedCount > 0 || props.audienceSource === "segment" || props.audienceSource === "campaign" || props.audienceSource === "date-range"}>
         <select value={props.audienceSource} onChange={(event) => props.onAudienceSourceChange(event.target.value as GenerateAudienceSource)} className="w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm">
           <option value="single">Single constituent</option>
           <option value="multiple">Multiple selected constituents</option>
@@ -118,33 +125,16 @@ export default function TemplateAudiencePanel(props: TemplateAudiencePanelProps)
           <option value="segment">Filtered donor segment</option>
         </select>
         <AudienceSelector {...props} />
-      </PanelSection>
-
-      <PanelSection title="Filters">
-        <div className="grid grid-cols-2 gap-2">
-          <label className="text-xs font-semibold text-slate-600">
-            Year
-            <input value={props.year} onChange={(event) => props.onYearChange(event.target.value)} className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
-          </label>
-          <label className="inline-flex items-end gap-2 pb-1 text-xs font-semibold text-slate-600">
-            <input type="checkbox" checked={props.dedupeHousehold} onChange={(event) => props.onDedupeHouseholdChange(event.target.checked)} />
-            Dedupe households
-          </label>
-        </div>
-      </PanelSection>
-
-      <PanelSection title="Merge Field Status">
-        {!props.preview ? (
-          <EmptyText text="Preview a real record to validate merge fields." />
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            <StatusMetric label="Missing" value={missingCount} tone={missingCount > 0 ? "warn" : "ok"} />
-            <StatusMetric label="Unsupported" value={unsupportedCount} tone={unsupportedCount > 0 ? "warn" : "ok"} />
+        {selectedCount > 0 ? (
+          <div className="rounded-md border border-emerald-100 bg-emerald-50 p-3 text-xs">
+            <p className="font-semibold text-emerald-700">{selectedCount} recipient{selectedCount === 1 ? "" : "s"} selected</p>
+            <p className="mt-1 text-emerald-800">Merge check: {missingCount + unsupportedCount === 0 && props.preview ? "No critical issues found." : "Preview to inspect missing fields."}</p>
+            {missingCount > 0 ? <p className="mt-1 text-amber-700">{missingCount} missing merge field{missingCount === 1 ? "" : "s"}</p> : null}
           </div>
-        )}
-      </PanelSection>
+        ) : null}
+      </StepCard>
 
-      <PanelSection title="Output Settings">
+      <StepCard step="STEP 4" title="Output Settings" complete>
         <div className="grid grid-cols-2 gap-2">
           <label className="text-xs font-semibold text-slate-600">
             Page
@@ -162,7 +152,18 @@ export default function TemplateAudiencePanel(props: TemplateAudiencePanelProps)
             </select>
           </label>
         </div>
-      </PanelSection>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <label className="text-xs font-semibold text-slate-600">
+            Year
+            <input value={props.year} onChange={(event) => props.onYearChange(event.target.value)} className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+          </label>
+          <label className="inline-flex items-end gap-2 pb-1 text-xs font-semibold text-slate-600">
+            <input type="checkbox" checked={props.dedupeHousehold} onChange={(event) => props.onDedupeHouseholdChange(event.target.checked)} />
+            Dedupe
+          </label>
+        </div>
+        <button type="button" className="mt-3 h-10 w-full rounded-md border border-violet-400 bg-violet-50 text-xs font-semibold text-violet-700 hover:bg-violet-100">⚙ Advanced Settings</button>
+      </StepCard>
     </aside>
   );
 }
@@ -231,10 +232,16 @@ function AudienceSelector(props: TemplateAudiencePanelProps) {
   );
 }
 
-function PanelSection({ title, children }: { title: string; children: ReactNode }) {
+function StepCard({ step, title, complete, children }: { step: string; title: string; complete?: boolean; children: ReactNode }) {
   return (
-    <section className="space-y-2">
-      <h2 className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{title}</h2>
+    <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{step}</span>
+          <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
+        </div>
+        {complete ? <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-[11px] font-bold text-white">✓</span> : null}
+      </div>
       {children}
     </section>
   );
@@ -263,16 +270,15 @@ function EmptyText({ text }: { text: string }) {
   return <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">{text}</p>;
 }
 
-function StatusMetric({ label, value, tone }: { label: string; value: number; tone: "ok" | "warn" }) {
-  return (
-    <div className={`rounded-md border px-2 py-1.5 ${tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
-      <p className="text-[10px] font-semibold uppercase">{label}</p>
-      <p className="text-lg font-bold">{value}</p>
-    </div>
-  );
-}
-
 function formatUser(user: LetterTemplateCard["createdBy"]): string {
   const name = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
   return name || user?.email || "Unknown";
+}
+
+function audienceCount(props: TemplateAudiencePanelProps): number {
+  if (props.audienceSource === "single") return props.selectedConstituent ? 1 : 0;
+  if (props.audienceSource === "multiple") return props.selectedContactIds.size;
+  if (props.audienceSource === "saved-list") return props.matchedListIds.length;
+  if (props.audienceSource === "report-result") return props.reportIds.length;
+  return 0;
 }
