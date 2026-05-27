@@ -1,10 +1,11 @@
 /* Global styles for the standalone Oyama Letters workspace.
  *
- * The Letters app does not currently pull in Tailwind so this file provides
- * just enough base styling to keep the production-center surfaces legible
- * when the workspace is run standalone. The component library still uses
- * Tailwind utility class names, which will render as plain HTML until a
- * follow-up wires Tailwind into this workspace (see README).
+ * WARNING: Tailwind is not yet wired into this workspace. The copied component
+ * library (components/letters/**) uses Tailwind utility class names heavily,
+ * so when the app is run standalone it will render with mostly unstyled HTML
+ * until Tailwind is configured here. See README.md "Roadmap" for the
+ * Tailwind wiring task. This stylesheet provides only minimal base resets so
+ * the unstyled fallback remains legible.
  */
 
 * {

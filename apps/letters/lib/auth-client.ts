@@ -5,7 +5,10 @@
 
 // Accept either "https://domain" or "https://domain/api" in env; normalize
 // to a root origin-like base so request paths can safely include "/api/...".
-const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+// Honour OYAMA_API_URL first so it matches the resolution order used by the
+// standalone apps/letters Next.js rewrite (see apps/letters/next.config.ts).
+const RAW_API_BASE =
+  process.env.OYAMA_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 export const API_BASE = RAW_API_BASE.replace(/\/+$/, "").replace(/\/api$/, "");
 
 export interface AuthUser {
