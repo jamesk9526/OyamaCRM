@@ -4,7 +4,9 @@ Date: May 19, 2026
 
 ## Summary
 
-This refresh keeps OyamaCRM's existing application structure and working behavior while standardizing the Donor CRM visual language. Screenshots supplied by product are inspiration only; implementation should follow OyamaCRM's routes, data models, and component boundaries.
+This refresh keeps OyamaCRM's existing application structure and working behavior while standardizing the Donor CRM visual language used during that pass. Screenshots supplied by product are inspiration only; implementation should follow OyamaCRM's routes, data models, and component boundaries.
+
+This document is a snapshot of the May 2026 refresh direction, not a standing repo-wide design rulebook.
 
 ## Visual Language
 

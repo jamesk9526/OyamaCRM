@@ -1,4 +1,0 @@
-
-> agents-create-oyamam-crm-workspace@0.3.0 typecheck:server C:\Users\James\Documents\GitHub\OyamaCRM
-> tsc --project server/tsconfig.json --noEmit
-

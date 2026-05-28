@@ -6,13 +6,15 @@ Date started: May 19, 2026
 
 Use the provided screenshots as inspiration only. The refresh should keep current routes, API behavior, page permissions, existing actions, and working workflows intact while making Donor CRM screens calmer, cleaner, and more consistent.
 
-## Design Direction
+This file is a historical implementation plan for the May 2026 refresh work. It is not a repo-wide rule source.
+
+## Reference Direction Used For That Pass
 
 - Light CRM background: `#f8faf9` / slate-50 family.
 - White cards with soft borders and subtle shadows.
 - Green accent for primary actions, active navigation, and positive status.
-- Workspace chrome can use a pale green Windows-ribbon treatment: grouped icon-first actions, compact side/navigation panels, and flatter square-ish controls. Do not show ribbon tabs unless they switch real command sets.
-- Any custom command bar that functions as a workspace ribbon should follow the same grouped-command treatment instead of introducing separate rounded-card ribbon styles.
+- Some workspace chrome used a pale green ribbon-style treatment with grouped actions, compact navigation panels, and flatter controls.
+- Where a custom command bar acted like a workspace ribbon, that pass kept the grouped-command treatment instead of inventing a second competing pattern.
 - Dashboard pages should feel like the same workspace, not a marketing dashboard: compact title strip, dashboard-local filter bar, flat KPI tiles, dense live panels, and an inspector-style priority area.
 - Dashboard filter bars should only contain controls that act on the dashboard itself, such as range/campaign filters, refresh, chart focus, widget expansion, and metric drill-ins. Keep global navigation and cross-workspace create actions in the sidebar, top bar, or page content cards.
 - Deep slate primary text and muted gray secondary text.
@@ -93,7 +95,7 @@ Goal: create reusable primitives without changing page behavior.
 - [x] Replace the legacy `/reports` workspace with the first-class Oyama Reports app: category rail, report search, prebuilt cards, live report runner, Recharts visuals, data grid, presentation summary, and Report Builder Lite.
 - [ ] Finish backend persistence for saved report views, letter-list handoff, server PDF export, and event-scoped donor joins.
 
-## Non-Breaking Rules
+## Safety Constraints For That Pass
 
 - [x] Keep existing props wherever possible.
 - [x] Add optional props rather than changing required contracts.

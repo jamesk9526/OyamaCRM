@@ -14,10 +14,9 @@ Date: May 19, 2026
 - `CRMEmptyState`: no-data state with optional action.
 - `CRMQuickActionCard`: dashboard/workspace launcher card.
 
-## Rules
+## Guidelines
 
-- Keep primitives presentational. Do not put API calls or route-specific behavior inside them.
-- Preserve existing props and handlers when wrapping older components.
+- Keep primitives presentational by default. Route-specific behavior and data loading should usually stay in feature code.
+- Preserve existing props and handlers when wrapping older components unless a broader refactor intentionally changes the contract.
 - Prefer composing these primitives around current page logic before deeper refactors.
-- Use green sparingly for primary actions and active states, not every control.
-- Keep cards shallow; do not put card-like page sections inside card-like wrappers.
+- Keep card nesting shallow where practical so pages do not become visually heavy.

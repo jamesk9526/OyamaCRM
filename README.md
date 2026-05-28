@@ -24,11 +24,11 @@ OyamaCRM is distributed under a custom source-available license in [LICENSE.md](
 
 OyamaCRM is an integrated nonprofit management platform built for teams that manage donors, clients, and events in one place.
 
-| Module | Focus | Accent |
-|--------|-------|--------|
-| **DonorCRM** | Donors, donations, campaigns, stewardship, grants, communications | Green `#16a34a` |
-| **Compassion CRM** | Client intake, cases, appointments, care plans, assessments | Blue `#2563eb` |
-| **Events CRM** | Event ticketing, guests, seating, check-in, sponsors | Amber `#d97706` |
+| Module | Focus |
+|--------|-------|
+| **DonorCRM** | Donors, donations, campaigns, stewardship, grants, communications |
+| **Compassion CRM** | Client intake, cases, appointments, care plans, assessments |
+| **Events CRM** | Event ticketing, guests, seating, check-in, sponsors |
 
 ---
 
@@ -327,7 +327,7 @@ FEATURES.md       — Complete feature inventory
 
 ## Architecture Highlights
 
-- **Ribbon-first workspaces** — All major workspaces use compact ribbon toolbars with grouped icon-first actions. No large page-top title cards.
+- **Shared workspace patterns** — Workspaces aim for consistent navigation and action placement, but individual tools can choose the layout that fits the workflow.
 - **Module isolation** — DonorCRM, Compassion CRM, and Events CRM data is isolated by default. Cross-module linking uses explicit shared-person references with permission checks.
 - **Draft-first communication** — All outbound communications (email, letters, AI drafts) default to draft/review state. Nothing sends automatically.
 - **Audit logging** — Every significant CRM action writes an audit event. Visible in the Security & Audit settings workspace.
@@ -346,11 +346,11 @@ _Screenshots captured 2026-05-18 with medium demo seed. See [README_SCREENSHOTS/
 
 OyamaCRM is an integrated nonprofit management platform built for teams that manage donors, clients, and events in one place.
 
-| Module | Focus | Accent |
-|--------|-------|--------|
-| **DonorCRM** | Donors, donations, campaigns, stewardship, grants, communications | Green `#16a34a` |
-| **Compassion CRM** | Client intake, cases, appointments, care plans, assessments | Blue `#2563eb` |
-| **Events CRM** | Event ticketing, guests, seating, check-in, sponsors | Amber `#d97706` |
+| Module | Focus |
+|--------|-------|
+| **DonorCRM** | Donors, donations, campaigns, stewardship, grants, communications |
+| **Compassion CRM** | Client intake, cases, appointments, care plans, assessments |
+| **Events CRM** | Event ticketing, guests, seating, check-in, sponsors |
 
 ---
 
@@ -579,7 +579,7 @@ README_SCREENSHOTS/ — App screenshots (captured 2026-05)
 
 ## Architecture Highlights
 
-- **Ribbon-first workspaces** — All major workspaces use compact ribbon toolbars with grouped icon-first actions. No large page-top title cards.
+- **Shared workspace patterns** — Workspaces aim for consistent navigation and action placement, but individual tools can choose the layout that fits the workflow.
 - **Module isolation** — DonorCRM, Compassion CRM, and Events CRM data is isolated by default. Cross-module linking uses explicit shared-person references with permission checks.
 - **Draft-first communication** — All outbound communications (email, letters, AI drafts) default to draft/review state. Nothing sends automatically.
 - **Audit logging** — Every significant CRM action writes an audit event. Visible in the Security & Audit settings workspace.

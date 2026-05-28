@@ -1,4 +1,0 @@
-
-> agents-create-oyamam-crm-workspace@1.2.0 typecheck:web C:\Users\James\Documents\GitHub\OyamaCRM
-> tsc --noEmit
-

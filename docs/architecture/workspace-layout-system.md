@@ -4,7 +4,8 @@ Last updated: 2026-05-14
 
 ## Purpose
 
-The Workspace Layout System standardizes page-level controls so complex tools stop inventing unique tab bars and control strips.
+This document describes the shared workspace-ribbon system used in parts of OyamaCRM.
+It is reference material for pages that adopt that pattern, not a requirement that every workspace use the same layout.
 
 Hierarchy:
 
@@ -13,7 +14,7 @@ Hierarchy:
 3. Focused tool work area: center workspace content with project-library-first entry blocks
 4. Contextual inspector only when editing detail (drawer/panel, not permanent nav)
 
-This system applies inside page content and does not replace the global sidebar.
+When used, this system applies inside page content and does not replace the global sidebar.
 
 ## Core Components
 
@@ -47,7 +48,7 @@ Legacy compatibility location: `app/components/workspace/`
 
 ## Current Rollout
 
-Current DonorCRM ribbon-first refactor targets:
+Current workspace-ribbon adoption targets:
 
 - Communications workspace
 - Letters & Printables workspace
@@ -81,7 +82,7 @@ Ribbon groups and project-library cards keep Letters & Printables linked as a re
 
 ## Rollout Guidance
 
-Apply Workspace Ribbon to pages that have:
+Consider Workspace Ribbon on pages that have:
 
 - More than three local views
 - Mixed modes (overview, queue, settings, logs, templates, builders)
@@ -103,8 +104,8 @@ Suggested next candidates:
 - Route navigation controls render as links.
 - Active item uses `aria-current`.
 - Disabled controls prevent selection and expose context via title/description.
-- Permanent right-side nav rails are disallowed as default workspace navigation.
-- Inspectors should open only for contextual editing and should collapse/drawer on compact widths.
+- Avoid permanent right-side nav rails as the default workspace navigation pattern.
+- Inspectors should open only for contextual editing and should collapse into drawers on compact widths.
 
 ## Compact Desktop Standard
 
@@ -133,4 +134,4 @@ Shared layout expectations:
 Validation expectations:
 
 - New workspaces should be checked at `1366x768` and `1280x720` before being considered layout-complete.
-- Responsive audit evidence should be written to `docs/status/responsive-ui-audit.json` and `docs/status/responsive-ui-audit.md` via `scripts/qa/responsive-ui-pass.mjs`.
+- Responsive audit evidence can be written to `docs/status/responsive-ui-audit.json` and `docs/status/responsive-ui-audit.md` via `scripts/qa/responsive-ui-pass.mjs` when that audit pass is part of the work.

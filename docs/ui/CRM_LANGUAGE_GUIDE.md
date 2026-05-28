@@ -3,6 +3,7 @@
 Last updated: 2026-05-14
 
 This guide defines preferred staff-facing language for OyamaCRM.
+Use it as a default for product copy, not as a hard ban on technical or internal documentation wording.
 
 ## Style Principles
 
@@ -71,7 +72,7 @@ Example:
 
 ## Scope Notes
 
-- DonorCRM uses green accent and donor/fundraising terminology.
-- Compassion CRM uses blue accent and client/care terminology.
+- DonorCRM uses donor and fundraising terminology.
+- Compassion CRM uses client and care terminology.
 - Events CRM uses event-first terminology and event-scoped routes.
-- Do not mix donor financial terms into Compassion pages without explicit, permission-approved linkage.
+- Avoid mixing donor financial terms into Compassion pages unless there is an explicit, permission-aware linked-record use case.

@@ -1,5 +1,8 @@
 # Refactor UI Autopilot Log
 
+Historical status log for a past UI cleanup pass.
+Do not treat this file as active repo guidance; use `AGENTS.md` and current docs for live rules.
+
 ## 2026-05-14 - Stage 1 Header Cleanup + Ribbon Standardization
 
 Phase name:

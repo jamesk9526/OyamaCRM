@@ -4,11 +4,11 @@ _Last updated: 2026-05-10_
 
 ## Purpose
 
-This document defines one clear home for each major workflow so users are not forced to guess between duplicated pages, duplicated buttons, or overlapping modules.
+This document describes the default home for major workflows so users are less likely to bounce between duplicated pages, duplicated buttons, or overlapping modules.
 
 ## Module Responsibilities
 
-### Donor CRM (Green)
+### Donor CRM
 
 Primary home for:
 - Constituents and households
@@ -17,33 +17,33 @@ Primary home for:
 - Donor-facing communications context
 - Donor insights and generosity/lapse analysis
 
-Not the home for:
+Usually not the home for:
 - Client/case management data
 - Event operations tooling without event scope
 - Cross-module reporting composition (belongs to Reports)
 
-### Events CRM (Amber)
+### Events CRM
 
 Primary home for:
 - Event registry and setup
 - Event-scoped tickets, orders, guests, tables, check-in, sponsors
 - Event operations and post-event event-level workflows
 
-Required pattern:
+Default pattern:
 - Select event first, then open event-scoped tool routes (`/events/[eventId]/...`).
 
-### Compassion CRM (Blue)
+### Compassion CRM
 
 Primary home for:
 - Client records and service history
 - Cases, appointments, follow-ups, notes
 - Privacy-sensitive client reporting
 
-Guardrails:
+Defaults:
 - Keep donor and client records separated unless intentionally linked.
-- Keep client workflows out of Donor CRM navigation.
+- Keep client workflows out of Donor CRM navigation unless there is a clear cross-module reason.
 
-### OyamaHRM (Teal)
+### OyamaHRM
 
 Primary home for:
 - Internal people records (staff, employees, board members, internal volunteers)
@@ -51,10 +51,10 @@ Primary home for:
 - Internal scheduling and availability controls
 - Internal announcements and interoffice communication scaffolding
 
-Guardrails:
-- Do not surface donor giving data in HRM by default.
-- Do not surface compassion client/case sensitive data in HRM by default.
-- Provide safe staff/schedule references to other CRMs via IDs, not direct record merges.
+Defaults:
+- Avoid surfacing donor giving data in HRM unless there is a deliberate approved use case.
+- Avoid surfacing compassion client/case sensitive data in HRM unless there is a deliberate approved use case.
+- Prefer safe staff/schedule references to other CRMs via IDs instead of direct record merges.
 
 ### Communications (Shared)
 
@@ -72,7 +72,7 @@ Primary home for:
 - Donor + Events + Compassion + OGentic reporting context
 
 Boundary:
-- Do not duplicate reporting launch paths across operational module sidebars.
+- Avoid duplicate reporting launch paths across operational module sidebars when one shared path already covers the job.
 
 ### Settings (Shared)
 
