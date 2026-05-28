@@ -77,15 +77,15 @@ This release includes a full browser-driven DonorCRM route pass with fresh scree
 3. Update campaign status, dates, and goals as needed.
 4. Review recent donation activity under that campaign.
 
-### Letters and printables workflow
+### OyamaLetters workflow
 
-1. Go to Letters & Printables.
-2. Start in the project library cards and open or create one printable project.
-3. Use the printable editor Publish tab to open `/letters-printables/generate` for single or batch generation.
-4. In the generator, choose single constituent or batch mode, run preview/dry-run checks, then generate PDFs or hand off to queues.
-5. Use Print Queue for review, approval, and print transitions.
-6. Use Mail Queue for mailed, returned, and address-issue workflows.
-7. If an email version is needed, use Create Email Draft and continue in Communications.
+1. Open OyamaLetters from the workspace switcher or go to `/oyama-letters`.
+2. Start in Template Library, then open a template to enter the Canvas Builder.
+3. Use the builder ribbon and side panels for letter layout, merge-field placement, snippets, signatures, header/footer presets, formatting, tables, page breaks, and margin controls.
+4. Use Publish Workspace to review detected merge fields and publish the saved template.
+5. Use Generate Letters to search real constituents, attach real donation context when needed, preview merged output, and generate a letter or batch.
+6. Use Print & Mail Queue for live print/mail queue rows and Settings for Letters-only organization import, header/footer setup, signature links, and workflow policy controls.
+7. Current status: Working for the refreshed workspace routes. The UI uses live API data and empty states; it does not ship placeholder recipient/template data.
 
 ### Communications hub workflow
 

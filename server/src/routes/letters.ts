@@ -151,6 +151,13 @@ function parseEnum<T extends string>(value: unknown, allowed: readonly T[]): T |
   return allowed.includes(normalized as T) ? (normalized as T) : null;
 }
 
+/** Normalizes optional string id values and maps blank strings to null. */
+function normalizeOptionalId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  return normalized || null;
+}
+
 /** Converts unknown JSON input to a JSON-safe value for Prisma JSON storage. */
 function asJsonObject(value: unknown): Prisma.InputJsonValue | undefined {
   if (value === undefined) return undefined;
@@ -1101,6 +1108,32 @@ router.post("/templates", requirePermission("letters.create"), async (req, res) 
     req.body?.emailSubject,
   );
 
+  const headerPresetId = normalizeOptionalId(req.body?.headerPresetId);
+  const footerPresetId = normalizeOptionalId(req.body?.footerPresetId);
+  const signatureBlockId = normalizeOptionalId(req.body?.signatureBlockId);
+
+  if (headerPresetId) {
+    const headerPreset = await prisma.letterHeaderPreset.findFirst({ where: { id: headerPresetId, organizationId }, select: { id: true } });
+    if (!headerPreset) {
+      res.status(400).json({ error: { code: "INVALID_HEADER_PRESET", message: "Selected header preset was not found." } });
+      return;
+    }
+  }
+  if (footerPresetId) {
+    const footerPreset = await prisma.letterFooterPreset.findFirst({ where: { id: footerPresetId, organizationId }, select: { id: true } });
+    if (!footerPreset) {
+      res.status(400).json({ error: { code: "INVALID_FOOTER_PRESET", message: "Selected footer preset was not found." } });
+      return;
+    }
+  }
+  if (signatureBlockId) {
+    const signatureBlock = await prisma.letterSignatureBlock.findFirst({ where: { id: signatureBlockId, organizationId }, select: { id: true } });
+    if (!signatureBlock) {
+      res.status(400).json({ error: { code: "INVALID_SIGNATURE_BLOCK", message: "Selected signature block was not found." } });
+      return;
+    }
+  }
+
   const created = await prisma.letterTemplate.create({
     data: {
       organizationId,
@@ -1113,9 +1146,9 @@ router.post("/templates", requirePermission("letters.create"), async (req, res) 
       printLayoutJson: asJsonObject(req.body?.printLayoutJson),
       emailSubject: typeof req.body?.emailSubject === "string" ? req.body.emailSubject : null,
       emailBody: typeof req.body?.emailBody === "string" ? req.body.emailBody : null,
-      headerPresetId: typeof req.body?.headerPresetId === "string" ? req.body.headerPresetId : null,
-      footerPresetId: typeof req.body?.footerPresetId === "string" ? req.body.footerPresetId : null,
-      signatureBlockId: typeof req.body?.signatureBlockId === "string" ? req.body.signatureBlockId : null,
+      headerPresetId,
+      footerPresetId,
+      signatureBlockId,
       logoMode,
       customLogoUrl: typeof req.body?.customLogoUrl === "string" ? req.body.customLogoUrl : null,
       mergeFieldsUsed: mergeKeys,
@@ -1214,19 +1247,43 @@ router.patch("/templates/:id", requirePermission("letters.edit"), async (req, re
   if (req.body?.customLogoUrl !== undefined) patch.customLogoUrl = typeof req.body.customLogoUrl === "string" ? req.body.customLogoUrl : null;
 
   if (req.body?.headerPresetId !== undefined) {
-    patch.headerPreset = typeof req.body.headerPresetId === "string" && req.body.headerPresetId
-      ? { connect: { id: req.body.headerPresetId } }
-      : { disconnect: true };
+    const nextHeaderPresetId = normalizeOptionalId(req.body.headerPresetId);
+    if (nextHeaderPresetId) {
+      const headerPreset = await prisma.letterHeaderPreset.findFirst({ where: { id: nextHeaderPresetId, organizationId }, select: { id: true } });
+      if (!headerPreset) {
+        res.status(400).json({ error: { code: "INVALID_HEADER_PRESET", message: "Selected header preset was not found." } });
+        return;
+      }
+      patch.headerPreset = { connect: { id: nextHeaderPresetId } };
+    } else {
+      patch.headerPreset = { disconnect: true };
+    }
   }
   if (req.body?.footerPresetId !== undefined) {
-    patch.footerPreset = typeof req.body.footerPresetId === "string" && req.body.footerPresetId
-      ? { connect: { id: req.body.footerPresetId } }
-      : { disconnect: true };
+    const nextFooterPresetId = normalizeOptionalId(req.body.footerPresetId);
+    if (nextFooterPresetId) {
+      const footerPreset = await prisma.letterFooterPreset.findFirst({ where: { id: nextFooterPresetId, organizationId }, select: { id: true } });
+      if (!footerPreset) {
+        res.status(400).json({ error: { code: "INVALID_FOOTER_PRESET", message: "Selected footer preset was not found." } });
+        return;
+      }
+      patch.footerPreset = { connect: { id: nextFooterPresetId } };
+    } else {
+      patch.footerPreset = { disconnect: true };
+    }
   }
   if (req.body?.signatureBlockId !== undefined) {
-    patch.signatureBlock = typeof req.body.signatureBlockId === "string" && req.body.signatureBlockId
-      ? { connect: { id: req.body.signatureBlockId } }
-      : { disconnect: true };
+    const nextSignatureBlockId = normalizeOptionalId(req.body.signatureBlockId);
+    if (nextSignatureBlockId) {
+      const signatureBlock = await prisma.letterSignatureBlock.findFirst({ where: { id: nextSignatureBlockId, organizationId }, select: { id: true } });
+      if (!signatureBlock) {
+        res.status(400).json({ error: { code: "INVALID_SIGNATURE_BLOCK", message: "Selected signature block was not found." } });
+        return;
+      }
+      patch.signatureBlock = { connect: { id: nextSignatureBlockId } };
+    } else {
+      patch.signatureBlock = { disconnect: true };
+    }
   }
 
   const nextPrintBody = typeof req.body?.printBody === "string" ? req.body.printBody : existing.printBody;

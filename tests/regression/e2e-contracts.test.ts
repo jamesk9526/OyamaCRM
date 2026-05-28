@@ -23,13 +23,13 @@ describe("e2e contract regression", () => {
   });
 
   it("keeps letters publish actions in template publish workspace", () => {
-    const templateEditor = read("app/components/letters/LetterTemplateEditor.tsx");
-    const ribbonHome = read("app/components/letters/LettersRibbonHome.tsx");
+    const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
     const templatePage = read("app/oyama-letters/templates/[templateId]/page.tsx");
+    const publishPage = read("app/oyama-letters/templates/[templateId]/publish/page.tsx");
 
-    expect(templateEditor.includes("/letters-printables/generate?templateId=")).toBe(false);
-    expect(ribbonHome.includes("/letters-printables/generate?templateId=")).toBe(false);
-    expect(templateEditor.includes("/oyama-letters/generate?")).toBe(true);
-    expect(templatePage.includes("query.panel === \"publish\"")).toBe(true);
+    expect(workspace.includes("/letters-printables/generate?templateId=")).toBe(false);
+    expect(workspace.includes("/oyama-letters/templates/${id}/publish")).toBe(true);
+    expect(templatePage.includes('view="builder"')).toBe(true);
+    expect(publishPage.includes('view="publish"')).toBe(true);
   });
 });

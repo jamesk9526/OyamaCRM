@@ -6,6 +6,7 @@ import type { FeedbackContextPayload, FeedbackCrmScope } from "@/app/components/
 /** Maps one topbar module key to the CRM scope values accepted by feedback ticketing APIs. */
 function mapModuleToFeedbackScope(moduleKey: TopBarModuleKey): FeedbackCrmScope {
   if (moduleKey === "donor") return "donor";
+  if (moduleKey === "letters") return "donor";
   if (moduleKey === "compassion") return "compassion";
   if (moduleKey === "events") return "events";
   if (moduleKey === "watchdog") return "watchdog";

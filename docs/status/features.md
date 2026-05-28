@@ -2,6 +2,17 @@
 
 _Last deep audit: 2026-05-18 (v1.1.0)_
 
+## 2026-05-28 OyamaLetters Standalone Workspace Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| OyamaLetters refreshed workspace shell | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/oyama-letters/page.tsx`, `app/components/layout/AppShell.tsx` | `/oyama-letters` now bypasses the DonorCRM page chrome and opens the dedicated Letter & Document Studio shell with route-aware top bar, sidebar, and workflow stepper. |
+| OyamaLetters live API-backed routes | Working | `app/oyama-letters/templates/[templateId]/page.tsx`, `app/oyama-letters/templates/[templateId]/publish/page.tsx`, `app/oyama-letters/generate/page.tsx`, `app/oyama-letters/queue/page.tsx`, `app/oyama-letters/settings/page.tsx`, `server/src/routes/letters.ts` | Template Library, Canvas Builder, Publish Workspace, Generate Letters, queues, and workflow settings use real CRM/letters API data and empty states instead of placeholder records. |
+| OyamaLetters canvas builder ribbon and blocks | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/smoke/letter-builder-ui-source.test.ts` | Builder ribbon actions now modify the saved template body: merge fields, signatures, image/table/page-break blocks, headings, paragraphs, inline formatting, alignment, lists, snippet sections, margin controls, and live header/footer preset application. |
+| OyamaLetters organization and letters-only branding setup | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `server/src/routes/settings.ts` | Letters Settings now has Organization, Headers, Footers, and Workflow tabs. Organization imports global branding/logo/contact defaults into Letters-only header/footer presets without overwriting global Branding Settings. |
+| Legacy letters UI removal and compatibility | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/letters/page.tsx`, `app/letters-printables/page.tsx`, `apps/letters/app/page.tsx` | Old routed letters UI components were removed from the main app and standalone package. Existing `/letters`, `/letters-printables`, Communications, and standalone app entries redirect into the refreshed workspace. |
+| Workspace switcher access | Working | `app/components/layout/TopBar.tsx`, `app/lib/navigation-boundaries.ts`, `app/help-content/scope.ts`, `app/lib/feedback/getFeedbackContext.ts` | OyamaLetters is available as a primary workspace switcher entry with help and feedback context mapped back to donor scope. |
+
 ## 2026-05-26 Donor Desktop Sidebar Chrome Pass
 
 | Area | Status | Evidence | Notes |
@@ -210,7 +221,7 @@ _Last deep audit: 2026-05-18 (v1.1.0)_
 | Communications guided wizard route scaffold | Partially Working | `app/communications/new/type/page.tsx`, `app/communications/new/audience/page.tsx`, `app/communications/new/preset/page.tsx`, `app/communications/new/editor/page.tsx`, `app/communications/new/review/page.tsx`, `app/communications/new/send/page.tsx`, `app/communications/[campaignId]/review/page.tsx`, `app/communications/[campaignId]/schedule/page.tsx` | Guided path routes are now explicit and navigable; deeper per-step persistence/validation remains in progress. |
 | Communications library/log helper routes | Working | `app/communications/library/templates/page.tsx`, `app/communications/library/segments/page.tsx`, `app/communications/log/page.tsx` | Added explicit route entry points for templates, segments, and log workflows. |
 | Letters & Printables ribbon-first home | Working | `app/components/letters/LettersRibbonHome.tsx`, `app/letters-printables/page.tsx` | Letters root route now starts with ribbon groups and project-library cards to reduce entry-point sprawl. |
-| Letters unified generation workspace | Working | `app/letters-printables/generate/page.tsx`, `app/components/letters/LetterGenerateCenter.tsx` | Single and batch generation now live in one template-specific workspace. Legacy step URLs redirect here. |
+| Letters unified generation workspace | Working | `app/letters-printables/generate/page.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx` | Single and batch generation now live in the refreshed OyamaLetters workspace. Legacy step URLs redirect here. |
 | Letters presets route slices | Working | `app/letters-printables/presets/page.tsx`, `app/letters-printables/presets/headers/page.tsx`, `app/letters-printables/presets/footers/page.tsx`, `app/letters-printables/presets/signatures/page.tsx` | Added preset-oriented entry routes for headers/footers/signatures and compatibility redirects. |
 
 ## 2026-05-14 Steward AI Runtime Status + Rules-Mode Engagement Pass

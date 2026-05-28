@@ -23,7 +23,7 @@ import { executeStewardSuggestedAction } from "@/app/components/ai/steward-actio
 import DonorMentionPicker, { type MentionedDonor } from "@/app/components/ai/DonorMentionPicker";
 import StewardSaveTemplateModal, { type StewardTemplateDraft } from "@/app/components/ai/StewardSaveTemplateModal";
 import EmailBuilderApp from "@/app/components/email-builder/EmailBuilderApp";
-import LetterTemplateEditor from "@/app/components/letters/LetterTemplateEditor";
+import OyamaLettersWorkspace from "@/app/components/letters/OyamaLettersWorkspace";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -2372,7 +2372,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       }
 
       if (typeof window !== "undefined") {
-        window.location.href = `/oyama-letters/templates/${encodeURIComponent(created.id)}?fullscreen=1`;
+        window.location.assign(`/oyama-letters/templates/${encodeURIComponent(created.id)}?fullscreen=1`);
       }
       setActionStatus({ tone: "success", message: "Draft letter saved and opened in Letters workspace." });
     } catch (e) {
@@ -3652,9 +3652,9 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
               </a>
             </div>
             <div className="h-[82vh] min-h-[640px] overflow-hidden rounded-xl border border-slate-200 bg-white">
-              <LetterTemplateEditor
+              <OyamaLettersWorkspace
+                view="builder"
                 templateId={letterWorkspace.templateId}
-                initialPanel={letterWorkspace.initialPanel ?? "document"}
               />
             </div>
           </div>

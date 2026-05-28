@@ -1,5 +1,4 @@
-/** Utilities for visual print-layout blocks used by the letters template editor. */
-
+/** Utilities for visual print-layout blocks used by letters templates. */
 import type { PrintLayoutBlock, PrintLayoutDocument, PrintLayoutKind } from "@/app/components/letters/types";
 
 const DEFAULT_SPACER_HEIGHT = 24;
@@ -41,7 +40,7 @@ export function bodyToPrintLayout(body: string): PrintLayoutDocument {
   }));
 }
 
-/** Converts visual blocks to the legacy printBody format for backward compatibility. */
+/** Converts visual blocks to the printBody format for backward compatibility. */
 export function printLayoutToBody(blocks: PrintLayoutDocument): string {
   const lines: string[] = [];
 

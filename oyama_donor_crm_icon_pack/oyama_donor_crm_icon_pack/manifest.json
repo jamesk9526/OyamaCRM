@@ -1,0 +1,876 @@
+{
+  "name": "OyamaCRM Donor Icon Pack",
+  "version": "1.0",
+  "count": 124,
+  "style": "rounded green outline icons for OyamaCRM DonorCRM",
+  "icons": [
+    {
+      "name": "Donor Dashboard",
+      "slug": "donor-dashboard",
+      "category": "Core Navigation",
+      "svg": "icons/svg/donor-dashboard.svg",
+      "png_512": "icons/png/512/donor-dashboard.png"
+    },
+    {
+      "name": "Home",
+      "slug": "home",
+      "category": "Core Navigation",
+      "svg": "icons/svg/home.svg",
+      "png_512": "icons/png/512/home.png"
+    },
+    {
+      "name": "Constituents",
+      "slug": "constituents",
+      "category": "Core Navigation",
+      "svg": "icons/svg/constituents.svg",
+      "png_512": "icons/png/512/constituents.png"
+    },
+    {
+      "name": "Donor Profile",
+      "slug": "donor-profile",
+      "category": "Core Navigation",
+      "svg": "icons/svg/donor-profile.svg",
+      "png_512": "icons/png/512/donor-profile.png"
+    },
+    {
+      "name": "Households",
+      "slug": "households",
+      "category": "Core Navigation",
+      "svg": "icons/svg/households.svg",
+      "png_512": "icons/png/512/households.png"
+    },
+    {
+      "name": "Contacts Manager",
+      "slug": "contacts-manager",
+      "category": "Core Navigation",
+      "svg": "icons/svg/contacts-manager.svg",
+      "png_512": "icons/png/512/contacts-manager.png"
+    },
+    {
+      "name": "Audience Segments",
+      "slug": "audience-segments",
+      "category": "Core Navigation",
+      "svg": "icons/svg/audience-segments.svg",
+      "png_512": "icons/png/512/audience-segments.png"
+    },
+    {
+      "name": "Tags",
+      "slug": "tags",
+      "category": "Core Navigation",
+      "svg": "icons/svg/tags.svg",
+      "png_512": "icons/png/512/tags.png"
+    },
+    {
+      "name": "Search and Filters",
+      "slug": "search-and-filters",
+      "category": "Core Navigation",
+      "svg": "icons/svg/search-and-filters.svg",
+      "png_512": "icons/png/512/search-and-filters.png"
+    },
+    {
+      "name": "Grid View",
+      "slug": "grid-view",
+      "category": "Core Navigation",
+      "svg": "icons/svg/grid-view.svg",
+      "png_512": "icons/png/512/grid-view.png"
+    },
+    {
+      "name": "List View",
+      "slug": "list-view",
+      "category": "Core Navigation",
+      "svg": "icons/svg/list-view.svg",
+      "png_512": "icons/png/512/list-view.png"
+    },
+    {
+      "name": "Donations",
+      "slug": "donations",
+      "category": "Giving & Donations",
+      "svg": "icons/svg/donations.svg",
+      "png_512": "icons/png/512/donations.png"
+    },
+    {
+      "name": "Recurring Gifts",
+      "slug": "recurring-gifts",
+      "category": "Giving & Donations",
+      "svg": "icons/svg/recurring-gifts.svg",
+      "png_512": "icons/png/512/recurring-gifts.png"
+    },
+    {
+      "name": "Pledges",
+      "slug": "pledges",
+      "category": "Giving & Donations",
+      "svg": "icons/svg/pledges.svg",
+      "png_512": "icons/png/512/pledges.png"
+    },
+    {
+      "name": "Batch Gift Entry",
+      "slug": "batch-gift-entry",
+      "category": "Giving & Donations",
+      "svg": "icons/svg/batch-gift-entry.svg",
+      "png_512": "icons/png/512/batch-gift-entry.png"
+    },
+    {
+      "name": "In Kind Gifts",
+      "slug": "in-kind-gifts",
+      "category": "Giving & Donations",
+      "svg": "icons/svg/in-kind-gifts.svg",
+      "png_512": "icons/png/512/in-kind-gifts.png"
+    },
+    {
+      "name": "Receipts",
+      "slug": "receipts",
+      "category": "Giving & Donations",
+      "svg": "icons/svg/receipts.svg",
+      "png_512": "icons/png/512/receipts.png"
+    },
+    {
+      "name": "Tax Acknowledgment",
+      "slug": "tax-acknowledgment",
+      "category": "Giving & Donations",
+      "svg": "icons/svg/tax-acknowledgment.svg",
+      "png_512": "icons/png/512/tax-acknowledgment.png"
+    },
+    {
+      "name": "QuickBooks Queue",
+      "slug": "quickbooks-queue",
+      "category": "Giving & Donations",
+      "svg": "icons/svg/quickbooks-queue.svg",
+      "png_512": "icons/png/512/quickbooks-queue.png"
+    },
+    {
+      "name": "Gift Import",
+      "slug": "gift-import",
+      "category": "Giving & Donations",
+      "svg": "icons/svg/gift-import.svg",
+      "png_512": "icons/png/512/gift-import.png"
+    },
+    {
+      "name": "Gift Export",
+      "slug": "gift-export",
+      "category": "Giving & Donations",
+      "svg": "icons/svg/gift-export.svg",
+      "png_512": "icons/png/512/gift-export.png"
+    },
+    {
+      "name": "Soft Credits",
+      "slug": "soft-credits",
+      "category": "Giving & Donations",
+      "svg": "icons/svg/soft-credits.svg",
+      "png_512": "icons/png/512/soft-credits.png"
+    },
+    {
+      "name": "Donor Level",
+      "slug": "donor-level",
+      "category": "Giving & Donations",
+      "svg": "icons/svg/donor-level.svg",
+      "png_512": "icons/png/512/donor-level.png"
+    },
+    {
+      "name": "Major Donor",
+      "slug": "major-donor",
+      "category": "Giving & Donations",
+      "svg": "icons/svg/major-donor.svg",
+      "png_512": "icons/png/512/major-donor.png"
+    },
+    {
+      "name": "Monthly Donor",
+      "slug": "monthly-donor",
+      "category": "Giving & Donations",
+      "svg": "icons/svg/monthly-donor.svg",
+      "png_512": "icons/png/512/monthly-donor.png"
+    },
+    {
+      "name": "New Donor",
+      "slug": "new-donor",
+      "category": "Giving & Donations",
+      "svg": "icons/svg/new-donor.svg",
+      "png_512": "icons/png/512/new-donor.png"
+    },
+    {
+      "name": "Lapsed Donor",
+      "slug": "lapsed-donor",
+      "category": "Giving & Donations",
+      "svg": "icons/svg/lapsed-donor.svg",
+      "png_512": "icons/png/512/lapsed-donor.png"
+    },
+    {
+      "name": "Campaigns",
+      "slug": "campaigns",
+      "category": "Campaigns & Grants",
+      "svg": "icons/svg/campaigns.svg",
+      "png_512": "icons/png/512/campaigns.png"
+    },
+    {
+      "name": "Campaign Goal",
+      "slug": "campaign-goal",
+      "category": "Campaigns & Grants",
+      "svg": "icons/svg/campaign-goal.svg",
+      "png_512": "icons/png/512/campaign-goal.png"
+    },
+    {
+      "name": "Campaign Report",
+      "slug": "campaign-report",
+      "category": "Campaigns & Grants",
+      "svg": "icons/svg/campaign-report.svg",
+      "png_512": "icons/png/512/campaign-report.png"
+    },
+    {
+      "name": "Capital Campaign",
+      "slug": "capital-campaign",
+      "category": "Campaigns & Grants",
+      "svg": "icons/svg/capital-campaign.svg",
+      "png_512": "icons/png/512/capital-campaign.png"
+    },
+    {
+      "name": "Fund Designation",
+      "slug": "fund-designation",
+      "category": "Campaigns & Grants",
+      "svg": "icons/svg/fund-designation.svg",
+      "png_512": "icons/png/512/fund-designation.png"
+    },
+    {
+      "name": "Grants",
+      "slug": "grants",
+      "category": "Campaigns & Grants",
+      "svg": "icons/svg/grants.svg",
+      "png_512": "icons/png/512/grants.png"
+    },
+    {
+      "name": "Grant Deadline",
+      "slug": "grant-deadline",
+      "category": "Campaigns & Grants",
+      "svg": "icons/svg/grant-deadline.svg",
+      "png_512": "icons/png/512/grant-deadline.png"
+    },
+    {
+      "name": "Grant Award",
+      "slug": "grant-award",
+      "category": "Campaigns & Grants",
+      "svg": "icons/svg/grant-award.svg",
+      "png_512": "icons/png/512/grant-award.png"
+    },
+    {
+      "name": "Funder Profile",
+      "slug": "funder-profile",
+      "category": "Campaigns & Grants",
+      "svg": "icons/svg/funder-profile.svg",
+      "png_512": "icons/png/512/funder-profile.png"
+    },
+    {
+      "name": "Sponsor",
+      "slug": "sponsor",
+      "category": "Campaigns & Grants",
+      "svg": "icons/svg/sponsor.svg",
+      "png_512": "icons/png/512/sponsor.png"
+    },
+    {
+      "name": "Event Fundraising",
+      "slug": "event-fundraising",
+      "category": "Campaigns & Grants",
+      "svg": "icons/svg/event-fundraising.svg",
+      "png_512": "icons/png/512/event-fundraising.png"
+    },
+    {
+      "name": "Communications",
+      "slug": "communications",
+      "category": "Communications",
+      "svg": "icons/svg/communications.svg",
+      "png_512": "icons/png/512/communications.png"
+    },
+    {
+      "name": "Email Builder",
+      "slug": "email-builder",
+      "category": "Communications",
+      "svg": "icons/svg/email-builder.svg",
+      "png_512": "icons/png/512/email-builder.png"
+    },
+    {
+      "name": "Email Campaign",
+      "slug": "email-campaign",
+      "category": "Communications",
+      "svg": "icons/svg/email-campaign.svg",
+      "png_512": "icons/png/512/email-campaign.png"
+    },
+    {
+      "name": "Newsletter",
+      "slug": "newsletter",
+      "category": "Communications",
+      "svg": "icons/svg/newsletter.svg",
+      "png_512": "icons/png/512/newsletter.png"
+    },
+    {
+      "name": "Send Test",
+      "slug": "send-test",
+      "category": "Communications",
+      "svg": "icons/svg/send-test.svg",
+      "png_512": "icons/png/512/send-test.png"
+    },
+    {
+      "name": "Scheduled Send",
+      "slug": "scheduled-send",
+      "category": "Communications",
+      "svg": "icons/svg/scheduled-send.svg",
+      "png_512": "icons/png/512/scheduled-send.png"
+    },
+    {
+      "name": "Unsubscribe Handling",
+      "slug": "unsubscribe-handling",
+      "category": "Communications",
+      "svg": "icons/svg/unsubscribe-handling.svg",
+      "png_512": "icons/png/512/unsubscribe-handling.png"
+    },
+    {
+      "name": "Open Tracking",
+      "slug": "open-tracking",
+      "category": "Communications",
+      "svg": "icons/svg/open-tracking.svg",
+      "png_512": "icons/png/512/open-tracking.png"
+    },
+    {
+      "name": "Click Tracking",
+      "slug": "click-tracking",
+      "category": "Communications",
+      "svg": "icons/svg/click-tracking.svg",
+      "png_512": "icons/png/512/click-tracking.png"
+    },
+    {
+      "name": "Communication Preferences",
+      "slug": "communication-preferences",
+      "category": "Communications",
+      "svg": "icons/svg/communication-preferences.svg",
+      "png_512": "icons/png/512/communication-preferences.png"
+    },
+    {
+      "name": "Review Queue",
+      "slug": "review-queue",
+      "category": "Communications",
+      "svg": "icons/svg/review-queue.svg",
+      "png_512": "icons/png/512/review-queue.png"
+    },
+    {
+      "name": "Approval",
+      "slug": "approval",
+      "category": "Communications",
+      "svg": "icons/svg/approval.svg",
+      "png_512": "icons/png/512/approval.png"
+    },
+    {
+      "name": "Letters",
+      "slug": "letters",
+      "category": "OyamaLetters",
+      "svg": "icons/svg/letters.svg",
+      "png_512": "icons/png/512/letters.png"
+    },
+    {
+      "name": "Template Library",
+      "slug": "template-library",
+      "category": "OyamaLetters",
+      "svg": "icons/svg/template-library.svg",
+      "png_512": "icons/png/512/template-library.png"
+    },
+    {
+      "name": "Canvas Builder",
+      "slug": "canvas-builder",
+      "category": "OyamaLetters",
+      "svg": "icons/svg/canvas-builder.svg",
+      "png_512": "icons/png/512/canvas-builder.png"
+    },
+    {
+      "name": "Merge Fields",
+      "slug": "merge-fields",
+      "category": "OyamaLetters",
+      "svg": "icons/svg/merge-fields.svg",
+      "png_512": "icons/png/512/merge-fields.png"
+    },
+    {
+      "name": "Publish Template",
+      "slug": "publish-template",
+      "category": "OyamaLetters",
+      "svg": "icons/svg/publish-template.svg",
+      "png_512": "icons/png/512/publish-template.png"
+    },
+    {
+      "name": "Generate Batch",
+      "slug": "generate-batch",
+      "category": "OyamaLetters",
+      "svg": "icons/svg/generate-batch.svg",
+      "png_512": "icons/png/512/generate-batch.png"
+    },
+    {
+      "name": "Print Queue",
+      "slug": "print-queue",
+      "category": "OyamaLetters",
+      "svg": "icons/svg/print-queue.svg",
+      "png_512": "icons/png/512/print-queue.png"
+    },
+    {
+      "name": "Mail Queue",
+      "slug": "mail-queue",
+      "category": "OyamaLetters",
+      "svg": "icons/svg/mail-queue.svg",
+      "png_512": "icons/png/512/mail-queue.png"
+    },
+    {
+      "name": "PDF Export",
+      "slug": "pdf-export",
+      "category": "OyamaLetters",
+      "svg": "icons/svg/pdf-export.svg",
+      "png_512": "icons/png/512/pdf-export.png"
+    },
+    {
+      "name": "Signature Block",
+      "slug": "signature-block",
+      "category": "OyamaLetters",
+      "svg": "icons/svg/signature-block.svg",
+      "png_512": "icons/png/512/signature-block.png"
+    },
+    {
+      "name": "Letterhead",
+      "slug": "letterhead",
+      "category": "OyamaLetters",
+      "svg": "icons/svg/letterhead.svg",
+      "png_512": "icons/png/512/letterhead.png"
+    },
+    {
+      "name": "Snippets",
+      "slug": "snippets",
+      "category": "OyamaLetters",
+      "svg": "icons/svg/snippets.svg",
+      "png_512": "icons/png/512/snippets.png"
+    },
+    {
+      "name": "Saved Sections",
+      "slug": "saved-sections",
+      "category": "OyamaLetters",
+      "svg": "icons/svg/saved-sections.svg",
+      "png_512": "icons/png/512/saved-sections.png"
+    },
+    {
+      "name": "Preview PDF",
+      "slug": "preview-pdf",
+      "category": "OyamaLetters",
+      "svg": "icons/svg/preview-pdf.svg",
+      "png_512": "icons/png/512/preview-pdf.png"
+    },
+    {
+      "name": "Download ZIP",
+      "slug": "download-zip",
+      "category": "OyamaLetters",
+      "svg": "icons/svg/download-zip.svg",
+      "png_512": "icons/png/512/download-zip.png"
+    },
+    {
+      "name": "Archive Letters",
+      "slug": "archive-letters",
+      "category": "OyamaLetters",
+      "svg": "icons/svg/archive-letters.svg",
+      "png_512": "icons/png/512/archive-letters.png"
+    },
+    {
+      "name": "Steward AI",
+      "slug": "steward-ai",
+      "category": "Steward AI",
+      "svg": "icons/svg/steward-ai.svg",
+      "png_512": "icons/png/512/steward-ai.png"
+    },
+    {
+      "name": "Steward Signals",
+      "slug": "steward-signals",
+      "category": "Steward AI",
+      "svg": "icons/svg/steward-signals.svg",
+      "png_512": "icons/png/512/steward-signals.png"
+    },
+    {
+      "name": "Steward Paths",
+      "slug": "steward-paths",
+      "category": "Steward AI",
+      "svg": "icons/svg/steward-paths.svg",
+      "png_512": "icons/png/512/steward-paths.png"
+    },
+    {
+      "name": "Workflow Automation",
+      "slug": "workflow-automation",
+      "category": "Steward AI",
+      "svg": "icons/svg/workflow-automation.svg",
+      "png_512": "icons/png/512/workflow-automation.png"
+    },
+    {
+      "name": "Branch Condition",
+      "slug": "branch-condition",
+      "category": "Steward AI",
+      "svg": "icons/svg/branch-condition.svg",
+      "png_512": "icons/png/512/branch-condition.png"
+    },
+    {
+      "name": "Automation Trigger",
+      "slug": "automation-trigger",
+      "category": "Steward AI",
+      "svg": "icons/svg/automation-trigger.svg",
+      "png_512": "icons/png/512/automation-trigger.png"
+    },
+    {
+      "name": "Generosity Score",
+      "slug": "generosity-score",
+      "category": "Steward AI",
+      "svg": "icons/svg/generosity-score.svg",
+      "png_512": "icons/png/512/generosity-score.png"
+    },
+    {
+      "name": "Lapse Detection",
+      "slug": "lapse-detection",
+      "category": "Steward AI",
+      "svg": "icons/svg/lapse-detection.svg",
+      "png_512": "icons/png/512/lapse-detection.png"
+    },
+    {
+      "name": "Opportunity Engine",
+      "slug": "opportunity-engine",
+      "category": "Steward AI",
+      "svg": "icons/svg/opportunity-engine.svg",
+      "png_512": "icons/png/512/opportunity-engine.png"
+    },
+    {
+      "name": "Donor Insights",
+      "slug": "donor-insights",
+      "category": "Steward AI",
+      "svg": "icons/svg/donor-insights.svg",
+      "png_512": "icons/png/512/donor-insights.png"
+    },
+    {
+      "name": "AI Report Draft",
+      "slug": "ai-report-draft",
+      "category": "Steward AI",
+      "svg": "icons/svg/ai-report-draft.svg",
+      "png_512": "icons/png/512/ai-report-draft.png"
+    },
+    {
+      "name": "AI Email Draft",
+      "slug": "ai-email-draft",
+      "category": "Steward AI",
+      "svg": "icons/svg/ai-email-draft.svg",
+      "png_512": "icons/png/512/ai-email-draft.png"
+    },
+    {
+      "name": "Tasks",
+      "slug": "tasks",
+      "category": "Tasks & Stewardship",
+      "svg": "icons/svg/tasks.svg",
+      "png_512": "icons/png/512/tasks.png"
+    },
+    {
+      "name": "Follow Ups",
+      "slug": "follow-ups",
+      "category": "Tasks & Stewardship",
+      "svg": "icons/svg/follow-ups.svg",
+      "png_512": "icons/png/512/follow-ups.png"
+    },
+    {
+      "name": "Calendar",
+      "slug": "calendar",
+      "category": "Tasks & Stewardship",
+      "svg": "icons/svg/calendar.svg",
+      "png_512": "icons/png/512/calendar.png"
+    },
+    {
+      "name": "Notifications",
+      "slug": "notifications",
+      "category": "Tasks & Stewardship",
+      "svg": "icons/svg/notifications.svg",
+      "png_512": "icons/png/512/notifications.png"
+    },
+    {
+      "name": "Thank You",
+      "slug": "thank-you",
+      "category": "Tasks & Stewardship",
+      "svg": "icons/svg/thank-you.svg",
+      "png_512": "icons/png/512/thank-you.png"
+    },
+    {
+      "name": "Appreciation",
+      "slug": "appreciation",
+      "category": "Tasks & Stewardship",
+      "svg": "icons/svg/appreciation.svg",
+      "png_512": "icons/png/512/appreciation.png"
+    },
+    {
+      "name": "Stewardship",
+      "slug": "stewardship",
+      "category": "Tasks & Stewardship",
+      "svg": "icons/svg/stewardship.svg",
+      "png_512": "icons/png/512/stewardship.png"
+    },
+    {
+      "name": "Volunteer",
+      "slug": "volunteer",
+      "category": "Tasks & Stewardship",
+      "svg": "icons/svg/volunteer.svg",
+      "png_512": "icons/png/512/volunteer.png"
+    },
+    {
+      "name": "Queue",
+      "slug": "queue",
+      "category": "Tasks & Stewardship",
+      "svg": "icons/svg/queue.svg",
+      "png_512": "icons/png/512/queue.png"
+    },
+    {
+      "name": "Reports",
+      "slug": "reports",
+      "category": "Reports & Analytics",
+      "svg": "icons/svg/reports.svg",
+      "png_512": "icons/png/512/reports.png"
+    },
+    {
+      "name": "Report Template",
+      "slug": "report-template",
+      "category": "Reports & Analytics",
+      "svg": "icons/svg/report-template.svg",
+      "png_512": "icons/png/512/report-template.png"
+    },
+    {
+      "name": "Bar Chart",
+      "slug": "bar-chart",
+      "category": "Reports & Analytics",
+      "svg": "icons/svg/bar-chart.svg",
+      "png_512": "icons/png/512/bar-chart.png"
+    },
+    {
+      "name": "Line Chart",
+      "slug": "line-chart",
+      "category": "Reports & Analytics",
+      "svg": "icons/svg/line-chart.svg",
+      "png_512": "icons/png/512/line-chart.png"
+    },
+    {
+      "name": "Pie Chart",
+      "slug": "pie-chart",
+      "category": "Reports & Analytics",
+      "svg": "icons/svg/pie-chart.svg",
+      "png_512": "icons/png/512/pie-chart.png"
+    },
+    {
+      "name": "Dashboard Widget",
+      "slug": "dashboard-widget",
+      "category": "Reports & Analytics",
+      "svg": "icons/svg/dashboard-widget.svg",
+      "png_512": "icons/png/512/dashboard-widget.png"
+    },
+    {
+      "name": "KPI Card",
+      "slug": "kpi-card",
+      "category": "Reports & Analytics",
+      "svg": "icons/svg/kpi-card.svg",
+      "png_512": "icons/png/512/kpi-card.png"
+    },
+    {
+      "name": "Retention Analysis",
+      "slug": "retention-analysis",
+      "category": "Reports & Analytics",
+      "svg": "icons/svg/retention-analysis.svg",
+      "png_512": "icons/png/512/retention-analysis.png"
+    },
+    {
+      "name": "Giving Trends",
+      "slug": "giving-trends",
+      "category": "Reports & Analytics",
+      "svg": "icons/svg/giving-trends.svg",
+      "png_512": "icons/png/512/giving-trends.png"
+    },
+    {
+      "name": "CSV Export",
+      "slug": "csv-export",
+      "category": "Reports & Analytics",
+      "svg": "icons/svg/csv-export.svg",
+      "png_512": "icons/png/512/csv-export.png"
+    },
+    {
+      "name": "PDF Report",
+      "slug": "pdf-report",
+      "category": "Reports & Analytics",
+      "svg": "icons/svg/pdf-report.svg",
+      "png_512": "icons/png/512/pdf-report.png"
+    },
+    {
+      "name": "Database",
+      "slug": "database",
+      "category": "Data Tools",
+      "svg": "icons/svg/database.svg",
+      "png_512": "icons/png/512/database.png"
+    },
+    {
+      "name": "Field Mapping",
+      "slug": "field-mapping",
+      "category": "Data Tools",
+      "svg": "icons/svg/field-mapping.svg",
+      "png_512": "icons/png/512/field-mapping.png"
+    },
+    {
+      "name": "CSV Import",
+      "slug": "csv-import",
+      "category": "Data Tools",
+      "svg": "icons/svg/csv-import.svg",
+      "png_512": "icons/png/512/csv-import.png"
+    },
+    {
+      "name": "Validation",
+      "slug": "validation",
+      "category": "Data Tools",
+      "svg": "icons/svg/validation.svg",
+      "png_512": "icons/png/512/validation.png"
+    },
+    {
+      "name": "Data Quality",
+      "slug": "data-quality",
+      "category": "Data Tools",
+      "svg": "icons/svg/data-quality.svg",
+      "png_512": "icons/png/512/data-quality.png"
+    },
+    {
+      "name": "Duplicate Merge",
+      "slug": "duplicate-merge",
+      "category": "Data Tools",
+      "svg": "icons/svg/duplicate-merge.svg",
+      "png_512": "icons/png/512/duplicate-merge.png"
+    },
+    {
+      "name": "Import",
+      "slug": "import",
+      "category": "Data Tools",
+      "svg": "icons/svg/import.svg",
+      "png_512": "icons/png/512/import.png"
+    },
+    {
+      "name": "Export",
+      "slug": "export",
+      "category": "Data Tools",
+      "svg": "icons/svg/export.svg",
+      "png_512": "icons/png/512/export.png"
+    },
+    {
+      "name": "Table View",
+      "slug": "table-view",
+      "category": "Data Tools",
+      "svg": "icons/svg/table-view.svg",
+      "png_512": "icons/png/512/table-view.png"
+    },
+    {
+      "name": "Saved List",
+      "slug": "saved-list",
+      "category": "Data Tools",
+      "svg": "icons/svg/saved-list.svg",
+      "png_512": "icons/png/512/saved-list.png"
+    },
+    {
+      "name": "Delete",
+      "slug": "delete",
+      "category": "Data Tools",
+      "svg": "icons/svg/delete.svg",
+      "png_512": "icons/png/512/delete.png"
+    },
+    {
+      "name": "Settings",
+      "slug": "settings",
+      "category": "Settings & Admin",
+      "svg": "icons/svg/settings.svg",
+      "png_512": "icons/png/512/settings.png"
+    },
+    {
+      "name": "Users",
+      "slug": "users",
+      "category": "Settings & Admin",
+      "svg": "icons/svg/users.svg",
+      "png_512": "icons/png/512/users.png"
+    },
+    {
+      "name": "Roles",
+      "slug": "roles",
+      "category": "Settings & Admin",
+      "svg": "icons/svg/roles.svg",
+      "png_512": "icons/png/512/roles.png"
+    },
+    {
+      "name": "Permissions",
+      "slug": "permissions",
+      "category": "Settings & Admin",
+      "svg": "icons/svg/permissions.svg",
+      "png_512": "icons/png/512/permissions.png"
+    },
+    {
+      "name": "Audit Log",
+      "slug": "audit-log",
+      "category": "Settings & Admin",
+      "svg": "icons/svg/audit-log.svg",
+      "png_512": "icons/png/512/audit-log.png"
+    },
+    {
+      "name": "Security",
+      "slug": "security",
+      "category": "Settings & Admin",
+      "svg": "icons/svg/security.svg",
+      "png_512": "icons/png/512/security.png"
+    },
+    {
+      "name": "Integrations",
+      "slug": "integrations",
+      "category": "Settings & Admin",
+      "svg": "icons/svg/integrations.svg",
+      "png_512": "icons/png/512/integrations.png"
+    },
+    {
+      "name": "Microsoft 365 Mail",
+      "slug": "microsoft-365-mail",
+      "category": "Settings & Admin",
+      "svg": "icons/svg/microsoft-365-mail.svg",
+      "png_512": "icons/png/512/microsoft-365-mail.png"
+    },
+    {
+      "name": "SMTP Provider",
+      "slug": "smtp-provider",
+      "category": "Settings & Admin",
+      "svg": "icons/svg/smtp-provider.svg",
+      "png_512": "icons/png/512/smtp-provider.png"
+    },
+    {
+      "name": "Webhook",
+      "slug": "webhook",
+      "category": "Settings & Admin",
+      "svg": "icons/svg/webhook.svg",
+      "png_512": "icons/png/512/webhook.png"
+    },
+    {
+      "name": "Organization Settings",
+      "slug": "organization-settings",
+      "category": "Settings & Admin",
+      "svg": "icons/svg/organization-settings.svg",
+      "png_512": "icons/png/512/organization-settings.png"
+    },
+    {
+      "name": "Fiscal Year",
+      "slug": "fiscal-year",
+      "category": "Settings & Admin",
+      "svg": "icons/svg/fiscal-year.svg",
+      "png_512": "icons/png/512/fiscal-year.png"
+    },
+    {
+      "name": "System Status",
+      "slug": "system-status",
+      "category": "Settings & Admin",
+      "svg": "icons/svg/system-status.svg",
+      "png_512": "icons/png/512/system-status.png"
+    },
+    {
+      "name": "Help",
+      "slug": "help",
+      "category": "Settings & Admin",
+      "svg": "icons/svg/help.svg",
+      "png_512": "icons/png/512/help.png"
+    },
+    {
+      "name": "Documentation",
+      "slug": "documentation",
+      "category": "Settings & Admin",
+      "svg": "icons/svg/documentation.svg",
+      "png_512": "icons/png/512/documentation.png"
+    }
+  ]
+}

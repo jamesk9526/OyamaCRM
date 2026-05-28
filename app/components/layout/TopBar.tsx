@@ -108,6 +108,14 @@ function BellIcon({ className = "w-5 h-5" }: { className?: string }) {
 
 /** Workspace switcher icon set using inline SVG (no custom image assets). */
 function WorkspaceSwitcherIcon({ moduleKey, className = "w-4 h-4" }: { moduleKey: TopBarModuleKey; className?: string }) {
+  if (moduleKey === "letters") {
+    return (
+      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6 3h10l4 4v14H6V3z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 11h6M9 15h6M16 3v5h4" />
+      </svg>
+    );
+  }
   if (moduleKey === "compassion") {
     return (
       <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
@@ -363,7 +371,7 @@ function GlobalSearch({
     const requestId = ++lastRequestIdRef.current;
     setLoading(true);
     try {
-      const searchModule = moduleKey === "oshareview" || moduleKey === "hrm" ? "donor" : moduleKey;
+      const searchModule = moduleKey === "oshareview" || moduleKey === "hrm" || moduleKey === "letters" ? "donor" : moduleKey;
       const params = new URLSearchParams({
         module: searchModule,
         q: normalized,
@@ -2040,6 +2048,14 @@ function ModuleSwitcher({
       href: "/",
       icon: <WorkspaceSwitcherIcon moduleKey="donor" />,
       active: moduleKey === "donor" && !pathname.startsWith("/reports"),
+    },
+    {
+      key: "letters",
+      label: "OyamaLetters",
+      helper: "Document studio",
+      href: "/oyama-letters",
+      icon: <WorkspaceSwitcherIcon moduleKey="letters" />,
+      active: moduleKey === "letters",
     },
     {
       key: "compassion",

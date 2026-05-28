@@ -1,22 +1,15 @@
-/** Standalone Oyama Letters template editor route. */
-import LetterTemplateEditor from "@/components/letters/LetterTemplateEditor";
+/** Standalone Oyama Letters template editor redirects to the canonical CRM workspace. */
+import { redirect } from "next/navigation";
 
 interface LettersTemplateDetailPageProps {
   params: Promise<{ templateId: string }>;
-  searchParams?: Promise<{ fullscreen?: string; panel?: string }>;
+  searchParams?: Promise<{ panel?: string }>;
 }
 
-/** Renders edit-template experience for one reusable template. */
+/** Keeps the standalone entry compatible without serving duplicate UI. */
 export default async function LettersTemplateDetailPage({ params, searchParams }: LettersTemplateDetailPageProps) {
   const resolved = await params;
   const query = searchParams ? await searchParams : {};
-  const panel =
-    query.panel === "publish" ? "publish" : query.panel === "preview" ? "preview" : "document";
-  return (
-    <LetterTemplateEditor
-      templateId={resolved.templateId}
-      fullScreen={query.fullscreen === "1"}
-      initialPanel={panel}
-    />
-  );
+  const suffix = query.panel === "publish" ? "/publish" : "";
+  redirect(`${process.env.NEXT_PUBLIC_OYAMA_CRM_URL ?? "http://localhost:3000"}/oyama-letters/templates/${encodeURIComponent(resolved.templateId)}${suffix}`);
 }

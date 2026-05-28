@@ -1,7 +1,7 @@
-/** Canonical OyamaLetters Generate Center route. */
-import LetterGenerateCenter from "@/app/components/letters/LetterGenerateCenter";
+/** Canonical OyamaLetters Generate Canvas route. */
+import OyamaLettersWorkspace from "@/app/components/letters/OyamaLettersWorkspace";
 
-/** Renders the all-in-one record merge, PDF preview, and print/download workflow. */
+/** Renders the dedicated recipient selection and batch output workspace. */
 export default function OyamaLettersGeneratePage() {
-  return <LetterGenerateCenter />;
+  return <OyamaLettersWorkspace view="generate" />;
 }

@@ -1,12 +1,7 @@
-/** Standalone Oyama Letters new template builder route. */
-import LetterTemplateEditor from "@/components/letters/LetterTemplateEditor";
+/** Standalone Oyama Letters new template route redirects to the canonical CRM workspace. */
+import { redirect } from "next/navigation";
 
-interface LettersNewTemplatePageProps {
-  searchParams?: Promise<{ fullscreen?: string }>;
-}
-
-/** Renders the create-template editor. */
-export default async function LettersNewTemplatePage({ searchParams }: LettersNewTemplatePageProps) {
-  const query = searchParams ? await searchParams : {};
-  return <LetterTemplateEditor fullScreen={query.fullscreen === "1"} />;
+/** Keeps the standalone entry compatible without serving duplicate UI. */
+export default function LettersNewTemplatePage() {
+  redirect(`${process.env.NEXT_PUBLIC_OYAMA_CRM_URL ?? "http://localhost:3000"}/oyama-letters/templates/new`);
 }

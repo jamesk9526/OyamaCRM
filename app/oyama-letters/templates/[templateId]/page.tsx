@@ -1,15 +1,12 @@
-/** Existing OyamaLetters template editor route. */
-import LetterTemplateEditor from "@/app/components/letters/LetterTemplateEditor";
+/** OyamaLetters canvas builder route. */
+import OyamaLettersWorkspace from "@/app/components/letters/OyamaLettersWorkspace";
 
 interface OyamaLettersTemplateDetailPageProps {
   params: Promise<{ templateId: string }>;
-  searchParams?: Promise<{ fullscreen?: string; panel?: string }>;
 }
 
-/** Renders edit-template experience for one reusable OyamaLetters template. */
-export default async function OyamaLettersTemplateDetailPage({ params, searchParams }: OyamaLettersTemplateDetailPageProps) {
+/** Renders the dedicated page-canvas builder for one template. */
+export default async function OyamaLettersTemplateDetailPage({ params }: OyamaLettersTemplateDetailPageProps) {
   const resolved = await params;
-  const query = searchParams ? await searchParams : {};
-  const panel = query.panel === "publish" ? "publish" : query.panel === "preview" ? "preview" : "document";
-  return <LetterTemplateEditor templateId={resolved.templateId} fullScreen={query.fullscreen === "1"} initialPanel={panel} />;
+  return <OyamaLettersWorkspace view="builder" templateId={resolved.templateId} />;
 }

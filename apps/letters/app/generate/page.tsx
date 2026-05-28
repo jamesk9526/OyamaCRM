@@ -1,7 +1,7 @@
-/** Standalone Oyama Letters Generate Center route. */
-import LetterGenerateCenter from "@/components/letters/LetterGenerateCenter";
+/** Standalone Oyama Letters Generate route redirects to the canonical CRM workspace. */
+import { redirect } from "next/navigation";
 
-/** Renders the all-in-one record merge, PDF preview, and print/download workflow. */
+/** Keeps the standalone entry compatible without serving duplicate UI. */
 export default function LettersGeneratePage() {
-  return <LetterGenerateCenter />;
+  redirect(`${process.env.NEXT_PUBLIC_OYAMA_CRM_URL ?? "http://localhost:3000"}/oyama-letters/generate`);
 }

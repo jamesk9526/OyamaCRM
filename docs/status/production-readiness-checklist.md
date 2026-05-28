@@ -4,6 +4,22 @@ Last updated: 2026-05-18 (v1.1.0 — help search engine improvements, EventSTUDI
 
 This file is the release-gate source of truth for production readiness.
 
+## OyamaLetters Standalone Workspace Snapshot (2026-05-28)
+
+| Item | Status | Evidence |
+|---|---|---|
+| `/oyama-letters` opens a dedicated Letter & Document Studio shell outside the DonorCRM page chrome | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/layout/AppShell.tsx` |
+| Template Library, Canvas Builder, Publish Workspace, Generate Letters, queue, and settings routes use live letters APIs | Working | `app/oyama-letters/page.tsx`, `app/oyama-letters/templates/[templateId]/page.tsx`, `app/oyama-letters/templates/[templateId]/publish/page.tsx`, `app/oyama-letters/generate/page.tsx`, `app/oyama-letters/queue/page.tsx`, `app/oyama-letters/settings/page.tsx` |
+| Canvas Builder block, format, and layout controls update real template content | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/smoke/letter-builder-ui-source.test.ts` |
+| Letters settings imports global organization/branding values into Letters-only header/footer presets | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `server/src/routes/settings.ts` |
+| Existing live letters backend is bound into the refreshed shell UI | Working | `server/src/routes/letters.ts`, `app/components/letters/OyamaLettersWorkspace.tsx` |
+| Workspace switcher exposes OyamaLetters as its own entry | Working | `app/components/layout/TopBar.tsx`, `app/lib/navigation-boundaries.ts` |
+
+Notes:
+
+- This pass prioritizes the new workspace requested from `Oyamaletters-uiplan.md` while using only live CRM/letters API data and explicit empty states.
+- Validation evidence on 2026-05-28: `pnpm typecheck`, `pnpm typecheck:letters`, targeted ESLint for touched letters routes/components, focused Vitest source contracts, HTTP route sweep, and escalated `npm run build`. A later build rerun was declined after additional builder/settings changes; targeted typecheck, ESLint, Vitest, and route checks passed for those changes.
+
 ## Status Definitions
 
 Use only these status labels:
@@ -341,7 +357,7 @@ Notes:
    - Architecture docs added: `docs/OYAMA_WEBMASTER_REBUILD_PLAN.md`, `docs/OYAMA_WEBMASTER_SITE_TYPES.md`, `docs/OYAMA_WEBMASTER_PUBLISHING_ARCHITECTURE.md`, `docs/OYAMA_WEBMASTER_CRM_INTEGRATION.md`, `docs/OYAMA_WEBMASTER_DATA_SAFETY.md`
 10. Donor engagement production-hardening pass for letters and email builder.
    - Letters workflow policy persistence added via `GET/PUT /api/letters/workflow-settings` in `server/src/routes/letters.ts`.
-   - Letters workflow settings UI switched from static TODO guidance to API-backed controls in `app/components/letters/LetterWorkflowSettingsPage.tsx`.
+   - Letters workflow settings UI is API-backed in `app/components/letters/OyamaLettersWorkspace.tsx`.
    - Email builder review gate now validates merge-token integrity (unknown tokens + malformed braces) in `app/components/email-builder/EmailBuilderApp.tsx`.
    - Email builder rich-text hardening now preserves H1/H2/H3 plus list/quote/link formatting in `app/components/email-builder/RichTextEditor.tsx`, `app/lib/email-builder-utils.ts`, and preview blocks.
 11. Donor stewardship vertical-loop completion slice (donation -> acknowledgment workflow handoff).

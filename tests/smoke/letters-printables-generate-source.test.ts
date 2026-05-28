@@ -8,31 +8,24 @@ function read(path: string): string {
 
 describe("OyamaLetters generate workspace source contract", () => {
   it("uses the three-column production workspace structure", () => {
-    const workspace = read("app/components/letters/generation/LettersGenerateWorkspace.tsx");
-    const leftPanel = read("app/components/letters/generation/TemplateAudiencePanel.tsx");
-    const centerPanel = read("app/components/letters/generation/DocumentPreviewPanel.tsx");
-    const rightPanel = read("app/components/letters/generation/MergeSettingsPanel.tsx");
+    const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
 
-    expect(workspace).toContain("GenerateActionBar");
-    expect(workspace).toContain("TemplateAudiencePanel");
-    expect(workspace).toContain("DocumentPreviewPanel");
-    expect(workspace).toContain("MergeSettingsPanel");
-    expect(leftPanel).toContain("Document Type");
-    expect(leftPanel).toContain("Audience / Records");
-    expect(centerPanel).toContain("Document Preview");
-    expect(centerPanel).toContain("No generated PDF yet");
-    expect(rightPanel).toContain("Merge Fields");
-    expect(rightPanel).toContain("Activity");
+    expect(workspace).toContain("GenerateWorkspace");
+    expect(workspace).toContain("Preview Recipient");
+    expect(workspace).toContain("Batch Actions");
+    expect(workspace).toContain("Generated Activity");
+    expect(workspace).toContain("Print Queue");
+    expect(workspace).toContain("Mail Queue");
   });
 
   it("generates from real CRM APIs and previews real PDF blobs", () => {
-    const workspace = read("app/components/letters/generation/LettersGenerateWorkspace.tsx");
+    const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
 
     expect(workspace).toContain("/api/letters/templates");
     expect(workspace).toContain("/api/letters/generated/preview");
     expect(workspace).toContain("/api/letters/generated/batch");
-    expect(workspace).toContain("/api/letters/generated/export-pdf-batch?preview=1");
-    expect(workspace).toContain("URL.createObjectURL(blob)");
+    expect(workspace).toContain("/api/constituents");
+    expect(workspace).toContain("/api/donations");
     expect(workspace).not.toContain("fake");
     expect(workspace).not.toContain("mockDonor");
   });
@@ -45,13 +38,13 @@ describe("OyamaLetters generate workspace source contract", () => {
   });
 
   it("starts from the OyamaLetters production-center home instead of a blank builder", () => {
-    const home = read("app/components/letters/OyamaLettersHome.tsx");
+    const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
     const route = read("app/oyama-letters/page.tsx");
 
-    expect(route).toContain("OyamaLettersHome");
-    expect(home).toContain("What would you like to create?");
-    expect(home).toContain("Generated History");
-    expect(home).toContain("Saved Templates");
-    expect(home).toContain("/oyama-letters/generate?type=thank-you");
+    expect(route).toContain('view="library"');
+    expect(workspace).toContain("Template Library");
+    expect(workspace).toContain("Create New Template");
+    expect(workspace).toContain("No templates found");
+    expect(workspace).toContain("/oyama-letters/generate");
   });
 });

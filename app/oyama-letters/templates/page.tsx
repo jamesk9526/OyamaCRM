@@ -1,7 +1,7 @@
-/** OyamaLetters template library compatibility route. */
-import LetterTemplatesList from "@/app/components/letters/LetterTemplatesList";
+/** OyamaLetters template library route. */
+import OyamaLettersWorkspace from "@/app/components/letters/OyamaLettersWorkspace";
 
-/** Opens the reusable document template library for OyamaLetters. */
+/** Opens the dedicated OyamaLetters template library. */
 export default function OyamaLettersTemplatesPage() {
-  return <LetterTemplatesList />;
+  return <OyamaLettersWorkspace view="library" />;
 }

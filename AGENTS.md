@@ -6,6 +6,7 @@ Use judgment. These are guardrails, not handcuffs.
 
 - Favor small, clear, reversible changes.
 - Let the current user request override older style preferences when they conflict.
+- When the user provides a mockup image, study it carefully and let it override default design assumptions, older UI preferences, and baseline visual patterns.
 - If a rule here gets in the way of a safer or clearer fix, document the tradeoff and choose the safer path.
 
 ## 1. Build on what exists

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-hidden="true">
+
+<style>
+  .s { stroke: #0B5D2A; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+  .s2 { stroke: #06411F; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+  .f { fill: #0B5D2A; }
+  .fd { fill: #06411F; }
+  .soft { fill: #EAF6EE; }
+  .mid { fill: #BFE6CB; }
+  .ink { fill: #143322; }
+  .amber { fill: #D97706; }
+  .red { fill: #DC2626; }
+  .gray { fill: #64748B; }
+  text { font-family: Arial, Helvetica, sans-serif; font-weight: 800; }
+</style>
+
+
+  <rect class="soft" x="42" y="42" width="172" height="172" rx="20"/>
+  <path class="s" d="M76 86h72c26 0 44 18 44 42s-18 42-44 42H96"/>
+  <path class="s" d="M104 144l-28 26 28 26"/>
+  <path class="s2" d="M82 94l20-20 20 20M102 74v52"/>
+
+</svg>
