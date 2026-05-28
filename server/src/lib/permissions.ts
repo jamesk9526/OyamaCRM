@@ -211,7 +211,7 @@ const PERMISSION_DEFAULTS: Record<PermissionKey, PermissionDefault> = {
   "letters.edit": { minRole: "manager" },
   "letters.archive": { minRole: "manager" },
   "letters.generate": { minRole: "staff" },
-  "letters.generate_batch": { minRole: "manager" },
+  "letters.generate_batch": { minRole: "staff" },
   "letters.manage_print_queue": { minRole: "staff" },
   "letters.manage_mail_queue": { minRole: "staff" },
   "letters.manage_signatures": { minRole: "manager" },

@@ -1458,6 +1458,7 @@ function GenerateWorkspace() {
   const [recipientLists, setRecipientLists] = useState<RecipientListSummary[]>([]);
   const [tagCatalog, setTagCatalog] = useState<ConstituentTagCatalog[]>([]);
   const [listMembersById, setListMembersById] = useState<Record<string, RecipientListDetail["recipients"]>>({});
+  const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
   const [donations, setDonations] = useState<DonationLookup[]>([]);
   const [templateId, setTemplateId] = useState(searchParams.get("templateId") ?? "");
   const [constituentId, setConstituentId] = useState(searchParams.get("constituentId") ?? "");
@@ -1497,18 +1498,20 @@ function GenerateWorkspace() {
     setLoading(true);
     setError(null);
     try {
-      const [templateRows, generatedRows, constituentRows, listRows, tagRows] = await Promise.all([
+      const [templateRows, generatedRows, constituentRows, listRows, tagRows, brandingRow] = await Promise.all([
         apiFetch<LetterTemplateSummary[]>("/api/letters/templates"),
         apiFetch<GeneratedLetterSummary[]>("/api/letters/generated?limit=25"),
         apiFetch<ConstituentLookup[]>("/api/constituents?limit=all").catch(() => []),
         apiFetch<RecipientListSummary[]>("/api/email-campaigns/lists").catch(() => []),
         apiFetch<ConstituentTagCatalog[]>("/api/constituents/tags/catalog").catch(() => []),
+        apiFetch<BrandingSettings>("/api/settings/branding").catch(() => DEFAULT_BRANDING_SETTINGS),
       ]);
       setTemplates(templateRows);
       setGenerated(generatedRows);
       setConstituents(constituentRows);
       setRecipientLists(listRows);
       setTagCatalog(tagRows);
+      setBranding(normalizeBrandingSettings(brandingRow));
       if (!templateId && templateRows.length > 0) setTemplateId((templateRows.find((item) => item.status === "ACTIVE") ?? templateRows[0]).id);
     } catch (requestError) {
       setError(errorMessage(requestError, "Failed to load generation workspace."));
@@ -2109,7 +2112,11 @@ function GenerateWorkspace() {
               </div>
             </div>
             <div className="rounded-lg border border-slate-200 bg-[#f3f5f8] p-3">
-              <MiniDocument html={preview?.mergedPrintBody || ""} emptyText="Run review preview in Step 2 to load merged output." />
+              <div className="mx-auto min-h-[520px] max-w-[330px] bg-white px-8 py-7 text-[10px] leading-5 shadow-sm ring-1 ring-slate-200">
+                <LetterPreviewHeader branding={branding} header={buildImportedHeaderPreset(branding)} />
+                <MiniDocument html={preview?.mergedPrintBody || ""} emptyText="Run review preview in Step 2 to load merged output." showLetterhead={false} />
+                <LetterPreviewFooter branding={branding} footer={buildImportedFooterPreset(branding)} />
+              </div>
             </div>
               <Button onClick={() => setWizardStep(2)} disabled={!canOpenRecipientsStep}>Edit Recipient Selection</Button>
           </aside>
@@ -2481,7 +2488,11 @@ function GenerateWorkspace() {
               </div>
             </div>
             <div className="rounded-lg border border-slate-200 bg-[#f3f5f8] p-3">
-              <MiniDocument html={preview?.mergedPrintBody || ""} emptyText="Run preview to render the letter sample." />
+              <div className="mx-auto min-h-[520px] max-w-[330px] bg-white px-8 py-7 text-[10px] leading-5 shadow-sm ring-1 ring-slate-200">
+                <LetterPreviewHeader branding={branding} header={buildImportedHeaderPreset(branding)} />
+                <MiniDocument html={preview?.mergedPrintBody || ""} emptyText="Run preview to render the letter sample." showLetterhead={false} />
+                <LetterPreviewFooter branding={branding} footer={buildImportedFooterPreset(branding)} />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Button onClick={() => void openIndividualPdf(focusedGenerated?.id || "")} disabled={!focusedGenerated || pdfLoading}>View Full Screen</Button>
@@ -3484,7 +3495,12 @@ function CategoryTabs({ category, setCategory }: { category: string; setCategory
   );
 }
 
-function MiniDocument({ html, emptyText = "No document content available." }: { html: string; emptyText?: string }) {
+function MiniDocument({ html, emptyText = "No document content available.", showLetterhead = true }: { html: string; emptyText?: string; showLetterhead?: boolean }) {
+  if (!showLetterhead) {
+    // Used when wrapped by LetterPreviewHeader/Footer — no standalone card, no internal letterhead
+    if (!html.trim()) return <p className="py-8 text-center text-sm text-slate-500">{emptyText}</p>;
+    return <div className="prose prose-sm max-w-none [&_p]:my-2" dangerouslySetInnerHTML={{ __html: html }} />;
+  }
   if (!html.trim()) return <div className="mx-auto flex min-h-[420px] max-w-[330px] items-center justify-center bg-white p-8 text-center text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">{emptyText}</div>;
   return (
     <div className="mx-auto min-h-[520px] max-w-[330px] bg-white px-8 py-7 text-[10px] leading-5 shadow-sm ring-1 ring-slate-200">
