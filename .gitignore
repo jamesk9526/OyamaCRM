@@ -60,3 +60,5 @@ next-env.d.ts
 /OyamaBridgeDesktopServer/release
 OyamaBridgeDesktopServer/oyama-bridge-desktop-server-1.0.0.tgz
 *.log
+/apps/letters/node_modules
+/apps/letters/.next

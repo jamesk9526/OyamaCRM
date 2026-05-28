@@ -1,12 +1,6 @@
-/* Global styles for the standalone Oyama Letters workspace.
- *
- * WARNING: Tailwind is not yet wired into this workspace. The copied component
- * library (components/letters/**) uses Tailwind utility class names heavily,
- * so when the app is run standalone it will render with mostly unstyled HTML
- * until Tailwind is configured here. See README.md "Roadmap" for the
- * Tailwind wiring task. This stylesheet provides only minimal base resets so
- * the unstyled fallback remains legible.
- */
+/* Global styles for the standalone Oyama Letters workspace. */
+
+@import "tailwindcss";
 
 * {
   box-sizing: border-box;
