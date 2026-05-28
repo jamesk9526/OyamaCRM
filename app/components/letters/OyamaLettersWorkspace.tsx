@@ -237,12 +237,23 @@ const LETTERS_SIDEBAR_ITEMS = [
 
 /** Top-level dedicated workspace shell. */
 export default function OyamaLettersWorkspace({ view = "library", templateId }: OyamaLettersWorkspaceProps) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("oyamaLettersSidebarCollapsed") === "1";
+  });
+
+  function toggleSidebar() {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("oyamaLettersSidebarCollapsed", next ? "1" : "0");
+      return next;
+    });
+  }
 
   return (
     <div className="min-h-[100dvh] bg-[#f5f7fa] text-slate-950">
       <div className="flex min-h-[100dvh]">
-        <LettersSidebar activeView={view} collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((value) => !value)} />
+        <LettersSidebar activeView={view} collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
         <div className="flex min-w-0 flex-1 flex-col">
           <LettersTopBar view={view} templateId={templateId} />
           {view === "library" ? <TemplateLibrary /> : null}
@@ -309,6 +320,21 @@ function LettersSidebar({
         ) : null}
       </div>
 
+      {/* Back to Donor CRM */}
+      <Link
+        href="/constituents"
+        title={collapsed ? "Back to Donor CRM" : undefined}
+        className={[
+          "mt-3 flex items-center rounded-2xl border border-white/20 bg-white/10 text-xs font-semibold text-emerald-100 transition hover:bg-white/20",
+          collapsed ? "h-10 w-10 justify-center self-center" : "gap-2 px-3 py-2",
+        ].join(" ")}
+      >
+        <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        {!collapsed ? <span>Back to Donor CRM</span> : null}
+      </Link>
+
       <nav className={[
         "flex-1 space-y-1.5 overflow-y-auto",
         collapsed ? "mt-3" : "mt-4",
@@ -368,25 +394,25 @@ function LettersTopBar({ view, templateId }: { view: WorkspaceView; templateId?:
   const showProcessStepper = view === "library" || view === "builder" || view === "publish";
 
   return (
-    <header className="sticky top-0 z-30 flex min-h-[92px] items-center gap-6 border-b border-slate-800 bg-[linear-gradient(180deg,#0f172a_0%,#111827_100%)] px-5 shadow-[0_10px_28px_rgba(2,6,23,0.4)] xl:px-8">
-      <div className="flex min-w-0 flex-1 items-center gap-4">
-        <Link href="/oyama-letters" className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 text-slate-200 hover:bg-slate-800" aria-label="Back to letters home">
+    <header className="sticky top-0 z-30 flex h-12 items-center gap-4 border-b border-[#0a4f2e] bg-[radial-gradient(circle_at_18%_0%,#0d6b3b_0,#01402c_42%,#022b24_100%)] px-5 xl:px-8">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <Link href="/oyama-letters" className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/20 text-white/80 hover:bg-white/10" aria-label="Back to letters home">
           <ChevronLeft />
         </Link>
-        <div className="flex min-w-0 items-center gap-3 text-sm">
-          <Link href="/oyama-letters" className="shrink-0 text-slate-300 hover:text-white">Template Library</Link>
+        <div className="flex min-w-0 items-center gap-2 text-xs">
+          <Link href="/oyama-letters" className="shrink-0 text-emerald-200 hover:text-white">Template Library</Link>
           {view !== "library" ? <ChevronRight /> : null}
-          {view === "builder" || view === "publish" ? <span className="truncate font-semibold text-slate-100">{templateLabel}</span> : null}
+          {view === "builder" || view === "publish" ? <span className="truncate font-semibold text-white/90">{templateLabel}</span> : null}
           {view === "builder" || view === "publish" ? <ChevronRight /> : null}
           <span className="shrink-0 font-semibold text-white">{viewLabel(view)}</span>
         </div>
       </div>
       {showProcessStepper ? <ProcessStepper view={view} templateId={templateId} /> : null}
-      <div className="hidden items-center gap-3 border-l border-slate-700 pl-4 xl:flex">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-700 text-sm font-semibold text-white ring-2 ring-slate-800">{initials}</div>
+      <div className="hidden items-center gap-2.5 border-l border-white/20 pl-4 xl:flex">
+        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600/80 text-xs font-semibold text-white ring-1 ring-white/20">{initials}</div>
         <div className="leading-tight">
-          <p className="max-w-36 truncate text-xs font-semibold text-slate-100">{user ? `${user.firstName} ${user.lastName}` : "Account"}</p>
-          <button type="button" onClick={() => void signOut()} className="text-[11px] text-slate-400 hover:text-white">Sign out</button>
+          <p className="max-w-36 truncate text-xs font-semibold text-white">{user ? `${user.firstName} ${user.lastName}` : "Account"}</p>
+          <button type="button" onClick={() => void signOut()} className="text-[10px] text-emerald-200 hover:text-white">Sign out</button>
         </div>
       </div>
     </header>
@@ -403,19 +429,19 @@ function ProcessStepper({ view, templateId }: { view: WorkspaceView; templateId?
   const activeIndex = steps.findIndex((step) => step.key === view);
 
   return (
-    <div className="hidden min-w-0 items-center justify-center gap-3 rounded-2xl border border-slate-700/90 bg-slate-900/45 px-4 py-2 lg:flex">
+    <div className="hidden min-w-0 items-center justify-center gap-2 rounded-xl border border-white/20 bg-black/20 px-3 py-1.5 lg:flex">
       {steps.map((step, index) => {
         const active = index === activeIndex;
         const complete = activeIndex >= 0 && index < activeIndex;
         return (
-          <div key={step.key} className="flex items-center gap-3">
-            <Link href={step.href} className="flex items-center gap-2">
-              <span className={["flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold", active || complete ? "border-emerald-500 bg-emerald-600 text-white" : "border-slate-600 bg-slate-800 text-slate-300"].join(" ")}>
+          <div key={step.key} className="flex items-center gap-2">
+            <Link href={step.href} className="flex items-center gap-1.5">
+              <span className={["flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold", active || complete ? "border-emerald-400 bg-emerald-500 text-white" : "border-white/30 bg-white/10 text-emerald-200"].join(" ")}>
                 {complete ? <CheckIcon /> : index + 1}
               </span>
-              <span className={active ? "text-xs font-semibold text-white" : "text-xs font-medium text-slate-300"}>{step.label}</span>
+              <span className={active ? "text-[11px] font-semibold text-white" : "text-[11px] font-medium text-emerald-200"}>{step.label}</span>
             </Link>
-            {index < steps.length - 1 ? <span className="h-px w-12 bg-slate-600" /> : null}
+            {index < steps.length - 1 ? <span className="h-px w-8 bg-white/20" /> : null}
           </div>
         );
       })}
@@ -1436,6 +1462,7 @@ function GenerateWorkspace() {
   const [templateId, setTemplateId] = useState(searchParams.get("templateId") ?? "");
   const [constituentId, setConstituentId] = useState(searchParams.get("constituentId") ?? "");
   const [donationId, setDonationId] = useState(searchParams.get("donationId") ?? "");
+  const quickPrint = searchParams.get("quickPrint") === "1";
   const [query, setQuery] = useState("");
   const [recipientPickerOpen, setRecipientPickerOpen] = useState(false);
   const [pickerTab, setPickerTab] = useState<"individuals" | "lists" | "segments" | "filters">("individuals");
@@ -1493,6 +1520,14 @@ function GenerateWorkspace() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Quick Print: when arriving from a constituent profile with quickPrint=1,
+  // skip recipient selection and jump straight to step 3 (Donation Context)
+  // once the template and constituent are both resolved.
+  useEffect(() => {
+    if (!quickPrint || !constituentId || !templateId || loading) return;
+    setWizardStep(3);
+  }, [quickPrint, constituentId, templateId, loading]);
 
   useEffect(() => {
     const params = new URLSearchParams({ limit: "25" });
