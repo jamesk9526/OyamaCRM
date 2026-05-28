@@ -51,6 +51,34 @@ export interface GenerateLetterInput {
   sourceTaskId?: string;
   stewardPathEnrollmentId?: string;
   stewardPathStepRunId?: string;
+  activeOnly?: boolean;
+}
+
+export type GenerationValidationCode =
+  | "VALID"
+  | "MISSING_ADDRESS"
+  | "MISSING_REQUIRED_MERGE_DATA"
+  | "UNSUPPORTED_MERGE_FIELD"
+  | "SUPPRESSED_DO_NOT_MAIL";
+
+export interface GenerationValidationResult {
+  valid: boolean;
+  reasons: GenerationValidationCode[];
+}
+
+interface GenerationValidationInput {
+  constituent?: {
+    doNotMail?: boolean | null;
+    addressLine1?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip?: string | null;
+  } | null;
+  merged: Pick<ResolveMergeContextOutput, "missingFields" | "unsupportedFields" | "mergedPrintBody">;
+}
+
+interface TemplateForGenerationOptions {
+  activeOnly?: boolean;
 }
 
 /** Converts a decimal-ish Prisma value into a number safely. */
@@ -83,9 +111,41 @@ function formatDate(value: Date | null | undefined): string {
   return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(value);
 }
 
+/** Returns true when the constituent has enough mailing fields for printed delivery. */
+function hasCompleteMailAddress(constituent: GenerationValidationInput["constituent"]): boolean {
+  if (!constituent) return true;
+  return Boolean(constituent.addressLine1 && constituent.city && constituent.state && constituent.zip);
+}
+
+/** Applies the same eligibility rules used by single and batch generation flows. */
+export function validateGenerationPlan(input: GenerationValidationInput): GenerationValidationResult {
+  const reasons: GenerationValidationCode[] = [];
+
+  if (input.constituent?.doNotMail) {
+    reasons.push("SUPPRESSED_DO_NOT_MAIL");
+  }
+
+  if (!hasCompleteMailAddress(input.constituent)) {
+    reasons.push("MISSING_ADDRESS");
+  }
+
+  if ((input.merged.unsupportedFields ?? []).length > 0) {
+    reasons.push("UNSUPPORTED_MERGE_FIELD");
+  }
+
+  if ((input.merged.missingFields ?? []).length > 0 || input.merged.mergedPrintBody.includes("{{")) {
+    reasons.push("MISSING_REQUIRED_MERGE_DATA");
+  }
+
+  return {
+    valid: reasons.length === 0,
+    reasons: reasons.length === 0 ? ["VALID"] : reasons,
+  };
+}
+
 /** Loads merge context and resolves all placeholders used by letters. */
 export async function resolveLetterMergeContext(params: ResolveMergeContextInput): Promise<ResolveMergeContextOutput> {
-  const [organization, settings, user] = await Promise.all([
+  const [organization, settings, user, brandingSetting] = await Promise.all([
     prisma.organization.findUnique({ where: { id: params.organizationId }, select: { id: true, name: true } }),
     prisma.organizationSettings.findUnique({
       where: { organizationId: params.organizationId },
@@ -94,7 +154,25 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
     params.actorUserId
       ? prisma.user.findUnique({ where: { id: params.actorUserId }, select: { id: true, firstName: true, lastName: true, email: true, role: true } })
       : Promise.resolve(null),
+    prisma.pluginSetting.findUnique({
+      where: {
+        organizationId_pluginKey: {
+          organizationId: params.organizationId,
+          pluginKey: "organization-branding",
+        },
+      },
+      select: { config: true },
+    }),
   ]);
+
+  const brandingConfig = brandingSetting?.config && typeof brandingSetting.config === "object" && !Array.isArray(brandingSetting.config)
+    ? (brandingSetting.config as Record<string, unknown>)
+    : {};
+  const readBrandingText = (key: string): string => {
+    const raw = brandingConfig[key];
+    return typeof raw === "string" ? raw.trim() : "";
+  };
+  const organizationMission = readBrandingText("missionStatement") || readBrandingText("tagline");
 
   const donation = params.donationId
     ? await prisma.donation.findFirst({
@@ -207,6 +285,7 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
     "event.name": eventName,
     "household.name": constituent?.household?.name ?? "",
     "organization.name": organization?.name ?? "",
+    "organization.mission": organizationMission,
     "organization.address": "",
     "organization.phone": "",
     "organization.email": settings?.smtpFromEmail ?? "",
@@ -247,9 +326,17 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
 }
 
 /** Loads a template row for generation and enforces organization scoping. */
-export async function getTemplateForGeneration(organizationId: string, templateId: string): Promise<TemplateForMerge | null> {
+export async function getTemplateForGeneration(
+  organizationId: string,
+  templateId: string,
+  options: TemplateForGenerationOptions = {},
+): Promise<TemplateForMerge | null> {
   return prisma.letterTemplate.findFirst({
-    where: { id: templateId, organizationId },
+    where: {
+      id: templateId,
+      organizationId,
+      ...(options.activeOnly ? { status: "ACTIVE" } : {}),
+    },
     select: {
       id: true,
       name: true,
@@ -265,7 +352,9 @@ export async function getTemplateForGeneration(organizationId: string, templateI
 
 /** Generates and stores one merged letter with communication activity linkage when constituent context exists. */
 export async function generateLetterFromTemplate(input: GenerateLetterInput) {
-  const template = await getTemplateForGeneration(input.organizationId, input.templateId);
+  const template = await getTemplateForGeneration(input.organizationId, input.templateId, {
+    activeOnly: input.activeOnly ?? true,
+  });
   if (!template) return null;
 
   const merged = await resolveLetterMergeContext({

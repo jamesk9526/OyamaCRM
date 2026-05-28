@@ -208,7 +208,13 @@ export async function apiFetch<T = unknown>(
     return undefined as T;
   }
 
-  const body = JSON.parse(rawBody) as { data?: T } | T;
+  let body: { data?: T } | T;
+  try {
+    body = JSON.parse(rawBody) as { data?: T } | T;
+  } catch {
+    // During API/dev-server restarts we can receive partial payloads; avoid hard crashes.
+    return undefined as T;
+  }
   if (body && typeof body === "object" && "data" in body) {
     return (body as { data?: T }).data as T;
   }

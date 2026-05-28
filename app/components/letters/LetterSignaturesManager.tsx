@@ -1,7 +1,7 @@
 /** Signature block management UI for reusable signer presets with handwritten image uploads. */
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import type { SignatureBlock } from "@/app/components/letters/types";
 
@@ -39,9 +39,14 @@ export default function LetterSignaturesManager() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [signatureInputMode, setSignatureInputMode] = useState<"draw" | "upload">("draw");
+  const [drawHasInk, setDrawHasInk] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const drawCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const drawingRef = useRef(false);
+  const lastDrawPointRef = useRef<{ x: number; y: number } | null>(null);
 
   const selected = useMemo(() => items.find((item) => item.id === selectedId) ?? null, [items, selectedId]);
 
@@ -66,6 +71,7 @@ export default function LetterSignaturesManager() {
   useEffect(() => {
     if (!selected) {
       setForm(EMPTY_FORM);
+      setDrawHasInk(false);
       return;
     }
     setForm({
@@ -80,13 +86,150 @@ export default function LetterSignaturesManager() {
       isDefault: selected.isDefault,
       isActive: selected.isActive,
     });
+    setDrawHasInk(false);
   }, [selected]);
+
+  useEffect(() => {
+    const canvas = drawCanvasRef.current;
+    if (!canvas) return;
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    const ratio = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+    const logicalWidth = 560;
+    const logicalHeight = 160;
+    canvas.width = Math.floor(logicalWidth * ratio);
+    canvas.height = Math.floor(logicalHeight * ratio);
+    canvas.style.width = `${logicalWidth}px`;
+    canvas.style.height = `${logicalHeight}px`;
+
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.scale(ratio, ratio);
+    context.clearRect(0, 0, logicalWidth, logicalHeight);
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.lineWidth = 2;
+    context.strokeStyle = "#111827";
+    drawingRef.current = false;
+    lastDrawPointRef.current = null;
+  }, [selectedId]);
 
   function startNew() {
     setSelectedId(null);
     setForm(EMPTY_FORM);
+    setDrawHasInk(false);
     setMessage(null);
     setError(null);
+  }
+
+  function pointerToCanvas(event: ReactPointerEvent<HTMLCanvasElement>): { x: number; y: number } | null {
+    const canvas = drawCanvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+  }
+
+  function clearDrawCanvas() {
+    const canvas = drawCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    setDrawHasInk(false);
+    drawingRef.current = false;
+    lastDrawPointRef.current = null;
+  }
+
+  function beginDraw(event: ReactPointerEvent<HTMLCanvasElement>) {
+    const canvas = drawCanvasRef.current;
+    const context = canvas?.getContext("2d");
+    const point = pointerToCanvas(event);
+    if (!canvas || !context || !point) return;
+
+    event.preventDefault();
+    canvas.setPointerCapture(event.pointerId);
+    drawingRef.current = true;
+    lastDrawPointRef.current = point;
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+    context.lineTo(point.x + 0.1, point.y + 0.1);
+    context.stroke();
+    setDrawHasInk(true);
+  }
+
+  function moveDraw(event: ReactPointerEvent<HTMLCanvasElement>) {
+    if (!drawingRef.current) return;
+    const canvas = drawCanvasRef.current;
+    const context = canvas?.getContext("2d");
+    const point = pointerToCanvas(event);
+    if (!canvas || !context || !point) return;
+
+    event.preventDefault();
+    const previous = lastDrawPointRef.current ?? point;
+    context.beginPath();
+    context.moveTo(previous.x, previous.y);
+    context.lineTo(point.x, point.y);
+    context.stroke();
+    lastDrawPointRef.current = point;
+    setDrawHasInk(true);
+  }
+
+  function endDraw(event: ReactPointerEvent<HTMLCanvasElement>) {
+    const canvas = drawCanvasRef.current;
+    if (canvas?.hasPointerCapture(event.pointerId)) {
+      canvas.releasePointerCapture(event.pointerId);
+    }
+    drawingRef.current = false;
+    lastDrawPointRef.current = null;
+  }
+
+  function useDrawnSignature() {
+    if (!drawHasInk) {
+      setError("Draw a signature before applying it.");
+      return;
+    }
+
+    const canvas = drawCanvasRef.current;
+    if (!canvas) {
+      setError("Signature canvas is not ready.");
+      return;
+    }
+
+    const dataUrl = canvas.toDataURL("image/png");
+    setForm((prev) => ({ ...prev, signatureImageUrl: dataUrl }));
+    setMessage("Drawn signature applied. Save the preset to upload and store it.");
+    setError(null);
+  }
+
+  async function uploadSignatureDataUrl(dataBase64: string, fileName: string, mimeType: string): Promise<string> {
+    const uploaded = await apiFetch<{ url: string }>("/api/letters/media", {
+      method: "POST",
+      body: JSON.stringify({
+        fileName,
+        mimeType,
+        dataBase64,
+        purpose: "signature",
+      }),
+    });
+    return uploaded.url;
+  }
+
+  function mimeTypeFromDataUrl(dataUrl: string): string {
+    const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,/.exec(dataUrl);
+    return match?.[1] ?? "image/png";
+  }
+
+  function extensionFromMimeType(mimeType: string): string {
+    if (mimeType.includes("png")) return "png";
+    if (mimeType.includes("jpeg") || mimeType.includes("jpg")) return "jpg";
+    if (mimeType.includes("webp")) return "webp";
+    if (mimeType.includes("svg")) return "svg";
+    return "png";
   }
 
   async function saveSignature() {
@@ -94,11 +237,20 @@ export default function LetterSignaturesManager() {
     setError(null);
     setMessage(null);
     try {
+      let signatureImageUrl = form.signatureImageUrl || null;
+      if (signatureImageUrl?.startsWith("data:image/")) {
+        setUploading(true);
+        const mimeType = mimeTypeFromDataUrl(signatureImageUrl);
+        const extension = extensionFromMimeType(mimeType);
+        signatureImageUrl = await uploadSignatureDataUrl(signatureImageUrl, `drawn-signature-${Date.now()}.${extension}`, mimeType);
+        setForm((prev) => ({ ...prev, signatureImageUrl: signatureImageUrl ?? "" }));
+      }
+
       const payload = {
         ...form,
         signerTitle: form.signerTitle || null,
         closingPhrase: form.closingPhrase || null,
-        signatureImageUrl: form.signatureImageUrl || null,
+        signatureImageUrl,
         typedSignature: form.typedSignature || null,
         email: form.email || null,
         phone: form.phone || null,
@@ -114,6 +266,7 @@ export default function LetterSignaturesManager() {
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to save signature.");
     } finally {
+      setUploading(false);
       setSaving(false);
     }
   }
@@ -125,16 +278,8 @@ export default function LetterSignaturesManager() {
     setError(null);
     try {
       const dataBase64 = await readFileAsDataUrl(file);
-      const uploaded = await apiFetch<{ url: string }>("/api/letters/media", {
-        method: "POST",
-        body: JSON.stringify({
-          fileName: file.name,
-          mimeType: file.type || "image/png",
-          dataBase64,
-          purpose: "signature",
-        }),
-      });
-      setForm((prev) => ({ ...prev, signatureImageUrl: uploaded.url }));
+      const uploadedUrl = await uploadSignatureDataUrl(dataBase64, file.name, file.type || "image/png");
+      setForm((prev) => ({ ...prev, signatureImageUrl: uploadedUrl }));
       setMessage("Signature image uploaded. Save the preset to keep it.");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to upload signature image.");
@@ -180,18 +325,49 @@ export default function LetterSignaturesManager() {
             <Field label="Typed Signature Fallback">
               <input value={form.typedSignature} onChange={(event) => setForm({ ...form, typedSignature: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Jane A. Smith" />
             </Field>
-            <Field label="Handwritten Signature Image URL">
-              <div className="flex gap-2">
-                <input value={form.signatureImageUrl} onChange={(event) => setForm({ ...form, signatureImageUrl: event.target.value })} className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="/uploads/letter-media/..." />
-                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60">{uploading ? "Uploading..." : "Upload"}</button>
+            <Field label="Handwritten Signature">
+              <div className="space-y-2">
+                <div className="inline-flex rounded-lg border border-gray-300 p-1 text-xs font-semibold">
+                  <button type="button" onClick={() => setSignatureInputMode("draw")} className={`rounded px-3 py-1.5 ${signatureInputMode === "draw" ? "bg-green-600 text-white" : "text-gray-700 hover:bg-gray-100"}`}>Draw</button>
+                  <button type="button" onClick={() => setSignatureInputMode("upload")} className={`rounded px-3 py-1.5 ${signatureInputMode === "upload" ? "bg-green-600 text-white" : "text-gray-700 hover:bg-gray-100"}`}>Upload</button>
+                </div>
+
+                {signatureInputMode === "draw" ? (
+                  <div className="space-y-2">
+                    <div className="overflow-hidden rounded-lg border border-dashed border-gray-300 bg-white">
+                      <canvas
+                        ref={drawCanvasRef}
+                        onPointerDown={beginDraw}
+                        onPointerMove={moveDraw}
+                        onPointerUp={endDraw}
+                        onPointerCancel={endDraw}
+                        className="block h-40 w-full touch-none cursor-crosshair"
+                        aria-label="Draw signature canvas"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={clearDrawCanvas} className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">Clear</button>
+                      <button type="button" onClick={useDrawnSignature} className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">Use Drawing</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <input value={form.signatureImageUrl} onChange={(event) => setForm({ ...form, signatureImageUrl: event.target.value })} className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="/uploads/letter-media/..." />
+                      <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60">{uploading ? "Uploading..." : "Upload"}</button>
+                    </div>
+                    <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="sr-only" onChange={(event) => void uploadSignature(event.target.files?.[0])} />
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-500">Use a transparent PNG or clean white-background scan for the most professional rendered letter.</p>
               </div>
-              <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="sr-only" onChange={(event) => void uploadSignature(event.target.files?.[0])} />
-              <p className="mt-1 text-xs text-gray-500">Use a transparent PNG or clean white-background scan for the most professional rendered letter.</p>
             </Field>
             <div className="flex flex-wrap gap-3">
               <Toggle label="Default" checked={form.isDefault} onChange={(value) => setForm({ ...form, isDefault: value })} />
               <Toggle label="Active" checked={form.isActive} onChange={(value) => setForm({ ...form, isActive: value })} />
             </div>
+            <p className="text-xs text-gray-500">When marked Default, this signature is synced into Donor CRM branding settings.</p>
             <button type="button" onClick={() => void saveSignature()} disabled={saving || !form.name.trim() || !form.signerName.trim()} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60">{saving ? "Saving..." : "Save Signature"}</button>
           </div>
 

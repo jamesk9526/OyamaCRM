@@ -6,7 +6,7 @@ import { Prisma } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { Router, type Request } from "express";
 import type { jsPDF as JsPdfDocument } from "jspdf";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { logAudit } from "../lib/audit.js";
 import { resolveOrganizationId } from "../lib/organization.js";
@@ -15,8 +15,14 @@ import { prisma } from "../lib/prisma.js";
 import { isSchemaDriftError, migrationRequiredMessage } from "../lib/prisma-runtime-errors.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
-import { generateLetterFromTemplate, getTemplateForGeneration, resolveLetterMergeContext } from "../services/letters-execution.js";
-import { collectMergeFieldKeys, SUPPORTED_LETTER_MERGE_FIELDS } from "../services/letters-merge.js";
+import {
+  generateLetterFromTemplate,
+  getTemplateForGeneration,
+  resolveLetterMergeContext,
+  validateGenerationPlan,
+  type GenerationValidationCode,
+} from "../services/letters-execution.js";
+import { collectMergeFieldKeys, unsupportedMergeFieldKeys, SUPPORTED_LETTER_MERGE_FIELDS } from "../services/letters-merge.js";
 
 const router = Router();
 
@@ -42,6 +48,9 @@ const PRINT_QUEUE_STATUSES = ["GENERATED", "NEEDS_REVIEW", "APPROVED", "QUEUED_F
 const MAIL_QUEUE_STATUSES = ["QUEUED_FOR_MAIL", "MAILED", "RETURNED", "ADDRESS_ISSUE", "COMPLETED", "CANCELED", "ARCHIVED"] as const;
 const LETTER_PRIORITY = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
 const LETTER_WORKFLOW_POLICY_PLUGIN_KEY = "letters-workflow-settings";
+const LETTER_PUBLISH_HISTORY_PLUGIN_KEY = "letters-template-publish-history";
+const LETTER_BRANDING_PLUGIN_KEY = "organization-branding";
+const LETTER_PUBLISH_HISTORY_LIMIT = 200;
 const PDF_FALLBACK_MODES = ["BROWSER_PRINT", "SERVER_RENDER"] as const;
 const LETTER_MEDIA_EXTENSIONS: Record<string, string> = {
   "image/png": "png",
@@ -63,6 +72,8 @@ interface LetterPdfBrandingContext {
   addressLine: string;
   contactLine: string;
   taxId: string;
+  footerLegalText: string;
+  logoDataUrl: string | null;
 }
 
 interface LetterPdfPresetContext {
@@ -120,6 +131,44 @@ interface GeneratedLetterQueueMetadata {
   updatedByUserId?: string;
 }
 
+interface LetterTemplatePublishSnapshot {
+  id: string;
+  templateId: string;
+  templateName: string;
+  createdAt: string;
+  createdByUserId: string;
+  previousStatus: string;
+  nextStatus: string;
+  unsupportedFields: string[];
+  warnings: string[];
+  sampleValidation: {
+    valid: boolean;
+    reasons: string[];
+  } | null;
+  samplePdfPreflight: {
+    checked: boolean;
+    canRender: boolean;
+    renderer: "SERVER_RENDER";
+    parser: "htmlToPdfBlocks";
+    blockCount: number;
+    reason: "NO_SAMPLE_RECIPIENT" | "PARSER_FAILURE" | null;
+  };
+  snapshot: {
+    name: string;
+    category: string;
+    status: string;
+    headerPresetId: string | null;
+    footerPresetId: string | null;
+    signatureBlockId: string | null;
+    logoMode: string;
+    customLogoUrl: string | null;
+    printSubject: string | null;
+    printBody: string;
+    emailSubject: string | null;
+    emailBody: string | null;
+  };
+}
+
 router.use(requireAuth);
 
 /** Resolves a safe image extension for editor and signature uploads. */
@@ -166,6 +215,15 @@ function asJsonObject(value: unknown): Prisma.InputJsonValue | undefined {
   } catch {
     return undefined;
   }
+}
+
+/** Maps shared validation output into stable batch skip reason strings. */
+function toBatchSkipReason(reason: GenerationValidationCode): string {
+  if (reason === "SUPPRESSED_DO_NOT_MAIL") return "DO_NOT_MAIL";
+  if (reason === "MISSING_ADDRESS") return "MISSING_ADDRESS";
+  if (reason === "UNSUPPORTED_MERGE_FIELD") return "UNSUPPORTED_MERGE_FIELDS";
+  if (reason === "MISSING_REQUIRED_MERGE_DATA") return "MISSING_REQUIRED_MERGE_DATA";
+  return "GENERATION_FAILED";
 }
 
 /** Reads queue metadata from GeneratedLetter.metadataJson with safe defaults. */
@@ -278,6 +336,125 @@ function normalizeLettersWorkflowPolicy(input: unknown): LettersWorkflowPolicy {
   };
 }
 
+/** Normalizes publish history payload from plugin settings storage. */
+function normalizeTemplatePublishHistory(input: unknown): LetterTemplatePublishSnapshot[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((item) => item && typeof item === "object" && !Array.isArray(item))
+    .map((item) => {
+      const raw = item as Record<string, unknown>;
+      return {
+        id: typeof raw.id === "string" ? raw.id : randomUUID(),
+        templateId: typeof raw.templateId === "string" ? raw.templateId : "",
+        templateName: typeof raw.templateName === "string" ? raw.templateName : "",
+        createdAt: typeof raw.createdAt === "string" ? raw.createdAt : new Date(0).toISOString(),
+        createdByUserId: typeof raw.createdByUserId === "string" ? raw.createdByUserId : "",
+        previousStatus: typeof raw.previousStatus === "string" ? raw.previousStatus : "DRAFT",
+        nextStatus: typeof raw.nextStatus === "string" ? raw.nextStatus : "ACTIVE",
+        unsupportedFields: Array.isArray(raw.unsupportedFields) ? raw.unsupportedFields.map((entry) => String(entry)) : [],
+        warnings: Array.isArray(raw.warnings) ? raw.warnings.map((entry) => String(entry)) : [],
+        sampleValidation: raw.sampleValidation && typeof raw.sampleValidation === "object" && !Array.isArray(raw.sampleValidation)
+          ? {
+            valid: (raw.sampleValidation as Record<string, unknown>).valid === true,
+            reasons: Array.isArray((raw.sampleValidation as Record<string, unknown>).reasons)
+              ? ((raw.sampleValidation as Record<string, unknown>).reasons as unknown[]).map((entry) => String(entry))
+              : [],
+          }
+          : null,
+        samplePdfPreflight: raw.samplePdfPreflight && typeof raw.samplePdfPreflight === "object" && !Array.isArray(raw.samplePdfPreflight)
+          ? {
+            checked: (raw.samplePdfPreflight as Record<string, unknown>).checked === true,
+            canRender: (raw.samplePdfPreflight as Record<string, unknown>).canRender === true,
+            renderer: "SERVER_RENDER",
+            parser: "htmlToPdfBlocks",
+            blockCount: parsePositiveInt((raw.samplePdfPreflight as Record<string, unknown>).blockCount, 0, 0, 100000),
+            reason: ((raw.samplePdfPreflight as Record<string, unknown>).reason === "NO_SAMPLE_RECIPIENT"
+              || (raw.samplePdfPreflight as Record<string, unknown>).reason === "PARSER_FAILURE")
+              ? ((raw.samplePdfPreflight as Record<string, unknown>).reason as "NO_SAMPLE_RECIPIENT" | "PARSER_FAILURE")
+              : null,
+          }
+          : {
+            checked: false,
+            canRender: false,
+            renderer: "SERVER_RENDER",
+            parser: "htmlToPdfBlocks",
+            blockCount: 0,
+            reason: "NO_SAMPLE_RECIPIENT",
+          },
+        snapshot: raw.snapshot && typeof raw.snapshot === "object" && !Array.isArray(raw.snapshot)
+          ? {
+            name: typeof (raw.snapshot as Record<string, unknown>).name === "string" ? String((raw.snapshot as Record<string, unknown>).name) : "",
+            category: typeof (raw.snapshot as Record<string, unknown>).category === "string" ? String((raw.snapshot as Record<string, unknown>).category) : "GENERAL",
+            status: typeof (raw.snapshot as Record<string, unknown>).status === "string" ? String((raw.snapshot as Record<string, unknown>).status) : "DRAFT",
+            headerPresetId: typeof (raw.snapshot as Record<string, unknown>).headerPresetId === "string" ? String((raw.snapshot as Record<string, unknown>).headerPresetId) : null,
+            footerPresetId: typeof (raw.snapshot as Record<string, unknown>).footerPresetId === "string" ? String((raw.snapshot as Record<string, unknown>).footerPresetId) : null,
+            signatureBlockId: typeof (raw.snapshot as Record<string, unknown>).signatureBlockId === "string" ? String((raw.snapshot as Record<string, unknown>).signatureBlockId) : null,
+            logoMode: typeof (raw.snapshot as Record<string, unknown>).logoMode === "string" ? String((raw.snapshot as Record<string, unknown>).logoMode) : "ORGANIZATION_DEFAULT",
+            customLogoUrl: typeof (raw.snapshot as Record<string, unknown>).customLogoUrl === "string" ? String((raw.snapshot as Record<string, unknown>).customLogoUrl) : null,
+            printSubject: typeof (raw.snapshot as Record<string, unknown>).printSubject === "string" ? String((raw.snapshot as Record<string, unknown>).printSubject) : null,
+            printBody: typeof (raw.snapshot as Record<string, unknown>).printBody === "string" ? String((raw.snapshot as Record<string, unknown>).printBody) : "",
+            emailSubject: typeof (raw.snapshot as Record<string, unknown>).emailSubject === "string" ? String((raw.snapshot as Record<string, unknown>).emailSubject) : null,
+            emailBody: typeof (raw.snapshot as Record<string, unknown>).emailBody === "string" ? String((raw.snapshot as Record<string, unknown>).emailBody) : null,
+          }
+          : {
+            name: "",
+            category: "GENERAL",
+            status: "DRAFT",
+            headerPresetId: null,
+            footerPresetId: null,
+            signatureBlockId: null,
+            logoMode: "ORGANIZATION_DEFAULT",
+            customLogoUrl: null,
+            printSubject: null,
+            printBody: "",
+            emailSubject: null,
+            emailBody: null,
+          },
+      } satisfies LetterTemplatePublishSnapshot;
+    })
+    .filter((entry) => Boolean(entry.templateId && entry.createdAt));
+}
+
+/** Returns immutable template publish snapshots for one organization. */
+async function getTemplatePublishHistory(organizationId: string): Promise<LetterTemplatePublishSnapshot[]> {
+  const row = await prisma.pluginSetting.findUnique({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: LETTER_PUBLISH_HISTORY_PLUGIN_KEY,
+      },
+    },
+    select: { config: true },
+  });
+
+  return normalizeTemplatePublishHistory(row?.config)
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+}
+
+/** Appends one immutable publish snapshot to plugin settings storage. */
+async function appendTemplatePublishHistory(organizationId: string, snapshot: LetterTemplatePublishSnapshot): Promise<void> {
+  const current = await getTemplatePublishHistory(organizationId);
+  const next = [snapshot, ...current]
+    .slice(0, LETTER_PUBLISH_HISTORY_LIMIT);
+
+  await prisma.pluginSetting.upsert({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: LETTER_PUBLISH_HISTORY_PLUGIN_KEY,
+      },
+    },
+    create: {
+      organizationId,
+      pluginKey: LETTER_PUBLISH_HISTORY_PLUGIN_KEY,
+      config: asJsonObject(next) ?? [],
+    },
+    update: {
+      config: asJsonObject(next) ?? [],
+    },
+  });
+}
+
 /** Reads persisted workflow policy settings with safe defaults. */
 async function getLettersWorkflowPolicy(organizationId: string): Promise<LettersWorkflowPolicy> {
   const setting = await prisma.pluginSetting.findUnique({
@@ -291,6 +468,72 @@ async function getLettersWorkflowPolicy(organizationId: string): Promise<Letters
   });
 
   return normalizeLettersWorkflowPolicy(setting?.config);
+}
+
+/** Persists the current default letters signature into shared organization branding settings. */
+async function syncDefaultLetterSignatureIntoBranding(organizationId: string): Promise<void> {
+  const [defaultSignature, branding] = await Promise.all([
+    prisma.letterSignatureBlock.findFirst({
+      where: { organizationId, isDefault: true },
+      orderBy: [{ isActive: "desc" }, { updatedAt: "desc" }],
+      select: {
+        id: true,
+        name: true,
+        signerName: true,
+        signerTitle: true,
+        closingPhrase: true,
+        signatureImageUrl: true,
+        typedSignature: true,
+        email: true,
+        phone: true,
+      },
+    }),
+    prisma.pluginSetting.findUnique({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: LETTER_BRANDING_PLUGIN_KEY,
+        },
+      },
+      select: { config: true },
+    }),
+  ]);
+
+  const currentConfig = branding?.config && typeof branding.config === "object" && !Array.isArray(branding.config)
+    ? (branding.config as Record<string, unknown>)
+    : {};
+
+  const nextConfig = {
+    ...currentConfig,
+    defaultLetterSignatureBlockId: defaultSignature?.id ?? "",
+    defaultLetterSignatureName: defaultSignature?.name ?? "",
+    defaultLetterSignerName: defaultSignature?.signerName ?? "",
+    defaultLetterSignerTitle: defaultSignature?.signerTitle ?? "",
+    defaultLetterClosingPhrase: defaultSignature?.closingPhrase ?? "",
+    defaultLetterSignatureImageUrl: defaultSignature?.signatureImageUrl ?? "",
+    defaultLetterTypedSignature: defaultSignature?.typedSignature ?? "",
+    defaultLetterSignerEmail: defaultSignature?.email ?? "",
+    defaultLetterSignerPhone: defaultSignature?.phone ?? "",
+  };
+
+  await prisma.pluginSetting.upsert({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: LETTER_BRANDING_PLUGIN_KEY,
+      },
+    },
+    create: {
+      organizationId,
+      pluginKey: LETTER_BRANDING_PLUGIN_KEY,
+      enabled: true,
+      config: asJsonObject(nextConfig) ?? {},
+    },
+    update: {
+      enabled: true,
+      config: asJsonObject(nextConfig) ?? {},
+    },
+  });
 }
 
 /** Converts line-break text into simple HTML paragraphs for email draft creation. */
@@ -471,6 +714,33 @@ function buildAddressLineFromBranding(config: unknown): string {
   return parts.join(" | ");
 }
 
+function inferSupportedPdfLogoMime(filePath: string): "image/png" | "image/jpeg" | null {
+  const extension = path.extname(filePath).toLowerCase();
+  if (extension === ".png") return "image/png";
+  if (extension === ".jpg" || extension === ".jpeg") return "image/jpeg";
+  return null;
+}
+
+async function loadBrandingLogoDataUrl(rawLogoPath: string): Promise<string | null> {
+  const logoPath = rawLogoPath.trim().replace(/\\/g, "/");
+  if (!logoPath.startsWith("/")) return null;
+
+  const publicDir = path.resolve(process.cwd(), "public");
+  const absolutePath = path.resolve(publicDir, `.${logoPath}`);
+  if (!absolutePath.startsWith(publicDir)) return null;
+
+  const mimeType = inferSupportedPdfLogoMime(absolutePath);
+  if (!mimeType) return null;
+
+  try {
+    const bytes = await readFile(absolutePath);
+    if (bytes.byteLength === 0) return null;
+    return `data:${mimeType};base64,${bytes.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
 async function getLetterPdfBrandingContext(organizationId: string): Promise<LetterPdfBrandingContext> {
   const [organization, settings, brandingSetting] = await Promise.all([
     prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } }),
@@ -493,6 +763,8 @@ async function getLetterPdfBrandingContext(organizationId: string): Promise<Lett
     readTextConfig(branding, "contactEmail") || settings?.smtpFromEmail || "",
     readTextConfig(branding, "websiteUrl"),
   ].filter(Boolean).join(" | ");
+  const logoPath = readTextConfig(branding, "logoUrl") || readTextConfig(branding, "logoSquareUrl");
+  const logoDataUrl = logoPath ? await loadBrandingLogoDataUrl(logoPath) : null;
 
   return {
     organizationName,
@@ -500,6 +772,8 @@ async function getLetterPdfBrandingContext(organizationId: string): Promise<Lett
     addressLine: buildAddressLineFromBranding(branding),
     contactLine,
     taxId: readTextConfig(branding, "taxId"),
+    footerLegalText: readTextConfig(branding, "footerLegalText"),
+    logoDataUrl,
   };
 }
 
@@ -527,6 +801,7 @@ function footerLines(branding: LetterPdfBrandingContext, preset?: LetterPdfPrese
   return [
     preset?.customHtml ? stripHtmlInline(preset.customHtml) : "",
     preset?.customText ?? "",
+    branding.footerLegalText,
     (preset?.showOrganizationName ?? true) ? branding.organizationName : "",
     (preset?.showAddress ?? true) ? branding.addressLine : "",
     [
@@ -544,22 +819,35 @@ function drawPdfChrome(doc: JsPdfDocument, branding: LetterPdfBrandingContext, p
   const pageHeight = doc.internal.pageSize.getHeight();
   const marginX = 54;
   const footerY = pageHeight - 54;
+  const logoWidth = 56;
+  const logoHeight = 56;
+  const hasLogo = Boolean(branding.logoDataUrl);
+  const headerTextX = hasLogo ? marginX + logoWidth + 12 : marginX;
   const header = headerLines(branding, presets.headerPreset);
   const footer = footerLines(branding, presets.footerPreset);
+  const logoFormat: "PNG" | "JPEG" = branding.logoDataUrl?.startsWith("data:image/jpeg") ? "JPEG" : "PNG";
 
   for (let page = 1; page <= pageCount; page += 1) {
     doc.setPage(page);
     doc.setDrawColor(226, 232, 240);
     doc.setTextColor(15, 23, 42);
 
-    if (header.length > 0) {
+    if (hasLogo && branding.logoDataUrl) {
+      try {
+        doc.addImage(branding.logoDataUrl, logoFormat, marginX, 28, logoWidth, logoHeight);
+      } catch {
+        // Keep PDF generation resilient if logo decoding fails.
+      }
+    }
+
+    if (header.length > 0 || hasLogo) {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
-      doc.text(header[0] ?? "", marginX, 42);
+      if (header[0]) doc.text(header[0], headerTextX, 42);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8.5);
       header.slice(1, 4).forEach((line, index) => {
-        doc.text(line, marginX, 57 + index * 11);
+        doc.text(line, headerTextX, 57 + index * 11);
       });
       doc.line(marginX, 92, pageWidth - marginX, 92);
     }
@@ -568,7 +856,7 @@ function drawPdfChrome(doc: JsPdfDocument, branding: LetterPdfBrandingContext, p
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(71, 85, 105);
-    footer.slice(0, 3).forEach((line, index) => {
+    footer.slice(0, 4).forEach((line, index) => {
       doc.text(line, marginX, footerY + index * 10);
     });
     if (presets.footerPreset?.showPageNumber) {
@@ -1315,6 +1603,375 @@ router.patch("/templates/:id", requirePermission("letters.edit"), async (req, re
   res.json(updated);
 });
 
+/** POST /api/letters/templates/:id/publish — Runs publish preflight checks and activates one template when confirmed. */
+router.post("/templates/:id/publish", requirePermission("letters.edit"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const template = await prisma.letterTemplate.findFirst({
+    where: { id: getRouteId(req), organizationId },
+    include: {
+      headerPreset: { select: { id: true, name: true, isActive: true } },
+      footerPreset: { select: { id: true, name: true, isActive: true } },
+      signatureBlock: { select: { id: true, name: true, isActive: true } },
+    },
+  });
+  if (!template) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Letter template not found." } });
+    return;
+  }
+
+  const detectedFields = collectMergeFieldKeys(
+    template.printBody,
+    template.emailBody,
+    template.printSubject,
+    template.emailSubject,
+  );
+  const unsupportedFields = unsupportedMergeFieldKeys(detectedFields);
+
+  const blockers: string[] = [];
+  const warnings: string[] = [];
+
+  if (template.status === "ARCHIVED") {
+    blockers.push("Archived templates cannot be published. Restore or duplicate first.");
+  }
+  if (!template.name.trim()) {
+    blockers.push("Template name is required.");
+  }
+  if (!template.printBody.trim()) {
+    blockers.push("Print body is required.");
+  }
+  if (unsupportedFields.length > 0) {
+    blockers.push(`Unsupported merge fields detected: ${unsupportedFields.join(", ")}`);
+  }
+
+  if (!template.headerPresetId) blockers.push("Select a header preset before publishing.");
+  if (!template.footerPresetId) blockers.push("Select a footer preset before publishing.");
+  if (!template.signatureBlockId) blockers.push("Select a signature block before publishing.");
+
+  if (template.headerPresetId && (!template.headerPreset || !template.headerPreset.isActive)) {
+    blockers.push("Selected header preset is missing or inactive.");
+  }
+  if (template.footerPresetId && (!template.footerPreset || !template.footerPreset.isActive)) {
+    blockers.push("Selected footer preset is missing or inactive.");
+  }
+  if (template.signatureBlockId && (!template.signatureBlock || !template.signatureBlock.isActive)) {
+    blockers.push("Selected signature block is missing or inactive.");
+  }
+
+  const sampleConstituent = await prisma.constituent.findFirst({
+    where: { organizationId, doNotMail: false },
+    select: {
+      id: true,
+      doNotMail: true,
+      addressLine1: true,
+      city: true,
+      state: true,
+      zip: true,
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  let sampleValidation: { valid: boolean; reasons: GenerationValidationCode[] } | null = null;
+  let samplePdfPreflight: LetterTemplatePublishSnapshot["samplePdfPreflight"] = {
+    checked: false,
+    canRender: false,
+    renderer: "SERVER_RENDER",
+    parser: "htmlToPdfBlocks",
+    blockCount: 0,
+    reason: "NO_SAMPLE_RECIPIENT",
+  };
+  if (sampleConstituent) {
+    const sampleMerged = await resolveLetterMergeContext({
+      organizationId,
+      template,
+      constituentId: sampleConstituent.id,
+      actorUserId: userId,
+    });
+
+    sampleValidation = validateGenerationPlan({
+      constituent: sampleConstituent,
+      merged: sampleMerged,
+    });
+
+    if (!sampleValidation.valid) {
+      warnings.push(`Sample recipient validation produced: ${sampleValidation.reasons.filter((code) => code !== "VALID").join(", ")}`);
+    }
+
+    try {
+      const blocks = htmlToPdfBlocks(sampleMerged.mergedPrintBody || "");
+      samplePdfPreflight = {
+        checked: true,
+        canRender: true,
+        renderer: "SERVER_RENDER",
+        parser: "htmlToPdfBlocks",
+        blockCount: blocks.length,
+        reason: null,
+      };
+    } catch {
+      samplePdfPreflight = {
+        checked: true,
+        canRender: false,
+        renderer: "SERVER_RENDER",
+        parser: "htmlToPdfBlocks",
+        blockCount: 0,
+        reason: "PARSER_FAILURE",
+      };
+      blockers.push("Sample PDF render preflight failed.");
+    }
+  } else {
+    warnings.push("No sample recipient found. Publish preflight skipped recipient compatibility checks.");
+  }
+
+  const canPublish = blockers.length === 0;
+  const confirm = req.body?.confirm === true;
+  if (!confirm || !canPublish) {
+    const statusCode = !confirm ? 200 : (canPublish ? 200 : 422);
+    res.status(statusCode).json({
+      canPublish,
+      confirmed: confirm,
+      blockers,
+      warnings,
+      unsupportedFields,
+      sampleValidation,
+      samplePdfPreflight,
+      template: {
+        id: template.id,
+        status: template.status,
+      },
+    });
+    return;
+  }
+
+  const updated = await prisma.letterTemplate.update({
+    where: { id: template.id },
+    data: {
+      status: "ACTIVE",
+      updatedByUserId: userId,
+    },
+  });
+
+  const publishedAt = new Date().toISOString();
+  const publishSnapshot: LetterTemplatePublishSnapshot = {
+    id: randomUUID(),
+    templateId: template.id,
+    templateName: template.name,
+    createdAt: publishedAt,
+    createdByUserId: userId,
+    previousStatus: template.status,
+    nextStatus: "ACTIVE",
+    unsupportedFields,
+    warnings,
+    sampleValidation: sampleValidation
+      ? {
+        valid: sampleValidation.valid,
+        reasons: sampleValidation.reasons,
+      }
+      : null,
+    samplePdfPreflight,
+    snapshot: {
+      name: template.name,
+      category: template.category,
+      status: "ACTIVE",
+      headerPresetId: template.headerPresetId,
+      footerPresetId: template.footerPresetId,
+      signatureBlockId: template.signatureBlockId,
+      logoMode: template.logoMode,
+      customLogoUrl: template.customLogoUrl,
+      printSubject: template.printSubject,
+      printBody: template.printBody,
+      emailSubject: template.emailSubject,
+      emailBody: template.emailBody,
+    },
+  };
+  await appendTemplatePublishHistory(organizationId, publishSnapshot);
+
+  await logAudit({
+    action: "LETTER_TEMPLATE_PUBLISHED",
+    entity: "LetterTemplate",
+    entityId: updated.id,
+    organizationId,
+    userId,
+    metadata: {
+      previousStatus: template.status,
+      nextStatus: updated.status,
+      warningCount: warnings.length,
+    },
+  });
+
+  res.json({
+    canPublish: true,
+    published: true,
+    publishedAt,
+    blockers: [],
+    warnings,
+    unsupportedFields,
+    sampleValidation,
+    samplePdfPreflight,
+    publishSnapshotId: publishSnapshot.id,
+    template: updated,
+  });
+});
+
+/** GET /api/letters/templates/:id/publish-history — Returns immutable publish snapshots for one template. */
+router.get("/templates/:id/publish-history", requirePermission("letters.view"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const templateId = getRouteId(req);
+  const existing = await prisma.letterTemplate.findFirst({
+    where: { id: templateId, organizationId },
+    select: { id: true },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Letter template not found." } });
+    return;
+  }
+
+  const limit = parsePositiveInt(req.query.limit, 20, 1, 100);
+  const rows = (await getTemplatePublishHistory(organizationId))
+    .filter((entry) => entry.templateId === templateId)
+    .slice(0, limit);
+
+  res.json({ items: rows, count: rows.length });
+});
+
+/** POST /api/letters/templates/:id/sample-pdf — Renders one sample merged template PDF server-side. */
+router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const template = await prisma.letterTemplate.findFirst({
+    where: { id: getRouteId(req), organizationId },
+    select: {
+      id: true,
+      name: true,
+      printSubject: true,
+      printBody: true,
+      emailSubject: true,
+      emailBody: true,
+      headerPreset: true,
+      footerPreset: true,
+      signatureBlock: true,
+    },
+  });
+  if (!template) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Letter template not found." } });
+    return;
+  }
+
+  const sampleConstituent = await prisma.constituent.findFirst({
+    where: { organizationId, doNotMail: false },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      doNotMail: true,
+      addressLine1: true,
+      city: true,
+      state: true,
+      zip: true,
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  if (!sampleConstituent) {
+    res.status(422).json({
+      error: {
+        code: "NO_SAMPLE_RECIPIENT",
+        message: "No sample recipient is available for server-rendered preview.",
+      },
+    });
+    return;
+  }
+
+  try {
+    const merged = await resolveLetterMergeContext({
+      organizationId,
+      template,
+      constituentId: sampleConstituent.id,
+      actorUserId: userId,
+    });
+
+    const branding = await getLetterPdfBrandingContext(organizationId);
+    const constituentName = [sampleConstituent.firstName, sampleConstituent.lastName]
+      .filter((value): value is string => Boolean(value && value.trim()))
+      .join(" ")
+      .trim();
+    const templateName = template.name?.trim() || "Template Sample";
+    const subject = merged.mergedPrintSubject?.trim() || template.printSubject?.trim() || templateName;
+
+    const pdfBuffer = await renderGeneratedLetterPdf({
+      templateName,
+      subject,
+      constituentName,
+      generatedAt: new Date(),
+      mergedPrintBody: merged.mergedPrintBody || template.printBody || "",
+      branding,
+      presets: {
+        headerPreset: template.headerPreset,
+        footerPreset: template.footerPreset,
+        signatureBlock: template.signatureBlock,
+      },
+    });
+
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const fileName = `${sanitizePdfFilename(templateName)}_sample_${timestamp}.pdf`;
+
+    await logAudit({
+      action: "LETTER_TEMPLATE_SAMPLE_PDF_EXPORTED",
+      entity: "LetterTemplate",
+      entityId: template.id,
+      organizationId,
+      userId,
+      metadata: {
+        mode: "SERVER_RENDER",
+        status: "SUCCESS",
+        sampleConstituentId: sampleConstituent.id,
+        byteLength: pdfBuffer.byteLength,
+      },
+    });
+
+    const dispositionType = req.query.preview === "1" || req.query.inline === "1" ? "inline" : "attachment";
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `${dispositionType}; filename="${fileName}"`);
+    res.setHeader("Cache-Control", "no-store");
+    res.status(200).send(pdfBuffer);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown sample PDF export failure";
+    await logAudit({
+      action: "LETTER_TEMPLATE_SAMPLE_PDF_EXPORT_FAILED",
+      entity: "LetterTemplate",
+      entityId: template.id,
+      organizationId,
+      userId,
+      metadata: {
+        mode: "SERVER_RENDER",
+        status: "FAILED",
+        error: message,
+      },
+    });
+
+    res.status(500).json({
+      error: {
+        code: "PDF_EXPORT_FAILED",
+        message: "Failed to export sample template PDF.",
+      },
+    });
+  }
+});
+
 /** POST /api/letters/templates/:id/duplicate — Clones one template into a new draft. */
 router.post("/templates/:id/duplicate", requirePermission("letters.create"), async (req, res) => {
   const organizationId = await requireOrganizationId(req);
@@ -1681,6 +2338,21 @@ router.get("/signatures", requirePermission("letters.view"), async (req, res) =>
   res.json(signatures);
 });
 
+function validateSignatureImageUrl(value: unknown): { ok: true; value: string | null } | { ok: false; message: string } {
+  if (value === undefined) return { ok: true, value: null };
+  if (value === null) return { ok: true, value: null };
+  if (typeof value !== "string") return { ok: true, value: null };
+  const trimmed = value.trim();
+  if (!trimmed) return { ok: true, value: null };
+  if (trimmed.startsWith("data:image/")) {
+    return { ok: false, message: "Handwritten signatures must be uploaded first. Data URLs are not supported for saving." };
+  }
+  if (trimmed.length > 2048) {
+    return { ok: false, message: "Signature image URL is too long. Upload the image and use the stored media URL." };
+  }
+  return { ok: true, value: trimmed };
+}
+
 /** POST /api/letters/signatures — Creates a reusable signature block. */
 router.post("/signatures", requirePermission("letters.manage_signatures"), async (req, res) => {
   const organizationId = await requireOrganizationId(req);
@@ -1697,6 +2369,12 @@ router.post("/signatures", requirePermission("letters.manage_signatures"), async
     return;
   }
 
+  const signatureImageValidation = validateSignatureImageUrl(req.body?.signatureImageUrl);
+  if (!signatureImageValidation.ok) {
+    res.status(400).json({ error: { code: "INVALID_SIGNATURE_IMAGE", message: signatureImageValidation.message } });
+    return;
+  }
+
   const signature = await prisma.letterSignatureBlock.create({
     data: {
       organizationId,
@@ -1704,7 +2382,7 @@ router.post("/signatures", requirePermission("letters.manage_signatures"), async
       signerName,
       signerTitle: typeof req.body?.signerTitle === "string" ? req.body.signerTitle : null,
       closingPhrase: typeof req.body?.closingPhrase === "string" ? req.body.closingPhrase : null,
-      signatureImageUrl: typeof req.body?.signatureImageUrl === "string" ? req.body.signatureImageUrl : null,
+      signatureImageUrl: signatureImageValidation.value,
       typedSignature: typeof req.body?.typedSignature === "string" ? req.body.typedSignature : null,
       email: typeof req.body?.email === "string" ? req.body.email : null,
       phone: typeof req.body?.phone === "string" ? req.body.phone : null,
@@ -1719,6 +2397,8 @@ router.post("/signatures", requirePermission("letters.manage_signatures"), async
       data: { isDefault: false },
     });
   }
+
+  await syncDefaultLetterSignatureIntoBranding(organizationId);
 
   await logAudit({ action: "LETTER_SIGNATURE_CREATED", entity: "LetterSignatureBlock", entityId: signature.id, organizationId, userId });
   res.status(201).json(signature);
@@ -1758,7 +2438,14 @@ router.patch("/signatures/:id", requirePermission("letters.manage_signatures"), 
   }
   if (req.body?.signerTitle !== undefined) patch.signerTitle = typeof req.body.signerTitle === "string" ? req.body.signerTitle : null;
   if (req.body?.closingPhrase !== undefined) patch.closingPhrase = typeof req.body.closingPhrase === "string" ? req.body.closingPhrase : null;
-  if (req.body?.signatureImageUrl !== undefined) patch.signatureImageUrl = typeof req.body.signatureImageUrl === "string" ? req.body.signatureImageUrl : null;
+  if (req.body?.signatureImageUrl !== undefined) {
+    const signatureImageValidation = validateSignatureImageUrl(req.body.signatureImageUrl);
+    if (!signatureImageValidation.ok) {
+      res.status(400).json({ error: { code: "INVALID_SIGNATURE_IMAGE", message: signatureImageValidation.message } });
+      return;
+    }
+    patch.signatureImageUrl = signatureImageValidation.value;
+  }
   if (req.body?.typedSignature !== undefined) patch.typedSignature = typeof req.body.typedSignature === "string" ? req.body.typedSignature : null;
   if (req.body?.email !== undefined) patch.email = typeof req.body.email === "string" ? req.body.email : null;
   if (req.body?.phone !== undefined) patch.phone = typeof req.body.phone === "string" ? req.body.phone : null;
@@ -1772,6 +2459,8 @@ router.patch("/signatures/:id", requirePermission("letters.manage_signatures"), 
       data: { isDefault: false },
     });
   }
+
+  await syncDefaultLetterSignatureIntoBranding(organizationId);
 
   await logAudit({ action: "LETTER_SIGNATURE_UPDATED", entity: "LetterSignatureBlock", entityId: updated.id, organizationId, userId });
   res.json(updated);
@@ -1799,6 +2488,7 @@ router.delete("/signatures/:id", requirePermission("letters.manage_signatures"),
   }
 
   await prisma.letterSignatureBlock.delete({ where: { id: existing.id } });
+  await syncDefaultLetterSignatureIntoBranding(organizationId);
   await logAudit({ action: "LETTER_SIGNATURE_DELETED", entity: "LetterSignatureBlock", entityId: existing.id, organizationId, userId });
   res.status(204).send();
 });
@@ -1886,9 +2576,14 @@ router.post("/generated/preview", requirePermission("letters.generate"), async (
     return;
   }
 
-  const template = await getTemplateForGeneration(organizationId, templateId);
+  const template = await getTemplateForGeneration(organizationId, templateId, { activeOnly: true });
   if (!template) {
-    res.status(404).json({ error: { code: "NOT_FOUND", message: "Template not found." } });
+    res.status(404).json({
+      error: {
+        code: "TEMPLATE_NOT_ACTIVE",
+        message: "Template not found or not ACTIVE. Only active templates can be batch generated.",
+      },
+    });
     return;
   }
 
@@ -1925,19 +2620,75 @@ router.post("/generated", requirePermission("letters.generate"), async (req, res
     return;
   }
 
+  const template = await getTemplateForGeneration(organizationId, templateId, { activeOnly: true });
+  if (!template) {
+    res.status(404).json({
+      error: {
+        code: "TEMPLATE_NOT_ACTIVE",
+        message: "Template not found or not ACTIVE. Only active templates can be generated.",
+      },
+    });
+    return;
+  }
+
+  const constituentId = typeof req.body?.constituentId === "string" ? req.body.constituentId : undefined;
+  const donationId = typeof req.body?.donationId === "string" ? req.body.donationId : undefined;
+  const campaignId = typeof req.body?.campaignId === "string" ? req.body.campaignId : undefined;
+  const eventId = typeof req.body?.eventId === "string" ? req.body.eventId : undefined;
   const year = typeof req.body?.year === "number" ? req.body.year : Number.parseInt(String(req.body?.year ?? ""), 10);
+
+  const mergedPreview = await resolveLetterMergeContext({
+    organizationId,
+    template,
+    constituentId,
+    donationId,
+    campaignId,
+    eventId,
+    year: Number.isFinite(year) ? year : undefined,
+    actorUserId: userId,
+  });
+
+  const targetConstituent = mergedPreview.resolvedConstituentId
+    ? await prisma.constituent.findFirst({
+      where: { id: mergedPreview.resolvedConstituentId, organizationId },
+      select: {
+        doNotMail: true,
+        addressLine1: true,
+        city: true,
+        state: true,
+        zip: true,
+      },
+    })
+    : null;
+
+  const validation = validateGenerationPlan({
+    constituent: targetConstituent,
+    merged: mergedPreview,
+  });
+  if (!validation.valid) {
+    res.status(422).json({
+      error: {
+        code: "GENERATION_VALIDATION_FAILED",
+        message: "Generation blocked by validation rules.",
+      },
+      reasons: validation.reasons,
+    });
+    return;
+  }
+
   const result = await generateLetterFromTemplate({
     organizationId,
     templateId,
     actorUserId: userId,
-    constituentId: typeof req.body?.constituentId === "string" ? req.body.constituentId : undefined,
-    donationId: typeof req.body?.donationId === "string" ? req.body.donationId : undefined,
-    campaignId: typeof req.body?.campaignId === "string" ? req.body.campaignId : undefined,
-    eventId: typeof req.body?.eventId === "string" ? req.body.eventId : undefined,
+    constituentId,
+    donationId,
+    campaignId,
+    eventId,
     year: Number.isFinite(year) ? year : undefined,
     sourceTaskId: typeof req.body?.sourceTaskId === "string" ? req.body.sourceTaskId : undefined,
     stewardPathEnrollmentId: typeof req.body?.stewardPathEnrollmentId === "string" ? req.body.stewardPathEnrollmentId : undefined,
     stewardPathStepRunId: typeof req.body?.stewardPathStepRunId === "string" ? req.body.stewardPathStepRunId : undefined,
+    activeOnly: true,
   });
   if (!result) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Template not found." } });
@@ -3037,16 +3788,6 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
   let queuedForPrintCount = 0;
 
   for (const candidate of candidates) {
-    if (candidate.doNotMail) {
-      skipped.push({ constituentId: candidate.id, reason: "DO_NOT_MAIL" });
-      continue;
-    }
-
-    if (!hasCompleteMailAddress(candidate)) {
-      skipped.push({ constituentId: candidate.id, reason: "MISSING_ADDRESS" });
-      continue;
-    }
-
     if (dedupeHousehold && candidate.householdId) {
       if (seenHouseholds.has(candidate.householdId)) {
         skipped.push({ constituentId: candidate.id, reason: "DUPLICATE_HOUSEHOLD" });
@@ -3063,13 +3804,13 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
       actorUserId: userId,
     });
 
-    if (preview.unsupportedFields.length > 0) {
-      skipped.push({ constituentId: candidate.id, reason: "UNSUPPORTED_MERGE_FIELDS" });
-      continue;
-    }
-
-    if (preview.mergedPrintBody.includes("{{")) {
-      skipped.push({ constituentId: candidate.id, reason: "MISSING_REQUIRED_MERGE_DATA" });
+    const validation = validateGenerationPlan({
+      constituent: candidate,
+      merged: preview,
+    });
+    if (!validation.valid) {
+      const firstReason = validation.reasons.find((reason) => reason !== "VALID") ?? "MISSING_REQUIRED_MERGE_DATA";
+      skipped.push({ constituentId: candidate.id, reason: toBatchSkipReason(firstReason) });
       continue;
     }
 
@@ -3088,6 +3829,7 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
       actorUserId: userId,
       constituentId: candidate.id,
       year: Number.isFinite(year) ? year : undefined,
+      activeOnly: true,
     });
 
     if (!generated) {

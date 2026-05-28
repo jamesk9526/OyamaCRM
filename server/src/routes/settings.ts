@@ -109,6 +109,15 @@ interface BrandingSettingsPayload {
   socialLinkedIn?: string;
   socialYoutube?: string;
   socialX?: string;
+  defaultLetterSignatureBlockId?: string;
+  defaultLetterSignatureName?: string;
+  defaultLetterSignerName?: string;
+  defaultLetterSignerTitle?: string;
+  defaultLetterClosingPhrase?: string;
+  defaultLetterSignatureImageUrl?: string;
+  defaultLetterTypedSignature?: string;
+  defaultLetterSignerEmail?: string;
+  defaultLetterSignerPhone?: string;
 }
 
 interface ResetPayload {
@@ -467,6 +476,15 @@ function getDefaultBrandingSettings() {
     socialLinkedIn: "",
     socialYoutube: "",
     socialX: "",
+    defaultLetterSignatureBlockId: "",
+    defaultLetterSignatureName: "",
+    defaultLetterSignerName: "",
+    defaultLetterSignerTitle: "",
+    defaultLetterClosingPhrase: "",
+    defaultLetterSignatureImageUrl: "",
+    defaultLetterTypedSignature: "",
+    defaultLetterSignerEmail: "",
+    defaultLetterSignerPhone: "",
   };
 }
 
@@ -515,6 +533,15 @@ function normalizeBrandingPayload(input: unknown) {
     socialLinkedIn: sanitizeString(raw.socialLinkedIn),
     socialYoutube: sanitizeString(raw.socialYoutube),
     socialX: sanitizeString(raw.socialX),
+    defaultLetterSignatureBlockId: sanitizeString(raw.defaultLetterSignatureBlockId),
+    defaultLetterSignatureName: sanitizeString(raw.defaultLetterSignatureName),
+    defaultLetterSignerName: sanitizeString(raw.defaultLetterSignerName),
+    defaultLetterSignerTitle: sanitizeString(raw.defaultLetterSignerTitle),
+    defaultLetterClosingPhrase: sanitizeString(raw.defaultLetterClosingPhrase),
+    defaultLetterSignatureImageUrl: sanitizeString(raw.defaultLetterSignatureImageUrl),
+    defaultLetterTypedSignature: sanitizeString(raw.defaultLetterTypedSignature),
+    defaultLetterSignerEmail: sanitizeString(raw.defaultLetterSignerEmail),
+    defaultLetterSignerPhone: sanitizeString(raw.defaultLetterSignerPhone),
   };
 }
 

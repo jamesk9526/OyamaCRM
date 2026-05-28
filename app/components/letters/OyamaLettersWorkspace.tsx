@@ -94,16 +94,24 @@ interface DonationLookup {
 interface PreviewResult {
   mergedPrintBody: string;
   mergedEmailBody?: string | null;
+  missingFields: string[];
   unsupportedFields: string[];
 }
 
 interface BatchResult {
   dryRun?: boolean;
   batchId?: string;
-  candidateCount: number;
+  candidateCount?: number;
+  totalSelected?: number;
+  eligible?: number;
   generatedCount: number;
+  generatedIds?: string[];
+  skippedCount?: number;
+  skippedByReason?: Record<string, number>;
   skipped: Array<{ constituentId: string; reason: string }>;
+  generated?: Array<{ id: string; constituentId: string; constituentName: string }>;
   generatedSample?: Array<{ id: string; constituentId: string; constituentName: string }>;
+  addToPrintQueue?: boolean;
   queuedForPrintCount?: number;
 }
 
@@ -118,7 +126,55 @@ interface WorkflowPolicy {
   notes: string;
 }
 
+interface PublishValidationResult {
+  canPublish: boolean;
+  confirmed?: boolean;
+  published?: boolean;
+  blockers: string[];
+  warnings: string[];
+  unsupportedFields?: string[];
+  sampleValidation?: {
+    valid: boolean;
+    reasons: string[];
+  } | null;
+  samplePdfPreflight?: {
+    checked: boolean;
+    canRender: boolean;
+    renderer: "SERVER_RENDER";
+    parser: "htmlToPdfBlocks";
+    blockCount: number;
+    reason: "NO_SAMPLE_RECIPIENT" | "PARSER_FAILURE" | null;
+  };
+}
+
+interface PublishHistoryItem {
+  id: string;
+  templateId: string;
+  templateName: string;
+  createdAt: string;
+  createdByUserId: string;
+  previousStatus: string;
+  nextStatus: string;
+  unsupportedFields: string[];
+  warnings: string[];
+  samplePdfPreflight?: {
+    checked: boolean;
+    canRender: boolean;
+    renderer: "SERVER_RENDER";
+    parser: "htmlToPdfBlocks";
+    blockCount: number;
+    reason: "NO_SAMPLE_RECIPIENT" | "PARSER_FAILURE" | null;
+  };
+}
+
+interface PublishHistoryResponse {
+  items: PublishHistoryItem[];
+  count: number;
+}
+
 type SettingsTab = "organization" | "headers" | "footers" | "workflow";
+type GenerateMode = "single" | "batch";
+type DeliveryTarget = "PDF_ONLY" | "PRINT_QUEUE" | "MAIL_QUEUE";
 
 interface HeaderPresetDraft {
   name: string;
@@ -160,6 +216,8 @@ interface TemplateDraft {
   headerPresetId: string;
   footerPresetId: string;
   signatureBlockId: string;
+  logoMode: string;
+  customLogoUrl: string;
 }
 
 interface TemplateRecoverySnapshot {
@@ -194,6 +252,8 @@ const EMPTY_DRAFT: TemplateDraft = {
   headerPresetId: "",
   footerPresetId: "",
   signatureBlockId: "",
+  logoMode: "ORGANIZATION_DEFAULT",
+  customLogoUrl: "",
 };
 
 const EMPTY_HEADER_PRESET: HeaderPresetDraft = {
@@ -569,6 +629,9 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveFailure, setSaveFailure] = useState<string | null>(null);
+  const [inspectorPreflight, setInspectorPreflight] = useState<PublishValidationResult | null>(null);
+  const [inspectorPreflightLoading, setInspectorPreflightLoading] = useState(false);
+  const [inspectorPreflightError, setInspectorPreflightError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -588,7 +651,13 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       setBranding(normalizeBrandingSettings(brandingRow));
 
       if (templateId) {
-        const template = await apiFetch<LetterTemplateDetail>(`/api/letters/templates/${templateId}`);
+        const [template, preflightResult] = await Promise.all([
+          apiFetch<LetterTemplateDetail>(`/api/letters/templates/${templateId}`),
+          apiFetch<PublishValidationResult>(`/api/letters/templates/${templateId}/publish`, {
+            method: "POST",
+            body: JSON.stringify({ confirm: false }),
+          }),
+        ]);
         const nextBody = template.printBody ?? "";
         const serverDraft: TemplateDraft = {
           name: template.name ?? "",
@@ -602,6 +671,8 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
           headerPresetId: template.headerPresetId ?? template.headerPreset?.id ?? "",
           footerPresetId: template.footerPresetId ?? template.footerPreset?.id ?? "",
           signatureBlockId: template.signatureBlockId ?? template.signatureBlock?.id ?? "",
+          logoMode: template.logoMode ?? "ORGANIZATION_DEFAULT",
+          customLogoUrl: template.customLogoUrl ?? "",
         };
         const localRecovery = readTemplateRecoverySnapshot(templateId);
         const recoveredDraft = localRecovery?.draft && draftDiffers(localRecovery.draft, serverDraft)
@@ -611,6 +682,8 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
         setDraft(recoveredDraft ?? serverDraft);
         setSavedDraft(serverDraft);
         setSaveFailure(localRecovery?.lastError ?? null);
+        setInspectorPreflight(preflightResult);
+        setInspectorPreflightError(null);
 
         if (recoveredDraft) {
           setNotice("Recovered unsaved local draft from a previous save failure.");
@@ -621,6 +694,8 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
         setDraft(recoveredDraft ?? EMPTY_DRAFT);
         setSavedDraft(EMPTY_DRAFT);
         setSaveFailure(localRecovery?.lastError ?? null);
+        setInspectorPreflight(null);
+        setInspectorPreflightError(null);
         if (recoveredDraft) {
           setNotice("Recovered unsaved local draft for this new template.");
         }
@@ -677,6 +752,36 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   async function saveAndPublish() {
     const id = await save();
     if (id) router.push(`/oyama-letters/templates/${id}/publish`);
+  }
+
+  async function runInspectorPreflight(targetTemplateId?: string) {
+    const id = (targetTemplateId ?? templateId)?.trim();
+    if (!id) {
+      setInspectorPreflight(null);
+      setInspectorPreflightError("Save this template first to run server preflight checks.");
+      return;
+    }
+
+    setInspectorPreflightLoading(true);
+    setInspectorPreflightError(null);
+    try {
+      const result = await apiFetch<PublishValidationResult>(`/api/letters/templates/${id}/publish`, {
+        method: "POST",
+        body: JSON.stringify({ confirm: false }),
+      });
+      setInspectorPreflight(result);
+      setNotice("Server preflight refreshed.");
+    } catch (requestError) {
+      setInspectorPreflightError(errorMessage(requestError, "Failed to run server preflight."));
+    } finally {
+      setInspectorPreflightLoading(false);
+    }
+  }
+
+  async function saveAndRunInspectorPreflight() {
+    const id = await save();
+    if (!id) return;
+    await runInspectorPreflight(id);
   }
 
   function ensureEditableDocument(): boolean {
@@ -1004,6 +1109,29 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   }, [draft, loading, saveFailure, savedDraft, templateId]);
 
   const allFields = mergeSections.flatMap((section) => section.fields);
+  const mergeRegistry = useMemo(() => new Set(allFields.map(normalizeToken)), [allFields]);
+  const detectedTokens = useMemo(
+    () => extractTokens(`${draft.printSubject ?? ""} ${draft.printBody ?? ""} ${draft.emailSubject ?? ""} ${draft.emailBody ?? ""}`),
+    [draft.emailBody, draft.emailSubject, draft.printBody, draft.printSubject],
+  );
+  const unknownTokens = useMemo(
+    () => detectedTokens.filter((token) => !mergeRegistry.has(normalizeToken(token))),
+    [detectedTokens, mergeRegistry],
+  );
+  const localChecklist = useMemo(() => [
+    { key: "name", label: "Template name", ok: Boolean(draft.name.trim()), missingHint: "Add a template name." },
+    { key: "printBody", label: "Print body content", ok: Boolean(draft.printBody.replace(/<[^>]+>/g, " ").trim()), missingHint: "Add printable body content." },
+    { key: "header", label: "Header preset selected", ok: Boolean(draft.headerPresetId), missingHint: "Select a letterhead preset." },
+    { key: "footer", label: "Footer preset selected", ok: Boolean(draft.footerPresetId), missingHint: "Select a footer preset." },
+    { key: "signature", label: "Signature block selected", ok: Boolean(draft.signatureBlockId), missingHint: "Select a signature block." },
+    {
+      key: "fields",
+      label: unknownTokens.length === 0 ? "All detected merge fields are known" : `Unknown merge fields: ${unknownTokens.join(", ")}`,
+      ok: unknownTokens.length === 0,
+      missingHint: "Use supported merge field tokens or fix typos.",
+    },
+  ], [draft.footerPresetId, draft.headerPresetId, draft.name, draft.printBody, draft.signatureBlockId, unknownTokens]);
+  const localChecklistReady = localChecklist.every((item) => item.ok);
   const selectedHeader = headers.find((item) => item.id === draft.headerPresetId) ?? headers.find((item) => item.isDefault) ?? null;
   const selectedFooter = footers.find((item) => item.id === draft.footerPresetId) ?? footers.find((item) => item.isDefault) ?? null;
   const dirty = draftDiffers(draft, savedDraft);
@@ -1280,6 +1408,43 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                     <p className="mt-1">Current working draft in canvas builder</p>
                   </div>
                 </InspectorCard>
+                <InspectorCard title="Preflight Checklist">
+                  <p className="text-xs text-slate-600">Live readiness checks while you edit in canvas.</p>
+                  <div className="mt-3 space-y-2">
+                    {localChecklist.map((item) => (
+                      <div key={item.key} className="rounded-md border border-slate-200 bg-white px-3 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-semibold text-slate-700">{item.label}</p>
+                          <StatusPill label={item.ok ? "OK" : "Fix"} tone={item.ok ? "green" : "orange"} />
+                        </div>
+                        {!item.ok && item.missingHint ? <p className="mt-1 text-[11px] text-slate-500">{item.missingHint}</p> : null}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                    <p className="font-semibold">Local status: {localChecklistReady ? "Ready for publish checks" : "Needs updates"}</p>
+                    <p className="mt-1">Detected merge fields: {detectedTokens.length} · Unknown: {unknownTokens.length}</p>
+                    {dirty ? <p className="mt-1 text-amber-700">Unsaved edits detected. Save before relying on server preflight.</p> : null}
+                  </div>
+                  <div className="mt-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+                    <p className="font-semibold">Server preflight</p>
+                    {!templateId ? <p className="mt-1 text-slate-500">Save this template to enable server preflight checks.</p> : null}
+                    {inspectorPreflightLoading ? <p className="mt-1 text-slate-500">Running preflight...</p> : null}
+                    {inspectorPreflightError ? <p className="mt-1 text-red-700">{inspectorPreflightError}</p> : null}
+                    {inspectorPreflight && !inspectorPreflightLoading ? (
+                      <>
+                        <p className={["mt-1 font-semibold", inspectorPreflight.canPublish ? "text-emerald-700" : "text-amber-700"].join(" ")}>
+                          {inspectorPreflight.canPublish ? "Server status: Ready" : "Server status: Blocked"}
+                        </p>
+                        <p className="mt-1 text-slate-600">Blockers: {inspectorPreflight.blockers.length} · Warnings: {inspectorPreflight.warnings.length}</p>
+                      </>
+                    ) : null}
+                    <div className="mt-2 flex gap-2">
+                      <Button onClick={() => void runInspectorPreflight()} disabled={!templateId || inspectorPreflightLoading}>Refresh</Button>
+                      <Button onClick={() => void saveAndRunInspectorPreflight()} disabled={saving || inspectorPreflightLoading}>{saving ? "Saving..." : "Save + Refresh"}</Button>
+                    </div>
+                  </div>
+                </InspectorCard>
               </>
             ) : null}
             {inspectorTab === "Merge Fields" ? (
@@ -1319,8 +1484,11 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
   const router = useRouter();
   const [template, setTemplate] = useState<LetterTemplateDetail | null>(null);
   const [sections, setSections] = useState<MergeFieldSection[]>([]);
+  const [validation, setValidation] = useState<PublishValidationResult | null>(null);
+  const [publishHistory, setPublishHistory] = useState<PublishHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [samplePdfLoading, setSamplePdfLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -1333,12 +1501,19 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
     setLoading(true);
     setError(null);
     try {
-      const [templateResult, fieldsResult] = await Promise.all([
+      const [templateResult, fieldsResult, validationResult, historyResult] = await Promise.all([
         apiFetch<LetterTemplateDetail>(`/api/letters/templates/${templateId}`),
         apiFetch<{ sections: MergeFieldSection[] }>("/api/letters/merge-fields"),
+        apiFetch<PublishValidationResult>(`/api/letters/templates/${templateId}/publish`, {
+          method: "POST",
+          body: JSON.stringify({ confirm: false }),
+        }),
+        apiFetch<PublishHistoryResponse>(`/api/letters/templates/${templateId}/publish-history?limit=10`),
       ]);
       setTemplate(templateResult);
       setSections(fieldsResult.sections ?? []);
+      setValidation(validationResult);
+      setPublishHistory(historyResult.items ?? []);
     } catch (requestError) {
       setError(errorMessage(requestError, "Failed to load publish workspace."));
     } finally {
@@ -1353,19 +1528,71 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
   const registry = useMemo(() => new Set(sections.flatMap((section) => section.fields).map(normalizeToken)), [sections]);
   const tokens = useMemo(() => extractTokens(`${template?.printSubject ?? ""} ${template?.printBody ?? ""} ${template?.emailSubject ?? ""} ${template?.emailBody ?? ""}`), [template]);
   const unknownTokens = tokens.filter((token) => !registry.has(normalizeToken(token)));
+  const validationBlockers = validation?.blockers ?? [];
+  const validationWarnings = validation?.warnings ?? [];
+  const samplePdfPreflight = validation?.samplePdfPreflight ?? null;
+  const canPublishNow = unknownTokens.length === 0 && validationBlockers.length === 0 && (validation?.canPublish ?? false);
 
   async function publish() {
     if (!templateId) return;
     setSaving(true);
     setError(null);
     try {
-      await apiFetch(`/api/letters/templates/${templateId}`, { method: "PATCH", body: JSON.stringify({ status: "ACTIVE" }) });
+      const result = await apiFetch<PublishValidationResult>(`/api/letters/templates/${templateId}/publish`, {
+        method: "POST",
+        body: JSON.stringify({ confirm: true }),
+      });
+      setValidation(result);
+      if (!result.canPublish || !result.published) {
+        setError("Publish preflight failed. Resolve blockers and try again.");
+        return;
+      }
       setNotice("Template published. Opening Generate workspace...");
-      router.push(`/oyama-letters/generate?templateId=${encodeURIComponent(templateId)}`);
+      router.push(`/oyama-letters/generate?templateId=${encodeURIComponent(templateId)}&mode=batch&target=print`);
     } catch (requestError) {
       setError(errorMessage(requestError, "Failed to publish template."));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function openSampleServerPdf() {
+    if (!templateId) return;
+    setSamplePdfLoading(true);
+    setError(null);
+    try {
+      const response = await apiFetchResponse(`/api/letters/templates/${encodeURIComponent(templateId)}/sample-pdf?preview=1&inline=1`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        let message = `Sample PDF export failed (${response.status}).`;
+        try {
+          const parsed = await response.json();
+          if (parsed?.error?.message) message = String(parsed.error.message);
+        } catch {
+          // Keep default message when response is not JSON.
+        }
+        throw new Error(message);
+      }
+
+      const pdfBlob = await response.blob();
+      if (pdfBlob.size === 0) {
+        throw new Error("Sample PDF export returned an empty file.");
+      }
+
+      const objectUrl = URL.createObjectURL(pdfBlob);
+      const opened = window.open(objectUrl, "_blank", "noopener,noreferrer");
+      if (!opened) {
+        window.location.assign(objectUrl);
+      }
+      setTimeout(() => {
+        URL.revokeObjectURL(objectUrl);
+      }, 60000);
+      setNotice("Opened server-rendered sample PDF in a new tab.");
+    } catch (requestError) {
+      setError(errorMessage(requestError, "Failed to open sample PDF preview."));
+    } finally {
+      setSamplePdfLoading(false);
     }
   }
 
@@ -1378,7 +1605,8 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
       <PageHero title="Publish Template" subtitle="Configure merge fields, validation, and preview before generation.">
         <Button href={templateId ? `/oyama-letters/templates/${templateId}` : "/oyama-letters"}>Back to Canvas</Button>
         <Button onClick={() => void load()}>Validate</Button>
-        <Button onClick={() => void publish()} tone="primary" disabled={saving || unknownTokens.length > 0}>{saving ? "Publishing..." : "Publish & Continue"}</Button>
+        <Button onClick={() => void openSampleServerPdf()} disabled={samplePdfLoading || !templateId}>{samplePdfLoading ? "Rendering Sample PDF..." : "Open Sample Server PDF"}</Button>
+        <Button onClick={() => void publish()} tone="primary" disabled={saving || !canPublishNow}>{saving ? "Publishing..." : "Publish & Continue"}</Button>
       </PageHero>
       {error ? <Alert tone="amber">{error}</Alert> : null}
       {notice ? <Alert tone="green">{notice}</Alert> : null}
@@ -1420,12 +1648,37 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
             </table>
           </div>
           <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-            <p className={["font-semibold", unknownTokens.length === 0 ? "text-emerald-800" : "text-red-700"].join(" ")}>
-              Validation Status: {unknownTokens.length === 0 ? "Good" : "Needs Attention"}
+            <p className={["font-semibold", canPublishNow ? "text-emerald-800" : "text-red-700"].join(" ")}>
+              Validation Status: {canPublishNow ? "Good" : "Needs Attention"}
             </p>
             <p className="mt-1 text-xs text-slate-600">
-              {unknownTokens.length === 0 ? "All detected fields are registered. Publishing will mark this template active for generation." : `Unknown fields: ${unknownTokens.join(", ")}`}
+              {unknownTokens.length === 0 ? "Detected merge fields are registered." : `Unknown fields: ${unknownTokens.join(", ")}`}
             </p>
+            {validationBlockers.length > 0 ? (
+              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-red-700">
+                {validationBlockers.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            ) : null}
+            {validationWarnings.length > 0 ? (
+              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-amber-700">
+                {validationWarnings.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            ) : null}
+          </div>
+          <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+            <p className={["font-semibold", samplePdfPreflight?.canRender ? "text-emerald-800" : "text-amber-800"].join(" ")}>
+              PDF Parity Check: {samplePdfPreflight?.canRender ? "Server Render Verified" : samplePdfPreflight?.checked ? "Render Needs Attention" : "Preflight Skipped"}
+            </p>
+            <p className="mt-1 text-xs text-slate-600">
+              Uses server renderer ({samplePdfPreflight?.renderer ?? "SERVER_RENDER"}) with parser {samplePdfPreflight?.parser ?? "htmlToPdfBlocks"} for pre-publish validation.
+            </p>
+            <p className="mt-2 text-xs text-slate-700">Parsed block count: {String(samplePdfPreflight?.blockCount ?? 0)}</p>
+            {samplePdfPreflight?.reason === "NO_SAMPLE_RECIPIENT" ? (
+              <p className="mt-2 text-xs text-amber-700">No sample recipient available, so parity could not be fully verified.</p>
+            ) : null}
+            {samplePdfPreflight?.reason === "PARSER_FAILURE" ? (
+              <p className="mt-2 text-xs text-red-700">Server parser failed during preflight. Fix template content before publishing.</p>
+            ) : null}
           </div>
         </section>
         <aside className="space-y-3">
@@ -1442,6 +1695,27 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
               <SummaryNumber label="Detected" value={String(tokens.length)} />
               <SummaryNumber label="Known" value={String(tokens.length - unknownTokens.length)} />
               <SummaryNumber label="Unknown" value={String(unknownTokens.length)} tone={unknownTokens.length ? "red" : "green"} />
+            </div>
+          </div>
+          <div className="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
+            <h2 className="font-semibold">Publish History</h2>
+            <p className="mt-1 text-xs text-slate-600">Immutable publish snapshots for this template.</p>
+            <div className="mt-3 space-y-2">
+              {publishHistory.length === 0 ? (
+                <p className="text-xs text-slate-500">No publish snapshots yet.</p>
+              ) : publishHistory.map((entry) => (
+                <div key={entry.id} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="font-semibold text-slate-800">{formatDate(entry.createdAt)}</span>
+                    <StatusPill label={`${entry.previousStatus} -> ${entry.nextStatus}`} tone="green" />
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-600">Warnings: {entry.warnings.length} · Unsupported fields: {entry.unsupportedFields.length}</p>
+                  <p className="mt-1 text-[11px] text-slate-600">
+                    PDF preflight: {entry.samplePdfPreflight?.canRender ? "verified" : entry.samplePdfPreflight?.checked ? "failed" : "skipped"}
+                    {entry.samplePdfPreflight ? ` · Blocks: ${entry.samplePdfPreflight.blockCount}` : ""}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         </aside>
@@ -1463,7 +1737,13 @@ function GenerateWorkspace() {
   const [templateId, setTemplateId] = useState(searchParams.get("templateId") ?? "");
   const [constituentId, setConstituentId] = useState(searchParams.get("constituentId") ?? "");
   const [donationId, setDonationId] = useState(searchParams.get("donationId") ?? "");
+  const modeParam = (searchParams.get("mode") ?? "").toLowerCase();
+  const targetParam = (searchParams.get("target") ?? "").toLowerCase();
   const quickPrint = searchParams.get("quickPrint") === "1";
+  const [generateMode, setGenerateMode] = useState<GenerateMode>(modeParam === "single" ? "single" : "batch");
+  const [deliveryTarget, setDeliveryTarget] = useState<DeliveryTarget>(
+    targetParam === "mail" ? "MAIL_QUEUE" : targetParam === "print" ? "PRINT_QUEUE" : "PDF_ONLY",
+  );
   const [query, setQuery] = useState("");
   const [recipientPickerOpen, setRecipientPickerOpen] = useState(false);
   const [pickerTab, setPickerTab] = useState<"individuals" | "lists" | "segments" | "filters">("individuals");
@@ -1531,6 +1811,11 @@ function GenerateWorkspace() {
     if (!quickPrint || !constituentId || !templateId || loading) return;
     setWizardStep(3);
   }, [quickPrint, constituentId, templateId, loading]);
+
+  useEffect(() => {
+    setGenerateMode(modeParam === "single" ? "single" : "batch");
+    setDeliveryTarget(targetParam === "mail" ? "MAIL_QUEUE" : targetParam === "print" ? "PRINT_QUEUE" : "PDF_ONLY");
+  }, [modeParam, targetParam]);
 
   useEffect(() => {
     const params = new URLSearchParams({ limit: "25" });
@@ -1764,7 +2049,7 @@ function GenerateWorkspace() {
     setWorking(true);
     setError(null);
     try {
-      setPreview(await apiFetch<PreviewResult>("/api/letters/generated/preview", {
+      const previewResult = await apiFetch<PreviewResult>("/api/letters/generated/preview", {
         method: "POST",
         body: JSON.stringify({
           templateId,
@@ -1772,7 +2057,9 @@ function GenerateWorkspace() {
           donationId: donationMode === "specific" ? donationId || undefined : undefined,
           year: new Date().getFullYear(),
         }),
-      }));
+      });
+      setPreview(previewResult);
+      setNotice(`Preview ready. Missing fields: ${previewResult.missingFields.length}. Unsupported fields: ${previewResult.unsupportedFields.length}.`);
       setWizardStep(4);
     } catch (requestError) {
       setError(errorMessage(requestError, "Failed to preview letter."));
@@ -1781,14 +2068,43 @@ function GenerateWorkspace() {
     }
   }
 
+  async function queueBatchForMail(letterIds: string[]) {
+    if (letterIds.length === 0) return;
+    await apiFetch("/api/letters/generated/queue/mail/actions", {
+      method: "POST",
+      body: JSON.stringify({
+        action: "QUEUE_FOR_MAIL",
+        letterIds,
+      }),
+    });
+  }
+
+  async function applySingleDeliveryTarget(letterId: string) {
+    if (deliveryTarget === "PDF_ONLY") return;
+    if (deliveryTarget === "MAIL_QUEUE") {
+      await queueBatchForMail([letterId]);
+      return;
+    }
+    await apiFetch("/api/letters/generated/queue/print/actions", {
+      method: "POST",
+      body: JSON.stringify({
+        action: "QUEUE_FOR_PRINT",
+        letterIds: [letterId],
+      }),
+    });
+  }
+
   async function generateOne() {
     if (!templateId) return setError("Choose a template first.");
+    if (selectedTemplate?.status !== "ACTIVE") {
+      return setError("Only ACTIVE templates can be generated. Publish this template first.");
+    }
     const targetRecipientId = constituentId || selectedRecipientIds[0] || pendingRecipientIds[0];
     if (!targetRecipientId) return setError("Pick at least one recipient before generating a letter.");
     setWorking(true);
     setError(null);
     try {
-      await apiFetch<GeneratedLetterSummary>("/api/letters/generated", {
+      const created = await apiFetch<GeneratedLetterSummary>("/api/letters/generated", {
         method: "POST",
         body: JSON.stringify({
           templateId,
@@ -1797,7 +2113,18 @@ function GenerateWorkspace() {
           year: new Date().getFullYear(),
         }),
       });
-      setNotice("Letter generated.");
+      try {
+        await applySingleDeliveryTarget(created.id);
+      } catch (queueError) {
+        setNotice(`Letter generated, but delivery queue handoff failed: ${errorMessage(queueError, "Unknown queue error")}`);
+      }
+      if (deliveryTarget === "PRINT_QUEUE") {
+        setNotice("Letter generated for print workflow.");
+      } else if (deliveryTarget === "MAIL_QUEUE") {
+        setNotice("Letter generated and queued for mail workflow.");
+      } else {
+        setNotice("Letter generated.");
+      }
       await load();
       setWizardStep(5);
     } catch (requestError) {
@@ -1809,6 +2136,9 @@ function GenerateWorkspace() {
 
   async function runBatch(dryRun: boolean) {
     if (!templateId) return setError("Choose a template first.");
+    if (!dryRun && selectedTemplate?.status !== "ACTIVE") {
+      return setError("Only ACTIVE templates can be generated. Publish this template first.");
+    }
     const runtimeRecipientIds = activeRecipientIds.length > 0 ? activeRecipientIds : pendingRecipientIds;
     setWorking(true);
     setError(null);
@@ -1820,11 +2150,26 @@ function GenerateWorkspace() {
           dryRun,
           constituentIds: runtimeRecipientIds.length > 0 ? runtimeRecipientIds : undefined,
           filterType: "ALL",
-          addToPrintQueue: true,
+          addToPrintQueue: deliveryTarget === "PRINT_QUEUE",
         }),
       });
+
+      if (!dryRun && deliveryTarget === "MAIL_QUEUE") {
+        const generatedIds = result.generatedIds
+          ?? result.generated?.map((entry) => entry.id)
+          ?? result.generatedSample?.map((entry) => entry.id)
+          ?? [];
+        await queueBatchForMail(generatedIds.filter(Boolean));
+      }
+
       setBatch(result);
-      setNotice(dryRun ? "Batch validation complete." : "Batch generated.");
+      setNotice(dryRun
+        ? "Batch validation complete."
+        : deliveryTarget === "MAIL_QUEUE"
+          ? "Batch generated and queued for mail workflow."
+          : deliveryTarget === "PRINT_QUEUE"
+            ? "Batch generated for print workflow."
+            : "Batch generated.");
       if (!dryRun) await load();
       setWizardStep(dryRun ? 4 : 5);
     } catch (requestError) {
@@ -1897,7 +2242,12 @@ function GenerateWorkspace() {
   const generatedForAudience = activeRecipientIds.length > 0
     ? generatedForTemplate.filter((row) => (row.constituentId ? activeRecipientIds.includes(row.constituentId) : false))
     : generatedForTemplate;
-  const batchPdfIds = (batch?.generatedSample?.map((sample) => sample.id).filter(Boolean) ?? generatedForAudience.map((row) => row.id)).slice(0, 100);
+  const batchPdfIds = (
+    batch?.generatedIds
+    ?? batch?.generated?.map((sample) => sample.id)
+    ?? batch?.generatedSample?.map((sample) => sample.id)
+    ?? generatedForAudience.map((row) => row.id)
+  ).filter(Boolean).slice(0, 100);
   const focusedGenerated = generatedForAudience.find((row) => row.constituentId === (constituentId || activeRecipientIds[0]))
     ?? generatedForAudience[0]
     ?? generatedForTemplate[0]
@@ -1911,10 +2261,18 @@ function GenerateWorkspace() {
   const canOpenRecipientsStep = Boolean(templateId);
   const canAdvanceFromSelection = Boolean(templateId && hasRecipientIntent);
   const canOpenFinalStep = generatedForTemplate.length > 0;
+  const generationBlockedByTemplate = selectedTemplate ? selectedTemplate.status !== "ACTIVE" : false;
   const previewRecipientPool = sourceRecipients.length > 0 ? sourceRecipients : constituents;
   const previewFocusId = constituentId || previewRecipientPool[0]?.id || "";
   const previewFocusIndex = Math.max(previewRecipientPool.findIndex((row) => row.id === previewFocusId), 0);
   const previewFocus = previewRecipientPool[previewFocusIndex] ?? null;
+  const previewMissingFieldCount = preview?.missingFields?.length ?? 0;
+  const previewUnsupportedFieldCount = preview?.unsupportedFields?.length ?? 0;
+  const deliveryLabel = deliveryTarget === "MAIL_QUEUE"
+    ? "Add to Mail Queue"
+    : deliveryTarget === "PRINT_QUEUE"
+      ? "Add to Print Queue"
+      : "PDF Only";
   const selectedSegmentSummary = selectedTagNames.length > 0 ? selectedTagNames.slice(0, 2).join(", ") : "No segment";
   const wizardSteps: Array<{ id: 1 | 2 | 3 | 4 | 5; title: string; helper: string }> = [
     { id: 1, title: "Select", helper: "Template and options configured" },
@@ -1941,7 +2299,9 @@ function GenerateWorkspace() {
         ? "Next: Preview"
         : wizardStep === 4
           ? "Next: Generate"
-          : "Generate Batch";
+          : generateMode === "single"
+            ? "Generate One"
+            : "Generate Batch";
 
   function handleTopNext() {
     if (wizardStep === 1) {
@@ -1962,6 +2322,10 @@ function GenerateWorkspace() {
     }
     if (wizardStep === 4) {
       setWizardStep(5);
+      return;
+    }
+    if (generateMode === "single") {
+      void generateOne();
       return;
     }
     void runBatch(false);
@@ -2451,7 +2815,7 @@ function GenerateWorkspace() {
                 <div className="flex items-center justify-between px-3 py-2 text-sm"><span className="font-semibold text-slate-700">Template</span><span className="text-slate-900">{selectedTemplate?.name || "-"}</span></div>
                 <div className="flex items-center justify-between px-3 py-2 text-sm"><span className="font-semibold text-slate-700">Recipient Source</span><span className="text-slate-900">{selectedSourceLabel}</span></div>
                 <div className="flex items-center justify-between px-3 py-2 text-sm"><span className="font-semibold text-slate-700">Donation Context</span><span className="text-slate-900">{donationApplicationLabel}</span></div>
-                <div className="flex items-center justify-between px-3 py-2 text-sm"><span className="font-semibold text-slate-700">Delivery</span><span className="text-slate-900">Add to Print Queue</span></div>
+                <div className="flex items-center justify-between px-3 py-2 text-sm"><span className="font-semibold text-slate-700">Delivery</span><span className="text-slate-900">{deliveryLabel}</span></div>
               </div>
               <div className="mt-3 flex gap-2">
                 <Button onClick={() => setWizardStep(1)}>Edit Selections</Button>
@@ -2463,7 +2827,8 @@ function GenerateWorkspace() {
               <h3 className="text-lg font-semibold text-slate-900">Data Check</h3>
               <p className="text-sm text-slate-600">Ensure your data is ready for generation.</p>
               <div className="mt-3 divide-y divide-slate-200 rounded-md border border-slate-200">
-                <div className="flex items-center justify-between px-3 py-2 text-sm"><span className="font-semibold text-slate-700">Merge Fields</span><StatusPill label={missingRequired === 0 ? "Passed" : "Needs Attention"} tone={missingRequired === 0 ? "green" : "red"} /></div>
+                <div className="flex items-center justify-between px-3 py-2 text-sm"><span className="font-semibold text-slate-700">Merge Resolution</span><StatusPill label={previewMissingFieldCount === 0 && previewUnsupportedFieldCount === 0 ? "Passed" : `Missing ${previewMissingFieldCount} · Unsupported ${previewUnsupportedFieldCount}`} tone={previewMissingFieldCount === 0 && previewUnsupportedFieldCount === 0 ? "green" : "red"} /></div>
+                <div className="flex items-center justify-between px-3 py-2 text-sm"><span className="font-semibold text-slate-700">Recipient Required Fields</span><StatusPill label={missingRequired === 0 ? "Passed" : "Needs Attention"} tone={missingRequired === 0 ? "green" : "red"} /></div>
                 <div className="flex items-center justify-between px-3 py-2 text-sm"><span className="font-semibold text-slate-700">Addresses</span><StatusPill label={missingAddress === 0 ? "Passed" : "Needs Attention"} tone={missingAddress === 0 ? "green" : "orange"} /></div>
                 <div className="flex items-center justify-between px-3 py-2 text-sm"><span className="font-semibold text-slate-700">Suppression</span><StatusPill label={suppressed === 0 ? "Passed" : "Needs Attention"} tone={suppressed === 0 ? "green" : "red"} /></div>
               </div>
@@ -2508,10 +2873,32 @@ function GenerateWorkspace() {
             <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
               <p className="text-sm font-semibold text-slate-900">Generate Letters</p>
               <p className="mt-1 text-xs text-slate-600">Confirm settings, generate letters, and open PDFs without leaving this page.</p>
+              {generationBlockedByTemplate ? (
+                <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                  Selected template is {selectedTemplate?.status ?? "not active"}. Only ACTIVE templates can generate production letters.
+                </p>
+              ) : null}
+              <div className="mt-3 grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Mode</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => setGenerateMode("single")} className={["rounded border px-2 py-1 text-xs font-semibold", generateMode === "single" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700"].join(" ")}>Single</button>
+                    <button type="button" onClick={() => setGenerateMode("batch")} className={["rounded border px-2 py-1 text-xs font-semibold", generateMode === "batch" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700"].join(" ")}>Batch</button>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Delivery Target</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => setDeliveryTarget("PDF_ONLY")} className={["rounded border px-2 py-1 text-xs font-semibold", deliveryTarget === "PDF_ONLY" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700"].join(" ")}>PDF Only</button>
+                    <button type="button" onClick={() => setDeliveryTarget("PRINT_QUEUE")} className={["rounded border px-2 py-1 text-xs font-semibold", deliveryTarget === "PRINT_QUEUE" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700"].join(" ")}>Print Queue</button>
+                    <button type="button" onClick={() => setDeliveryTarget("MAIL_QUEUE")} className={["rounded border px-2 py-1 text-xs font-semibold", deliveryTarget === "MAIL_QUEUE" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700"].join(" ")}>Mail Queue</button>
+                  </div>
+                </div>
+              </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button onClick={() => void runBatch(true)} disabled={working || !canAdvanceFromSelection}>Validate Batch</Button>
-                <Button onClick={() => void generateOne()} disabled={working || !canAdvanceFromSelection}>Generate One</Button>
-                <Button onClick={() => void runBatch(false)} tone="primary" disabled={working || !canAdvanceFromSelection}>Generate Batch</Button>
+                <Button onClick={() => void generateOne()} tone={generateMode === "single" ? "primary" : undefined} disabled={working || !canAdvanceFromSelection || generationBlockedByTemplate}>Generate One</Button>
+                <Button onClick={() => void runBatch(false)} tone={generateMode === "batch" ? "primary" : undefined} disabled={working || !canAdvanceFromSelection || generationBlockedByTemplate}>Generate Batch</Button>
                 <Button onClick={() => void openBatchPdf(batchPdfIds)} disabled={pdfLoading || batchPdfIds.length === 0}>View Batch PDF</Button>
                 <Button onClick={() => (focusedGenerated ? void openIndividualPdf(focusedGenerated.id) : undefined)} disabled={pdfLoading || !focusedGenerated}>View Focused Recipient PDF</Button>
                 <Button onClick={() => void load()}>Refresh Generated</Button>

@@ -31,6 +31,15 @@ export interface BrandingSettings {
   socialLinkedIn: string;
   socialYoutube: string;
   socialX: string;
+  defaultLetterSignatureBlockId: string;
+  defaultLetterSignatureName: string;
+  defaultLetterSignerName: string;
+  defaultLetterSignerTitle: string;
+  defaultLetterClosingPhrase: string;
+  defaultLetterSignatureImageUrl: string;
+  defaultLetterTypedSignature: string;
+  defaultLetterSignerEmail: string;
+  defaultLetterSignerPhone: string;
 }
 
 /** Stable defaults used when branding has not been configured yet. */
@@ -63,6 +72,15 @@ export const DEFAULT_BRANDING_SETTINGS: BrandingSettings = {
   socialLinkedIn: "",
   socialYoutube: "",
   socialX: "",
+  defaultLetterSignatureBlockId: "",
+  defaultLetterSignatureName: "",
+  defaultLetterSignerName: "",
+  defaultLetterSignerTitle: "",
+  defaultLetterClosingPhrase: "",
+  defaultLetterSignatureImageUrl: "",
+  defaultLetterTypedSignature: "",
+  defaultLetterSignerEmail: "",
+  defaultLetterSignerPhone: "",
 };
 
 /** Normalizes unknown branding payloads from APIs to safe UI-ready values. */
@@ -112,6 +130,15 @@ export function normalizeBrandingSettings(input: unknown): BrandingSettings {
     socialLinkedIn: normalizeText(raw.socialLinkedIn),
     socialYoutube: normalizeText(raw.socialYoutube),
     socialX: normalizeText(raw.socialX),
+    defaultLetterSignatureBlockId: normalizeText(raw.defaultLetterSignatureBlockId),
+    defaultLetterSignatureName: normalizeText(raw.defaultLetterSignatureName),
+    defaultLetterSignerName: normalizeText(raw.defaultLetterSignerName),
+    defaultLetterSignerTitle: normalizeText(raw.defaultLetterSignerTitle),
+    defaultLetterClosingPhrase: normalizeText(raw.defaultLetterClosingPhrase),
+    defaultLetterSignatureImageUrl: normalizeText(raw.defaultLetterSignatureImageUrl),
+    defaultLetterTypedSignature: normalizeText(raw.defaultLetterTypedSignature),
+    defaultLetterSignerEmail: normalizeText(raw.defaultLetterSignerEmail),
+    defaultLetterSignerPhone: normalizeText(raw.defaultLetterSignerPhone),
   };
 }
 

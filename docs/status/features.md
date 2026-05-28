@@ -13,6 +13,19 @@ _Last deep audit: 2026-05-18 (v1.1.0)_
 | Legacy letters UI removal and compatibility | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/letters/page.tsx`, `app/letters-printables/page.tsx`, `apps/letters/app/page.tsx` | Old routed letters UI components were removed from the main app and standalone package. Existing `/letters`, `/letters-printables`, Communications, and standalone app entries redirect into the refreshed workspace. |
 | Workspace switcher access | Working | `app/components/layout/TopBar.tsx`, `app/lib/navigation-boundaries.ts`, `app/help-content/scope.ts`, `app/lib/feedback/getFeedbackContext.ts` | OyamaLetters is available as a primary workspace switcher entry with help and feedback context mapped back to donor scope. |
 
+## 2026-05-28 OyamaLetters Publish + Generate Reliability Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Template publish preflight + confirm endpoint | Working | `server/src/routes/letters.ts`, `app/components/letters/OyamaLettersWorkspace.tsx` | Added `POST /api/letters/templates/:id/publish` with preflight checks (merge fields, preset/signature presence + active state, sample merge validation, and server PDF parser parity metrics) plus explicit `confirm=true` execution, and added one-click `POST /api/letters/templates/:id/sample-pdf` server-rendered sample preview from Publish workspace. Preflight validation now returns `200` with blockers for non-confirm checks and uses `422` only for failed confirmed publish attempts. |
+| Immutable template publish history | Working | `server/src/routes/letters.ts`, `app/components/letters/OyamaLettersWorkspace.tsx` | Added `GET /api/letters/templates/:id/publish-history` and immutable snapshot writes on publish, surfaced in Publish workspace sidebar with timestamp + status transitions and recorded PDF preflight outcome visibility per publish snapshot. |
+| Canvas inspector preflight utility | Working | `app/components/letters/OyamaLettersWorkspace.tsx` | Added a Preflight Checklist card in Canvas inspector (Document tab) with live draft checks (name/body/presets/signature/unknown merge fields), plus server preflight summary and `Refresh` / `Save + Refresh` actions. |
+| Letters signature defaults + branding sync | Working | `app/components/letters/LetterSignaturesManager.tsx`, `server/src/routes/letters.ts`, `server/src/routes/settings.ts`, `app/lib/branding-settings.ts` | Signature manager now supports explicit Draw or Upload workflows for handwritten signatures. When a signature is marked Default, server sync persists it into organization branding settings (`organization-branding`) for Donor CRM-wide default usage. |
+| Active-only production generation | Working | `server/src/services/letters-execution.ts`, `server/src/routes/letters.ts` | Production generation paths now enforce ACTIVE templates and block DRAFT/ARCHIVED templates from single and batch generation APIs. |
+| Shared validation in single + batch generation | Working | `server/src/services/letters-execution.ts`, `server/src/routes/letters.ts` | Added shared `validateGenerationPlan()` and applied it across single/batch generation so suppression, address, unsupported merge fields, and missing merge data are evaluated consistently. |
+| Generate mode/target delivery intent wiring | Working | `app/components/letters/OyamaLettersWorkspace.tsx` | Generate workspace now reads `mode` + `target` query params, supports explicit delivery selection (PDF/print/mail), and routes batch mail delivery through queue actions. |
+| Preview missing-field visibility | Working | `app/components/letters/OyamaLettersWorkspace.tsx` | Preview state now includes `missingFields` from API response and displays real missing/unsupported counts in notices and pre-generation checks. |
+
 ## 2026-05-26 Donor Desktop Sidebar Chrome Pass
 
 | Area | Status | Evidence | Notes |

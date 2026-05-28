@@ -54,6 +54,7 @@ export const SUPPORTED_LETTER_MERGE_FIELDS = [
   "{{event.name}}",
   "{{household.name}}",
   "{{organization.name}}",
+  "{{organization.mission}}",
   "{{organization.address}}",
   "{{organization.phone}}",
   "{{organization.email}}",
