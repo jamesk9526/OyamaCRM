@@ -23,7 +23,7 @@ import type {
   SignatureBlock,
 } from "@/app/components/letters/types";
 
-type WorkspaceView = "library" | "builder" | "publish" | "generate" | "queue" | "settings";
+type WorkspaceView = "library" | "builder" | "publish" | "generate" | "queue" | "settings" | "howto";
 type TemplateStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
 
 interface OyamaLettersWorkspaceProps {
@@ -309,6 +309,7 @@ const LETTERS_SIDEBAR_ITEMS = [
   { label: "Generate Letters", href: "/oyama-letters/generate" },
   { label: "Print & Mail Queue", href: "/oyama-letters/queue" },
   { label: "Batches", href: "/oyama-letters/batches" },
+  { label: "Letters How To", href: "/oyama-letters/how-to" },
   { label: "Settings", href: "/oyama-letters/settings" },
 ];
 
@@ -338,6 +339,7 @@ export default function OyamaLettersWorkspace({ view = "library", templateId }: 
           {view === "publish" ? <PublishWorkspace templateId={templateId} /> : null}
           {view === "generate" ? <GenerateWorkspace /> : null}
           {view === "queue" ? <QueueWorkspace /> : null}
+          {view === "howto" ? <LettersHowToWorkspace /> : null}
           {view === "settings" ? <SettingsWorkspace /> : null}
         </div>
       </div>
@@ -420,6 +422,7 @@ function LettersSidebar({
           const active = isActiveRoute(item.href)
             || (item.href === "/oyama-letters/generate" && activeView === "generate")
             || (item.href === "/oyama-letters/queue" && activeView === "queue")
+            || (item.href === "/oyama-letters/how-to" && activeView === "howto")
             || (item.href === "/oyama-letters/settings" && activeView === "settings");
           return (
             <Link
@@ -523,6 +526,116 @@ function ProcessStepper({ view, templateId }: { view: WorkspaceView; templateId?
         );
       })}
     </div>
+  );
+}
+
+function LettersHowToWorkspace() {
+  const walkthrough = [
+    {
+      title: "1. Build a Template",
+      summary: "Create the letter layout and connect branding presets.",
+      steps: [
+        "Open Template Library and choose Create New Template.",
+        "Set template name, category, and body content in Canvas Builder.",
+        "Use Branding blocks to insert a header, footer, and signature.",
+        "Use Save, then click Publish when preflight checks are ready.",
+      ],
+      actions: [
+        { href: "/oyama-letters", label: "Open Template Library" },
+        { href: "/oyama-letters/templates/new", label: "Create New Template" },
+      ],
+    },
+    {
+      title: "2. Run Generate Preview",
+      summary: "Validate recipients, donation context, and merged content before sending.",
+      steps: [
+        "Go to Generate Letters and choose an ACTIVE template.",
+        "Pick recipients from segments, lists, filters, or individuals.",
+        "Select donation mode and delivery target.",
+        "Use Refresh Preview and Open PDF Preview to verify output.",
+      ],
+      actions: [
+        { href: "/oyama-letters/generate", label: "Open Generate Letters" },
+        { href: "/oyama-letters/queue", label: "Open Print & Mail Queue" },
+      ],
+    },
+    {
+      title: "3. Process Queue and Batches",
+      summary: "Move generated letters through print and mail workflows.",
+      steps: [
+        "Use Print & Mail Queue to review statuses and priority.",
+        "Open Preview or PDF for quality checks before final delivery.",
+        "Use queue controls to approve, print, or move mail-ready items.",
+        "Use Batches to rerun large export sets when needed.",
+      ],
+      actions: [
+        { href: "/oyama-letters/queue", label: "Open Queue" },
+        { href: "/oyama-letters/batches", label: "Open Batches" },
+      ],
+    },
+    {
+      title: "4. Keep Branding in Sync",
+      summary: "Maintain consistent logo, header, footer, and signer details.",
+      steps: [
+        "Open Settings and use Branding Settings shortcuts.",
+        "Update global branding when name, address, or logo changes.",
+        "Update letter header/footer presets and signature blocks.",
+        "Re-open PDF preview after updates to confirm output quality.",
+      ],
+      actions: [
+        { href: "/oyama-letters/settings", label: "Open Letters Settings" },
+        { href: "/settings/branding", label: "Open Global Branding" },
+      ],
+    },
+  ] as const;
+
+  return (
+    <>
+      <PageHero title="Letters How To" subtitle="Step-by-step walkthrough for creating, publishing, generating, and delivering letters.">
+        <Button href="/oyama-letters/templates/new" tone="primary">Start New Template</Button>
+        <Button href="/oyama-letters/generate">Go to Generate</Button>
+      </PageHero>
+
+      <section className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:p-6">
+        <div className="space-y-4">
+          {walkthrough.map((item) => (
+            <article key={item.title} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-lg font-semibold text-slate-900">{item.title}</p>
+              <p className="mt-1 text-sm text-slate-600">{item.summary}</p>
+              <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-slate-700">
+                {item.steps.map((step) => <li key={step}>{step}</li>)}
+              </ol>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {item.actions.map((action) => (
+                  <Button key={action.href} href={action.href}>{action.label}</Button>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <aside className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div>
+            <p className="text-base font-semibold text-slate-900">Quick Checklist</p>
+            <p className="mt-1 text-sm text-slate-600">Use this every time before production generation.</p>
+          </div>
+          <ul className="space-y-2 text-sm text-slate-700">
+            <li className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">Template status is ACTIVE</li>
+            <li className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">Header, footer, and signature are selected</li>
+            <li className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">Preview shows no missing merge data</li>
+            <li className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">Single and batch PDF previews look correct</li>
+            <li className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">Delivery target matches campaign intent</li>
+          </ul>
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Need More Detail?</p>
+            <p className="mt-1 text-sm text-emerald-900">Open support documentation for full examples and troubleshooting.</p>
+            <Link href="/help?scope=donor&scopePath=/oyama-letters" className="mt-3 inline-flex rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100">
+              View Help Articles
+            </Link>
+          </div>
+        </aside>
+      </section>
+    </>
   );
 }
 
@@ -5223,6 +5336,7 @@ function LineIcon({ name }: { name: string }) {
     "Generate Letters": "M4 7h16M4 12h10M4 17h16",
     "Print & Mail Queue": "M6 9V3h12v6M6 17H4v-6h16v6h-2M7 14h10v7H7v-7Z",
     Batches: "M5 19h14M8 16V9m4 7V5m4 11v-4",
+    "Letters How To": "M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5v-16Zm0 0A2.5 2.5 0 0 1 6.5 8H20M9 12h6m-6 4h4",
     Settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0-12v3m0 12v3M4.9 4.9 7 7m10 10 2.1 2.1M3 12h3m12 0h3",
   };
   return <svg className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d={paths[name] ?? paths["Template Library"]} /></svg>;
@@ -5408,6 +5522,7 @@ function viewLabel(view: WorkspaceView): string {
   if (view === "publish") return "Publish Workspace";
   if (view === "generate") return "Generate Letters";
   if (view === "queue") return "Print & Mail Queue";
+  if (view === "howto") return "Letters How To";
   return "Settings";
 }
 
