@@ -47,6 +47,8 @@ const LETTER_ALIGNMENT = ["LEFT", "CENTER", "RIGHT", "NONE"] as const;
 const PRINT_QUEUE_STATUSES = ["GENERATED", "NEEDS_REVIEW", "APPROVED", "QUEUED_FOR_PRINT", "PRINTED", "FAILED", "CANCELED", "ARCHIVED"] as const;
 const MAIL_QUEUE_STATUSES = ["QUEUED_FOR_MAIL", "MAILED", "RETURNED", "ADDRESS_ISSUE", "COMPLETED", "CANCELED", "ARCHIVED"] as const;
 const LETTER_PRIORITY = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
+const LETTER_DELIVERY_TARGETS = ["PDF_ONLY", "PRINT_QUEUE", "MAIL_QUEUE"] as const;
+const LETTER_DONATION_MODES = ["none", "specific", "recent"] as const;
 const LETTER_WORKFLOW_POLICY_PLUGIN_KEY = "letters-workflow-settings";
 const LETTER_PUBLISH_HISTORY_PLUGIN_KEY = "letters-template-publish-history";
 const LETTER_BRANDING_PLUGIN_KEY = "organization-branding";
@@ -65,6 +67,8 @@ type PrintQueueStatus = (typeof PRINT_QUEUE_STATUSES)[number];
 type MailQueueStatus = (typeof MAIL_QUEUE_STATUSES)[number];
 type LetterPriority = (typeof LETTER_PRIORITY)[number];
 type PdfFallbackMode = (typeof PDF_FALLBACK_MODES)[number];
+type LetterDeliveryTarget = (typeof LETTER_DELIVERY_TARGETS)[number];
+type LetterDonationMode = (typeof LETTER_DONATION_MODES)[number];
 
 interface LetterPdfBrandingContext {
   organizationName: string;
@@ -74,10 +78,13 @@ interface LetterPdfBrandingContext {
   taxId: string;
   footerLegalText: string;
   logoDataUrl: string | null;
+  logoFormat: "PNG" | "JPEG" | "WEBP" | null;
+  primaryColor: string;
 }
 
 interface LetterPdfPresetContext {
   headerPreset?: {
+    logoAlignment?: string | null;
     showOrganizationName: boolean;
     showTagline: boolean;
     showAddress: boolean;
@@ -292,6 +299,141 @@ function hasCompleteMailAddress(constituent: {
     && constituent.state?.trim()
     && constituent.zip?.trim(),
   );
+}
+
+const ADDRESS_MERGE_FIELDS = new Set([
+  "donor.addressLine1",
+  "donor.addressLine2",
+  "donor.city",
+  "donor.state",
+  "donor.zip",
+  "donor.addressBlock",
+  "constituent.addressLine1",
+  "constituent.addressLine2",
+  "constituent.city",
+  "constituent.state",
+  "constituent.zip",
+  "constituent.addressBlock",
+]);
+
+/** Returns true when a template references fields that need recipient mailing data. */
+function templateUsesAddressMergeFields(template: {
+  printBody?: string | null;
+  emailBody?: string | null;
+  printSubject?: string | null;
+  emailSubject?: string | null;
+}): boolean {
+  return collectMergeFieldKeys(template.printBody, template.emailBody, template.printSubject, template.emailSubject)
+    .some((field) => ADDRESS_MERGE_FIELDS.has(field));
+}
+
+/** Parses optional donation date filters from the batch/generate payload. */
+function parseDonationDateRange(rawRange: unknown, legacyFrom?: unknown, legacyTo?: unknown): { from?: Date; to?: Date } {
+  const parseStart = (raw: unknown): Date | undefined => {
+    if (typeof raw !== "string" || !raw.trim()) return undefined;
+    const parsed = new Date(`${raw.trim()}T00:00:00.000Z`);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  };
+  const parseEnd = (raw: unknown): Date | undefined => {
+    if (typeof raw !== "string" || !raw.trim()) return undefined;
+    const parsed = new Date(`${raw.trim()}T23:59:59.999Z`);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  };
+
+  if (rawRange && typeof rawRange === "object" && !Array.isArray(rawRange)) {
+    const range = rawRange as Record<string, unknown>;
+    return { from: parseStart(range.from), to: parseEnd(range.to) };
+  }
+
+  if (typeof legacyFrom === "string" || typeof legacyTo === "string") {
+    return { from: parseStart(legacyFrom), to: parseEnd(legacyTo) };
+  }
+
+  const label = typeof rawRange === "string" ? rawRange.trim().toLowerCase() : "";
+  const now = new Date();
+  if (label === "last 30 days") return { from: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000), to: now };
+  if (label === "last 90 days" || !label) return { from: new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000), to: now };
+  if (label === "last 12 months") return { from: new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000), to: now };
+  if (label === "this year") return { from: new Date(Date.UTC(now.getUTCFullYear(), 0, 1)), to: now };
+  if (label === "all time") return {};
+  return {};
+}
+
+/** Builds the qualifying donation filter shared by preview and batch generation. */
+function buildDonationContextFilter(body: unknown): Prisma.DonationWhereInput {
+  const raw = body && typeof body === "object" && !Array.isArray(body)
+    ? (body as Record<string, unknown>)
+    : {};
+  const range = parseDonationDateRange(raw.donationDateRange, raw.dateFrom, raw.dateTo);
+  const minimum = typeof raw.donationMinimum === "number"
+    ? raw.donationMinimum
+    : Number.parseFloat(String(raw.donationMinimum ?? ""));
+  const typeLabel = typeof raw.donationType === "string" ? raw.donationType.trim() : "";
+  const normalizedType = typeLabel.toUpperCase().replace(/[ -]/g, "_");
+  const paymentMethod = parseEnum(normalizedType, ["CREDIT_CARD", "ACH", "CHECK", "WIRE", "STOCK", "IN_KIND", "CASH", "ONLINE"] as const);
+
+  return {
+    status: "COMPLETED",
+    ...(range.from || range.to
+      ? {
+          date: {
+            ...(range.from ? { gte: range.from } : {}),
+            ...(range.to ? { lte: range.to } : {}),
+          },
+        }
+      : {}),
+    ...(Number.isFinite(minimum) && minimum > 0 ? { amount: { gte: minimum } } : {}),
+    ...(/^recurring/i.test(typeLabel) ? { isRecurring: true } : {}),
+    ...(/^one[-\s]?time/i.test(typeLabel) ? { isRecurring: false } : {}),
+    ...(paymentMethod ? { paymentMethod } : {}),
+  };
+}
+
+/** Finds the most recent completed donation matching the user's donation context choices. */
+async function resolveRecentDonationIdForRecipient(params: {
+  organizationId: string;
+  constituentId: string;
+  donationWhere: Prisma.DonationWhereInput;
+}): Promise<string | undefined> {
+  const row = await prisma.donation.findFirst({
+    where: {
+      ...params.donationWhere,
+      constituentId: params.constituentId,
+      constituent: { organizationId: params.organizationId },
+    },
+    select: { id: true },
+    orderBy: { date: "desc" },
+  });
+  return row?.id;
+}
+
+/** Produces initial queue metadata for generated letters without calling guarded queue actions. */
+function buildDeliveryQueueMetadata(params: {
+  deliveryTarget: LetterDeliveryTarget;
+  workflowPolicy: LettersWorkflowPolicy;
+  userId: string;
+  constituent?: { addressLine1?: string | null; city?: string | null; state?: string | null; zip?: string | null } | null;
+}): GeneratedLetterQueueMetadata | null {
+  const now = new Date().toISOString();
+  if (params.deliveryTarget === "PDF_ONLY") return null;
+
+  if (params.deliveryTarget === "PRINT_QUEUE") {
+    return {
+      printStatus: params.workflowPolicy.requirePrintApproval ? "NEEDS_REVIEW" : "QUEUED_FOR_PRINT",
+      reviewStatus: params.workflowPolicy.requirePrintApproval ? "NEEDS_REVIEW" : "APPROVED",
+      priority: params.workflowPolicy.defaultPriority,
+      queuedForPrintAt: params.workflowPolicy.requirePrintApproval ? undefined : now,
+      updatedByUserId: params.userId,
+    };
+  }
+
+  const addressComplete = hasCompleteMailAddress(params.constituent);
+  return {
+    mailStatus: params.workflowPolicy.enableAddressValidationGate && !addressComplete ? "ADDRESS_ISSUE" : "QUEUED_FOR_MAIL",
+    priority: params.workflowPolicy.defaultPriority,
+    queuedForMailAt: params.workflowPolicy.enableAddressValidationGate && !addressComplete ? undefined : now,
+    updatedByUserId: params.userId,
+  };
 }
 
 /** Parses a positive integer value with fallback and min/max bounds. */
@@ -721,24 +863,56 @@ function inferSupportedPdfLogoMime(filePath: string): "image/png" | "image/jpeg"
   return null;
 }
 
-async function loadBrandingLogoDataUrl(rawLogoPath: string): Promise<string | null> {
+function inferPdfLogoFormatFromDataUrl(value: string): "PNG" | "JPEG" | "WEBP" | null {
+  if (value.startsWith("data:image/png")) return "PNG";
+  if (value.startsWith("data:image/jpeg") || value.startsWith("data:image/jpg")) return "JPEG";
+  if (value.startsWith("data:image/webp")) return "WEBP";
+  return null;
+}
+
+function normalizePdfHexColor(value: string): [number, number, number] {
+  const normalized = /^#[0-9a-fA-F]{6}$/.test(value) ? value : "#0f766e";
+  return [
+    Number.parseInt(normalized.slice(1, 3), 16),
+    Number.parseInt(normalized.slice(3, 5), 16),
+    Number.parseInt(normalized.slice(5, 7), 16),
+  ];
+}
+
+async function loadBrandingLogoDataUrl(rawLogoPath: string): Promise<{ dataUrl: string; format: "PNG" | "JPEG" | "WEBP" } | null> {
   const logoPath = rawLogoPath.trim().replace(/\\/g, "/");
+  const inlineFormat = inferPdfLogoFormatFromDataUrl(logoPath);
+  if (inlineFormat) return { dataUrl: logoPath, format: inlineFormat };
   if (!logoPath.startsWith("/")) return null;
 
   const publicDir = path.resolve(process.cwd(), "public");
   const absolutePath = path.resolve(publicDir, `.${logoPath}`);
   if (!absolutePath.startsWith(publicDir)) return null;
 
-  const mimeType = inferSupportedPdfLogoMime(absolutePath);
+  const extension = path.extname(absolutePath).toLowerCase();
+  const mimeType = extension === ".webp" ? "image/webp" : inferSupportedPdfLogoMime(absolutePath);
   if (!mimeType) return null;
+  const format = mimeType === "image/jpeg" ? "JPEG" : mimeType === "image/webp" ? "WEBP" : "PNG";
 
   try {
     const bytes = await readFile(absolutePath);
     if (bytes.byteLength === 0) return null;
-    return `data:${mimeType};base64,${bytes.toString("base64")}`;
+    return { dataUrl: `data:${mimeType};base64,${bytes.toString("base64")}`, format };
   } catch {
     return null;
   }
+}
+
+async function resolveBrandingLogoDataUrl(branding: unknown): Promise<{ dataUrl: string; format: "PNG" | "JPEG" | "WEBP" } | null> {
+  const candidates = [
+    readTextConfig(branding, "logoUrl"),
+    readTextConfig(branding, "logoSquareUrl"),
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    const logo = await loadBrandingLogoDataUrl(candidate);
+    if (logo) return logo;
+  }
+  return null;
 }
 
 async function getLetterPdfBrandingContext(organizationId: string): Promise<LetterPdfBrandingContext> {
@@ -763,8 +937,7 @@ async function getLetterPdfBrandingContext(organizationId: string): Promise<Lett
     readTextConfig(branding, "contactEmail") || settings?.smtpFromEmail || "",
     readTextConfig(branding, "websiteUrl"),
   ].filter(Boolean).join(" | ");
-  const logoPath = readTextConfig(branding, "logoUrl") || readTextConfig(branding, "logoSquareUrl");
-  const logoDataUrl = logoPath ? await loadBrandingLogoDataUrl(logoPath) : null;
+  const logo = await resolveBrandingLogoDataUrl(branding);
 
   return {
     organizationName,
@@ -773,7 +946,9 @@ async function getLetterPdfBrandingContext(organizationId: string): Promise<Lett
     contactLine,
     taxId: readTextConfig(branding, "taxId"),
     footerLegalText: readTextConfig(branding, "footerLegalText"),
-    logoDataUrl,
+    logoDataUrl: logo?.dataUrl ?? null,
+    logoFormat: logo?.format ?? null,
+    primaryColor: readTextConfig(branding, "primaryColor") || "#0f766e",
   };
 }
 
@@ -813,45 +988,73 @@ function footerLines(branding: LetterPdfBrandingContext, preset?: LetterPdfPrese
   ].filter(Boolean);
 }
 
-function drawPdfChrome(doc: JsPdfDocument, branding: LetterPdfBrandingContext, presets: LetterPdfPresetContext): void {
+function drawPdfChrome(
+  doc: JsPdfDocument,
+  branding: LetterPdfBrandingContext,
+  presets: LetterPdfPresetContext,
+  pageRange?: { startPage?: number; endPage?: number },
+): void {
   const pageCount = doc.getNumberOfPages();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const marginX = 54;
   const footerY = pageHeight - 54;
-  const logoWidth = 56;
-  const logoHeight = 56;
-  const hasLogo = Boolean(branding.logoDataUrl);
-  const headerTextX = hasLogo ? marginX + logoWidth + 12 : marginX;
+  const logoWidth = 48;
+  const logoHeight = 48;
+  const normalizedLogoAlignment = String(presets.headerPreset?.logoAlignment ?? "LEFT").toUpperCase();
+  const logoAlignment = normalizedLogoAlignment === "CENTER" || normalizedLogoAlignment === "RIGHT" || normalizedLogoAlignment === "NONE"
+    ? normalizedLogoAlignment
+    : "LEFT";
+  const showLogoSlot = logoAlignment !== "NONE";
+  const hasLogo = showLogoSlot && Boolean(branding.logoDataUrl);
+  const hasFallbackLogo = showLogoSlot && !hasLogo;
+  const headerTextAlign = logoAlignment === "CENTER" ? "center" : logoAlignment === "RIGHT" ? "right" : "left";
+  const headerTextX = logoAlignment === "CENTER" ? pageWidth / 2 : logoAlignment === "RIGHT" ? pageWidth - marginX : marginX;
+  const logoX = logoAlignment === "CENTER" ? (pageWidth - logoWidth) / 2 : logoAlignment === "RIGHT" ? pageWidth - marginX - logoWidth : marginX;
   const header = headerLines(branding, presets.headerPreset);
   const footer = footerLines(branding, presets.footerPreset);
-  const logoFormat: "PNG" | "JPEG" = branding.logoDataUrl?.startsWith("data:image/jpeg") ? "JPEG" : "PNG";
+  const logoFormat = branding.logoFormat ?? "PNG";
+  const [brandR, brandG, brandB] = normalizePdfHexColor(branding.primaryColor);
+  const firstPage = Math.max(1, pageRange?.startPage ?? 1);
+  const lastPage = Math.min(pageCount, pageRange?.endPage ?? pageCount);
 
-  for (let page = 1; page <= pageCount; page += 1) {
+  for (let page = firstPage; page <= lastPage; page += 1) {
     doc.setPage(page);
     doc.setDrawColor(226, 232, 240);
     doc.setTextColor(15, 23, 42);
 
     if (hasLogo && branding.logoDataUrl) {
       try {
-        doc.addImage(branding.logoDataUrl, logoFormat, marginX, 28, logoWidth, logoHeight);
+        doc.addImage(branding.logoDataUrl, logoFormat, logoX, 24, logoWidth, logoHeight);
       } catch {
         // Keep PDF generation resilient if logo decoding fails.
       }
     }
+    if (hasFallbackLogo) {
+      doc.setFillColor(brandR, brandG, brandB);
+      doc.roundedRect(logoX, 24, logoWidth, logoHeight, 8, 8, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(255, 255, 255);
+      doc.text((branding.organizationName.trim()[0] || "O").toUpperCase(), logoX + logoWidth / 2, 55, { align: "center" });
+      doc.setTextColor(15, 23, 42);
+    }
 
-    if (header.length > 0 || hasLogo) {
+    if (header.length > 0 || hasLogo || hasFallbackLogo) {
+      const headerTextY = hasLogo || hasFallbackLogo ? 84 : 42;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
-      if (header[0]) doc.text(header[0], headerTextX, 42);
+      if (header[0]) doc.text(header[0], headerTextX, headerTextY, { align: headerTextAlign });
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8.5);
       header.slice(1, 4).forEach((line, index) => {
-        doc.text(line, headerTextX, 57 + index * 11);
+        doc.text(line, headerTextX, headerTextY + 15 + index * 11, { align: headerTextAlign });
       });
-      doc.line(marginX, 92, pageWidth - marginX, 92);
+      doc.setDrawColor(brandR, brandG, brandB);
+      doc.line(marginX, 116, pageWidth - marginX, 116);
     }
 
+    doc.setDrawColor(226, 232, 240);
     doc.line(marginX, footerY - 16, pageWidth - marginX, footerY - 16);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
@@ -859,9 +1062,6 @@ function drawPdfChrome(doc: JsPdfDocument, branding: LetterPdfBrandingContext, p
     footer.slice(0, 4).forEach((line, index) => {
       doc.text(line, marginX, footerY + index * 10);
     });
-    if (presets.footerPreset?.showPageNumber) {
-      doc.text(`Page ${page} of ${pageCount}`, pageWidth - marginX, footerY, { align: "right" });
-    }
   }
 }
 
@@ -879,7 +1079,7 @@ function appendSignatureBlocks(blocks: PdfContentBlock[], signature?: LetterPdfP
   return next;
 }
 
-function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], options: { startY: number; itemLabel?: string }): void {
+function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], options: { startY: number }): void {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const marginX = 54;
@@ -910,8 +1110,6 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
     }
     cursorY += marginAfter;
   };
-
-  if (options.itemLabel) writeText(options.itemLabel, 8.5, "normal", 12);
 
   for (const block of blocks.length > 0 ? blocks : [{ kind: "paragraph", text: "(No letter content)" } as PdfContentBlock]) {
     if (block.kind === "heading") {
@@ -959,8 +1157,7 @@ async function renderGeneratedLetterPdf(params: {
 
   const blocks = appendSignatureBlocks(htmlToPdfBlocks(params.mergedPrintBody || ""), params.presets.signatureBlock);
   renderPdfContentBlocks(doc, blocks, {
-    startY: 122,
-    itemLabel: params.constituentName ? `Generated for ${params.constituentName} on ${params.generatedAt.toLocaleDateString()}` : undefined,
+    startY: 150,
   });
   drawPdfChrome(doc, params.branding, params.presets);
 
@@ -985,13 +1182,17 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
     if (index > 0) {
       doc.addPage();
     }
+    const startPage = doc.getNumberOfPages();
     const blocks = appendSignatureBlocks(htmlToPdfBlocks(item.mergedPrintBody || ""), item.presets.signatureBlock);
     renderPdfContentBlocks(doc, blocks, {
-      startY: 122,
-      itemLabel: `Batch item ${index + 1} of ${items.length}${item.constituentName ? ` - ${item.constituentName}` : ""}`,
+      startY: 150,
+    });
+    const endPage = doc.getNumberOfPages();
+    drawPdfChrome(doc, item.branding, item.presets, {
+      startPage,
+      endPage,
     });
   });
-  if (items[0]) drawPdfChrome(doc, items[0].branding, items[0].presets);
 
   const pdfBytes = doc.output("arraybuffer");
   return Buffer.from(pdfBytes);
@@ -1857,6 +2058,9 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
     select: {
       id: true,
       name: true,
+      headerPresetId: true,
+      footerPresetId: true,
+      signatureBlockId: true,
       printSubject: true,
       printBody: true,
       emailSubject: true,
@@ -1871,14 +2075,33 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
     return;
   }
 
+  const requestedConstituentId = typeof req.body?.constituentId === "string" ? req.body.constituentId.trim() : "";
+  const draftInput = req.body?.draft && typeof req.body.draft === "object" && !Array.isArray(req.body.draft)
+    ? req.body.draft as Record<string, unknown>
+    : null;
+  const draftHeaderPresetId = typeof draftInput?.headerPresetId === "string" ? draftInput.headerPresetId.trim() : "";
+  const draftFooterPresetId = typeof draftInput?.footerPresetId === "string" ? draftInput.footerPresetId.trim() : "";
+  const draftSignatureBlockId = typeof draftInput?.signatureBlockId === "string" ? draftInput.signatureBlockId.trim() : "";
+  const previewTemplate = {
+    id: template.id,
+    name: typeof draftInput?.name === "string" && draftInput.name.trim() ? draftInput.name.trim() : template.name,
+    printSubject: typeof draftInput?.printSubject === "string" ? draftInput.printSubject : template.printSubject,
+    printBody: typeof draftInput?.printBody === "string" ? draftInput.printBody : template.printBody,
+    emailSubject: typeof draftInput?.emailSubject === "string" ? draftInput.emailSubject : template.emailSubject,
+    emailBody: typeof draftInput?.emailBody === "string" ? draftInput.emailBody : template.emailBody,
+  };
+
   const sampleConstituent = await prisma.constituent.findFirst({
-    where: { organizationId, doNotMail: false },
+    where: requestedConstituentId
+      ? { id: requestedConstituentId, organizationId }
+      : { organizationId, doNotMail: false },
     select: {
       id: true,
       firstName: true,
       lastName: true,
       doNotMail: true,
       addressLine1: true,
+      addressLine2: true,
       city: true,
       state: true,
       zip: true,
@@ -1897,9 +2120,21 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
   }
 
   try {
+    const [previewHeaderPreset, previewFooterPreset, previewSignatureBlock] = await Promise.all([
+      draftHeaderPresetId
+        ? prisma.letterHeaderPreset.findFirst({ where: { id: draftHeaderPresetId, organizationId } })
+        : Promise.resolve(template.headerPreset),
+      draftFooterPresetId
+        ? prisma.letterFooterPreset.findFirst({ where: { id: draftFooterPresetId, organizationId } })
+        : Promise.resolve(template.footerPreset),
+      draftSignatureBlockId
+        ? prisma.letterSignatureBlock.findFirst({ where: { id: draftSignatureBlockId, organizationId } })
+        : Promise.resolve(template.signatureBlock),
+    ]);
+
     const merged = await resolveLetterMergeContext({
       organizationId,
-      template,
+      template: previewTemplate,
       constituentId: sampleConstituent.id,
       actorUserId: userId,
     });
@@ -1909,20 +2144,20 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
       .filter((value): value is string => Boolean(value && value.trim()))
       .join(" ")
       .trim();
-    const templateName = template.name?.trim() || "Template Sample";
-    const subject = merged.mergedPrintSubject?.trim() || template.printSubject?.trim() || templateName;
+    const templateName = previewTemplate.name?.trim() || "Template Sample";
+    const subject = merged.mergedPrintSubject?.trim() || previewTemplate.printSubject?.trim() || templateName;
 
     const pdfBuffer = await renderGeneratedLetterPdf({
       templateName,
       subject,
       constituentName,
       generatedAt: new Date(),
-      mergedPrintBody: merged.mergedPrintBody || template.printBody || "",
+      mergedPrintBody: merged.mergedPrintBody || previewTemplate.printBody || "",
       branding,
       presets: {
-        headerPreset: template.headerPreset,
-        footerPreset: template.footerPreset,
-        signatureBlock: template.signatureBlock,
+        headerPreset: previewHeaderPreset,
+        footerPreset: previewFooterPreset,
+        signatureBlock: previewSignatureBlock,
       },
     });
 
@@ -1939,6 +2174,7 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
         mode: "SERVER_RENDER",
         status: "SUCCESS",
         sampleConstituentId: sampleConstituent.id,
+        draftPreview: Boolean(draftInput),
         byteLength: pdfBuffer.byteLength,
       },
     });
@@ -2588,11 +2824,19 @@ router.post("/generated/preview", requirePermission("letters.generate"), async (
   }
 
   const year = typeof req.body?.year === "number" ? req.body.year : Number.parseInt(String(req.body?.year ?? ""), 10);
+  const constituentId = typeof req.body?.constituentId === "string" ? req.body.constituentId : undefined;
+  const donationMode = parseEnum(req.body?.donationMode, LETTER_DONATION_MODES) ?? (req.body?.donationId ? "specific" : "none");
+  const donationWhere = buildDonationContextFilter(req.body);
+  const resolvedDonationId = donationMode === "specific"
+    ? (typeof req.body?.donationId === "string" ? req.body.donationId : undefined)
+    : donationMode === "recent" && constituentId
+      ? await resolveRecentDonationIdForRecipient({ organizationId, constituentId, donationWhere })
+      : undefined;
   const merged = await resolveLetterMergeContext({
     organizationId,
     template,
-    constituentId: typeof req.body?.constituentId === "string" ? req.body.constituentId : undefined,
-    donationId: typeof req.body?.donationId === "string" ? req.body.donationId : undefined,
+    constituentId,
+    donationId: resolvedDonationId,
     campaignId: typeof req.body?.campaignId === "string" ? req.body.campaignId : undefined,
     eventId: typeof req.body?.eventId === "string" ? req.body.eventId : undefined,
     year: Number.isFinite(year) ? year : undefined,
@@ -2632,10 +2876,27 @@ router.post("/generated", requirePermission("letters.generate"), async (req, res
   }
 
   const constituentId = typeof req.body?.constituentId === "string" ? req.body.constituentId : undefined;
-  const donationId = typeof req.body?.donationId === "string" ? req.body.donationId : undefined;
+  const donationMode = parseEnum(req.body?.donationMode, LETTER_DONATION_MODES) ?? (req.body?.donationId ? "specific" : "none");
+  const donationWhere = buildDonationContextFilter(req.body);
+  const donationId = donationMode === "specific"
+    ? (typeof req.body?.donationId === "string" ? req.body.donationId : undefined)
+    : donationMode === "recent" && constituentId
+      ? await resolveRecentDonationIdForRecipient({ organizationId, constituentId, donationWhere })
+      : undefined;
   const campaignId = typeof req.body?.campaignId === "string" ? req.body.campaignId : undefined;
   const eventId = typeof req.body?.eventId === "string" ? req.body.eventId : undefined;
   const year = typeof req.body?.year === "number" ? req.body.year : Number.parseInt(String(req.body?.year ?? ""), 10);
+  const deliveryTarget = parseEnum(req.body?.deliveryTarget, LETTER_DELIVERY_TARGETS) ?? "PDF_ONLY";
+  const workflowPolicy = await getLettersWorkflowPolicy(organizationId);
+  if (deliveryTarget === "MAIL_QUEUE" && !workflowPolicy.allowDirectMailQueue) {
+    res.status(409).json({
+      error: {
+        code: "DIRECT_MAIL_QUEUE_DISABLED",
+        message: "Workflow policy disables direct mail queue generation. Generate to PDF or print review first.",
+      },
+    });
+    return;
+  }
 
   const mergedPreview = await resolveLetterMergeContext({
     organizationId,
@@ -2664,6 +2925,13 @@ router.post("/generated", requirePermission("letters.generate"), async (req, res
   const validation = validateGenerationPlan({
     constituent: targetConstituent,
     merged: mergedPreview,
+    options: {
+      requireMailingAddress: deliveryTarget === "MAIL_QUEUE" && workflowPolicy.enableAddressValidationGate
+        ? true
+        : deliveryTarget === "PDF_ONLY" && templateUsesAddressMergeFields(template),
+      requireMergeData: true,
+      allowPdfOnlyWithoutAddress: deliveryTarget === "PDF_ONLY" && !templateUsesAddressMergeFields(template),
+    },
   });
   if (!validation.valid) {
     res.status(422).json({
@@ -2693,6 +2961,21 @@ router.post("/generated", requirePermission("letters.generate"), async (req, res
   if (!result) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Template not found." } });
     return;
+  }
+
+  const queueMetadata = buildDeliveryQueueMetadata({
+    deliveryTarget,
+    workflowPolicy,
+    userId,
+    constituent: targetConstituent,
+  });
+  if (queueMetadata) {
+    await prisma.generatedLetter.update({
+      where: { id: result.generated.id },
+      data: {
+        metadataJson: buildMetadataWithQueue(result.generated.metadataJson, queueMetadata),
+      },
+    });
   }
 
   const generated = await prisma.generatedLetter.findUnique({
@@ -3245,7 +3528,7 @@ router.post("/generated/queue/mail/actions", requirePermission("letters.manage_m
     return;
   }
 
-  const action = parseEnum(req.body?.action, ["QUEUE_FOR_MAIL", "MARK_MAILED", "MARK_RETURNED", "ADDRESS_ISSUE", "REPRINT", "ARCHIVE"] as const);
+  const action = parseEnum(req.body?.action, ["QUEUE_FOR_MAIL", "MARK_MAILED", "MARK_RETURNED", "ADDRESS_ISSUE", "REPRINT", "DELETE_PRINTS", "ARCHIVE"] as const);
   if (!action) {
     res.status(400).json({ error: { code: "INVALID_ACTION", message: "Invalid mail queue action." } });
     return;
@@ -3340,6 +3623,12 @@ router.post("/generated/queue/mail/actions", requirePermission("letters.manage_m
       }
 
       nextStatus = "GENERATED";
+    }
+    if (action === "DELETE_PRINTS") {
+      nextQueue.mailStatus = "CANCELED";
+      nextQueue.printStatus = "CANCELED";
+      nextQueue.statusNote = note || "Print files deleted from mail queue.";
+      nextStatus = "ARCHIVED";
     }
     if (action === "ARCHIVE") {
       nextQueue.mailStatus = "ARCHIVED";
@@ -3710,7 +3999,22 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
   const workflowPolicy = await getLettersWorkflowPolicy(organizationId);
 
   const dryRun = req.body?.dryRun === true;
-  const addToPrintQueue = req.body?.addToPrintQueue !== false;
+  const deliveryTarget = parseEnum(req.body?.deliveryTarget, LETTER_DELIVERY_TARGETS)
+    ?? (req.body?.addToPrintQueue === true ? "PRINT_QUEUE" : "PDF_ONLY");
+  if (deliveryTarget === "MAIL_QUEUE" && !workflowPolicy.allowDirectMailQueue) {
+    res.status(409).json({
+      error: {
+        code: "DIRECT_MAIL_QUEUE_DISABLED",
+        message: "Workflow policy disables direct mail queue generation. Generate to PDF or print review first.",
+      },
+    });
+    return;
+  }
+  const addToPrintQueue = deliveryTarget === "PRINT_QUEUE";
+  const donationMode = parseEnum(req.body?.donationMode, LETTER_DONATION_MODES) ?? (req.body?.donationId ? "specific" : "none");
+  const specificDonationId = typeof req.body?.donationId === "string" && req.body.donationId.trim() ? req.body.donationId.trim() : undefined;
+  const donationContextFilter = buildDonationContextFilter(req.body);
+  const templateNeedsAddress = templateUsesAddressMergeFields(template);
   const dedupeHousehold = req.body?.dedupeHousehold === true;
   const year = typeof req.body?.year === "number"
     ? req.body.year
@@ -3786,6 +4090,7 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
   const generatedIds: string[] = [];
   const generatedSample: Array<{ id: string; constituentId: string; constituentName: string }> = [];
   let queuedForPrintCount = 0;
+  let queuedForMailCount = 0;
 
   for (const candidate of candidates) {
     if (dedupeHousehold && candidate.householdId) {
@@ -3796,10 +4101,21 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
       seenHouseholds.add(candidate.householdId);
     }
 
+    const recipientDonationId = donationMode === "specific"
+      ? specificDonationId
+      : donationMode === "recent"
+        ? await resolveRecentDonationIdForRecipient({
+            organizationId,
+            constituentId: candidate.id,
+            donationWhere: donationContextFilter,
+          })
+        : undefined;
+
     const preview = await resolveLetterMergeContext({
       organizationId,
       template,
       constituentId: candidate.id,
+      donationId: recipientDonationId,
       year: Number.isFinite(year) ? year : undefined,
       actorUserId: userId,
     });
@@ -3807,6 +4123,13 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
     const validation = validateGenerationPlan({
       constituent: candidate,
       merged: preview,
+      options: {
+        requireMailingAddress: deliveryTarget === "MAIL_QUEUE" && workflowPolicy.enableAddressValidationGate
+          ? true
+          : deliveryTarget === "PDF_ONLY" && templateNeedsAddress,
+        requireMergeData: true,
+        allowPdfOnlyWithoutAddress: deliveryTarget === "PDF_ONLY" && !templateNeedsAddress,
+      },
     });
     if (!validation.valid) {
       const firstReason = validation.reasons.find((reason) => reason !== "VALID") ?? "MISSING_REQUIRED_MERGE_DATA";
@@ -3828,6 +4151,7 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
       templateId,
       actorUserId: userId,
       constituentId: candidate.id,
+      donationId: recipientDonationId,
       year: Number.isFinite(year) ? year : undefined,
       activeOnly: true,
     });
@@ -3844,23 +4168,25 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
       constituentName: `${candidate.firstName} ${candidate.lastName}`.trim(),
     });
 
-    if (addToPrintQueue && workflowPolicy.autoQueueBatchToPrint) {
-      const queue: GeneratedLetterQueueMetadata = {
-        printStatus: workflowPolicy.requirePrintApproval ? "NEEDS_REVIEW" : "QUEUED_FOR_PRINT",
-        reviewStatus: workflowPolicy.requirePrintApproval ? "NEEDS_REVIEW" : "APPROVED",
-        priority: workflowPolicy.defaultPriority,
-        queuedForPrintAt: workflowPolicy.requirePrintApproval ? undefined : new Date().toISOString(),
-        updatedByUserId: userId,
-      };
-
-      await prisma.generatedLetter.update({
-        where: { id: generated.generated.id },
-        data: {
-          metadataJson: buildMetadataWithQueue(generated.generated.metadataJson, queue),
-        },
+    if ((deliveryTarget === "PRINT_QUEUE" && workflowPolicy.autoQueueBatchToPrint) || deliveryTarget === "MAIL_QUEUE") {
+      const queue = buildDeliveryQueueMetadata({
+        deliveryTarget,
+        workflowPolicy,
+        userId,
+        constituent: candidate,
       });
 
-      queuedForPrintCount += 1;
+      if (queue) {
+        await prisma.generatedLetter.update({
+          where: { id: generated.generated.id },
+          data: {
+            metadataJson: buildMetadataWithQueue(generated.generated.metadataJson, queue),
+          },
+        });
+
+        if (deliveryTarget === "PRINT_QUEUE") queuedForPrintCount += 1;
+        if (deliveryTarget === "MAIL_QUEUE") queuedForMailCount += 1;
+      }
     }
   }
 
@@ -3878,6 +4204,8 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
     metadata: {
       dryRun,
       filterType,
+      deliveryTarget,
+      donationMode,
       campaignId,
       dateFrom: dateFrom && !Number.isNaN(dateFrom.getTime()) ? dateFrom.toISOString() : null,
       dateTo: dateTo && !Number.isNaN(dateTo.getTime()) ? dateTo.toISOString() : null,
@@ -3900,10 +4228,15 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
     skipped,
     generated: generatedSample.slice(0, 200),
     addToPrintQueue,
+    deliveryTarget,
+    donationMode,
     queuedForPrintCount,
+    queuedForMailCount,
     queuePolicyApplied: {
       autoQueueBatchToPrint: workflowPolicy.autoQueueBatchToPrint,
       requirePrintApproval: workflowPolicy.requirePrintApproval,
+      allowDirectMailQueue: workflowPolicy.allowDirectMailQueue,
+      enableAddressValidationGate: workflowPolicy.enableAddressValidationGate,
       defaultPriority: workflowPolicy.defaultPriority,
     },
   });

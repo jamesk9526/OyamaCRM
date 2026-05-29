@@ -75,6 +75,11 @@ interface GenerationValidationInput {
     zip?: string | null;
   } | null;
   merged: Pick<ResolveMergeContextOutput, "missingFields" | "unsupportedFields" | "mergedPrintBody">;
+  options?: {
+    requireMailingAddress?: boolean;
+    requireMergeData?: boolean;
+    allowPdfOnlyWithoutAddress?: boolean;
+  };
 }
 
 interface TemplateForGenerationOptions {
@@ -120,12 +125,15 @@ function hasCompleteMailAddress(constituent: GenerationValidationInput["constitu
 /** Applies the same eligibility rules used by single and batch generation flows. */
 export function validateGenerationPlan(input: GenerationValidationInput): GenerationValidationResult {
   const reasons: GenerationValidationCode[] = [];
+  const requireMailingAddress = input.options?.requireMailingAddress ?? true;
+  const requireMergeData = input.options?.requireMergeData ?? true;
+  const allowPdfOnlyWithoutAddress = input.options?.allowPdfOnlyWithoutAddress ?? false;
 
   if (input.constituent?.doNotMail) {
     reasons.push("SUPPRESSED_DO_NOT_MAIL");
   }
 
-  if (!hasCompleteMailAddress(input.constituent)) {
+  if (requireMailingAddress && !allowPdfOnlyWithoutAddress && !hasCompleteMailAddress(input.constituent)) {
     reasons.push("MISSING_ADDRESS");
   }
 
@@ -133,7 +141,7 @@ export function validateGenerationPlan(input: GenerationValidationInput): Genera
     reasons.push("UNSUPPORTED_MERGE_FIELD");
   }
 
-  if ((input.merged.missingFields ?? []).length > 0 || input.merged.mergedPrintBody.includes("{{")) {
+  if (requireMergeData && ((input.merged.missingFields ?? []).length > 0 || input.merged.mergedPrintBody.includes("{{"))) {
     reasons.push("MISSING_REQUIRED_MERGE_DATA");
   }
 

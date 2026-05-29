@@ -302,7 +302,6 @@ function FooterEditor({ form, setForm, saving, onSave }: { form: FooterForm; set
         <Toggle label="Email" checked={form.showEmail} onChange={(value) => setForm({ ...form, showEmail: value })} />
         <Toggle label="Website" checked={form.showWebsite} onChange={(value) => setForm({ ...form, showWebsite: value })} />
         <Toggle label="Tax ID" checked={form.showTaxId} onChange={(value) => setForm({ ...form, showTaxId: value })} />
-        <Toggle label="Page Number" checked={form.showPageNumber} onChange={(value) => setForm({ ...form, showPageNumber: value })} />
         <Toggle label="Default" checked={form.isDefault} onChange={(value) => setForm({ ...form, isDefault: value })} />
         <Toggle label="Active" checked={form.isActive} onChange={(value) => setForm({ ...form, isActive: value })} />
       </ToggleGrid>
@@ -367,7 +366,6 @@ function PresetPreview({ branding, header, footer, tab }: { branding: BrandingSe
               {footerContactLine && <p>{footerContactLine}</p>}
               {footer.showTaxId && branding.taxId && <p>Tax ID: {branding.taxId}</p>}
               {footer.customText && <p className="whitespace-pre-line">{footer.customText}</p>}
-              {footer.showPageNumber && <p>Page 1</p>}
             </>
           )}
         </footer>

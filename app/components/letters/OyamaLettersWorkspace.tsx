@@ -112,7 +112,10 @@ interface BatchResult {
   generated?: Array<{ id: string; constituentId: string; constituentName: string }>;
   generatedSample?: Array<{ id: string; constituentId: string; constituentName: string }>;
   addToPrintQueue?: boolean;
+  deliveryTarget?: DeliveryTarget;
+  donationMode?: "none" | "specific" | "recent";
   queuedForPrintCount?: number;
+  queuedForMailCount?: number;
 }
 
 interface WorkflowPolicy {
@@ -172,7 +175,7 @@ interface PublishHistoryResponse {
   count: number;
 }
 
-type SettingsTab = "organization" | "headers" | "footers" | "workflow";
+type SettingsTab = "organization" | "workflow";
 type GenerateMode = "single" | "batch";
 type DeliveryTarget = "PDF_ONLY" | "PRINT_QUEUE" | "MAIL_QUEUE";
 
@@ -277,7 +280,7 @@ const EMPTY_FOOTER_PRESET: FooterPresetDraft = {
   showEmail: true,
   showWebsite: true,
   showTaxId: true,
-  showPageNumber: true,
+  showPageNumber: false,
   customText: "",
   customHtml: "",
   isDefault: true,
@@ -612,6 +615,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [footers, setFooters] = useState<FooterPreset[]>([]);
   const [signatures, setSignatures] = useState<SignatureBlock[]>([]);
   const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
+  const [constituents, setConstituents] = useState<ConstituentLookup[]>([]);
   const [activeRibbon, setActiveRibbon] = useState<"File" | "Insert" | "Format" | "Layout" | "Review" | "View">("Insert");
   const [inspectorTab, setInspectorTab] = useState<"Document" | "Merge Fields" | "Block Settings">("Document");
   const [pageSize, setPageSize] = useState("Letter (8.5 x 11 in)");
@@ -632,23 +636,35 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [inspectorPreflight, setInspectorPreflight] = useState<PublishValidationResult | null>(null);
   const [inspectorPreflightLoading, setInspectorPreflightLoading] = useState(false);
   const [inspectorPreflightError, setInspectorPreflightError] = useState<string | null>(null);
+  const [testConstituentId, setTestConstituentId] = useState("");
+  const [testConstituentLookupOpen, setTestConstituentLookupOpen] = useState(false);
+  const [testConstituentSearch, setTestConstituentSearch] = useState("");
+  const [editorPdfUrl, setEditorPdfUrl] = useState<string | null>(null);
+  const [editorPdfTitle, setEditorPdfTitle] = useState("Server PDF Preview");
+  const [editorPdfFileName, setEditorPdfFileName] = useState("letter-template-preview.pdf");
+  const [editorPdfOpen, setEditorPdfOpen] = useState(false);
+  const [editorPdfLoading, setEditorPdfLoading] = useState(false);
+  const [editorPdfError, setEditorPdfError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
     setLoading(Boolean(templateId));
     try {
-      const [fields, headerRows, footerRows, signatureRows, brandingRow] = await Promise.all([
+      const [fields, headerRows, footerRows, signatureRows, brandingRow, constituentRows] = await Promise.all([
         apiFetch<{ sections: MergeFieldSection[] }>("/api/letters/merge-fields"),
         apiFetch<HeaderPreset[]>("/api/letters/header-presets"),
         apiFetch<FooterPreset[]>("/api/letters/footer-presets"),
         apiFetch<SignatureBlock[]>("/api/letters/signatures"),
         apiFetch<BrandingSettings>("/api/settings/branding"),
+        apiFetch<ConstituentLookup[]>("/api/constituents?limit=all").catch(() => []),
       ]);
       setMergeSections(fields.sections ?? []);
       setHeaders(headerRows);
       setFooters(footerRows);
       setSignatures(signatureRows);
       setBranding(normalizeBrandingSettings(brandingRow));
+      setConstituents(constituentRows);
+      setTestConstituentId((current) => current || constituentRows.find((item) => !item.doNotMail)?.id || constituentRows[0]?.id || "");
 
       if (templateId) {
         const [template, preflightResult] = await Promise.all([
@@ -717,6 +733,103 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     const normalizedBody = draft.printBody || "<p></p>";
     if (editor.innerHTML !== normalizedBody) editor.innerHTML = normalizedBody;
   }, [draft.printBody]);
+
+  useEffect(() => {
+    return () => {
+      if (editorPdfUrl) URL.revokeObjectURL(editorPdfUrl);
+    };
+  }, [editorPdfUrl]);
+
+  function readEditorPdfFileName(response: Response, fallback: string): string {
+    const disposition = response.headers.get("content-disposition") ?? "";
+    const quotedMatch = disposition.match(/filename="([^"]+)"/i);
+    if (quotedMatch?.[1]) return quotedMatch[1];
+    const plainMatch = disposition.match(/filename=([^;]+)/i);
+    if (plainMatch?.[1]) return plainMatch[1].trim();
+    return fallback;
+  }
+
+  function currentDraftSnapshot(): TemplateDraft {
+    return {
+      ...draft,
+      printBody: editorRef.current?.innerHTML ?? draft.printBody,
+    };
+  }
+
+  async function openServerPdfPreview(targetConstituentId = testConstituentId) {
+    if (!targetConstituentId) {
+      setTestConstituentLookupOpen(true);
+      setEditorPdfError("Choose a test constituent before rendering the live PDF preview.");
+      return;
+    }
+
+    const activeTemplateId = templateId || await save();
+    if (!activeTemplateId) return;
+
+    setEditorPdfLoading(true);
+    setEditorPdfError(null);
+    try {
+      const response = await apiFetchResponse(`/api/letters/templates/${encodeURIComponent(activeTemplateId)}/sample-pdf?preview=1&inline=1`, {
+        method: "POST",
+        body: JSON.stringify({
+          constituentId: targetConstituentId,
+          draft: currentDraftSnapshot(),
+        }),
+      });
+      if (!response.ok) {
+        let message = `Server PDF preview failed (${response.status}).`;
+        try {
+          const parsed = await response.json();
+          if (parsed?.error?.message) message = String(parsed.error.message);
+        } catch {
+          // Keep default message when response is not JSON.
+        }
+        throw new Error(message);
+      }
+
+      const pdfBlob = await response.blob();
+      if (pdfBlob.size === 0) throw new Error("Server PDF preview returned an empty file.");
+      const objectUrl = URL.createObjectURL(pdfBlob);
+      const selected = constituents.find((item) => item.id === targetConstituentId);
+      setEditorPdfUrl((previous) => {
+        if (previous) URL.revokeObjectURL(previous);
+        return objectUrl;
+      });
+      setEditorPdfFileName(readEditorPdfFileName(response, `${sanitizeClientFileName(draft.name || "letter-template")}_preview.pdf`));
+      setEditorPdfTitle(`Live PDF Preview${selected ? ` - ${personName(selected)}` : ""}`);
+      setEditorPdfOpen(true);
+      setTestConstituentLookupOpen(false);
+      setNotice("Server-rendered PDF preview refreshed.");
+    } catch (requestError) {
+      setEditorPdfError(errorMessage(requestError, "Failed to render server PDF preview."));
+    } finally {
+      setEditorPdfLoading(false);
+    }
+  }
+
+  function printEditorPdf() {
+    if (!editorPdfUrl) return;
+    const printWindow = window.open("", "_blank", "width=1100,height=900");
+    if (!printWindow) {
+      setEditorPdfError("Browser blocked the print preview window. Allow popups for this site and try Print again.");
+      return;
+    }
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head><title>${escapeHtml(editorPdfTitle)}</title></head>
+        <body style="margin:0;background:#f1f5f9;">
+          <iframe src="${editorPdfUrl}#toolbar=1&navpanes=0&view=FitH" style="border:0;width:100vw;height:100vh;"></iframe>
+          <script>
+            window.addEventListener("load", function () {
+              setTimeout(function () { window.focus(); window.print(); }, 650);
+            });
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  }
 
   async function save(nextStatus?: TemplateStatus) {
     const payload: TemplateDraft = { ...draft, status: nextStatus ?? draft.status };
@@ -956,7 +1069,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   function insertSignature(signature?: SignatureBlock | null) {
     const selected = signature ?? signatures.find((item) => item.id === draft.signatureBlockId) ?? signatures.find((item) => item.isDefault) ?? signatures[0] ?? null;
     if (!selected) {
-      setNotice("No signature block exists yet. Create one in OyamaLetters Settings > Signatures.");
+      setNotice("No signature block exists yet. Create one in Settings > Branding > Signatures.");
       return;
     }
     setDraft((current) => ({ ...current, signatureBlockId: selected.id }));
@@ -970,7 +1083,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   function applyDefaultHeader() {
     const selected = headers.find((item) => item.id === draft.headerPresetId) ?? headers.find((item) => item.isDefault) ?? headers[0] ?? null;
     if (!selected) {
-      setNotice("No letter header preset exists yet. Create one in OyamaLetters Settings > Headers.");
+      setNotice("No letter header preset exists yet. Create one in Settings > Branding > Letter Presets.");
       return;
     }
     setDraft((current) => ({ ...current, headerPresetId: selected.id }));
@@ -980,7 +1093,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   function applyDefaultFooter() {
     const selected = footers.find((item) => item.id === draft.footerPresetId) ?? footers.find((item) => item.isDefault) ?? footers[0] ?? null;
     if (!selected) {
-      setNotice("No letter footer preset exists yet. Create one in OyamaLetters Settings > Footers.");
+      setNotice("No letter footer preset exists yet. Create one in Settings > Branding > Letter Presets.");
       return;
     }
     setDraft((current) => ({ ...current, footerPresetId: selected.id }));
@@ -1141,6 +1254,14 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const editorFrameWidth = pageMetrics.width + 84;
   const renderedHeader = headerPresetToDraft(selectedHeader);
   const renderedFooter = footerPresetToDraft(selectedFooter);
+  const selectedTestConstituent = constituents.find((item) => item.id === testConstituentId) ?? null;
+  const testConstituentResults = useMemo(() => {
+    const needle = testConstituentSearch.trim().toLowerCase();
+    const rows = needle
+      ? constituents.filter((row) => [row.firstName, row.lastName, row.email, row.addressLine1, row.city, row.state, row.zip].join(" ").toLowerCase().includes(needle))
+      : constituents;
+    return rows.slice(0, 80);
+  }, [constituents, testConstituentSearch]);
 
   if (loading) return <LoadingPage label="Loading canvas builder..." />;
 
@@ -1172,6 +1293,8 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             <IconButton label="Undo" onClick={undoBody} disabled={history.length === 0}>↶</IconButton>
             <IconButton label="Redo" onClick={redoBody} disabled={future.length === 0}>↷</IconButton>
             <Button onClick={() => setPreviewMode((value) => !value)}>{previewMode ? "Edit" : "Preview"}</Button>
+            <Button onClick={() => setTestConstituentLookupOpen(true)}>{selectedTestConstituent ? personName(selectedTestConstituent) : "Test Constituent"}</Button>
+            <Button onClick={() => void openServerPdfPreview()} disabled={editorPdfLoading}>{editorPdfLoading ? "Rendering..." : "Live PDF"}</Button>
             <Button onClick={() => void save()} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
             <Button onClick={() => void saveAndPublish()} tone="primary" disabled={saving}>Publish</Button>
           </div>
@@ -1263,6 +1386,8 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
         {activeRibbon === "View" ? (
           <RibbonGroup label="Tools">
             <RibbonButton onClick={() => setPreviewMode(true)}>Preview</RibbonButton>
+            <RibbonButton onClick={() => setTestConstituentLookupOpen(true)}>Test Constituent</RibbonButton>
+            <RibbonButton onClick={() => void openServerPdfPreview()}>Live PDF</RibbonButton>
             <RibbonButton onClick={() => setInspectorTab("Document")}>Document</RibbonButton>
             <RibbonButton onClick={() => setInspectorTab("Block Settings")}>Block Settings</RibbonButton>
           </RibbonGroup>
@@ -1476,6 +1601,74 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
           </div>
         </aside>
       </div>
+      {testConstituentLookupOpen ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 xl:p-8">
+          <button type="button" aria-label="Close test constituent lookup" className="absolute inset-0 bg-slate-950/55" onClick={() => setTestConstituentLookupOpen(false)} />
+          <div className="relative z-10 w-full max-w-4xl overflow-hidden rounded-lg border border-slate-300 bg-white shadow-2xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+              <div>
+                <p className="text-lg font-semibold text-slate-900">Test Constituent Lookup</p>
+                <p className="text-sm text-slate-600">Choose the sample constituent used by the server-rendered live PDF preview.</p>
+              </div>
+              <Button onClick={() => setTestConstituentLookupOpen(false)}>Close</Button>
+            </div>
+            <div className="border-b border-slate-200 p-4">
+              <SearchBox value={testConstituentSearch} onChange={setTestConstituentSearch} placeholder="Search by name, email, or address..." />
+            </div>
+            <div className="max-h-[62vh] overflow-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
+                  <tr><th className="px-4 py-3">Name</th><th className="px-4 py-3">Address</th><th className="px-4 py-3">Mail</th><th className="px-4 py-3">Action</th></tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {testConstituentResults.length === 0 ? (
+                    <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">No constituents match this search.</td></tr>
+                  ) : testConstituentResults.map((row) => (
+                    <tr key={row.id} className={row.id === testConstituentId ? "bg-emerald-50/60" : undefined}>
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-slate-900">{personName(row)}</p>
+                        <p className="text-xs text-slate-500">{row.email || "No email"}</p>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-600">{formatAddress(row) || "No address"}</td>
+                      <td className="px-4 py-3"><StatusPill label={row.doNotMail ? "Do Not Mail" : hasAddress(row) ? "Ready" : "Missing Address"} tone={row.doNotMail ? "red" : hasAddress(row) ? "green" : "orange"} /></td>
+                      <td className="px-4 py-3">
+                        <button type="button" onClick={() => { setTestConstituentId(row.id); void openServerPdfPreview(row.id); }} className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" disabled={editorPdfLoading}>
+                          Use & Render
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {editorPdfOpen && editorPdfUrl ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
+          <button type="button" aria-label="Close live PDF preview" className="absolute inset-0 bg-slate-950/60" onClick={() => setEditorPdfOpen(false)} />
+          <div className="relative z-10 flex h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-slate-300 bg-white shadow-2xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+              <div className="min-w-0">
+                <p className="truncate text-base font-semibold text-slate-900">{editorPdfTitle}</p>
+                <p className="truncate text-xs text-slate-600">Server-rendered final PDF preview · {editorPdfFileName}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <a href={editorPdfUrl} download={editorPdfFileName} className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50">Save PDF</a>
+                <Button onClick={printEditorPdf}>Print</Button>
+                <Button onClick={() => setEditorPdfOpen(false)}>Close</Button>
+              </div>
+            </div>
+            {editorPdfError ? <Alert tone="amber">{editorPdfError}</Alert> : null}
+            <object title="Editor Live PDF Preview" data={`${editorPdfUrl}#toolbar=1&navpanes=0&view=FitH`} type="application/pdf" className="min-h-0 flex-1 bg-slate-100">
+              <div className="flex h-full items-center justify-center bg-slate-100 p-6 text-center text-sm text-slate-700">
+                This browser is not rendering the PDF inline. Use Print to open the print preview window or Save PDF to download it.
+              </div>
+            </object>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
@@ -1733,6 +1926,7 @@ function GenerateWorkspace() {
   const [tagCatalog, setTagCatalog] = useState<ConstituentTagCatalog[]>([]);
   const [listMembersById, setListMembersById] = useState<Record<string, RecipientListDetail["recipients"]>>({});
   const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
+  const [workflowPolicy, setWorkflowPolicy] = useState<WorkflowPolicy | null>(null);
   const [donations, setDonations] = useState<DonationLookup[]>([]);
   const [templateId, setTemplateId] = useState(searchParams.get("templateId") ?? "");
   const [constituentId, setConstituentId] = useState(searchParams.get("constituentId") ?? "");
@@ -1767,6 +1961,8 @@ function GenerateWorkspace() {
   const [donationAdvancedOpen, setDonationAdvancedOpen] = useState(false);
   const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null);
   const [pdfViewerTitle, setPdfViewerTitle] = useState("Generated PDF Viewer");
+  const [pdfViewerFileName, setPdfViewerFileName] = useState("generated-letter.pdf");
+  const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1778,13 +1974,14 @@ function GenerateWorkspace() {
     setLoading(true);
     setError(null);
     try {
-      const [templateRows, generatedRows, constituentRows, listRows, tagRows, brandingRow] = await Promise.all([
+      const [templateRows, generatedRows, constituentRows, listRows, tagRows, brandingRow, workflowPolicyRow] = await Promise.all([
         apiFetch<LetterTemplateSummary[]>("/api/letters/templates"),
         apiFetch<GeneratedLetterSummary[]>("/api/letters/generated?limit=25"),
         apiFetch<ConstituentLookup[]>("/api/constituents?limit=all").catch(() => []),
         apiFetch<RecipientListSummary[]>("/api/email-campaigns/lists").catch(() => []),
         apiFetch<ConstituentTagCatalog[]>("/api/constituents/tags/catalog").catch(() => []),
         apiFetch<BrandingSettings>("/api/settings/branding").catch(() => DEFAULT_BRANDING_SETTINGS),
+        apiFetch<WorkflowPolicy>("/api/letters/workflow-settings").catch(() => null),
       ]);
       setTemplates(templateRows);
       setGenerated(generatedRows);
@@ -1792,6 +1989,7 @@ function GenerateWorkspace() {
       setRecipientLists(listRows);
       setTagCatalog(tagRows);
       setBranding(normalizeBrandingSettings(brandingRow));
+      setWorkflowPolicy(workflowPolicyRow);
       if (!templateId && templateRows.length > 0) setTemplateId((templateRows.find((item) => item.status === "ACTIVE") ?? templateRows[0]).id);
     } catch (requestError) {
       setError(errorMessage(requestError, "Failed to load generation workspace."));
@@ -1816,6 +2014,12 @@ function GenerateWorkspace() {
     setGenerateMode(modeParam === "single" ? "single" : "batch");
     setDeliveryTarget(targetParam === "mail" ? "MAIL_QUEUE" : targetParam === "print" ? "PRINT_QUEUE" : "PDF_ONLY");
   }, [modeParam, targetParam]);
+
+  useEffect(() => {
+    if (workflowPolicy && !workflowPolicy.allowDirectMailQueue && deliveryTarget === "MAIL_QUEUE") {
+      setDeliveryTarget("PRINT_QUEUE");
+    }
+  }, [deliveryTarget, workflowPolicy]);
 
   useEffect(() => {
     const params = new URLSearchParams({ limit: "25" });
@@ -1966,8 +2170,17 @@ function GenerateWorkspace() {
   }
 
   async function proceedFromRecipientsStep() {
-    if (selectedIndividualIds.length === 0 && selectedListIds.length === 0 && selectedTagNames.length === 0 && selectedDonorStatuses.length === 0 && selectedRecipientIds.length === 0) {
+    const hasPickerSelection = selectedIndividualIds.length > 0 || selectedListIds.length > 0 || selectedTagNames.length > 0 || selectedDonorStatuses.length > 0;
+    const hasAppliedSelection = selectedRecipientIds.length > 0 || Boolean(constituentId);
+    if (!hasPickerSelection && !hasAppliedSelection) {
       setError("Select at least one recipient source before continuing.");
+      return;
+    }
+    if (!hasPickerSelection) {
+      if (constituentId && selectedRecipientIds.length === 0) {
+        setSelectedRecipientIds([constituentId]);
+      }
+      setWizardStep(3);
       return;
     }
     await applyRecipientSelection(3);
@@ -1979,7 +2192,18 @@ function GenerateWorkspace() {
     };
   }, [pdfViewerUrl]);
 
-  async function requestPdfBlobUrl(endpoint: string, payload?: unknown) {
+  function readPdfFileName(response: Response, fallback: string): string {
+    const disposition = response.headers.get("content-disposition") ?? "";
+    const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) return decodeURIComponent(utf8Match[1]);
+    const quotedMatch = disposition.match(/filename="([^"]+)"/i);
+    if (quotedMatch?.[1]) return quotedMatch[1];
+    const plainMatch = disposition.match(/filename=([^;]+)/i);
+    if (plainMatch?.[1]) return plainMatch[1].trim();
+    return fallback;
+  }
+
+  async function requestPdfBlobUrl(endpoint: string, payload?: unknown, fallbackFileName = "generated-letter.pdf") {
     const response = await apiFetchResponse(endpoint, {
       method: "POST",
       body: payload ? JSON.stringify(payload) : undefined,
@@ -1999,19 +2223,52 @@ function GenerateWorkspace() {
     if (pdfBlob.size === 0) {
       throw new Error("PDF export returned an empty file.");
     }
-    return URL.createObjectURL(pdfBlob);
+    return {
+      objectUrl: URL.createObjectURL(pdfBlob),
+      fileName: readPdfFileName(response, fallbackFileName),
+    };
+  }
+
+  function printCurrentPdf() {
+    if (!pdfViewerUrl) return;
+    const printWindow = window.open("", "_blank", "width=1100,height=900");
+    if (!printWindow) {
+      setPdfError("Browser blocked the print preview window. Allow popups for this site and try Print again.");
+      return;
+    }
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head><title>${escapeHtml(pdfViewerTitle)}</title></head>
+        <body style="margin:0;background:#f1f5f9;">
+          <iframe src="${pdfViewerUrl}#toolbar=1&navpanes=0&view=FitH" style="border:0;width:100vw;height:100vh;"></iframe>
+          <script>
+            window.addEventListener("load", function () {
+              setTimeout(function () { window.focus(); window.print(); }, 650);
+            });
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   }
 
   async function openIndividualPdf(letterId: string) {
     setPdfLoading(true);
     setPdfError(null);
     try {
-      const objectUrl = await requestPdfBlobUrl(`/api/letters/generated/${encodeURIComponent(letterId)}/export-pdf?preview=1&inline=1`);
+      const pdf = await requestPdfBlobUrl(
+        `/api/letters/generated/${encodeURIComponent(letterId)}/export-pdf?preview=1&inline=1`,
+        undefined,
+        `letter_${letterId}.pdf`,
+      );
       setPdfViewerUrl((previous) => {
         if (previous) URL.revokeObjectURL(previous);
-        return objectUrl;
+        return pdf.objectUrl;
       });
+      setPdfViewerFileName(pdf.fileName);
       setPdfViewerTitle("Individual Letter PDF");
+      setPdfViewerOpen(true);
       setWizardStep(5);
     } catch (requestError) {
       setPdfError(errorMessage(requestError, "Failed to open individual PDF."));
@@ -2028,12 +2285,18 @@ function GenerateWorkspace() {
     setPdfLoading(true);
     setPdfError(null);
     try {
-      const objectUrl = await requestPdfBlobUrl("/api/letters/generated/export-pdf-batch?preview=1&inline=1", { letterIds });
+      const pdf = await requestPdfBlobUrl(
+        "/api/letters/generated/export-pdf-batch?preview=1&inline=1",
+        { letterIds },
+        `letters_batch_${new Date().toISOString().slice(0, 10)}.pdf`,
+      );
       setPdfViewerUrl((previous) => {
         if (previous) URL.revokeObjectURL(previous);
-        return objectUrl;
+        return pdf.objectUrl;
       });
+      setPdfViewerFileName(pdf.fileName);
       setPdfViewerTitle(`Batch PDF (${letterIds.length} letters)`);
+      setPdfViewerOpen(true);
       setWizardStep(5);
     } catch (requestError) {
       setPdfError(errorMessage(requestError, "Failed to open batch PDF."));
@@ -2054,7 +2317,11 @@ function GenerateWorkspace() {
         body: JSON.stringify({
           templateId,
           constituentId: previewRecipientId,
+          donationMode,
           donationId: donationMode === "specific" ? donationId || undefined : undefined,
+          donationDateRange,
+          donationType,
+          donationMinimum: donationMinimum ? Number(donationMinimum) : undefined,
           year: new Date().getFullYear(),
         }),
       });
@@ -2068,32 +2335,6 @@ function GenerateWorkspace() {
     }
   }
 
-  async function queueBatchForMail(letterIds: string[]) {
-    if (letterIds.length === 0) return;
-    await apiFetch("/api/letters/generated/queue/mail/actions", {
-      method: "POST",
-      body: JSON.stringify({
-        action: "QUEUE_FOR_MAIL",
-        letterIds,
-      }),
-    });
-  }
-
-  async function applySingleDeliveryTarget(letterId: string) {
-    if (deliveryTarget === "PDF_ONLY") return;
-    if (deliveryTarget === "MAIL_QUEUE") {
-      await queueBatchForMail([letterId]);
-      return;
-    }
-    await apiFetch("/api/letters/generated/queue/print/actions", {
-      method: "POST",
-      body: JSON.stringify({
-        action: "QUEUE_FOR_PRINT",
-        letterIds: [letterId],
-      }),
-    });
-  }
-
   async function generateOne() {
     if (!templateId) return setError("Choose a template first.");
     if (selectedTemplate?.status !== "ACTIVE") {
@@ -2104,22 +2345,22 @@ function GenerateWorkspace() {
     setWorking(true);
     setError(null);
     try {
-      const created = await apiFetch<GeneratedLetterSummary>("/api/letters/generated", {
+      await apiFetch<GeneratedLetterSummary>("/api/letters/generated", {
         method: "POST",
         body: JSON.stringify({
           templateId,
           constituentId: targetRecipientId,
+          deliveryTarget,
+          donationMode,
           donationId: donationMode === "specific" ? donationId || undefined : undefined,
+          donationDateRange,
+          donationType,
+          donationMinimum: donationMinimum ? Number(donationMinimum) : undefined,
           year: new Date().getFullYear(),
         }),
       });
-      try {
-        await applySingleDeliveryTarget(created.id);
-      } catch (queueError) {
-        setNotice(`Letter generated, but delivery queue handoff failed: ${errorMessage(queueError, "Unknown queue error")}`);
-      }
       if (deliveryTarget === "PRINT_QUEUE") {
-        setNotice("Letter generated for print workflow.");
+        setNotice(workflowPolicy?.requirePrintApproval ? "Letter generated for print review." : "Letter generated and queued for print.");
       } else if (deliveryTarget === "MAIL_QUEUE") {
         setNotice("Letter generated and queued for mail workflow.");
       } else {
@@ -2150,17 +2391,14 @@ function GenerateWorkspace() {
           dryRun,
           constituentIds: runtimeRecipientIds.length > 0 ? runtimeRecipientIds : undefined,
           filterType: "ALL",
-          addToPrintQueue: deliveryTarget === "PRINT_QUEUE",
+          deliveryTarget,
+          donationMode,
+          donationId: donationMode === "specific" ? donationId || undefined : undefined,
+          donationDateRange,
+          donationType,
+          donationMinimum: donationMinimum ? Number(donationMinimum) : undefined,
         }),
       });
-
-      if (!dryRun && deliveryTarget === "MAIL_QUEUE") {
-        const generatedIds = result.generatedIds
-          ?? result.generated?.map((entry) => entry.id)
-          ?? result.generatedSample?.map((entry) => entry.id)
-          ?? [];
-        await queueBatchForMail(generatedIds.filter(Boolean));
-      }
 
       setBatch(result);
       setNotice(dryRun
@@ -2168,10 +2406,10 @@ function GenerateWorkspace() {
         : deliveryTarget === "MAIL_QUEUE"
           ? "Batch generated and queued for mail workflow."
           : deliveryTarget === "PRINT_QUEUE"
-            ? "Batch generated for print workflow."
+            ? workflowPolicy?.requirePrintApproval ? "Batch generated for print review." : "Batch generated and queued for print."
             : "Batch generated.");
       if (!dryRun) await load();
-      setWizardStep(dryRun ? 4 : 5);
+      setWizardStep(5);
     } catch (requestError) {
       setError(errorMessage(requestError, dryRun ? "Failed to validate batch." : "Failed to generate batch."));
     } finally {
@@ -2180,16 +2418,18 @@ function GenerateWorkspace() {
   }
 
   const selectedTemplate = templates.find((template) => template.id === templateId) ?? null;
+  const selectedDirectRecipientId = constituentId || activeRecipientIds[0] || pendingRecipientIds[0] || "";
+  const selectedConstituent = constituents.find((row) => row.id === selectedDirectRecipientId) ?? null;
   const effectiveRecipientIds = activeRecipientIds.length > 0 ? activeRecipientIds : pendingRecipientIds;
-  const sourceRecipients = effectiveRecipientIds.length > 0
-    ? constituents.filter((row) => effectiveRecipientIds.includes(row.id))
-    : constituents;
+  const constituentById = new Map(constituents.map((row) => [row.id, row]));
+  const sourceRecipients = effectiveRecipientIds
+    .map((id) => constituentById.get(id))
+    .filter((row): row is ConstituentLookup => Boolean(row));
   const searchedRecipients = sourceRecipients.filter((row) => {
     if (!query.trim()) return true;
     const needle = query.trim().toLowerCase();
     return [row.firstName, row.lastName, row.email, formatAddress(row)].join(" ").toLowerCase().includes(needle);
   });
-  const selectedConstituent = constituents.find((row) => row.id === (constituentId || activeRecipientIds[0])) ?? null;
   const missingRequired = sourceRecipients.filter((row) => !row.firstName || !row.lastName).length;
   const totalRecipients = sourceRecipients.length;
   const missingAddress = sourceRecipients.filter((row) => !hasAddress(row)).length;
@@ -2221,7 +2461,11 @@ function GenerateWorkspace() {
         ? `Filter · ${selectedDonorStatuses[0].replaceAll("_", " ")}`
         : selectedIndividualIds.length > 0
           ? "Individuals"
-          : "No source selected";
+          : constituentId
+            ? `${donationId ? "Donation donor" : "Selected donor"}${selectedConstituent ? ` · ${personName(selectedConstituent)}` : ""}`
+            : selectedRecipientIds.length > 0
+              ? `${selectedRecipientIds.length} selected recipient${selectedRecipientIds.length === 1 ? "" : "s"}`
+              : "No source selected";
   const donationAmounts = donations
     .map((item) => Number(item.amount))
     .filter((amount) => Number.isFinite(amount) && amount > 0);
@@ -2269,10 +2513,16 @@ function GenerateWorkspace() {
   const previewMissingFieldCount = preview?.missingFields?.length ?? 0;
   const previewUnsupportedFieldCount = preview?.unsupportedFields?.length ?? 0;
   const deliveryLabel = deliveryTarget === "MAIL_QUEUE"
-    ? "Add to Mail Queue"
+    ? "Mail Queue"
     : deliveryTarget === "PRINT_QUEUE"
-      ? "Add to Print Queue"
+      ? workflowPolicy?.requirePrintApproval ? "Print Review Queue" : "Print Queue"
       : "PDF Only";
+  const mailQueueUnavailable = workflowPolicy ? !workflowPolicy.allowDirectMailQueue : false;
+  const queuePolicyMessage = mailQueueUnavailable
+    ? "Direct mail queue is disabled by workflow policy. Generate to PDF or print review first."
+    : workflowPolicy?.requirePrintApproval
+      ? "Print queue generation starts in Needs Review until approved."
+      : "Print queue generation is queued for print immediately.";
   const selectedSegmentSummary = selectedTagNames.length > 0 ? selectedTagNames.slice(0, 2).join(", ") : "No segment";
   const wizardSteps: Array<{ id: 1 | 2 | 3 | 4 | 5; title: string; helper: string }> = [
     { id: 1, title: "Select", helper: "Template and options configured" },
@@ -2425,8 +2675,8 @@ function GenerateWorkspace() {
                   <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-md bg-emerald-50 text-emerald-700"><LettersPackIcon name="approval-review" className="h-5 w-5" fallback="$" /></div>
                   <div>
                     <p className="text-sm font-semibold text-slate-900">Donation Context</p>
-                    <p className="text-sm text-slate-700">{donationId ? formatDonation(donations.find((item) => item.id === donationId) ?? { id: donationId, amount: "-", date: new Date().toISOString() }) : "Most recent donation (per recipient)"}</p>
-                    <p className="text-xs text-slate-500">Date range: last 90 days default</p>
+                    <p className="text-sm text-slate-700">{donationMode === "specific" && donationId ? formatDonation(donations.find((item) => item.id === donationId) ?? { id: donationId, amount: "-", date: new Date().toISOString() }) : donationApplicationLabel}</p>
+                    <p className="text-xs text-slate-500">Date range: {donationDateRange.toLowerCase()}</p>
                   </div>
                 </div>
                 <div className="w-52">
@@ -2439,11 +2689,11 @@ function GenerateWorkspace() {
                   <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-md bg-emerald-50 text-emerald-700"><LettersPackIcon name="print-queue" className="h-5 w-5" fallback="Q" /></div>
                   <div>
                     <p className="text-sm font-semibold text-slate-900">Delivery</p>
-                    <p className="text-sm text-slate-700">Add to print queue</p>
-                    <p className="text-xs text-slate-500">Letters will be queued after generation.</p>
+                    <p className="text-sm text-slate-700">{deliveryLabel}</p>
+                    <p className="text-xs text-slate-500">{queuePolicyMessage}</p>
                   </div>
                 </div>
-                <Button href="/oyama-letters/queue">Edit</Button>
+                <Button onClick={() => setWizardStep(5)}>Edit</Button>
               </div>
             </div>
 
@@ -2459,7 +2709,7 @@ function GenerateWorkspace() {
             </div>
 
             <div className="flex justify-end">
-              <Button onClick={() => setWizardStep(2)} tone="primary" disabled={!canAdvanceFromSelection}>Next: Recipients</Button>
+              <Button onClick={() => setWizardStep(2)} tone="primary" disabled={!canOpenRecipientsStep}>Next: Recipients</Button>
             </div>
           </div>
 
@@ -2860,8 +3110,8 @@ function GenerateWorkspace() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Button onClick={() => void openIndividualPdf(focusedGenerated?.id || "")} disabled={!focusedGenerated || pdfLoading}>View Full Screen</Button>
-              <Button onClick={() => void openIndividualPdf(focusedGenerated?.id || "")} disabled={!focusedGenerated || pdfLoading}>Download Sample PDF</Button>
+              <Button onClick={() => void openIndividualPdf(focusedGenerated?.id || "")} disabled={!focusedGenerated || pdfLoading}>Open PDF Preview</Button>
+              <Button onClick={printCurrentPdf} disabled={!pdfViewerUrl || pdfLoading}>Print Preview</Button>
             </div>
           </aside>
         </section>
@@ -2891,32 +3141,58 @@ function GenerateWorkspace() {
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button type="button" onClick={() => setDeliveryTarget("PDF_ONLY")} className={["rounded border px-2 py-1 text-xs font-semibold", deliveryTarget === "PDF_ONLY" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700"].join(" ")}>PDF Only</button>
                     <button type="button" onClick={() => setDeliveryTarget("PRINT_QUEUE")} className={["rounded border px-2 py-1 text-xs font-semibold", deliveryTarget === "PRINT_QUEUE" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700"].join(" ")}>Print Queue</button>
-                    <button type="button" onClick={() => setDeliveryTarget("MAIL_QUEUE")} className={["rounded border px-2 py-1 text-xs font-semibold", deliveryTarget === "MAIL_QUEUE" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700"].join(" ")}>Mail Queue</button>
+                    <button type="button" onClick={() => setDeliveryTarget("MAIL_QUEUE")} disabled={mailQueueUnavailable} title={mailQueueUnavailable ? queuePolicyMessage : undefined} className={["rounded border px-2 py-1 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50", deliveryTarget === "MAIL_QUEUE" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700"].join(" ")}>Mail Queue</button>
                   </div>
+                  <p className="mt-2 text-xs text-slate-500">{queuePolicyMessage}</p>
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button onClick={() => void runBatch(true)} disabled={working || !canAdvanceFromSelection}>Validate Batch</Button>
-                <Button onClick={() => void generateOne()} tone={generateMode === "single" ? "primary" : undefined} disabled={working || !canAdvanceFromSelection || generationBlockedByTemplate}>Generate One</Button>
-                <Button onClick={() => void runBatch(false)} tone={generateMode === "batch" ? "primary" : undefined} disabled={working || !canAdvanceFromSelection || generationBlockedByTemplate}>Generate Batch</Button>
+                <Button
+                  onClick={() => (generateMode === "single" ? void generateOne() : void runBatch(false))}
+                  tone="primary"
+                  disabled={working || !canAdvanceFromSelection || generationBlockedByTemplate || (deliveryTarget === "MAIL_QUEUE" && mailQueueUnavailable)}
+                >
+                  {generateMode === "single" ? "Generate One Letter" : "Generate Batch"}
+                </Button>
+                {generateMode === "batch" ? <Button onClick={() => void runBatch(true)} disabled={working || !canAdvanceFromSelection}>Validate Batch</Button> : null}
                 <Button onClick={() => void openBatchPdf(batchPdfIds)} disabled={pdfLoading || batchPdfIds.length === 0}>View Batch PDF</Button>
-                <Button onClick={() => (focusedGenerated ? void openIndividualPdf(focusedGenerated.id) : undefined)} disabled={pdfLoading || !focusedGenerated}>View Focused Recipient PDF</Button>
+                <Button onClick={() => (focusedGenerated ? void openIndividualPdf(focusedGenerated.id) : undefined)} disabled={pdfLoading || !focusedGenerated}>View Individual PDF</Button>
                 <Button onClick={() => void load()}>Refresh Generated</Button>
                 <Button href="/oyama-letters/queue">Open Queue</Button>
+                <Button onClick={() => setWizardStep(1)}>Start New Run</Button>
               </div>
+              {batch ? (
+                <div className="mt-3 rounded-md border border-slate-200 bg-white p-3">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <SummaryNumber label="Generated" value={String(batch.generatedCount ?? 0)} tone="green" />
+                    <SummaryNumber label="Skipped" value={String(batch.skippedCount ?? batch.skipped?.length ?? 0)} tone={(batch.skippedCount ?? batch.skipped?.length ?? 0) > 0 ? "red" : "green"} />
+                    <SummaryNumber label="Eligible" value={String(batch.eligible ?? 0)} tone="slate" />
+                  </div>
+                  {batch.skippedByReason && Object.keys(batch.skippedByReason).length > 0 ? (
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                      {Object.entries(batch.skippedByReason).map(([reason, count]) => (
+                        <span key={reason} className="rounded border border-amber-200 bg-amber-50 px-2 py-1 font-semibold text-amber-800">{reason}: {count}</span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
-            <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                <p className="font-semibold text-slate-900">{pdfViewerTitle}</p>
+            <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-slate-900">PDF Viewer</p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    PDFs are rendered on the server with the current Letters branding, then opened here for saving and printing.
+                  </p>
+                </div>
                 {pdfLoading ? <StatusPill label="Loading PDF" tone="orange" /> : null}
               </div>
-              {pdfError ? <Alert tone="amber">{pdfError}</Alert> : null}
-              <div className="h-[760px] bg-slate-100">
-                {pdfViewerUrl ? (
-                  <iframe title="Generated PDF" src={pdfViewerUrl} className="h-full w-full border-0" />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-sm text-slate-600">Select a batch or individual PDF to view it here.</div>
-                )}
+              {pdfError ? <div className="mt-3"><Alert tone="amber">{pdfError}</Alert></div> : null}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button onClick={() => void openBatchPdf(batchPdfIds)} disabled={pdfLoading || batchPdfIds.length === 0}>Generate Server Batch PDF</Button>
+                <Button onClick={() => (focusedGenerated ? void openIndividualPdf(focusedGenerated.id) : undefined)} disabled={pdfLoading || !focusedGenerated}>Generate Server Individual PDF</Button>
+                {pdfViewerUrl ? <Button onClick={() => setPdfViewerOpen(true)}>Reopen Last PDF</Button> : null}
               </div>
             </div>
             <div className="flex items-center justify-between rounded-md border border-slate-200 bg-white p-3 shadow-sm">
@@ -2956,6 +3232,48 @@ function GenerateWorkspace() {
             </div>
           </aside>
         </section>
+      ) : null}
+
+      {pdfViewerOpen && pdfViewerUrl ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
+          <button
+            type="button"
+            aria-label="Close PDF viewer"
+            className="absolute inset-0 bg-slate-950/60"
+            onClick={() => setPdfViewerOpen(false)}
+          />
+          <div className="relative z-10 flex h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-slate-300 bg-white shadow-2xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+              <div className="min-w-0">
+                <p className="truncate text-base font-semibold text-slate-900">{pdfViewerTitle}</p>
+                <p className="truncate text-xs text-slate-600">{pdfViewerFileName}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <a
+                  href={pdfViewerUrl}
+                  download={pdfViewerFileName}
+                  className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+                >
+                  Save PDF
+                </a>
+                <Button onClick={printCurrentPdf}>Print</Button>
+                <Button onClick={() => setPdfViewerOpen(false)}>Close</Button>
+              </div>
+            </div>
+            <object
+              id="oyama-letters-pdf-viewer"
+              aria-label="Generated PDF"
+              title="Generated PDF"
+              data={`${pdfViewerUrl}#toolbar=1&navpanes=0&view=FitH`}
+              type="application/pdf"
+              className="min-h-0 flex-1 bg-slate-100"
+            >
+              <div className="flex h-full items-center justify-center bg-slate-100 p-6 text-center text-sm text-slate-700">
+                This browser is not rendering the PDF inline. Use Print to open the print preview window or Save PDF to download it.
+              </div>
+            </object>
+          </div>
+        </div>
       ) : null}
 
       {recipientPickerOpen ? (
@@ -3151,6 +3469,23 @@ function QueueWorkspace() {
   const [printRows, setPrintRows] = useState<LetterPrintQueueItem[]>([]);
   const [mailRows, setMailRows] = useState<LetterMailQueueItem[]>([]);
   const [tab, setTab] = useState<"print" | "mail">("print");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [queuePage, setQueuePage] = useState(1);
+  const [queuePageSize, setQueuePageSize] = useState(25);
+  const [queueNote, setQueueNote] = useState("");
+  const [priority, setPriority] = useState("NORMAL");
+  const [batchId, setBatchId] = useState("");
+  const [returnReason, setReturnReason] = useState("");
+  const [previewRow, setPreviewRow] = useState<LetterPrintQueueItem | LetterMailQueueItem | null>(null);
+  const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null);
+  const [pdfViewerTitle, setPdfViewerTitle] = useState("Generated Letter PDF");
+  const [pdfViewerFileName, setPdfViewerFileName] = useState("generated-letter.pdf");
+  const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [actionWorking, setActionWorking] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -3175,7 +3510,190 @@ function QueueWorkspace() {
     void load();
   }, [load]);
 
-  const rows = tab === "print" ? printRows : mailRows;
+  useEffect(() => {
+    setSelectedIds([]);
+    setStatusFilter("ALL");
+    setQueuePage(1);
+  }, [tab]);
+
+  useEffect(() => {
+    return () => {
+      if (pdfViewerUrl) URL.revokeObjectURL(pdfViewerUrl);
+    };
+  }, [pdfViewerUrl]);
+
+  const allRows = tab === "print" ? printRows : mailRows;
+  const availableStatuses = useMemo(() => ["ALL", ...Array.from(new Set(allRows.map((row) => row.queueStatus))).sort()], [allRows]);
+  const rows = useMemo(
+    () => statusFilter === "ALL" ? allRows : allRows.filter((row) => row.queueStatus === statusFilter),
+    [allRows, statusFilter],
+  );
+  const totalQueuePages = Math.max(1, Math.ceil(rows.length / queuePageSize));
+  const safeQueuePage = Math.min(queuePage, totalQueuePages);
+  const paginatedRows = rows.slice((safeQueuePage - 1) * queuePageSize, safeQueuePage * queuePageSize);
+  const selectedRows = useMemo(() => {
+    const ids = new Set(selectedIds);
+    return allRows.filter((row) => ids.has(row.id));
+  }, [allRows, selectedIds]);
+  const selectedPreviewRow = selectedRows[0] ?? null;
+  const visibleIds = paginatedRows.map((row) => row.id);
+  const selectedVisibleCount = visibleIds.filter((id) => selectedIds.includes(id)).length;
+  const selectedReadyCount = selectedRows.filter((row) => row.addressComplete).length;
+  const selectedIssueCount = selectedRows.length - selectedReadyCount;
+
+  function toggleSelected(id: string) {
+    setSelectedIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
+  }
+
+  function toggleVisibleRows() {
+    setSelectedIds((current) => {
+      const currentSet = new Set(current);
+      const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => currentSet.has(id));
+      if (allVisibleSelected) return current.filter((id) => !visibleIds.includes(id));
+      for (const id of visibleIds) currentSet.add(id);
+      return Array.from(currentSet);
+    });
+  }
+
+  function updateStatusFilter(value: string) {
+    setStatusFilter(value);
+    setQueuePage(1);
+  }
+
+  function queueReadPdfFileName(response: Response, fallback: string): string {
+    const disposition = response.headers.get("content-disposition") ?? "";
+    const quotedMatch = disposition.match(/filename="([^"]+)"/i);
+    if (quotedMatch?.[1]) return quotedMatch[1];
+    const plainMatch = disposition.match(/filename=([^;]+)/i);
+    if (plainMatch?.[1]) return plainMatch[1].trim();
+    return fallback;
+  }
+
+  async function requestQueuePdfBlobUrl(endpoint: string, payload?: unknown, fallbackFileName = "generated-letter.pdf") {
+    const response = await apiFetchResponse(endpoint, {
+      method: "POST",
+      body: payload ? JSON.stringify(payload) : undefined,
+    });
+    if (!response.ok) {
+      let message = `PDF export failed (${response.status}).`;
+      try {
+        const parsed = await response.json();
+        if (parsed?.error?.message) message = String(parsed.error.message);
+      } catch {
+        // Keep default message when response is not JSON.
+      }
+      throw new Error(message);
+    }
+    const pdfBlob = await response.blob();
+    if (pdfBlob.size === 0) throw new Error("PDF export returned an empty file.");
+    return {
+      objectUrl: URL.createObjectURL(pdfBlob),
+      fileName: queueReadPdfFileName(response, fallbackFileName),
+    };
+  }
+
+  async function openQueuePdf(letterId: string) {
+    setPdfLoading(true);
+    setPdfError(null);
+    try {
+      const pdf = await requestQueuePdfBlobUrl(
+        `/api/letters/generated/${encodeURIComponent(letterId)}/export-pdf?preview=1&inline=1`,
+        undefined,
+        `letter_${letterId}.pdf`,
+      );
+      setPdfViewerUrl((previous) => {
+        if (previous) URL.revokeObjectURL(previous);
+        return pdf.objectUrl;
+      });
+      setPdfViewerFileName(pdf.fileName);
+      setPdfViewerTitle("Generated Letter PDF");
+      setPdfViewerOpen(true);
+    } catch (requestError) {
+      setPdfError(errorMessage(requestError, "Failed to open generated letter PDF."));
+    } finally {
+      setPdfLoading(false);
+    }
+  }
+
+  async function openSelectedBatchPdf(title = "Selected Letters PDF") {
+    if (selectedIds.length === 0) {
+      setPdfError("Select at least one queue item first.");
+      return;
+    }
+    setPdfLoading(true);
+    setPdfError(null);
+    try {
+      const pdf = await requestQueuePdfBlobUrl(
+        "/api/letters/generated/export-pdf-batch?preview=1&inline=1",
+        { letterIds: selectedIds },
+        `letters_${tab}_queue_${new Date().toISOString().slice(0, 10)}.pdf`,
+      );
+      setPdfViewerUrl((previous) => {
+        if (previous) URL.revokeObjectURL(previous);
+        return pdf.objectUrl;
+      });
+      setPdfViewerFileName(pdf.fileName);
+      setPdfViewerTitle(`${title} (${selectedIds.length})`);
+      setPdfViewerOpen(true);
+    } catch (requestError) {
+      setPdfError(errorMessage(requestError, "Failed to open selected queue PDFs."));
+    } finally {
+      setPdfLoading(false);
+    }
+  }
+
+  function printQueuePdf() {
+    if (!pdfViewerUrl) return;
+    const printWindow = window.open("", "_blank", "width=1100,height=900");
+    if (!printWindow) {
+      setPdfError("Browser blocked the print preview window. Allow popups for this site and try Print again.");
+      return;
+    }
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head><title>${escapeHtml(pdfViewerTitle)}</title></head>
+        <body style="margin:0;background:#f1f5f9;">
+          <iframe src="${pdfViewerUrl}#toolbar=1&navpanes=0&view=FitH" style="border:0;width:100vw;height:100vh;"></iframe>
+          <script>
+            window.addEventListener("load", function () {
+              setTimeout(function () { window.focus(); window.print(); }, 650);
+            });
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  }
+
+  async function applyQueueAction(action: string) {
+    if (selectedIds.length === 0) {
+      setError("Select at least one queue item first.");
+      return;
+    }
+    setActionWorking(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const endpoint = tab === "print"
+        ? "/api/letters/generated/queue/print/actions"
+        : "/api/letters/generated/queue/mail/actions";
+      const payload = tab === "print"
+        ? { action, letterIds: selectedIds, note: queueNote || undefined, priority, batchId: batchId || undefined }
+        : { action, letterIds: selectedIds, note: queueNote || undefined, returnReason: returnReason || undefined };
+      const result = await apiFetch<{ updatedCount: number; action: string }>(endpoint, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      setNotice(`${titleCase(result.action)} applied to ${result.updatedCount} letter${result.updatedCount === 1 ? "" : "s"}.`);
+      setSelectedIds([]);
+      await load();
+    } catch (requestError) {
+      setError(errorMessage(requestError, "Failed to update queue."));
+    } finally {
+      setActionWorking(false);
+    }
+  }
 
   return (
     <main className="min-w-0 flex-1 bg-[#f5f7fa]">
@@ -3184,37 +3702,233 @@ function QueueWorkspace() {
         <Button href="/oyama-letters/generate" tone="primary">Generate Letters</Button>
       </PageHero>
       {error ? <Alert tone="amber">{error}</Alert> : null}
+      {notice ? <Alert tone="green">{notice}</Alert> : null}
       <div className="p-4 xl:p-6">
-        <div className="rounded-md border border-slate-200 bg-white shadow-sm">
-          <div className="flex gap-5 border-b border-slate-200 px-4">
+        <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <aside className="space-y-4">
+            <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="font-semibold text-slate-900">Queue Controls</p>
+              <p className="mt-1 text-sm text-slate-600">{selectedIds.length} selected across the {tab === "print" ? "print" : "mail"} lane.</p>
+              <div className="mt-4 grid grid-cols-3 gap-3">
+                <SummaryNumber label="Selected" value={String(selectedIds.length)} tone="slate" />
+                <SummaryNumber label="Ready" value={String(selectedReadyCount)} tone="green" />
+                <SummaryNumber label="Issues" value={String(selectedIssueCount)} tone={selectedIssueCount > 0 ? "orange" : "slate"} />
+              </div>
+              <div className="mt-4 space-y-3">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Status Filter
+                  <select value={statusFilter} onChange={(event) => updateStatusFilter(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal">
+                    {availableStatuses.map((status) => <option key={status} value={status}>{status === "ALL" ? "All statuses" : status.replaceAll("_", " ")}</option>)}
+                  </select>
+                </label>
+                <label className="block text-xs font-semibold text-slate-700">
+                  Operator Note
+                  <textarea value={queueNote} onChange={(event) => setQueueNote(event.target.value)} className="mt-1 h-20 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal" placeholder="Optional note for audit trail and queue history" />
+                </label>
+                {tab === "print" ? (
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Print Priority
+                      <select value={priority} onChange={(event) => setPriority(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal">
+                        {["LOW", "NORMAL", "HIGH", "URGENT"].map((value) => <option key={value} value={value}>{value}</option>)}
+                      </select>
+                    </label>
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Batch Label
+                      <input value={batchId} onChange={(event) => setBatchId(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 text-sm font-normal" placeholder="Optional print batch ID" />
+                    </label>
+                  </div>
+                ) : (
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Return Reason
+                    <input value={returnReason} onChange={(event) => setReturnReason(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 text-sm font-normal" placeholder="Required when marking returned" />
+                  </label>
+                )}
+              </div>
+            </section>
+
+            <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="font-semibold text-slate-900">{tab === "print" ? "Print Management" : "Mail Management"}</p>
+              <div className="mt-3 grid gap-2">
+                {tab === "print" ? (
+                  <>
+                    <Button onClick={() => void applyQueueAction("APPROVE")} disabled={actionWorking || selectedIds.length === 0}>Approve</Button>
+                    <Button onClick={() => void applyQueueAction("QUEUE_FOR_PRINT")} disabled={actionWorking || selectedIds.length === 0}>Queue For Print</Button>
+                    <Button onClick={() => void openSelectedBatchPdf("Print File")} disabled={pdfLoading || selectedIds.length === 0}>Print Selected PDFs</Button>
+                    <Button onClick={() => void openSelectedBatchPdf("Download File")} disabled={pdfLoading || selectedIds.length === 0}>Download Selected PDFs</Button>
+                    <Button onClick={() => void applyQueueAction("MARK_PRINTED")} disabled={actionWorking || selectedIds.length === 0}>Mark Printed</Button>
+                    <Button onClick={() => void applyQueueAction("MOVE_TO_MAIL_QUEUE")} disabled={actionWorking || selectedIds.length === 0}>Move To Mail Queue</Button>
+                    <Button onClick={() => void applyQueueAction("CANCEL")} disabled={actionWorking || selectedIds.length === 0}>Cancel Print Job</Button>
+                    <Button onClick={() => void applyQueueAction("ARCHIVE")} disabled={actionWorking || selectedIds.length === 0}>Archive</Button>
+                  </>
+                ) : (
+                  <>
+                    <Button onClick={() => void applyQueueAction("QUEUE_FOR_MAIL")} disabled={actionWorking || selectedIds.length === 0}>Queue For Mail</Button>
+                    <Button onClick={() => void openSelectedBatchPdf("Mail File")} disabled={pdfLoading || selectedIds.length === 0}>Download Selected PDFs</Button>
+                    <Button onClick={() => void applyQueueAction("MARK_MAILED")} disabled={actionWorking || selectedIds.length === 0}>Mark Mailed</Button>
+                    <Button onClick={() => void applyQueueAction("MARK_RETURNED")} disabled={actionWorking || selectedIds.length === 0}>Mark Returned</Button>
+                    <Button onClick={() => void applyQueueAction("ADDRESS_ISSUE")} disabled={actionWorking || selectedIds.length === 0}>Flag Address Issue</Button>
+                    <Button onClick={() => void applyQueueAction("REPRINT")} disabled={actionWorking || selectedIds.length === 0}>Send Back To Print</Button>
+                    <Button onClick={() => void applyQueueAction("DELETE_PRINTS")} disabled={actionWorking || selectedIds.length === 0}>Delete Prints</Button>
+                    <Button onClick={() => void applyQueueAction("ARCHIVE")} disabled={actionWorking || selectedIds.length === 0}>Archive</Button>
+                  </>
+                )}
+              </div>
+              {pdfError ? <div className="mt-3"><Alert tone="amber">{pdfError}</Alert></div> : null}
+            </section>
+          </aside>
+
+          <section className="rounded-md border border-slate-200 bg-white shadow-sm">
+            <div className="flex gap-5 border-b border-slate-200 px-4">
             <TabButton active={tab === "print"} onClick={() => setTab("print")}>Print Queue ({printRows.length})</TabButton>
             <TabButton active={tab === "mail"} onClick={() => setTab("mail")}>Mail Queue ({mailRows.length})</TabButton>
-          </div>
-          {loading ? <LoadingRows /> : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-left text-sm">
-                <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
-                  <tr><th className="px-4 py-3">Template</th><th className="px-4 py-3">Recipient</th><th className="px-4 py-3">Queue Status</th><th className="px-4 py-3">Priority</th><th className="px-4 py-3">Address</th><th className="px-4 py-3">Generated</th></tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {rows.length === 0 ? (
-                    <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No live queue records found.</td></tr>
-                  ) : rows.map((row) => (
-                    <tr key={row.id}>
-                      <td className="px-4 py-3 font-semibold">{row.template?.name ?? "Untitled template"}</td>
-                      <td className="px-4 py-3">{row.constituent ? personName(row.constituent) : "-"}</td>
-                      <td className="px-4 py-3"><StatusPill label={row.queueStatus} tone={row.queueStatus.includes("FAILED") || row.queueStatus.includes("RETURNED") ? "red" : row.queueStatus.includes("PRINTED") || row.queueStatus.includes("MAILED") ? "green" : "slate"} /></td>
-                      <td className="px-4 py-3">{row.priority}</td>
-                      <td className="px-4 py-3"><StatusPill label={row.addressComplete ? "Complete" : "Missing"} tone={row.addressComplete ? "green" : "orange"} /></td>
-                      <td className="px-4 py-3 text-slate-600">{formatDate(row.generatedAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
-          )}
+            <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Bulk File Tool Strip</p>
+                <p className="mt-1 text-sm text-slate-700">
+                  {selectedIds.length > 0 ? `${selectedIds.length} selected file${selectedIds.length === 1 ? "" : "s"} ready for ${tab === "print" ? "print" : "mail"} actions.` : "Select generated letters to manage PDFs, print jobs, and mail files."}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => selectedPreviewRow ? setPreviewRow(selectedPreviewRow) : undefined} disabled={!selectedPreviewRow} className="h-9 rounded border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">Preview First</button>
+                <button type="button" onClick={() => selectedPreviewRow ? void openQueuePdf(selectedPreviewRow.id) : undefined} disabled={!selectedPreviewRow || pdfLoading} className="h-9 rounded border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">Open PDF</button>
+                <button type="button" onClick={() => void openSelectedBatchPdf(tab === "print" ? "Print File" : "Mail File")} disabled={selectedIds.length === 0 || pdfLoading} className="h-9 rounded border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">Download PDFs</button>
+                <button type="button" onClick={() => void openSelectedBatchPdf("Print Preview File")} disabled={selectedIds.length === 0 || pdfLoading} className="h-9 rounded border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">Print Preview</button>
+                {tab === "print" ? (
+                  <>
+                    <button type="button" onClick={() => void applyQueueAction("MARK_PRINTED")} disabled={selectedIds.length === 0 || actionWorking} className="h-9 rounded border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">Mark Printed</button>
+                    <button type="button" onClick={() => void applyQueueAction("MOVE_TO_MAIL_QUEUE")} disabled={selectedIds.length === 0 || actionWorking} className="h-9 rounded border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">Move To Mail</button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" onClick={() => void applyQueueAction("MARK_MAILED")} disabled={selectedIds.length === 0 || actionWorking} className="h-9 rounded border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">Mark Mailed</button>
+                    <button type="button" onClick={() => void applyQueueAction("DELETE_PRINTS")} disabled={selectedIds.length === 0 || actionWorking} className="h-9 rounded border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50">Delete Prints</button>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="text-sm text-slate-700">
+                <span className="font-semibold text-slate-900">{rows.length}</span> total
+                {" · "}
+                Page <span className="font-semibold text-slate-900">{safeQueuePage}</span> of <span className="font-semibold text-slate-900">{totalQueuePages}</span>
+                {" · "}
+                <span className="font-semibold text-slate-900">{selectedVisibleCount}</span> selected on this page
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <select value={queuePageSize} onChange={(event) => { setQueuePageSize(Number(event.target.value)); setQueuePage(1); }} className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700">
+                  {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / page</option>)}
+                </select>
+                <Button onClick={() => setQueuePage((current) => Math.max(1, current - 1))} disabled={safeQueuePage <= 1}>Previous</Button>
+                <Button onClick={() => setQueuePage((current) => Math.min(totalQueuePages, current + 1))} disabled={safeQueuePage >= totalQueuePages}>Next</Button>
+                <Button onClick={toggleVisibleRows} disabled={paginatedRows.length === 0}>{selectedVisibleCount === paginatedRows.length && paginatedRows.length > 0 ? "Clear Page" : "Select Page"}</Button>
+                <Button onClick={() => setSelectedIds([])} disabled={selectedIds.length === 0}>Clear Selection</Button>
+              </div>
+            </div>
+            {loading ? <LoadingRows /> : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1120px] text-left text-sm">
+                  <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
+                    <tr>
+                      <th className="px-4 py-3">Select</th>
+                      <th className="px-4 py-3">Template</th>
+                      <th className="px-4 py-3">Recipient</th>
+                      <th className="px-4 py-3">Queue Status</th>
+                      <th className="px-4 py-3">Priority</th>
+                      <th className="px-4 py-3">Address</th>
+                      <th className="px-4 py-3">Generated</th>
+                      <th className="px-4 py-3">Controls</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {paginatedRows.length === 0 ? (
+                      <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-500">No live queue records found.</td></tr>
+                    ) : paginatedRows.map((row) => (
+                      <tr key={row.id} className={selectedIds.includes(row.id) ? "bg-emerald-50/50" : undefined}>
+                        <td className="px-4 py-3">
+                          <input aria-label={`Select ${row.template?.name ?? "letter"}`} type="checkbox" checked={selectedIds.includes(row.id)} onChange={() => toggleSelected(row.id)} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-slate-900">{row.template?.name ?? "Untitled template"}</p>
+                          <p className="text-xs text-slate-500">{row.mergedPrintSubject || row.template?.category || "Generated letter"}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p>{row.constituent ? personName(row.constituent) : "-"}</p>
+                          <p className="text-xs text-slate-500">{row.constituent ? formatAddress(row.constituent) || "No address" : "No recipient"}</p>
+                        </td>
+                        <td className="px-4 py-3"><StatusPill label={row.queueStatus} tone={row.queueStatus.includes("FAILED") || row.queueStatus.includes("RETURNED") || row.queueStatus.includes("CANCELED") ? "red" : row.queueStatus.includes("PRINTED") || row.queueStatus.includes("MAILED") || row.queueStatus.includes("APPROVED") ? "green" : "slate"} /></td>
+                        <td className="px-4 py-3">{row.priority}</td>
+                        <td className="px-4 py-3"><StatusPill label={row.addressComplete ? "Complete" : "Missing"} tone={row.addressComplete ? "green" : "orange"} /></td>
+                        <td className="px-4 py-3 text-slate-600">{formatDate(row.generatedAt)}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-2">
+                            <button type="button" onClick={() => setPreviewRow(row)} className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">Preview</button>
+                            <button type="button" onClick={() => void openQueuePdf(row.id)} className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50" disabled={pdfLoading}>PDF</button>
+                            <button type="button" onClick={() => { setSelectedIds([row.id]); void openQueuePdf(row.id); }} className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50" disabled={pdfLoading}>Download</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </div>
       </div>
+
+      {previewRow ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
+          <button type="button" aria-label="Close generated content preview" className="absolute inset-0 bg-slate-950/60" onClick={() => setPreviewRow(null)} />
+          <div className="relative z-10 flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-slate-300 bg-white shadow-2xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+              <div className="min-w-0">
+                <p className="truncate text-base font-semibold text-slate-900">{previewRow.mergedPrintSubject || previewRow.template?.name || "Generated Letter"}</p>
+                <p className="truncate text-xs text-slate-600">{previewRow.constituent ? personName(previewRow.constituent) : "No recipient"} · {formatDate(previewRow.generatedAt)}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => void openQueuePdf(previewRow.id)} disabled={pdfLoading}>Open PDF</Button>
+                <Button onClick={() => setPreviewRow(null)}>Close</Button>
+              </div>
+            </div>
+            <div className="overflow-auto bg-[#f3f5f8] p-5">
+              <MiniDocument html={previewRow.mergedPrintBody || ""} emptyText="No generated print content is available for this letter." />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {pdfViewerOpen && pdfViewerUrl ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
+          <button type="button" aria-label="Close PDF viewer" className="absolute inset-0 bg-slate-950/60" onClick={() => setPdfViewerOpen(false)} />
+          <div className="relative z-10 flex h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-slate-300 bg-white shadow-2xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+              <div className="min-w-0">
+                <p className="truncate text-base font-semibold text-slate-900">{pdfViewerTitle}</p>
+                <p className="truncate text-xs text-slate-600">{pdfViewerFileName}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <a href={pdfViewerUrl} download={pdfViewerFileName} className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50">Save PDF</a>
+                <Button onClick={printQueuePdf}>Print</Button>
+                <Button onClick={() => setPdfViewerOpen(false)}>Close</Button>
+              </div>
+            </div>
+            <object
+              id="oyama-letters-queue-pdf-viewer"
+              aria-label="Queue Generated PDF"
+              title="Queue Generated PDF"
+              data={`${pdfViewerUrl}#toolbar=1&navpanes=0&view=FitH`}
+              type="application/pdf"
+              className="min-h-0 flex-1 bg-slate-100"
+            >
+              <div className="flex h-full items-center justify-center bg-slate-100 p-6 text-center text-sm text-slate-700">
+                This browser is not rendering the PDF inline. Use Print to open the print preview window or Save PDF to download it.
+              </div>
+            </object>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
@@ -3224,24 +3938,26 @@ function SettingsWorkspace() {
 
   return (
     <main className="min-w-0 flex-1 bg-[#f5f7fa]">
-      <PageHero title="OyamaLetters Settings" subtitle="Letters has its own organization identity, header, footer, signature, and workflow setup.">
-        <Button href="/settings/branding/signatures">Signatures</Button>
+      <PageHero title="OyamaLetters Settings" subtitle="Letter branding now uses the global Branding Settings source of truth. Workflow policy remains here.">
+        <Button href="/settings/branding" tone="primary">Global Branding</Button>
       </PageHero>
       <div className="border-b border-slate-200 bg-white px-4 xl:px-7">
         <div className="flex gap-6 overflow-x-auto">
-          <TabButton active={tab === "organization"} onClick={() => setTab("organization")}>Organization</TabButton>
-          <TabButton active={tab === "headers"} onClick={() => setTab("headers")}>Headers</TabButton>
-          <TabButton active={tab === "footers"} onClick={() => setTab("footers")}>Footers</TabButton>
+          <TabButton active={tab === "organization"} onClick={() => setTab("organization")}>Branding Source</TabButton>
           <TabButton active={tab === "workflow"} onClick={() => setTab("workflow")}>Workflow</TabButton>
         </div>
       </div>
       <div className="p-4 xl:p-6">
-        {tab === "organization" ? <LettersOrganizationSettingsPanel /> : null}
-        {tab === "headers" ? <LettersPresetManager mode="headers" /> : null}
-        {tab === "footers" ? <LettersPresetManager mode="footers" /> : null}
+        {tab === "organization" ? (
+          <div className="grid gap-4 xl:grid-cols-3">
+            <SettingsCard title="Identity & Logo" body="Organization name, address, colors, and logos used by server-rendered letter PDFs." href="/settings/branding" />
+            <SettingsCard title="Letter Presets" body="Letter header and footer presets used by the editor, previews, and final PDFs." href="/settings/branding/letter-presets" />
+            <SettingsCard title="Signatures" body="Reusable signer blocks used by templates and generated PDFs." href="/settings/branding/signatures" />
+          </div>
+        ) : null}
         {tab === "workflow" ? (
           <div className="grid gap-4 xl:grid-cols-[1fr_2fr]">
-            <SettingsCard title="Signature Blocks" body="Reusable signer blocks and signature images are stored through the live signatures endpoint." href="/settings/branding/signatures" />
+            <SettingsCard title="Branding Settings" body="Letter branding, presets, and signatures are managed in global Branding Settings." href="/settings/branding" />
             <WorkflowPolicyPanel />
           </div>
         ) : null}
@@ -3584,7 +4300,6 @@ function FooterPresetEditor({ draft, setDraft, onSave, saving }: { draft: Footer
         <CheckField label="Show email" checked={draft.showEmail} onChange={(value) => setDraft({ ...draft, showEmail: value })} />
         <CheckField label="Show website" checked={draft.showWebsite} onChange={(value) => setDraft({ ...draft, showWebsite: value })} />
         <CheckField label="Show Tax ID" checked={draft.showTaxId} onChange={(value) => setDraft({ ...draft, showTaxId: value })} />
-        <CheckField label="Show page number" checked={draft.showPageNumber} onChange={(value) => setDraft({ ...draft, showPageNumber: value })} />
         <CheckField label="Make default footer" checked={draft.isDefault} onChange={(value) => setDraft({ ...draft, isDefault: value })} />
         <CheckField label="Active" checked={draft.isActive} onChange={(value) => setDraft({ ...draft, isActive: value })} />
       </div>
@@ -3638,7 +4353,6 @@ function LetterPreviewFooter({ branding, footer }: { branding: BrandingSettings;
       {contact ? <p>{contact}</p> : null}
       {footer.showTaxId && branding.taxId ? <p>Tax ID: {branding.taxId}</p> : null}
       {footer.customText ? <p className="whitespace-pre-line">{footer.customText}</p> : null}
-      {footer.showPageNumber ? <p>Page 1</p> : null}
     </footer>
   );
 }
@@ -3937,8 +4651,15 @@ function Metric({ label, value, tone = "slate" }: { label: string; value: string
   return <div><p className="text-sm text-slate-600">{label}</p><p className={`mt-1 text-2xl font-semibold ${color}`}>{value}</p></div>;
 }
 
-function SummaryNumber({ label, value, tone = "green" }: { label: string; value: string; tone?: "green" | "red" }) {
-  return <div><p className="text-xs text-slate-600">{label}</p><p className={`mt-2 text-3xl font-semibold ${tone === "red" ? "text-red-600" : "text-emerald-800"}`}>{value}</p></div>;
+function SummaryNumber({ label, value, tone = "green" }: { label: string; value: string; tone?: "green" | "orange" | "red" | "slate" }) {
+  const valueClass = tone === "red"
+    ? "text-red-600"
+    : tone === "orange"
+      ? "text-orange-600"
+      : tone === "slate"
+        ? "text-slate-950"
+        : "text-emerald-800";
+  return <div><p className="text-xs text-slate-600">{label}</p><p className={`mt-2 text-3xl font-semibold ${valueClass}`}>{value}</p></div>;
 }
 
 function SummaryStatusRow({ label, count, tone }: { label: string; count: number; tone: "green" | "orange" | "red" | "slate" }) {
@@ -4297,6 +5018,15 @@ function escapeHtml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function sanitizeClientFileName(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/[^a-zA-Z0-9_-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    || "generated_letter";
 }
 
 function countWords(value: string): number {

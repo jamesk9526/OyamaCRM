@@ -153,6 +153,8 @@ export interface LetterPrintQueueItem {
   status: string;
   generatedAt: string;
   printedAt?: string | null;
+  mergedPrintSubject?: string | null;
+  mergedPrintBody?: string | null;
   queueStatus: string;
   reviewStatus: string;
   priority: string;
@@ -168,6 +170,8 @@ export interface LetterMailQueueItem {
   status: string;
   generatedAt: string;
   mailedAt?: string | null;
+  mergedPrintSubject?: string | null;
+  mergedPrintBody?: string | null;
   queueStatus: string;
   priority: string;
   batchId?: string | null;

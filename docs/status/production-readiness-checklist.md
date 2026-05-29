@@ -10,6 +10,7 @@ This file is the release-gate source of truth for production readiness.
 |---|---|---|
 | `/oyama-letters` opens a dedicated Letter & Document Studio shell outside the DonorCRM page chrome | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/layout/AppShell.tsx` |
 | Template Library, Canvas Builder, Publish Workspace, Generate Letters, queue, and settings routes use live letters APIs | Working | `app/oyama-letters/page.tsx`, `app/oyama-letters/templates/[templateId]/page.tsx`, `app/oyama-letters/templates/[templateId]/publish/page.tsx`, `app/oyama-letters/generate/page.tsx`, `app/oyama-letters/queue/page.tsx`, `app/oyama-letters/settings/page.tsx` |
+| Generate Letters multi-recipient batch flow validates, generates, opens PDFs, and routes print queue metadata with workflow policy | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/e2e/oyama-letters-batch.e2e.mjs` |
 | Canvas Builder block, format, and layout controls update real template content | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/smoke/letter-builder-ui-source.test.ts` |
 | Letters settings imports global organization/branding values into Letters-only header/footer presets | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `server/src/routes/settings.ts` |
 | Existing live letters backend is bound into the refreshed shell UI | Working | `server/src/routes/letters.ts`, `app/components/letters/OyamaLettersWorkspace.tsx` |
