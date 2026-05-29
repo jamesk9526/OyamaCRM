@@ -23,6 +23,8 @@ import {
   type GenerationValidationCode,
 } from "../services/letters-execution.js";
 import { collectMergeFieldKeys, unsupportedMergeFieldKeys, SUPPORTED_LETTER_MERGE_FIELDS } from "../services/letters-merge.js";
+import { parseStewardAiConfig, runStewardAiChat, type StewardAiChatMessage } from "../services/steward-ai-ollama.js";
+import { withStewardAiTask } from "../services/steward-ai-runtime-status.js";
 
 const router = Router();
 
@@ -52,6 +54,7 @@ const LETTER_DONATION_MODES = ["none", "specific", "recent"] as const;
 const LETTER_WORKFLOW_POLICY_PLUGIN_KEY = "letters-workflow-settings";
 const LETTER_PUBLISH_HISTORY_PLUGIN_KEY = "letters-template-publish-history";
 const LETTER_BRANDING_PLUGIN_KEY = "organization-branding";
+const STEWARD_AI_PLUGIN_KEY = "steward_ai";
 const LETTER_PUBLISH_HISTORY_LIMIT = 200;
 const PDF_FALLBACK_MODES = ["BROWSER_PRINT", "SERVER_RENDER"] as const;
 const LETTER_MEDIA_EXTENSIONS: Record<string, string> = {
@@ -174,6 +177,32 @@ interface LetterTemplatePublishSnapshot {
     emailSubject: string | null;
     emailBody: string | null;
   };
+}
+
+interface LetterAiComposePayload {
+  prompt?: string;
+  tone?: string;
+  length?: string;
+  useMergeFields?: boolean;
+  selectedText?: string;
+  currentBodyHtml?: string;
+  templateName?: string;
+  category?: string;
+}
+
+interface LetterAiSuggestPayload {
+  textBeforeCursor?: string;
+  currentBodyHtml?: string;
+  previousSuggestion?: string;
+  templateName?: string;
+  category?: string;
+  useMergeFields?: boolean;
+}
+
+interface ParsedLetterAiCompose {
+  bodyText: string;
+  bodyHtml: string;
+  mergeFieldsUsed: string[];
 }
 
 router.use(requireAuth);
@@ -685,6 +714,137 @@ function textToHtml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
   return escaped.replace(/\n\n+/g, "</p><p>").replace(/\n/g, "<br />");
+}
+
+function plainTextToParagraphHtml(value: string): string {
+  const paragraphs = value
+    .replace(/\r\n/g, "\n")
+    .split(/\n{2,}/g)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+  return paragraphs.length > 0
+    ? paragraphs.map((paragraph) => `<p>${textToHtml(paragraph)}</p>`).join("")
+    : "";
+}
+
+function asShortString(value: unknown, fallback = "", maxLength = 12000): string {
+  if (typeof value !== "string") return fallback;
+  return value.trim().slice(0, maxLength);
+}
+
+function parseLetterAiComposeResponse(rawContent: string): ParsedLetterAiCompose {
+  const cleaned = rawContent
+    .replace(/```(?:json)?/gi, "")
+    .replace(/```/g, "")
+    .trim();
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+  let parsed: Record<string, unknown> | null = null;
+
+  if (jsonMatch) {
+    try {
+      parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+    } catch {
+      parsed = null;
+    }
+  }
+
+  const rawBodyText = asShortString(parsed?.bodyText, "", 8000);
+  const bodyHtmlFromModel = asShortString(parsed?.bodyHtml, "", 12000)
+    .replace(/<\s*(script|style|iframe|object|embed)\b[\s\S]*?<\s*\/\s*\1\s*>/gi, "")
+    .replace(/\son[a-z]+\s*=\s*(['"]).*?\1/gi, "")
+    .replace(/\s(href|src)\s*=\s*(['"])\s*javascript:[\s\S]*?\2/gi, "");
+  const normalizedText = rawBodyText || htmlToPlainText(bodyHtmlFromModel) || htmlToPlainText(cleaned);
+  const mergeFieldsUsed = Array.isArray(parsed?.mergeFieldsUsed)
+    ? parsed.mergeFieldsUsed.map((field) => asShortString(field, "", 120)).filter(Boolean)
+    : collectMergeFieldKeys(`${bodyHtmlFromModel}\n${normalizedText}`);
+
+  return {
+    bodyText: normalizedText,
+    bodyHtml: plainTextToParagraphHtml(normalizedText || htmlToPlainText(bodyHtmlFromModel)),
+    mergeFieldsUsed,
+  };
+}
+
+function fallbackLetterAiCompose(payload: LetterAiComposePayload): ParsedLetterAiCompose {
+  const prompt = asShortString(payload.prompt, "", 1200).toLowerCase();
+  const useMergeFields = payload.useMergeFields !== false;
+  const salutation = useMergeFields ? "{{donor.salutation}}" : "Friend";
+  const organizationName = useMergeFields ? "{{organization.name}}" : "our organization";
+  const mission = useMergeFields ? "{{organization.mission}}" : "this mission";
+  const giftAmount = useMergeFields ? "{{gift.amount}}" : "your gift";
+  const giftDate = useMergeFields ? "{{gift.date}}" : "recently";
+
+  const paragraphs = prompt.includes("impact")
+    ? [
+        `Because of your generosity, ${organizationName} can continue ${mission}.`,
+        "Your partnership matters, and we are grateful for the trust you place in this work.",
+      ]
+    : [
+        `Dear ${salutation},`,
+        `Thank you for your generous gift of ${giftAmount} on ${giftDate}. Your support helps ${organizationName} continue ${mission}.`,
+        "We are grateful for your partnership and for the care you show through your giving.",
+      ];
+
+  const bodyText = paragraphs.join("\n\n");
+  const bodyHtml = plainTextToParagraphHtml(bodyText);
+  return {
+    bodyText,
+    bodyHtml,
+    mergeFieldsUsed: collectMergeFieldKeys(bodyText),
+  };
+}
+
+function normalizeInlineSuggestion(value: string, previousSuggestion = ""): string {
+  const cleaned = htmlToPlainText(value
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/^["']|["']$/g, "")
+    .trim())
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return "";
+  const sentenceMatch = cleaned.match(/^(.{1,220}?[.!?])(?:\s|$)/);
+  const suggestion = sentenceMatch?.[1] ?? cleaned.slice(0, 180);
+  const normalized = suggestion.replace(/^[-*]\s*/, "").trim();
+  return normalized.toLowerCase() === previousSuggestion.trim().toLowerCase() ? "" : normalized;
+}
+
+function fallbackInlineSuggestion(payload: LetterAiSuggestPayload): string {
+  const context = asShortString(payload.textBeforeCursor, "", 1400).trim();
+  const lower = context.toLowerCase();
+  const previous = asShortString(payload.previousSuggestion, "", 220).trim().toLowerCase();
+  const organizationName = payload.useMergeFields !== false ? "{{organization.name}}" : "our organization";
+  const mission = payload.useMergeFields !== false ? "{{organization.mission}}" : "this mission";
+  const candidates = lower.endsWith("thank you") || /\bthank\s*you\s*(for)?$/i.test(context)
+    ? [
+        "for your generous support and faithful partnership.",
+        `for helping ${organizationName} continue ${mission}.`,
+        "for the care and commitment behind your giving.",
+      ]
+    : /\bgift|giving|generosity|donation\b/i.test(context)
+      ? [
+          `Your generosity helps ${organizationName} continue ${mission}.`,
+          "Your support makes steady, practical ministry possible.",
+          "This gift is a meaningful part of the work ahead.",
+        ]
+      : /\bimpact|because|helps?|serv(e|ing)|mission\b/i.test(context)
+        ? [
+            `Together, we can continue ${mission}.`,
+            "Your partnership keeps this work moving forward with care.",
+            "That impact is possible because friends like you choose to give.",
+          ]
+        : /\bgrateful|gratitude|appreciate\b/i.test(context)
+          ? [
+              "for the trust you place in this work.",
+              "for the steady encouragement your support provides.",
+              "for standing with this mission in such a practical way.",
+            ]
+          : [
+              "Your partnership matters deeply to this work.",
+              `Thank you for helping ${organizationName} continue ${mission}.`,
+              "We are grateful for the generosity behind your support.",
+            ];
+
+  return candidates.find((candidate) => candidate.toLowerCase() !== previous) ?? candidates[0];
 }
 
 type PdfExportStatus = "SUCCESS" | "FAILED";
@@ -1411,6 +1571,268 @@ router.get("/merge-fields", requirePermission("letters.view"), async (req, res) 
     sections: sections.filter((section) => (section.sensitive ? canViewSensitive : true)),
     canViewSensitive,
   });
+});
+
+/** POST /api/letters/ai-compose — Uses Steward AI to draft insertable letter content with supported merge fields. */
+router.post("/ai-compose", requirePermission("letters.edit"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const payload = req.body as LetterAiComposePayload;
+  const userPrompt = asShortString(payload.prompt, "", 1200);
+  if (!userPrompt) {
+    res.status(400).json({ error: { code: "PROMPT_REQUIRED", message: "Describe what Steward should write." } });
+    return;
+  }
+
+  const aiSetting = await prisma.pluginSetting.findUnique({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: STEWARD_AI_PLUGIN_KEY,
+      },
+    },
+    select: {
+      enabled: true,
+      config: true,
+    },
+  });
+
+  if (!aiSetting?.enabled) {
+    res.status(412).json({
+      error: {
+        code: "AI_NOT_ENABLED",
+        message: "Steward AI is not enabled. Configure it in Settings > AI Assistant.",
+      },
+    });
+    return;
+  }
+
+  const aiConfig = parseStewardAiConfig(aiSetting.config ?? {});
+  const selectedText = asShortString(payload.selectedText, "", 4000);
+  const currentBodyText = htmlToPlainText(asShortString(payload.currentBodyHtml, "", 12000)).slice(0, 2500);
+  const useMergeFields = payload.useMergeFields !== false;
+  const supportedFields = SUPPORTED_LETTER_MERGE_FIELDS.join(", ");
+  const promptMessages: StewardAiChatMessage[] = [
+    {
+      role: "system",
+      content: [
+        "You are Steward AI writing one insertable section for an OyamaCRM donor letter template.",
+        "Return JSON only with keys: bodyText, bodyHtml, mergeFieldsUsed.",
+        "Write warm, donor-first nonprofit stewardship copy for staff review.",
+        "Do not invent donor facts, donation history, program outcomes, staff actions, or promises.",
+        "Do not include letterhead, footer, signature, page numbers, markdown fences, or explanations.",
+        "bodyHtml must be a simple HTML fragment using only p, strong, em, ul, ol, li, br.",
+        useMergeFields
+          ? `You may personalize with only these exact merge fields: ${supportedFields}. Prefer salutation/name fields when helpful.`
+          : "Do not include merge fields unless the user explicitly asks for a literal placeholder.",
+      ].join("\n"),
+    },
+    {
+      role: "user",
+      content: [
+        `Template name: ${asShortString(payload.templateName, "Untitled letter", 160)}`,
+        `Category: ${asShortString(payload.category, "GENERAL", 80)}`,
+        `Tone: ${asShortString(payload.tone, "Warm and grateful", 80)}`,
+        `Length: ${asShortString(payload.length, "Short", 80)}`,
+        selectedText ? `Selected text to revise or continue:\n${selectedText}` : "Selected text: none",
+        currentBodyText ? `Current letter context:\n${currentBodyText}` : "Current letter context: none",
+        `Writing request:\n${userPrompt}`,
+      ].join("\n\n"),
+    },
+  ];
+
+  try {
+    const aiResult = await withStewardAiTask(
+      {
+        organizationId,
+        enabled: true,
+        config: aiConfig,
+        label: "Drafting letter editor content",
+        status: "running_task",
+        fallbackOnError: false,
+      },
+      () => runStewardAiChat(aiConfig, promptMessages, {
+        model: aiConfig.model,
+        temperature: 0.32,
+        maxTokens: Math.min(Math.max(aiConfig.maxTokens || 900, 700), 1400),
+      }),
+    );
+
+    const parsed = parseLetterAiComposeResponse(aiResult.content);
+    await logAudit({
+      action: "LETTER_AI_CONTENT_COMPOSED",
+      entity: "LetterTemplate",
+      entityId: "editor",
+      userId: req.user?.sub,
+      organizationId,
+      metadata: {
+        templateName: asShortString(payload.templateName, "", 160),
+        category: asShortString(payload.category, "", 80),
+        model: aiResult.model,
+        mergeFieldsUsed: parsed.mergeFieldsUsed,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.json({
+      bodyText: parsed.bodyText,
+      bodyHtml: parsed.bodyHtml,
+      mergeFieldsUsed: parsed.mergeFieldsUsed,
+      model: aiResult.model,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Steward AI could not draft letter content.";
+    if (/empty assistant response/i.test(message)) {
+      const parsed = fallbackLetterAiCompose(payload);
+      await logAudit({
+        action: "LETTER_AI_CONTENT_COMPOSED_FALLBACK",
+        entity: "LetterTemplate",
+        entityId: "editor",
+        userId: req.user?.sub,
+        organizationId,
+        metadata: {
+          templateName: asShortString(payload.templateName, "", 160),
+          category: asShortString(payload.category, "", 80),
+          reason: message,
+          mergeFieldsUsed: parsed.mergeFieldsUsed,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      }).catch(() => undefined);
+
+      res.json({
+        bodyText: parsed.bodyText,
+        bodyHtml: parsed.bodyHtml,
+        mergeFieldsUsed: parsed.mergeFieldsUsed,
+        model: "steward-fallback",
+      });
+      return;
+    }
+
+    console.error("[letters] POST /ai-compose failed", error);
+    res.status(500).json({
+      error: {
+        code: "AI_COMPOSE_FAILED",
+        message,
+      },
+    });
+  }
+});
+
+/** POST /api/letters/ai-suggest — Returns one short inline writing suggestion for the editor cursor. */
+router.post("/ai-suggest", requirePermission("letters.edit"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const payload = req.body as LetterAiSuggestPayload;
+  const textBeforeCursor = asShortString(payload.textBeforeCursor, "", 1400);
+  if (textBeforeCursor.trim().length < 12) {
+    res.status(400).json({ error: { code: "CONTEXT_REQUIRED", message: "Type more letter content before requesting an inline suggestion." } });
+    return;
+  }
+
+  const aiSetting = await prisma.pluginSetting.findUnique({
+    where: {
+      organizationId_pluginKey: {
+        organizationId,
+        pluginKey: STEWARD_AI_PLUGIN_KEY,
+      },
+    },
+    select: {
+      enabled: true,
+      config: true,
+    },
+  });
+
+  if (!aiSetting?.enabled) {
+    res.status(412).json({
+      error: {
+        code: "AI_NOT_ENABLED",
+        message: "Steward AI is not enabled. Configure it in Settings > AI Assistant.",
+      },
+    });
+    return;
+  }
+
+  const aiConfig = parseStewardAiConfig(aiSetting.config ?? {});
+  const currentBodyText = htmlToPlainText(asShortString(payload.currentBodyHtml, "", 12000)).slice(-2200);
+  const previousSuggestion = asShortString(payload.previousSuggestion, "", 220);
+  const trailingFragment = textBeforeCursor.split(/\n+/).pop()?.slice(-360) ?? textBeforeCursor.slice(-360);
+  const promptMessages: StewardAiChatMessage[] = [
+    {
+      role: "system",
+      content: [
+        "You are Steward AI completing a donor letter sentence inside an editor.",
+        "Return plain text only. No JSON. No markdown. No thinking. No explanation.",
+        "Write at most one sentence, or a short phrase if the cursor appears mid-sentence.",
+        "Continue the exact text before the cursor. Do not restart the paragraph.",
+        "Do not repeat the same suggestion if a previous suggestion is provided.",
+        "Do not invent donor facts, amounts, dates, or program outcomes.",
+        payload.useMergeFields !== false
+          ? "You may use supported OyamaCRM merge fields only when naturally needed."
+          : "Do not include merge fields.",
+      ].join("\n"),
+    },
+    {
+      role: "user",
+      content: [
+        `Template name: ${asShortString(payload.templateName, "Untitled letter", 160)}`,
+        `Category: ${asShortString(payload.category, "GENERAL", 80)}`,
+        `Letter context:\n${currentBodyText || textBeforeCursor}`,
+        previousSuggestion ? `Previous suggestion to avoid:\n${previousSuggestion}` : "Previous suggestion to avoid: none",
+        `Text immediately before cursor:\n${trailingFragment}`,
+        "Continue from the cursor with the shortest useful completion.",
+      ].join("\n\n"),
+    },
+  ];
+
+  try {
+    const aiResult = await withStewardAiTask(
+      {
+        organizationId,
+        enabled: true,
+        config: aiConfig,
+        label: "Drafting inline letter suggestion",
+        status: "running_task",
+        fallbackOnError: false,
+      },
+      () => runStewardAiChat(aiConfig, promptMessages, {
+        model: aiConfig.model,
+        temperature: 0.18,
+        maxTokens: 80,
+      }),
+    );
+
+    const suggestion = normalizeInlineSuggestion(aiResult.content, previousSuggestion);
+    res.json({
+      suggestion: suggestion || fallbackInlineSuggestion(payload),
+      model: aiResult.model,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Inline suggestion failed.";
+    if (/empty assistant response/i.test(message)) {
+      res.json({
+        suggestion: fallbackInlineSuggestion(payload),
+        model: "steward-fallback",
+      });
+      return;
+    }
+    console.error("[letters] POST /ai-suggest failed", error);
+    res.status(500).json({
+      error: {
+        code: "AI_SUGGEST_FAILED",
+        message,
+      },
+    });
+  }
 });
 
 /**

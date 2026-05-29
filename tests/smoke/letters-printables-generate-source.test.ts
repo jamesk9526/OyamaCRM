@@ -23,6 +23,12 @@ describe("OyamaLetters generate workspace source contract", () => {
     expect(workspace).toContain("Test Constituent Lookup");
     expect(workspace).toContain("Live PDF");
     expect(workspace).toContain("Donation donor");
+    expect(workspace).toContain("Steward Writing");
+    expect(workspace).toContain("Insert at Cursor");
+    expect(workspace).toContain("Inline Suggestions");
+    expect(workspace).toContain("sticky top-0 z-40");
+    expect(workspace).toContain("oyamaLetters.aiComposerOpen.v1");
+    expect(workspace).toContain("oyamaLetters.inlineSuggestEnabled.v1");
     expect(workspace).toContain("Previous");
     expect(workspace).toContain("Next");
   });
@@ -34,6 +40,8 @@ describe("OyamaLetters generate workspace source contract", () => {
     expect(workspace).toContain("/api/letters/generated/preview");
     expect(workspace).toContain("/api/letters/generated/batch");
     expect(workspace).toContain("/api/letters/generated/queue/mail/actions");
+    expect(workspace).toContain("/api/letters/ai-compose");
+    expect(workspace).toContain("/api/letters/ai-suggest");
     expect(workspace).toContain("/api/letters/templates/${encodeURIComponent(activeTemplateId)}/sample-pdf?preview=1&inline=1");
     expect(workspace).toContain("/api/constituents");
     expect(workspace).toContain("/api/donations");

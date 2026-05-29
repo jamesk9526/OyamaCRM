@@ -175,6 +175,18 @@ interface PublishHistoryResponse {
   count: number;
 }
 
+interface LetterAiComposeResponse {
+  bodyText: string;
+  bodyHtml: string;
+  mergeFieldsUsed: string[];
+  model?: string;
+}
+
+interface LetterAiSuggestResponse {
+  suggestion: string;
+  model?: string;
+}
+
 type SettingsTab = "organization" | "workflow";
 type GenerateMode = "single" | "batch";
 type DeliveryTarget = "PDF_ONLY" | "PRINT_QUEUE" | "MAIL_QUEUE";
@@ -289,6 +301,8 @@ const EMPTY_FOOTER_PRESET: FooterPresetDraft = {
 
 const RULER_PX_PER_INCH = 96;
 const LETTERS_TEMPLATE_RECOVERY_STORAGE_KEY = "oyamaLetters.templateRecovery.v1";
+const LETTERS_AI_COMPOSER_OPEN_STORAGE_KEY = "oyamaLetters.aiComposerOpen.v1";
+const LETTERS_INLINE_SUGGEST_STORAGE_KEY = "oyamaLetters.inlineSuggestEnabled.v1";
 
 const LETTERS_SIDEBAR_ITEMS = [
   { label: "Template Library", href: "/oyama-letters" },
@@ -608,6 +622,8 @@ function TemplateLibrary() {
 function TemplateBuilder({ templateId }: { templateId?: string }) {
   const router = useRouter();
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const savedEditorRangeRef = useRef<Range | null>(null);
+  const lastInlineSuggestionRequestRef = useRef("");
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const [draft, setDraft] = useState<TemplateDraft>(EMPTY_DRAFT);
   const [mergeSections, setMergeSections] = useState<MergeFieldSection[]>([]);
@@ -616,7 +632,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [signatures, setSignatures] = useState<SignatureBlock[]>([]);
   const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
   const [constituents, setConstituents] = useState<ConstituentLookup[]>([]);
-  const [activeRibbon, setActiveRibbon] = useState<"File" | "Insert" | "Format" | "Layout" | "Review" | "View">("Insert");
+  const [activeRibbon, setActiveRibbon] = useState<"File" | "Insert" | "Format" | "Layout" | "Review" | "View" | "AI">("Insert");
   const [inspectorTab, setInspectorTab] = useState<"Document" | "Merge Fields" | "Block Settings">("Document");
   const [pageSize, setPageSize] = useState("Letter (8.5 x 11 in)");
   const [fontFamily, setFontFamily] = useState("Calibri");
@@ -645,6 +661,51 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [editorPdfOpen, setEditorPdfOpen] = useState(false);
   const [editorPdfLoading, setEditorPdfLoading] = useState(false);
   const [editorPdfError, setEditorPdfError] = useState<string | null>(null);
+  const [aiComposerOpen, setAiComposerOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiTone, setAiTone] = useState("Warm and grateful");
+  const [aiLength, setAiLength] = useState("Short");
+  const [aiUseMergeFields, setAiUseMergeFields] = useState(true);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiOutput, setAiOutput] = useState<LetterAiComposeResponse | null>(null);
+  const [inlineSuggestEnabled, setInlineSuggestEnabled] = useState(false);
+  const [inlineSuggestion, setInlineSuggestion] = useState("");
+  const [inlineSuggestionLoading, setInlineSuggestionLoading] = useState(false);
+  const [inlineSuggestionError, setInlineSuggestionError] = useState<string | null>(null);
+  const [aiPreferenceLoaded, setAiPreferenceLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const savedComposerOpen = window.localStorage.getItem(LETTERS_AI_COMPOSER_OPEN_STORAGE_KEY) === "1";
+      const savedInlineEnabled = window.localStorage.getItem(LETTERS_INLINE_SUGGEST_STORAGE_KEY) === "1";
+      setAiComposerOpen(savedComposerOpen);
+      setInlineSuggestEnabled(savedInlineEnabled);
+      if (savedComposerOpen || savedInlineEnabled) setActiveRibbon("AI");
+    } catch {
+      // Ignore storage failures in private mode or locked-down browsers.
+    } finally {
+      setAiPreferenceLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!aiPreferenceLoaded) return;
+    try {
+      window.localStorage.setItem(LETTERS_AI_COMPOSER_OPEN_STORAGE_KEY, aiComposerOpen ? "1" : "0");
+    } catch {
+      // Ignore storage failures in private mode or locked-down browsers.
+    }
+  }, [aiComposerOpen, aiPreferenceLoaded]);
+
+  useEffect(() => {
+    if (!aiPreferenceLoaded) return;
+    try {
+      window.localStorage.setItem(LETTERS_INLINE_SUGGEST_STORAGE_KEY, inlineSuggestEnabled ? "1" : "0");
+    } catch {
+      // Ignore storage failures in private mode or locked-down browsers.
+    }
+  }, [aiPreferenceLoaded, inlineSuggestEnabled]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -903,6 +964,15 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     return false;
   }
 
+  function rememberEditorSelection() {
+    const editor = editorRef.current;
+    const selection = typeof window !== "undefined" ? window.getSelection() : null;
+    if (!editor || !selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    if (!editor.contains(range.commonAncestorContainer)) return;
+    savedEditorRangeRef.current = range.cloneRange();
+  }
+
   function replaceSelection(nextValue: string, selectInserted = false) {
     if (!ensureEditableDocument()) return;
     const editor = editorRef.current;
@@ -912,6 +982,14 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     }
 
     editor.focus();
+    const selectionBeforeRestore = window.getSelection();
+    if (selectionBeforeRestore && savedEditorRangeRef.current) {
+      const currentRange = selectionBeforeRestore.rangeCount > 0 ? selectionBeforeRestore.getRangeAt(0) : null;
+      if (!currentRange || !editor.contains(currentRange.commonAncestorContainer)) {
+        selectionBeforeRestore.removeAllRanges();
+        selectionBeforeRestore.addRange(savedEditorRangeRef.current);
+      }
+    }
     ensureEditorSelection(editor);
 
     const selection = window.getSelection();
@@ -943,6 +1021,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       activeRange.collapse(true);
       activeSelection.removeAllRanges();
       activeSelection.addRange(activeRange);
+      savedEditorRangeRef.current = activeRange.cloneRange();
     }
 
     commitBody(editor.innerHTML);
@@ -953,9 +1032,12 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     const editor = editorRef.current;
     const selection = typeof window !== "undefined" ? window.getSelection() : null;
     if (!selection || selection.rangeCount === 0) return fallback;
-    if (editor && !editor.contains(selection.getRangeAt(0).commonAncestorContainer)) return fallback;
+    if (editor && !editor.contains(selection.getRangeAt(0).commonAncestorContainer)) {
+      const savedText = savedEditorRangeRef.current?.toString() ?? "";
+      return savedText || fallback;
+    }
     const value = selection?.toString() ?? "";
-    return value || fallback;
+    return value || savedEditorRangeRef.current?.toString() || fallback;
   }
 
   function commitBody(nextBody: string) {
@@ -967,6 +1049,8 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   function syncEditorContent() {
     const html = editorRef.current?.innerHTML ?? "";
     setDraft((current) => ({ ...current, printBody: html }));
+    setInlineSuggestion("");
+    setInlineSuggestionError(null);
   }
 
   function undoBody() {
@@ -1173,6 +1257,11 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
 
   function handleEditorKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (previewMode) return;
+    if (event.key === "Tab" && inlineSuggestion.trim()) {
+      event.preventDefault();
+      acceptInlineSuggestion();
+      return;
+    }
     const withModifier = event.ctrlKey || event.metaKey;
     if (!withModifier) return;
 
@@ -1208,6 +1297,96 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     insertBlock(blocks[kind]);
   }
 
+  async function generateAiLetterContent() {
+    const prompt = aiPrompt.trim();
+    if (!prompt) {
+      setAiError("Describe what Steward should write.");
+      return;
+    }
+    setAiGenerating(true);
+    setAiError(null);
+    try {
+      const result = await apiFetch<LetterAiComposeResponse>("/api/letters/ai-compose", {
+        method: "POST",
+        body: JSON.stringify({
+          prompt,
+          tone: aiTone,
+          length: aiLength,
+          useMergeFields: aiUseMergeFields,
+          selectedText: selectedText(""),
+          currentBodyHtml: editorRef.current?.innerHTML ?? draft.printBody,
+          templateName: draft.name,
+          category: draft.category,
+        }),
+      });
+      setAiOutput(result);
+      setNotice(`Steward drafted letter content${result.mergeFieldsUsed.length > 0 ? ` with ${result.mergeFieldsUsed.length} merge field${result.mergeFieldsUsed.length === 1 ? "" : "s"}` : ""}.`);
+    } catch (requestError) {
+      setAiError(errorMessage(requestError, "Steward could not draft letter content."));
+    } finally {
+      setAiGenerating(false);
+    }
+  }
+
+  function insertAiOutputAtCursor() {
+    if (!aiOutput?.bodyHtml) {
+      setAiError("Generate content before inserting.");
+      return;
+    }
+    replaceSelection(aiOutput.bodyHtml, true);
+    setAiComposerOpen(false);
+    setNotice("AI draft inserted at the cursor.");
+  }
+
+  function textBeforeCursor(): string {
+    const editor = editorRef.current;
+    const range = savedEditorRangeRef.current;
+    if (!editor || !range || !editor.contains(range.commonAncestorContainer)) {
+      return htmlToPlainTextClient(editor?.innerHTML ?? draft.printBody).slice(-1400);
+    }
+    const before = range.cloneRange();
+    before.selectNodeContents(editor);
+    before.setEnd(range.endContainer, range.endOffset);
+    return before.toString().slice(-1400);
+  }
+
+  async function requestInlineSuggestion() {
+    const beforeCursor = textBeforeCursor();
+    if (!inlineSuggestEnabled || previewMode || beforeCursor.trim().length < 20) return;
+    const currentHtml = editorRef.current?.innerHTML ?? draft.printBody;
+    const requestKey = `${beforeCursor.trim().slice(-500)}::${currentHtml.length}::${inlineSuggestion}`;
+    if (lastInlineSuggestionRequestRef.current === requestKey) return;
+    lastInlineSuggestionRequestRef.current = requestKey;
+    setInlineSuggestionLoading(true);
+    setInlineSuggestionError(null);
+    try {
+      const result = await apiFetch<LetterAiSuggestResponse>("/api/letters/ai-suggest", {
+        method: "POST",
+        body: JSON.stringify({
+          textBeforeCursor: beforeCursor,
+          currentBodyHtml: currentHtml,
+          previousSuggestion: inlineSuggestion,
+          templateName: draft.name,
+          category: draft.category,
+          useMergeFields: aiUseMergeFields,
+        }),
+      });
+      const nextSuggestion = result.suggestion.trim();
+      setInlineSuggestion(nextSuggestion === inlineSuggestion.trim() ? "" : nextSuggestion);
+    } catch (requestError) {
+      setInlineSuggestion("");
+      setInlineSuggestionError(errorMessage(requestError, "Inline suggestion unavailable."));
+    } finally {
+      setInlineSuggestionLoading(false);
+    }
+  }
+
+  function acceptInlineSuggestion() {
+    if (!inlineSuggestion.trim()) return;
+    replaceSelection(escapeHtml(inlineSuggestion), true);
+    setInlineSuggestion("");
+  }
+
   useEffect(() => {
     if (loading) return;
     const timer = window.setTimeout(() => {
@@ -1220,6 +1399,17 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
 
     return () => window.clearTimeout(timer);
   }, [draft, loading, saveFailure, savedDraft, templateId]);
+
+  useEffect(() => {
+    if (!inlineSuggestEnabled || previewMode || loading) {
+      setInlineSuggestion("");
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void requestInlineSuggestion();
+    }, 1100);
+    return () => window.clearTimeout(timer);
+  }, [draft.printBody, inlineSuggestEnabled, loading, previewMode]);
 
   const allFields = mergeSections.flatMap((section) => section.fields);
   const mergeRegistry = useMemo(() => new Set(allFields.map(normalizeToken)), [allFields]);
@@ -1274,9 +1464,10 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
         className="hidden"
         onChange={handleImageFileSelected}
       />
+      <div className="sticky top-0 z-40 shrink-0 shadow-sm">
       <div className="border-b border-slate-200 bg-white px-4 xl:px-7">
         <div className="flex h-12 items-end gap-7">
-          {(["File", "Insert", "Format", "Layout", "Review", "View"] as const).map((tab) => <button key={tab} type="button" onClick={() => setActiveRibbon(tab)} className={["h-10 border-b-2 px-1 text-sm font-medium", activeRibbon === tab ? "border-emerald-700 text-slate-950" : "border-transparent text-slate-700"].join(" ")}>{tab}</button>)}
+          {(["File", "Insert", "Format", "Layout", "Review", "View", "AI"] as const).map((tab) => <button key={tab} type="button" onClick={() => { setActiveRibbon(tab); if (tab === "AI") setAiComposerOpen(true); }} className={["h-10 border-b-2 px-1 text-sm font-medium", activeRibbon === tab ? "border-emerald-700 text-slate-950" : "border-transparent text-slate-700"].join(" ")}>{tab}</button>)}
           <div className="ml-auto flex items-center gap-3 pb-2">
             <span className="hidden text-xs font-semibold text-slate-600 xl:inline">Words: {wordCount}</span>
             <span className={[
@@ -1392,6 +1583,27 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             <RibbonButton onClick={() => setInspectorTab("Block Settings")}>Block Settings</RibbonButton>
           </RibbonGroup>
         ) : null}
+        {activeRibbon === "AI" ? (
+          <>
+            <RibbonGroup label="Steward Writing">
+              <RibbonToolButton iconName="steward-ai" glyph="AI" label="Composer" onClick={() => setAiComposerOpen(true)} />
+              <RibbonButton onClick={() => { setAiPrompt("Write a donor-first thank-you paragraph using appropriate merge fields."); setAiComposerOpen(true); }}>Thank You</RibbonButton>
+              <RibbonButton onClick={() => { setAiPrompt("Rewrite the selected text to be warmer, clearer, and concise."); setAiComposerOpen(true); }}>Rewrite Selection</RibbonButton>
+              <RibbonButton onClick={() => { setAiPrompt("Write a short impact paragraph that avoids unsupported claims and can work for any donor."); setAiComposerOpen(true); }}>Impact</RibbonButton>
+            </RibbonGroup>
+            <RibbonGroup label="Controls">
+              <select value={aiTone} onChange={(event) => setAiTone(event.target.value)} className="h-9 w-40 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold">
+                {["Warm and grateful", "Professional", "Personal", "Concise", "Encouraging"].map((tone) => <option key={tone} value={tone}>{tone}</option>)}
+              </select>
+              <select value={aiLength} onChange={(event) => setAiLength(event.target.value)} className="h-9 w-28 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold">
+                {["Short", "Medium", "Long"].map((length) => <option key={length} value={length}>{length}</option>)}
+              </select>
+              <CheckField label="Merge Fields" checked={aiUseMergeFields} onChange={setAiUseMergeFields} />
+              <CheckField label="Inline Suggestions" checked={inlineSuggestEnabled} onChange={(checked) => { setInlineSuggestEnabled(checked); setInlineSuggestion(""); setInlineSuggestionError(null); }} />
+            </RibbonGroup>
+          </>
+        ) : null}
+      </div>
       </div>
       {error ? <Alert tone="amber">{error}</Alert> : null}
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)_356px]">
@@ -1475,6 +1687,10 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                 contentEditable={!previewMode}
                 suppressContentEditableWarning
                 onInput={syncEditorContent}
+                onFocus={rememberEditorSelection}
+                onBlur={rememberEditorSelection}
+                onMouseUp={rememberEditorSelection}
+                onKeyUp={rememberEditorSelection}
                 onKeyDown={handleEditorKeyDown}
                 className="min-h-[650px] w-full border-0 bg-transparent text-[14px] leading-7 text-slate-950 outline-none [&_p]:my-3 [&_ul]:my-3 [&_ol]:my-3 [&_h1]:my-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-semibold [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2"
                 spellCheck
@@ -1601,6 +1817,55 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
           </div>
         </aside>
       </div>
+      {aiComposerOpen ? (
+        <div className="fixed inset-x-3 bottom-4 z-40 mx-auto max-w-5xl rounded-full border border-slate-300 bg-white/95 px-3 py-2 shadow-2xl backdrop-blur">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-xs font-bold text-white">AI</span>
+              <input
+                value={aiPrompt}
+                onChange={(event) => setAiPrompt(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void generateAiLetterContent();
+                  }
+                }}
+                placeholder="Ask Steward to draft or rewrite letter content..."
+                className="h-10 min-w-0 flex-1 rounded-full border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-emerald-600 focus:bg-white"
+              />
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <label className="flex h-9 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700">
+                <input type="checkbox" checked={aiUseMergeFields} onChange={(event) => setAiUseMergeFields(event.target.checked)} />
+                Merge fields
+              </label>
+              <Button onClick={() => void generateAiLetterContent()} disabled={aiGenerating}>{aiGenerating ? "Writing..." : "Generate"}</Button>
+              <Button onClick={insertAiOutputAtCursor} tone="primary" disabled={!aiOutput?.bodyHtml || aiGenerating}>Insert at Cursor</Button>
+              <IconButton label="Close AI composer" onClick={() => setAiComposerOpen(false)}>×</IconButton>
+            </div>
+          </div>
+          {aiError ? <p className="mt-2 px-12 text-xs font-semibold text-red-700">{aiError}</p> : null}
+          {inlineSuggestEnabled && (inlineSuggestion || inlineSuggestionLoading || inlineSuggestionError) ? (
+            <div className="mx-1 mt-2 flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-2 text-sm text-slate-800">
+              <span className="text-xs font-bold uppercase tracking-wide text-emerald-700">Suggestion</span>
+              <span className="min-w-0 flex-1 truncate">{inlineSuggestionLoading ? "Thinking..." : inlineSuggestionError || inlineSuggestion}</span>
+              {inlineSuggestion ? <Button onClick={acceptInlineSuggestion}>Accept</Button> : null}
+              {inlineSuggestion ? <span className="text-xs text-slate-500">Tab</span> : null}
+            </div>
+          ) : null}
+          {aiOutput ? (
+            <div className="mx-1 mt-2 max-h-36 overflow-auto rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">
+              <p className="whitespace-pre-wrap leading-6">{aiOutput.bodyText || htmlToPlainTextClient(aiOutput.bodyHtml)}</p>
+              {aiOutput.mergeFieldsUsed.length > 0 ? (
+                <p className="mt-2 border-t border-slate-200 pt-2 font-mono text-[11px] text-slate-500">
+                  Merge fields: {aiOutput.mergeFieldsUsed.join(", ")}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {testConstituentLookupOpen ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 xl:p-8">
           <button type="button" aria-label="Close test constituent lookup" className="absolute inset-0 bg-slate-950/55" onClick={() => setTestConstituentLookupOpen(false)} />
@@ -5018,6 +5283,15 @@ function escapeHtml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function htmlToPlainTextClient(value: string): string {
+  if (typeof document !== "undefined") {
+    const element = document.createElement("div");
+    element.innerHTML = value;
+    return (element.textContent ?? "").trim();
+  }
+  return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function sanitizeClientFileName(value: string): string {
